@@ -2401,6 +2401,7 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
 
     auto batchReq = proxy.ExecuteBatch();
 
+    // XXX(babenko): multicell
     auto addRequest = [&] (const TLivePreviewTableBase& table, const Stroka& key) {
         auto req = TTableYPathProxy::PrepareForUpdate(FromObjectId(table.LivePreviewTableId));
         req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
@@ -2477,8 +2478,8 @@ void TOperationControllerBase::GetInputObjectIds()
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting id for input table %v",
                     table.Path.GetPath());
                 const auto& rsp = rspOrError.Value();
-                table.ObjectId = FromProto<TObjectId>(rsp->id());
-                auto type = EObjectType(rsp->type());
+                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+                auto type = TypeFromId(table.ObjectId);
                 if (type != EObjectType::Table) {
                     THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
@@ -2520,8 +2521,8 @@ void TOperationControllerBase::GetOutputObjectIds()
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting id for output table %v",
                     table.Path.GetPath());
                 const auto& rsp = rspOrError.Value();
-                table.ObjectId = FromProto<TObjectId>(rsp->id());
-                auto type = EObjectType(rsp->type());
+                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+                auto type = TypeFromId(table.ObjectId);
                 if (type != EObjectType::Table) {
                     THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),
@@ -2616,6 +2617,7 @@ void TOperationControllerBase::FetchInputTables()
                 }
                 adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
+                // XXX(babenko): multicell
                 auto req = TTableYPathProxy::Fetch(FromObjectId(table.ObjectId));
                 InitializeFetchRequest(req.Get(), table.Path);
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
@@ -2763,6 +2765,7 @@ void TOperationControllerBase::RequestOutputObjects()
             batchReq->AddRequest(req, "get_out_attributes");
         }
         {
+            // XXX(babenko): multicell
             auto req = TTableYPathProxy::PrepareForUpdate(path);
             SetTransactionId(req, Operation->GetOutputTransaction());
             GenerateMutationId(req);
@@ -2849,6 +2852,7 @@ void TOperationControllerBase::FetchFileObjects()
 
     for (const auto& file : RegularFiles) {
         auto path = file.Path.GetPath();
+        // XXX(babenko): multicell
         auto req = TFileYPathProxy::Fetch(path);
         ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
         SetTransactionId(req, Operation->GetInputTransaction());
@@ -2858,6 +2862,7 @@ void TOperationControllerBase::FetchFileObjects()
 
     for (const auto& file : TableFiles) {
         auto path = file.Path.GetPath();
+        // XXX(babenko): multicell
         auto req = TTableYPathProxy::Fetch(path);
         ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
         req->set_fetch_all_meta_extensions(true);

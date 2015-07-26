@@ -178,8 +178,15 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     context->SetRequestInfo();
 
-    ToProto(response->mutable_id(), GetId());
-    response->set_type(static_cast<int>(Object_->GetType()));
+    ToProto(response->mutable_object_id(), GetId());
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto handler = objectManager->GetHandler(Object_);
+    auto cellTag = handler->GetReplicationCellTag(Object_);
+    response->set_cell_tag(
+        cellTag == NotReplicatedCellTag || cellTag == AllSecondaryMastersCellTag
+        ? Bootstrap_->GetCellTag()
+        : cellTag);
 
     context->Reply();
 }
@@ -578,10 +585,7 @@ void TObjectProxyBase::SetAttribute(
     TCtxSetPtr context)
 {
     TSupportsAttributes::SetAttribute(path, request, response, context);
-
-    if (IsPrimaryMaster()) {
-        PostToSecondaryMasters(context);
-    }
+    ReplicateAttributeUpdate(context);
 }
 
 void TObjectProxyBase::RemoveAttribute(
@@ -591,10 +595,23 @@ void TObjectProxyBase::RemoveAttribute(
     TCtxRemovePtr context)
 {
     TSupportsAttributes::RemoveAttribute(path, request, response, context);
+    ReplicateAttributeUpdate(context);
+}
 
-    if (IsPrimaryMaster()) {
-        PostToSecondaryMasters(context);
-    }
+void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
+{
+    if (!IsPrimaryMaster())
+        return;
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto handler = objectManager->GetHandler(Object_->GetType());
+    auto flags = handler->GetReplicationFlags();
+
+    if (None(flags & EObjectReplicationFlags::ReplicateAttributes))
+        return;
+
+    auto replicationCellTag = handler->GetReplicationCellTag(Object_);
+    PostToSecondaryMaster(context, replicationCellTag);
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
@@ -855,10 +872,21 @@ bool TObjectProxyBase::IsLeaderReadRequired() const
     return false;
 }
 
-void TObjectProxyBase::PostToSecondaryMasters(NRpc::IServiceContextPtr context)
+void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 {
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToSecondaryMasters(Object_->GetId(), std::move(context));
+    multicellManager->PostToSecondaryMasters(
+        Object_->GetId(),
+        std::move(context));
+}
+
+void TObjectProxyBase::PostToSecondaryMaster(IServiceContextPtr context, TCellTag cellTag)
+{
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToSecondaryMaster(
+        Object_->GetId(),
+        std::move(context),
+        cellTag);
 }
 
 bool TObjectProxyBase::IsLoggingEnabled() const

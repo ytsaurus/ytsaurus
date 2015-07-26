@@ -161,10 +161,10 @@ public:
 
     virtual IChannelPtr GetMasterChannel(
         EMasterChannelKind kind,
-        TCellTag cellTag = InvalidCellTag) override
+        TCellTag cellTag = PrimaryMasterCellTag) override
     {
         const auto& channels = MasterChannels_[kind];
-        auto it = channels.find(cellTag == InvalidCellTag ? PrimaryMasterCellTag_ : cellTag);
+        auto it = channels.find(cellTag == PrimaryMasterCellTag ? PrimaryMasterCellTag_ : cellTag);
         YCHECK(it != channels.end());
         return it->second;
     }

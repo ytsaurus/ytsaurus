@@ -74,16 +74,7 @@ public:
         bool reliable = true)
     {
         YCHECK(Bootstrap_->IsSecondaryMaster());
-
-        if (!reliable && !PrimaryMasterMailbox_)
-            return;
-
-        // Failure here indicates an attempt to send a reliable message to the primary master
-        // before registering.
-        YCHECK(PrimaryMasterMailbox_);
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
+        DoPostMessage(requestMessage, PrimaryMasterCellTag, reliable);
     }
 
 
@@ -93,8 +84,17 @@ public:
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
-
         PostToSecondaryMaster(request->Serialize(), cellTag, reliable);
+    }
+
+    void PostToSecondaryMaster(
+        const TObjectId& objectId,
+        IServiceContextPtr context,
+        TCellTag cellTag,
+        bool reliable)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+        PostToSecondaryMaster(ReplicateTarget(objectId, context), cellTag, reliable);
     }
 
     void PostToSecondaryMaster(
@@ -103,11 +103,7 @@ public:
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
-
-        auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
-        hiveManager->PostMessage(mailbox, requestMessage, reliable);
+        DoPostMessage(requestMessage, cellTag, reliable);
     }
 
     void PostToSecondaryMaster(
@@ -116,14 +112,9 @@ public:
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
-
-        NObjectServer::NProto::TReqExecute hydraReq;
-        BuildHydraRequest(&hydraReq, requestMessage);
-
-        auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
-        hiveManager->PostMessage(mailbox, hydraReq, reliable);
+        NObjectServer::NProto::TReqExecute wrappedRequest;
+        WrapRequest(&wrappedRequest, requestMessage);
+        DoPostMessage(wrappedRequest, cellTag, reliable);
     }
 
 
@@ -132,11 +123,9 @@ public:
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
-
-        if (!Bootstrap_->IsMulticell())
-            return;
-
-        PostToSecondaryMasters(request->Serialize(), reliable);
+        if (Bootstrap_->IsMulticell()) {
+            PostToSecondaryMasters(request->Serialize(), reliable);
+        }
     }
 
     void PostToSecondaryMasters(
@@ -145,19 +134,9 @@ public:
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
-
-        if (!Bootstrap_->IsMulticell())
-            return;
-
-        auto requestMessage = context->GetRequestMessage();
-        NRpc::NProto::TRequestHeader requestHeader;
-        ParseRequestHeader(requestMessage, &requestHeader);
-
-        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(context);
-        SetRequestYPath(&requestHeader, updatedYPath);
-        auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
-
-        PostToSecondaryMasters(std::move(updatedRequestMessage), reliable);
+        if (Bootstrap_->IsMulticell()) {
+            PostToSecondaryMasters(ReplicateTarget(objectId, context), reliable);
+        }
     }
 
     void PostToSecondaryMasters(
@@ -165,13 +144,8 @@ public:
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
-
-        if (!Bootstrap_->IsMulticell())
-            return;
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* mailbox : SecondaryMasterMailboxes_) {
-            hiveManager->PostMessage(mailbox, requestMessage, reliable);
+        if (Bootstrap_->IsMulticell()) {
+            DoPostMessage(requestMessage, AllSecondaryMastersCellTag, reliable);
         }
     }
 
@@ -180,21 +154,15 @@ public:
         bool reliable)
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
-
-        if (!Bootstrap_->IsMulticell())
-            return;
-
-        NObjectServer::NProto::TReqExecute hydraReq;
-        BuildHydraRequest(&hydraReq, requestMessage);
-
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* mailbox : SecondaryMasterMailboxes_) {
-            hiveManager->PostMessage(mailbox, hydraReq, reliable);
+        if (Bootstrap_->IsMulticell()) {
+            NObjectServer::NProto::TReqExecute hydraReq;
+            WrapRequest(&hydraReq, requestMessage);
+            DoPostMessage(hydraReq, AllSecondaryMastersCellTag, reliable);
         }
     }
 
 
-DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
+    DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
 
 private:
     const TCellMasterConfigPtr Config_;
@@ -349,7 +317,7 @@ private:
     }
 
 
-    void BuildHydraRequest(
+    void WrapRequest(
         NObjectServer::NProto::TReqExecute* hydraRequest,
         const TSharedRefArray& requestMessage)
     {
@@ -361,6 +329,48 @@ private:
             hydraRequest->add_request_parts(part.Begin(), part.Size());
         }
     }
+
+    TSharedRefArray ReplicateTarget(
+        const TObjectId& objectId,
+        IServiceContextPtr context)
+    {
+        auto requestMessage = context->GetRequestMessage();
+        NRpc::NProto::TRequestHeader requestHeader;
+        ParseRequestHeader(requestMessage, &requestHeader);
+
+        auto updatedYPath = FromObjectId(objectId) + GetRequestYPath(context);
+        SetRequestYPath(&requestHeader, updatedYPath);
+        return SetRequestHeader(requestMessage, requestHeader);
+    }
+
+    void DoPostMessage(
+        const ::google::protobuf::MessageLite& requestMessage,
+        TCellTag cellTag,
+        bool reliable)
+    {
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        if (cellTag >= MinimumValidCellTag && cellTag <= MaximumValidCellTag) {
+            auto cellId = ReplaceCellTagInId(Bootstrap_->GetPrimaryCellId(), cellTag);
+            auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
+            hiveManager->PostMessage(mailbox, requestMessage, reliable);
+        } else if (cellTag == PrimaryMasterCellTag) {
+            if (!reliable && !PrimaryMasterMailbox_)
+                return;
+
+            // Failure here indicates an attempt to send a reliable message to the primary master
+            // before registering.
+            YCHECK(PrimaryMasterMailbox_);
+
+            hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
+        } else if (cellTag == AllSecondaryMastersCellTag) {
+            for (auto* mailbox : SecondaryMasterMailboxes_) {
+                hiveManager->PostMessage(mailbox, requestMessage, reliable);
+            }
+        } else {
+            YUNREACHABLE();
+        }
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -387,6 +397,15 @@ void TMulticellManager::PostToSecondaryMaster(
     bool reliable)
 {
     Impl_->PostToSecondaryMaster(std::move(request), cellTag, reliable);
+}
+
+void TMulticellManager::PostToSecondaryMaster(
+    const TObjectId& objectId,
+    IServiceContextPtr context,
+    TCellTag cellTag,
+    bool reliable)
+{
+    Impl_->PostToSecondaryMaster(objectId, std::move(context), cellTag, reliable);
 }
 
 void TMulticellManager::PostToSecondaryMaster(

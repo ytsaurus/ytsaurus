@@ -371,6 +371,7 @@ private:
             }
 
             {
+                // XXX(babenko): multicell
                 auto req = TJournalYPathProxy::PrepareForUpdate(Path_);
                 req->set_update_mode(static_cast<int>(EUpdateMode::Append));
                 req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));

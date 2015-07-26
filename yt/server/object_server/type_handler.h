@@ -14,7 +14,6 @@
 #include <server/transaction_server/public.h>
 
 #include <server/security_server/acl.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -34,11 +33,10 @@ DEFINE_ENUM(EObjectAccountMode,
 );
 
 DEFINE_BIT_ENUM(EObjectReplicationFlags,
-    ((None)        (0x0000))
-    ((Create)      (0x0001)) // replicate object creation
-    ((Destroy)     (0x0002)) // replicate object destruction
-    ((Attributes)  (0x0004)) // replicate object attribute changes
-    ((All)         (0xffff)) // replicate all possible actions
+    ((None)                 (0x0000))
+    ((ReplicateCreate)      (0x0001)) // replicate object creation
+    ((ReplicateDestroy)     (0x0002)) // replicate object destruction
+    ((ReplicateAttributes)  (0x0004)) // replicate object attribute changes
 );
 
 struct TTypeCreationOptions
@@ -62,6 +60,11 @@ struct IObjectTypeHandler
 {
     //! Returns a bunch of flags that control object replication.
     virtual EObjectReplicationFlags GetReplicationFlags() const = 0;
+
+    //! Returns the tag of the cell where the object was replicated to.
+    //! For objects that are not replicated this is #NotReplicatedCellTag.
+    //! For objects that are replicated througout the cluster this is #AllSecondaryMastersCellTag.
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) = 0;
 
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;

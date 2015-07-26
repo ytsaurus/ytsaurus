@@ -37,8 +37,8 @@ message TReqGetBasicAttributes
 
 message TRspGetBasicAttributes
 {
-    required NYT.NProto.TGuid id = 1;
-    required int32 type = 2;
+    required NYT.NProto.TGuid object_id = 1;
+    required int32 cell_tag = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -33,8 +33,7 @@ class TCypressNodeBase
 {
 public:
     //! For external nodes, this is the tag of the cell were the node
-    //! was delegated to. For non-external nodes, this is (sic!) InvalidCellTag.
-    //! The latter choice simplifies the implementation of #IsExternal.
+    //! was delegated to. For non-external nodes, this is #NotReplicatedCellTag.
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag);
 
     typedef yhash_map<NTransactionServer::TTransaction*, TTransactionLockState> TLockStateMap;

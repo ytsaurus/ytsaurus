@@ -4,9 +4,8 @@
 #include "connection.h"
 #include "private.h"
 
-#include <core/logging/log.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
@@ -104,18 +103,48 @@ private:
     {
         LOG_INFO("Opening journal reader");
 
-        LOG_INFO("Fetching journal info");
-
-        TObjectServiceProxy proxy(Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower));
-        auto batchReq = proxy.ExecuteBatch();
+        auto cellTag = InvalidCellTag;
+        TObjectId objectId;
 
         {
+            LOG_INFO("Requesting basic attributes");
+
+            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+            TObjectServiceProxy proxy(channel);
+
             auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
             SetTransactionId(req, Transaction_);
-            batchReq->AddRequest(req, "get_attrs");
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes for journal %v",
+                Path_);
+
+            const auto& rsp = rspOrError.Value();
+
+            objectId = FromProto<TObjectId>(rsp->object_id());
+            cellTag = rsp->cell_tag();
+
+            LOG_INFO("Basic attributes received (ObjectId: %v, CellTag: %v)",
+                objectId,
+                cellTag);
         }
 
         {
+            auto type = TypeFromId(objectId);
+            if (type != EObjectType::Journal) {
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                    Path_,
+                    EObjectType::Journal,
+                    type);
+            }
+        }
+
+        {
+            LOG_INFO("Fetching journal chunks");
+
+            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+            TObjectServiceProxy proxy(channel);
+
             auto req = TJournalYPathProxy::Fetch(Path_);
 
             TReadLimit lowerLimit, upperLimit;
@@ -135,30 +164,11 @@ private:
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            batchReq->AddRequest(req, "fetch");
-        }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching journal info");
-        const auto& batchRsp = batchRspOrError.Value();
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching journals for table %v",
+                Path_);
 
-        {
-            auto rspOrError = batchRsp->GetResponse<TJournalYPathProxy::TRspGetBasicAttributes>("get_attrs");
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object attributes");
-            const auto& rsp = rspOrError.Value();
-
-            auto type = EObjectType(rsp->type());
-            if (type != EObjectType::Journal) {
-                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    Path_,
-                    EObjectType::Journal,
-                    type);
-            }
-        }
-
-        {
-            auto rspOrError = batchRsp->GetResponse<TJournalYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching journal chunks");
             const auto& rsp = rspOrError.Value();
 
             NodeDirectory_->MergeFrom(rsp->node_directory());

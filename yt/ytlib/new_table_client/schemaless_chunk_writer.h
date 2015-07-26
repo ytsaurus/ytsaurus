@@ -10,7 +10,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <core/rpc/public.h>
+#include <ytlib/api/public.h>
 
 #include <core/concurrency/throughput_throttler.h>
 
@@ -92,9 +92,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NTransactionClient::TTransactionPtr transaction,
-    NTransactionClient::TTransactionManagerPtr transactionManager,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

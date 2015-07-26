@@ -88,7 +88,8 @@ inline bool IsListLikeType(EObjectType type)
         type == EObjectType::ListNode;
 }
 
-inline EObjectType TypeFromId(const TObjectId& id)
+inline EObjectType
+TypeFromId(const TObjectId& id)
 {
     return EObjectType(id.Parts32[1] & 0xffff);
 }

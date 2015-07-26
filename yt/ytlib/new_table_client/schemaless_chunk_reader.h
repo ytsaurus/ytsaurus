@@ -12,6 +12,8 @@
 
 #include <ytlib/transaction_client/public.h>
 
+#include <ytlib/api/public.h>
+
 #include <core/rpc/public.h>
 
 #include <core/concurrency/throughput_throttler.h>
@@ -107,9 +109,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
     NChunkClient::TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NTransactionClient::TTransactionPtr transaction,
-    NChunkClient::IBlockCachePtr blockCache,
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
