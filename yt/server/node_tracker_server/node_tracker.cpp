@@ -296,11 +296,11 @@ public:
     {
         auto nodeMapProxy = GetNodeMap();
         auto nodeNodeProxy = nodeMapProxy->FindChild(ToString(node->GetDefaultAddress()));
-
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->AbortSubtreeTransactions(nodeNodeProxy);
-
-        nodeMapProxy->RemoveChild(nodeNodeProxy);
+        if (nodeNodeProxy) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->AbortSubtreeTransactions(nodeNodeProxy);
+            nodeMapProxy->RemoveChild(nodeNodeProxy);
+        }
 
         RemoveFromAddressMaps(node);
     }
@@ -1078,7 +1078,7 @@ private:
                     SyncExecuteVerb(rootService, req);
                 }
             } catch (const std::exception& ex) {
-                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
+                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
