@@ -88,7 +88,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
             .SetPresent(table->IsDynamic()));
         descriptors->push_back("sorted");
-        descriptors->push_back("key_columns");
+        descriptors->push_back(TAttributeDescriptor("key_columns")
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("sorted_by")
             .SetPresent(table->GetSorted()));
         descriptors->push_back("dynamic");

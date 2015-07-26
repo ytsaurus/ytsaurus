@@ -347,6 +347,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("account")
+        .SetReplicated(true)
         .SetWritePermission(EPermission::Administer));
     descriptors->push_back("user_attribute_keys");
 }
@@ -1497,7 +1498,8 @@ void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* des
 {
     TBase::ListSystemAttributes(descriptors);
 
-    descriptors->push_back("target_id");
+    descriptors->push_back(TAttributeDescriptor("target_id")
+        .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor("target_path")
         .SetOpaque(true));
     descriptors->push_back("broken");
@@ -1731,7 +1733,8 @@ void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>*
     TBase::ListSystemAttributes(descriptors);
 
     descriptors->push_back(TAttributeDescriptor("value")
-        .SetOpaque(true));
+        .SetOpaque(true)
+        .SetReplicated(true));
 }
 
 bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
