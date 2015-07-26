@@ -4,8 +4,9 @@ import sys
 from itertools import imap
 from functools import partial
 
-def capitilizeB(rec):
-    if "b" in rec: rec["b"] = rec["b"].upper()
+def capitalizeB(rec):
+    if "b" in rec:
+        rec["b"] = rec["b"].upper()
     return rec
 
 """ Methods for records convertion """
@@ -21,5 +22,5 @@ if __name__ == "__main__":
     print >>sys.stderr, lines
     recs = map(partial(line_to_record), lines)
     print >>sys.stderr, recs
-    sys.stdout.writelines(imap(partial(record_to_line), imap(capitilizeB, recs)))
+    sys.stdout.writelines(imap(partial(record_to_line), imap(capitalizeB, recs)))
     
