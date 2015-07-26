@@ -32,6 +32,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TEnvironmentConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Describes configuration for a collection of named environments.
@@ -56,6 +58,10 @@ public:
     yhash_map<Stroka, TEnvironmentConfigPtr> Environments;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TEnvironmentManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSlotManagerConfig
     : public NYTree::TYsonSerializable
@@ -101,6 +107,10 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSlotManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConnectorConfig
     : public NYTree::TYsonSerializable
 {
@@ -119,6 +129,10 @@ public:
             .Default(TDuration::Seconds(1));
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TExecAgentConfig
     : public NCGroup::TCGroupConfig
@@ -173,6 +187,8 @@ public:
             .Default();
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TExecAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

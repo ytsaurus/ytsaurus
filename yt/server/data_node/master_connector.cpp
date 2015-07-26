@@ -660,13 +660,17 @@ void TMasterConnector::SendJobHeartbeat()
 
     auto* delta = GetChunksDelta(cellTag);
     if (delta->State == EState::Online) {
-        auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+        auto masterClient = Bootstrap_->GetMasterClient();
+        auto channel = masterClient->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
         TJobTrackerServiceProxy proxy(channel);
 
         auto req = proxy.Heartbeat();
 
         auto jobController = Bootstrap_->GetJobController();
-        jobController->PrepareHeartbeat(req.Get());
+        jobController->PrepareHeartbeatRequest(
+            cellTag,
+            EObjectType::MasterJob,
+            req.Get());
 
         LOG_INFO("Job heartbeat sent to master (ResourceUsage: {%v})",
             FormatResourceUsage(req->resource_usage(), req->resource_limits()));
@@ -686,7 +690,7 @@ void TMasterConnector::SendJobHeartbeat()
         LOG_INFO("Successfully reported job heartbeat to master");
 
         const auto& rsp = rspOrError.Value();
-        jobController->ProcessHeartbeat(rsp.Get());
+        jobController->ProcessHeartbeatResponse(rsp.Get());
     }
 
     if (++JobHeartbeatCellIndex_ >= MasterCellTags_.size()) {

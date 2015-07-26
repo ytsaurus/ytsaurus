@@ -138,6 +138,7 @@ private:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
 
+    TJobId GenerateJobId();
     bool CreateReplicationJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,

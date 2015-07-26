@@ -56,6 +56,11 @@ TObjectId MakeId(
     ui64 counter,
     ui32 hash);
 
+//! Creates a random id with given type and cell tag.
+TObjectId MakeRandomId(
+    EObjectType type,
+    TCellTag cellTag);
+
 //! Returns |true| if a given #id is well-known.
 /*
  *  This method checks the highest bit of counter part.

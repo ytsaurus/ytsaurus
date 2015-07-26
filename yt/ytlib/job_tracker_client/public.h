@@ -9,6 +9,16 @@ namespace NJobTrackerClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TJobSpec;
+class TReqHeartbeat;
+class TRspHeartbeat;
+
+} // namespace NProto
+
+///////////////////////////////////////////////////////////////////////////////
+
 typedef TGuid TJobId;
 
 DEFINE_ENUM(EJobType,
@@ -30,13 +40,10 @@ DEFINE_ENUM(EJobType,
     ((SchedulerLast)     ( 99)) // sentinel
 
     // Master jobs
-    ((MasterFirst)      (100)) // sentinel
-    ((Foreign)          (101))
-    ((ReplicateChunk)   (102))
-    ((RemoveChunk)      (103))
-    ((RepairChunk)      (104))
-    ((SealChunk)        (105))
-    ((MasterLast)       (199)) // sentinel
+    ((ReplicateChunk)    (100))
+    ((RemoveChunk)       (101))
+    ((RepairChunk)       (102))
+    ((SealChunk)         (103))
 );
 
 DEFINE_ENUM(EJobState,

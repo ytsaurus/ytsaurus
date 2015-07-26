@@ -22,6 +22,7 @@
 #include <ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/private.h>
 
@@ -296,7 +297,9 @@ public:
         }
 
         // Create operation object.
-        auto operationId = TOperationId::Create();
+        auto operationId = MakeRandomId(
+            EObjectType::Operation,
+            GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
         auto operation = New<TOperation>(
             operationId,
             type,
@@ -2146,7 +2149,9 @@ public:
         bool restarted,
         TJobSpecBuilder specBuilder) override
     {
-        auto id = TJobId::Create();
+        auto id = MakeRandomId(
+            EObjectType::SchedulerJob,
+            Owner_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
         auto startTime = TInstant::Now();
         auto job = New<TJob>(
             id,
