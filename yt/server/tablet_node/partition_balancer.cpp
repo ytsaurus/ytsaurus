@@ -338,6 +338,7 @@ private:
             Logger);
 
         {
+            // XXX(babenko): multicell
             auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower);
             TChunkServiceProxy proxy(channel);
 
