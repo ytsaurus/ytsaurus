@@ -577,7 +577,7 @@ protected:
      *  \note
      *  Thread affinity: any
      */ 
-    virtual bool IsUp(TCtxDiscoverPtr context) const;
+    virtual bool IsUp(TCtxDiscoverPtr context);
 
     //! Used by peer discovery.
     //! Returns addresses of neighboring peers to be suggested to the client.
@@ -585,7 +585,7 @@ protected:
      *  \note
      *  Thread affinity: any
      */ 
-    virtual std::vector<Stroka> SuggestAddresses() const;
+    virtual std::vector<Stroka> SuggestAddresses();
 
 protected:
     NLogging::TLogger Logger;
