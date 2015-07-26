@@ -652,39 +652,6 @@ public:
         return node;
     }
 
-    void FillAttributes(
-        INodeTypeHandlerPtr handler,
-        TTransaction* transaction,
-        TCypressNodeBase* trunkNode,
-        IAttributeDictionary* attributes)
-    {
-        YCHECK(handler);
-        YCHECK(trunkNode->IsTrunk());
-
-        auto keys = attributes->List();
-        if (!keys.empty()) {
-            auto trunkProxy = GetNodeProxy(trunkNode, nullptr);
-            std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemDescriptors;
-            trunkProxy->ListBuiltinAttributes(&systemDescriptors);
-
-            yhash_set<Stroka> systemAttributeKeys;
-            for (const auto& descriptor : systemDescriptors) {
-                YCHECK(systemAttributeKeys.insert(descriptor.Key).second);
-            }
-
-            std::sort(keys.begin(), keys.end());
-            for (const auto& key : keys) {
-                auto value = attributes->GetYson(key);
-                if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
-                    trunkProxy->MutableAttributes()->SetYson(key, value);
-                } else {
-                    if (!trunkProxy->SetBuiltinAttribute(key, value)) {
-                        ThrowCannotSetBuiltinAttribute(key);
-                    }
-                }
-            }
-        }
-    }
 
     TCypressNodeBase* CreateNode(const TNodeId& id)
     {
