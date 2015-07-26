@@ -764,7 +764,7 @@ void TObjectManager::MergeAttributes(
 
 void TObjectManager::FillAttributes(
     TObjectBase* object,
-    const IAttributeDictionary & attributes)
+    const IAttributeDictionary& attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
