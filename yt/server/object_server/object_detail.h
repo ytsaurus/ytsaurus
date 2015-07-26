@@ -91,7 +91,7 @@ protected:
     // NYTree::ISystemAttributeProvider members
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYTree::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
