@@ -857,8 +857,8 @@ private:
 
         // Replicate transactions to the secondary master.
         auto objectManager = Bootstrap_->GetObjectManager();
-        for (const auto* transaction : transactions) {
-            objectManager->ReplicateObjectToSecondaryMaster(transaction, cellTag);
+        for (auto* transaction : transactions) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(transaction, cellTag);
         }
 
         // TODO(babenko): do we need to replicate prepare requests?

@@ -51,6 +51,7 @@ namespace NYT {
 namespace NObjectServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NHydra;
 using namespace NRpc;
@@ -160,7 +161,7 @@ public:
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
-        NYson::IYsonConsumer* /*consumer*/,
+        IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/) override
     {
@@ -1064,26 +1065,33 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     }));
 }
 
-void TObjectManager::ReplicateObjectToSecondaryMaster(
-    const TObjectBase* object,
+void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
+    TObjectBase* object,
     TCellTag cellTag)
 {
-    auto req = TMasterYPathProxy::CreateObject();
-    req->set_type(static_cast<int>(object->GetType()));
-    const auto* attributes = object->GetAttributes();
-    if (attributes) {
-        for (const auto& pair : attributes->Attributes()) {
-            auto* protoAttribute = req->mutable_object_attributes()->add_attributes();
-            protoAttribute->set_key(pair.first);
-            protoAttribute->set_value(pair.second->Data());
-        }
+    if (object->IsBuiltin()) {
+        ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
+        return;
     }
-    // XXX(babenko): builtin attributes
 
+    auto req = TMasterYPathProxy::CreateObject();
     ToProto(req->mutable_object_id(), object->GetId());
+    req->set_type(static_cast<int>(object->GetType()));
+    ToProto(req->mutable_object_attributes(), *GetReplicatedAttributes(object));
 
     auto handler = GetHandler(object);
     handler->PopulateObjectReplicationRequest(object, req);
+
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToSecondaryMaster(req, cellTag);
+}
+
+void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
+    TObjectBase * object,
+    TCellTag cellTag)
+{
+    auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
+    req->set_value(ConvertToYsonString(GetReplicatedAttributes(object)->ToMap()).Data());
 
     auto multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMaster(req, cellTag);
@@ -1188,11 +1196,47 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
 }
 
+std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(TObjectBase  * object)
+{
+    YCHECK(!IsVersionedType(object->GetType()));
+
+    auto handler = GetHandler(object);
+    auto proxy = handler->GetProxy(object, nullptr);
+
+    auto attributes = CreateEphemeralAttributes();
+    yhash_set<Stroka> replicatedKeys;
+    auto replicateKey = [&] (const Stroka& key, const TYsonString& value) {
+        if (replicatedKeys.insert(key).second) {
+            attributes->SetYson(key, value);
+        }
+    };
+
+    // Check system attributes.
+    std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+    proxy->ListBuiltinAttributes(&descriptors);
+    for (const auto& descriptor : descriptors) {
+        if (descriptor.Present && descriptor.Replicated) {
+            auto key = Stroka(descriptor.Key);
+            auto value = *proxy->GetBuiltinAttribute(key);
+            replicateKey(key, value);
+        }
+    }
+
+    // Check custom attributes.
+    const auto* customAttributes = object->GetAttributes();
+    if (customAttributes) {
+        for (const auto& pair : object->GetAttributes()->Attributes()) {
+            replicateKey(pair.first, *pair.second);
+        }
+    }
+    return attributes;
+}
+
 void TObjectManager::OnSecondaryMasterRegistered(TCellTag cellTag)
 {
     auto schemas = GetValuesSortedByKey(SchemaMap_);
-    for (const auto* schema : schemas) {
-        // TODO(babenko): replicate attributes
+    for (auto* schema : schemas) {
+        ReplicateObjectCreationToSecondaryMaster(schema, cellTag);
     }
 }
 
