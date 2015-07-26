@@ -611,6 +611,9 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
         return;
 
     auto replicationCellTag = handler->GetReplicationCellTag(Object_);
+    if (replicationCellTag == NotReplicatedCellTag)
+        return;
+    
     PostToSecondaryMaster(context, replicationCellTag);
 }
 
