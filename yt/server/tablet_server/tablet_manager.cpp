@@ -29,6 +29,8 @@
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <server/object_server/type_handler_detail.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -89,6 +91,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressServer;
+using namespace NCypressClient;
 using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
@@ -268,35 +271,40 @@ public:
         hiveManager->CreateMailbox(id);
 
         auto cellMapNodeProxy = GetCellMapNode();
+        auto cellNodePath = "/" + ToString(id);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* sysAccount = securityManager->GetSysAccount();
+        try {
+            // Create Cypress node.
+            {
+                auto req = TCypressYPathProxy::Create(cellNodePath);
+                req->set_type(static_cast<int>(EObjectType::TabletCellNode));
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto cellNodeTypeHandler = cypressManager->GetHandler(EObjectType::TabletCellNode);
-        auto* cellNode = cypressManager->CreateNode(
-            NullObjectId,
-            Bootstrap_->GetCellTag(),
-            cellNodeTypeHandler,
-            sysAccount,
-            nullptr,
-            nullptr,
-            nullptr);
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("opaque", true);
+                ToProto(req->mutable_node_attributes(), *attributes);
 
-        auto cellNodeProxy = cypressManager->GetNodeProxy(cellNode);
-        cellMapNodeProxy->AddChild(cellNodeProxy, ToString(id));
+                SyncExecuteVerb(cellMapNodeProxy, req);
+            }
 
-        SyncYPathSet(cellNodeProxy, "", BuildYsonStringFluently()
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .BeginMap()
-                .Item("snapshots").BeginMap()
-                .EndMap()
-                .Item("changelogs").BeginMap()
-                .EndMap()
-            .EndMap());
-     
+            // Create "snapshots" child.
+            {
+                auto req = TCypressYPathProxy::Create(cellNodePath + "/snapshots");
+                req->set_type(static_cast<int>(EObjectType::MapNode));
+
+                SyncExecuteVerb(cellMapNodeProxy, req);
+            }
+
+            // Create "changelogs" child.
+            {
+                auto req = TCypressYPathProxy::Create(cellNodePath + "/changelogs");
+                req->set_type(static_cast<int>(EObjectType::MapNode));
+
+                SyncExecuteVerb(cellMapNodeProxy, req);
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering tablet cell in Cypress");
+        }
+
         return cell;
     }
 
@@ -306,11 +314,11 @@ public:
 
         auto cellMapNodeProxy = GetCellMapNode();
         auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
-
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->AbortSubtreeTransactions(cellNodeProxy);
-
-        cellMapNodeProxy->RemoveChild(cellNodeProxy);
+        if (cellNodeProxy) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
+            cellMapNodeProxy->RemoveChild(cellNodeProxy);
+        }
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());
