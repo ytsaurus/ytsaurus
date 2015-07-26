@@ -12,11 +12,12 @@ namespace NCodegen {
 
 Stroka MangleSymbol(const Stroka& name);
 
-template<typename TSignature, bool Cross>
+template <typename TSignature, bool Cross>
 class FunctionTypeBuilder;
 
-template<typename R, typename... Args, bool Cross>
-class FunctionTypeBuilder<R(Args...), Cross> {
+template <typename R, typename... Args, bool Cross>
+class FunctionTypeBuilder<R(Args...), Cross>
+{
 public:
     static llvm::FunctionType *get(llvm::LLVMContext &Context) {
         llvm::Type *params[] = {
