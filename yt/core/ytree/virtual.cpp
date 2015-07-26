@@ -16,6 +16,7 @@ namespace NYTree {
 
 using namespace NRpc;
 using namespace NYson;
+using namespace NYTree;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,8 +37,6 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    UNUSED(context);
-
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -148,10 +147,8 @@ bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
     return false;
 }
 
-TFuture<void> TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TFuture<TYsonString> TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& /*key*/)
 {
-    UNUSED(key);
-    UNUSED(consumer);
     return Null;
 }
 

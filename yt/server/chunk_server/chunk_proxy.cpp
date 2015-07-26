@@ -431,18 +431,17 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
         auto* chunk = GetThisTypedImpl();
         if (chunk->IsJournal() && key == "quorum_row_count") {
             auto chunkManager = Bootstrap_->GetChunkManager();
             auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
             return rowCountResult.Apply(BIND([=] (const TMiscExt& miscExt) {
-                BuildYsonFluently(consumer)
-                    .Value(miscExt.row_count());
+                return MakeFuture(ConvertToYsonString(miscExt.row_count()));
             }));
         }
-        return TBase::GetBuiltinAttributeAsync(key, consumer);
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override

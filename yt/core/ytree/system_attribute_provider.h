@@ -5,6 +5,8 @@
 
 #include <core/yson/consumer.h>
 
+#include <core/ytree/yson_string.h>
+
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
 
@@ -90,9 +92,9 @@ struct ISystemAttributeProvider
 
     //! Asynchronously gets the value of a builtin attribute.
     /*!
-     *  \returns Null if there is no such async builtin attribute with the given key.
+     *  \returns A future representing attribute value or null if there is no such async builtin attribute.
      */
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) = 0;
 
     //! Sets the value of a builtin attribute.
     /*!

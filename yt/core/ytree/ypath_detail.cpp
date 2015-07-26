@@ -309,18 +309,9 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
             return MakeFuture(*maybeBuiltinYson);
         }
 
-        auto onAsyncAttribute = [] (TStringStream* stream, TYsonWriter* /*writer*/) {
-            return TYsonString(stream->Str());
-        };
-
-        std::unique_ptr<TStringStream> asyncStream(new TStringStream());
-        std::unique_ptr<TYsonWriter> asyncWriter(new TYsonWriter(asyncStream.get()));
-        auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(key, asyncWriter.get());
+        auto asyncResult = builtinAttributeProvider->GetBuiltinAttributeAsync(key);
         if (asyncResult) {
-            return asyncResult.Apply(BIND(
-                onAsyncAttribute,
-                Owned(asyncStream.release()),
-                Owned(asyncWriter.release())));
+            return asyncResult;
         }
     }
 

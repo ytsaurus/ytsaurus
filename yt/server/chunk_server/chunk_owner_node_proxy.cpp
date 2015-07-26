@@ -292,42 +292,38 @@ private:
 
 };
 
-typedef TIntrusivePtr<TFetchChunkVisitor> TFetchChunkVisitorPtr;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkVisitorBase
     : public IChunkVisitor
 {
 public:
-    TFuture<void> Run()
+    TFuture<TYsonString> Run()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TraverseChunkTree(
-            CreatePreemptableChunkTraverserCallbacks(Bootstrap),
+            CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
             this,
-            ChunkList);
+            ChunkList_);
 
-        return Promise;
+        return Promise_;
     }
 
 protected:
-    NCellMaster::TBootstrap* Bootstrap;
-    IYsonConsumer* Consumer;
-    TChunkList* ChunkList;
-    TPromise<void> Promise;
+    NCellMaster::TBootstrap* const Bootstrap_;
+    TChunkList* const ChunkList_;
+
+    TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+
     TChunkVisitorBase(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList,
-        IYsonConsumer* consumer)
-        : Bootstrap(bootstrap)
-        , Consumer(consumer)
-        , ChunkList(chunkList)
-        , Promise(NewPromise<void>())
+        TChunkList* chunkList)
+        : Bootstrap_(bootstrap)
+        , ChunkList_(chunkList)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
     }
@@ -336,7 +332,7 @@ protected:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        Promise.Set(TError("Error traversing chunk tree") << error);
+        Promise_.Set(TError("Error traversing chunk tree") << error);
     }
 };
 
@@ -348,14 +344,17 @@ class TChunkIdsAttributeVisitor
 public:
     TChunkIdsAttributeVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList,
-        IYsonConsumer* consumer)
-        : TChunkVisitorBase(bootstrap, chunkList, consumer)
+        TChunkList* chunkList)
+        : TChunkVisitorBase(bootstrap, chunkList)
+        , Writer_(&Stream_)
     {
-        Consumer->OnBeginList();
+        Writer_.OnBeginList();
     }
 
 private:
+    TStringStream Stream_;
+    TYsonWriter Writer_;
+
     virtual bool OnChunk(
         TChunk* chunk,
         i64 /*rowIndex*/,
@@ -364,8 +363,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        Consumer->OnListItem();
-        Consumer->OnStringScalar(ToString(chunk->GetId()));
+        Writer_.OnListItem();
+        Writer_.OnStringScalar(ToString(chunk->GetId()));
 
         return true;
     }
@@ -374,22 +373,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        Consumer->OnEndList();
-        Promise.Set(TError());
+        Writer_.OnEndList();
+        Promise_.Set(TYsonString(Stream_.Str()));
     }
 };
-
-TFuture<void> GetChunkIdsAttribute(
-    NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList,
-    IYsonConsumer* consumer)
-{
-    auto visitor = New<TChunkIdsAttributeVisitor>(
-        bootstrap,
-        const_cast<TChunkList*>(chunkList),
-        consumer);
-    return visitor->Run();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -400,10 +387,8 @@ class TCodecStatisticsVisitor
 public:
     TCodecStatisticsVisitor(
         NCellMaster::TBootstrap* bootstrap,
-        TChunkList* chunkList,
-        IYsonConsumer* consumer)
-        : TChunkVisitorBase(bootstrap, chunkList, consumer)
-        , CodecExtractor_()
+        TChunkList* chunkList)
+        : TChunkVisitorBase(bootstrap, chunkList)
     { }
 
 private:
@@ -423,7 +408,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        BuildYsonFluently(Consumer)
+        auto result = BuildYsonStringFluently()
             .DoMapFor(CodecInfo_, [=] (TFluentMap fluent, const typename TCodecInfoMap::value_type& pair) {
                 const auto& statistics = pair.second;
                 // TODO(panin): maybe use here the same method as in attributes
@@ -434,7 +419,7 @@ private:
                         .Item("compressed_data_size").Value(statistics.CompressedDataSize)
                     .EndMap();
             });
-        Promise.Set(TError());
+        Promise_.Set(result);
     }
 
     typedef yhash_map<typename TCodecExtractor::TValue, TChunkTreeStatistics> TCodecInfoMap;
@@ -447,13 +432,9 @@ private:
 template <class TVisitor>
 TFuture<void> ComputeCodecStatistics(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkList* chunkList,
-    IYsonConsumer* consumer)
+    TChunkList* chunkList)
 {
-    auto visitor = New<TVisitor>(
-        bootstrap,
-        const_cast<TChunkList*>(chunkList),
-        consumer);
+    auto visitor = New<TVisitor>(bootstrap, chunkList);
     return visitor->Run();
 }
 
@@ -540,8 +521,6 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
     const auto& statistics = chunkList->Statistics();
-
-    auto cypressManager = Bootstrap_->GetCypressManager();
     auto isExternal = node->IsExternal();
 
     if (!isExternal) {
@@ -600,22 +579,18 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(key, consumer);
 }
 
-TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
-    const Stroka& key,
-    IYsonConsumer* consumer)
+TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(const Stroka& key)
 {
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-    const auto* chunkList = node->GetChunkList();
-
-    auto cypressManager = Bootstrap_->GetCypressManager();
+    auto* chunkList = node->GetChunkList();
     auto isExternal = node->IsExternal();
 
     if (!isExternal) {
         if (key == "chunk_ids") {
-            return GetChunkIdsAttribute(
+            auto visitor = New<TChunkIdsAttributeVisitor>(
                 Bootstrap_,
-                const_cast<TChunkList*>(chunkList),
-                consumer);
+                chunkList);
+            return visitor->Run();
         }
 
         if (key == "compression_statistics") {
@@ -629,10 +604,8 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
             };
             typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
 
-            return ComputeCodecStatistics<TCompressionStatisticsVisitor>(
-                Bootstrap_,
-                const_cast<TChunkList*>(chunkList),
-                consumer);
+            auto visitor = New<TCompressionStatisticsVisitor>(Bootstrap_, chunkList);
+            return visitor->Run();
         }
 
         if (key == "erasure_statistics") {
@@ -646,14 +619,12 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
             };
             typedef TCodecStatisticsVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
 
-            return ComputeCodecStatistics<TErasureStatisticsVisitor>(
-                Bootstrap_,
-                const_cast<TChunkList*>(chunkList),
-                consumer);
+            auto visitor = New<TErasureStatisticsVisitor>(Bootstrap_, chunkList);
+            return visitor->Run();
         }
     }
 
-    return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key, consumer);
+    return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key);
 }
 
 void TChunkOwnerNodeProxy::ValidateCustomAttributeUpdate(

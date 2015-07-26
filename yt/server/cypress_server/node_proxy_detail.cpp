@@ -55,22 +55,22 @@ class TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary
 {
 public:
     explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy)
-        : Proxy(proxy)
+        : Proxy_(proxy)
     { }
 
     virtual std::vector<Stroka> List() const override
     {
         auto keys = ListNodeAttributes(
-            Proxy->Bootstrap_,
-            Proxy->TrunkNode,
-            Proxy->Transaction);
+            Proxy_->Bootstrap_,
+            Proxy_->TrunkNode,
+            Proxy_->Transaction);
         return std::vector<Stroka>(keys.begin(), keys.end());
     }
 
     virtual TNullable<TYsonString> FindYson(const Stroka& name) const override
     {
-        auto cypressManager = Proxy->Bootstrap_->GetCypressManager();
-        auto originators = cypressManager->GetNodeOriginators(Proxy->GetTransaction(), Proxy->GetTrunkNode());
+        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+        auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
         for (const auto* node : originators) {
             const auto* userAttributes = node->GetAttributes();
             if (userAttributes) {
@@ -86,29 +86,29 @@ public:
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
-        auto cypressManager = Proxy->Bootstrap_->GetCypressManager();
+        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
 
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
         auto* node = cypressManager->LockNode(
-            Proxy->TrunkNode,
-            Proxy->Transaction,
+            Proxy_->TrunkNode,
+            Proxy_->Transaction,
             TLockRequest::SharedAttribute(key));
 
         auto* userAttributes = node->GetMutableAttributes();
         userAttributes->Attributes()[key] = value;
 
-        cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
+        cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
     }
 
     virtual bool Remove(const Stroka& key) override
     {
-        auto cypressManager = Proxy->Bootstrap_->GetCypressManager();
-        auto originators = cypressManager->GetNodeReverseOriginators(Proxy->GetTransaction(), Proxy->GetTrunkNode());
+        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+        auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
 
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
         const TTransaction* containingTransaction = nullptr;
         bool contains = false;
@@ -131,24 +131,24 @@ public:
         }
 
         auto* node = cypressManager->LockNode(
-            Proxy->TrunkNode,
-            Proxy->Transaction,
+            Proxy_->TrunkNode,
+            Proxy_->Transaction,
             TLockRequest::SharedAttribute(key));
 
         auto* userAttributes = node->GetMutableAttributes();
-        if (containingTransaction == Proxy->Transaction) {
+        if (containingTransaction == Proxy_->Transaction) {
             YCHECK(userAttributes->Attributes().erase(key) == 1);
         } else {
             YCHECK(!containingTransaction);
             userAttributes->Attributes()[key] = Null;
         }
 
-        cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
+        cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
         return true;
     }
 
 protected:
-    TNontemplateCypressNodeProxyBase* Proxy;
+    TNontemplateCypressNodeProxyBase* const Proxy_;
 
 };
 
@@ -158,41 +158,38 @@ class TNontemplateCypressNodeProxyBase::TResourceUsageVisitor
     : public ICypressNodeVisitor
 {
 public:
-    explicit TResourceUsageVisitor(NCellMaster::TBootstrap* Bootstrap_, IYsonConsumer* consumer)
-        : Bootstrap_(Bootstrap_)
-        , Consumer(consumer)
-        , Result(NewPromise<void>())
+    explicit TResourceUsageVisitor(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
     { }
 
-    TFuture<void> Run(ICypressNodeProxyPtr rootNode)
+    TPromise<TYsonString> Run(ICypressNodeProxyPtr rootNode)
     {
         TraverseCypress(Bootstrap_, rootNode, this);
-        return Result;
+        return Promise_;
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
-    IYsonConsumer* Consumer;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
-    TPromise<void> Result;
-    TClusterResources ResourceUsage;
+    TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
+    TClusterResources ResourceUsage_;
+
 
     virtual void OnNode(ICypressNodeProxyPtr node) override
     {
-        ResourceUsage += node->GetResourceUsage();
+        ResourceUsage_ += node->GetResourceUsage();
     }
 
     virtual void OnError(const TError& error) override
     {
         auto wrappedError = TError("Error computing recursive resource usage")
             << error;
-        Result.Set(wrappedError);
+        Promise_.Set(wrappedError);
     }
 
     virtual void OnCompleted() override
     {
-        Consume(ResourceUsage, Consumer);
-        Result.Set(TError());
+        Promise_.Set(ConvertToYsonString(ResourceUsage_));
     }
 
 };
@@ -278,16 +275,14 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
     return TObjectProxyBase::MutableAttributes();
 }
 
-TFuture<void> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
-    const Stroka& key,
-    IYsonConsumer* consumer)
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(const Stroka& key)
 {
     if (key == "recursive_resource_usage") {
-        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, consumer);
-        return visitor->Run(const_cast<TNontemplateCypressNodeProxyBase*>(this));
+        auto visitor = New<TResourceUsageVisitor>(Bootstrap_);
+        return visitor->Run(this);
     }
 
-    return TObjectProxyBase::GetBuiltinAttributeAsync(key, consumer);
+    return TObjectProxyBase::GetBuiltinAttributeAsync(key);
 }
 
 bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)

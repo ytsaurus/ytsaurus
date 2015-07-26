@@ -739,7 +739,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     return false;
 }
 
-TFuture<void> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* /*consumer*/)
+TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& /*key*/)
 {
     return Null;
 }
