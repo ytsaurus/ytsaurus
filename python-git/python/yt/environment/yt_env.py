@@ -161,7 +161,7 @@ class YTEnv(object):
             self._run_masters(masters_count, master_name, secondary_master_cell_count, cell_tag, start_secondary_master_cells=start_secondary_master_cells)
             self._run_schedulers(schedulers_count, scheduler_name, cell_tag)
             self._run_nodes(nodes_count, node_name, cell_tag)
-            self._prepare_driver(driver_name, cell_tag)
+            self._prepare_driver(driver_name, secondary_master_cell_count, cell_tag)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
             self._run_proxy(has_proxy, proxy_name, cell_tag)
         except:
@@ -420,11 +420,12 @@ class YTEnv(object):
             config['rpc_port'] = self._ports[node_name][2 * i]
             config['monitoring_port'] = self._ports[node_name][2 * i + 1]
 
-            config['cluster_connection']['master']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config['cluster_connection']['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
-            config['cluster_connection']['master_cache']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config['cluster_connection']['master_cache']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
-            config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[node_name.replace("node", "master", 1)]
+            master_name = node_name.replace("node", "master", 1)
+            for key in ("addresses", "cell_id"):
+                config['cluster_connection']['master'][key] = self.configs[master_name][0]["primary_master"][key]
+                config['cluster_connection']['master_cache'][key] = self.configs[master_name][0]["primary_master"][key]
+            config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
+            config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[master_name]
 
             config['data_node']['cache_location']['path'] = os.path.join(current, 'chunk_cache')
             config['data_node']['store_locations'].append({
@@ -513,8 +514,10 @@ class YTEnv(object):
             os.mkdir(current)
 
             config = configs.get_scheduler_config()
-            config['cluster_connection']['master']['addresses'] = self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
-            config['cluster_connection']['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
+            master_name = scheduler_name.replace("scheduler", "master", 1)
+            for key in ("addresses", "cell_id"):
+                config['cluster_connection']['master'][key] = self.configs[master_name][0]["primary_master"][key]
+            #config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
             config['rpc_port'] = self._ports[scheduler_name][2 * i]
@@ -556,14 +559,22 @@ class YTEnv(object):
         self.start_schedulers(scheduler_name)
 
 
-    def _prepare_driver(self, driver_name, cell_tag):
-        config = configs.get_driver_config()
-        config['master']['addresses'] = self._master_addresses[driver_name.replace("driver", "master", 1)]
-        config['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
-        config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
+    def _prepare_driver(self, driver_name, secondary_master_cell_count, cell_tag):
+        master_name = driver_name.replace("driver", "master", 1)
+        for cell_index in xrange(secondary_master_cell_count + 1):
+            if cell_index == 0:
+                current_driver_name = driver_name
+                master_config = self.configs[master_name][0]["primary_master"]
+            else:
+                current_driver_name = driver_name + "_to_secondary_master_" + str(cell_index - 1)
+                master_config = self.configs[master_name][0]["secondary_masters"][cell_index - 1]
+            config = configs.get_driver_config()
+            for key in ("addresses", "cell_id"):
+                config['master'][key] = master_config[key]
+            config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
-        self.configs[driver_name] = config
-        self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
+            self.configs[current_driver_name] = config
+            self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
 
     def _prepare_console_driver(self, console_driver_name, driver_config):
         config = configs.get_console_driver_config()
@@ -586,8 +597,10 @@ class YTEnv(object):
         os.mkdir(current)
 
         driver_config = configs.get_driver_config()
-        driver_config['master']['addresses'] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        driver_config['master']['cell_id'] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
+        master_name = proxy_name.replace("proxy", "master", 1)
+        for key in ("addresses", "cell_id"):
+            driver_config['cluster_connection']['master'][key] = self.configs[master_name][0]["primary_master"][key]
+        driver_config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
         driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
 
         proxy_config = configs.get_proxy_config()
