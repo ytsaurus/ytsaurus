@@ -188,8 +188,13 @@ public:
         TNullable<TDuration> timeout = Null);
 
     //! Posts a creation request to the secondary master.
-    void ReplicateObjectToSecondaryMaster(
-        const TObjectBase* object,
+    void ReplicateObjectCreationToSecondaryMaster(
+        TObjectBase* object,
+        TCellTag cellTag);
+
+    //! Posts an attribute update request to the secondary master.
+    void ReplicateObjectAttributesToSecondaryMaster(
+        TObjectBase* object,
         TCellTag cellTag);
 
     const NProfiling::TProfiler& GetProfiler();
@@ -265,6 +270,7 @@ private:
 
     void OnProfiling();
 
+    std::unique_ptr<NYTree::IAttributeDictionary> GetReplicatedAttributes(TObjectBase  * object);
     void OnSecondaryMasterRegistered(TCellTag cellTag);
 
 };

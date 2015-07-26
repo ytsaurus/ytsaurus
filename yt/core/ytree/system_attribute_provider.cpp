@@ -1,10 +1,24 @@
 #include "stdafx.h"
 #include "system_attribute_provider.h"
 
+#include <core/yson/writer.h>
+
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TNullable<TYsonString> ISystemAttributeProvider::GetBuiltinAttribute(const Stroka& key)
+{
+    TStringStream stream;
+    TYsonWriter writer(&stream);
+    if (!GetBuiltinAttribute(key, &writer)) {
+        return Null;
+    }
+    return TYsonString(stream.Str());
+}
 
 TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvider::FindBuiltinAttributeDescriptor(
     const Stroka& key)

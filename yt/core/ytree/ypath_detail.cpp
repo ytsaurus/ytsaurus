@@ -304,11 +304,9 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
     }
 
     if (builtinAttributeProvider) {
-        TStringStream syncStream;
-        TYsonWriter syncWriter(&syncStream);
-        if (builtinAttributeProvider->GetBuiltinAttribute(key, &syncWriter)) {
-            TYsonString builtinYson(syncStream.Str());
-            return MakeFuture(builtinYson);
+        auto maybeBuiltinYson = builtinAttributeProvider->GetBuiltinAttribute(key);
+        if (maybeBuiltinYson) {
+            return MakeFuture(*maybeBuiltinYson);
         }
 
         auto onAsyncAttribute = [] (TStringStream* stream, TYsonWriter* /*writer*/) {
@@ -652,16 +650,14 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 GuardedSetBuiltinAttribute(key, newYson);
             } else {
-                TStringStream stream;
-                TYsonWriter writer(&stream);
-                if (!builtinAttributeProvider->GetBuiltinAttribute(key, &writer)) {
+                auto maybeOldWholeYson = builtinAttributeProvider->GetBuiltinAttribute(key);
+                if (!maybeOldWholeYson) {
                     ThrowNoSuchBuiltinAttribute(key);
                 }
 
-                TYsonString oldWholeYson(stream.Str());
-                auto wholeNode = ConvertToNode(oldWholeYson);
-                SyncYPathSet(wholeNode, tokenizer.GetInput(), newYson);
-                auto newWholeYson = ConvertToYsonStringStable(wholeNode);
+                auto oldWholeNode = ConvertToNode(*maybeOldWholeYson);
+                SyncYPathSet(oldWholeNode, tokenizer.GetInput(), newYson);
+                auto newWholeYson = ConvertToYsonStringStable(oldWholeNode);
 
                 GuardedSetBuiltinAttribute(key, newWholeYson);
             }
@@ -777,12 +773,8 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                     }
 
                     permissionValidator.Validate(descriptor->WritePermission);
-            
-                    TStringStream stream;
-                    TYsonWriter writer(&stream);
-                    YCHECK(builtinAttributeProvider->GetBuiltinAttribute(key, &writer));
 
-                    TYsonString builtinYson(stream.Str());
+                    auto builtinYson = *builtinAttributeProvider->GetBuiltinAttribute(key);
                     auto builtinNode = ConvertToNode(builtinYson);
                     SyncYPathRemove(builtinNode, tokenizer.GetInput());
                     auto updatedSystemYson = ConvertToYsonStringStable(builtinNode);

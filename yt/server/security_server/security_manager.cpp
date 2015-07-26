@@ -1648,23 +1648,17 @@ protected:
 
         auto accounts = GetValuesSortedByKey(AccountMap_);
         for (auto* account : accounts) {
-            if (!account->IsBuiltin()) {
-                objectManager->ReplicateObjectToSecondaryMaster(account, cellTag);
-            }
+            objectManager->ReplicateObjectCreationToSecondaryMaster(account, cellTag);
         }
 
         auto users = GetValuesSortedByKey(UserMap_);
         for (auto* user : users) {
-            if (!user->IsBuiltin()) {
-                objectManager->ReplicateObjectToSecondaryMaster(user, cellTag);
-            }
+            objectManager->ReplicateObjectCreationToSecondaryMaster(user, cellTag);
         }
 
         auto groups = GetValuesSortedByKey(GroupMap_);
         for (auto* group : groups) {
-            if (!group->IsBuiltin()) {
-                objectManager->ReplicateObjectToSecondaryMaster(group, cellTag);
-            }
+            objectManager->ReplicateObjectCreationToSecondaryMaster(group, cellTag);
         }
 
         auto multicellManager = Bootstrap_->GetMulticellManager();

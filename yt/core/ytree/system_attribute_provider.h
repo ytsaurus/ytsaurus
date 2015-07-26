@@ -112,6 +112,10 @@ struct ISystemAttributeProvider
     //! Returns an instance of TAttributeDescriptor matching a given #key or |Null| if no such
     //! builtin attribute is known.
     TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(const Stroka& key);
+
+    //! A wrapper around interface method that returns the YSON string instead
+    //! of writing it into a consumer.
+    TNullable<NYTree::TYsonString> GetBuiltinAttribute(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
