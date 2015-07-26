@@ -95,9 +95,6 @@ protected:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
-    TObjectBase* GetSchema(EObjectType type);
-    TObjectBase* GetThisSchema();
-
     void DeclareMutating();
     void DeclareNonMutating();
 
