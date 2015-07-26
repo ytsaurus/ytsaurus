@@ -42,8 +42,23 @@ using NElection::NullCellId;
 //! Must be unique to prevent object ids from colliding.
 typedef ui16 TCellTag;
 
-//! A special sentinel value that must not be used.
-const TCellTag InvalidCellTag = 0xffff;
+//! The minimum valid cell tag.
+const TCellTag MinimumValidCellTag = 0x0000;
+
+//! The maximum valie cell tag.
+const TCellTag MaximumValidCellTag = 0xf000;
+
+//! A sentinel cell tag indicating that the request does not need replication.
+const TCellTag NotReplicatedCellTag = 0xf001;
+
+//! A sentinel cell tag representing all secondary masters.
+const TCellTag AllSecondaryMastersCellTag = 0xf002;
+
+//! A sentinel cell tag representing the primary master.
+const TCellTag PrimaryMasterCellTag = 0xf003;
+
+//! A sentinel cell tag meaning nothing.
+const TCellTag InvalidCellTag = 0xf003;
 
 //! Describes the runtime type of an object.
 DEFINE_ENUM(EObjectType,

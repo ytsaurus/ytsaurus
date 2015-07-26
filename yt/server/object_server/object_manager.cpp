@@ -316,7 +316,7 @@ private:
         // Slow path.
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
         auto rsp = SyncExecuteVerb(proxy, req);
-        auto objectId = FromProto<TObjectId>(rsp->id());
+        auto objectId = FromProto<TObjectId>(rsp->object_id());
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObjectOrThrow(objectId);
@@ -542,12 +542,16 @@ void TObjectManager::UnrefObject(TObjectBase* object)
         handler->ZombifyObject(object);
         GarbageCollector_->RegisterZombie(object);
 
-        if (Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Destroy) &&
-            Bootstrap_->IsPrimaryMaster())
-        {
-            auto req = TObjectYPathProxy::Remove(FromObjectId(object->GetId()));
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMasters(req);
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto replicationFlags = handler->GetReplicationFlags();
+            auto replicationCellTag = handler->GetReplicationCellTag(object);
+            if (Any(replicationFlags & EObjectReplicationFlags::ReplicateDestroy) &&
+                replicationCellTag != NotReplicatedCellTag)
+            {
+                auto replicationRequest = TObjectYPathProxy::Remove(FromObjectId(object->GetId()));
+                auto multicellManager = Bootstrap_->GetMulticellManager();
+                multicellManager->PostToSecondaryMaster(replicationRequest, replicationCellTag);
+            }
         }
     }
 }
@@ -886,9 +890,10 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
-    bool replicated =
+    auto replicationFlags = handler->GetReplicationFlags();
+    bool replicate =
         Bootstrap_->IsPrimaryMaster() &&
-        Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Create);
+        Any(replicationFlags & EObjectReplicationFlags::ReplicateCreate);
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -900,7 +905,7 @@ TObjectBase* TObjectManager::CreateObject(
 
     // ITypeHandler::CreateObject may modify the attributes.
     std::unique_ptr<IAttributeDictionary> replicatedAttributes;
-    if (replicated && attributes) {
+    if (replicate && attributes) {
         replicatedAttributes = attributes->Clone();
     }
 
@@ -930,22 +935,24 @@ TObjectBase* TObjectManager::CreateObject(
         acd->SetOwner(user);
     }
 
-    if (replicated) {
-        auto replicateRequest = TMasterYPathProxy::CreateObject();
+    if (replicate) {
+        YASSERT(handler->GetReplicationCellTag(object) == AllSecondaryMastersCellTag);
+
+        auto replicationRequest = TMasterYPathProxy::CreateObject();
         if (transaction) {
-            ToProto(replicateRequest->mutable_transaction_id(), transaction->GetId());
+            ToProto(replicationRequest->mutable_transaction_id(), transaction->GetId());
         }
-        replicateRequest->set_type(static_cast<int>(type));
+        replicationRequest->set_type(static_cast<int>(type));
         if (replicatedAttributes) {
-            ToProto(replicateRequest->mutable_object_attributes(), *replicatedAttributes);
+            ToProto(replicationRequest->mutable_object_attributes(), *replicatedAttributes);
         }
         if (account) {
-            replicateRequest->set_account(account->GetName());
+            replicationRequest->set_account(account->GetName());
         }
-        ToProto(replicateRequest->mutable_object_id(), object->GetId());
+        ToProto(replicationRequest->mutable_object_id(), object->GetId());
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToSecondaryMasters(replicateRequest);
+        multicellManager->PostToSecondaryMasters(replicationRequest);
     }
 
     return object;

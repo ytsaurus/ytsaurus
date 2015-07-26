@@ -499,7 +499,7 @@ struct IClient
     // TODO(babenko): consider hiding these guys
     virtual NRpc::IChannelPtr GetMasterChannel(
         EMasterChannelKind kind,
-        NObjectClient::TCellTag cellTag = NObjectClient::InvalidCellTag) = 0;
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
     virtual NTransactionClient::TTransactionManagerPtr GetTransactionManager() = 0;

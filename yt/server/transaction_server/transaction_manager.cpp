@@ -216,8 +216,13 @@ public:
     virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
         return
-            EObjectReplicationFlags::Create |
-            EObjectReplicationFlags::Attributes;
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
     }
 
     virtual EObjectType GetType() const override

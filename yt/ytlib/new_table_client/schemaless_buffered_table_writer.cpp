@@ -12,6 +12,8 @@
 
 #include <ytlib/ypath/rich.h>
 
+#include <ytlib/api/client.h>
+
 #include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/periodic_executor.h>
 
@@ -34,6 +36,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NYPath;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,14 +87,12 @@ public:
     TBufferedTableWriter(
         TBufferedTableWriterConfigPtr config,
         TRemoteWriterOptionsPtr options,
-        IChannelPtr masterChannel,
-        TTransactionManagerPtr transactionManager,
+        IClientPtr client,
         TNameTablePtr nameTable,
         const TYPath& path)
         : Config_(config)
         , Options_(options)
-        , MasterChannel_(masterChannel)
-        , TransactionManager_(transactionManager)
+        , Client_(client)
         , NameTable_(nameTable)
         , Path_(path)
         , FlushExecutor_(New<TPeriodicExecutor>(
@@ -159,8 +160,7 @@ public:
 private:
     const TBufferedTableWriterConfigPtr Config_;
     const TRemoteWriterOptionsPtr Options_;
-    const IChannelPtr MasterChannel_;
-    const TTransactionManagerPtr TransactionManager_;
+    const IClientPtr Client_;
     const TNameTablePtr NameTable_;
     const TYPath Path_;
 
@@ -235,9 +235,8 @@ private:
                 richPath,
                 NameTable_,
                 TKeyColumns(),
-                MasterChannel_,
-                nullptr,
-                TransactionManager_);
+                Client_,
+                nullptr);
 
             WaitFor(writer->Open())
                 .ThrowOnError();
@@ -270,16 +269,14 @@ private:
 ISchemalessWriterPtr CreateSchemalessBufferedTableWriter(
     TBufferedTableWriterConfigPtr config,
     TRemoteWriterOptionsPtr options,
-    IChannelPtr masterChannel,
-    TTransactionManagerPtr transactionManager,
+    IClientPtr client,
     TNameTablePtr nameTable,
     const TYPath& path)
 {
     return New<TBufferedTableWriter>(
         config,
         options,
-        masterChannel,
-        transactionManager,
+        client,
         nameTable,
         path);
 }

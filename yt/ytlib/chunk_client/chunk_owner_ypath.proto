@@ -19,9 +19,11 @@ message TReqPrepareForUpdate
     optional bool fetch_last_key = 3 [default = false];
 }
 
+// If the node is external then it is just locked but
+// no response fields are set.
 message TRspPrepareForUpdate
 {
-    required NYT.NProto.TGuid chunk_list_id = 1;
+    optional NYT.NProto.TGuid chunk_list_id = 1;
     optional bytes last_key = 2;
 }
 

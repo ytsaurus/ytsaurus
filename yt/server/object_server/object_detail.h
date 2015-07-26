@@ -80,6 +80,9 @@ protected:
         TReqRemove* request,
         TRspRemove* response,
         TCtxRemovePtr context) override;
+
+    void ReplicateAttributeUpdate(NRpc::IServiceContextPtr context);
+
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
     virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
@@ -128,6 +131,9 @@ protected:
 
     //! Posts the request to all secondary masters.
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
+
+    //! Posts the request to a given secondary master.
+    void PostToSecondaryMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
     virtual bool IsLoggingEnabled() const override;
     virtual NLogging::TLogger CreateLogger() const override;

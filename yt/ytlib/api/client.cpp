@@ -360,6 +360,7 @@ private:
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
 
+        // XXX(babenko): multicell
         auto req = TTableYPathProxy::Fetch(FromObjectId(tableId));
         ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
         req->set_fetch_all_meta_extensions(true);
@@ -736,10 +737,10 @@ public:
 
     virtual IChannelPtr GetMasterChannel(
         EMasterChannelKind kind,
-        TCellTag cellTag = InvalidCellTag) override
+        TCellTag cellTag = PrimaryMasterCellTag) override
     {
         const auto& channels = MasterChannels_[kind];
-        auto it = channels.find(cellTag == InvalidCellTag ? Connection_->GetPrimaryMasterCellTag() : cellTag);
+        auto it = channels.find(cellTag == PrimaryMasterCellTag ? Connection_->GetPrimaryMasterCellTag() : cellTag);
         YCHECK(it != channels.end());
         return it->second;
     }

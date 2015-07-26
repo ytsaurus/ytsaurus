@@ -173,7 +173,7 @@ public:
                 type);
         }
 
-        auto externalCellTag = InvalidCellTag;
+        auto externalCellTag = NotReplicatedCellTag;
         if (attributes && attributes->Find<bool>("external").Get(false)) {
             if (!handler->IsExternalizable()) {
                 THROW_ERROR_EXCEPTION("Type %Qlv is not externalizable",
@@ -192,7 +192,7 @@ public:
                 attributes->Remove("external_cell_tag");
                 externalCellTag = *maybeExternalCellTag;
                 if (externalCellTag == Bootstrap_->GetCellTag()) {
-                    externalCellTag = InvalidCellTag;
+                    externalCellTag = NotReplicatedCellTag;
                 }
             } else if (!secondaryCellTags.empty()) {
                 // XXX(babenko): improve
@@ -200,7 +200,7 @@ public:
             }
         }
 
-        auto replicated = (externalCellTag != InvalidCellTag);
+        auto replicated = (externalCellTag != NotReplicatedCellTag);
 
         // INodeTypeHandler::SetDefaultAttributes may modify the attributes.
         std::unique_ptr<IAttributeDictionary> replicatedAttributes;
@@ -326,8 +326,13 @@ public:
     virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
         return
-            EObjectReplicationFlags::Attributes |
-            EObjectReplicationFlags::Destroy;
+            EObjectReplicationFlags::ReplicateAttributes |
+            EObjectReplicationFlags::ReplicateDestroy;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) override
+    {
+        return static_cast<TCypressNodeBase*>(object)->GetExternalCellTag();
     }
 
     virtual EObjectType GetType() const override
@@ -358,7 +363,7 @@ public:
 
         auto* node = cypressManager->CreateNode(
             hintId,
-            InvalidCellTag,
+            NotReplicatedCellTag,
             handler,
             account,
             attributes,

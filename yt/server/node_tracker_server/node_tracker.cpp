@@ -81,8 +81,13 @@ public:
     virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
         return
-            EObjectReplicationFlags::Destroy |
-            EObjectReplicationFlags::Attributes;
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
     }
 
     virtual EObjectType GetType() const override
@@ -119,7 +124,15 @@ public:
 
     virtual EObjectReplicationFlags GetReplicationFlags() const override
     {
-        return EObjectReplicationFlags::All;
+        return
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
     }
 
     virtual EObjectType GetType() const override

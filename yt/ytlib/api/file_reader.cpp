@@ -5,6 +5,7 @@
 #include "private.h"
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
@@ -103,21 +104,49 @@ private:
     {
         LOG_INFO("Opening file reader");
 
-        LOG_INFO("Fetching file info");
-
-        auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
-        TObjectServiceProxy proxy(masterChannel);
-        auto batchReq = proxy.ExecuteBatch();
-
+        auto cellTag = InvalidCellTag;
+        TObjectId objectId;
         {
+            LOG_INFO("Requesting basic attributes");
+
+            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+            TObjectServiceProxy proxy(channel);
+
             auto req = TFileYPathProxy::GetBasicAttributes(Path_);
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
-            batchReq->AddRequest(req, "get_basic_attrs");
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes for file %v",
+                Path_);
+
+            const auto& rsp = rspOrError.Value();
+
+            objectId = FromProto<TObjectId>(rsp->object_id());
+            cellTag = rsp->cell_tag();
+
+            LOG_INFO("Basic attributes received (ObjectId: %v, CellTag: %v)",
+                objectId,
+                cellTag);
         }
 
         {
-            auto req = TFileYPathProxy::Fetch(Path_);
+            auto type = TypeFromId(objectId);
+            if (type != EObjectType::File) {
+                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                    Path_,
+                    EObjectType::File,
+                    type);
+            }
+        }
+
+        {
+            LOG_INFO("Fetching file chunks");
+
+            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TFileYPathProxy::Fetch(FromObjectId(objectId));
 
             TReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.Get(0);
@@ -133,33 +162,14 @@ private:
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            batchReq->AddRequest(req, "fetch");
-        }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching file info");
-        const auto& batchRsp = batchRspOrError.Value();
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for file %v",
+                Path_);
 
-        {
-            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object attributes");
             const auto& rsp = rspOrError.Value();
 
-            auto type = EObjectType(rsp->type());
-            if (type != EObjectType::File) {
-                THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                    Path_,
-                    EObjectType::File,
-                    type);
-            }
-        }
-
-        auto nodeDirectory = New<TNodeDirectory>();
-        {
-            auto rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>("fetch");
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching file chunks");
-            const auto& rsp = rspOrError.Value();
-
+            auto nodeDirectory = New<TNodeDirectory>();
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
@@ -168,16 +178,14 @@ private:
             Reader_ = CreateFileMultiChunkReader(
                 Config_,
                 options,
-                masterChannel,
+                channel,
                 Client_->GetConnection()->GetBlockCache(),
                 nodeDirectory,
                 std::move(chunks));
         }
 
-        {
-            WaitFor(Reader_->Open())
-                .ThrowOnError();
-        }
+        WaitFor(Reader_->Open())
+            .ThrowOnError();
 
         if (Transaction_) {
             ListenTransaction(Transaction_);

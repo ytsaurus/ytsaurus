@@ -55,9 +55,8 @@ void TReadTableCommand::DoExecute()
     auto reader = CreateSchemalessTableReader(
         config,
         options,
-        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+        Context_->GetClient(),
         AttachTransaction(false),
-        Context_->GetClient()->GetConnection()->GetBlockCache(),
         Request_->Path,
         nameTable);
 
@@ -112,9 +111,8 @@ void TWriteTableCommand::DoExecute()
         Request_->Path,
         nameTable,
         keyColumns,
-        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
-        AttachTransaction(false),
-        Context_->GetClient()->GetTransactionManager());
+        Context_->GetClient(),
+        AttachTransaction(false));
 
     WaitFor(writer->Open())
         .ThrowOnError();

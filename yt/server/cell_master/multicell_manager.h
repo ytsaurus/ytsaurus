@@ -35,6 +35,11 @@ public:
         NObjectClient::TCellTag cellTag,
         bool reliable = true);
     void PostToSecondaryMaster(
+        const NObjectClient::TObjectId& objectId,
+        NRpc::IServiceContextPtr context,
+        NObjectClient::TCellTag cellTag,
+        bool reliable = true);
+    void PostToSecondaryMaster(
         const ::google::protobuf::MessageLite& requestMessage,
         NObjectClient::TCellTag cellTag,
         bool reliable = true);

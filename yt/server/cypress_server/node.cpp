@@ -20,7 +20,7 @@ using namespace NCellMaster;
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : TObjectBase(id.ObjectId)
-    , ExternalCellTag_(InvalidCellTag)
+    , ExternalCellTag_(NotReplicatedCellTag)
     , LockMode_(ELockMode::None)
     , TrunkNode_(nullptr)
     , Transaction_(nullptr)
@@ -85,7 +85,7 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
 
 bool TCypressNodeBase::IsExternal() const
 {
-    return ExternalCellTag_ != InvalidCellTag;
+    return ExternalCellTag_ >= MinimumValidCellTag && ExternalCellTag_ <= MaximumValidCellTag;
 }
 
 void TCypressNodeBase::Save(TSaveContext& context) const

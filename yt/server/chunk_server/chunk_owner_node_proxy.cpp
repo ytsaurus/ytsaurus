@@ -785,65 +785,81 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     auto chunkManager = Bootstrap_->GetChunkManager();
     auto objectManager = Bootstrap_->GetObjectManager();
 
-    TChunkList* resultChunkList;
+    TChunkList* resultChunkList = nullptr;
     switch (updateMode) {
         case EUpdateMode::Append: {
-            auto* snapshotChunkList = node->GetChunkList();
+            if (node->IsExternal()) {
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "External node is switched to \"append\" mode (NodeId: %v)",
+                    node->GetId());
 
-            auto* newChunkList = chunkManager->CreateChunkList();
-            YCHECK(newChunkList->OwningNodes().insert(node).second);
+            } else {
+                auto* snapshotChunkList = node->GetChunkList();
 
-            YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
-            node->SetChunkList(newChunkList);
-            objectManager->RefObject(newChunkList);
+                auto* newChunkList = chunkManager->CreateChunkList();
+                YCHECK(newChunkList->OwningNodes().insert(node).second);
 
-            chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
+                YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
+                node->SetChunkList(newChunkList);
+                objectManager->RefObject(newChunkList);
 
-            auto* deltaChunkList = chunkManager->CreateChunkList();
-            chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
+                chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
-            objectManager->UnrefObject(snapshotChunkList);
+                auto* deltaChunkList = chunkManager->CreateChunkList();
+                chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
 
-            resultChunkList = deltaChunkList;
+                objectManager->UnrefObject(snapshotChunkList);
 
-            if (request->fetch_last_key()) {
-                TOwningKey lastKey;
-                if (IsSorted() && !snapshotChunkList->Children().empty()) {
-                    lastKey = GetMaxKey(snapshotChunkList);
+                resultChunkList = deltaChunkList;
+
+                if (request->fetch_last_key()) {
+                    TOwningKey lastKey;
+                    if (IsSorted() && !snapshotChunkList->Children().empty()) {
+                        lastKey = GetMaxKey(snapshotChunkList);
+                    }
+                    ToProto(response->mutable_last_key(), lastKey);
                 }
-                ToProto(response->mutable_last_key(), lastKey);
+
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
+                    node->GetId(),
+                    newChunkList->GetId(),
+                    snapshotChunkList->GetId(),
+                    deltaChunkList->GetId());
+
             }
-
-            LOG_DEBUG_UNLESS(
-                IsRecovery(),
-                "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
-                node->GetId(),
-                newChunkList->GetId(),
-                snapshotChunkList->GetId(),
-                deltaChunkList->GetId());
-
             break;
         }
 
         case EUpdateMode::Overwrite: {
-            auto* oldChunkList = node->GetChunkList();
-            YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
-            objectManager->UnrefObject(oldChunkList);
+            if (node->IsExternal()) {
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "External node is switched to \"overwrite\" mode (NodeId: %v)",
+                    node->GetId());
+            } else {
+                auto* oldChunkList = node->GetChunkList();
+                YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
+                objectManager->UnrefObject(oldChunkList);
 
-            auto* newChunkList = chunkManager->CreateChunkList();
-            YCHECK(newChunkList->OwningNodes().insert(node).second);
-            node->SetChunkList(newChunkList);
-            objectManager->RefObject(newChunkList);
+                auto* newChunkList = chunkManager->CreateChunkList();
+                YCHECK(newChunkList->OwningNodes().insert(node).second);
+                node->SetChunkList(newChunkList);
+                objectManager->RefObject(newChunkList);
 
-            resultChunkList = newChunkList;
+                resultChunkList = newChunkList;
+
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Node is switched to \"overwrite\" mode (NodeId: %v, NewChunkListId: %v)",
+                    node->GetId(),
+                    newChunkList->GetId());
+            }
 
             Clear();
 
-            LOG_DEBUG_UNLESS(
-                IsRecovery(),
-                "Node is switched to \"overwrite\" mode (NodeId: %v, NewChunkListId: %v)",
-                node->GetId(),
-                newChunkList->GetId());
             break;
         }
 
@@ -857,9 +873,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
 
     SetModified();
 
-    ToProto(response->mutable_chunk_list_id(), resultChunkList->GetId());
-    context->SetResponseInfo("ChunkListId: %v",
-        resultChunkList->GetId());
+    if (!node->IsExternal()) {
+        ToProto(response->mutable_chunk_list_id(), resultChunkList->GetId());
+        context->SetResponseInfo("ChunkListId: %v",
+            resultChunkList->GetId());
+    }
 
     context->Reply();
 }
@@ -875,6 +893,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         EPermission::Read);
     ValidateFetch();
 
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    if (node->IsExternal()) {
+        THROW_ERROR_EXCEPTION("Cannot handle Fetch at an external node");
+    }
+
     auto channel = request->has_channel()
         ? NYT::FromProto<TChannel>(request->channel())
         : TChannel::Universal();
@@ -883,7 +906,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     auto ranges = FromProto<TReadRange>(request->ranges());
     ValidateFetchParameters(channel, ranges);
 
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(

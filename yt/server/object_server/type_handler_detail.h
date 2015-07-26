@@ -31,6 +31,11 @@ public:
         return EObjectReplicationFlags::None;
     }
 
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) override
+    {
+        return NObjectClient::NotReplicatedCellTag;
+    }
+
     virtual Stroka GetName(TObjectBase* object) override
     {
         return DoGetName(static_cast<TObject*>(object));
