@@ -43,8 +43,10 @@ def get_master_config():
 {
     enable_provision_lock = false;
 
-    master = {
+    "primary_master" = {
     };
+    secondary_masters = [
+    ];
 
     timestamp_provider = {
         soft_backoff_time = 100;
