@@ -50,7 +50,7 @@ public:
     //! Creates a new node and registers it.
     TCypressNodeBase* CreateNode(
         const TNodeId& hintId,
-        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
@@ -120,9 +120,6 @@ public:
 
     bool IsOrphaned(TCypressNodeBase* trunkNode);
     bool IsAlive(TCypressNodeBase* trunkNode, NTransactionServer::TTransaction* transaction);
-
-    //! Returns |true| if the node was delegated to another cell.
-    bool IsExternal(TCypressNodeBase* node);
 
 
     //! Returns the list consisting of the trunk node

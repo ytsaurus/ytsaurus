@@ -20,7 +20,7 @@ using namespace NCellMaster;
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : TObjectBase(id.ObjectId)
-    , CellTag_(InvalidCellTag)
+    , ExternalCellTag_(InvalidCellTag)
     , LockMode_(ELockMode::None)
     , TrunkNode_(nullptr)
     , Transaction_(nullptr)
@@ -83,12 +83,17 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
     return TVersionedNodeId(Id_, TransactionId_);
 }
 
+bool TCypressNodeBase::IsExternal() const
+{
+    return ExternalCellTag_ != InvalidCellTag;
+}
+
 void TCypressNodeBase::Save(TSaveContext& context) const
 {
     TObjectBase::Save(context);
 
     using NYT::Save;
-    Save(context, CellTag_);
+    Save(context, ExternalCellTag_);
     Save(context, LockStateMap_);
     Save(context, AcquiredLocks_);
     Save(context, PendingLocks_);
@@ -111,7 +116,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     using NYT::Load;
     // COMPAT(babenko)
     if (context.GetVersion() >= 200) {
-        Load(context, CellTag_);
+        Load(context, ExternalCellTag_);
     }
     Load(context, LockStateMap_);
     Load(context, AcquiredLocks_);

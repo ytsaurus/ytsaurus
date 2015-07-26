@@ -32,7 +32,10 @@ class TCypressNodeBase
     , public TRefTracked<TCypressNodeBase>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, CellTag);
+    //! For external nodes, this is the tag of the cell were the node
+    //! was delegated to. For non-external nodes, this is (sic!) InvalidCellTag.
+    //! The latter choice simplifies the implementation of #IsExternal.
+    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag);
 
     typedef yhash_map<NTransactionServer::TTransaction*, TTransactionLockState> TLockStateMap;
     DEFINE_BYREF_RW_PROPERTY(TLockStateMap, LockStateMap);
@@ -78,6 +81,10 @@ public:
 
     //! Returns the composite (versioned) id of the node.
     TVersionedNodeId GetVersionedId() const;
+
+    //! Returns |true| if the node is external, i.e. was delegated
+    //! to another cell.
+    bool IsExternal() const;
 
     virtual NSecurityServer::TClusterResources GetResourceUsage() const;
 

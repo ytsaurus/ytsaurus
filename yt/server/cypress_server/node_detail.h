@@ -92,7 +92,7 @@ public:
 
     virtual std::unique_ptr<TCypressNodeBase> Create(
         const TNodeId& hintId,
-        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag externalCellTag,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -100,7 +100,7 @@ public:
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
         return DoCreate(
             TVersionedNodeId(id),
-            cellTag,
+            externalCellTag,
             request,
             response);
     }
@@ -190,12 +190,12 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag externalCellTag,
         TReqCreate* /*request*/,
         TRspCreate* /*response*/)
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
-        nodeHolder->SetCellTag(cellTag);
+        nodeHolder->SetExternalCellTag(externalCellTag);
         nodeHolder->SetTrunkNode(nodeHolder.get());
         return nodeHolder;
     }

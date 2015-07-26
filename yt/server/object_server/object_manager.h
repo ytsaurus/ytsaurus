@@ -89,7 +89,7 @@ public:
     TObjectId GenerateId(EObjectType type, const TObjectId& hintId);
 
     //! Returns |true| if the object was replicated here from another cell.
-    bool IsForeign(TObjectBase* object);
+    bool IsForeign(const TObjectBase* object);
 
     //! Adds a reference.
     void RefObject(TObjectBase* object);
