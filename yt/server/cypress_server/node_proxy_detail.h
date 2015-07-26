@@ -82,6 +82,11 @@ protected:
     virtual void AfterInvoke(NRpc::IServiceContextPtr context) override;
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
+    virtual void RemoveSelf(
+        TReqRemove* request,
+        TRspRemove* response,
+        TCtxRemovePtr context) override;
+
     // Suppress access handling in the cases below.
     virtual void GetAttribute(
         const NYTree::TYPath& path,

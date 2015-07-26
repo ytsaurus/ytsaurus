@@ -321,11 +321,11 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 {
     TObjectProxyBase::ListSystemAttributes(descriptors);
 
-    auto* node = GetThisImpl();
+    const auto* node = GetThisImpl();
     bool hasKey = NodeHasKey(Bootstrap_, node);
 
     auto cypressManager = Bootstrap_->GetCypressManager();
-    bool isExternal = cypressManager->IsExternal(node);
+    bool isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("parent_id")
         .SetPresent(node->GetParent()));
@@ -355,12 +355,10 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     const Stroka& key,
     IYsonConsumer* consumer)
 {
-    auto* node = GetThisImpl();
+    const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
     bool hasKey = NodeHasKey(Bootstrap_, node);
-
-    auto cypressManager = Bootstrap_->GetCypressManager();
-    bool isExternal = cypressManager->IsExternal(node);
+    bool isExternal = node->IsExternal();
 
     if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)
@@ -376,7 +374,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
     if (key == "external_cell_tag" && isExternal) {
         BuildYsonFluently(consumer)
-            .Value(node->GetCellTag());
+            .Value(node->GetExternalCellTag());
         return true;
     }
 
@@ -520,6 +518,23 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context
     }
 
     return false;
+}
+
+void TNontemplateCypressNodeProxyBase::RemoveSelf(
+    TReqRemove* request,
+    TRspRemove* response,
+    TCtxRemovePtr context)
+{
+    auto* node = GetThisImpl();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    if (objectManager->IsForeign(node)) {
+        YCHECK(node->IsTrunk());
+        YCHECK(node->AcquiredLocks().empty());
+        YCHECK(node->GetObjectRefCounter() == 1);
+        objectManager->UnrefObject(node);
+    } else {
+        TNodeBase::RemoveSelf(request, response, std::move(context));
+    }
 }
 
 void TNontemplateCypressNodeProxyBase::GetAttribute(

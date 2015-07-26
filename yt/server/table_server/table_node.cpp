@@ -143,6 +143,11 @@ public:
         return EObjectType::Table;
     }
 
+    virtual bool IsExternalizable() override
+    {
+        return true;
+    }
+
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TTableNode* trunkNode,

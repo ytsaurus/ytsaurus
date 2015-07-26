@@ -509,7 +509,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
     return id;
 }
 
-bool TObjectManager::IsForeign(TObjectBase* object)
+bool TObjectManager::IsForeign(const TObjectBase* object)
 {
     return CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag();
 }

@@ -42,7 +42,6 @@ public:
         return EObjectType::File;
     }
 
-protected:
     virtual bool IsExternalizable() override
     {
         return true;
@@ -59,6 +58,7 @@ protected:
         }
     }
 
+protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TFileNode* trunkNode,
         TTransaction* transaction) override

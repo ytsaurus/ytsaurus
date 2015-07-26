@@ -173,8 +173,7 @@ public:
                 type);
         }
 
-        auto cellTag = Bootstrap_->GetCellTag();
-        bool replicated = false;
+        auto externalCellTag = InvalidCellTag;
         if (attributes && attributes->Find<bool>("external").Get(false)) {
             if (!handler->IsExternalizable()) {
                 THROW_ERROR_EXCEPTION("Type %Qlv is not externalizable",
@@ -191,18 +190,17 @@ public:
                     THROW_ERROR_EXCEPTION("Unknown cell tag %v", *maybeExternalCellTag);
                 }
                 attributes->Remove("external_cell_tag");
-                cellTag = *maybeExternalCellTag;
-            } else {
-                if (secondaryCellTags.empty()) {
-                    cellTag = Bootstrap_->GetCellTag();
-                } else {
-                    // XXX(babenko): improve
-                    cellTag = secondaryCellTags[0];
+                externalCellTag = *maybeExternalCellTag;
+                if (externalCellTag == Bootstrap_->GetCellTag()) {
+                    externalCellTag = InvalidCellTag;
                 }
+            } else if (!secondaryCellTags.empty()) {
+                // XXX(babenko): improve
+                externalCellTag = secondaryCellTags[0];
             }
-
-            replicated = (cellTag != Bootstrap_->GetCellTag());
         }
+
+        auto replicated = (externalCellTag != InvalidCellTag);
 
         // INodeTypeHandler::SetDefaultAttributes may modify the attributes.
         std::unique_ptr<IAttributeDictionary> replicatedAttributes;
@@ -212,7 +210,7 @@ public:
 
         auto* node = cypressManager->CreateNode(
             NullObjectId,
-            cellTag,
+            externalCellTag,
             handler,
             account,
             attributes,
@@ -246,7 +244,7 @@ public:
             ToProto(replicateRequest->mutable_object_id(), trunkNode->GetId());
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMaster(replicateRequest, cellTag);
+            multicellManager->PostToSecondaryMaster(replicateRequest, externalCellTag);
         }
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
@@ -360,7 +358,7 @@ public:
 
         auto* node = cypressManager->CreateNode(
             hintId,
-            Bootstrap_->GetCellTag(),
+            InvalidCellTag,
             handler,
             account,
             attributes,
@@ -620,7 +618,7 @@ public:
 
     TCypressNodeBase* CreateNode(
         const TNodeId& hintId,
-        TCellTag cellTag,
+        TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         TAccount* account,
         IAttributeDictionary* attributes,
@@ -630,7 +628,7 @@ public:
         YCHECK(handler);
         YCHECK(account);
 
-        auto nodeHolder = handler->Create(hintId, cellTag, request, response);
+        auto nodeHolder = handler->Create(hintId, externalCellTag, request, response);
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set account.
@@ -1047,12 +1045,6 @@ public:
     }
 
 
-    bool IsExternal(TCypressNodeBase* node)
-    {
-        return node->GetCellTag() != Bootstrap_->GetCellTag();
-    }
-
-
     TCypressNodeList GetNodeOriginators(
         TTransaction* transaction,
         TCypressNodeBase* trunkNode)
@@ -1116,8 +1108,6 @@ private:
     TNodeId RootNodeId_;
     TCypressNodeBase* RootNode_ = nullptr;
 
-    bool InitializeCellTags_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1148,9 +1138,6 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
-
-        // COMPAT(babenko)
-        InitializeCellTags_ = (context.GetVersion() < 200);
     }
 
 
@@ -1173,9 +1160,6 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
-
-        // COMPAT(babenko)
-        auto cellTag = Bootstrap_->GetCellTag();
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
@@ -1209,13 +1193,6 @@ private:
             for (auto it = node->PendingLocks().begin(); it != node->PendingLocks().end(); ++it) {
                 auto* lock = *it;
                 lock->SetLockListIterator(it);
-            }
-
-            // COMPAT(babenko)
-            if (InitializeCellTags_) {
-                if (node->GetCellTag() == InvalidCellTag) {
-                    node->SetCellTag(cellTag);
-                }
             }
         }
 
@@ -2032,7 +2009,7 @@ ICypressNodeFactoryPtr TCypressManager::CreateNodeFactory(
 
 TCypressNodeBase* TCypressManager::CreateNode(
     const TNodeId& hintId,
-    TCellTag cellTag,
+    TCellTag externalCellTag,
     INodeTypeHandlerPtr handler,
     TAccount* account,
     IAttributeDictionary* attributes,
@@ -2041,7 +2018,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
 {
     return Impl_->CreateNode(
         hintId,
-        cellTag,
+        externalCellTag,
         std::move(handler),
         account,
         attributes,
@@ -2158,11 +2135,6 @@ bool TCypressManager::IsAlive(
     TTransaction* transaction)
 {
     return Impl_->IsAlive(trunkNode, transaction);
-}
-
-bool TCypressManager::IsExternal(TCypressNodeBase* node)
-{
-    return Impl_->IsExternal(node);
 }
 
 TCypressNodeList TCypressManager::GetNodeOriginators(

@@ -36,7 +36,7 @@ protected:
 
     virtual std::unique_ptr<TChunkOwner> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag externalCellTag,
         NCypressServer::INodeTypeHandler::TReqCreate* request,
         NCypressServer::INodeTypeHandler::TRspCreate* response) override;
 

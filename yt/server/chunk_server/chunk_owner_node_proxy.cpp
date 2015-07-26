@@ -498,10 +498,8 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
 {
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
 
-    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-
-    auto cypressManager = Bootstrap_->GetCypressManager();
-    auto isExternal = cypressManager->IsExternal(node);
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("chunk_list_id")
         .SetPresent(!isExternal));
@@ -542,7 +540,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     const auto& statistics = chunkList->Statistics();
 
     auto cypressManager = Bootstrap_->GetCypressManager();
-    auto isExternal = cypressManager->IsExternal(node);
+    auto isExternal = node->IsExternal();
 
     if (!isExternal) {
         if (key == "chunk_list_id") {
@@ -608,7 +606,7 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
     const auto* chunkList = node->GetChunkList();
 
     auto cypressManager = Bootstrap_->GetCypressManager();
-    auto isExternal = cypressManager->IsExternal(node);
+    auto isExternal = node->IsExternal();
 
     if (!isExternal) {
         if (key == "chunk_ids") {
@@ -683,7 +681,6 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const TYsonString& value)
 {
     auto chunkManager = Bootstrap_->GetChunkManager();
-    auto cypressManager = Bootstrap_->GetCypressManager();
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
 
@@ -706,7 +703,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(node);
 
-            if (IsLeader() && !cypressManager->IsExternal(node)) {
+            if (IsLeader() && !node->IsExternal()) {
                 chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
@@ -722,7 +719,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         if (node->GetVital() != vital) {
             node->SetVital(vital);
 
-            if (IsLeader() && !cypressManager->IsExternal(node)) {
+            if (IsLeader() && !node->IsExternal()) {
                 chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }

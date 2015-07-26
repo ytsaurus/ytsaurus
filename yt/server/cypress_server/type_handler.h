@@ -45,7 +45,7 @@ struct INodeTypeHandler
      */
     virtual std::unique_ptr<TCypressNodeBase> Create(
         const TNodeId& hintId,
-        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag externalCellTag,
         TReqCreate* request,
         TRspCreate* response) = 0;
 
