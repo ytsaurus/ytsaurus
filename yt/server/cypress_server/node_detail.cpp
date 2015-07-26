@@ -122,9 +122,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     originatingNode->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
-TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
-    TCypressNodeBase* sourceNode,
-    ICypressNodeFactoryPtr factory)
+TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(ICypressNodeFactoryPtr factory)
 {
     auto type = GetObjectType();
     auto objectManager = Bootstrap_->GetObjectManager();

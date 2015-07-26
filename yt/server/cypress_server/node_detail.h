@@ -56,9 +56,7 @@ protected:
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode);
 
-    TCypressNodeBase* CloneCorePrologue(
-        TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory);
+    TCypressNodeBase* CloneCorePrologue(ICypressNodeFactoryPtr factory);
 
     void CloneCoreEpilogue(
         TCypressNodeBase* sourceNode,
@@ -87,7 +85,9 @@ public:
 
     virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
     {
-        return std::make_unique<TCypressNodeBase>(id);
+        std::unique_ptr<TCypressNodeBase> nodeHolder(new TImpl(id));
+        nodeHolder->SetTrunkNode(nodeHolder.get());
+        return nodeHolder;
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Create(
@@ -168,7 +168,7 @@ public:
         ENodeCloneMode mode) override
     {
         // Run core prologue stuff.
-        auto* clonedNode = CloneCorePrologue(sourceNode, factory);
+        auto* clonedNode = CloneCorePrologue(factory);
 
         // Run custom stuff.
         DoClone(
