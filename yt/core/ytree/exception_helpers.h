@@ -23,7 +23,6 @@ void ThrowAlreadyExists(IConstNodePtr node);
 void ThrowCannotRemoveRoot();
 void ThrowCannotRemoveAttribute(const Stroka& key);
 void ThrowCannotSetBuiltinAttribute(const Stroka& key);
-void ThrowCannotSetOpaqueAttribute(const Stroka& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
