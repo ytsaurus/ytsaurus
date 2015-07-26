@@ -22,11 +22,6 @@ struct INodeTypeHandler
     : public virtual TRefCounted
 {
     //! Constructs a proxy.
-    /*!
-     *  \param transactionId The id of the transaction for which the proxy
-     *  is being created (possibly #NullTransactionId).
-     *  \return The constructed proxy.
-     */
     virtual ICypressNodeProxyPtr GetProxy(
         TCypressNodeBase* trunkNode,
         NTransactionServer::TTransaction* transaction) = 0;
@@ -37,7 +32,8 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() = 0;
 
-    //! Create an empty instance of a node (used during snapshot deserialization).
+    //! Create an empty instance of a node.
+    //! Called during snapshot deserialization and node cloning.
     virtual std::unique_ptr<TCypressNodeBase> Instantiate(
         const TVersionedNodeId& id) = 0;
 
@@ -48,6 +44,8 @@ struct INodeTypeHandler
      *  This is called during |Create| verb.
      */
     virtual std::unique_ptr<TCypressNodeBase> Create(
+        const TNodeId& hintId,
+        NObjectClient::TCellTag cellTag,
         TReqCreate* request,
         TRspCreate* response) = 0;
 
@@ -97,6 +95,9 @@ struct INodeTypeHandler
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory,
         ENodeCloneMode mode) = 0;
+
+    //! Returns |true| if nodes of this type can be stored at external cells.
+    virtual bool IsExternalizable() = 0;
 
 };
 

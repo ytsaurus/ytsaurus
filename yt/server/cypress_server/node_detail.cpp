@@ -44,6 +44,11 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     : Bootstrap_(bootstrap)
 { }
 
+bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable()
+{
+    return false;
+}
+
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
@@ -89,6 +94,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
+    branchedNode->SetCellTag(originatingNode->GetCellTag());
 
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode, branchedNode);

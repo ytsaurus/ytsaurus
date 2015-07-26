@@ -35,6 +35,8 @@ class TNontemplateCypressNodeTypeHandlerBase
 public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
+    virtual bool IsExternalizable();
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -85,22 +87,22 @@ public:
 
     virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
     {
-        return std::unique_ptr<TCypressNodeBase>(new TImpl(id));
+        return std::make_unique<TCypressNodeBase>(id);
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Create(
+        const TNodeId& hintId,
+        NObjectClient::TCellTag cellTag,
         TReqCreate* request,
         TRspCreate* response) override
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(GetObjectType(), NObjectClient::NullObjectId);
-
-        auto node = DoCreate(TVersionedNodeId(id), request, response);
-        node->SetTrunkNode(node.get());
-
-        node->SetCellTag(Bootstrap_->GetCellTag());
-
-        return std::move(node);
+        auto id = objectManager->GenerateId(GetObjectType(), hintId);
+        return DoCreate(
+            TVersionedNodeId(id),
+            cellTag,
+            request,
+            response);
     }
 
     virtual void ValidateCreated(TCypressNodeBase* node) override
@@ -181,7 +183,6 @@ public:
         return clonedNode;
     }
 
-
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TImpl* trunkNode,
@@ -189,10 +190,14 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
+        NObjectClient::TCellTag cellTag,
         TReqCreate* /*request*/,
         TRspCreate* /*response*/)
     {
-        return std::unique_ptr<TImpl>(new TImpl(id));
+        auto nodeHolder = std::make_unique<TImpl>(id);
+        nodeHolder->SetCellTag(cellTag);
+        nodeHolder->SetTrunkNode(nodeHolder.get());
+        return nodeHolder;
     }
 
     virtual void DoValidateCreated(TImpl* /*node*/)

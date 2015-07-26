@@ -41,6 +41,7 @@ using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NVersionedTableClient;
+using namespace NSecurityServer;
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;
@@ -477,36 +478,55 @@ bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     return TNontemplateCypressNodeProxyBase::DoInvoke(context);
 }
 
-NSecurityServer::TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
+TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
 {
     const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
-    const auto& statistics = chunkList->Statistics();
-    i64 diskSpace =
-        statistics.RegularDiskSpace * node->GetReplicationFactor() +
-        statistics.ErasureDiskSpace;
-    int chunkCount = statistics.ChunkCount;
-    return NSecurityServer::TClusterResources(diskSpace, 1, chunkCount);
+    if (chunkList) {
+        const auto& statistics = chunkList->Statistics();
+        i64 diskSpace =
+            statistics.RegularDiskSpace * node->GetReplicationFactor() +
+            statistics.ErasureDiskSpace;
+        int chunkCount = statistics.ChunkCount;
+        return TClusterResources(diskSpace, 1, chunkCount);
+    } else {
+        return TClusterResources(0, 1, 0);
+    }
 }
 
 void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
 
-    descriptors->push_back("chunk_list_id");
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    auto isExternal = cypressManager->IsExternal(node);
+
+    descriptors->push_back(TAttributeDescriptor("chunk_list_id")
+        .SetPresent(!isExternal));
     descriptors->push_back(TAttributeDescriptor("chunk_ids")
+        .SetPresent(!isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("compression_statistics")
+        .SetPresent(!isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("erasure_statistics")
+        .SetPresent(!isExternal)
         .SetOpaque(true));
-    descriptors->push_back("chunk_count");
-    descriptors->push_back("uncompressed_data_size");
-    descriptors->push_back("compressed_data_size");
-    descriptors->push_back("compression_ratio");
+    descriptors->push_back(TAttributeDescriptor("chunk_count")
+        .SetPresent(!isExternal));
+    descriptors->push_back(TAttributeDescriptor("uncompressed_data_size")
+        .SetPresent(!isExternal));
+    descriptors->push_back(TAttributeDescriptor("compressed_data_size")
+        .SetPresent(!isExternal));
+    descriptors->push_back(TAttributeDescriptor("compression_ratio")
+        .SetPresent(!isExternal));
     descriptors->push_back(TAttributeDescriptor("compression_codec")
+        .SetPresent(!isExternal)
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("erasure_codec")
+        .SetPresent(!isExternal)
         .SetCustom(true));
     descriptors->push_back("update_mode");
     descriptors->push_back("replication_factor");
@@ -515,60 +535,64 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
 
 bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
     const Stroka& key,
-    NYson::IYsonConsumer* consumer)
+    IYsonConsumer* consumer)
 {
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
     const auto& statistics = chunkList->Statistics();
 
-    if (key == "chunk_list_id") {
-        NYTree::BuildYsonFluently(consumer)
-            .Value(chunkList->GetId());
-        return true;
-    }
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    auto isExternal = cypressManager->IsExternal(node);
 
-    if (key == "chunk_count") {
-        NYTree::BuildYsonFluently(consumer)
-            .Value(statistics.ChunkCount);
-        return true;
-    }
+    if (!isExternal) {
+        if (key == "chunk_list_id") {
+            BuildYsonFluently(consumer)
+                .Value(chunkList->GetId());
+            return true;
+        }
 
-    if (key == "uncompressed_data_size") {
-        NYTree::BuildYsonFluently(consumer)
-            .Value(statistics.UncompressedDataSize);
-        return true;
-    }
+        if (key == "chunk_count") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.ChunkCount);
+            return true;
+        }
 
-    if (key == "compressed_data_size") {
-        NYTree::BuildYsonFluently(consumer)
-            .Value(statistics.CompressedDataSize);
-        return true;
-    }
+        if (key == "uncompressed_data_size") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.UncompressedDataSize);
+            return true;
+        }
 
-    if (key == "compression_ratio") {
-        double ratio =
-            statistics.UncompressedDataSize > 0
-            ? static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize
-            : 0;
-        NYTree::BuildYsonFluently(consumer)
-            .Value(ratio);
-        return true;
+        if (key == "compressed_data_size") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.CompressedDataSize);
+            return true;
+        }
+
+        if (key == "compression_ratio") {
+            double ratio = statistics.UncompressedDataSize > 0
+                ? static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize
+                : 0;
+            BuildYsonFluently(consumer)
+                .Value(ratio);
+            return true;
+        }
     }
 
     if (key == "update_mode") {
-        NYTree::BuildYsonFluently(consumer)
+        BuildYsonFluently(consumer)
             .Value(FormatEnum(node->GetUpdateMode()));
         return true;
     }
 
     if (key == "replication_factor") {
-        NYTree::BuildYsonFluently(consumer)
+        BuildYsonFluently(consumer)
             .Value(node->GetReplicationFactor());
         return true;
     }
 
     if (key == "vital") {
-        NYTree::BuildYsonFluently(consumer)
+        BuildYsonFluently(consumer)
             .Value(node->GetVital());
         return true;
     }
@@ -580,48 +604,53 @@ TFuture<void> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(
     const Stroka& key,
     IYsonConsumer* consumer)
 {
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
 
-    if (key == "chunk_ids") {
-        return GetChunkIdsAttribute(
-            Bootstrap_,
-            const_cast<TChunkList*>(chunkList),
-            consumer);
-    }
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    auto isExternal = cypressManager->IsExternal(node);
 
-    if (key == "compression_statistics") {
-        struct TExtractCompressionCodec
-        {
-            typedef NCompression::ECodec TValue;
-            TValue operator() (const TChunk* chunk)
+    if (!isExternal) {
+        if (key == "chunk_ids") {
+            return GetChunkIdsAttribute(
+                Bootstrap_,
+                const_cast<TChunkList*>(chunkList),
+                consumer);
+        }
+
+        if (key == "compression_statistics") {
+            struct TExtractCompressionCodec
             {
-                return TValue(chunk->MiscExt().compression_codec());
-            }
-        };
-        typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
+                typedef NCompression::ECodec TValue;
+                TValue operator() (const TChunk* chunk)
+                {
+                    return TValue(chunk->MiscExt().compression_codec());
+                }
+            };
+            typedef TCodecStatisticsVisitor<TExtractCompressionCodec> TCompressionStatisticsVisitor;
 
-        return ComputeCodecStatistics<TCompressionStatisticsVisitor>(
-            Bootstrap_,
-            const_cast<TChunkList*>(chunkList),
-            consumer);
-    }
+            return ComputeCodecStatistics<TCompressionStatisticsVisitor>(
+                Bootstrap_,
+                const_cast<TChunkList*>(chunkList),
+                consumer);
+        }
 
-    if (key == "erasure_statistics") {
-        struct TExtractErasureCodec
-        {
-            typedef NErasure::ECodec TValue;
-            TValue operator() (const TChunk* chunk)
+        if (key == "erasure_statistics") {
+            struct TExtractErasureCodec
             {
-                return chunk->GetErasureCodec();
-            }
-        };
-        typedef TCodecStatisticsVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
+                typedef NErasure::ECodec TValue;
+                TValue operator() (const TChunk* chunk)
+                {
+                    return chunk->GetErasureCodec();
+                }
+            };
+            typedef TCodecStatisticsVisitor<TExtractErasureCodec> TErasureStatisticsVisitor;
 
-        return ComputeCodecStatistics<TErasureStatisticsVisitor>(
-            Bootstrap_,
-            const_cast<TChunkList*>(chunkList),
-            consumer);
+            return ComputeCodecStatistics<TErasureStatisticsVisitor>(
+                Bootstrap_,
+                const_cast<TChunkList*>(chunkList),
+                consumer);
+        }
     }
 
     return TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(key, consumer);
@@ -654,6 +683,9 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const TYsonString& value)
 {
     auto chunkManager = Bootstrap_->GetChunkManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
+
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
 
     if (key == "replication_factor") {
         ValidateNoTransaction();
@@ -666,7 +698,6 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
                 MaxReplicationFactor);
         }
 
-        auto* node = GetThisTypedImpl<TChunkOwnerBase>();
         YCHECK(node->IsTrunk());
 
         if (node->GetReplicationFactor() != replicationFactor) {
@@ -675,7 +706,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             auto securityManager = Bootstrap_->GetSecurityManager();
             securityManager->UpdateAccountNodeUsage(node);
 
-            if (IsLeader()) {
+            if (IsLeader() && !cypressManager->IsExternal(node)) {
                 chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
@@ -686,13 +717,12 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         ValidateNoTransaction();
         bool vital = ConvertTo<bool>(value);
 
-        auto* node = GetThisTypedImpl<TChunkOwnerBase>();
         YCHECK(node->IsTrunk());
 
         if (node->GetVital() != vital) {
             node->SetVital(vital);
 
-            if (IsLeader()) {
+            if (IsLeader() && !cypressManager->IsExternal(node)) {
                 chunkManager->ScheduleChunkPropertiesUpdate(node->GetChunkList());
             }
         }
@@ -750,7 +780,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
     ValidateTransaction();
     ValidatePermission(
         EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Write);
+        EPermission::Write);
 
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(lockMode);
     ValidatePrepareForUpdate();
@@ -845,7 +875,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     ValidatePermission(
         EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Read);
+        EPermission::Read);
     ValidateFetch();
 
     auto channel = request->has_channel()

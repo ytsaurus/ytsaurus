@@ -1651,7 +1651,7 @@ private:
             .ValueOrThrow();
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0)
             .ValueOrThrow();
-        return FromProto<TNodeId>(rsp->object_id());
+        return FromProto<TNodeId>(rsp->node_id());
     }
 
     TNodeId DoMoveNode(
@@ -1676,7 +1676,7 @@ private:
             .ValueOrThrow();
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0)
             .ValueOrThrow();
-        return FromProto<TNodeId>(rsp->object_id());
+        return FromProto<TNodeId>(rsp->node_id());
     }
 
     TNodeId DoLinkNode(

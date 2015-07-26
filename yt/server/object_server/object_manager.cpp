@@ -13,6 +13,8 @@
 
 #include <core/erasure/public.h>
 
+#include <core/ytree/exception_helpers.h>
+
 #include <core/profiling/profile_manager.h>
 
 #include <ytlib/object_client/helpers.h>
@@ -765,18 +767,29 @@ void TObjectManager::FillAttributes(
     const IAttributeDictionary & attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!IsVersionedType(object->GetType()));
 
     auto keys = attributes.List();
     if (keys.empty())
         return;
 
     auto proxy = GetProxy(object, nullptr);
-    auto* attributeSet = object->GetMutableAttributes();
+    std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemDescriptors;
+    proxy->ListBuiltinAttributes(&systemDescriptors);
+
+    yhash_set<Stroka> systemAttributeKeys;
+    for (const auto& descriptor : systemDescriptors) {
+        YCHECK(systemAttributeKeys.insert(descriptor.Key).second);
+    }
+
+    std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
         auto value = attributes.GetYson(key);
-        if (!proxy->SetBuiltinAttribute(key, value)) {
-            YCHECK(attributeSet->Attributes().insert(std::make_pair(key, value)).second);
+        if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
+            proxy->MutableAttributes()->SetYson(key, value);
+        } else {
+            if (!proxy->SetBuiltinAttribute(key, value)) {
+                ThrowCannotSetBuiltinAttribute(key);
+            }
         }
     }
 }
@@ -873,13 +886,9 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
-    auto replicationSupported = Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Create);
-    if (!replicationSupported && hintId != NullObjectId) {
-        THROW_ERROR_EXCEPTION("Cannot create an instance of %Qlv with a hinted id",
-            type);
-    }
-
-    bool replicationNeeded = replicationSupported && Bootstrap_->IsPrimaryMaster();
+    bool replicated =
+        Bootstrap_->IsPrimaryMaster() &&
+        Any(handler->GetReplicationFlags() & EObjectReplicationFlags::Create);
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -889,9 +898,9 @@ TObjectBase* TObjectManager::CreateObject(
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
-    // ITypeHandler::CreateObject will modify the attributes.
+    // ITypeHandler::CreateObject may modify the attributes.
     std::unique_ptr<IAttributeDictionary> replicatedAttributes;
-    if (replicationNeeded && attributes) {
+    if (replicated && attributes) {
         replicatedAttributes = attributes->Clone();
     }
 
@@ -921,22 +930,22 @@ TObjectBase* TObjectManager::CreateObject(
         acd->SetOwner(user);
     }
 
-    if (replicationNeeded) {
-        auto replicatedRequest = TMasterYPathProxy::CreateObject();
+    if (replicated) {
+        auto replicateRequest = TMasterYPathProxy::CreateObject();
         if (transaction) {
-            ToProto(replicatedRequest->mutable_transaction_id(), transaction->GetId());
+            ToProto(replicateRequest->mutable_transaction_id(), transaction->GetId());
         }
-        replicatedRequest->set_type(static_cast<int>(type));
+        replicateRequest->set_type(static_cast<int>(type));
         if (replicatedAttributes) {
-            ToProto(replicatedRequest->mutable_object_attributes(), *replicatedAttributes);
+            ToProto(replicateRequest->mutable_object_attributes(), *replicatedAttributes);
         }
         if (account) {
-            replicatedRequest->set_account(account->GetName());
+            replicateRequest->set_account(account->GetName());
         }
-        ToProto(replicatedRequest->mutable_object_id(), object->GetId());
+        ToProto(replicateRequest->mutable_object_id(), object->GetId());
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToSecondaryMasters(replicatedRequest);
+        multicellManager->PostToSecondaryMasters(replicateRequest);
     }
 
     return object;
@@ -1063,6 +1072,7 @@ void TObjectManager::ReplicateObjectToSecondaryMaster(
         }
     }
     // XXX(babenko): builtin attributes
+
     ToProto(req->mutable_object_id(), object->GetId());
 
     auto handler = GetHandler(object);
