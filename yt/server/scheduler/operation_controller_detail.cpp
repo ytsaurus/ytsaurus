@@ -2126,7 +2126,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             auto it = candidateTasks.begin();
             while (it != candidateTasks.end()) {
                 ++processedTaskCount;
-                auto& task = it->second;
+                auto task = it->second;
 
                 // Make sure that the task is ready to launch jobs.
                 // Remove pending hint if not.
