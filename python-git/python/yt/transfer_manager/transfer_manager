@@ -19,7 +19,7 @@ from yt.tools.remote_copy_tools import \
     Kiwi
 
 from yt.wrapper.client import Yt
-from yt.wrapper.common import generate_uuid, get_value
+from yt.wrapper.common import generate_uuid, get_value, update
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -349,6 +349,9 @@ class Application(object):
             options = cluster_description["options"]
 
             if type == "yt":
+                if "config" not in options:
+                    options["config"] = {}
+                options["config"] = update(config["yt_client_config"], options["config"])
                 self._clusters[name] = Yt(**options)
                 self._clusters[name]._pools = cluster_description.get("pools", {})
                 self._clusters[name]._version = cluster_description.get("version", 0)
@@ -897,7 +900,7 @@ class Application(object):
                     "message": str(error),
                     "code": 1,
                     "attributes": {
-                        "details": traceback_helpers.format_exc()
+                        "details": (traceback_helpers.format_exc() if self.config["enable_detailed_traceback"] else traceback.format_exc())
                     }
                 }
             })
@@ -1219,6 +1222,14 @@ DEFAULT_CONFIG = {
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
+    "enable_detailed_traceback": False,
+
+    # Common config for all yt clients.
+    "yt_client_config": {
+        "operation_tracker": {
+            "ignore_stderr_if_download_failed": True
+        }
+    },
 
     "yt_backend_options": {
         "proxy": "plato.yt.yandex.net",
