@@ -255,10 +255,6 @@ protected:
 
     struct TUserFile
     {
-        TUserFileBase()
-            : ChunkCount(0)
-        { }
-
         NYPath::TRichYPath Path;
         EOperationStage Stage;
         Stroka FileName;
@@ -268,7 +264,6 @@ protected:
         NYTree::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
-
     };
 
     std::vector<TUserFile> Files;

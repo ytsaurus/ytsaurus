@@ -1084,20 +1084,6 @@ void TOperationControllerBase::DoPrepare()
         return;
     }
 
-    // Check for multiple chunk files.
-    if (JobCounter.GetTotal() >= 1000 && Spec->CheckMultichunkFiles) {
-        for (const auto& file : RegularFiles) {
-            if (file.ChunkCount > 1) {
-                OnOperationFailed(TError("Input file %v consists of more than one chunk", file.Path.GetPath()));
-            }
-        }
-        for (const auto& file : TableFiles) {
-            if (file.ChunkCount > 1) {
-                OnOperationFailed(TError("Input file %v consists of more than one chunk", file.Path.GetPath()));
-            }
-        }
-    }
-
     SuspendUnavailableInputStripes();
 
     AddAllTaskPendingHints();
