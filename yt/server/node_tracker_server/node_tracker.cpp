@@ -630,16 +630,24 @@ private:
 
         // Kick-out any previous incarnation.
         auto* existingNode = FindNodeByAddress(address);
-        if (existingNode) {
+        if (IsObjectAlive(existingNode)) {
             if (existingNode->GetBanned()) {
                 THROW_ERROR_EXCEPTION("Node %v is banned", address);
             }
-            LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingNodeId: %v)",
-                address,
-                existingNode->GetId());
-            UnregisterNode(existingNode, false);
-            DisposeNode(existingNode);
-            RemoveFromAddressMaps(existingNode);
+
+            auto existingState = existingNode->GetLocalState();
+            if (existingState != ENodeState::Offline) {
+                if (existingState == ENodeState::Registered || existingState == ENodeState::Online) {
+                    UnregisterNode(existingNode, false);
+                }
+                if (existingNode->GetLocalState() == ENodeState::Unregistered) {
+                    DisposeNode(existingNode);
+                }
+                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingNodeId: %v, ExistingNodeState: %v)",
+                    address,
+                    existingNode->GetId(),
+                    existingState);
+            }
         }
 
         auto nodeId = request.has_node_id() ? request.node_id() : GenerateNodeId();
