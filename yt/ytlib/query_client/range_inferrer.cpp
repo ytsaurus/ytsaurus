@@ -693,7 +693,6 @@ private:
                 AppendSentinel(row, finalizeSentinel);
             };
         } else {
-            //YCHECK(resulKeySize == minRangeColumnIndex);
             finalizeRow = [&] (TUnversionedRow& row,
                 size_t size,
                 TNullable<TUnversionedValue> finalizeSentinel,
