@@ -190,14 +190,14 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", input)
         create("table", output)
         for i in xrange(20, 0, -1):
-            write("<append=true>" + input, [{"key": i}])
+            write("<append=true>" + input, [{"key": i, "value" : [1, 2]}])
 
         args = {"in_": [input], "out" : output, "sort_by" : "key"}
         args.update(kwargs)
 
         sort(**args)
         assert get("//tmp/out/@sorted")
-        assert read(output) == [{"key": i} for i in xrange(1, 21)]
+        assert read(output + '{key}') == [{"key": i} for i in xrange(1, 21)]
 
     def test_one_partition_no_merge(self):
         self.sort_with_options()
