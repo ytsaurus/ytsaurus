@@ -120,7 +120,9 @@ public:
 
     NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
     TSharedRange<NVersionedTableClient::TUnversionedRow> ReadUnversionedRowset();
-    NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulRowsetReader();
+
+    NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulRowsetReader(
+        const NVersionedTableClient::TTableSchema& schema);
 
 private:
     class TImpl;

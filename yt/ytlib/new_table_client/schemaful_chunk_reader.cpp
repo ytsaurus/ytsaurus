@@ -57,10 +57,47 @@ public:
         const TReadLimit& upperLimit,
         TTimestamp timestamp);
 
-    virtual TFuture<void> Open(const TTableSchema& schema) final override;
-
     virtual bool Read(std::vector<TUnversionedRow>* rows) final override;
     virtual TFuture<void> GetReadyEvent() final override;
+
+    static TFuture<ISchemafulReaderPtr> Create(
+        TChunkReaderConfigPtr config,
+        NChunkClient::IChunkReaderPtr chunkReader,
+        IBlockCachePtr blockCache,
+        const TTableSchema& schema,
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit,
+        TTimestamp timestamp)
+    {
+        auto reader = New<TChunkReader>(
+            std::move(config),
+            std::move(chunkReader),
+            std::move(blockCache),
+            lowerLimit,
+            upperLimit,
+            timestamp);
+
+        auto nameTable = New<TNameTable>();
+        for (int i = 0; i < schema.Columns().size(); ++i) {
+            YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
+        }
+
+        YCHECK(nameTable);
+
+        reader->NameTable = nameTable;
+        reader->Schema = schema;
+        reader->IncludeAllColumns = false;
+
+        reader->Logger.AddTag("Reader: %v", reader.Get());
+        reader->State.StartOperation();
+        TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
+            &TChunkReader::DoOpen,
+            MakeWeak(reader)));
+
+        return reader->State.GetOperationError().Apply(BIND([=] () -> ISchemafulReaderPtr {
+            return reader;
+        }));
+    }
 
 private:
     struct TColumn
@@ -95,12 +132,6 @@ private:
 
     NLogging::TLogger Logger;
 
-    // ToDo (psushin): refactor it.
-    TFuture<void> Open(
-        TNameTablePtr nameTable, 
-        const TTableSchema& schema,
-        bool includeAllColumns);
-
     void DoOpen();
     void OnNextBlock(const TError& error);
 
@@ -124,36 +155,6 @@ TChunkReader::TChunkReader(
     YCHECK(timestamp == NullTimestamp);
     YCHECK(IsTrivial(lowerLimit));
     YCHECK(IsTrivial(upperLimit));
-}
-
-TFuture<void> TChunkReader::Open(const TTableSchema& schema)
-{
-    auto nameTable = New<TNameTable>();
-    for (int i = 0; i < schema.Columns().size(); ++i) {
-        YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
-    }
-
-    return Open(nameTable, schema, false);
-}
-
-TFuture<void> TChunkReader::Open(
-    TNameTablePtr nameTable,
-    const TTableSchema& schema,
-    bool includeAllColumns)
-{
-    YCHECK(nameTable);
-
-    NameTable = nameTable;
-    Schema = schema;
-    IncludeAllColumns = includeAllColumns;
-
-    Logger.AddTag("Reader: %v", this);
-    State.StartOperation();
-    TDispatcher::Get()->GetReaderInvoker()->Invoke(BIND(
-        &TChunkReader::DoOpen,
-        MakeWeak(this)));
-
-    return State.GetOperationError();
 }
 
 void TChunkReader::DoOpen()
@@ -349,10 +350,11 @@ void TChunkReader::OnNextBlock(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateSchemafulChunkReader(
+TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     IBlockCachePtr blockCache,
+    const TTableSchema& schema,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
@@ -378,18 +380,18 @@ ISchemafulReaderPtr CreateSchemafulChunkReader(
                     columnFilter);
             };
 
-            return CreateSchemafulReaderAdapter(createSchemalessReader);
+            return CreateSchemafulReaderAdapter(createSchemalessReader, schema);
         }
 
-        case ETableChunkFormat::Schemaful:
-            return New<TChunkReader>(
-                std::move(config),
+        case ETableChunkFormat::Schemaful: {
+            return TChunkReader::Create(std::move(config),
                 std::move(chunkReader),
                 std::move(blockCache),
+                schema,
                 lowerLimit,
                 upperLimit,
                 timestamp);
-
+        }
         default:
             YUNREACHABLE();
     }

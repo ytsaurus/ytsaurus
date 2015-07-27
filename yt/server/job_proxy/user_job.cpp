@@ -616,14 +616,18 @@ private:
             return writer;
         };
 
-        auto reader = CreateSchemafulReaderAdapter(JobIO_->GetReaderFactory());
-        auto writer = CreateSchemafulWriterAdapter(writerFactory);
+        auto readerFactory = JobIO_->GetReaderFactory();
 
         InputActions_.push_back(BIND([=] () {
             try {
+                auto schema = FromProto<TTableSchema>(spec.input_schema());
+                auto reader = WaitFor(CreateSchemafulReaderAdapter(readerFactory, schema))
+                    .ValueOrThrow();
+                auto writer = CreateSchemafulWriterAdapter(writerFactory);
+
                 auto registry = CreateBuiltinFunctionRegistry();
                 auto queryString = FromProto<Stroka>(spec.input_query());
-                auto schema = FromProto<TTableSchema>(spec.input_schema());
+
                 auto query = PrepareJobQuery(queryString, schema, registry.Get());
                 auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
                 evaluator->Run(query, reader, writer, registry, true);

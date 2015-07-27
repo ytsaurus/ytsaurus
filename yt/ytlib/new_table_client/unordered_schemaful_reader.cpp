@@ -33,16 +33,6 @@ public:
         CancelableContext_->Cancel();
     }
 
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        Schema_ = schema;
-        for (auto& session : Sessions_) {
-            session.ReadyEvent = MakeHolder(session.Reader->Open(schema));
-            CancelableContext_->PropagateTo(session.ReadyEvent.Get());
-        }
-        return VoidFuture;
-    }
-
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         bool pending = false;
@@ -106,7 +96,6 @@ public:
 
 private:
     std::function<ISchemafulReaderPtr()> GetNextReader_;
-    TTableSchema Schema_;
     bool Exhausted_ = false;
 
     struct TSession
@@ -135,9 +124,8 @@ private:
         }
 
         session.Reader = std::move(reader);
-        session.ReadyEvent = session.Reader->Open(Schema_);
+        session.ReadyEvent = VoidFuture;
         session.Exhausted = false;
-        CancelableContext_->PropagateTo(session.ReadyEvent.Get());
         return true;
     }
 

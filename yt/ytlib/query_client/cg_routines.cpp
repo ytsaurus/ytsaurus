@@ -94,14 +94,6 @@ void ScanOpHelper(
 {
     auto& reader = context->Reader;
 
-    {
-        LOG_DEBUG("Started opening reader");
-        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-        WaitFor(reader->Open(*context->Schema))
-            .ThrowOnError();
-        LOG_DEBUG("Finished opening reader");
-    }
-
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
 

@@ -1381,7 +1381,8 @@ TPlanFragmentPtr PreparePlanFragment(
     auto table = ast.Table;
     LOG_DEBUG("Getting initial data split for %v", table.Path);
 
-    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp)).ValueOrThrow();
+    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
+        .ValueOrThrow();
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
     auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
 
@@ -1396,7 +1397,8 @@ TPlanFragmentPtr PreparePlanFragment(
         table.Alias);
 
     for (const auto& join : ast.Joins) {
-        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp)).ValueOrThrow();
+        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp))
+            .ValueOrThrow();
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
         auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);

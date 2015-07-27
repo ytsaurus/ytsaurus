@@ -499,15 +499,6 @@ public:
         : Reader_(std::move(reader))
     { }
 
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        auto actualSchema = Reader_->ReadTableSchema();
-        if (schema != actualSchema) {
-            return MakeFuture(TError("Schema mismatch while parsing wire protocol"));
-        }
-        return VoidFuture;
-    }
-
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         if (Finished_) {
@@ -596,8 +587,12 @@ TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset()
     return Impl_->ReadUnversionedRowset();
 }
 
-ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader()
+ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader(const TTableSchema& schema)
 {
+    auto actualSchema = Impl_->ReadTableSchema();
+    if (schema != actualSchema) {
+        THROW_ERROR_EXCEPTION("Schema mismatch while parsing wire protocol");
+    }
     return New<TSchemafulRowsetReader>(Impl_);
 }
 
