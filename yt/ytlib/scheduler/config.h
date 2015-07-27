@@ -106,6 +106,8 @@ public:
     //! Limit on operation execution time.
     TNullable<TDuration> TimeLimit;
 
+    bool CheckMultichunkFiles;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -151,6 +153,9 @@ public:
 
         RegisterParameter("scheduling_tag", SchedulingTag)
             .Default();
+
+        RegisterParameter("check_multichunk_files", CheckMultichunkFiles)
+            .Default(true);
 
         SetKeepOptions(true);
 

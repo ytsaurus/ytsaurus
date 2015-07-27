@@ -4,8 +4,6 @@
 
 #include <core/misc/format.h>
 
-#include <core/logging/log.h>
-
 #include <numeric>
 
 namespace NYT {
@@ -347,30 +345,6 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static NLogging::TLogger Logger("MAGIC");
-
-void Magic(const TStringBuf& what, TVersionedRow row)
-{
-    if (!row) {
-        return;
-    }
-    auto key = row.BeginKeys();
-    auto keyCount = row.GetKeyCount();
-    if (
-        keyCount >= 9 &&
-        key[1].Data.Int64 == 1090116 &&
-        key[2].Data.Int64 == 1420146000 &&
-        key[3].Data.Int64 == 179779087 &&
-        key[4].Data.Int64 == 309868965 &&
-        key[5].Data.Int64 == 1 &&
-        key[6].Data.Int64 == 63 &&
-        key[7].Data.Int64 == 21753 &&
-        key[8].Data.Int64 == 2)
-    {
-        LOG_DEBUG("%v %v", what, row);
-    }
-}
 
 } // namespace NVersionedTableClient
 } // namespace NYT

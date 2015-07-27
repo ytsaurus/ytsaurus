@@ -13,8 +13,6 @@
 #include <core/ytree/node.h>
 #include <core/ytree/attribute_helpers.h>
 
-#include <core/logging/log.h>
-
 #include <ytlib/new_table_client/row_buffer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schema.h>
@@ -271,10 +269,16 @@ Stroka ToString(const TUnversionedValue& value)
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (lhs.Type == EValueType::Any || rhs.Type == EValueType::Any) {
-        // Never compare composite values.
-        THROW_ERROR_EXCEPTION(
-            EErrorCode::IncomparableType, 
-            "Composite types are not comparable.");
+        if (lhs.Type != EValueType::Min && 
+            lhs.Type != EValueType::Max && 
+            rhs.Type != EValueType::Min &&
+            rhs.Type != EValueType::Max) 
+        {
+                // Never compare composite values with non-sentinels.
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::IncomparableType, 
+                    "Composite types are not comparable");
+        }
     }
 
     if (UNLIKELY(lhs.Type != rhs.Type)) {
@@ -1372,6 +1376,23 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOwningKey WidenKey(const TOwningKey& key, int padding)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (const auto* value = key.Begin(); value != key.End(); ++value) {
+        builder.AddValue(*value);
+    }
+
+    for (int i = 0; i < padding; ++i) {
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
+    }
+
+    return builder.FinishRow();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 TUnversionedOwningRow BuildRow(
     const Stroka& yson,
     const TKeyColumns& keyColumns,
@@ -1439,25 +1460,6 @@ TUnversionedOwningRow BuildRow(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static NLogging::TLogger Logger("MAGIC");
-
-void Magic(const TStringBuf& what, TUnversionedRow row)
-{
-    if (
-        row.GetCount() >= 9 &&
-        row[1].Data.Int64 == 1090116 &&
-        row[2].Data.Int64 == 1420146000 &&
-        row[3].Data.Int64 == 179779087 &&
-        row[4].Data.Int64 == 309868965 &&
-        row[5].Data.Int64 == 1 &&
-        row[6].Data.Int64 == 63 &&
-        row[7].Data.Int64 == 21753 &&
-        row[8].Data.Int64 == 2)
-    {
-        LOG_DEBUG("%v %v", what, row);
-    }
-}
 
 } // namespace NVersionedTableClient
 } // namespace NYT

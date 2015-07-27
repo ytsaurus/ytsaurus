@@ -1084,6 +1084,20 @@ void TOperationControllerBase::DoPrepare()
         return;
     }
 
+    // Check for multiple chunk files.
+    if (JobCounter.GetTotal() >= 1000 && Spec->CheckMultichunkFiles) {
+        for (const auto& file : RegularFiles) {
+            if (file.ChunkCount > 1) {
+                OnOperationFailed(TError("Input file %v consists of more than one chunk", file.Path.GetPath()));
+            }
+        }
+        for (const auto& file : TableFiles) {
+            if (file.ChunkCount > 1) {
+                OnOperationFailed(TError("Input file %v consists of more than one chunk", file.Path.GetPath()));
+            }
+        }
+    }
+
     SuspendUnavailableInputStripes();
 
     AddAllTaskPendingHints();
@@ -2122,9 +2136,11 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
 
         // Consider candidates in the order of increasing memory demand.
         {
+            int processedTaskCount = 0;
             auto it = candidateTasks.begin();
             while (it != candidateTasks.end()) {
-                auto task = it->second;
+                ++processedTaskCount;
+                auto& task = it->second;
 
                 // Make sure that the task is ready to launch jobs.
                 // Remove pending hint if not.
@@ -2176,6 +2192,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 auto job = task->ScheduleJob(context, jobLimits);
                 if (job) {
                     UpdateTask(task);
+                    LOG_DEBUG("Processed %v tasks for task group %p", processedTaskCount, group);
                     return job;
                 }
 
@@ -2188,6 +2205,8 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     candidateTasks.insert(std::make_pair(minMemory, task));
                 }
             }
+
+            LOG_DEBUG("Processed %v tasks for task group %p", processedTaskCount, group);
         }
     }
     return nullptr;
@@ -2892,7 +2911,7 @@ void TOperationControllerBase::RequestFileObjects()
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, Operation->GetOutputTransaction());
+            SetTransactionId(req, Operation->GetInputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             if (file.Type == EObjectType::File) {
                 attributeFilter.Keys.push_back("executable");

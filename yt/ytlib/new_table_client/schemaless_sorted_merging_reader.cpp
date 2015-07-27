@@ -31,6 +31,7 @@ class TSchemalessSortedMergingReader
 public:
     TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
+        int keyColumnCount,
         bool enableTableIndex);
 
     virtual TFuture<void> Open() override;
@@ -69,6 +70,7 @@ private:
 
     NLogging::TLogger Logger;
 
+    int KeyColumnCount_;
     bool EnableTableIndex_;
 
     std::vector<TSession> SessionHolder_;
@@ -80,32 +82,22 @@ private:
     TFuture<void> ReadyEvent_;
     int TableIndex_ = 0;
 
-    void DoOpen();
+    TOwningKey LastKey_;
 
-    friend bool CompareSessions(const TSession* lhs, const TSession* rhs);
+    std::function<bool(const TSession* lhs, const TSession* rhs)> CompareSessions_;
+
+    void DoOpen();
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// ToDo(psushin): use key column count to speed up comparison.
-bool CompareSessions(
-    const TSchemalessSortedMergingReader::TSession* lhs,
-    const TSchemalessSortedMergingReader::TSession* rhs)
-{
-    int result = CompareRows(lhs->Rows[lhs->CurrentRowIndex], rhs->Rows[rhs->CurrentRowIndex]);
-    if (result == 0) {
-        result = lhs->Reader->GetTableIndex() - rhs->Reader->GetTableIndex();
-    }
-    return result < 0;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
+        int keyColumnCount,
         bool enableTableIndex)
     : Logger(TableClientLogger)
+    , KeyColumnCount_(keyColumnCount)
     , EnableTableIndex_(enableTableIndex)
 {
     YCHECK(!readers.empty());
@@ -125,6 +117,17 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
 
         RowCount_ += reader->GetTotalRowCount();
     }
+
+    CompareSessions_ = [=] (const TSession* lhs, const TSession* rhs) -> bool {
+        int result = CompareRows(
+            lhs->Rows[lhs->CurrentRowIndex], 
+            rhs->Rows[rhs->CurrentRowIndex], 
+            KeyColumnCount_);
+        if (result == 0) {
+            result = lhs->Reader->GetTableIndex() - rhs->Reader->GetTableIndex();
+        }
+        return result < 0;
+    };
 }
 
 TFuture<void> TSchemalessSortedMergingReader::Open()
@@ -162,7 +165,7 @@ void TSchemalessSortedMergingReader::DoOpen()
             }
         }
         if (!SessionHeap_.empty()) {
-            MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions);
+            MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_); 
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to open schemaless merging reader") << ex;
@@ -182,12 +185,12 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
         session->CurrentRowIndex = 0;
         if (!session->Reader->Read(&session->Rows)) {
             YCHECK(session->Rows.empty());
-            ExtractHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions);
+            ExtractHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
             SessionHeap_.pop_back();
         } else if (session->Rows.empty()) {
             ReadyEvent_ = session->Reader->GetReadyEvent();
         } else {
-            AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions);
+            AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
         }
 
         return true;
@@ -204,19 +207,18 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
 
         if (session->CurrentRowIndex == session->Rows.size()) {
             // Out of prefetched rows in this session.
-            return true;
+            break;
         }
 
-        AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions);
+        AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
 
         if (EnableTableIndex_ && SessionHeap_.front() != session) {
             // Minimal reader changed, table index possibly changed as well.
-            return true;
+            break;
         }
 
         session = SessionHeap_.front();
     }
-
     return true;
 }
 
@@ -294,9 +296,10 @@ i32 TSchemalessSortedMergingReader::GetRangeIndex() const
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
+    int keyColumnCount,
     bool enableTableIndex)
 {
-    return New<TSchemalessSortedMergingReader>(readers, enableTableIndex);
+    return New<TSchemalessSortedMergingReader>(readers, keyColumnCount, enableTableIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

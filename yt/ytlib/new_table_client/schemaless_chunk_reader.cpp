@@ -270,6 +270,12 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::CreateBlockSe
 {
     std::vector<TSequentialReader::TBlockInfo> blocks;
 
+    // NB: Happens while reading with partition tag.
+    if (BlockMetaExt_.blocks_size() == 0) {
+        CurrentRowIndex_ = 0;
+        return blocks;
+    }
+
     if (beginIndex >= BlockMetaExt_.blocks_size()) {
         // Take the last block meta.
         auto& blockMeta = *(--BlockMetaExt_.blocks().end());
