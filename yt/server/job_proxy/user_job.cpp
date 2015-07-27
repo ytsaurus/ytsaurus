@@ -977,7 +977,10 @@ private:
             }
 
             if (deltaOperations > iopsThreshold * period.Seconds()) {
-                LOG_INFO("Woodpecker detected; limiting it to %v IOPS", iopsThreshold);
+                LOG_INFO(
+                    "Woodpecker detected for device %v; limiting it to %v IOPS", 
+                    item.DeviceId, 
+                    iopsThreshold);
                 BlockIO_.ThrottleOperations(item.DeviceId, iopsThreshold);
             }
         }
