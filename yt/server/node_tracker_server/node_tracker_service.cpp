@@ -64,6 +64,10 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
+        if (!Bootstrap_->IsPrimaryMaster()) {
+            THROW_ERROR_EXCEPTION("Cannot register nodes at secondary master");
+        }
+
         auto worldInitializer = Bootstrap_->GetWorldInitializer();
         if (worldInitializer->CheckProvisionLock()) {
             THROW_ERROR_EXCEPTION(
@@ -100,6 +104,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
     {
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
@@ -129,6 +134,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
     {
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
