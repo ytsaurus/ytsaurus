@@ -422,7 +422,7 @@ class YTEnv(object):
 
             master_name = node_name.replace("node", "master", 1)
             for key in ("addresses", "cell_id"):
-                config['cluster_connection']['master'][key] = self.configs[master_name][0]["primary_master"][key]
+                config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
                 config['cluster_connection']['master_cache'][key] = self.configs[master_name][0]["primary_master"][key]
             config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[master_name]
@@ -516,7 +516,7 @@ class YTEnv(object):
             config = configs.get_scheduler_config()
             master_name = scheduler_name.replace("scheduler", "master", 1)
             for key in ("addresses", "cell_id"):
-                config['cluster_connection']['master'][key] = self.configs[master_name][0]["primary_master"][key]
+                config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
             #config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
@@ -570,7 +570,7 @@ class YTEnv(object):
                 master_config = self.configs[master_name][0]["secondary_masters"][cell_index - 1]
             config = configs.get_driver_config()
             for key in ("addresses", "cell_id"):
-                config['master'][key] = master_config[key]
+                config['primary_master'][key] = master_config[key]
             config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
             self.configs[current_driver_name] = config
@@ -599,7 +599,7 @@ class YTEnv(object):
         driver_config = configs.get_driver_config()
         master_name = proxy_name.replace("proxy", "master", 1)
         for key in ("addresses", "cell_id"):
-            driver_config['cluster_connection']['master'][key] = self.configs[master_name][0]["primary_master"][key]
+            driver_config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
         driver_config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
         driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
 
