@@ -10,6 +10,8 @@
 
 #include <core/ytree/attribute_helpers.h>
 
+#include <util/string/escape.h>
+
 
 namespace NYT {
 namespace NFormats {
@@ -253,8 +255,8 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
 {
     THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %Qv, found %Qv",
-        FieldSeparator,
-        RecordSeparator)
+        EscapeC(FieldSeparator),
+        EscapeC(RecordSeparator))
         << GetDebugInfo();
 }
 
