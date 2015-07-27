@@ -167,7 +167,7 @@ function(PROTOC proto output)
     ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
     PARENT_SCOPE)
 
-  get_property(protoc_location TARGET protoc PROPERTY LOCATION)
+  set(protoc_location $<TARGET_FILE:protoc>)
 
   # Specify custom command how to generate .pb.h and .pb.cc.
   add_custom_command(
