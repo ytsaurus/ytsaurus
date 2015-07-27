@@ -166,9 +166,9 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.upload_file("", TEST_DIR + "/file")
 
         assert set(yt.search(TEST_DIR)) == set([TEST_DIR, TEST_DIR + "/dir",
-                                            TEST_DIR + "/dir/other_dir",
-                                            TEST_DIR + "/dir/table",
-                                            TEST_DIR + "/file"])
+                                                TEST_DIR + "/dir/other_dir",
+                                                TEST_DIR + "/dir/table",
+                                                TEST_DIR + "/file"])
 
         res = yt.search(TEST_DIR, map_node_order=lambda path, object: sorted(object))
         assert list(res) == [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
@@ -1002,19 +1002,15 @@ class NativeModeTester(YtTestBase, YTEnv):
     def test_suspend_resume(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, ["key=1\n"])
-        try:
-            op = yt.run_map_reduce("sleep 0.5; cat", "sleep 0.5; cat", table, table, sync=False, reduce_by=["key"])
-            time.sleep(0.5)
-            op.suspend()
-            assert op.get_state() == "running"
-            time.sleep(2.5)
-            assert op.get_state() == "running"
-            op.resume()
-            time.sleep(2.5)
-            assert op.get_state() == "completed"
-        finally:
-            if op.get_state() not in ["completed", "failed", "aborted"]:
-                op.abort()
+        op = yt.run_map_reduce("sleep 0.5; cat", "sleep 0.5; cat", table, table, sync=False, reduce_by=["key"])
+        time.sleep(0.5)
+        op.suspend()
+        assert op.get_state() == "running"
+        time.sleep(1.5)
+        assert op.get_state() == "running"
+        op.resume()
+        time.sleep(1.5)
+        assert op.get_state() == "completed"
 
     def test_reduce_combiner(self):
         table = TEST_DIR + "/table"
