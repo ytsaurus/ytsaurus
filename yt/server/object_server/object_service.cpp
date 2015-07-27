@@ -236,6 +236,7 @@ private:
                     asyncResponseMessage = ExecuteVerb(rootService, requestMessage);
                 } catch (const TLeaderFallbackException&) {
                     asyncResponseMessage = objectManager->ForwardToLeader(
+                        Bootstrap->GetCellTag(),
                         requestMessage,
                         Context->GetTimeout());
                 }

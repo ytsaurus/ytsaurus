@@ -182,8 +182,9 @@ public:
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
-    //! Forwards a request to the leader.
+    //! Forwards a request to the leader of a given cell.
     TFuture<TSharedRefArray> ForwardToLeader(
+        TCellTag cellTag,
         TSharedRefArray requestMessage,
         TNullable<TDuration> timeout = Null);
 
@@ -206,10 +207,10 @@ private:
 
     class TRootService;
     typedef TIntrusivePtr<TRootService> TRootServicePtr;
-
+    class TRemoteCellService;
     class TObjectResolver;
 
-    TObjectManagerConfigPtr Config_;
+    const TObjectManagerConfigPtr Config_;
 
     NProfiling::TProfiler Profiler;
 
