@@ -215,6 +215,13 @@
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
+    "enable_detailed_traceback": false,
+
+    "yt_client_config": {
+        "operation_tracker": {
+            "ignore_stderr_if_download_failed": true
+        }
+    },
 
     "yt_backend_options": {
         "proxy": "locke.yt.yandex.net",
