@@ -118,7 +118,7 @@ def get_scheduler_config():
     cluster_connection = {
         enable_read_from_followers = true;
 
-        master = {
+        primary_master = {
             rpc_timeout = 5000;
         };
 
@@ -168,7 +168,7 @@ def get_node_config():
     cluster_connection = {
         enable_read_from_followers = true;
 
-        master = {
+        primary_master = {
             rpc_timeout = 5000;
         };
 
@@ -300,7 +300,7 @@ def get_driver_config():
 {
     enable_read_from_followers = true;
 
-    master = {
+    primary_master = {
         rpc_timeout = 5000;
     };
 
