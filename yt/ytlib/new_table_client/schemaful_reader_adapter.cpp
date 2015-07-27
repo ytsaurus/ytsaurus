@@ -23,27 +23,16 @@ class TSchemafulReaderAdapter
     : public ISchemafulReader
 {
 public:
-    explicit TSchemafulReaderAdapter(TSchemalessReaderFactory createReader)
-        : CreateReader_(createReader)
+    TSchemafulReaderAdapter(
+        ISchemalessReaderPtr underlyingReader,
+        TNameTablePtr nameTable,
+        const TTableSchema& schema,
+        const TKeyColumns& keyColumns)
+        : UnderlyingReader_(std::move(underlyingReader))
+        , ReaderSchema_(schema)
+        , RowReorderer_(TNameTable::FromSchema(schema), keyColumns)
         , MemoryPool_(TSchemafulReaderAdapterPoolTag())
     { }
-
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        ReaderSchema_ = schema;
-        auto nameTable = TNameTable::FromSchema(ReaderSchema_);
-        TKeyColumns keyColumns;
-        for (const auto& columnSchema : ReaderSchema_.Columns()) {
-            keyColumns.push_back(columnSchema.Name);
-        }
-
-        TColumnFilter columnFilter(ReaderSchema_.Columns().size());
-
-        RowReorderer_.reset(new TSchemalessRowReorderer(nameTable, keyColumns));
-        UnderlyingReader_ = CreateReader_(nameTable, columnFilter);
-
-        return UnderlyingReader_->Open();
-    }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
@@ -64,7 +53,7 @@ public:
 
         try {
             for (int i = 0; i < rows->size(); ++i) {
-                auto row = RowReorderer_->ReorderKey(rows_[i], &MemoryPool_);
+                auto row = RowReorderer_.ReorderKey(rows_[i], &MemoryPool_);
                 for (int valueIndex = 0; valueIndex < ReaderSchema_.Columns().size(); ++valueIndex) {
                     ValidateDataValue(row[valueIndex]);
                     ValidateValueType(row[valueIndex], ReaderSchema_, valueIndex);
@@ -90,11 +79,10 @@ public:
 
 private:
     ISchemalessReaderPtr UnderlyingReader_;
-    TSchemalessReaderFactory CreateReader_;
 
     TTableSchema ReaderSchema_;
 
-    std::unique_ptr<TSchemalessRowReorderer> RowReorderer_;
+    TSchemalessRowReorderer RowReorderer_;
     TChunkedMemoryPool MemoryPool_;
 
     TPromise<void> ErrorPromise_ = NewPromise<void>();
@@ -103,9 +91,29 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)
 
-ISchemafulReaderPtr CreateSchemafulReaderAdapter(TSchemalessReaderFactory createReader)
+TFuture<ISchemafulReaderPtr> CreateSchemafulReaderAdapter(
+    TSchemalessReaderFactory createReader,
+    const TTableSchema& schema)
 {
-    return New<TSchemafulReaderAdapter>(createReader);
+    TKeyColumns keyColumns;
+    for (const auto& columnSchema : schema.Columns()) {
+        keyColumns.push_back(columnSchema.Name);
+    }
+
+    auto nameTable = TNameTable::FromSchema(schema);
+    TColumnFilter columnFilter(schema.Columns().size());
+
+    auto underlyingReader = createReader(nameTable, columnFilter);
+
+    auto result = New<TSchemafulReaderAdapter>(
+        underlyingReader,
+        nameTable,
+        schema,
+        keyColumns);
+
+    return underlyingReader->Open().Apply(BIND([=] () -> ISchemafulReaderPtr {
+        return result;
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

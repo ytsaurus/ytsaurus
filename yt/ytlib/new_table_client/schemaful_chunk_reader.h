@@ -18,10 +18,11 @@ namespace NVersionedTableClient {
 //! NChunkClient::IReader, e.g. TMemoryReader, TReplicationReader etc.
 
 //! ToDo(psushin): pass key columns here.
-ISchemafulReaderPtr CreateSchemafulChunkReader(
+TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::IBlockCachePtr blockCache,
+    const TTableSchema& schema,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     const NChunkClient::TReadLimit& startLimit = NChunkClient::TReadLimit(),
     const NChunkClient::TReadLimit& endLimit = NChunkClient::TReadLimit(),

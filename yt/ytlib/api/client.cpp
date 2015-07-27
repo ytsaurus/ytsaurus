@@ -171,78 +171,49 @@ class TQueryResponseReader
     : public ISchemafulReader
 {
 public:
-    explicit TQueryResponseReader(TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse)
-        : AsyncResponse_(std::move(asyncResponse))
+    TQueryResponseReader(
+        TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
+        const TTableSchema& schema)
+        : Schema_(schema)
     {
-        QueryResult_.OnCanceled(BIND([this, this_ = MakeStrong(this)] () {
-            AsyncResponse_.Cancel();
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                QueryResult_.Reset();
-            }
-        }));
-    }
-
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        return AsyncResponse_.Apply(BIND(
+        QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
-            MakeStrong(this),
-            schema));
+            MakeStrong(this)));
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return RowsetReader_->Read(rows);
+        return !RowsetReader_ || RowsetReader_->Read(rows);
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return RowsetReader_->GetReadyEvent();
+        if (!RowsetReader_) {
+            return QueryResult_.As<void>();
+        } else {
+            return RowsetReader_->GetReadyEvent();
+        }
     }
 
     TFuture<TQueryStatistics> GetQueryResult() const
     {
-        return QueryResult_.ToFuture();
+        return QueryResult_;
     }
 
 private:
-    TFuture<TQueryServiceProxy::TRspExecutePtr> AsyncResponse_;
-
-    std::unique_ptr<TWireProtocolReader> ProtocolReader_;
+    TTableSchema Schema_;
     ISchemafulReaderPtr RowsetReader_;
 
-    TSpinLock SpinLock_;
-    TPromise<TQueryStatistics> QueryResult_ = NewPromise<TQueryStatistics>();
+    TFuture<TQueryStatistics> QueryResult_;
 
-
-    void OnResponse(
-        const TTableSchema& schema,
-        const TQueryServiceProxy::TErrorOrRspExecutePtr& responseOrError)
+    TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
-        if (!responseOrError.IsOK()) {
-            QueryResult_.Set(responseOrError);
-            THROW_ERROR responseOrError;
-        }
-        const auto& response = responseOrError.Value();
-
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            QueryResult_.Set(FromProto(response->query_statistics()));
-        }
-
-        YCHECK(!ProtocolReader_);
         auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
-        ProtocolReader_ = std::make_unique<TWireProtocolReader>(data);
 
         YCHECK(!RowsetReader_);
-        RowsetReader_ = ProtocolReader_->CreateSchemafulRowsetReader();
+        RowsetReader_ = TWireProtocolReader(data).CreateSchemafulRowsetReader(Schema_);
 
-        auto openResult = RowsetReader_->Open(schema);
-        YCHECK(openResult.IsSet()); // this reader is sync
-        openResult
-            .Get()
-            .ThrowOnError();
+        return FromProto(response->query_statistics());
     }
 };
 
@@ -648,7 +619,7 @@ private:
             TRACE_ANNOTATION("serialization_time", serializationTime);
             TRACE_ANNOTATION("request_size", req->ByteSize());
 
-            auto resultReader = New<TQueryResponseReader>(req->Invoke());
+            auto resultReader = New<TQueryResponseReader>(req->Invoke(), fragment->Query->GetTableSchema());
             return std::make_pair(resultReader, resultReader->GetQueryResult());
         }
     }

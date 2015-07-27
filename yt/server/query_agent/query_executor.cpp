@@ -81,54 +81,6 @@ static const auto& Logger = QueryAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLazySchemafulReader
-    : public ISchemafulReader
-{
-public:
-    explicit TLazySchemafulReader(TFuture<ISchemafulReaderPtr> futureUnderlyingReader)
-        : FutureUnderlyingReader_(std::move(futureUnderlyingReader))
-    { }
-
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        return FutureUnderlyingReader_.Apply(
-            BIND(&TLazySchemafulReader::DoOpen, MakeStrong(this), schema));
-    }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        YASSERT(UnderlyingReader_);
-        return UnderlyingReader_->Read(rows);
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        YASSERT(UnderlyingReader_);
-        return UnderlyingReader_->GetReadyEvent();
-    }
-
-private:
-    TFuture<ISchemafulReaderPtr> FutureUnderlyingReader_;
-
-    ISchemafulReaderPtr UnderlyingReader_;
-
-
-    TFuture<void> DoOpen(const TTableSchema& schema, const TErrorOr<ISchemafulReaderPtr>& readerOrError)
-    {
-        if (!readerOrError.IsOK()) {
-            return MakeFuture(TError(readerOrError));
-        }
-
-        YCHECK(!UnderlyingReader_);
-        UnderlyingReader_ = readerOrError.Value();
-
-        return UnderlyingReader_->Open(schema);
-    }
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQueryExecutor
     : public IExecutor
 {
@@ -336,6 +288,7 @@ private:
                     }));
 
                 auto bottomSplitReaderGenerator = [
+                    fragment,
                     groupedSplit,
                     timestamp,
                     index = 0,
@@ -344,7 +297,10 @@ private:
                     if (index == groupedSplit.size()) {
                         return nullptr;
                     } else {
-                        return this_->GetReader(groupedSplit[index++], timestamp);
+                        return this_->GetReader(
+                            fragment->Query->TableSchema,
+                            groupedSplit[index++],
+                      	    timestamp);
                     }
                 };
 
@@ -364,10 +320,15 @@ private:
                 for (const auto& keys : groupedKeys) {
                     LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
                         JoinToString(keys));
-                    bottomSplitReaders.push_back(GetReader(keySource.first, keys, timestamp));
+                    bottomSplitReaders.push_back(GetReader(
+                        fragment->Query->TableSchema,
+                        keySource.first,
+                        keys,
+                        timestamp));
                 }
 
                 auto bottomSplitReaderGenerator = [
+                    fragment,
                     groupedKeys,
                     object = keySource.first,
                     timestamp,
@@ -377,7 +338,11 @@ private:
                     if (index == groupedKeys.size()) {
                         return nullptr;
                     } else {
-                        return this_->GetReader(object, groupedKeys[index++], timestamp);
+                        return this_->GetReader(
+                            fragment->Query->TableSchema,
+                            object,
+                            groupedKeys[index++],
+                            timestamp);
                     }
                 };
 
@@ -433,7 +398,7 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(dataSplit, timestamp);
+                return GetReader(fragment->Query->TableSchema, dataSplit, timestamp);
             });
         }
 
@@ -730,6 +695,7 @@ private:
     }
 
     ISchemafulReaderPtr GetReader(
+        const TTableSchema& schema,
         const TDataSource& source,
         TTimestamp timestamp)
     {
@@ -739,10 +705,10 @@ private:
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(source, timestamp);
+                return GetChunkReader(schema, source, timestamp);
 
             case EObjectType::Tablet:
-                return GetTabletReader(source, timestamp);
+                return GetTabletReader(schema, source, timestamp);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -751,6 +717,7 @@ private:
     }
 
     ISchemafulReaderPtr GetReader(
+        const TTableSchema& schema,
         const NObjectClient::TObjectId& objectId,
         const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
@@ -760,7 +727,7 @@ private:
         // TODO(babenko): add support for chunks
         switch (TypeFromId(objectId)) {
             case EObjectType::Tablet:
-                return GetTabletReader(objectId, keys, timestamp);
+                return GetTabletReader(schema, objectId, keys, timestamp);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -769,16 +736,7 @@ private:
     }
 
     ISchemafulReaderPtr GetChunkReader(
-        const TDataSource& source,
-        TTimestamp timestamp)
-    {
-        auto futureReader = BIND(&TQueryExecutor::DoGetChunkReader, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(source, timestamp);
-        return New<TLazySchemafulReader>(std::move(futureReader));
-    }
-
-    ISchemafulReaderPtr DoGetChunkReader(
+        const TTableSchema& schema,
         const TDataSource& source,
         TTimestamp timestamp)
     {
@@ -832,65 +790,59 @@ private:
         TReadLimit upperReadLimit;
         upperReadLimit.SetKey(TOwningKey(upperBound));
 
-        return CreateSchemafulChunkReader(
+        return WaitFor(CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
+            schema,
             chunkMeta,
             lowerReadLimit,
             upperReadLimit,
+            timestamp))
+            .ValueOrThrow();
+    }
+
+    ISchemafulReaderPtr GetTabletReader(
+        const TTableSchema& schema,
+        const TDataSource& source,
+        TTimestamp timestamp)
+    {
+        const auto& tabletId = source.Id;
+
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
+
+        TOwningKey lowerBound(source.Range.first);
+        TOwningKey upperBound(source.Range.second);
+
+        return CreateSchemafulTabletReader(
+            std::move(tabletSnapshot),
+            schema,
+            lowerBound,
+            upperBound,
             timestamp);
     }
 
     ISchemafulReaderPtr GetTabletReader(
-        const TDataSource& source,
-        TTimestamp timestamp)
-    {
-        try {
-            const auto& tabletId = source.Id;
-
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-            auto securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
-
-            TOwningKey lowerBound(source.Range.first);
-            TOwningKey upperBound(source.Range.second);
-
-            return CreateSchemafulTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
-                std::move(tabletSnapshot),
-                lowerBound,
-                upperBound,
-                timestamp);
-        } catch (const std::exception& ex) {
-            auto futureReader = MakeFuture(TErrorOr<ISchemafulReaderPtr>(ex));
-            return New<TLazySchemafulReader>(futureReader);
-        }
-    }
-
-    ISchemafulReaderPtr GetTabletReader(
+        const TTableSchema& schema,
         const NObjectClient::TObjectId& tabletId,
         const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
     {
-        try {
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-            auto securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
-            return CreateSchemafulTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
-                std::move(tabletSnapshot),
-                keys,
-                timestamp);
-        } catch (const std::exception& ex) {
-            auto futureReader = MakeFuture(TErrorOr<ISchemafulReaderPtr>(ex));
-            return New<TLazySchemafulReader>(futureReader);
-        }
+        return CreateSchemafulTabletReader(
+            std::move(tabletSnapshot),
+            schema,
+            keys,
+            timestamp);
     }
 
 };

@@ -16,10 +16,6 @@ struct TSchemafulPipe::TData
 {
     TSpinLock SpinLock;
 
-    TPromise<void> WriterOpened = NewPromise<void>();
-
-    TTableSchema Schema;
-
     const TRowBufferPtr RowBuffer = New<TRowBuffer>();
     TRingQueue<TUnversionedRow> RowQueue;
 
@@ -28,7 +24,6 @@ struct TSchemafulPipe::TData
 
     int RowsWritten = 0;
     int RowsRead = 0;
-    bool ReaderOpened = false;
     bool WriterClosed = false;
     bool Failed = false;
 
@@ -62,7 +57,6 @@ struct TSchemafulPipe::TData
             writerReadyEvent = WriterReadyEvent;
         }
 
-        WriterOpened.TrySet(error);
         readerReadyEvent.Set(error);
         writerReadyEvent.Set(error);
     }
@@ -79,14 +73,6 @@ public:
         : Data_(std::move(data))
     { }
 
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        return Data_->WriterOpened.ToFuture().Apply(BIND(
-            &TReader::OnOpened,
-            MakeStrong(this),
-            schema));
-    }
-
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         YASSERT(rows->capacity() > 0);
@@ -94,8 +80,6 @@ public:
 
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
-
-            YCHECK(Data_->ReaderOpened);
 
             if (Data_->WriterClosed && Data_->RowsWritten == Data_->RowsRead) {
                 return false;
@@ -128,20 +112,6 @@ private:
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-    void OnOpened(const TTableSchema& readerSchema)
-    {
-        {
-            TGuard<TSpinLock> guard(Data_->SpinLock);
-
-            YCHECK(!Data_->ReaderOpened);
-            Data_->ReaderOpened = true;
-        }
-
-        if (readerSchema != Data_->Schema) {
-            THROW_ERROR_EXCEPTION("Reader/writer schema mismatch");
-        }
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,8 +128,6 @@ public:
         const TTableSchema& schema,
         const TNullable<TKeyColumns>& /*keyColumns*/) override
     {
-        Data_->Schema = schema;
-        Data_->WriterOpened.Set();
         return VoidFuture;
     }
 
@@ -203,7 +171,6 @@ public:
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
 
-            YCHECK(Data_->WriterOpened.IsSet());
             YCHECK(!Data_->WriterClosed);
 
             if (Data_->Failed) {

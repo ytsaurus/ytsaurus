@@ -2050,7 +2050,6 @@ class TReaderMock
     : public ISchemafulReader
 {
 public:
-    MOCK_METHOD1(Open, TFuture<void>(const TTableSchema&));
     MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
 };
@@ -2115,10 +2114,10 @@ TFuture<TQueryStatistics> DoExecuteQuery(
 
     auto readerMock = New<StrictMock<TReaderMock>>();
 
-    auto onOpened = [&] (const TTableSchema& targetSchema) {
+    if (!shouldFail) {
         TKeyColumns emptyKeyColumns;
         for (const auto& row : source) {
-            owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, targetSchema));
+            owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, fragment->Query->TableSchema));
         }
 
         sourceRows.resize(owningSource.size());
@@ -2132,16 +2131,8 @@ TFuture<TQueryStatistics> DoExecuteQuery(
 
         ON_CALL(*readerMock, Read(_))
             .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
-        if (!shouldFail) {
-            EXPECT_CALL(*readerMock, Read(_));
-        }
-    };
 
-    ON_CALL(*readerMock, Open(_))
-        .WillByDefault(DoAll(Invoke(onOpened), Return(WrapVoidInFuture())));
-
-    if (!shouldFail) {
-        EXPECT_CALL(*readerMock, Open(_));
+        EXPECT_CALL(*readerMock, Read(_));
     }
 
     std::vector<TExecuteQuery> executeCallbacks;

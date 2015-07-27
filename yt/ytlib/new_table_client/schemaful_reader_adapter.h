@@ -4,6 +4,8 @@
 
 #include "unversioned_row.h"
 
+#include <core/actions/future.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -11,7 +13,9 @@ namespace NVersionedTableClient {
 
 typedef std::function<ISchemalessReaderPtr(TNameTablePtr, TColumnFilter)> TSchemalessReaderFactory;
 
-ISchemafulReaderPtr CreateSchemafulReaderAdapter(TSchemalessReaderFactory createReader);
+TFuture<ISchemafulReaderPtr> CreateSchemafulReaderAdapter(
+    TSchemalessReaderFactory createReader,
+    const TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
