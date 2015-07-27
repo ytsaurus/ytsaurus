@@ -26,6 +26,8 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/hive/cell_directory.h>
+
 #include <server/election/election_manager.h>
 
 #include <server/cell_master/serialize.h>
@@ -75,6 +77,58 @@ static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 //! A sentinel instance of IAttributeDictionary for IObjectTypeHandler::CreateObject.
 //! Note that |EmptyAttributes()| cannot be used here due to const-ness.
 static const std::unique_ptr<IAttributeDictionary> MutableEmptyAttributes = CreateEphemeralAttributes();
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectManager::TRemoteCellService
+    : public IYPathService
+{
+public:
+    TRemoteCellService(TBootstrap* bootstrap, TCellTag cellTag)
+        : Bootstrap_(bootstrap)
+        , CellTag_(cellTag)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+    {
+        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        if (ypathExt.mutating()) {
+            THROW_ERROR_EXCEPTION("Mutating requests to remote cells are not allowed");
+        }
+
+        YCHECK(!HasMutationContext());
+
+        return TResolveResult::Here(path);
+    }
+
+    virtual void Invoke(IServiceContextPtr context) override
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto asyncResponseMessage = objectManager->ForwardToLeader(
+            CellTag_,
+            context->GetRequestMessage());
+        context->ReplyFrom(std::move(asyncResponseMessage));
+    }
+
+    virtual NLogging::TLogger GetLogger() const override
+    {
+        return ObjectServerLogger;
+    }
+
+    // TODO(panin): remove this when getting rid of IAttributeProvider
+    virtual void SerializeAttributes(
+        IYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*filter*/,
+        bool /*sortKeys*/) override
+    {
+        YUNREACHABLE();
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+    const TCellTag CellTag_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,6 +268,14 @@ private:
                         objectIdString);
                 }
 
+                if (Bootstrap_->IsPrimaryMaster()) {
+                    auto cellTag = CellTagFromId(objectId);
+                    if (cellTag != Bootstrap_->GetCellTag()) {
+                        auto remoteProxy = New<TRemoteCellService>(Bootstrap_, cellTag);
+                        return TResolveResult::There(remoteProxy, path);
+                    }
+                }
+
                 auto* object = objectManager->GetObjectOrThrow(objectId);
                 auto proxy = objectManager->GetProxy(object, transaction);
                 return TResolveResult::There(proxy, tokenizer.GetSuffix());
@@ -229,7 +291,9 @@ private:
     void ForwardToLeader(IServiceContextPtr context)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto asyncResponseMessage = objectManager->ForwardToLeader(context->GetRequestMessage());
+        auto asyncResponseMessage = objectManager->ForwardToLeader(
+            Bootstrap_->GetCellTag(),
+            context->GetRequestMessage());
         context->ReplyFrom(std::move(asyncResponseMessage));
     }
 
@@ -1033,20 +1097,19 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 }
 
 TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
+    TCellTag cellTag,
     TSharedRefArray requestMessage,
     TNullable<TDuration> timeout)
 {
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    auto leaderId = hydraManager->GetAutomatonLeaderId();
-
-    LOG_DEBUG("Request forwarding started");
+    LOG_DEBUG("Forwarding request to leader (CellTag: %v)",
+        cellTag);
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto cellManager = Bootstrap_->GetCellManager();
-    auto channel = cellManager->GetPeerChannel(leaderId);
-    YCHECK(channel);
+    auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
+    auto cellDirectory = Bootstrap_->GetCellDirectory();
+    auto channel = cellDirectory->GetChannelOrThrow(cellId, EPeerKind::Leader);
 
     TObjectServiceProxy proxy(std::move(channel));
     proxy.SetDefaultTimeout(timeout.Get(Config_->ForwardingRpcTimeout));
