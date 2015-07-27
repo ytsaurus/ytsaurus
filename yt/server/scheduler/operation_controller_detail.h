@@ -255,6 +255,10 @@ protected:
 
     struct TUserFile
     {
+        TUserFileBase()
+            : ChunkCount(0)
+        { }
+
         NYPath::TRichYPath Path;
         EOperationStage Stage;
         Stroka FileName;

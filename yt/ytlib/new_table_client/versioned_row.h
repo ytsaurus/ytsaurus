@@ -83,15 +83,15 @@ inline TVersionedValue MakeVersionedAnyValue(const TStringBuf& value, TTimestamp
 
 struct TVersionedRowHeader
 {
-    ui16 ValueCount;
-    ui16 KeyCount;
-    ui16 WriteTimestampCount;
-    ui16 DeleteTimestampCount;
+    ui32 ValueCount;
+    ui32 KeyCount;
+    ui32 WriteTimestampCount;
+    ui32 DeleteTimestampCount;
 };
 
 static_assert(
-    sizeof(TVersionedRowHeader) == 8,
-    "TVersionedRowHeader has to be exactly 8 bytes.");
+    sizeof(TVersionedRowHeader) == 16,
+    "TVersionedRowHeader has to be exactly 16 bytes.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -507,8 +507,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void Magic(const TStringBuf& what, TVersionedRow row);
 
 } // namespace NVersionedTableClient
 } // namespace NYT

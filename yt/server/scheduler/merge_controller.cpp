@@ -1724,6 +1724,8 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
+        YCHECK(!KeyColumns.empty());
+
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -1737,7 +1739,7 @@ private:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
+        ToProto(reduceJobSpecExt->mutable_key_columns(), GetSortingKeyColumns());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
@@ -1767,6 +1769,25 @@ private:
         return true;
     }
 
+    TKeyColumns GetSortingKeyColumns()
+    {
+        auto sortBy = InputTables[0].KeyColumns.Get();
+        for (const auto& table : InputTables) {
+            if (table.KeyColumns->size() < sortBy.size()) {
+                sortBy.erase(sortBy.begin() + table.KeyColumns->size(), sortBy.end());
+            }
+
+            int i = 0;
+            for (; i < sortBy.size(); ++i) {
+                if (sortBy[i] != table.KeyColumns->at(i)) {
+                    break;
+                }
+            }
+            sortBy.erase(sortBy.begin() + i, sortBy.end());
+        }
+        YCHECK(sortBy.size() >= KeyColumns.size());
+        return sortBy;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);

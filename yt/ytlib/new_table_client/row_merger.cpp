@@ -48,7 +48,6 @@ TSchemafulRowMerger::TSchemafulRowMerger(
 
 void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 {
-    Magic(STRINGBUF("TSchemafulRowMerger::AddPartialRow"), row);
     if (!row)
         return;
 
@@ -131,7 +130,6 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
     MergedRow_ = TUnversionedRow();
 
     Cleanup();
-    Magic(STRINGBUF("TSchemafulRowMerger::BuildMergedRow"), mergedRow);
     return mergedRow;
 }
 
@@ -188,7 +186,6 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
-    Magic(STRINGBUF("TUnversionedRowMerger::InitPartialRow"), row);
     if (!Started_) {
         MergedRow_ = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
 
@@ -210,7 +207,6 @@ void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 
 void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 {
-    Magic(STRINGBUF("TUnversionedRowMerger::AddPartialRow"), row);
     if (!row) {
         return;
     }
@@ -233,7 +229,6 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
 void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 {
-    Magic(STRINGBUF("TUnversionedRowMerger::DeletePartialRow"), row);
     InitPartialRow(row);
 
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
@@ -285,7 +280,6 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     }
 
     Cleanup();
-    Magic(STRINGBUF("TUnversionedRowMerger::BuildMergedRow"), mergedRow);
     return mergedRow;
 }
 
@@ -331,8 +325,6 @@ TTimestamp TVersionedRowMerger::GetMajorTimestamp() const
 
 void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
 {
-    Magic(STRINGBUF("TVersionedRowMerger::AddPartialRow"), row);
-
     if (!row) {
         return;
     }
@@ -488,13 +480,6 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         DeleteTimestamps_.erase(it, DeleteTimestamps_.end());
     }
 
-    // XXX(babenko)
-    const int MAX = 32768;
-    if (DeleteTimestamps_.size() > MAX) {
-        DeleteTimestamps_.erase(DeleteTimestamps_.begin() + MAX, DeleteTimestamps_.end());
-        fprintf(stderr, "!!! Delete timestamps trimmed during merge\n");
-    }
-
     if (MergedValues_.empty() && WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
         Cleanup();
         return TVersionedRow();
@@ -519,7 +504,6 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
 
     Cleanup();
-    Magic(STRINGBUF("TVersionedRowMerger::BuildMergedRow"), row);
     return row;
 }
 

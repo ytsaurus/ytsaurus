@@ -62,7 +62,7 @@ public:
         }
 
         // Read without table index.
-        Reader_ = CreateSchemalessSortedMergingReader(readers, false);
+        Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size(), false);
 
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

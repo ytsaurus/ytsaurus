@@ -61,7 +61,8 @@ public:
             readers.push_back(reader);
         }
 
-        return CreateSchemalessSortedMergingReader(readers);
+        auto reader = CreateSchemalessSortedMergingReader(readers, keyColumns.size());
+        return std::vector<ISchemalessMultiChunkReaderPtr>(1, reader);
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
