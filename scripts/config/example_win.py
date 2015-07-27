@@ -68,10 +68,6 @@ class Master(WinNode, Server):
                 'changelogs' : {
                     'path' : r'%(work_dir)s\changelogs'
                 },
-                'node_tracker' : {
-                    'registered_node_timeout' : 5000,
-                    'online_node_timeout' : 10000
-                },
                 'tablet_manager' : {
                     'peer_failover_timeout' : 15000
                 },

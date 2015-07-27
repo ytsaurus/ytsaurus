@@ -92,7 +92,6 @@ def get_master_config():
     };
 
     node_tracker = {
-        online_node_timeout = 1000;
         max_concurrent_node_registrations = 100;
         max_concurrent_node_unregistrations = 100;
     };
