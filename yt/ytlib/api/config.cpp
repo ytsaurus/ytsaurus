@@ -34,8 +34,7 @@ TConnectionConfig::TConnectionConfig()
 {
     RegisterParameter("network_name", NetworkName)
         .Default(NNodeTrackerClient::InterconnectNetworkName);
-    // TODO(babenko): consider renaming to primary_master
-    RegisterParameter("master", PrimaryMaster);
+    RegisterParameter("primary_master", PrimaryMaster);
     RegisterParameter("secondary_masters", SecondaryMasters)
         .Default();
     RegisterParameter("master_cache", MasterCache)
