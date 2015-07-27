@@ -2202,7 +2202,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 auto job = task->ScheduleJob(context, jobLimits);
                 if (job) {
                     UpdateTask(task);
-                    LOG_DEBUG("Processed %v tasks for task group %p", processedTaskCount, group);
+                    LOG_DEBUG("Processed %v tasks", processedTaskCount);
                     return job;
                 }
 
@@ -2216,7 +2216,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 }
             }
 
-            LOG_DEBUG("Processed %v tasks for task group %p", processedTaskCount, group);
+            LOG_DEBUG("Processed %v tasks", processedTaskCount);
         }
     }
     return nullptr;
