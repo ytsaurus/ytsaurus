@@ -129,7 +129,7 @@ def get_scheduler_config():
         };
 
         transaction_manager = {
-            ping_period = 500;
+            default_ping_period = 500;
         };
     };
 
@@ -151,7 +151,7 @@ def get_scheduler_config():
     };
 
     transaction_manager = {
-        ping_period = 500;
+        default_ping_period = 500;
     };
 
     logging = { };
@@ -311,7 +311,7 @@ def get_driver_config():
     };
 
     transaction_manager = {
-        ping_period = 500;
+        default_ping_period = 500;
     };
 
     format_defaults = {
