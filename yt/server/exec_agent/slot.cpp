@@ -160,6 +160,10 @@ void TSlot::DoCleanSandbox()
 
 void TSlot::DoCleanProcessGroups()
 {
+    if (!Config_->EnableCGroups) {
+        return;
+    }
+
     try {
         for (const auto& path : GetCGroupPaths()) {
             NCGroup::TNonOwningCGroup group(path);
