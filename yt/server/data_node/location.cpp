@@ -732,7 +732,8 @@ void TLocation::CheckTrashWatermark()
     i64 availableSpace;
     auto beginCleanup = [&] () {
         TGuard<TSpinLock> guard(TrashMapSpinLock_);
-        availableSpace = GetAvailableSpace();
+        // NB: Available space includes trash disk space.
+        availableSpace = GetAvailableSpace() - TrashDiskSpace_;
         return availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
     };
 
