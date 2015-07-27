@@ -142,7 +142,10 @@ void TFileChunkOutput::DoFinish()
         GenerateMutationId(req);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error confirming chunk");
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError, 
+            NChunkClient::EErrorCode::MasterCommunicationFailed, 
+            "Error confirming chunk");
     }
     LOG_INFO("Chunk confirmed");
 
