@@ -290,13 +290,6 @@ public:
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
     
-    virtual TPeerId GetAutomatonLeaderId() const override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return AutomatonEpochContext_ ? AutomatonEpochContext_->LeaderId : InvalidPeerId;
-    }
-
     virtual bool GetReadOnly() const
     {
         VERIFY_THREAD_AFFINITY_ANY();

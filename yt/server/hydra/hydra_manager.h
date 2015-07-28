@@ -84,12 +84,6 @@ struct IHydraManager
      */
     virtual TCancelableContextPtr GetAutomatonCancelableContext() const = 0;
 
-    //! Returns the leading peer id, as viewed by the Automaton Thread.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
-    virtual NElection::TPeerId GetAutomatonLeaderId() const = 0;
-
     //! Synchronizes with the upstream.
     /*!
      *  Used to prevent stale reads by ensuring that the automaton has seen enough mutations
