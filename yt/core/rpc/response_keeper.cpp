@@ -53,7 +53,9 @@ public:
                 return;
 
             TGuard<TSpinLock> guard(SpinLock_);
-            WarmupDeadline_ = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(Config_->WarmupTime);
+            WarmupDeadline_ = Config_->EnableWarmup
+                ? NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(Config_->WarmupTime)
+                : 0;
             Started_ = true;
         }
 
