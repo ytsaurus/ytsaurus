@@ -271,7 +271,7 @@ std::unique_ptr<IGenerator> CreateQuotientEnumerationGenerator(
 
 ui64 Estimate(TUnversionedValue lower, TUnversionedValue upper, TDivisors partial)
 {
-    YCHECK(lower.Type == upper.Type);
+    YCHECK(partial.empty() || lower.Type == upper.Type);
 
     switch (lower.Type) {
         case EValueType::Int64: {
@@ -565,45 +565,43 @@ private:
 
             auto moduloGenerator = GetModuloGeneratorForColumn(shrinkSize);
             TDivisors partial;
+            ui64 estimation = moduloGenerator ? moduloGenerator->Count() : std::numeric_limits<ui64>::max();
 
             if (isEvaluatable) {
                 if (canEnumerate) {
                     partial = GetDivisors(prefixSize, Evaluator_->GetExpression(shrinkSize));
+                    partial.erase(
+                        std::remove_if(partial.begin(), partial.end(), [&] (TUnversionedValue value) {
+                            return divisorsSet.count(value);
+                        }),
+                        partial.end());
+
+                    auto enumEstimation = Estimate(lower[prefixSize], upper[prefixSize], partial);
+
+                    // Here we solve whether create modulo generator or collect divisors.
+                    if (enumEstimation < estimation) {
+                        estimation = enumEstimation;
+                        moduloGenerator.Reset();
+                    } else {
+                        partial.clear();
+                    }
+                } else {
+                    estimation = 1;
+                    moduloGenerator.Reset();
                 }
             } else if (!moduloGenerator) {
                 break;
             }
-            ui64 estimation = 1;
 
-            if (!partial.empty()) {
-                partial.erase(
-                    std::remove_if(partial.begin(), partial.end(), [&] (TUnversionedValue value) {
-                        return divisorsSet.count(value);
-                    }),
-                    partial.end());
-
-                estimation = Estimate(lower[prefixSize], upper[prefixSize], partial);
-
-                // Here we solve whether create modulo generator or collect divisors.
-                if (moduloGenerator) {
-                    if (moduloGenerator->Count() > estimation) {
-                        moduloGenerator.Reset();
-                    } else {
-                        estimation = moduloGenerator->Count();
-                    }
-                }
-
-                if (!moduloGenerator) {
-                    divisorsSet.insert(partial.begin(), partial.end());
-                }
-            }
-
-            if (rangeCount * estimation > RangeExpansionLeft_) {
-                break;
-            } else {
+            if (estimation <= RangeExpansionLeft_ &&
+                rangeCount * estimation <= RangeExpansionLeft_)
+            {
                 rangeCount *= estimation;
+            } else {
+                break;
             }
 
+            divisorsSet.insert(partial.begin(), partial.end());
             computedColumns.emplace_back(shrinkSize, moduloGenerator);
             estimations.push_back(estimation);
         }
