@@ -1336,7 +1336,7 @@ def _run_operation(binary, source_table, destination_table,
             if are_sorted_output and are_tables_not_sorted:
                 logger.info("Sorting %s", source_table)
                 temp_table = create_temp_table(client=client)
-                run_sort(source_table, temp_table, sort_by=reduce_by, client=client)
+                run_sort(source_table, temp_table, sort_by=sort_by, client=client)
                 finalize = lambda: remove(temp_table, client=client)
                 source_table = [TablePath(temp_table)]
 
