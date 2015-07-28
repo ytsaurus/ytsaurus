@@ -17,6 +17,7 @@ DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TCellNodeConfig)
 
 using TNodeMemoryTracker = TMemoryUsageTracker<NNodeTrackerClient::EMemoryCategory>;
+using TNodeMemoryTrackerGuard = TMemoryUsageTrackerGuard<NNodeTrackerClient::EMemoryCategory>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
