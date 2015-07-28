@@ -298,8 +298,10 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
         ValidatePermission(account, EPermission::Use);
 
         auto* node = LockThisImpl();
-        account->ValidateResourceUsageIncrease(node->GetResourceUsage());
-        securityManager->SetAccount(node, account);
+        if (node->GetAccount() != account) {
+            account->ValidateResourceUsageIncrease(node->GetResourceUsage());
+            securityManager->SetAccount(node, account);
+        }
 
         return true;
     }
