@@ -303,6 +303,7 @@ void TPacketEncoder::NextMessagePartPhase()
         }
     }
 
+    Message_.Reset();
     SetFinished();
 }
 
