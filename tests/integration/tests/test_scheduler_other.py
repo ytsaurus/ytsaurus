@@ -139,9 +139,8 @@ class TestSchedulerOther(YTEnvSetup):
         track_op(op1)
 
     def test_pool_resource_limits(self):
-        create("map_node", "//sys/pools/test_pool")
         resource_limits = {"cpu": 1, "memory": 100, "network": 10}
-        set("//sys/pools/test_pool/@resource_limits", resource_limits)
+        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
 
         while True:
             pools = get("//sys/scheduler/orchid/scheduler/pools")
@@ -335,8 +334,7 @@ class TestSchedulingTags(YTEnvSetup):
     def test_pools(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/test_pool")
-        set("//sys/pools/test_pool/@scheduling_tag", "tagA")
+        create("map_node", "//sys/pools/test_pool", attributes={"scheduling_tag": "tagA"})
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
