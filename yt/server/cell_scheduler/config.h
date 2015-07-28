@@ -48,6 +48,10 @@ public:
             .DefaultNew();
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
+
+        RegisterInitializer([&] () {
+            ResponseKeeper->EnableWarmup = false;
+        });
     }
 };
 
