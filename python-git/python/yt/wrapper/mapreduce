@@ -271,7 +271,7 @@ Examples:
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
                                           "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable",
-                                          "jsonoutput"])
+                                          "jsonoutput", "tableindex"])
     parser.add_argument(*arg_to_names("sort"), const=True, default=False, nargs="?")
 
     add_maybe_missing_value_args(parser, action_maybe_stores)
@@ -524,10 +524,11 @@ Examples:
     map_files = to_list(args.file) + to_list(args.mapfile)
     reduce_files = to_list(args.file) + to_list(args.reducefile)
 
-    config.DEFAULT_FORMAT = yt.YamrFormat(lenval=args.lenval,
-                                          has_subkey=args.subkey,
-                                          field_separator=args.fs,
-                                          record_separator=args.rs)
+    format = yt.YamrFormat(lenval=args.lenval,
+                           has_subkey=args.subkey,
+                           field_separator=args.fs,
+                           record_separator=args.rs,
+                           enable_table_index=args.tableindex)
     if args.dsv:
         if args.lenval or args.subkey:
             die("Options subkey and lenval are mutually exclusive with dsv option")
@@ -551,7 +552,7 @@ Examples:
          args.dsv,
          lambda: get_smart_format([args.src, args.read], args.smartformat, args.subkey, args.lenval,
                                   ignore_unexisting_tables=True),
-         config.DEFAULT_FORMAT]))
+         format]))
 
     write_tables = args.write if not isinstance(args.write, MissingValue) else None
     outputformat = first_not_none(imap(calculate_if_function,
@@ -559,7 +560,7 @@ Examples:
          args.outputformat,
          args.dsv,
          lambda: get_smart_format([dst, write_tables], args.smartformat, args.subkey, args.lenval),
-         config.DEFAULT_FORMAT]))
+         format]))
 
     if isinstance(outputformat, str):
         outputformat = yt.create_format(outputformat)
