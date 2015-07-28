@@ -82,6 +82,8 @@ test_base_functionality()
     ./mapreduce -drop "ignat/temp"
     ./mapreduce -sort  -src "ignat/other_table" -dst "ignat/other_table"
     check "1\t2\t3\n4\t5\t6\n" "`./mapreduce -read "ignat/other_table"`"
+    ./mapreduce -sort "ignat/other_table"
+    check "1\t2\t3\n4\t5\t6\n" "`./mapreduce -read "ignat/other_table"`"
     check "4\t5\t6\n" "`./mapreduce -read "ignat/other_table" -lowerkey 3`"
     ./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped" -ytspec '{"job_count": 10}'
     check 2 `./mapreduce -read "ignat/mapped" | wc -l`
