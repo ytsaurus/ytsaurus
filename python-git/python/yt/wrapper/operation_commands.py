@@ -8,6 +8,7 @@ from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from cypress_commands import get_attribute, exists, search, get
 from file_commands import download_file
 import yt.logger as logger
+import yt.yson as yson
 import yt.packages.dateutil.parser as dateutil_parser
 from yt.packages.decorator import decorator
 
@@ -293,7 +294,9 @@ def add_failed_operation_stderrs_to_error_message(func):
 
 def get_operation_error(operation, client=None):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
-    result = get_attribute(operation_path, "result", client=client)
+    # NB(ignat): conversion to json type necessary for json.dumps in TM.
+    # TODO(ignat): we should decide what format should be used in errors (now it is yson both here and in http.py).
+    result = yson.yson_to_json(get_attribute(operation_path, "result", client=client))
     if "error" in result and result["error"]["code"] != 0:
         return result["error"]
     return None
