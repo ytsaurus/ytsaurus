@@ -454,6 +454,17 @@ Examples:
     # Ignore all positional arguments
     parser.add_argument("ignored", nargs=REMAINDER);
 
+    # Sort is a precial case!
+    if "-sort" in sys.argv or "--sort" in sys.argv:
+        if "-sort" in sys.argv:
+            sort_option_index = sys.argv.index("-sort")
+        else:
+            sort_option_index = sys.argv.index("--sort")
+        if sort_option_index + 1 < len(sys.argv) and not sys.argv[sort_option_index + 1].startswith("-"):
+            table = sys.argv[sort_option_index + 1]
+            sys.argv += ["-src", table, "-dst", table]
+            sys.argv.pop(sort_option_index + 1)
+
     args = parser.parse_args()
 
     actions_count = sum([vars(args)[arg] is not None for arg in action_stores + action_maybe_stores]) + \
