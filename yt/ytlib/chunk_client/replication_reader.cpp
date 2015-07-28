@@ -92,11 +92,13 @@ public:
 
         const auto& networkName = Options_->NetworkName;
         auto maybeLocalAddress = LocalDescriptor_ ? MakeNullable(LocalDescriptor_->GetAddressOrThrow(networkName)) : Null;
-        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, Network: %v)",
+        LOG_INFO("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, "
+            "AllowFetchingSeedsFromMaster: %v, Network: %v)",
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             maybeLocalAddress,
             Config_->PopulateCache,
+            Config_->AllowFetchingSeedsFromMaster,
             networkName);
     }
 
@@ -287,7 +289,9 @@ protected:
         , NetworkName_(reader->Options_->NetworkName)
         , StartTime_(TInstant::Now())
     {
-        Logger.AddTag("ChunkId: %v", reader->ChunkId_);
+        Logger.AddTag("Session: %p, ChunkId: %v",
+            this,
+            reader->ChunkId_);
     }
 
     void AddPeer(const Stroka& address, const TNodeDescriptor& descriptor)
@@ -548,7 +552,7 @@ public:
         , Promise_(NewPromise<std::vector<TSharedRef>>())
         , BlockIndexes_(blockIndexes)
     {
-        Logger.AddTag("Session: %v", this);
+        Logger.AddTag("Blocks: [%v]", JoinToString(blockIndexes));
     }
 
     ~TReadBlockSetSession()
@@ -880,7 +884,9 @@ public:
         , FirstBlockIndex_(firstBlockIndex)
         , BlockCount_(blockCount)
     {
-        Logger.AddTag("Session: %v", this);
+        Logger.AddTag("Blocks: %v-%v",
+            FirstBlockIndex_,
+            FirstBlockIndex_ + BlockCount_ - 1);
     }
 
     TFuture<std::vector<TSharedRef>> Run()
@@ -1102,9 +1108,7 @@ public:
         , Promise_(NewPromise<TChunkMeta>())
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
-    {
-        Logger.AddTag("Session: %v", this);
-    }
+    { }
 
     ~TGetMetaSession()
     {
