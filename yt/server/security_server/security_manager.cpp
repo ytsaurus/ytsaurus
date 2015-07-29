@@ -36,7 +36,9 @@
 
 #include <server/transaction_server/transaction.h>
 
+#include <server/cypress_server/cypress_manager.h>
 #include <server/cypress_server/node.h>
+#include <server/cypress_server/type_handler.h>
 
 namespace NYT {
 namespace NSecurityServer {
@@ -392,16 +394,17 @@ public:
 
         if (oldAccount) {
             if (isAccountingEnabled) {
-                UpdateResourceUsage(node, oldAccount, -1);
+                UpdateAccountResourceUsage(node, oldAccount, -1);
             }
             objectManager->UnrefObject(oldAccount);
         }
 
         node->SetAccount(account);
-        node->CachedResourceUsage() = node->GetResourceUsage();
+
+        UpdateNodeCachedResourceUsage(node);
 
         if (isAccountingEnabled) {
-            UpdateResourceUsage(node, account, +1);
+            UpdateAccountResourceUsage(node, account, +1);
         }
         objectManager->RefObject(account);
     }
@@ -417,7 +420,7 @@ public:
         bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
 
         if (isAccountingEnabled) {
-            UpdateResourceUsage(node, account, -1);
+            UpdateAccountResourceUsage(node, account, -1);
         }
 
         node->CachedResourceUsage() = TClusterResources();
@@ -452,11 +455,11 @@ public:
         if (!IsUncommittedAccountingEnabled(node))
             return;
 
-        UpdateResourceUsage(node, account, -1);
+        UpdateAccountResourceUsage(node, account, -1);
 
-        node->CachedResourceUsage() = node->GetResourceUsage();
+        UpdateNodeCachedResourceUsage(node);
 
-        UpdateResourceUsage(node, account, +1);
+        UpdateAccountResourceUsage(node, account, +1);
     }
 
     void UpdateAccountStagingUsage(
@@ -1016,7 +1019,15 @@ private:
         return transaction->GetStagedAccountingEnabled();
     }
 
-    static void UpdateResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
+
+    void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
+    {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto handler = cypressManager->GetHandler(node);
+        node->CachedResourceUsage() = handler->GetIncrementalResourceUsage(node);
+    }
+
+    static void UpdateAccountResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
     {
         auto resourceUsage = node->CachedResourceUsage() * delta;
 

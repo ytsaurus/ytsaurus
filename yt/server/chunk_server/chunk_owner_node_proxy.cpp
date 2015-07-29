@@ -459,22 +459,6 @@ bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
     return TNontemplateCypressNodeProxyBase::DoInvoke(context);
 }
 
-TClusterResources TChunkOwnerNodeProxy::GetResourceUsage() const
-{
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-    const auto* chunkList = node->GetChunkList();
-    if (chunkList) {
-        const auto& statistics = chunkList->Statistics();
-        i64 diskSpace =
-            statistics.RegularDiskSpace * node->GetReplicationFactor() +
-            statistics.ErasureDiskSpace;
-        int chunkCount = statistics.ChunkCount;
-        return TClusterResources(diskSpace, 1, chunkCount);
-    } else {
-        return TClusterResources(0, 1, 0);
-    }
-}
-
 void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);

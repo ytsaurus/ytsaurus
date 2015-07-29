@@ -183,6 +183,23 @@ public:
         return clonedNode;
     }
 
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
+        const TCypressNodeBase* node) override
+    {
+        NSecurityServer::TClusterResources result;
+        result.NodeCount = 1;
+        return result;
+    }
+
+    virtual NSecurityServer::TClusterResources GetIncrementalResourceUsage(
+        const TCypressNodeBase* node) override
+    {
+        NSecurityServer::TClusterResources result;
+        auto objectManager = Bootstrap_->GetObjectManager();
+        result.NodeCount = objectManager->IsForeign(node) ? 0 : 1;
+        return result;
+    }
+
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TImpl* trunkNode,

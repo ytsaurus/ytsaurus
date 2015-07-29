@@ -10,7 +10,7 @@
 
 #include <server/transaction_server/public.h>
 
-#include <server/security_server/public.h>
+#include <server/security_server/cluster_resources.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -98,6 +98,14 @@ struct INodeTypeHandler
 
     //! Returns |true| if nodes of this type can be stored at external cells.
     virtual bool IsExternalizable() = 0;
+
+    //! Returns the total resource usage as seen by the user.
+    //! These values are exposes via |resource_usage| attribute.
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(const TCypressNodeBase* node) = 0;
+
+    //! Returns the incremental resource usage for accounting purposes.
+    //! E.g. when a node is branched in append mode, its initial incremental usage is zero.
+    virtual NSecurityServer::TClusterResources GetIncrementalResourceUsage(const TCypressNodeBase* node) = 0;
 
 };
 

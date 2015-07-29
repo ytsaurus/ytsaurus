@@ -31,6 +31,12 @@ public:
 
     virtual NYTree::ENodeType GetNodeType() override;
 
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
+        const NCypressServer::TCypressNodeBase* node) override;
+
+    virtual NSecurityServer::TClusterResources GetIncrementalResourceUsage(
+        const NCypressServer::TCypressNodeBase* node) override;
+
 protected:
     NLogging::TLogger Logger;
 
@@ -60,6 +66,10 @@ private:
     void MergeChunkLists(
         TChunkOwner* originatingNode,
         TChunkOwner* branchedNode);
+
+    static NSecurityServer::TClusterResources GetDiskUsage(
+        const TChunkOwner* node,
+        const TChunkList* chunkList);
 
 };
 

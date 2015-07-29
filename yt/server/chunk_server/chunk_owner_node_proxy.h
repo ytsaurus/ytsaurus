@@ -24,8 +24,6 @@ public:
         NTransactionServer::TTransaction* transaction,
         TChunkOwnerBase* trunkNode);
 
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
-
 protected:
     virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
