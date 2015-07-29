@@ -4476,6 +4476,32 @@ TEST_F(TQueryEvaluateTest, TestCasts)
     Evaluate("int64(a) as r1, double(b) as r2, uint64(c) as r3 from [//t]", split, source, result);
 }
 
+TEST_F(TQueryEvaluateTest, TestUdfException)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+    });
+
+    std::vector<Stroka> source = {
+        "a=-3",
+    };
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    auto throwImpl = TSharedRef(
+        test_udfs_bc,
+        test_udfs_bc_len,
+        nullptr);
+    auto throwUdf = New<TUserDefinedFunction>(
+        "throw_if_negative_udf",
+        std::vector<TType>{EValueType::Int64},
+        EValueType::Int64,
+        throwImpl,
+        ECallingConvention::Simple);
+    registry->WithFunction(throwUdf);
+
+    EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+}
+
 TEST_F(TQueryEvaluateTest, TestRegexMatch)
 {
     auto split = MakeSplit({
