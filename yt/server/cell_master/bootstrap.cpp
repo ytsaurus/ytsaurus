@@ -413,7 +413,7 @@ void TBootstrap::DoInitialize()
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
-    MulticellManager_ = New<TMulticellManager>(this, Config_);
+    MulticellManager_ = New<TMulticellManager>(Config_->MulticellManager, this);
 
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
 

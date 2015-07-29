@@ -7,6 +7,8 @@
 #include "serialize.h"
 #include "hydra_facade.h"
 
+#include <core/misc/collection_helpers.h>
+
 #include <core/ytree/ypath_client.h>
 
 #include <core/concurrency/periodic_executor.h>
@@ -22,6 +24,8 @@
 
 #include <server/security_server/security_manager.h>
 #include <server/security_server/user.h>
+
+#include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/multicell_manager.pb.h>
 
@@ -48,8 +52,8 @@ class TMulticellManager::TImpl
 {
 public:
     TImpl(
-        TBootstrap* bootstrap,
-        TCellMasterConfigPtr config)
+        TMulticellManagerConfigPtr config,
+        TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap)
         , Config_(config)
     {
@@ -57,6 +61,7 @@ public:
 
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterSecondaryMaster, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterAtPrimaryMaster, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND(&TImpl::HydraSetCellStatistics, Unretained(this)));
 
         RegisterLoader(
             "MulticellManager.Values",
@@ -162,39 +167,75 @@ public:
     }
 
 
+    bool IsRegisteredSecondaryMaster(TCellTag cellTag)
+    {
+        return FindSecondaryCellEntry(cellTag) != nullptr;
+    }
+
+    TCellTag GetLeastLoadedSecondaryMaster()
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        TCellTag bestCellTag = Bootstrap_->GetCellTag();
+        int minChunkCount = std::numeric_limits<int>::max();
+        for (const auto& pair : RegisteredSecondaryCellMap_) {
+            const auto& entry = pair.second;
+            if (entry.Statistics.chunk_count() < minChunkCount) {
+                minChunkCount = entry.Statistics.chunk_count();
+                bestCellTag = pair.first;
+            }
+        }
+        return bestCellTag;
+    }
+
+
     DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
 
 private:
-    const TCellMasterConfigPtr Config_;
+    const TMulticellManagerConfigPtr Config_;
 
-    std::vector<TCellTag> RegisteredSecondaryCellTags_;
+    struct TSecondaryCellEntry
+    {
+        TMailbox* Mailbox = nullptr;
+        NProto::TCellStatistics Statistics;
+
+        void Persist(NCellMaster::TPersistenceContext& context)
+        {
+            using NYT::Persist;
+
+            Persist(context, Statistics);
+        }
+    };
+
+    // NB: Must ensure stable order.
+    std::map<TCellTag, TSecondaryCellEntry> RegisteredSecondaryCellMap_;
     bool RegisteredAtPrimaryMaster_ = false;
 
     TMailbox* PrimaryMasterMailbox_ = nullptr;
-    std::vector<TMailbox*> SecondaryMasterMailboxes_;
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
+    TPeriodicExecutorPtr CellStatiticsGossipExecutor_;
 
 
     virtual void OnAfterSnapshotLoaded()
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        for (auto cellTag : RegisteredSecondaryCellTags_) {
+        for (auto& pair : RegisteredSecondaryCellMap_) {
+            auto cellTag = pair.first;
+            auto* entry = &pair.second;
             ValidateSecondaryCellTag(cellTag);
+            InitializeSecondaryMailbox(cellTag, entry);
         }
-        InitializeMailboxes();
     }
 
     virtual void Clear() override
     {
         TMasterAutomatonPart::Clear();
 
-        RegisteredSecondaryCellTags_.clear();
+        RegisteredSecondaryCellMap_.clear();
         RegisteredAtPrimaryMaster_ = false;
-
         PrimaryMasterMailbox_ = nullptr;
-        SecondaryMasterMailboxes_.clear();
     }
 
 
@@ -202,7 +243,7 @@ private:
     {
         using NYT::Load;
 
-        Load(context, RegisteredSecondaryCellTags_);
+        Load(context, RegisteredSecondaryCellMap_);
         Load(context, RegisteredAtPrimaryMaster_);
     }
 
@@ -210,7 +251,7 @@ private:
     {
         using NYT::Save;
 
-        Save(context, RegisteredSecondaryCellTags_);
+        Save(context, RegisteredSecondaryCellMap_);
         Save(context, RegisteredAtPrimaryMaster_);
     }
 
@@ -225,6 +266,12 @@ private:
                 BIND(&TImpl::OnRegisterAtPrimaryMaster, MakeWeak(this)),
                 RegisterRetryPeriod);
             RegisterAtPrimaryMasterExecutor_->Start();
+
+            CellStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                BIND(&TImpl::OnCellStatisticsGossip, MakeWeak(this)),
+                Config_->CellStatisticsGossipPeriod);
+            CellStatiticsGossipExecutor_->Start();
         }
     }
 
@@ -236,6 +283,11 @@ private:
             RegisterAtPrimaryMasterExecutor_->Stop();
             RegisterAtPrimaryMasterExecutor_.Reset();
         }
+
+        if (CellStatiticsGossipExecutor_) {
+            CellStatiticsGossipExecutor_->Stop();
+            CellStatiticsGossipExecutor_.Reset();
+        }
     }
 
 
@@ -244,17 +296,15 @@ private:
         auto cellTag = request.cell_tag();
         ValidateSecondaryCellTag(cellTag);
 
-        if (std::find(RegisteredSecondaryCellTags_.begin(), RegisteredSecondaryCellTags_.end(), cellTag) !=
-            RegisteredSecondaryCellTags_.end())
-        {
+        if (FindSecondaryCellEntry(cellTag))  {
             LOG_ERROR_UNLESS(IsRecovery(), "Attempted to re-register secondary master (CellTag: %v)", cellTag);
             return;
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
 
-        RegisteredSecondaryCellTags_.push_back(cellTag);
-        InitializeMailboxes();
+        auto* entry = RegisterSecondaryCellEntry(cellTag);
+        InitializeSecondaryMailbox(cellTag, entry);
 
         SecondaryMasterRegistered_.Fire(cellTag);
     }
@@ -267,11 +317,23 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
 
         RegisteredAtPrimaryMaster_ = true;
-        InitializeMailboxes();
+        InitializePrimaryMailbox();
 
         NProto::TReqRegisterSecondaryMaster request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
         PostToPrimaryMaster(request);
+    }
+
+    void HydraSetCellStatistics(const NProto::TReqSetCellStatistics& request)
+    {
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
+            cellTag);
+
+        auto* entry = GetSecondaryCellEntry(cellTag);
+        entry->Statistics = request.statistics();
     }
 
 
@@ -284,25 +346,50 @@ private:
         LOG_FATAL("Unknown secondary master cell tag %v", cellTag);
     }
 
-    void InitializeMailboxes()
+    void InitializePrimaryMailbox()
     {
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-
         if (RegisteredAtPrimaryMaster_ && !PrimaryMasterMailbox_) {
+            auto hiveManager = Bootstrap_->GetHiveManager();
+            auto multicellManager = Bootstrap_->GetMulticellManager();
             PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
-        }
-
-        while (SecondaryMasterMailboxes_.size() < RegisteredSecondaryCellTags_.size()) {
-            auto cellTag = RegisteredSecondaryCellTags_[SecondaryMasterMailboxes_.size()];
-            auto cellId = ReplaceCellTagInId(Bootstrap_->GetPrimaryCellId(), cellTag);
-            auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
-            SecondaryMasterMailboxes_.push_back(mailbox);
         }
     }
 
+    void InitializeSecondaryMailbox(TCellTag cellTag, TSecondaryCellEntry* entry)
+    {
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellId = ReplaceCellTagInId(Bootstrap_->GetPrimaryCellId(), cellTag);
+        YCHECK(!entry->Mailbox);
+        entry->Mailbox = hiveManager->GetOrCreateMailbox(cellId);
+    }
+
+
+    TSecondaryCellEntry* RegisterSecondaryCellEntry(TCellTag cellTag)
+    {
+        auto pair = RegisteredSecondaryCellMap_.insert(std::make_pair(cellTag, TSecondaryCellEntry()));
+        YCHECK(pair.second);
+        return &pair.first->second;
+    }
+
+    TSecondaryCellEntry* FindSecondaryCellEntry(TCellTag cellTag)
+    {
+        auto it = RegisteredSecondaryCellMap_.find(cellTag);
+        return it == RegisteredSecondaryCellMap_.end() ? nullptr : &it->second;
+    }
+
+    TSecondaryCellEntry* GetSecondaryCellEntry(TCellTag cellTag)
+    {
+        auto it = RegisteredSecondaryCellMap_.find(cellTag);
+        YCHECK(it != RegisteredSecondaryCellMap_.end());
+        return &it->second;
+    }
+
+
     void OnRegisterAtPrimaryMaster()
     {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
         if (RegisteredAtPrimaryMaster_)
             return;
 
@@ -314,6 +401,26 @@ private:
                     LOG_WARNING(error, "Error committing registration mutation");
                 }
             }));
+    }
+
+    void OnCellStatisticsGossip()
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        if (!RegisteredAtPrimaryMaster_)
+            return;
+
+        LOG_INFO("Sending cell statistics gossip message");
+
+        NProto::TReqSetCellStatistics request;
+        request.set_cell_tag(Bootstrap_->GetCellTag());
+
+        auto* statistics = request.mutable_statistics();
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        statistics->set_chunk_count(chunkManager->Chunks().GetSize());
+
+        PostToPrimaryMaster(request, false);
     }
 
 
@@ -363,8 +470,9 @@ private:
 
             hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
         } else if (cellTag == AllSecondaryMastersCellTag) {
-            for (auto* mailbox : SecondaryMasterMailboxes_) {
-                hiveManager->PostMessage(mailbox, requestMessage, reliable);
+            for (const auto& pair : RegisteredSecondaryCellMap_) {
+                const auto& entry = pair.second;
+                hiveManager->PostMessage(entry.Mailbox, requestMessage, reliable);
             }
         } else {
             YUNREACHABLE();
@@ -376,9 +484,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TMulticellManager::TMulticellManager(
-    TBootstrap* bootstrap,
-    TCellMasterConfigPtr config)
-    : Impl_(New<TImpl>(bootstrap, config))
+    TMulticellManagerConfigPtr config,
+    TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(config, bootstrap))
 { }
 
 TMulticellManager::~TMulticellManager()
@@ -451,6 +559,16 @@ void TMulticellManager::PostToSecondaryMasters(
     bool reliable)
 {
     Impl_->PostToSecondaryMasters(std::move(requestMessage), reliable);
+}
+
+bool TMulticellManager::IsRegisteredSecondaryMaster(TCellTag cellTag)
+{
+    return Impl_->IsRegisteredSecondaryMaster(cellTag);
+}
+
+TCellTag TMulticellManager::GetLeastLoadedSecondaryMaster()
+{
+    return Impl_->GetLeastLoadedSecondaryMaster();
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), SecondaryMasterRegistered, *Impl_);

@@ -56,6 +56,25 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMasterHydraManagerConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TMulticellManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration CellStatisticsGossipPeriod;
+
+    TMulticellManagerConfig()
+    {
+        RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellMasterConfig
     : public TServerConfig
 {
@@ -91,6 +110,8 @@ public:
 
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
+    TMulticellManagerConfigPtr MulticellManager;
+
     //! RPC interface port number.
     int RpcPort;
 
@@ -102,7 +123,6 @@ public:
 
     TCellMasterConfig();
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
 
