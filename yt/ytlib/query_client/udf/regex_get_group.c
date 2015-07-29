@@ -1,5 +1,5 @@
 #include <regex.h>
-#include <stdio.h>
+#include <string.h>
 
 #include <yt_udf.h>
 
@@ -15,17 +15,12 @@ void regex_get_group(
         return;
     }
 
-    char* null_term_input = AllocateBytes(context, input->Length + 1);
-    char* null_term_regex = AllocatePermanentBytes(context, regex->Length + 1);
-
-    for (int i = 0; i < input->Length; i++) {
-        null_term_input[i] = input->Data.String[i];
-    }
+    char* null_term_input = AllocatePermanentBytes(context, input->Length + 1);
+    memcpy(null_term_input, input->Data.String, input->Length);
     null_term_input[input->Length] = 0;
 
-    for (int i = 0; i < regex->Length; i++) {
-        null_term_regex[i] = regex->Data.String[i];
-    }
+    char null_term_regex[regex->Length + 1];
+    memcpy(null_term_regex, regex->Data.String, regex->Length);
     null_term_regex[regex->Length] = 0;
 
     regex_t regex_object;
@@ -35,7 +30,7 @@ void regex_get_group(
         int bufflen = 200;
         char errbuf[bufflen];
         regerror(error, &regex_object, errbuf, bufflen);
-        printf("Regex compilation error: %s\n", errbuf);
+        ThrowException(errbuf);
     }
 
     uint64_t index = group_index->Data.Uint64;
