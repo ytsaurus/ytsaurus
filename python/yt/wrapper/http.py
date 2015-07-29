@@ -1,6 +1,5 @@
 import yt.logger as logger
-import config
-from config import get_config, get_option, set_option
+from config import get_config, get_option, set_option, get_backend_type
 from common import require, get_backoff, get_value
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_http_response_error, YtRequestRateLimitExceeded
 from command import parse_commands
@@ -63,7 +62,7 @@ def create_response(response, request_headers, client):
             return yson.json_to_yson(json.loads(str))
         if header_format == "yson":
             return yson.loads(str)
-        assert False, header_format
+        raise YtError("Incorrect header format: {0}".format(header_format))
 
     def get_error():
         if not str(response.status_code).startswith("2"):
@@ -192,12 +191,8 @@ def get_api_version(client=None):
         set_option("_api_version", api_version_from_config, client)
         return api_version_from_config
 
-
-    # XXX(ignat): COPY-PASTE from driver.py
-    backend = config["backend"]
-    if backend is None:
-        backend = "http" if config["proxy"]["url"] is not None else "native"
-    require(backend == "http", YtError("Cannot automatically detect api version for non-proxy backend"))
+    require(get_backend_type(client) == "http",
+            YtError("Cannot automatically detect api version for non-proxy backend"))
 
     api_versions = _request_api(get_config(client)["proxy"]["url"])
     if "v3" in api_versions:
@@ -222,12 +217,6 @@ def get_api_commands(client=None):
     set_option("_commands", commands, client)
 
     return commands
-
-def get_command_descriptor(command_name, client):
-    commands = get_api_commands(client=client)
-    require(command_name in commands,
-            YtError("Command {0} is not supported by api/{1}".format(command_name, get_api_version(client))))
-    return commands[command_name]
 
 def get_token(client=None):
     if not get_config(client)["enable_token"]:

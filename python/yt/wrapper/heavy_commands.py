@@ -4,11 +4,13 @@ import yt.logger as logger
 from config import get_option, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
 from common import get_backoff
 from table import to_table
+from errors import YtIncorrectResponse
 from transaction import Transaction
 from transaction_commands import _make_transactional_request
 from http import RETRIABLE_ERRORS
 
 import time
+import random
 from datetime import datetime
 
 def make_heavy_request(command_name, stream, path, params, create_object, use_retries, client=None):
@@ -36,6 +38,8 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 for attempt in xrange(get_request_retry_count(client)):
                     current_time = datetime.now()
                     try:
+                        if get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
+                            raise YtIncorrectResponse()
                         with Transaction(timeout=request_timeout, client=client):
                             params["path"] = path.to_yson_type()
                             _make_transactional_request(

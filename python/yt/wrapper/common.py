@@ -76,18 +76,6 @@ def dict_depth(obj):
     else:
         return 1 + max(map(dict_depth, obj.values()))
 
-# Remove attributes from JSON response
-def remove_attributes(tree):
-    if isinstance(tree, dict):
-        if "$attributes" in tree:
-            return remove_attributes(tree["$value"])
-        else:
-            return dict([(k, remove_attributes(v)) for k, v in tree.iteritems()])
-    elif isinstance(tree, list):
-        return map(remove_attributes, tree)
-    else:
-        return tree
-
 def first_not_none(iter):
     return ifilter(None, iter).next()
 
@@ -102,9 +90,6 @@ def get_value(value, default):
         return default
     else:
         return value
-
-def dump_to_json(obj):
-    return json.dumps(yson.yson_to_json(obj), indent=2)
 
 def chunk_iter_lines(lines, chunk_size):
     size = 0

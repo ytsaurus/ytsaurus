@@ -116,7 +116,7 @@ class Format(object):
         """Serialize row and write to the stream.
         """
         if self._is_raw(raw):
-            stream.write(raw)
+            stream.write(row)
             return
         self._dump_row(row, stream)
 
