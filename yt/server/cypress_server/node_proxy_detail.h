@@ -50,8 +50,6 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
-
 protected:
     class TCustomAttributeDictionary;
     class TResourceUsageVisitor;

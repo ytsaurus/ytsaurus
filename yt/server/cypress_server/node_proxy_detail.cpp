@@ -175,9 +175,12 @@ private:
     TClusterResources ResourceUsage_;
 
 
-    virtual void OnNode(ICypressNodeProxyPtr node) override
+    virtual void OnNode(ICypressNodeProxyPtr proxy) override
     {
-        ResourceUsage_ += node->GetResourceUsage();
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->GetVersionedNode(proxy->GetTrunkNode(), proxy->GetTransaction());
+        auto handler = cypressManager->GetHandler(node);
+        ResourceUsage_ += handler->GetTotalResourceUsage(node);
     }
 
     virtual void OnError(const TError& error) override
@@ -299,7 +302,10 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 
         auto* node = LockThisImpl();
         if (node->GetAccount() != account) {
-            account->ValidateResourceUsageIncrease(node->GetResourceUsage());
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            auto handler = cypressManager->GetHandler(node);
+            auto resourceUsage = handler->GetTotalResourceUsage(node);
+            account->ValidateResourceUsageIncrease(resourceUsage);
             securityManager->SetAccount(node, account);
         }
 
@@ -452,8 +458,10 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (key == "resource_usage") {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto handler = cypressManager->GetHandler(node);
         BuildYsonFluently(consumer)
-            .Value(GetResourceUsage());
+            .Value(handler->GetTotalResourceUsage(node));
         return true;
     }
 
@@ -715,11 +723,6 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     bool /*recursive*/)
 {
     YUNREACHABLE();
-}
-
-TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
-{
-    return TClusterResources(0, 1, 0);
 }
 
 NLogging::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const

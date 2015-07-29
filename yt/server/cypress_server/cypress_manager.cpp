@@ -263,9 +263,13 @@ public:
     {
         ValidateCreatedNodeType(sourceNode->GetType());
 
-        GetClonedNodeAccount(sourceNode)->ValidateResourceUsageIncrease(sourceNode->GetResourceUsage());
-
         auto cypressManager = Bootstrap_->GetCypressManager();
+        auto sourceHandler = cypressManager->GetHandler(sourceNode);
+        auto sourceResourceUsage = sourceHandler->GetTotalResourceUsage(sourceNode);
+
+        auto account = GetClonedNodeAccount(sourceNode);
+        account->ValidateResourceUsageIncrease(sourceResourceUsage);
+
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
 
         RegisterCreatedNode(clonedTrunkNode);

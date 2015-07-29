@@ -48,6 +48,26 @@ NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType()
 }
 
 template <class TChunkOwner>
+NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetIncrementalResourceUsage(
+    const NCypressServer::TCypressNodeBase* node)
+{
+    const auto* chunkOwnerNode = static_cast<const TChunkOwner*>(node);
+    return
+        TBase::GetIncrementalResourceUsage(node) +
+        GetDiskUsage(chunkOwnerNode, chunkOwnerNode->GetIncrementalChunkList());
+}
+
+template <class TChunkOwner>
+NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetTotalResourceUsage(
+    const NCypressServer::TCypressNodeBase* node)
+{
+    const auto* chunkOwnerNode = static_cast<const TChunkOwner*>(node);
+    return
+        TBase::GetTotalResourceUsage(node) +
+        GetDiskUsage(chunkOwnerNode, chunkOwnerNode->GetChunkList());
+}
+
+template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
@@ -251,6 +271,24 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedNode->SetVital(sourceNode->GetVital());
     objectManager->RefObject(chunkList);
     YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
+}
+
+template <class TChunkOwner>
+NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetDiskUsage(
+    const TChunkOwner* node,
+    const TChunkList* chunkList)
+{
+    if (!chunkList) {
+        return NSecurityServer::TClusterResources();
+    }
+
+    NSecurityServer::TClusterResources result;
+    const auto& statistics = chunkList->Statistics();
+    result.DiskSpace =
+        statistics.RegularDiskSpace * node->GetReplicationFactor() +
+        statistics.ErasureDiskSpace;
+    result.ChunkCount = statistics.ChunkCount;
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,8 +85,6 @@ public:
     //! to another cell.
     bool IsExternal() const;
 
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const;
-
     // Similar methods are also declared in TObjectBase but starting from TCypressNodeBase
     // they become virtual.
     virtual void Save(NCellMaster::TSaveContext& context) const;

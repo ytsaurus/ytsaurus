@@ -28,13 +28,10 @@ public:
 public:
     explicit TChunkOwnerBase(const NCypressServer::TVersionedNodeId& id);
 
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
+    const TChunkList* GetIncrementalChunkList() const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
-
-private:
-    const NChunkServer::TChunkList* GetUsageChunkList() const;
 
 };
 

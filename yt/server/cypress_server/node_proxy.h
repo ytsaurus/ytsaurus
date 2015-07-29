@@ -65,14 +65,6 @@ struct ICypressNodeProxy
     //! Returns the trunk node for which the proxy is created.
     virtual TCypressNodeBase* GetTrunkNode() const = 0;
 
-    //! Returns resources used by the object.
-    /*!
-     *  This is displayed in @resource_usage attribute and is not used for accounting.
-     *
-     *  \see #ICypressNode::GetResourceUsage
-     */
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const = 0;
-
     //! "Covariant" extension of NYTree::INode::CreateFactory.
     virtual ICypressNodeFactoryPtr CreateCypressFactory(
         bool preserveAccount) const = 0;

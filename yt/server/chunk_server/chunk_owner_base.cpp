@@ -46,24 +46,7 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, Vital_);
 }
 
-NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const
-{
-    const auto* chunkList = GetUsageChunkList();
-
-    i64 diskSpace = 0;
-    int chunkCount = 0;
-    if (chunkList) {
-        const auto& statistics = chunkList->Statistics();
-        diskSpace =
-            statistics.RegularDiskSpace * GetReplicationFactor() +
-            statistics.ErasureDiskSpace;
-        chunkCount = statistics.ChunkCount;
-    }
-
-    return NSecurityServer::TClusterResources(diskSpace, 1, chunkCount);
-}
-
-const TChunkList* TChunkOwnerBase::GetUsageChunkList() const
+const TChunkList* TChunkOwnerBase::GetIncrementalChunkList() const
 {
     switch (UpdateMode_) {
         case EUpdateMode::None:
