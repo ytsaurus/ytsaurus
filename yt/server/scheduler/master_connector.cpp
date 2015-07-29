@@ -1858,24 +1858,6 @@ private:
             LOG_ERROR(ex, "Error updating cluster directory");
         }
     }
-
-    TCypressYPathProxy::TReqCreatePtr StartCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
-    {
-        auto req = TCypressYPathProxy::Create(path);
-        GenerateMutationId(req);
-        req->set_type(static_cast<int>(EObjectType::File));
-
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("vital", false);
-        attributes->Set("replication_factor", 1);
-        attributes->Set("account", TmpAccountName);
-        ToProto(req->mutable_node_attributes(), *attributes);
-
-        auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-        ToProto(reqExt->mutable_chunk_id(), chunkId);
-
-        return req;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
