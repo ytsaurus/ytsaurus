@@ -274,11 +274,11 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         return spec, []
 
     if local_files is not None:
-        require(files is None, "You cannot specify files and local_files simultaneously")
+        require(files is None, YtError("You cannot specify files and local_files simultaneously"))
         files = local_files
 
     if yt_files is not None:
-        require(file_paths is None, "You cannot specify yt_files and file_paths simultaneously")
+        require(file_paths is None, YtError("You cannot specify yt_files and file_paths simultaneously"))
         file_paths = yt_files
 
     files = _reliably_upload_files(files, client=client)
