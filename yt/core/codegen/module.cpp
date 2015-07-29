@@ -86,7 +86,16 @@ private:
         MangleSymbol("tolower"),
         MangleSymbol("toupper"),
         MangleSymbol("log"),
-        MangleSymbol("memset")
+        MangleSymbol("memset"),
+        MangleSymbol("regcomp"),
+        MangleSymbol("regexec"),
+        MangleSymbol("regfree"),
+        MangleSymbol("regerror"),
+        MangleSymbol("strptime"),
+        MangleSymbol("mktime"),
+        MangleSymbol("atol"),
+        MangleSymbol("printf"),
+        MangleSymbol("puts"),
     };
 };
 

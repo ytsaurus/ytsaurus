@@ -481,6 +481,11 @@ ui64 FarmHashUint64(ui64 value)
     return FarmFingerprint(value);
 }
 
+void ThrowException(const char* error)
+{
+    THROW_ERROR_EXCEPTION("Error while executing UDF: %s", error);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -515,6 +520,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(OrderOpHelper);
+    REGISTER_ROUTINE(ThrowException);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);
