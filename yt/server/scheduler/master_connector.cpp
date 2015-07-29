@@ -333,8 +333,6 @@ public:
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             validate(batchRspOrError);
 
-            auto batchRsp = batchRspOrError.Value();
-
             AddAttachChunks(
                 batchRspOrError.Value(),
                 {inputContextChunkId},
@@ -1486,31 +1484,6 @@ private:
         }
     }
 
-    void ValidateUpdateOperationResponses(
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp,
-        std::function<void(const TError&)> errorValidator)
-    {
-        auto rspsOrError = batchRsp->GetResponses("update_op_node");
-        for (const auto& rspOrError : rspsOrError) {
-            errorValidator(rspOrError);
-        }
-    }
-
-    void ValidateLivePreviewResponses(
-        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp,
-        const TOperationId &operationId)
-    {
-        auto rspsOrError = batchRsp->GetResponses("update_live_preview");
-        for (const auto& rspOrError : rspsOrError) {
-            if (!rspOrError.IsOK()) {
-                LOG_WARNING(
-                    rspOrError,
-                    "Error updating live preview (OperationId: %v)",
-                    operationId);
-            }
-        }
-    }
-
     void AddAttachChunks(
         TObjectServiceProxy::TRspExecuteBatchPtr batchRsp,
         const std::vector<TChunkId> &chunkIds,
@@ -1553,6 +1526,17 @@ private:
 
         GenerateMutationId(req);
         batchReq->AddRequest(req, "start_job_file_tx");
+    }
+
+    void ValidateResponses(
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp,
+        const Stroka &tag,
+        std::function<void(const TError &)> errorValidator)
+    {
+        auto rspsOrError = batchRsp->GetResponses(tag);
+        for (const auto& rspOrError : rspsOrError) {
+            errorValidator(rspOrError);
+        }
     }
 
     TTransactionId GetJobFileTransactionId(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -1611,8 +1595,15 @@ private:
             validateOperationUpdate(batchRspOrError);
             const auto &batchRsp = batchRspOrError.Value();
 
-            ValidateUpdateOperationResponses(batchRsp, validateOperationUpdate);
-            ValidateLivePreviewResponses(batchRsp, operationId);
+            ValidateResponses(batchRsp, "update_op_node", validateOperationUpdate);
+            ValidateResponses(batchRsp, "update_live_preview", [&] (const TError& error) {
+                if (!error.IsOK()) {
+                    LOG_WARNING(
+                        error,
+                        "Error updating live preview (OperationId: %v)",
+                        operationId);
+                }
+            });
 
             if (!hasChunksToAttach) {
                 return;
