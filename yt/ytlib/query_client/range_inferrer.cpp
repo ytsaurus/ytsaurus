@@ -540,7 +540,7 @@ private:
         std::vector<ui64> estimations;
 
         std::set<TUnversionedValue> divisorsSet;
-        size_t rangeCount = 1;
+        ui64 rangeCount = 1;
 
         size_t shrinkSize = 0;
         for (;shrinkSize < KeySize_; ++shrinkSize) {
