@@ -108,14 +108,15 @@ def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None
     if not result:
         raise YtError("You must specify non-empty list of source tables")
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"]:
-        if not replace_unexisting_by_empty:
-            return [table for table in result if exists(table.name, client=client)]
-        def get_empty_table(table):
-            logger.warning("Warning: input table '%s' does not exist", table.name)
-            return DEFAULT_EMPTY_TABLE
-        return [table if exists(table.name, client=client) else get_empty_table(table)
-                  for table in result]
-
+        filtered_result = []
+        for table in result:
+            if exists(table.name, client=client):
+                filtered_result.append(table)
+            else:
+                logger.warning("Warning: input table '%s' does not exist", table.name)
+                if replace_unexisting_by_empty:
+                    filtered_result.append(DEFAULT_EMPTY_TABLE)
+        result = filtered_result
     return result
 
 def _are_default_empty_table(tables):
