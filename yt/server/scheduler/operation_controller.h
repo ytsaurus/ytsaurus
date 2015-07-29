@@ -239,6 +239,8 @@ struct IOperationController
     virtual bool NeedsAllChunkParts() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IOperationController)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

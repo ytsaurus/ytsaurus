@@ -92,6 +92,10 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEventLogConfig
     : public NTableClient::TBufferedTableWriterConfig
 {
@@ -104,6 +108,10 @@ public:
             .Default("//sys/scheduler/event_log");
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TOperationOptions
     : public NYTree::TYsonSerializable
@@ -136,29 +144,57 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapOperationOptions
     : public TSimpleOperationOptions
 { };
+
+DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedMergeOperationOptions
     : public TSimpleOperationOptions
 { };
 
+DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOrderedMergeOperationOptions
     : public TSimpleOperationOptions
 { };
+
+DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortedMergeOperationOptions
     : public TSimpleOperationOptions
 { };
 
+DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReduceOperationOptions
     : public TSortedMergeOperationOptions
 { };
 
+DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 { };
+
+DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortOperationOptionsBase
     : public TOperationOptions
@@ -190,13 +226,25 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSortOperationOptions
     : public TSortOperationOptionsBase
 { };
 
+DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapReduceOperationOptions
     : public TSortOperationOptionsBase
 { };
+
+DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteCopyOperationOptions
     : public TOperationOptions
@@ -211,6 +259,10 @@ public:
             .GreaterThan(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
@@ -499,6 +551,8 @@ public:
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
