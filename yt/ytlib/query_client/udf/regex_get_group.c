@@ -15,11 +15,12 @@ void regex_get_group(
         return;
     }
 
+
     char* null_term_input = AllocatePermanentBytes(context, input->Length + 1);
     memcpy(null_term_input, input->Data.String, input->Length);
     null_term_input[input->Length] = 0;
 
-    char null_term_regex[regex->Length + 1];
+    char* null_term_regex = AllocateBytes(context, regex->Length + 1);
     memcpy(null_term_regex, regex->Data.String, regex->Length);
     null_term_regex[regex->Length] = 0;
 
