@@ -31,7 +31,7 @@ class YtTestBase(object):
 
         cls.env.DELTA_NODE_CONFIG = {
             "exec_agent" : {
-                "enable_cgroups" : "false"
+                "enable_cgroups": "false"
             },
             "data_node": {
                 "store_locations": [
@@ -46,6 +46,8 @@ class YtTestBase(object):
 
         reload(yt)
         reload(yt.config)
+
+        yt._cleanup_http_session()
 
         # For debug purpose
         #from yt.wrapper.client import Yt

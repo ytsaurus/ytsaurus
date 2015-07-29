@@ -124,11 +124,12 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
         dump(get_config(client), fout)
 
     if attributes.get('is_simple', False):
-        return ("python _py_runner.py " + " ".join([
+        files = [function_filename, config_filename] + [os.path.join(LOCATION, module + ".py")
+                                                        for module in OPERATION_REQUIRED_MODULES]
+        return ("PYTHONPATH=. python _py_runner.py " + " ".join([
                     os.path.basename(function_filename),
                     os.path.basename(config_filename)]),
-                os.path.join(LOCATION, "_py_runner.py"),
-                [function_filename, config_filename])
+                os.path.join(LOCATION, "_py_runner.py"), files)
 
     zip_filename = create_modules_archive(tempfiles_manager, client)
     main_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
