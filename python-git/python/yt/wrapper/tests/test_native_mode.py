@@ -12,12 +12,16 @@ from yt.common import update
 import yt.yson as yson
 import yt.packages.simplejson as json
 import yt.wrapper as yt
+import yt.wrapper.http as http
+import yt.logger as logger
 
 import os
+import sys
 import time
 import random
 import inspect
 import tempfile
+import logging
 import string
 import subprocess
 import shutil
@@ -78,6 +82,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         config["tabular_data_format"] = yt.format.DsvFormat()
         super(NativeModeTester, cls).setup_class(config)
         yt.create("user", attributes={"name": "tester"})
+        yt.create("account", attributes={"name": "tester"})
         yt.create("group", attributes={"name": "testers"})
         yt.create("group", attributes={"name": "super_testers"})
 
@@ -165,10 +170,18 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.create_table(TEST_DIR + "/dir/table")
         yt.upload_file("", TEST_DIR + "/file")
 
-        assert set(yt.search(TEST_DIR)) == set([TEST_DIR, TEST_DIR + "/dir",
-                                                TEST_DIR + "/dir/other_dir",
-                                                TEST_DIR + "/dir/table",
-                                                TEST_DIR + "/file"])
+        res = set([TEST_DIR, TEST_DIR + "/dir",
+                   TEST_DIR + "/dir/other_dir",
+                   TEST_DIR + "/dir/table",
+                   TEST_DIR + "/file"])
+        assert set(yt.search(TEST_DIR)) == res
+        yt.set_attribute(TEST_DIR + "/dir", "opaque", True)
+        assert set(yt.search(TEST_DIR)) == res
+        yt.remove(TEST_DIR + "/dir/@opaque")
+
+        assert set(yt.search(TEST_DIR, depth_bound=1)) == set([TEST_DIR, TEST_DIR + "/dir",
+                                                               TEST_DIR + "/file"])
+        assert set(yt.search(TEST_DIR, exclude=[TEST_DIR + "/dir"])) == set([TEST_DIR, TEST_DIR + "/file"])
 
         res = yt.search(TEST_DIR, map_node_order=lambda path, object: sorted(object))
         assert list(res) == [TEST_DIR, TEST_DIR + "/dir", TEST_DIR + "/dir/other_dir",
@@ -179,11 +192,28 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert set(yt.search(TEST_DIR, node_type="table",
                              path_filter=lambda x: x.find("dir") != -1)) == set([TEST_DIR + "/dir/table"])
 
+        def subtree_filter(path, obj):
+            is_in_dir = path.find("dir") != -1
+            is_file = obj.attributes["type"] == "file"
+            return not is_in_dir and not is_file
+
+        assert list(yt.search(TEST_DIR, subtree_filter=subtree_filter)) == [TEST_DIR]
+
         # Search empty tables
         res = yt.search(TEST_DIR, attributes=["row_count"],
                         object_filter=lambda x: x.attributes.get("row_count", -1) == 0)
         assert sorted(list(res)) == sorted([yson.to_yson_type(TEST_DIR + "/dir/table",
                                                               {"row_count": 0})])
+
+        # Search in list nodes
+        list_node = TEST_DIR + "/list_node"
+        yt.set(list_node, ["x"])
+        yt.create_table(list_node + "/end")
+        yt.create_table(list_node + "/end")
+        assert set(yt.search(list_node, node_type="table")) == set([list_node + "/1", list_node + "/2"])
+        assert list(yt.search(list_node, list_node_order=lambda p, obj: [2, 0, 1])) == \
+               [list_node] + ["{0}/{1}".format(list_node, i) for i in [2, 0, 1]]
+        assert "//sys/accounts/tester" in yt.search("//sys", node_type="account")
 
     def test_create(self):
         with pytest.raises(yt.YtError):
@@ -279,6 +309,8 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert list(yt.read_table(table, format=yt.format.DsvFormat())) == []
 
         with pytest.raises(yt.YtError):
+            yt.copy([], table)
+        with pytest.raises(yt.YtError):
             yt.copy(table, table)
         with pytest.raises(yt.YtError):
             yt.move(table, table)
@@ -300,6 +332,11 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.move(table, other_table)
         assert not yt.exists(table)
         assert yt.exists(other_table)
+
+        yt.copy(other_table, TEST_DIR + "/tmp1", preserve_account=True)
+        assert yt.exists(TEST_DIR + "/tmp1")
+        yt.move(TEST_DIR + "/tmp1", TEST_DIR + "/tmp2", preserve_account=True)
+        assert yt.exists(TEST_DIR + "/tmp2")
 
     def test_transactions(self):
         table = TEST_DIR + "/transaction_test_table"
@@ -372,19 +409,31 @@ class NativeModeTester(YtTestBase, YTEnv):
             assert yt.lock(dir, waitable=True, wait_for=1000) == "0-0-0-0"
 
         tx = yt.start_transaction()
-
         yt.config.TRANSACTION = tx
-        yt.lock(dir, waitable=True)
-        #with pytest.raises(yt.YtError):
-        #    yt.lock(dir, waitable=True)
-        assert yt.lock(dir, waitable=True) == "0-0-0-0"
-        yt.config.TRANSACTION = "0-0-0-0"
+        try:
+            yt.lock(dir, waitable=True)
+            #with pytest.raises(yt.YtError):
+            #    yt.lock(dir, waitable=True)
+            assert yt.lock(dir, waitable=True) == "0-0-0-0"
 
-        with pytest.raises(yt.YtError):
-            with yt.Transaction():
-                yt.lock(dir, waitable=True, wait_for=1000)
+            yt.config.TRANSACTION = "0-0-0-0"
+            with pytest.raises(yt.YtError):
+                with yt.Transaction():
+                    yt.lock(dir, waitable=True, wait_for=1000)
+        finally:
+            yt.config.TRANSACTION = "0-0-0-0"
+            yt.abort_transaction(tx)
 
-        yt.abort_transaction(tx)
+        tx = yt.start_transaction(timeout=2000)
+        yt.config.TRANSACTION = tx
+        client = Yt(config=self.config)
+        try:
+            assert yt.lock(dir) != "0-0-0-0"
+            with client.Transaction():
+                assert client.lock(dir, waitable=True, wait_for=3000) != "0-0-0-0"
+        finally:
+            yt.config.TRANSACTION = "0-0-0-0"
+            yt.abort_transaction(tx)
 
     def test_copy_move_sorted_table(self):
         def is_sorted_by_y(table_path):
@@ -447,6 +496,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert yt.get_attribute("//sys/groups/super_testers", "members") == ["testers"]
         yt.add_member("tester", "testers")
         assert "super_testers" in yt.get_attribute("//sys/users/tester", "member_of_closure")
+        yt.remove_member("tester", "testers")
 
         yt.remove_member("testers", "super_testers")
         assert yt.get_attribute("//sys/groups/super_testers", "members") == []
@@ -477,6 +527,10 @@ class NativeModeTester(YtTestBase, YTEnv):
         destinationB = yt.smart_upload_file(filename, placement_strategy="hash")
         assert destinationA == destinationB
 
+        # Lets break link
+        yt.remove(yt.get_attribute(destinationB + "&", "target_path"), force=True)
+        assert yt.smart_upload_file(filename, placement_strategy="hash") == destinationA
+
         destination = yt.smart_upload_file(filename, placement_strategy="random")
         path = os.path.join(os.path.basename(filename), yt.config["remote_temp_files_directory"])
         assert destination.startswith(path)
@@ -484,6 +538,18 @@ class NativeModeTester(YtTestBase, YTEnv):
         destination = TEST_DIR + "/file_dir/some_file"
         yt.smart_upload_file(filename, destination=destination, placement_strategy="ignore")
         assert yt.get_attribute(destination, "file_name") == "some_file"
+
+        with pytest.raises(yt.YtError):
+            yt.smart_upload_file(filename, destination=destination, placement_strategy="random")
+        with pytest.raises(yt.YtError):
+            yt.smart_upload_file(filename, destination=destination, placement_strategy="hash")
+
+        assert yt.download_file(destination, length=4).read() == "some"
+        assert yt.download_file(destination, offset=5).read() == "content"
+
+        destination = yt.smart_upload_file(filename, placement_strategy="ignore")
+        yt.smart_upload_file(filename, placement_strategy="ignore")
+        assert yt.download_file(destination).read() == "some content"
 
     ###
     ### test_table_commands
@@ -525,6 +591,12 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.write_table(table, [{"y": "1"}], raw=False)
         assert [{"y": "1"}] == list(yt.read_table(table, raw=False))
 
+        yt.config["tabular_data_format"] = None
+        try:
+            yt.write_table(table, ["x=1\n"], format="dsv")
+        finally:
+            yt.config["tabular_data_format"] = yt.format.DsvFormat()
+
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
         table = dir + "/table"
@@ -534,9 +606,12 @@ class NativeModeTester(YtTestBase, YTEnv):
         with pytest.raises(yt.YtError):
             yt.records_count(table)
 
-        yt.create_table(table, recursive=True)
+        yt.create_table(table, recursive=True, replication_factor=3)
         assert yt.records_count(table) == 0
         self.check([], yt.read_table(table, format=yt.DsvFormat()))
+
+        yt.create_table(TEST_DIR + "/compressed", compression_codec="gzip_best_compression")
+        assert yt.records_count(TEST_DIR + "/compressed") == 0
 
         yt.run_erase(table)
         assert yt.records_count(table) == 0
@@ -718,7 +793,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
         assert yt.records_count(table) == 0
 
-    def test_read_with_ranges(self):
+    def test_read_with_table_path(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, ["y=w3\n", "x=b\ty=w1\n", "x=a\ty=w2\n"])
         yt.run_sort(table, sort_by=["x", "y"])
@@ -750,6 +825,19 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["x=b\n", "x=a\n", "x=c\n"])
         with pytest.raises(yt.YtError):
             yt.read_table(TablePath(table, lower_key="a"))
+        # No prefix
+        with pytest.raises(yt.YtError):
+            TablePath("abc")
+        # Prefix should start with //
+        yt.config["prefix"] = "abc/"
+        with pytest.raises(yt.YtError):
+            TablePath("abc")
+        # Prefix should end with /
+        yt.config["prefix"] = "//abc"
+        with pytest.raises(yt.YtError):
+            TablePath("abc")
+        yt.config["prefix"] = TEST_DIR + "/"
+        yt.write_table("test_table", ["x=1\n"])
 
     def test_huge_table(self):
         table = TEST_DIR + "/table"
@@ -765,6 +853,29 @@ class NativeModeTester(YtTestBase, YTEnv):
         for _ in yt.read_table(table):
             records_count += 1
         assert records_count == 10 ** power
+
+    def test_remove_locks(self):
+        from yt.wrapper.table_commands import _remove_locks
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+        try:
+            for _ in xrange(5):
+                tx = yt.start_transaction(timeout=10000)
+                yt.config.TRANSACTION = tx
+                yt.lock(table, mode="shared")
+            yt.config.TRANSACTION = "0-0-0-0"
+            assert len(yt.get_attribute(table, "locks")) == 5
+            _remove_locks(table)
+            assert yt.get_attribute(table, "locks") == []
+
+            tx = yt.start_transaction(timeout=10000)
+            yt.config.TRANSACTION = tx
+            yt.lock(table)
+            yt.config.TRANSACTION = "0-0-0-0"
+            _remove_locks(table)
+            assert yt.get_attribute(table, "locks") == []
+        finally:
+            yt.config.TRANSACTION = "0-0-0-0"
 
     ###
     ### test_operations
@@ -796,6 +907,28 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_merge(tableX, res_table)
         assert parse_bool(yt.get_attribute(res_table, "sorted"))
         self.check(["x=1\n"], yt.read_table(res_table))
+
+    def test_auto_merge(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, ["x={0}\n".format(i) for i in xrange(6)])
+
+        def identity(rec):
+            yield rec
+
+        old_auto_merge_output = yt.config["auto_merge_output"]
+
+        yt.config["auto_merge_output"]["min_chunk_count"] = 2
+        yt.config["auto_merge_output"]["max_chunk_size"] = 5 * 1024
+        try:
+            yt.config["auto_merge_output"]["action"] = "none"
+            yt.run_map(identity, table, other_table, job_count=6)
+            assert yt.get_attribute(other_table, "chunk_count") == 6
+            yt.config["auto_merge_output"]["action"] = "merge"
+            yt.run_map(identity, table, other_table, job_count=6)
+            assert yt.get_attribute(other_table, "chunk_count") == 1
+        finally:
+            yt.config["auto_merge_output"].update(old_auto_merge_output)
 
     def test_sort(self):
         table = TEST_DIR + "/table"
@@ -868,6 +1001,13 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
 
+        with pytest.raises(yt.YtError):
+            yt.run_map("cat", table, table, local_files=_get_test_file_path("capitalize_b.py"),
+                                            files=_get_test_file_path("capitalize_b.py"))
+        with pytest.raises(yt.YtError):
+            yt.run_map("cat", table, table, yt_files=_get_test_file_path("capitalize_b.py"),
+                                            file_paths=_get_test_file_path("capitalize_b.py"))
+
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
         def change_x(rec):
@@ -884,6 +1024,25 @@ class NativeModeTester(YtTestBase, YTEnv):
         @yt.raw
         def change_field(line):
             yield "z=8\n"
+
+        @yt.aggregator
+        def sum_x(recs):
+            sum = 0
+            for rec in recs:
+                sum += int(rec.get("x", 0))
+            yield {"sum": sum}
+
+        #@yt.simple
+        #def identity(rec):
+        #    yield rec
+
+        @yt.raw_io
+        def sum_x_raw():
+            sum = 0
+            for line in sys.stdin:
+                x = line.strip().split("=")[1]
+                sum += int(x)
+            sys.stdout.write("sum={0}\n".format(sum))
 
         table = TEST_DIR + "/table"
 
@@ -913,20 +1072,49 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_map(change_field, table, table)
         self.check(yt.read_table(table), ["z=8\n", "z=8\n"])
 
-    def test_cross_format_operation(self):
+        yt.write_table(table, ["x=1\n", "x=2\n", "x=3\n"])
+        yt.run_map(sum_x, table, table)
+        self.check(yt.read_table(table), ["sum=6\n"])
+
+        #yt.run_map(identity, table, table)
+        #self.check(yt.read_table(table), ["sum=6\n"])
+
+        yt.write_table(table, ["x=3\n", "x=3\n", "x=3\n"])
+        yt.run_map(sum_x_raw, table, table)
+        self.check(yt.read_table(table), ["sum=9\n"])
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_cross_format_operations(self):
         @yt.raw
         def reformat(rec):
             values = rec.strip().split("\t", 2)
             yield "\t".join("=".join([k, v]) for k, v in zip(["k", "s", "v"], values)) + "\n"
 
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+
         yt.config["tabular_data_format"] = yt.format.YamrFormat(has_subkey=True)
+
+        # Enable progress printing in this test
+        yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=True)
+        old_level = logger.LOGGER.level
+        logger.LOGGER.setLevel(logging.INFO)
         try:
-            table = TEST_DIR + "/table"
-            other_table = TEST_DIR + "/other_table"
             yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n"])
             yt.run_map(reformat, table, other_table, output_format=yt.format.DsvFormat())
-            assert sorted(yt.read_table(other_table, format=yt.format.DsvFormat())) == \
+            assert sorted(yt.read_table(other_table, format="dsv")) == \
                    ["k=0\ts=a\tv=A\n", "k=1\ts=b\tv=B\n"]
+        finally:
+            yt.config["tabular_data_format"] = yt.format.DsvFormat()
+            yt.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
+            logger.LOGGER.setLevel(old_level)
+
+        yt.config["tabular_data_format"] = None
+        try:
+            yt.write_table(table, ["1\t2\t3\n"], format="<has_subkey=true>yamr")
+            yt.run_map(reformat, table, table, input_format="<has_subkey=true>yamr", output_format="dsv")
+            yt.run_map("cat", table, table, input_format="dsv", output_format="dsv")
+            assert list(yt.read_table(table, format=yt.format.DsvFormat())) == ["k=1\ts=2\tv=3\n"]
         finally:
             yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
@@ -1032,17 +1220,10 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.run_sort(table, sort_by=["a", "b"])
 
         with pytest.raises(yt.YtError):
+            # No reduce_by
+            yt.run_reduce("cat", source_table=table, destination_table=other_table, sort_by=["a"])
+        with pytest.raises(yt.YtError):
             yt.run_reduce("cat", source_table=table, destination_table=other_table, reduce_by=["c"])
-
-    def test_reduce_with_output_sorted(self):
-        table = TEST_DIR + "/table"
-        output_table = TEST_DIR + "/output_table"
-
-        yt.write_table(table, ["x=2\n", "x=3\n", "x=1\n"])
-        yt.run_sort(table, sort_by=["x"])
-
-        yt.run_reduce("cat", table, "<sorted_by=[x]>" + output_table, reduce_by=["x"])
-        assert yt.is_sorted(output_table)
 
     @add_failed_operation_stderrs_to_error_message
     def test_yamred_dsv(self):
@@ -1208,22 +1389,52 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value
 
+    def test_heavy_requests_with_retries(self):
+        table = TEST_DIR + "/table"
+
+        old_request_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
+        old_enable_write_retries = yt.config["write_retries"]["enable"]
+
+        yt.config["write_retries"]["enable"] = True
+        yt.config["proxy"]["request_retry_timeout"] = 1000
+        yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
+
+        _, filename = tempfile.mkstemp()
+        with open(filename, "w") as fout:
+            fout.write("retries test")
+
+        try:
+            yt.write_table(table, ["x=1\n"])
+            yt.smart_upload_file(filename, placement_strategy="random")
+            yt.write_table(table, ["x=1\n"])
+            yt.write_table(table, ["x=1\n"])
+            yt.smart_upload_file(filename, placement_strategy="random")
+            yt.smart_upload_file(filename, placement_strategy="random")
+            yt.write_table(table, ["x=1\n"])
+        finally:
+            yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
+            yt.config["proxy"]["request_retry_timeout"] = old_request_retry_timeout
+            yt.config["write_retries"]["enable"] = old_enable_write_retries
+
     def test_http_retries(self):
         old_request_retry_timeout = yt.config["proxy"]["request_retry_timeout"]
         yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
         yt.config["proxy"]["request_retry_timeout"] = 1000
         try:
-            yt.get("/")
-            yt.list("/")
-            yt.exists("/")
-            yt.exists(TEST_DIR)
-            yt.exists(TEST_DIR + "/some_node")
-            yt.set(TEST_DIR + "/some_node", {})
-            yt.exists(TEST_DIR + "/some_node")
-            yt.list(TEST_DIR)
+            for backoff_time in [3000, None]:
+                yt.config["proxy"]["request_backoff_time"] = backoff_time
+                yt.get("/")
+                yt.list("/")
+                yt.exists("/")
+                yt.exists(TEST_DIR)
+                yt.exists(TEST_DIR + "/some_node")
+                yt.set(TEST_DIR + "/some_node", {})
+                yt.exists(TEST_DIR + "/some_node")
+                yt.list(TEST_DIR)
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
             yt.config["proxy"]["request_retry_timeout"] = old_request_retry_timeout
+            yt.config["proxy"]["request_backoff_time"] = None
 
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):
@@ -1254,21 +1465,136 @@ class NativeModeTester(YtTestBase, YTEnv):
         client = Yt(config=self.config)
 
         other_client = Yt(config=self.config)
+        other_client.config["proxy"]["force_ipv4"] = True
         other_client.config["tabular_data_format"] = yt.JsonFormat()
 
-        assert client.get("/")
-        client.create("table", "//tmp/in")
-        client.write_table("//tmp/in", ["a=b\n"])
-        assert "a=b\n" == client.read_table("//tmp/in", raw=True).read()
-        assert client.exists("//tmp/in")
-        client.run_map("cat", "//tmp/in", "//tmp/out")
-        assert client.exists("//tmp/out")
+        if yt.config["api_version"] == "v2":
+            assert client.get_user_name("") == None
+        else:
+            assert client.get_user_name("") == "root"
+
+        client.set(TEST_DIR + "/node", "abc")
+        assert client.get(TEST_DIR + "/node") == "abc"
+
+        assert client.list(TEST_DIR) == ["node"]
+
+        client.remove(TEST_DIR + "/node")
+        assert not client.exists(TEST_DIR + "/node")
+
+        client.mkdir(TEST_DIR + "/folder")
+        assert client.get_type(TEST_DIR + "/folder") == "map_node"
+
+        table = TEST_DIR + "/table"
+        client.create("table", table)
+        client.write_table(table, ["a=b\n"])
+        assert "a=b\n" == client.read_table(table, raw=True).read()
+
+        assert set(client.search(TEST_DIR)) == set([TEST_DIR, TEST_DIR + "/folder", table])
+
+        other_table = TEST_DIR + "/other_table"
+        client.copy(table, other_table)
+        assert "a=b\n" == client.read_table(other_table, raw=True).read()
+        client.move(table, TEST_DIR + "/moved_table")
+        assert "a=b\n" == client.read_table(TEST_DIR + "/moved_table", raw=True).read()
+        assert not client.exists(table)
+
+        client.link(other_table, TEST_DIR + "/table_link")
+        assert client.get_attribute(TEST_DIR + "/table_link&", "target_id") == \
+               client.get_attribute(other_table, "id")
+        assert client.has_attribute(TEST_DIR + "/table_link&", "broken")
+
+        client.set_attribute(other_table, "test_attr", "value")
+        for attribute in ["id", "test_attr"]:
+            assert attribute in client.list_attributes(other_table)
+
+        assert not client.exists(client.find_free_subpath(TEST_DIR))
+
+        assert client.check_permission("tester", "write", "//sys")["action"] == "deny"
+
+        client.add_member("tester", "testers")
+        assert client.get_attribute("//sys/groups/testers", "members") == ["tester"]
+        client.remove_member("tester", "testers")
+        assert client.get_attribute("//sys/groups/testers", "members") == []
+
+        client.create_table(TEST_DIR + "/table")
+        assert client.exists(TEST_DIR + "/table")
+
+        temp_table = client.create_temp_table(TEST_DIR)
+        assert client.get_type(temp_table) == "table"
+        assert client.is_empty(temp_table)
+
+        client.write_table(temp_table, self.get_temp_dsv_records())
+        client.run_sort(temp_table, sort_by=["x"])
+        assert client.is_sorted(temp_table)
+
+        client.run_erase(TablePath(temp_table, start_index=0, end_index=5))
+        assert client.records_count(temp_table) == 5
+
+        client.run_map("cat", other_table, TEST_DIR + "/map_output")
+        assert "a=b\n" == client.read_table(other_table, raw=True).read()
+
+        client.write_table(TEST_DIR + "/first", ["x=1\n"])
+        client.write_table(TEST_DIR + "/second", ["x=2\n"])
+        client.run_merge([TEST_DIR + "/first", TEST_DIR + "/second"], TEST_DIR + "/merged_table")
+        assert client.read_table(TEST_DIR + "/merged_table").read() == "x=1\nx=2\n"
+
+        client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"])
+        assert client.records_count(TEST_DIR + "/reduce_output") == 3
+
+        mr_operation = client.run_map_reduce("cat", "head -n 3", temp_table, TEST_DIR + "/mapreduce_output",
+                                             reduce_by=["x"])
+        assert client.get_operation_state(mr_operation.id) == "completed"
+        assert client.records_count(TEST_DIR + "/mapreduce_output") == 3
+
         with client.Transaction():
             yt.set("//@attr", 10)
             assert yt.exists("//@attr")
 
+        with client.PingableTransaction():
+            yt.set("//@other_attr", 10)
+            assert yt.exists("//@other_attr")
+
+        tx = client.start_transaction(timeout=5000)
+        with client.PingTransaction(tx, delay=1):
+            assert client.exists("//sys/transactions/{0}".format(tx))
+            client.TRANSACTION = tx
+            assert client.lock(table) != "0-0-0-0"
+            client.TRANSACTION = "0-0-0-0"
+
+        client.ping_transaction(tx)
+        client.abort_transaction(tx)
+        with pytest.raises(yt.YtError):
+            client.commit_transaction(tx)
+
+        op = client.run_map("sleep 10; cat", temp_table, table, sync=False)
+        assert not client.get_operation_state(op.id).is_unsuccessfully_finished()
+        assert op.get_attributes()["state"] != "failed"
+        time.sleep(0.5)
+        client.suspend_operation(op.id)
+        time.sleep(2.5)
+        client.resume_operation(op.id)
+        time.sleep(2.5)
+        client.abort_operation(op.id)
+        # Second abort on aborted operation should be silent
+        client.abort_operation(op.id)
+        assert op.get_progress()["total"] != 0
+        assert op.get_stderrs() == []
+
+        client.upload_file("0" * 1000, TEST_DIR + "/file")
+        assert client.download_file(TEST_DIR + "/file").read() == "0" * 1000
+        with pytest.raises(yt.YtError):
+            client.smart_upload_file("/unexisting")
+
         assert other_client.get("/")
-        assert '{"a":"b"}\n' == other_client.read_table("//tmp/in", raw=True).read()
+        assert '{"a":"b"}\n' == other_client.read_table(other_table, raw=True).read()
+
+    def test_client_with_unknown_api_version(self):
+        client = Yt(config=self.config)
+        client.config["api_version"] = None
+        if client.config["backend"] == "native":
+            pytest.skip()
+        client.get("/")
+        assert client._api_version == "v3"
 
     def test_get_user_name(self):
         if yt.config["api_version"] == "v2":
@@ -1283,6 +1609,19 @@ class NativeModeTester(YtTestBase, YTEnv):
         #token = "".join(["a"] * 16)
         #yt.set("//sys/tokens/" + token, "user")
         #assert get_user_name(token) == "user"
+
+    def test_get_token(self):
+        client = Yt(token="a" * 32)
+        client.config["enable_token"] = True
+
+        assert http.get_token(client) == "a" * 32
+
+        _, filename = tempfile.mkstemp()
+        with open(filename, "w") as fout:
+            fout.write("b" * 32)
+        client.config["token"] = None
+        client.config["token_path"] = filename
+        assert http.get_token(client) == "b" * 32
 
     def test_old_config_options(self):
         yt.config.http.PROXY = yt.config.http.PROXY

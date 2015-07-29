@@ -28,12 +28,12 @@ class YamrModeTester(YtTestBase, YTEnv):
             conf = {}
         super(YamrModeTester, cls).setup_class(conf)
         yt.set_yamr_mode()
-        config.TREAT_UNEXISTING_AS_EMPTY = False
+        config["yamr_mode"]["treat_unexisting_as_empty"] = False
         if not yt.exists("//sys/empty_yamr_table"):
             yt.create("table", "//sys/empty_yamr_table", recursive=True)
         if not yt.is_sorted("//sys/empty_yamr_table"):
             yt.run_sort("//sys/empty_yamr_table", "//sys/empty_yamr_table", sort_by=["key", "subkey"])
-        config.TREAT_UNEXISTING_AS_EMPTY = True
+        config["yamr_mode"]["treat_unexisting_as_empty"] = True
 
     @classmethod
     def teardown_class(cls):
@@ -82,6 +82,9 @@ class YamrModeTester(YtTestBase, YTEnv):
         yt.create_table(other_table)
 
         copy_table(table, other_table)
+        assert sorted(self.get_temp_records()) == sorted(yt.read_table(other_table))
+
+        move_table(other_table, other_table)
         assert sorted(self.get_temp_records()) == sorted(yt.read_table(other_table))
 
         copy_table(table, other_table)
@@ -148,6 +151,23 @@ class YamrModeTester(YtTestBase, YTEnv):
 
         yt.run_map("cat", TEST_DIR + "/unexisting", other_table)
         assert not yt.exists(other_table)
+
+        yt.run_merge(TEST_DIR + "/unexisting", other_table)
+        assert not yt.exists(other_table)
+
+        yt.run_sort(TEST_DIR + "/unexisting", other_table)
+        assert not yt.exists(other_table)
+
+        yt.run_sort(TEST_DIR + "/unexisting")
+        assert not yt.exists(TEST_DIR + "/unexisting")
+
+        yt.run_map_reduce("cat", "cat", TEST_DIR + "/unexisting", other_table)
+        assert not yt.exists(other_table)
+
+    def test_treat_unexisting_as_empty(self):
+        table = TEST_DIR + "/table"
+        assert yt.records_count(table) == 0
+        yt.run_erase(TablePath(table, start_index=0, end_index=5))
 
     def test_map_reduce_operation(self):
         input_table = TEST_DIR + "/input_table"
@@ -276,6 +296,27 @@ class YamrModeTester(YtTestBase, YTEnv):
         finally:
             config["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"] = old_option
 
+    def test_reduce_with_output_sorted(self):
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(table, ["3\t1\t3\n", "1\t2\t4\n"])
+        yt.run_reduce("cat", table, "<sorted_by=[key]>" + output_table)
+        assert list(yt.read_table(output_table)) == ["1\t2\t4\n", "3\t1\t3\n"]
+        assert parse_bool(yt.get_attribute(output_table, "sorted", False))
+
+    def test_reduce_differently_sorted_table(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["1\t2\t3\n"])
+        yt.run_sort(table, sort_by=["key"])
+
+        with pytest.raises(yt.YtError):
+            yt.run_reduce("cat", table, TEST_DIR + "/other_table", sort_by=["subkey"], reduce_by=["subkey"])
+
+    def test_throw_on_missing_destination(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["1\t2\t3\n"])
+        with pytest.raises(yt.YtError):
+            yt.run_map("cat", source_table=table, destination_table=None)
 
 class TestYamrModeV2(YamrModeTester):
     @classmethod

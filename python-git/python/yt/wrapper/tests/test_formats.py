@@ -1,8 +1,12 @@
 from yt.wrapper.string_iter_io import StringIterIO
 import yt.yson as yson
 import yt.wrapper as yt
+from yt.wrapper.common import parse_bool
+from yt.wrapper.format import extract_key, create_format
 
 from cStringIO import StringIO
+
+import pytest
 
 def test_string_iter_io_read():
     strings = ["ab", "", "c", "de", ""]
@@ -96,6 +100,12 @@ def test_yamr_format():
     format = yt.YamrFormat(lenval=True, has_subkey=False)
     check_format(format, "\x01\x00\x00\x00a\x01\x00\x00\x00b", yt.Record("a", "b"))
 
+def test_yamr_load_records_raw():
+    records = ["a\tb\tc\n", "d\te\tf\n", "g\th\ti\n"]
+    stream = StringIO(''.join(records))
+    format = yt.YamrFormat(has_subkey=True)
+    assert list(format.load_rows(stream, raw=True)) == records
+
 def test_yamr_table_switcher():
     format = yt.YamrFormat(lenval=False, has_subkey=False)
     check_table_index(format, "a\tb\n", "1\n",
@@ -136,3 +146,46 @@ def test_yamred_dsv_format():
                                 has_subkey=False, lenval=False)
     check_format(format, "a\tb\n", yt.Record("a", "b"))
     check_format(format, "a\tb\tc\n", yt.Record("a", "b\tc"))
+
+def test_extract_key():
+    assert extract_key(yt.Record("k", "s", "v"), ["k"]) == "k"
+    assert extract_key(yt.Record("k", "v"), ["k"]) == "k"
+    assert extract_key({"k": "v", "x": "y"}, ["k"]) == {"k": "v"}
+
+def test_create_format():
+    format = create_format("<has_subkey=%true>yamr")
+    assert format.attributes["has_subkey"]
+    assert format.name() == "yamr"
+    assert format == yt.format.YamrFormat(has_subkey=True)
+    assert format != yt.format.DsvFormat()
+
+    for format_name in ["dsv", "yamred_dsv", "schemaful_dsv", "yson", "json"]:
+        if format_name == "schemaful_dsv":
+            format = create_format(format_name, columns=["x"])
+        else:
+            format = create_format(format_name)
+        assert format.name() == format_name
+
+    with pytest.raises(yt.YtError):
+        create_format("best_format")
+
+def test_raw_dump_records():
+    def check_format(format, value):
+        stream = StringIO()
+        if isinstance(value, list):
+            format.dump_rows(value, stream, raw=True)
+        else:
+            format.dump_row(value, stream, raw=True)
+        assert stream.getvalue() == ''.join(value)
+
+    check_format(yt.YamrFormat(), "1\t2\n")
+    check_format(yt.YamredDsvFormat(), "x=1\n")
+    check_format(yt.SchemafulDsvFormat(columns=["x"]), "x=1\n")
+    check_format(yt.YsonFormat(), '{"x"=1; "y"=2}')
+    check_format(yt.JsonFormat(), '{"x": 1}')
+
+    check_format(yt.YamrFormat(), ["1\t2\n", "3\t4\n"])
+    check_format(yt.YamredDsvFormat(), ["x=1\n", "x=2\n"])
+    check_format(yt.SchemafulDsvFormat(columns=["x"]), ["x=1\n", "x=2\n"])
+    check_format(yt.YsonFormat(), ['{"x"=1}', '{"x"=2}'])
+    check_format(yt.JsonFormat(), ['{"x":1}', '{"x":2}'])
