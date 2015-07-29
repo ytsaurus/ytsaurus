@@ -12,11 +12,11 @@ char regex_match(
     char* regex,
     int regex_len)
 {
-    char null_term_input[input_len + 1];
+    char* null_term_input = AllocateBytes(context, input_len + 1);
     memcpy(null_term_input, input, input_len);
     null_term_input[input_len] = 0;
 
-    char null_term_regex[regex_len + 1];
+    char* null_term_regex = AllocateBytes(context, regex_len + 1);
     memcpy(null_term_regex, regex, regex_len);
     null_term_regex[regex_len] = 0;
 
