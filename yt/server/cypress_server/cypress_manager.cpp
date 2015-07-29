@@ -173,6 +173,7 @@ public:
                 type);
         }
 
+        auto multicellManager = Bootstrap_->GetMulticellManager();
         auto externalCellTag = NotReplicatedCellTag;
         if (attributes && attributes->Find<bool>("external").Get(false)) {
             if (!handler->IsExternalizable()) {
@@ -181,22 +182,19 @@ public:
             }
             attributes->Remove("external");
 
-            const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
             auto maybeExternalCellTag = attributes->Find<TCellTag>("external_cell_tag");
             if (maybeExternalCellTag) {
-                if (*maybeExternalCellTag != Bootstrap_->GetPrimaryCellTag() &&
-                    std::find(secondaryCellTags.begin(), secondaryCellTags.end(), *maybeExternalCellTag) == secondaryCellTags.end())
-                {
-                    THROW_ERROR_EXCEPTION("Unknown cell tag %v", *maybeExternalCellTag);
-                }
-                attributes->Remove("external_cell_tag");
                 externalCellTag = *maybeExternalCellTag;
                 if (externalCellTag == Bootstrap_->GetCellTag()) {
                     externalCellTag = NotReplicatedCellTag;
+                } else {
+                    if (multicellManager->IsRegisteredSecondaryMaster(externalCellTag)) {
+                        THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
+                    }
                 }
-            } else if (!secondaryCellTags.empty()) {
-                // XXX(babenko): improve
-                externalCellTag = secondaryCellTags[0];
+                attributes->Remove("external_cell_tag");
+            } else {
+                externalCellTag = multicellManager->GetLeastLoadedSecondaryMaster();
             }
         }
 
@@ -243,7 +241,6 @@ public:
             replicateRequest->set_account(Account_->GetName());
             ToProto(replicateRequest->mutable_object_id(), trunkNode->GetId());
 
-            auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMaster(replicateRequest, externalCellTag);
         }
 

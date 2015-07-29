@@ -22,8 +22,8 @@ class TMulticellManager
 {
 public:
     TMulticellManager(
-        TBootstrap* bootstrap,
-        TCellMasterConfigPtr config);
+        TMulticellManagerConfigPtr config,
+        TBootstrap* bootstrap);
     ~TMulticellManager();
 
     void PostToPrimaryMaster(
@@ -61,6 +61,14 @@ public:
     void PostToSecondaryMasters(
         TSharedRefArray requestMessage,
         bool reliable = true);
+
+    //! Returns |true| if there is a registered secondary master with a given cell tag.
+    bool IsRegisteredSecondaryMaster(NObjectClient::TCellTag cellTag);
+
+    //! Returns the cell tag of the secondary master with the smallest
+    //! number of chunks. If no secondary masater is registered then
+    //! returns the primary master cell tag.
+    NObjectClient::TCellTag GetLeastLoadedSecondaryMaster();
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
 

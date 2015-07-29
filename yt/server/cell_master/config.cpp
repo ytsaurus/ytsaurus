@@ -45,6 +45,8 @@ TCellMasterConfig::TCellMasterConfig()
     RegisterParameter("timestamp_provider", TimestampProvider);
     RegisterParameter("transaction_supervisor", TransactionSupervisor)
         .DefaultNew();
+    RegisterParameter("multicell_manager", MulticellManager)
+        .DefaultNew();
     RegisterParameter("rpc_port", RpcPort)
         .Default(9000);
     RegisterParameter("monitoring_port", MonitoringPort)

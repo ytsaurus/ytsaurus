@@ -9,6 +9,7 @@ namespace NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TMasterHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TMulticellManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellMasterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TMasterAutomaton)
