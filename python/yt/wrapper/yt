@@ -177,7 +177,7 @@ def add_structured_format_help(parser, name="--format", help="", **kwargs):
     add_argument(parser, name, help, description=STRUCTURED_FORMAT_HELP, action=ParseFormat, **kwargs)
 
 def add_format_help(parser, name="--format", help="", **kwargs):
-    FORMAT_HELP = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred-dsv", "shemaful-dsv" with modifications. See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    FORMAT_HELP = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred-dsv", "schemaful-dsv" with modifications. See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
     add_argument(parser, name, help, description=FORMAT_HELP, action=ParseFormat, **kwargs)
 
 def add_spec_help(parser, name="--spec", help="", **kwargs):
@@ -186,7 +186,7 @@ def add_spec_help(parser, name="--spec", help="", **kwargs):
 
 def add_type_help(parser, name):
     NODE_TYPE_HELP = "one of table, file, document, account, user, list_node, map_node, "\
-                 "string_node, integer_node, double_node, ..."
+                 "string_node, int64_node, uint64_node, double_node, ..."
     add_argument(parser, name, "", description=NODE_TYPE_HELP)
 
 
