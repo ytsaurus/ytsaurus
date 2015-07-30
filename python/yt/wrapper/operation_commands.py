@@ -1,9 +1,9 @@
 from config import get_config
 from yt.common import format_error
 from common import require
-from errors import YtError, YtOperationFailedError, YtResponseError, YtTimeoutError
+from errors import YtError, YtOperationFailedError, YtTimeoutError
 from driver import make_request
-from http import get_proxy_url
+from http import get_proxy_url, RETRIABLE_ERRORS
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from cypress_commands import get_attribute, exists, search, get
 from file_commands import download_file
@@ -249,7 +249,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
             stderr_path = os.path.join(path, "stderr")
             if exists(stderr_path, client=client):
                 job_with_stderr["stderr"] = download_file(stderr_path, client=client).read()
-        except YtResponseError:
+        except RETRIABLE_ERRORS:
             if get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]:
                 break
             else:
