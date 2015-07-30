@@ -97,7 +97,7 @@ class NativeModeTester(YtTestBase, YTEnv):
     def get_temp_dsv_records(self):
         columns = (string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase)
         def dumps_row(row):
-            return "x={}\ty={}\tz={}\n".format(*row)
+            return "x={0}\ty={1}\tz={2}\n".format(*row)
         return map(dumps_row, zip(*columns))
 
     def random_string(self, length):
@@ -250,12 +250,12 @@ class NativeModeTester(YtTestBase, YTEnv):
         assert yt.get_attribute(other_link + "&", "target_id") == yt.get_attribute(table, "id")
 
     def test_list(self):
-        tables = ["{}/{}".format(TEST_DIR, name) for name in ("a", "b", "c")]
+        tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
         for table in tables:
             yt.create_table(table)
         assert set(yt.list(TEST_DIR)) == set(["a", "b", "c"])
         assert set(yt.list(TEST_DIR, absolute=True)) == \
-                set(["{}/{}".format(TEST_DIR, x) for x in ("a", "b", "c")])
+                set(["{0}/{1}".format(TEST_DIR, x) for x in ("a", "b", "c")])
         yt.mkdir(TEST_DIR + "/subdir")
         yt.create_table(TEST_DIR + "/subdir/table")
 
@@ -802,7 +802,7 @@ class NativeModeTester(YtTestBase, YTEnv):
         other_table = TEST_DIR + "/other_table"
 
         columns = [(self.random_string(7), self.random_string(7)) for _ in xrange(10)]
-        yt.write_table(table, ["x={}\ty={}\n".format(*c) for c in columns])
+        yt.write_table(table, ["x={0}\ty={1}\n".format(*c) for c in columns])
 
         with pytest.raises(yt.YtError):
             yt.run_sort([table, other_table], other_table, sort_by=["y"])
