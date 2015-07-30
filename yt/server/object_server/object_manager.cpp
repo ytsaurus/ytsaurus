@@ -16,6 +16,7 @@
 #include <core/ytree/exception_helpers.h>
 
 #include <core/profiling/profile_manager.h>
+#include <core/profiling/scoped_timer.h>
 
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
@@ -1028,9 +1029,9 @@ IObjectResolver* TObjectManager::GetObjectResolver()
     return ObjectResolver_.get();
 }
 
-bool TObjectManager::AdviceYield(TInstant startTime) const
+bool TObjectManager::AdviceYield(NProfiling::TCpuInstant startInstant) const
 {
-    return TInstant::Now() > startTime + Config_->YieldTimeout;
+    return NProfiling::GetCpuInstant() > startInstant + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
@@ -1165,13 +1166,25 @@ void TObjectManager::HydraExecuteLeader(
     const TMutationId& mutationId,
     IServiceContextPtr context)
 {
+    NProfiling::TScopedTimer timer;
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+
     try {
-        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
         TAuthenticatedUserGuard userGuard(securityManager, user);
         ExecuteVerb(RootService_, context);
     } catch (const std::exception& ex) {
         context->Reply(ex);
+    }
+
+    if (IsLeader()) {
+        auto* user = securityManager->FindUser(userId);
+        if (IsObjectAlive(user)) {
+            // NB: Charge for zero requests here since we've already charged the user for one request
+            // in TObjectService.
+            securityManager->ChargeUser(user, 0, timer.GetElapsed());
+        }
     }
 
     if (mutationId != NullMutationId) {

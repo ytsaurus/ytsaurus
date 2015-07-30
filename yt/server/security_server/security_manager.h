@@ -203,15 +203,15 @@ public:
 
     //! Checks if request handling is possible from a given user.
     /*!
-     *  Enforces bans and rate limits.
-     *  If successful, charges the user for a given number of requests.
-     *  Throws on failure.
+     *  Enforces bans and rate limits. Throws on failure.
      */
-    void ValidateUserAccess(TUser* user, int requestCount);
+    void ValidateUserAccess(TUser* user);
+
+    //! Increments per-user counters.
+    void ChargeUser(TUser* user, int requestCount, TDuration requestTime);
 
     //! Returns the current request rate from the user.
     double GetRequestRate(TUser* user);
-
 
 private:
     class TImpl;

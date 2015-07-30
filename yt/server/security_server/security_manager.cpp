@@ -923,7 +923,7 @@ public:
         }
     }
 
-    void ValidateUserAccess(TUser* user, int requestCount)
+    void ValidateUserAccess(TUser* user)
     {
         if (user->GetBanned()) {
             THROW_ERROR_EXCEPTION(
@@ -939,8 +939,11 @@ public:
                 user->GetName())
                 << TErrorAttribute("limit", user->GetRequestRateLimit());
         }
+    }
 
-        RequestTracker_->ChargeUser(user, requestCount);
+    void ChargeUser(TUser* user, int requestCount, TDuration requestTime)
+    {
+        RequestTracker_->ChargeUser(user, requestCount, requestTime);
     }
 
     double GetRequestRate(TUser* user)
@@ -2013,9 +2016,14 @@ void TSecurityManager::SetUserBanned(TUser* user, bool banned)
     Impl_->SetUserBanned(user, banned);
 }
 
-void TSecurityManager::ValidateUserAccess(TUser* user, int requestCount)
+void TSecurityManager::ValidateUserAccess(TUser* user)
 {
-    Impl_->ValidateUserAccess(user, requestCount);
+    Impl_->ValidateUserAccess(user);
+}
+
+void TSecurityManager::ChargeUser(TUser* user, int requestCount, TDuration requestTime)
+{
+    Impl_->ChargeUser(user, requestCount, requestTime);
 }
 
 double TSecurityManager::GetRequestRate(TUser* user)

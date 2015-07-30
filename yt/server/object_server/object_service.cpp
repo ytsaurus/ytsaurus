@@ -10,6 +10,9 @@
 #include <core/rpc/service_detail.h>
 #include <core/rpc/helpers.h>
 
+#include <core/profiling/timing.h>
+#include <core/profiling/scoped_timer.h>
+
 #include <ytlib/security_client/public.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -140,7 +143,7 @@ private:
 
         auto* user = GetAuthenticatedUser();
         auto securityManager = Bootstrap->GetSecurityManager();
-        securityManager->ValidateUserAccess(user, RequestCount);
+        securityManager->ValidateUserAccess(user);
 
         Continue();
     }
@@ -154,7 +157,7 @@ private:
             auto hydraFacade = Bootstrap->GetHydraFacade();
             auto hydraManager = hydraFacade->GetHydraManager();
 
-            auto startTime = TInstant::Now();
+            auto batchStartInstant = NProfiling::GetCpuInstant();
 
             auto& request = Context->Request();
             const auto& attachments = request.Attachments();
@@ -165,11 +168,13 @@ private:
 
             while (CurrentRequestIndex < request.part_counts_size()) {
                 // Don't allow the thread to be blocked for too long by a single batch.
-                if (objectManager->AdviceYield(startTime)) {
+                if (objectManager->AdviceYield(batchStartInstant)) {
                     hydraFacade->GetEpochAutomatonInvoker()->Invoke(
                         BIND(&TExecuteSession::Continue, MakeStrong(this)));
                     return;
                 }
+
+                NProfiling::TScopedTimer timer;
 
                 int partCount = request.part_counts(CurrentRequestIndex);
                 if (partCount == 0) {
@@ -179,7 +184,8 @@ private:
                         false,
                         NTracing::TTraceContext(),
                         nullptr,
-                        startTime,
+                        TDuration(),
+                        timer.GetStart(),
                         TSharedRefArray());
                     NextRequest();
                     continue;
@@ -241,14 +247,22 @@ private:
                         Context->GetTimeout());
                 }
 
+                auto syncTime = timer.GetElapsed();
+
+                // NB: Even if the user was just removed the instance is still valid but not alive.
+                if (IsObjectAlive(user)) {
+                    securityManager->ChargeUser(user, 1, syncTime);
+                }
+
                 // Optimize for the (typical) case of synchronous response.
-                if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(startTime)) {
+                if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(batchStartInstant)) {
                     OnResponse(
                         CurrentRequestIndex,
                         mutating,
                         traceContextGuard.GetContext(),
                         &requestHeader,
-                        startTime,
+                        syncTime,
+                        timer.GetStart(),
                         asyncResponseMessage.Get());
                 } else {
                     LastMutationCommitted = asyncResponseMessage.Apply(BIND(
@@ -258,7 +272,8 @@ private:
                         mutating,
                         traceContextGuard.GetContext(),
                         &requestHeader,
-                        startTime));
+                        syncTime,
+                        timer.GetStart()));
                 }
 
                 NextRequest();
@@ -283,10 +298,14 @@ private:
         bool mutating,
         const NTracing::TTraceContext& traceContext,
         const TRequestHeader* requestHeader,
-        const TInstant startTime,
+        TDuration syncTime,
+        TInstant startInstant,
         const TErrorOr<TSharedRefArray>& responseMessageOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        auto endInstant = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
+        auto totalTime = endInstant - startInstant;
 
         if (!responseMessageOrError.IsOK()) {
             // Unexpected error.
@@ -307,11 +326,12 @@ private:
 
             auto error = FromProto<TError>(responseHeader.error());
 
-            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v, Duration: %v)",
+            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v, SyncTime: %v, TotalTime: %v)",
                 requestIndex,
                 error,
                 Context->GetRequestId(),
-                TInstant::Now() - startTime);
+                syncTime,
+                totalTime);
         }
 
         ResponseMessages[requestIndex] = std::move(responseMessage);

@@ -19,6 +19,7 @@ namespace NSecurityServer {
 struct TUserStatistics
 {
     i64 RequestCounter = 0;
+    TDuration RequestTimer;
     TInstant AccessTime;
 
     void Persist(NCellMaster::TPersistenceContext& context);

@@ -26,7 +26,10 @@ public:
     void Start();
     void Stop();
 
-    void ChargeUser(TUser* user, int requestCount);
+    void ChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration requestTime);
 
 private:
     const TSecurityManagerConfigPtr Config_;
