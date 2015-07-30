@@ -1,0 +1,9 @@
+RECURSE(
+    interface
+    yson
+    common
+    http
+    io
+    client
+    examples
+)
