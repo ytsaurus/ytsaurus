@@ -5,17 +5,6 @@ var utils = require("../utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function compareVersions(a, b) {
-    for (var i = 0; i < a.length && i < b.length; ++i) {
-        if (a[i] === b[i]) {
-            continue;
-        } else {
-            return a[i] - b[i];
-        }
-    }
-    return 0;
-}
-
 function printVersion(v) {
     return v.join(".");
 }
@@ -38,7 +27,7 @@ exports.that = function Middleware__YtMinPythonWrapperVersion()
         var re = ua.match(/^Python wrapper \b(\d+)\.(\d+)\.(\d+)\b/);
         if (re) {
             var version = [parseInt(re[1]), parseInt(re[2]), parseInt(re[3])];
-            if (compareVersions(version, min_version) < 0) {
+            if (utils.lexicographicalCompare(version, min_version) < 0) {
                 var error = new YtError(
                     "You are using deprecated version of `yandex-yt-python` " +
                     "(" + printVersion(version) + " < " + printVersion(min_version) + "); " +
