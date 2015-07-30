@@ -33,9 +33,13 @@ function YtDriverFacadeV3(driver)
             input_type: "null", 
             output_type: "structured", 
             is_volatile: false, 
-            is_heavy: false,
-            compression: false
-        }; 
+            is_heavy: false
+        };
+        Object.defineProperty( 
+            custom_commands[name], 
+            "compression",
+            { enumerable: false, value: false });
+
         Object.defineProperty( 
             custom_commands[name], 
             "input_type_as_integer", 
