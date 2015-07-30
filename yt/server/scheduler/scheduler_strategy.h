@@ -26,7 +26,6 @@ struct ISchedulerStrategyHost
     DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationUnregistered);
     DECLARE_INTERFACE_SIGNAL(void(TOperationPtr, NYTree::INodePtr update), OperationRuntimeParamsUpdated);
 
-    DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobStarted);
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job, const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), JobUpdated);
     

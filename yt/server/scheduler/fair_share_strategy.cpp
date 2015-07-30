@@ -972,7 +972,10 @@ public:
         auto controller = Operation_->GetController();
 
         // Compute job limits from node limits and pool limits.
-        auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
+        auto jobLimits =
+            node->ResourceLimits()
+            - node->ResourceUsage()
+            + context.SchedulingContext->ResourceUsageDiscount();
         {
             TCompositeSchedulerElement* pool = Pool_;
             while (pool) {
@@ -991,6 +994,11 @@ public:
         auto jobId = controller->ScheduleJob(context.SchedulingContext, jobLimits);
         if (!jobId) {
             context.DynamicAttributesMap.Get(this).Active = false;
+        } else {
+            const auto& job = context.SchedulingContext->FindStartedJob(jobId);
+
+            node->ResourceUsage() += job->ResourceUsage();
+            OnJobStarted(jobId, job->ResourceUsage());
         }
 
         UpdateDynamicAttributes(context.DynamicAttributesMap);
@@ -1130,15 +1138,114 @@ public:
         return false;
     }
 
+    void IncreaseJobResourceUsage(const TJobId& jobId, const TNodeResources& resourcesDelta)
+    {
+        auto& properties = JobPropertiesMap_.at(jobId);
+        properties.ResourceUsage += resourcesDelta;
+        if (!properties.IsPreemptable) {
+            NonpreemptableResourceUsage_ += resourcesDelta;
+        }
+        IncreaseUsage(resourcesDelta);
+        UpdatePreemptableJobsList();
+    }
+
+    void UpdatePreemptableJobsList()
+    {
+        auto limits = Host->GetTotalResourceLimits();
+
+        auto getNonpreemptableUsageRatio = [&] (const TNodeResources& extraResources) -> double {
+            i64 usage = GetResource(
+                NonpreemptableResourceUsage_ + extraResources,
+                Attributes_.DominantResource);
+            i64 limit = GetResource(limits, Attributes_.DominantResource);
+            return limit == 0 ? 1.0 : (double) usage / limit;
+        };
+
+        // Remove nonpreemptable jobs exceeding the fair share.
+        while (!NonpreemptableJobs_.empty()) {
+            if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= Attributes_.FairShareRatio) {
+                break;
+            }
+
+            auto jobId = NonpreemptableJobs_.back();
+            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            YCHECK(!jobProperties.IsPreemptable);
+
+            NonpreemptableJobs_.pop_back();
+            NonpreemptableResourceUsage_ -= jobProperties.ResourceUsage;
+
+            PreemptableJobs_.push_front(jobId);
+
+            jobProperties.IsPreemptable = true;
+            jobProperties.JobIdListIterator = PreemptableJobs_.begin();
+        }
+
+        // Add more nonpreemptable jobs until filling up the fair share.
+        while (!PreemptableJobs_.empty()) {
+            auto jobId = PreemptableJobs_.front();
+            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            YCHECK(jobProperties.IsPreemptable);
+
+            if (getNonpreemptableUsageRatio(jobProperties.ResourceUsage) > Attributes_.FairShareRatio) {
+                break;
+            }
+
+            PreemptableJobs_.pop_front();
+
+            NonpreemptableJobs_.push_back(jobId);
+            NonpreemptableResourceUsage_ += jobProperties.ResourceUsage;
+
+            jobProperties.IsPreemptable = false;
+            jobProperties.JobIdListIterator = --NonpreemptableJobs_.end();
+        }
+    }
+
+    bool IsJobPreemptable(const TJobId& jobId) const
+    {
+        return JobPropertiesMap_.at(jobId).IsPreemptable;
+    }
+
+    void OnJobStarted(const TJobId& jobId, const TNodeResources& resourceUsage)
+    {
+        PreemptableJobs_.push_back(jobId);
+
+        auto it = JobPropertiesMap_.insert(std::make_pair(
+            jobId,
+            TJobProperties(true, --PreemptableJobs_.end(), ZeroNodeResources())));
+        YCHECK(it.second);
+
+        IncreaseJobResourceUsage(jobId, resourceUsage);
+    }
+
+    void OnJobFinished(const TJobId& jobId)
+    {
+        auto it = JobPropertiesMap_.find(jobId);
+        YCHECK(it != JobPropertiesMap_.end());
+
+        auto& properties = it->second;
+
+        if (properties.IsPreemptable) {
+            PreemptableJobs_.erase(properties.JobIdListIterator);
+        } else {
+            NonpreemptableJobs_.erase(properties.JobIdListIterator);
+        }
+        IncreaseJobResourceUsage(jobId, -properties.ResourceUsage);
+
+        JobPropertiesMap_.erase(it);
+    }
+
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
 
+    typedef std::list<TJobId> TJobIdList;
+
+    DEFINE_BYREF_RW_PROPERTY(TJobIdList, NonpreemptableJobs);
+    DEFINE_BYREF_RW_PROPERTY(TJobIdList, PreemptableJobs);
+
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, NonpreemptableResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TJobList, NonpreemptableJobs);
-    DEFINE_BYREF_RW_PROPERTY(TJobList, PreemptableJobs);
 
 private:
     mutable TNodeResources ResourceDemand_;
@@ -1146,6 +1253,28 @@ private:
     mutable TNodeResources MaxPossibleResourceUsage_;
 
     TFairShareStrategyConfigPtr Config;
+
+    // Fair share strategy stuff.
+    struct TJobProperties
+    {
+        TJobProperties(bool isPreemptable, TJobIdList::iterator jobIdListIterator, const TNodeResources& resourceUsage)
+            : IsPreemptable(isPreemptable)
+            , JobIdListIterator(jobIdListIterator)
+            , ResourceUsage(resourceUsage)
+        { }
+
+        //! Determines the per-operation list (either preemptable or non-preemptable) this
+        //! job belongs to.
+        bool IsPreemptable;
+
+        //! Iterator in the per-operation list pointing to this particular job.
+        TJobIdList::iterator JobIdListIterator;
+
+        TNodeResources ResourceUsage;
+    };
+
+    typedef yhash_map<TJobId, TJobProperties> TJobPropertiesMap;
+    TJobPropertiesMap JobPropertiesMap_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1208,7 +1337,6 @@ public:
         Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
         Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
 
-        Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
         Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
         Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
         Host->SubscribePoolsUpdated(BIND(&TFairShareStrategy::OnPoolsUpdated, this));
@@ -1290,7 +1418,7 @@ public:
                     context.DynamicAttributesMap.Get(pool).ResourceUsageDiscount += job->ResourceUsage();
                     pool = pool->GetParent();
                 }
-                node->ResourceUsageDiscount() += job->ResourceUsage();
+                context.SchedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
                 LOG_DEBUG("Job is preemptable (JobId: %v)",
                     job->GetId());
@@ -1299,7 +1427,7 @@ public:
 
         RootElement->BeginHeartbeat(context);
 
-        auto resourceDiscount = node->ResourceUsageDiscount();
+        auto resourceDiscount = context.SchedulingContext->ResourceUsageDiscount();
         int startedBeforePreemption = schedulingContext->StartedJobs().size();
 
         // Second-chance scheduling.
@@ -1319,7 +1447,7 @@ public:
         int scheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
-        node->ResourceUsageDiscount() = ZeroNodeResources();
+        context.SchedulingContext->ResourceUsageDiscount() = ZeroNodeResources();
         for (const auto& pool : discountedPools) {
             context.DynamicAttributesMap.Get(pool).ResourceUsageDiscount = ZeroNodeResources();
         }
@@ -1371,7 +1499,7 @@ public:
             }
 
             if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
-                schedulingContext->PreemptJob(job);
+                PreemptJob(job, context);
             }
         }
 
@@ -1485,10 +1613,6 @@ private:
     std::list<TOperationPtr> OperationQueue;
     yhash_map<Stroka, int> RunningOperationCount;
 
-    typedef std::list<TJobPtr> TJobList;
-    TJobList JobList;
-    yhash_map<TJobPtr, TJobList::iterator> JobToIterator;
-
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
     TNullable<TInstant> LastLogTime;
@@ -1515,11 +1639,23 @@ private:
             return false;
         }
 
-        if (!job->GetPreemptable()) {
+        if (!element->IsJobPreemptable(job->GetId())) {
             return false;
         }
 
         return true;
+    }
+
+    void PreemptJob(TJobPtr job, TFairShareContext& context)
+    {
+        auto operation = job->GetOperation();
+        auto operationElement = GetOperationElement(operation);
+
+        context.SchedulingContext->GetNode()->ResourceUsage() -= job->ResourceUsage();
+        operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
+        job->ResourceUsage() = ZeroNodeResources();
+
+        context.SchedulingContext->PreemptJob(job);
     }
 
 
@@ -1693,43 +1829,16 @@ private:
     }
 
 
-    void OnJobStarted(TJobPtr job)
-    {
-        auto element = GetOperationElement(job->GetOperation());
-
-        auto it = JobList.insert(JobList.begin(), job);
-        YCHECK(JobToIterator.insert(std::make_pair(job, it)).second);
-
-        job->SetPreemptable(true);
-        element->PreemptableJobs().push_back(job);
-        job->SetJobListIterator(--element->PreemptableJobs().end());
-
-        OnJobResourceUsageUpdated(job, element, job->ResourceUsage());
-    }
-
     void OnJobFinished(TJobPtr job)
     {
         auto element = GetOperationElement(job->GetOperation());
-
-        auto it = JobToIterator.find(job);
-        YASSERT(it != JobToIterator.end());
-
-        JobList.erase(it->second);
-        JobToIterator.erase(it);
-
-        if (job->GetPreemptable()) {
-            element->PreemptableJobs().erase(job->GetJobListIterator());
-        } else {
-            element->NonpreemptableJobs().erase(job->GetJobListIterator());
-        }
-
-        OnJobResourceUsageUpdated(job, element, -job->ResourceUsage());
+        element->OnJobFinished(job->GetId());
     }
 
     void OnJobUpdated(TJobPtr job, const TNodeResources& resourcesDelta)
     {
         auto element = GetOperationElement(job->GetOperation());
-        OnJobResourceUsageUpdated(job, element, resourcesDelta);
+        element->IncreaseJobResourceUsage(job->GetId(), resourcesDelta);
     }
 
     void RegisterPool(TPoolPtr pool)
@@ -1887,68 +1996,6 @@ private:
             LOG_ERROR(ex, "Error updating pools");
         }
     }
-
-    void OnJobResourceUsageUpdated(
-        TJobPtr job,
-        TOperationElementPtr element,
-        const TNodeResources& resourcesDelta)
-    {
-        element->IncreaseUsage(resourcesDelta);
-
-        const auto& attributes = element->Attributes();
-        auto limits = Host->GetTotalResourceLimits();
-
-        auto& preemptableJobs = element->PreemptableJobs();
-        auto& nonpreemptableJobs = element->NonpreemptableJobs();
-        auto& nonpreemptableResourceUsage = element->NonpreemptableResourceUsage();
-
-        if (!job->GetPreemptable()) {
-            nonpreemptableResourceUsage += resourcesDelta;
-        }
-
-        auto getNonpreemptableUsageRatio = [&] (const TNodeResources& extraResources) -> double {
-            i64 usage = GetResource(
-                nonpreemptableResourceUsage + extraResources,
-                attributes.DominantResource);
-            i64 limit = GetResource(limits, attributes.DominantResource);
-            return limit == 0 ? 1.0 : (double) usage / limit;
-        };
-
-        // Remove nonpreemptable jobs exceeding the fair share.
-        while (!nonpreemptableJobs.empty()) {
-            if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= attributes.FairShareRatio)
-                break;
-
-            auto job = nonpreemptableJobs.back();
-            YCHECK(!job->GetPreemptable());
-
-            nonpreemptableJobs.pop_back();
-            nonpreemptableResourceUsage -= job->ResourceUsage();
-
-            preemptableJobs.push_front(job);
-
-            job->SetPreemptable(true);
-            job->SetJobListIterator(preemptableJobs.begin());
-        }
-
-        // Add more nonpreemptable jobs until filling up the fair share.
-        while (!preemptableJobs.empty()) {
-            auto job = preemptableJobs.front();
-            YCHECK(job->GetPreemptable());
-
-            if (getNonpreemptableUsageRatio(job->ResourceUsage()) > attributes.FairShareRatio)
-                break;
-
-            preemptableJobs.pop_front();
-
-            nonpreemptableJobs.push_back(job);
-            nonpreemptableResourceUsage += job->ResourceUsage();
-
-            job->SetPreemptable(false);
-            job->SetJobListIterator(--nonpreemptableJobs.end());
-        }
-    }
-
 
     static void BuildElementYson(
         TCompositeSchedulerElementPtr composite,

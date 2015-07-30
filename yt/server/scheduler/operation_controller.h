@@ -3,6 +3,7 @@
 #include "public.h"
 #include "job.h"
 #include "event_log.h"
+#include "scheduling_context.h"
 
 #include <core/misc/error.h>
 
@@ -14,8 +15,6 @@
 #include <core/yson/public.h>
 
 #include <core/ytree/public.h>
-
-#include <ytlib/scheduler/job.pb.h>
 
 #include <ytlib/api/public.h>
 
@@ -104,35 +103,6 @@ struct IOperationHost
     virtual void OnOperationFailed(
         TOperationPtr operation,
         const TError& error) = 0;
-};
-
-struct ISchedulingContext
-{
-    virtual ~ISchedulingContext()
-    { }
-
-
-    virtual TExecNodePtr GetNode() const = 0;
-    virtual Stroka GetAddress() const = 0;
-
-    virtual const NNodeTrackerClient::NProto::TNodeResources& ResourceLimits() const = 0;
-
-    virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
-    virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
-    virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
-
-    virtual bool CanStartMoreJobs() const = 0;
-
-    virtual TJobId StartJob(
-        TOperationPtr operation,
-        EJobType type,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        bool restarted,
-        TJobSpecBuilder specBuilder) = 0;
-
-    virtual void PreemptJob(TJobPtr job) = 0;
-
-    virtual TInstant GetNow() const = 0;
 };
 
 /*!

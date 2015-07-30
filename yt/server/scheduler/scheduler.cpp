@@ -552,7 +552,7 @@ public:
                     operation->GetController()->CheckTimeLimit();
                 }
 
-                auto schedulingContext = CreateSchedulingContext(node, runningJobs);
+                auto schedulingContext = CreateSchedulingContext(this->Config_, node, runningJobs);
 
                 if (hasWaitingJobs) {
                     LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
@@ -562,7 +562,12 @@ public:
                     }
                 }
 
+                for (auto job : schedulingContext->StartedJobs()) {
+                    RegisterJob(job);
+                }
+
                 for (auto job : schedulingContext->PreemptedJobs()) {
+                    PreemptJob(job);
                     ToProto(response->add_jobs_to_abort(), job->GetId());
                 }
 
@@ -609,7 +614,6 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
     DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
 
-    DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
     DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
 
@@ -725,8 +729,6 @@ public:
 
 
 private:
-    friend class TSchedulingContext;
-
     TSchedulerConfigPtr Config_;
     INodePtr ConfigAtStart_;
     TBootstrap* Bootstrap_;
@@ -1450,10 +1452,6 @@ private:
         YCHECK(operation->Jobs().insert(job).second);
         YCHECK(node->Jobs().insert(job).second);
 
-        job->GetNode()->ResourceUsage() += job->ResourceUsage();
-
-        JobStarted_.Fire(job);
-
         LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
             job->GetId(),
             job->GetType(),
@@ -1515,10 +1513,6 @@ private:
         LOG_DEBUG("Job preempted (JobId: %v, OperationId: %v)",
             job->GetId(),
             job->GetOperation()->GetId());
-
-        job->GetNode()->ResourceUsage() -= job->ResourceUsage();
-        JobUpdated_.Fire(job, -job->ResourceUsage());
-        job->ResourceUsage() = ZeroNodeResources();
 
         TError error("Job preempted");
         error.Attributes().Set("abort_reason", EAbortReason::Preemption);
@@ -2132,101 +2126,7 @@ private:
         return job;
     }
 
-    std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
-        TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs);
-
 };
-
-////////////////////////////////////////////////////////////////////
-
-class TScheduler::TSchedulingContext
-    : public ISchedulingContext
-{
-public:
-    DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
-    DEFINE_BYVAL_RO_PROPERTY(Stroka, Address);
-    DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
-
-public:
-    TSchedulingContext(
-        TImpl* owner,
-        TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs)
-        : Node_(node)
-        , Address_(Node_->GetDefaultAddress())
-        , ResourceLimits_(Node_->ResourceLimits())
-        , RunningJobs_(runningJobs)
-        , Owner_(owner)
-    { }
-
-
-    virtual bool CanStartMoreJobs() const override
-    {
-        if (!Node_->HasSpareResources()) {
-            return false;
-        }
-
-        auto maxJobStarts = Owner_->Config_->MaxStartedJobsPerHeartbeat;
-        if (maxJobStarts && StartedJobs_.size() >= maxJobStarts.Get()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    virtual TJobId StartJob(
-        TOperationPtr operation,
-        EJobType type,
-        const TNodeResources& resourceLimits,
-        bool restarted,
-        TJobSpecBuilder specBuilder) override
-    {
-        auto id = TJobId::Create();
-        auto startTime = GetNow();
-        auto job = New<TJob>(
-            id,
-            type,
-            operation,
-            Node_,
-            startTime,
-            resourceLimits,
-            restarted,
-            specBuilder);
-        StartedJobs_.push_back(job);
-        Owner_->RegisterJob(job);
-        return id;
-    }
-
-    virtual void PreemptJob(TJobPtr job) override
-    {
-        YCHECK(job->GetNode() == Node_);
-        PreemptedJobs_.push_back(job);
-        Owner_->PreemptJob(job);
-    }
-
-    virtual TInstant GetNow() const override
-    {
-        return TInstant::Now();
-    }
-
-private:
-    TImpl* Owner_;
-
-};
-
-std::unique_ptr<ISchedulingContext> TScheduler::TImpl::CreateSchedulingContext(
-    TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs)
-{
-    return std::unique_ptr<ISchedulingContext>(new TSchedulingContext(
-        this,
-        node,
-        runningJobs));
-}
 
 ////////////////////////////////////////////////////////////////////
 
