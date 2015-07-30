@@ -206,7 +206,7 @@ class YamrModeTester(YtTestBase, YTEnv):
                       table, other_table,
                       files=_get_test_file_path("cpp_bin"))
         assert sorted(yt.read_table(other_table)) == \
-               ["key{}\tsubkey\tvalue=value\n".format(i) for i in xrange(5)]
+               ["key{0}\tsubkey\tvalue=value\n".format(i) for i in xrange(5)]
 
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
