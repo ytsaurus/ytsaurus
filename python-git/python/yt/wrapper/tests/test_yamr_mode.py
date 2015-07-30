@@ -1,6 +1,4 @@
-from yt.environment import YTEnv
 from yt.wrapper.table_commands import copy_table, move_table
-from yt.wrapper.tests.base import YtTestBase, TEST_DIR
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import parse_bool
 import yt.wrapper as yt
@@ -9,6 +7,8 @@ import yt.wrapper.config as config
 from yt.common import flatten
 import yt.yson as yson
 
+from helpers import TEST_DIR, get_test_file_path, get_environment_for_binary_test
+
 import os
 import string
 import subprocess
@@ -16,29 +16,8 @@ from itertools import imap, izip, starmap
 
 import pytest
 
-TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-
-def _get_test_file_path(path):
-    return os.path.join(TESTS_LOCATION, "files", path)
-
-class YamrModeTester(YtTestBase, YTEnv):
-    @classmethod
-    def setup_class(cls, conf=None):
-        if conf is None:
-            conf = {}
-        super(YamrModeTester, cls).setup_class(conf)
-        yt.set_yamr_mode()
-        config["yamr_mode"]["treat_unexisting_as_empty"] = False
-        if not yt.exists("//sys/empty_yamr_table"):
-            yt.create("table", "//sys/empty_yamr_table", recursive=True)
-        if not yt.is_sorted("//sys/empty_yamr_table"):
-            yt.run_sort("//sys/empty_yamr_table", "//sys/empty_yamr_table", sort_by=["key", "subkey"])
-        config["yamr_mode"]["treat_unexisting_as_empty"] = True
-
-    @classmethod
-    def teardown_class(cls):
-        super(YamrModeTester, cls).teardown_class()
-
+@pytest.mark.usefixtures("yt_env_for_yamr")
+class TestYamrMode(object):
     def get_temp_records(self):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
         return map(dumps_row, starmap(Record, imap(flatten, reduce(izip, columns))))
@@ -120,15 +99,17 @@ class YamrModeTester(YtTestBase, YTEnv):
         copy_table(table, embedded_path)
 
     def test_mapreduce_binary(self):
-        env = self.get_environment()
+        env = get_environment_for_binary_test()
         if yt.config["api_version"] == "v2":
             env["FALSE"] = '"false"'
             env["TRUE"] = '"true"'
         else:
             env["FALSE"] = "false"
             env["TRUE"] = "true"
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
         proc = subprocess.Popen(
-            os.path.join(TESTS_LOCATION, "../test_mapreduce.sh"),
+            os.path.join(current_dir, "../test_mapreduce.sh"),
             shell=True,
             env=env)
         proc.communicate()
@@ -181,7 +162,7 @@ class YamrModeTester(YtTestBase, YTEnv):
                            "c c\tc\tc c a\n"
                        ])
         yt.run_map_reduce("./split.py", "./collect.py", input_table, output_table,
-                          map_files=_get_test_file_path("split.py"), reduce_files=_get_test_file_path("collect.py"))
+                          map_files=get_test_file_path("split.py"), reduce_files=get_test_file_path("collect.py"))
         assert sorted(list(yt.read_table(output_table))) == sorted(["a\t\t2\n", "b\t\t1\n", "c\t\t6\n"])
 
     def test_many_output_tables(self):
@@ -196,7 +177,7 @@ class YamrModeTester(YtTestBase, YTEnv):
         yt.run_map("PYTHONPATH=. ./many_output.py yamr",
                    table,
                    output_tables + [TablePath(append_table, append=True)],
-                   files=_get_test_file_path("many_output.py"))
+                   files=get_test_file_path("many_output.py"))
 
         for table in output_tables:
             assert yt.records_count(table) == 1
@@ -218,13 +199,13 @@ class YamrModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["0\ta\tA\n", "1\tb\tB\n", "2\tc\tC\n"])
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    table, other_table,
-                   files=map(_get_test_file_path, ["my_op.py", "helpers.py"]))
+                   files=map(get_test_file_path, ["my_op.py", "helpers.py"]))
         assert yt.records_count(other_table) == 2 * yt.records_count(table)
 
         yt.run_sort(table)
         yt.run_reduce("./cpp_bin",
                       table, other_table,
-                      files=_get_test_file_path("cpp_bin"))
+                      files=get_test_file_path("cpp_bin"))
         assert sorted(yt.read_table(other_table)) == \
                ["key{0}\tsubkey\tvalue=value\n".format(i) for i in xrange(5)]
 
@@ -278,7 +259,7 @@ class YamrModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["1\t2\t3\n"])
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    [table, other_table], another_table,
-                   files=map(_get_test_file_path, ["my_op.py", "helpers.py"]))
+                   files=map(get_test_file_path, ["my_op.py", "helpers.py"]))
         assert not yt.exists(other_table)
 
     def test_reduce_unexisting_tables(self):
@@ -317,12 +298,3 @@ class YamrModeTester(YtTestBase, YTEnv):
         yt.write_table(table, ["1\t2\t3\n"])
         with pytest.raises(yt.YtError):
             yt.run_map("cat", source_table=table, destination_table=None)
-
-class TestYamrModeV2(YamrModeTester):
-    @classmethod
-    def setup_class(cls):
-        super(TestYamrModeV2, cls).setup_class({"api_version": "v2"})
-
-    @classmethod
-    def teardown_class(cls):
-        super(TestYamrModeV2, cls).teardown_class()
