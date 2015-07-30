@@ -186,7 +186,7 @@ def add_spec_help(parser, name="--spec", help="", **kwargs):
 
 def add_type_help(parser, name):
     NODE_TYPE_HELP = "one of table, file, document, account, user, list_node, map_node, "\
-                 "string_node, integer_node, double_node, ..."
+                 "string_node, int64_node, uint64_node, double_node, ..."
     add_argument(parser, name, "", description=NODE_TYPE_HELP)
 
 
