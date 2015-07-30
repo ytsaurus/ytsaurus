@@ -1,0 +1,8 @@
+import "contrib/libs/protobuf/descriptor.proto";
+
+package NYT;
+
+extend google.protobuf.FieldOptions
+{
+    optional string column_name = 56789;
+}

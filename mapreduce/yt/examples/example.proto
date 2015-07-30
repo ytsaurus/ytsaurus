@@ -1,0 +1,39 @@
+import "mapreduce/yt/interface/extension.proto";
+
+package NExample;
+
+// TIdMapperProto
+
+message TSampleProto
+{
+    optional int64  a = 1 [(NYT.column_name) = "column_a"];
+    optional double b = 2 [(NYT.column_name) = "column_b"];
+    optional string c = 3 [(NYT.column_name) = "column_c"];
+}
+
+// TJoinReducerProto
+
+message TJoinInputLeft
+{
+    optional int64 key = 1 [(NYT.column_name) = "key"];
+    optional double left = 2 [(NYT.column_name) = "left"];
+}
+
+message TJoinInputRight
+{
+    optional int64 key = 1 [(NYT.column_name) = "key"];
+    optional double right = 2 [(NYT.column_name) = "right"];
+}
+
+message TJoinOutputSum
+{
+    optional int64 key = 1 [(NYT.column_name) = "key"];
+    optional double sum = 2 [(NYT.column_name) = "sum"];
+}
+
+message TJoinOutputProduct
+{
+    optional int64 key = 1 [(NYT.column_name) = "key"];
+    optional double product = 2 [(NYT.column_name) = "product"];
+}
+
