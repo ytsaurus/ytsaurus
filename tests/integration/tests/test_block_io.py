@@ -39,7 +39,7 @@ class TestBlockIO(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
             'enable_cgroups' : 'true',
-            "iops_threshold" : 5,
+            "enable_iops_throttling" : 'true',
             "block_io_watchdog_period" : 8000,
             "supported_cgroups" :  [ "blkio" ]
         }

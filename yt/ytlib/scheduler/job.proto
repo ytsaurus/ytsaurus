@@ -71,7 +71,9 @@ message TUserJobSpec
 
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 17;
 
-    required int64 custom_statistics_count_limit = 18 [default = 128];
+    required int64 custom_statistics_count_limit = 18;
+
+    optional int32 iops_threshold = 19 [default = 1000];
 }
 
 // User code result.
