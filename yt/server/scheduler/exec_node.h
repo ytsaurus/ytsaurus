@@ -39,15 +39,12 @@ class TExecNode
      */
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
-    //! Used during preemption to allow second-chance scheduling.
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsageDiscount);
-
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
 
 public:
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
-    bool HasSpareResources() const;
+    bool HasSpareResources(const NNodeTrackerClient::NProto::TNodeResources& resourceDiscount) const;
 
     Stroka GetDefaultAddress();
 

@@ -32,7 +32,6 @@ TJob::TJob(
     , ResourceUsage_(resourceLimits)
     , ResourceLimits_(resourceLimits)
     , SpecBuilder_(std::move(specBuilder))
-    , Preemptable_(false)
 { }
 
 

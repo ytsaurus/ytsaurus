@@ -70,16 +70,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
 
 
-    // Fair share strategy stuff.
-
-    //! Determines the per-operation list (either preemptable or non-preemptable) this
-    //! job belongs to.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Preemptable);
-
-    //! Iterator in the per-operation list pointing to this particular job.
-    DEFINE_BYVAL_RW_PROPERTY(TJobList::iterator, JobListIterator);
-
-
 public:
     TJob(
         const TJobId& id,
