@@ -251,7 +251,7 @@ def get_token(client=None):
     return token
 
 def get_user_name(token=None, headers=None, client=None):
-    if token is None:
+    if token is None and headers is None:
         token = get_token(client)
 
     version = get_api_version(client=client)
