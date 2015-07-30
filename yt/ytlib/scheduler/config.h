@@ -189,6 +189,8 @@ public:
     i64 MemoryLimit;
     double MemoryReserveFactor;
 
+    int IopsThreshold;
+
     bool UseYamrDescriptors;
     bool CheckInputFullyConsumed;
     bool EnableCoreDump;
@@ -221,6 +223,10 @@ public:
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
+        RegisterParameter("iops_threshold", IopsThreshold)
+            .Default(3)
+            .GreaterThan(0)
+            .LessThanOrEqual(100);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
         RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)

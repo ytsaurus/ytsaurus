@@ -45,7 +45,7 @@ public:
 
     TNullable<int> UserId;
 
-    TNullable<int> IopsThreshold;
+    bool EnableIopsThrottling;
 
     NScheduler::TJobIOConfigPtr JobIO;
 
@@ -79,8 +79,8 @@ public:
         RegisterParameter("user_id", UserId)
             .Default();
 
-        RegisterParameter("iops_threshold", IopsThreshold)
-            .Default();
+        RegisterParameter("enable_iops_throttling", EnableIopsThrottling)
+            .Default(false);
 
         RegisterParameter("job_io", JobIO)
             .DefaultNew();

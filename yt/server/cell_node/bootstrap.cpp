@@ -273,7 +273,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->EnableCGroups = Config->ExecAgent->EnableCGroups;
     JobProxyConfig->SupportedCGroups = Config->ExecAgent->SupportedCGroups;
 
-    JobProxyConfig->IopsThreshold = Config->ExecAgent->IopsThreshold;
+    JobProxyConfig->EnableIopsThrottling = Config->ExecAgent->EnableIopsThrottling;
 
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
