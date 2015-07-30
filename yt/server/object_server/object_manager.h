@@ -177,7 +177,7 @@ public:
     IObjectResolver* GetObjectResolver();
 
     //! Advices a client to yield if it spent a lot of time already.
-    bool AdviceYield(TInstant startTime) const;
+    bool AdviceYield(NProfiling::TCpuInstant startInstant) const;
 
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);

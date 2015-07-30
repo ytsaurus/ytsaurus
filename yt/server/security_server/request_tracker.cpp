@@ -58,7 +58,10 @@ void TRequestTracker::Stop()
     Reset();
 }
 
-void TRequestTracker::ChargeUser(TUser* user, int requestCount)
+void TRequestTracker::ChargeUser(
+    TUser* user,
+    int requestCount,
+    TDuration requestTime)
 {
     YCHECK(FlushExecutor_);
 
@@ -78,8 +81,9 @@ void TRequestTracker::ChargeUser(TUser* user, int requestCount)
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
     auto* entry = Request_.mutable_entries(index);
     auto* statistics = entry->mutable_statistics();
-    statistics->set_access_time(now.MicroSeconds());
     statistics->set_request_counter(statistics->request_counter() + requestCount);
+    statistics->set_request_timer(statistics->request_timer() + requestTime.MicroSeconds());
+    statistics->set_access_time(now.MicroSeconds());
 }
 
 void TRequestTracker::Reset()

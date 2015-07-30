@@ -14,7 +14,8 @@ message TClusterResources
 message TUserStatistics
 {
     required int64 request_counter = 1;
-    required int64 access_time = 2;
+    required int64 request_timer = 2;
+    required int64 access_time = 3;
 }
 
 message TAccountStatistics

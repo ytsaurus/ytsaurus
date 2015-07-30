@@ -46,6 +46,7 @@ private:
             .SetReplicated(true));
         descriptors->push_back("access_time");
         descriptors->push_back("request_counter");
+        descriptors->push_back("request_timer");
         descriptors->push_back(TAttributeDescriptor("multicell_statistics")
             .SetOpaque(true));
         descriptors->push_back("request_rate");
@@ -77,6 +78,12 @@ private:
         if (key == "request_counter") {
             BuildYsonFluently(consumer)
                 .Value(user->ClusterStatistics().RequestCounter);
+            return true;
+        }
+
+        if (key == "request_timer") {
+            BuildYsonFluently(consumer)
+                .Value(user->ClusterStatistics().RequestTimer);
             return true;
         }
 

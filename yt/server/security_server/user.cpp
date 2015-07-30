@@ -19,18 +19,23 @@ void TUserStatistics::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, RequestCounter);
-    Persist(context, RequestCounter);
+    if (context.IsSave() || context.LoadContext().GetVersion() >= 200) {
+        Persist(context, RequestTimer);
+    }
+    Persist(context, AccessTime);
 }
 
 void ToProto(NProto::TUserStatistics* protoStatistics, const TUserStatistics& statistics)
 {
     protoStatistics->set_request_counter(statistics.RequestCounter);
+    protoStatistics->set_request_timer(statistics.RequestTimer.MicroSeconds());
     protoStatistics->set_access_time(statistics.AccessTime.MicroSeconds());
 }
 
 void FromProto(TUserStatistics* statistics, const NProto::TUserStatistics& protoStatistics)
 {
     statistics->RequestCounter = protoStatistics.request_counter();
+    statistics->RequestTimer = TDuration(protoStatistics.request_timer());
     statistics->AccessTime = TInstant(protoStatistics.access_time());
 }
 
@@ -39,6 +44,7 @@ void Serialize(const TUserStatistics& statistics, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("request_counter").Value(statistics.RequestCounter)
+            .Item("request_timer").Value(statistics.RequestTimer)
             .Item("access_time").Value(statistics.AccessTime)
         .EndMap();
 }
@@ -46,6 +52,7 @@ void Serialize(const TUserStatistics& statistics, IYsonConsumer* consumer)
 TUserStatistics& operator += (TUserStatistics& lhs, const TUserStatistics& rhs)
 {
     lhs.RequestCounter += rhs.RequestCounter;
+    lhs.RequestTimer += rhs.RequestTimer;
     lhs.AccessTime = std::max(lhs.AccessTime, rhs.AccessTime);
     return lhs;
 }
