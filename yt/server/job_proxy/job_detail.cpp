@@ -73,13 +73,13 @@ TJobResult TSimpleJobBase::Run()
         auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query()) {
             auto schema = FromProto<TTableSchema>(jobSpec.input_schema());
-            auto reader = WaitFor(CreateSchemafulReaderAdapter(ReaderFactory_, schema))
-                .ValueOrThrow();
             auto writer = CreateSchemafulWriterAdapter(WriterFactory_);
 
             auto registry = CreateBuiltinFunctionRegistry();
             auto queryString = FromProto<Stroka>(jobSpec.input_query());
             auto query = PrepareJobQuery(queryString, schema, registry.Get());
+            auto reader = WaitFor(CreateSchemafulReaderAdapter(ReaderFactory_, query->TableSchema))
+                .ValueOrThrow();
             auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
 
             LOG_INFO("Reading, evaluating query and writing");
