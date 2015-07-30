@@ -464,8 +464,9 @@ Examples:
     args = parser.parse_args()
 
     actions_count = sum([vars(args)[arg] is not None for arg in action_stores + action_maybe_stores]) + \
-                    sum([vars(args)[arg] for arg in action_flags]) + \
-                    1 if args.sort else 0
+                    sum([vars(args)[arg] for arg in action_flags])
+    if args.sort:
+        actions_count += 1
     mapreduce_case = args.map is not None and args.reduce is not None and actions_count == 2
     if actions_count != 1 and not mapreduce_case:
         die("You should pass exactly one action", 1)
