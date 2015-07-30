@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-from yt.wrapper.etc_commands import get_user_name
+from yt.wrapper.http import get_user_name
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
 from yt.wrapper.table import TablePath
