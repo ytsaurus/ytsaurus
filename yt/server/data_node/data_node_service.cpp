@@ -344,11 +344,11 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto blockStore = Bootstrap_->GetBlockStore();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
         response->set_throttling(IsOutThrottling());
 
         if (IsOutThrottling()) {
@@ -429,8 +429,8 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
 
         response->set_throttling(IsOutThrottling());
 
