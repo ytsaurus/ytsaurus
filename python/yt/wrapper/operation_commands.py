@@ -1,7 +1,7 @@
 from config import get_config
 from yt.common import format_error
 from common import require
-from errors import YtError, YtOperationFailedError, YtTimeoutError
+from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
 from driver import make_request
 from http import get_proxy_url, RETRIABLE_ERRORS
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
@@ -232,7 +232,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path, client=client):
         return ""
-    jobs_with_stderr = search(jobs_path, "map_node", object_filter=lambda obj: "stderr" in obj, attributes=["error"], client=client)
+    jobs_with_stderr = search(jobs_path, "map_node", attributes=["error"], client=client)
     if only_failed_jobs:
         jobs_with_stderr = filter(lambda obj: "error" in obj.attributes, jobs_with_stderr)
 
@@ -245,17 +245,19 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         if only_failed_jobs:
             job_with_stderr["error"] = path.attributes["error"]
 
-        try:
-            stderr_path = os.path.join(path, "stderr")
-            if exists(stderr_path, client=client):
+        stderr_path = os.path.join(path, "stderr")
+        has_stderr = exists(stderr_path, client=client)
+        if has_stderr:
+            try:
                 job_with_stderr["stderr"] = download_file(stderr_path, client=client).read()
-        except RETRIABLE_ERRORS:
-            if get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]:
-                break
-            else:
-                raise
+            except RETRIABLE_ERRORS:
+                if get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]:
+                    break
+                else:
+                    raise
 
-        result.append(job_with_stderr)
+        if job_with_stderr:
+            result.append(job_with_stderr)
 
     return result
 
@@ -276,8 +278,9 @@ def format_operation_stderrs(jobs_with_stderr):
             output.write(format_error(job["error"]))
             output.write("\n")
 
-        output.write(job["stderr"])
-        output.write("\n\n")
+        if "stderr" in job:
+            output.write(job["stderr"])
+            output.write("\n\n")
 
     return output.getvalue()
 
@@ -332,6 +335,14 @@ class Operation(object):
     def get_attributes(self):
         return get("{0}/{1}/@".format(OPERATIONS_PATH, self.id), client=self.client)
 
+    def get_job_statistics(self):
+        try:
+            return get("{0}/{1}/@progress/job_statistics".format(OPERATIONS_PATH, self.id), client=self.client)
+        except YtResponseError as error:
+            if error.is_resolve_error():
+                return {}
+            raise
+
     def get_progress(self):
         return get_operation_progress(self.id, client=self.client)
 
@@ -384,6 +395,11 @@ class Operation(object):
             stderrs = get_stderrs(self.id, only_failed_jobs=True, client=self.client)
             error = get_operation_error(self.id, client=self.client)
             raise YtOperationFailedError(id=self.id, state=str(state), error=error, stderrs=stderrs, url=self.url)
+
+        if get_config(self.client)["operation_tracker"]["log_job_statistics"]:
+            statistics = self.get_job_statistics()
+            if statistics:
+                logger.info("Job statistics:\n" + yson.dumps(self.get_job_statistics(), yson_format="pretty"))
 
         stderr_level = logging._levelNames[get_config(self.client)["operation_tracker"]["stderr_logging_level"]]
         if logger.LOGGER.isEnabledFor(stderr_level):
