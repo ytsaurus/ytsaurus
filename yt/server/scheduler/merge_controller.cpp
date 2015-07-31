@@ -601,6 +601,11 @@ private:
         return result;
     }
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
+    }
+
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
         if (IsTelelportChunk(*chunkSpec)) {
@@ -711,6 +716,11 @@ private:
             return false;
 
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
+    }
+
+    virtual bool IsRowCountPreserved() const override
+    {
+        return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
     }
 
     virtual void InitJobSpecTemplate() override
