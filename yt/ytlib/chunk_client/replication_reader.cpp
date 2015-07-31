@@ -223,8 +223,7 @@ private:
         NodeDirectory_->MergeFrom(rsp->node_directory());
         auto seedReplicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
 
-        // TODO(babenko): use std::random_shuffle here but make sure it uses true randomness.
-        Shuffle(seedReplicas.begin(), seedReplicas.end());
+        std::random_shuffle(seedReplicas.begin(), seedReplicas.end());
 
         LOG_DEBUG("Chunk seeds received (SeedReplicas: [%v])",
             JoinToString(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
@@ -756,7 +755,6 @@ private:
                 adddress);
         }
 
-        int blocksReceived = 0;
         i64 bytesReceived = 0;
         std::vector<int> receivedBlockIndexes;
         for (int index = 0; index < rsp->Attachments().size(); ++index) {
@@ -774,7 +772,6 @@ private:
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
             YCHECK(Blocks_.insert(std::make_pair(blockIndex, block)).second);
-            blocksReceived += 1;
             bytesReceived += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
@@ -816,7 +813,6 @@ private:
         LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: [%v], BytesReceived: %v, PeersSuggested: %v)",
             adddress,
             JoinToString(receivedBlockIndexes),
-            blocksReceived,
             bytesReceived,
             rsp->peer_descriptors_size());
 
