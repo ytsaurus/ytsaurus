@@ -1200,6 +1200,10 @@ class NativeModeTester(YtTestBase, YTEnv):
             assert {"start_row_index": 0, "approximate_row_count": 2} == response_parameters
             rsp.close()
 
+            with yt.Transaction():
+                yt.lock(table, mode="snapshot")
+                yt.config["read_retries"]["create_transaction_and_take_snapshot_lock"] = False
+                self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value

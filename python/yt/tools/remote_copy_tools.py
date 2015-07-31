@@ -1,5 +1,6 @@
 from yt.wrapper.common import generate_uuid, bool_to_string
 from yt.tools.conversion_tools import convert_to_erasure
+import yt.yson as yson
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -109,19 +110,19 @@ while true; do
 done;""".format(prepare_command, read_command)
 
 def _get_read_from_yt_command(yt_client, src, format, fastbone):
-    token = yt_client.config.get("token", "")
-
-    hosts = "hosts"
-    if fastbone:
-        hosts = "hosts/fb"
-
-    command = """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_HOSTS="{1}" """\
-              """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
-              .format(token, hosts, src, format, yt_client.config["proxy"]["url"])
-
-    transaction = yt_client.TRANSACTION
-    if yt_client.TRANSACTION != "0-0-0-0":
-        command += " --tx " + transaction
+    assert yt_client.TRANSACTION is not None
+    config = {
+        "proxy": {
+            "proxy_discovery_url":("hosts/fb" if fastbone else "hosts")
+        },
+        "read_retries": {
+            "enable": True,
+            "create_transaction_and_take_snapshot_lock": True
+        }
+    }
+    command = """PATH=".:$PATH" PYTHONPATH=. """\
+              """yt2 read "{0}"'[#'"${{start}}"':#'"${{end}}"']' --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
+              .format(src, format, yt_client.config["proxy"]["url"], yson.dumps(config), yt_client.TRANSACTION)
 
     return command
 
@@ -218,11 +219,13 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         spec_template = {}
 
     tmp_dir = tempfile.mkdtemp()
-    files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
         with source_client.Transaction(), destination_client.Transaction():
+            source_client.lock(src, mode="snapshot")
+            files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
+
             sorted_by = None
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
@@ -549,8 +552,10 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
 
     tmp_dir = tempfile.mkdtemp()
     try:
-        files = _prepare_read_from_yt_command(yt_client, src, "<lenval=true>yamr", tmp_dir, fastbone, pack=True)
-        _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
+        with yt.Transaction():
+            yt_client.lock(src, mode="snapshot")
+            files = _prepare_read_from_yt_command(yt_client, src, "<lenval=true>yamr", tmp_dir, fastbone, pack=True)
+            _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
     finally:
         shutil.rmtree(tmp_dir)
 
