@@ -314,7 +314,7 @@ class Application(object):
                 log_yt_exception(logger)
                 return json.dumps(error.simplify()), 400
             except Exception as error:
-                logger.exception(str(error))
+                logger.exception("Unknown error:")
                 return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 502
 
         return decorator
