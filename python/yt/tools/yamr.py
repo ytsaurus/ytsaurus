@@ -200,6 +200,11 @@ class Yamr(object):
         return "{0} USER=yt MR_USER={1} ./{2} -server {3} {4} -append -lenval -subkey -write {5}"\
                 .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table)
 
+    def run_sort(self, src, dst, opts=""):
+        shell_command = "MR_USER={0} {1} -server {2} -sort -src {3} -dst {4} -maxjobfails {5} {6}"\
+            .format(self.mr_user, self.binary, self.server, src, dst, self.max_failed_jobs, opts)
+        _check_call(shell_command, shell=True)
+
     def run_map(self, command, src, dst, files=None, opts=""):
         if files is None:
             files = []

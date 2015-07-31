@@ -352,7 +352,7 @@ done"""
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            if sorted or force_sort:
+            if (sorted and force_sort is None) or force_sort:
                 logger.info("Sorting '%s'", dst)
                 run_operation_and_notify(
                     message_queue,
@@ -367,7 +367,7 @@ done"""
         if not yamr_client.supports_read_snapshots:
             yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, job_count=None, fastbone=True, message_queue=None):
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, job_count=None, force_sort=None, fastbone=True, message_queue=None):
     if job_count is None:
         job_count = 200
 
@@ -399,6 +399,8 @@ while True:
         with yt_client.Transaction():
             yt_client.lock(src, mode="snapshot")
 
+            is_sorted = yt_client.exists(src + "/@sorted_by")
+
             row_count = yt_client.get(src + "/@row_count")
 
             ranges = _split_rows_yt(yt_client, src, 1024 * yt.common.MB)
@@ -421,6 +423,10 @@ while True:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
                 raise IncorrectRowCount(error)
+
+            if (is_sorted and force_sort is None) or force_sort:
+                yamr_client.run_sort(dst, dst)
+
     finally:
         shutil.rmtree(tmp_dir)
 

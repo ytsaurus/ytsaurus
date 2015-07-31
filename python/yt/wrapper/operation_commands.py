@@ -5,7 +5,7 @@ from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseEr
 from driver import make_request
 from http import get_proxy_url, RETRIABLE_ERRORS
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
-from cypress_commands import get_attribute, exists, search, get
+from cypress_commands import get_attribute, exists, get, list
 from file_commands import download_file
 import yt.logger as logger
 import yt.yson as yson
@@ -232,13 +232,13 @@ def get_stderrs(operation, only_failed_jobs, client=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path, client=client):
         return ""
-    jobs_with_stderr = search(jobs_path, "map_node", attributes=["error"], client=client)
+    jobs = list(jobs_path, attributes=["error"], absolute=True, client=client)
     if only_failed_jobs:
-        jobs_with_stderr = filter(lambda obj: "error" in obj.attributes, jobs_with_stderr)
+        jobs = filter(lambda obj: "error" in obj.attributes, jobs)
 
     result = []
 
-    for path in jobs_with_stderr:
+    for path in jobs:
         job_with_stderr = {}
         job_with_stderr["host"] = get_attribute(path, "address", client=client)
 
