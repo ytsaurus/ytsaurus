@@ -170,7 +170,6 @@ protected:
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
-
     struct TUserTableBase
     {
         NYPath::TRichYPath Path;
@@ -571,7 +570,7 @@ protected:
     void FetchInputTables();
     void RequestInputObjects();
     void RequestOutputObjects();
-    void FetchFileObjects();
+    void FetchFileObjects(std::vector<TUserFile>* files);
     void RequestFileObjects();
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
@@ -581,6 +580,10 @@ protected:
     void InitChunkListPool();
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
+    void InitQuerySpec(
+        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+        const Stroka& queryString,
+        const NQueryClient::TTableSchema& schema);
 
     void ValidateKey(const NVersionedTableClient::TOwningKey& key);
 
@@ -848,6 +851,11 @@ private:
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
         const NObjectClient::TTransactionId& transactionId);
+
+    void DoRequestFileObjects(
+        std::vector<TUserFile>* files,
+        std::function<void(NYTree::TAttributeFilter&)> updateAttributeFilter = nullptr,
+        std::function<void(const TUserFile&, const NYTree::IAttributeDictionary&)> onFileObject = nullptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

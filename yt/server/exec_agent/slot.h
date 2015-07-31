@@ -53,6 +53,7 @@ public:
 
     //! Creates a symbolic link #linkName for #targetPath in the sandbox.
     void MakeLink(
+        ESandboxIndex sandboxIndex,
         const Stroka& targetPath,
         const Stroka& linkName,
         bool isExecutable) noexcept;
@@ -70,7 +71,7 @@ private:
     const TNullable<int> UserId_;
     const IInvokerPtr Invoker_;
 
-    std::vector<Stroka> SandboxPaths_;
+    std::vector<TEnumIndexedVector<Stroka, ESandboxIndex>> SandboxPaths_;
 
     NCGroup::TNonOwningCGroup ProcessGroup_;
     NCGroup::TNonOwningCGroup NullCGroup_;

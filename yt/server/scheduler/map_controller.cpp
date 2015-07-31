@@ -333,8 +333,7 @@ private:
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
 
         if (Spec->InputQuery) {
-            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
-            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
 
         InitUserJobSpecTemplate(

@@ -4,6 +4,8 @@
 
 #include "private.h"
 
+#include <server/exec_agent/public.h>
+
 #include <ytlib/new_table_client/helpers.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
@@ -28,6 +30,7 @@ using namespace NVersionedTableClient;
 using namespace NYTree;
 using namespace NScheduler;
 using namespace NQueryClient;
+using namespace NExecAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,16 +74,18 @@ TJobResult TSimpleJobBase::Run()
         YCHECK(host);
 
         auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (jobSpec.has_input_query()) {
-            auto schema = FromProto<TTableSchema>(jobSpec.input_schema());
+        if (jobSpec.has_input_query_spec()) {
             auto writer = CreateSchemafulWriterAdapter(WriterFactory_);
-
-            auto registry = CreateBuiltinFunctionRegistry();
-            auto queryString = FromProto<Stroka>(jobSpec.input_query());
-            auto query = PrepareJobQuery(queryString, schema, registry.Get());
+            auto querySpec = jobSpec.input_query_spec();
+            auto query = FromProto(querySpec.query());
+            std::vector<TUdfDescriptorPtr> descriptors;
+            for (const auto& descriptor : FromProto<Stroka>(querySpec.udf_descriptors())) {
+                descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
+            }
+            auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxIndex::Udf]);
+            auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
             auto reader = WaitFor(CreateSchemafulReaderAdapter(ReaderFactory_, query->TableSchema))
                 .ValueOrThrow();
-            auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
 
             LOG_INFO("Reading, evaluating query and writing");
             {

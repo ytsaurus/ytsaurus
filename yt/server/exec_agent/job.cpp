@@ -453,15 +453,25 @@ private:
     void PrepareUserFiles()
     {
         const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (!schedulerJobSpecExt.has_user_job_spec())
-            return;
 
-        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 
-        NodeDirectory->MergeFrom(userJobSpec.node_directory());
+            NodeDirectory->MergeFrom(userJobSpec.node_directory());
 
-        for (const auto& descriptor : userJobSpec.files()) {
-            PrepareFile(descriptor);
+            for (const auto& descriptor : userJobSpec.files()) {
+                PrepareFile(ESandboxIndex::User, descriptor);
+            }
+        }
+
+        if (schedulerJobSpecExt.has_input_query_spec()) {
+            const auto& querySpec = schedulerJobSpecExt.input_query_spec();
+
+            NodeDirectory->MergeFrom(querySpec.node_directory());
+
+            for (const auto& descriptor : querySpec.udf_files()) {
+                PrepareFile(ESandboxIndex::Udf, descriptor);
+            }
         }
     }
 
@@ -533,7 +543,7 @@ private:
         FinalizeJob();
     }
 
-    void PrepareFile(const TFileDescriptor& descriptor)
+    void PrepareFile(ESandboxIndex sandboxIndex, const TFileDescriptor& descriptor)
     {
         const auto& fileName = descriptor.file_name();
         LOG_INFO("Preparing user file (FileName: %v)",
@@ -555,6 +565,7 @@ private:
 
         try {
             Slot->MakeLink(
+                sandboxIndex,
                 chunk->GetFileName(),
                 fileName,
                 descriptor.executable());

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "udf_descriptor.h"
 
 #include <core/ypath/public.h>
 
@@ -29,55 +30,18 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFunctionRegistry
-    : public IFunctionRegistry
-{
-public:
-    IFunctionDescriptorPtr RegisterFunction(IFunctionDescriptorPtr descriptor);
-
-    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
-
-    IAggregateFunctionDescriptorPtr RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor);
-
-    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
-
-private:
-    std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
-    std::unordered_map<Stroka, IAggregateFunctionDescriptorPtr> RegisteredAggregateFunctions_;
-    TSpinLock Lock_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TFunctionRegistry)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCypressFunctionRegistry
-    : public IFunctionRegistry
-{
-public:
-    TCypressFunctionRegistry(
-        NApi::IClientPtr client,
-        const NYPath::TYPath& registryPath,
-        TFunctionRegistryPtr builtinRegistry);
-
-    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
-
-    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
-
-private:
-    const NApi::IClientPtr Client_;
-    const NYPath::TYPath RegistryPath_;
-    const TFunctionRegistryPtr BuiltinRegistry_;
-    const TFunctionRegistryPtr UdfRegistry_;
-
-    IFunctionDescriptorPtr LookupFunction(const Stroka& functionName);
-    IAggregateFunctionDescriptorPtr LookupAggregate(const Stroka& aggregateName);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 IFunctionRegistryPtr CreateBuiltinFunctionRegistry();
-IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client);
+
+IFunctionRegistryPtr CreateClientFunctionRegistry(NApi::IClientPtr client);
+
+IFunctionRegistryPtr CreateJobFunctionRegistry(
+    const std::vector<TUdfDescriptorPtr>& descriptors,
+    TNullable<Stroka> implementationPath = Null,
+    IFunctionRegistryPtr builtinRegistry = CreateBuiltinFunctionRegistry());
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka GetUdfDescriptorPath(Stroka registryPath, Stroka functionName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

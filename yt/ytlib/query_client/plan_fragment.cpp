@@ -1063,7 +1063,7 @@ public:
     {
         const TColumnSchema* column = nullptr;
 
-        if (column = Self_->GetColumnPtr(name, tableName)) {
+        if ((column = Self_->GetColumnPtr(name, tableName))) {
             if (Foreign_->GetColumnPtr(name, tableName)) {
                 THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables",
                     FormatColumn(name, tableName));
@@ -1079,7 +1079,7 @@ public:
     {
         const TColumnSchema* column = nullptr;
 
-        if (column = Self_->GetColumnPtr(name)) {
+        if ((column = Self_->GetColumnPtr(name))) {
             if (Foreign_->GetColumnPtr(name)) {
                 THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables", name);
             }
@@ -1503,10 +1503,7 @@ TPlanFragmentPtr PreparePlanFragment(
     return planFragment;
 }
 
-TQueryPtr PrepareJobQuery(
-    const Stroka& source,
-    const TTableSchema& tableSchema,
-    IFunctionRegistry* functionRegistry)
+NAst::TQuery PrepareJobQueryAst(const Stroka& source)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
     ParseYqlString(
@@ -1524,6 +1521,69 @@ TQueryPtr PrepareJobQuery(
         THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
     }
 
+    return ast;
+}
+
+std::vector<Stroka> GetExternalFunctions(
+    const NAst::TQuery& ast,
+    IFunctionRegistry* builtinRegistry)
+{
+    std::vector<Stroka> externalFunctions;
+
+    std::function<void(const NAst::TExpressionPtr&)> getExternalFunctions = [&] (const NAst::TExpressionPtr& expr) {
+        if (!expr) {
+            return;
+        } else if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
+            getExternalFunctions(commaExpr->Lhs);
+            getExternalFunctions(commaExpr->Rhs);
+        } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
+            const auto& name = functionExpr->FunctionName;
+            if (!builtinRegistry->FindFunction(name) &&
+                !builtinRegistry->FindAggregateFunction(name))
+            {
+                externalFunctions.push_back(name);
+            }
+            getExternalFunctions(functionExpr->Arguments);
+        } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
+            getExternalFunctions(unaryExpr->Operand);
+        } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
+            getExternalFunctions(binaryExpr->Lhs);
+            getExternalFunctions(binaryExpr->Rhs);
+        } else if (expr->As<NAst::TInExpression>()) {
+        } else if (expr->As<NAst::TLiteralExpression>()) {
+        } else if (expr->As<NAst::TReferenceExpression>()) {
+        } else {
+            YUNREACHABLE();
+        }
+    };
+
+    std::function<void(const NAst::TNullableNamedExpressionList&)> getExternalFunctionsFromList = [&] (const NAst::TNullableNamedExpressionList& exprList) {
+        if (exprList) {
+            for (const auto& expr: exprList.Get()) {
+                getExternalFunctions(expr.first);
+            }
+        }
+    };
+
+    getExternalFunctions(ast.WherePredicate);
+    getExternalFunctions(ast.HavingPredicate);
+    getExternalFunctionsFromList(ast.SelectExprs);
+    getExternalFunctionsFromList(ast.GroupExprs);
+
+    std::sort(externalFunctions.begin(), externalFunctions.end());
+    externalFunctions.erase(
+        std::unique(externalFunctions.begin(), externalFunctions.end()),
+        externalFunctions.end());
+
+    return externalFunctions;
+}
+
+TQueryPtr PrepareJobQuery(
+    const Stroka& source,
+    NAst::TQuery ast,
+    const TTableSchema& tableSchema,
+    IFunctionRegistry* functionRegistry)
+{
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
 

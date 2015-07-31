@@ -71,6 +71,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NPipes;
 using namespace NQueryClient;
+using namespace NExecAgent;
 
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
@@ -269,7 +270,7 @@ private:
         Process_.AddArgument("--executor");
         Process_.AddArguments({"--command", UserJobSpec_.shell_command()});
         Process_.AddArguments({"--config", NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName)});
-        Process_.AddArguments({"--working-dir", Config_->SandboxName});
+        Process_.AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxIndex::User]});
 
         if (UserJobSpec_.enable_core_dump()) {
             Process_.AddArgument("--enable-core-dump");
@@ -281,7 +282,7 @@ private:
 
         // Init environment variables.
         TPatternFormatter formatter;
-        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), Config_->SandboxName));
+        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), SandboxDirectoryNames[ESandboxIndex::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Process_.AddEnvVar(formatter.Format(UserJobSpec_.environment(i)));
@@ -590,7 +591,7 @@ private:
     }
 
     void PrepareInputActionsQuery(
-        TSchedulerJobSpecExt& spec,
+        const TQuerySpec& spec,
         int jobDescriptor,
         const TFormat& format,
         TAsyncWriterPtr asyncOutput)
@@ -617,16 +618,17 @@ private:
 
         InputActions_.push_back(BIND([=] () {
             try {
-                auto schema = FromProto<TTableSchema>(spec.input_schema());
                 auto writer = CreateSchemafulWriterAdapter(writerFactory);
-
-                auto registry = CreateBuiltinFunctionRegistry();
-                auto queryString = FromProto<Stroka>(spec.input_query());
-
-                auto query = PrepareJobQuery(queryString, schema, registry.Get());
+                auto query = FromProto(spec.query());
+                std::vector<TUdfDescriptorPtr> descriptors;
+                for (const auto& descriptor : FromProto<Stroka>(spec.udf_descriptors())) {
+                    descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
+                }
+                auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxIndex::Udf]);
+                auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
                 auto reader = WaitFor(CreateSchemafulReaderAdapter(readerFactory, query->TableSchema))
                     .ValueOrThrow();
-                auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+
                 evaluator->Run(query, reader, writer, registry, true);
                 WaitFor(asyncOutput->Close())
                     .ThrowOnError();
@@ -658,8 +660,8 @@ private:
         YCHECK(host);
 
         auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (jobSpec.has_input_query()) {
-            PrepareInputActionsQuery(jobSpec, jobDescriptor, format, asyncOutput);
+        if (jobSpec.has_input_query_spec()) {
+            PrepareInputActionsQuery(jobSpec.input_query_spec(), jobDescriptor, format, asyncOutput);
         } else {
             PrepareInputActionsPassthrough(jobDescriptor, format, asyncOutput);
         }
