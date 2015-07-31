@@ -505,7 +505,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
-def read_table(table, format=None, table_reader=None, response_type=None, raw=True, response_parameters=None, client=None):
+def read_table(table, format=None, table_reader=None, response_type=None, raw=True, response_parameters=None, read_transaction=None, client=None):
     """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
@@ -580,9 +580,12 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             return read_content(response)
         return execute_with_retries(simple_read)
     else:
-        title = "Python wrapper: read {0}".format(to_name(table, client=client))
-        tx = Transaction(attributes={"title": title}, client=client)
-        tx.__enter__()
+        if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
+            title = "Python wrapper: read {0}".format(to_name(table, client=client))
+            tx = Transaction(attributes={"title": title}, client=client)
+            tx.__enter__()
+        else:
+            tx = None
 
         def iter_with_retries(iter):
             try:
@@ -599,12 +602,15 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                         logger.warning(str(err))
                         logger.warning("New retry (%d) ...", attempt + 2)
             except exceptions.GeneratorExit:
-                tx.__exit__(None, None, None)
+                if tx is not None:
+                    tx.__exit__(None, None, None)
             except:
-                tx.__exit__(*sys.exc_info())
+                if tx is not None:
+                    tx.__exit__(*sys.exc_info())
                 raise
             else:
-                tx.__exit__(None, None, None)
+                if tx is not None:
+                    tx.__exit__(None, None, None)
 
         def get_response_parameters():
             response = _make_transactional_request(
@@ -650,15 +656,18 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
             def close(self):
                 if self.response is not None:
                     self.response.close()
-                tx.__exit__(Abort, None, None)
+                if tx is not None:
+                    tx.__exit__(Abort, None, None)
 
         try:
-            lock(table, mode="snapshot", client=client)
+            if tx is not None:
+                lock(table, mode="snapshot", client=client)
             parameters = execute_with_retries(get_response_parameters)
             set_response_parameters(parameters)
             index = parameters.get("start_row_index", None)
             if index is None:
-                tx.__exit__(None, None, None)
+                if tx is not None:
+                    tx.__exit__(None, None, None)
                 return read_content(EmptyResponseStream())
             iterator = Iterator(index)
             return read_content(
@@ -669,7 +678,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     process_error=lambda request: iterator.response._process_error(request),
                     get_response_parameters=lambda: None))
         except:
-            tx.__exit__(*sys.exc_info())
+            if tx is not None:
+                tx.__exit__(*sys.exc_info())
             raise
 
 def _are_nodes(source_tables, destination_table):
