@@ -86,7 +86,7 @@ def log_yt_exception(logger, message=None):
     # To overcome it we convert exception to string before logging through socket handler.
     # https://bugs.python.org/issue1692335
     exc_type, exc_value, exc_traceback = sys.exc_info()
-    exception_string = traceback.format_exception(exc_type, str(exc_value), exc_traceback)
+    exception_string = "\n".join(traceback.format_exception(exc_type, str(exc_value), exc_traceback))
     if message is not None:
         logger.error(message + "\n" + exception_string)
     else:
@@ -841,6 +841,7 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
+                        force_sort=task.destination_force_sort,
                         message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yt":
                 logger.info("Running YAMR -> YT remote copy")

@@ -74,6 +74,7 @@ wait_task() {
 
 # Different transfers
 echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
+yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
 
 test_copy_from_smith_to_cedar() {
     echo "Importing from Smith to Cedar"
@@ -91,6 +92,7 @@ test_copy_from_redwood_to_plato() {
     echo "Importing from Redwood to Plato"
     id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata"}')
     wait_task $id
+    check "true" "$(yt2 exists //tmp/test_table/@sorted --proxy plato.yt.yandex.net)"
 }
 
 test_copy_from_plato_to_smith() {
@@ -101,6 +103,8 @@ test_copy_from_plato_to_smith() {
     check \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
         "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
+
+    check "true" "$(yt2 exists //tmp/test_table_from_plato/@sorted --proxy smith.yt.yandex.net)"
 }
 
 test_copy_from_plato_to_quine() {
@@ -111,6 +115,8 @@ test_copy_from_plato_to_quine() {
     check \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
         "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
+
+    check "true" "$(yt2 exists //tmp/test_table_from_plato/@sorted --proxy quine.yt.yandex.net)"
 }
 
 test_copy_from_cedar_to_plato() {
