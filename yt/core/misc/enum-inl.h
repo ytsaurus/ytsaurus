@@ -292,6 +292,17 @@ TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector()
 { }
 
 template <class T, class E, E Min, E Max>
+TEnumIndexedVector<T, E, Min, Max>::TEnumIndexedVector(std::initializer_list<T> elements)
+    : Items_(N)
+{
+    YASSERT(std::distance(elements.begin(), elements.end()) <= N);
+    int index = 0;
+    for (const auto& element : elements) {
+        Items_[index++] = element;
+    }
+}
+
+template <class T, class E, E Min, E Max>
 T& TEnumIndexedVector<T, E, Min, Max>::operator[] (E index)
 {
     YASSERT(index >= Min && index <= Max);

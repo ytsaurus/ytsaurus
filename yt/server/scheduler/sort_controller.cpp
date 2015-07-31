@@ -2400,8 +2400,7 @@ private:
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             if (Spec->InputQuery) {
-                ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
-                ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+                InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
             }
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());

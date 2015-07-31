@@ -3,6 +3,7 @@
 
 #include "private.h"
 #include "plan_helpers.h"
+#include "plan_fragment.h"
 #include "helpers.h"
 #include "query_statistics.h"
 

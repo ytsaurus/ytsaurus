@@ -24,7 +24,14 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/udf_descriptor.h>
+
 #include <core/erasure/codec.h>
+
+#include <core/misc/fs.h>
+
+#include <functional>
 
 namespace NYT {
 namespace NScheduler {
@@ -49,6 +56,7 @@ using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpc;
 using namespace NVersionedTableClient;
+using namespace NQueryClient;
 
 using NVersionedTableClient::NProto::TBoundaryKeysExt;
 
@@ -2825,14 +2833,14 @@ void TOperationControllerBase::RequestOutputObjects()
     LOG_INFO("Output objects recieved");
 }
 
-void TOperationControllerBase::FetchFileObjects()
+void TOperationControllerBase::FetchFileObjects(std::vector<TUserFile>* files)
 {
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& file : Files) {
+    for (const auto& file : *files) {
         auto path = file.Path.GetPath();
         auto req = TFileYPathProxy::Fetch(path);
         ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
@@ -2856,8 +2864,8 @@ void TOperationControllerBase::FetchFileObjects()
     const auto& batchRsp = batchRspOrError.Value();
 
     auto fetchFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
-    for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
-        auto& file = Files[index];
+    for (int index = 0; index < static_cast<int>(files->size()); ++index) {
+        auto& file = (*files)[index];
         const auto& rspOrError = fetchFileRsps[index];
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching user file %v", file.Path.GetPath());
 
@@ -2872,16 +2880,17 @@ void TOperationControllerBase::FetchFileObjects()
     }
 }
 
-void TOperationControllerBase::RequestFileObjects()
+void TOperationControllerBase::DoRequestFileObjects(
+    std::vector<TUserFile>* files,
+    std::function<void(TAttributeFilter&)> updateAttributeFilter,
+    std::function<void(const TUserFile&, const IAttributeDictionary&)> onFileObject)
 {
-    LOG_INFO("Requesting file objects");
-
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& file : Files) {
+    for (const auto& file : *files) {
         auto path = file.Path.GetPath();
         {
             auto req = TCypressYPathProxy::Lock(path);
@@ -2905,6 +2914,9 @@ void TOperationControllerBase::RequestFileObjects()
             }
             attributeFilter.Keys.push_back("chunk_count");
             attributeFilter.Keys.push_back("uncompressed_data_size");
+            if (updateAttributeFilter) {
+                updateAttributeFilter(attributeFilter);
+            }
             ToProto(req->mutable_attribute_filter(), attributeFilter);
             batchReq->AddRequest(req, "get_file_attributes");
         }
@@ -2934,8 +2946,8 @@ void TOperationControllerBase::RequestFileObjects()
         auto lockFileRspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_file");
         auto getFileNameRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_file_name");
         auto getFileAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_file_attributes");
-        for (int index = 0; index < static_cast<int>(Files.size()); ++index) {
-            auto& file = Files[index];
+        for (int index = 0; index < static_cast<int>(files->size()); ++index) {
+            auto& file = (*files)[index];
             auto path = file.Path.GetPath();
             {
                 const auto& rspOrError = lockFileRspsOrError[index];
@@ -2992,6 +3004,10 @@ void TOperationControllerBase::RequestFileObjects()
                         Config->MaxChunkCountPerFetch);
                 }
 
+                if (onFileObject) {
+                    onFileObject(file, attributes);
+                }
+
                 LOG_INFO("User file attributes received (Path: %v)", path);
             }
 
@@ -3002,10 +3018,86 @@ void TOperationControllerBase::RequestFileObjects()
             validateUserFileName(file);
         }
     }
+}
 
-    FetchFileObjects();
+void TOperationControllerBase::RequestFileObjects()
+{
+    LOG_INFO("Requesting file objects");
+
+    DoRequestFileObjects(&Files);
+    FetchFileObjects(&Files);
 
     LOG_INFO("File objects received");
+}
+
+void TOperationControllerBase::InitQuerySpec(
+    NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+    const Stroka& queryString,
+    const TTableSchema& schema)
+{
+    auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
+    auto ast = PrepareJobQueryAst(queryString);
+    auto registry = CreateBuiltinFunctionRegistry();
+    auto externalFunctions = GetExternalFunctions(ast, registry.Get());
+    bool fetchUdfs = externalFunctions.size() > 0;
+
+    std::vector<TUserFile> udfFiles;
+    std::vector<TUdfDescriptorPtr> descriptors;
+
+    if (fetchUdfs) {
+        if (!Config->UdfRegistryPath) {
+            THROW_ERROR_EXCEPTION("External UDF registry is not configured");
+        }
+
+        LOG_INFO("Requesting UDF descriptors for %v", JoinToString(externalFunctions));
+
+        for (const auto& function : externalFunctions) {
+            udfFiles.emplace_back();
+            udfFiles.back().Path = GetUdfDescriptorPath(Config->UdfRegistryPath.Get(), function);
+            udfFiles.back().Type = EObjectType::File;
+        }
+
+        DoRequestFileObjects(
+            &udfFiles,
+            [] (TAttributeFilter& attributeFilter) {
+                attributeFilter.Keys.push_back(FunctionDescriptorAttribute);
+                attributeFilter.Keys.push_back(AggregateDescriptorAttribute);
+            },
+            [&] (const TUserFile& file, const IAttributeDictionary& attributes) {
+                auto descriptor = New<TUdfDescriptor>();
+                descriptor->Name = file.FileName;
+                descriptor->FunctionDescriptor = attributes.Find<TCypressFunctionDescriptorPtr>(FunctionDescriptorAttribute);
+                descriptor->AggregateDescriptor = attributes.Find<TCypressAggregateDescriptorPtr>(AggregateDescriptorAttribute);
+                descriptors.push_back(std::move(descriptor));
+            });
+
+        registry = CreateJobFunctionRegistry(descriptors, Null, std::move(registry));
+    }
+
+    auto query = PrepareJobQuery(queryString, std::move(ast), schema, registry.Get());
+
+    if (fetchUdfs) {
+        FetchFileObjects(&udfFiles);
+
+        LOG_INFO("UDF descriptors received");
+    }
+
+    ToProto(querySpec->mutable_query(), query);
+
+    for (const auto& descriptor : descriptors) {
+        auto* protoDescriptor = querySpec->add_udf_descriptors();
+        ToProto(protoDescriptor, ConvertToYsonString(descriptor).Data());
+    }
+
+    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    for (const auto& file : udfFiles) {
+        auto *descriptor = querySpec->add_udf_files();
+        descriptor->set_type(static_cast<int>(file.Type));
+        descriptor->set_file_name(file.FileName);
+        nodeDirectory->MergeFrom(file.FetchResponse.node_directory());
+        descriptor->mutable_chunks()->MergeFrom(file.FetchResponse.chunks());
+    }
+    nodeDirectory->DumpTo(querySpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::CollectTotals()

@@ -4,6 +4,7 @@ import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/job_tracker_client/job.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
 import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/query_client/plan_fragment.proto";
 import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +76,19 @@ message TUserJobResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TQuerySpec
+{
+    required NYT.NQueryClient.NProto.TQuery query = 1;
+
+    repeated string udf_descriptors = 2;
+
+    repeated TFileDescriptor udf_files = 3;
+
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Describes a part of input table(s) to be processed by a job.
 message TTableInputSpec
 {
@@ -134,11 +148,7 @@ message TSchedulerJobSpecExt
 
     optional TUserJobSpec user_job_spec = 12;
 
-    // Query to execute.
-    optional string input_query = 13;
-
-    // Schema for the query.
-    optional NYT.NVersionedTableClient.NProto.TTableSchemaExt input_schema = 14;
+    optional TQuerySpec input_query_spec = 13;
 }
 
 message TSchedulerJobResultExt

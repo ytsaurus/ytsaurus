@@ -275,7 +275,6 @@ void TBootstrap::DoRun()
 
     JobProxyConfig->EnableIopsThrottling = Config->ExecAgent->EnableIopsThrottling;
 
-    JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfig->SupervisorConnection->Address = GetInterconnectAddress(localAddresses);

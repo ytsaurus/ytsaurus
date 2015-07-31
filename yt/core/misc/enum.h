@@ -117,6 +117,7 @@ class TEnumIndexedVector
 {
 public:
     TEnumIndexedVector();
+    TEnumIndexedVector(std::initializer_list<T> elements);
 
     T& operator[] (E index);
     const T& operator[] (E index) const;

@@ -600,6 +600,10 @@ void LoadLlvmFunctions(
     std::vector<std::pair<Stroka, llvm::FunctionType*>> functions,
     TSharedRef implementationFile)
 {
+    if (!implementationFile) {
+        THROW_ERROR_EXCEPTION("UDF implementation is not available in this context");
+    }
+
     if (builder.Module->FunctionIsLoaded(functionName)) {
         return;
     }

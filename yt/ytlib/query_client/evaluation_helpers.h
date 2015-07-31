@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "callbacks.h"
-#include "plan_fragment.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 

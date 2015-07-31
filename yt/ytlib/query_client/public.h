@@ -32,6 +32,9 @@ class TQueryStatistics;
 DECLARE_REFCOUNTED_STRUCT(TExpression)
 typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
 
+DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
+typedef TIntrusivePtr<const TFunctionExpression> TConstFunctionExpressionPtr;
+
 DECLARE_REFCOUNTED_STRUCT(TJoinClause)
 typedef TIntrusivePtr<const TJoinClause> TConstJoinClausePtr;
 
@@ -73,8 +76,6 @@ DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCache)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
-
-DECLARE_REFCOUNTED_CLASS(TFunctionRegistry)
 
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;

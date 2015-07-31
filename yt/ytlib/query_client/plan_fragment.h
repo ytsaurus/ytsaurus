@@ -3,6 +3,7 @@
 #include "public.h"
 #include "function_registry.h"
 #include "plan_fragment_common.h"
+#include "ast.h"
 
 #include <ytlib/new_table_client/unversioned_row.h>
 #include <ytlib/new_table_client/schema.h>
@@ -112,6 +113,8 @@ struct TFunctionExpression
     Stroka FunctionName;
     std::vector<TConstExpressionPtr> Arguments;
 };
+
+DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
 
 struct TUnaryOpExpression
     : public TExpression
@@ -376,6 +379,9 @@ struct TQuery
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
 
+void ToProto(NProto::TQuery* proto, TConstQueryPtr original);
+TQueryPtr FromProto(const NProto::TQuery& serialized);
+
 struct TDataSource
 {
     //! Either a chunk id, a table id or a tablet id.
@@ -420,9 +426,16 @@ TPlanFragmentPtr PreparePlanFragment(
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
+NAst::TQuery PrepareJobQueryAst(const Stroka& source);
+
+std::vector<Stroka> GetExternalFunctions(
+    const NAst::TQuery& ast,
+    IFunctionRegistry* builtinRegistry);
+
 TQueryPtr PrepareJobQuery(
     const Stroka& source,
-    const TTableSchema& initialTableSchema,
+    NAst::TQuery ast,
+    const TTableSchema& tableSchema,
     IFunctionRegistry* functionRegistry);
 
 TConstExpressionPtr PrepareExpression(

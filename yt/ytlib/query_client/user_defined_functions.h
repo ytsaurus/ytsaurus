@@ -2,16 +2,12 @@
 
 #include "functions.h"
 #include "builtin_functions.h"
+#include "udf_descriptor.h"
 
 namespace NYT {
 namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ECallingConvention,
-    (Simple)
-    (UnversionedValue)
-);
 
 struct ICallingConvention
     : public TRefCounted

@@ -2,6 +2,7 @@
 #include "functions.h"
 #include "builtin_functions.h"
 #include "user_defined_functions.h"
+#include "udf_descriptor.h"
 
 #include "udf/hyperloglog.h"
 #include "udf/double_cast.h"
@@ -71,6 +72,26 @@ IAggregateFunctionDescriptorPtr IFunctionRegistry::GetAggregateFunction(const St
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFunctionRegistry
+    : public IFunctionRegistry
+{
+public:
+    IFunctionDescriptorPtr RegisterFunction(IFunctionDescriptorPtr descriptor);
+
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
+
+    IAggregateFunctionDescriptorPtr RegisterAggregateFunction(IAggregateFunctionDescriptorPtr descriptor);
+
+    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
+
+private:
+    std::unordered_map<Stroka, IFunctionDescriptorPtr> RegisteredFunctions_;
+    std::unordered_map<Stroka, IAggregateFunctionDescriptorPtr> RegisteredAggregateFunctions_;
+    TSpinLock Lock_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IFunctionDescriptorPtr TFunctionRegistry::RegisterFunction(IFunctionDescriptorPtr descriptor)
 {
     auto functionName = to_lower(descriptor->GetName());
@@ -103,7 +124,7 @@ IAggregateFunctionDescriptorPtr TFunctionRegistry::FindAggregateFunction(const S
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
+void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
 {
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "is_substr",
@@ -345,137 +366,16 @@ void RegisterBuiltinFunctions(TFunctionRegistryPtr registry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ETypeCategory,
-    ((TypeArgument) (TType::TagOf<TTypeArgument>()))
-    ((UnionType)    (TType::TagOf<TUnionType>()))
-    ((ConcreteType) (TType::TagOf<EValueType>()))
-);
-
-struct TDescriptorType
+IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
 {
-    TType Type = EValueType::Min;
-
-    // NB(lukyan): For unknown reason Visual C++ does not create default constructor
-    // for this class. Moreover it does not create it if TDescriptorType() = default is written
-    TDescriptorType()
-    { }
-};
-
-const Stroka TagKey = "tag";
-const Stroka ValueKey = "value";
-
-void Serialize(const TDescriptorType& value, NYson::IYsonConsumer* consumer)
-{
-    consumer->OnBeginMap();
-
-    consumer->OnKeyedItem(TagKey);
-    NYT::NYTree::Serialize(ETypeCategory(value.Type.Tag()), consumer);
-
-    consumer->OnKeyedItem(ValueKey);
-    if (auto typeArg = value.Type.TryAs<TTypeArgument>()) {
-        NYT::NYTree::Serialize(*typeArg, consumer);
-    } else if (auto unionType = value.Type.TryAs<TUnionType>()) {
-        NYT::NYTree::Serialize(*unionType, consumer);
-    } else {
-        NYT::NYTree::Serialize(value.Type.As<EValueType>(), consumer);
-    }
-
-    consumer->OnEndMap();
+    auto registry = New<TFunctionRegistry>();
+    RegisterBuiltinFunctions(registry);
+    return registry;
 }
 
-void Deserialize(TDescriptorType& value, INodePtr node)
-{
-    auto mapNode = node->AsMap();
+////////////////////////////////////////////////////////////////////////////////
 
-    auto tagNode = mapNode->GetChild(TagKey);
-    ETypeCategory tag;
-    Deserialize(tag, tagNode);
-
-    auto valueNode = mapNode->GetChild(ValueKey);
-    switch (tag) {
-        case ETypeCategory::TypeArgument:
-            {
-                TTypeArgument type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
-        case ETypeCategory::UnionType:
-            {
-                TUnionType type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
-        case ETypeCategory::ConcreteType: 
-            {
-                EValueType type;
-                Deserialize(type, valueNode);
-                value.Type = type;
-                break;
-            }
-        default:
-            YUNREACHABLE();
-    }
-}
-
-class TCypressFunctionDescriptor
-    : public TYsonSerializable
-{
-public:
-    Stroka Name;
-    std::vector<TDescriptorType> ArgumentTypes;
-    TNullable<TDescriptorType> RepeatedArgumentType;
-    TDescriptorType ResultType;
-    ECallingConvention CallingConvention;
-
-    TCypressFunctionDescriptor()
-    {
-        RegisterParameter("name", Name)
-            .NonEmpty();
-        RegisterParameter("argument_types", ArgumentTypes);
-        RegisterParameter("result_type", ResultType);
-        RegisterParameter("calling_convention", CallingConvention);
-        RegisterParameter("repeated_argument_type", RepeatedArgumentType)
-            .Default();
-    }
-
-    std::vector<TType> GetArgumentsTypes()
-    {
-        std::vector<TType> argumentTypes;
-        for (const auto& type: ArgumentTypes) {
-            argumentTypes.push_back(type.Type);
-        }
-        return argumentTypes;
-    }
-};
-
-DECLARE_REFCOUNTED_CLASS(TCypressFunctionDescriptor)
-DEFINE_REFCOUNTED_TYPE(TCypressFunctionDescriptor)
-
-class TCypressAggregateDescriptor
-    : public TYsonSerializable
-{
-public:
-    Stroka Name;
-    TDescriptorType ArgumentType;
-    TDescriptorType StateType;
-    TDescriptorType ResultType;
-    ECallingConvention CallingConvention;
-
-    TCypressAggregateDescriptor()
-    {
-        RegisterParameter("name", Name)
-            .NonEmpty();
-        RegisterParameter("argument_type", ArgumentType);
-        RegisterParameter("state_type", StateType);
-        RegisterParameter("result_type", ResultType);
-        RegisterParameter("calling_convention", CallingConvention);
-    }
-};
-
-DECLARE_REFCOUNTED_CLASS(TCypressAggregateDescriptor)
-DEFINE_REFCOUNTED_TYPE(TCypressAggregateDescriptor)
+namespace {
 
 TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
 {
@@ -498,38 +398,12 @@ TSharedRef ReadFile(const Stroka& fileName, NApi::IClientPtr client)
     auto memoryOutput = TMemoryOutput(
         file.Begin(),
         size);
-    
+
     for (const auto& block : blocks) {
         memoryOutput.Write(block.Begin(), block.Size());
     }
 
     return file;
-}
-
-TCypressFunctionRegistry::TCypressFunctionRegistry(
-    NApi::IClientPtr client,
-    const NYPath::TYPath& registryPath,
-    TFunctionRegistryPtr builtinRegistry)
-    : Client_(client)
-    , RegistryPath_(registryPath)
-    , BuiltinRegistry_(std::move(builtinRegistry))
-    , UdfRegistry_(New<TFunctionRegistry>())
-{ }
-
-IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& functionName)
-{
-    if (auto function = BuiltinRegistry_->FindFunction(functionName)) {
-        return function;
-    } else if (auto function = UdfRegistry_->FindFunction(functionName)) {
-        LOG_DEBUG("Found a cached implementation of function %Qv", functionName);
-        return function;
-    } else {
-        auto udf = LookupFunction(functionName);
-        if (udf) {
-            udf = UdfRegistry_->RegisterFunction(udf);
-        }
-        return udf;
-    }
 }
 
 template <class TDescriptor>
@@ -574,14 +448,67 @@ TDescriptor LookupDescriptor(
     return cypressDescriptor;
 }
 
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressFunctionRegistry
+    : public IFunctionRegistry
+{
+public:
+    TCypressFunctionRegistry(
+        NApi::IClientPtr client,
+        const NYPath::TYPath& registryPath,
+        IFunctionRegistryPtr builtinRegistry);
+
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override;
+
+    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override;
+
+private:
+    const NApi::IClientPtr Client_;
+    const NYPath::TYPath RegistryPath_;
+    const IFunctionRegistryPtr BuiltinRegistry_;
+    const TIntrusivePtr<TFunctionRegistry> UdfRegistry_;
+
+    IFunctionDescriptorPtr LookupFunction(const Stroka& functionName);
+    IAggregateFunctionDescriptorPtr LookupAggregate(const Stroka& aggregateName);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCypressFunctionRegistry::TCypressFunctionRegistry(
+    NApi::IClientPtr client,
+    const NYPath::TYPath& registryPath,
+    IFunctionRegistryPtr builtinRegistry)
+    : Client_(client)
+    , RegistryPath_(registryPath)
+    , BuiltinRegistry_(std::move(builtinRegistry))
+    , UdfRegistry_(New<TFunctionRegistry>())
+{ }
+
+IFunctionDescriptorPtr TCypressFunctionRegistry::FindFunction(const Stroka& functionName)
+{
+    if (auto function = BuiltinRegistry_->FindFunction(functionName)) {
+        return function;
+    } else if (auto function = UdfRegistry_->FindFunction(functionName)) {
+        LOG_DEBUG("Found a cached implementation of function %Qv", functionName);
+        return function;
+    } else {
+        auto udf = LookupFunction(functionName);
+        if (udf) {
+            udf = UdfRegistry_->RegisterFunction(udf);
+        }
+        return udf;
+    }
+}
+
 IFunctionDescriptorPtr TCypressFunctionRegistry::LookupFunction(const Stroka& functionName)
 {
-    const auto descriptorAttribute = "function_descriptor";
-
-    auto functionPath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(functionName));
+    auto functionPath = GetUdfDescriptorPath(RegistryPath_, functionName);
 
     auto cypressDescriptor = LookupDescriptor<TCypressFunctionDescriptorPtr>(
-        descriptorAttribute,
+        FunctionDescriptorAttribute,
         functionName,
         functionPath,
         Client_);
@@ -634,12 +561,10 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::FindAggregateFunction(
 
 IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const Stroka& aggregateName)
 {
-    const auto descriptorAttribute = "aggregate_descriptor";
-
-    auto aggregatePath = RegistryPath_ + "/" + ToYPathLiteral(to_lower(aggregateName));
+    auto aggregatePath = GetUdfDescriptorPath(RegistryPath_, aggregateName);
 
     auto cypressDescriptor = LookupDescriptor<TCypressAggregateDescriptorPtr>(
-        descriptorAttribute,
+        AggregateDescriptorAttribute,
         aggregateName,
         aggregatePath,
         Client_);
@@ -664,31 +589,121 @@ IAggregateFunctionDescriptorPtr TCypressFunctionRegistry::LookupAggregate(const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFunctionRegistryPtr CreateBuiltinFunctionRegistryImpl()
-{
-    auto registry = New<TFunctionRegistry>();
-    RegisterBuiltinFunctions(registry);
-    return registry;
-}
-
-IFunctionRegistryPtr CreateBuiltinFunctionRegistry()
-{
-    return CreateBuiltinFunctionRegistryImpl();
-}
-
-IFunctionRegistryPtr CreateFunctionRegistry(NApi::IClientPtr client)
+IFunctionRegistryPtr CreateClientFunctionRegistry(NApi::IClientPtr client)
 {
     auto config = client->GetConnection()->GetConfig();
-    auto builtinRegistry = CreateBuiltinFunctionRegistryImpl();
+    auto builtinRegistry = CreateBuiltinFunctionRegistry();
 
     if (config->EnableUdf) {
         return New<TCypressFunctionRegistry>(
             client,
             config->UdfRegistryPath,
-            builtinRegistry);
+            std::move(builtinRegistry));
     } else {
         return builtinRegistry;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCombiningFunctionRegistry
+    : public IFunctionRegistry
+{
+public:
+    explicit TCombiningFunctionRegistry(std::vector<IFunctionRegistryPtr> registries)
+        : Registries_(std::move(registries))
+    { }
+
+    virtual IFunctionDescriptorPtr FindFunction(const Stroka& functionName) override
+    {
+        for (const auto& registry : Registries_) {
+            if (auto function = registry->FindFunction(functionName)) {
+                return function;
+            }
+        }
+        return nullptr;
+    }
+
+    virtual IAggregateFunctionDescriptorPtr FindAggregateFunction(const Stroka& aggregateName) override
+    {
+        for (const auto& registry : Registries_) {
+            if (auto function = registry->FindAggregateFunction(aggregateName)) {
+                return function;
+            }
+        }
+        return nullptr;
+    }
+
+private:
+    std::vector<IFunctionRegistryPtr> Registries_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IFunctionRegistryPtr CreateJobFunctionRegistry(
+    const std::vector<TUdfDescriptorPtr>& descriptors,
+    TNullable<Stroka> implementationPath,
+    IFunctionRegistryPtr builtinRegistry)
+{
+    auto udfRegistry = New<TFunctionRegistry>();
+
+    auto readImplementation = [&] (const Stroka name) {
+        if (implementationPath) {
+            auto path = implementationPath.Get() + "/" + name;
+            TFileInput file(path);
+            return TSharedRef::FromString(file.ReadAll());
+        } else {
+            return TSharedRef();
+        }
+    };
+
+    for (const auto& descriptor : descriptors) {
+        const auto& name = descriptor->Name;
+        auto implementationFile = readImplementation(name);
+
+        if (descriptor->FunctionDescriptor) {
+            auto& cypressDescriptor = descriptor->FunctionDescriptor;
+
+            udfRegistry->RegisterFunction(
+                cypressDescriptor->RepeatedArgumentType
+                    ? New<TUserDefinedFunction>(
+                        cypressDescriptor->Name,
+                        std::unordered_map<TTypeArgument, TUnionType>(),
+                        cypressDescriptor->GetArgumentsTypes(),
+                        cypressDescriptor->RepeatedArgumentType->Type,
+                        cypressDescriptor->ResultType.Type,
+                        implementationFile)
+                    : New<TUserDefinedFunction>(
+                        cypressDescriptor->Name,
+                        cypressDescriptor->GetArgumentsTypes(),
+                        cypressDescriptor->ResultType.Type,
+                        implementationFile,
+                        cypressDescriptor->CallingConvention));
+        }
+
+        if (descriptor->AggregateDescriptor) {
+            auto& cypressDescriptor = descriptor->AggregateDescriptor;
+
+            udfRegistry->RegisterAggregateFunction(New<TUserDefinedAggregateFunction>(
+                name,
+                std::unordered_map<TTypeArgument, TUnionType>(),
+                cypressDescriptor->ArgumentType.Type,
+                cypressDescriptor->ResultType.Type,
+                cypressDescriptor->StateType.Type,
+                implementationFile,
+                cypressDescriptor->CallingConvention));
+        }
+    }
+
+    std::vector<IFunctionRegistryPtr> registries{builtinRegistry, udfRegistry};
+    return New<TCombiningFunctionRegistry>(registries);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Stroka GetUdfDescriptorPath(Stroka registryPath, Stroka functionName)
+{
+    return registryPath + "/" + ToYPathLiteral(to_lower(functionName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

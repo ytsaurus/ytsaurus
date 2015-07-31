@@ -48,6 +48,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/builtin_functions.cpp
     ${BASE}/user_defined_functions.cpp
     ${BASE}/function_registry.cpp
+    ${BASE}/udf_descriptor.cpp
   )
 
   set( HDRS
@@ -62,6 +63,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/builtin_functions.h
     ${BASE}/user_defined_functions.h
     ${BASE}/function_registry.h
+    ${BASE}/udf_descriptor.h
   )
 endif()
 
