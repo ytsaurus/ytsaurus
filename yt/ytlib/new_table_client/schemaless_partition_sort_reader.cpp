@@ -75,7 +75,6 @@ public:
     {
         YCHECK(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
 
-        srand(time(nullptr));
         std::random_shuffle(chunks.begin(), chunks.end());
 
         auto options = New<TMultiChunkReaderOptions>();
