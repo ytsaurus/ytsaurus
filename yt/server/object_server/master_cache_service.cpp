@@ -7,6 +7,8 @@
 #include <core/misc/string.h>
 #include <core/misc/property.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <core/rpc/service_detail.h>
 #include <core/rpc/dispatcher.h>
 #include <core/rpc/helpers.h>
@@ -193,6 +195,10 @@ private:
 
         virtual void OnAdded(const TEntryPtr& entry) override
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            TAsyncSlruCacheBase::OnAdded(entry);
+
             const auto& key = entry->GetKey();
             LOG_DEBUG("Cache entry added (Key: {%v}, Success: %v, TotalSpace: %v)",
                 key,
@@ -202,6 +208,10 @@ private:
 
         virtual void OnRemoved(const TEntryPtr& entry) override
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            TAsyncSlruCacheBase::OnRemoved(entry);
+
             const auto& key = entry->GetKey();
             LOG_DEBUG("Cache entry removed (Path: %v, Method: %v:%v, Success: %v, TotalSpace: %v)",
                 key.Path,
@@ -213,6 +223,8 @@ private:
 
         virtual i64 GetWeight(const TEntryPtr& entry) const override
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             return entry->GetTotalSpace();
         }
 

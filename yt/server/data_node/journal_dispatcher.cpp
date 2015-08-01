@@ -10,6 +10,8 @@
 
 #include <core/misc/async_cache.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <server/hydra/changelog.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -289,6 +291,10 @@ TFuture<void> TJournalDispatcher::TImpl::SealChangelog(TJournalChunkPtr chunk)
 
 void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TAsyncSlruCacheBase::OnAdded(changelog);
+
     auto key = changelog->GetKey();
     LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
@@ -297,6 +303,10 @@ void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
 
 void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TAsyncSlruCacheBase::OnRemoved(changelog);
+
     auto key = changelog->GetKey();
     LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),

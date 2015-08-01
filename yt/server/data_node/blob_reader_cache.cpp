@@ -5,9 +5,11 @@
 #include "chunk.h"
 #include "location.h"
 
-#include <ytlib/chunk_client/file_reader.h>
-
 #include <core/misc/async_cache.h>
+
+#include <core/concurrency/thread_affinity.h>
+
+#include <ytlib/chunk_client/file_reader.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -108,12 +110,20 @@ private:
 
     virtual void OnAdded(const TCachedReaderPtr& reader) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TAsyncSlruCacheBase::OnAdded(reader);
+
         LOG_TRACE("Block chunk reader added to cache (ChunkId: %v)",
             reader->GetKey());
     }
 
     virtual void OnRemoved(const TCachedReaderPtr& reader) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TAsyncSlruCacheBase::OnRemoved(reader);
+
         LOG_TRACE("Block chunk reader removed from cache (ChunkId: %v)",
             reader->GetKey());
     }

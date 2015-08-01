@@ -211,6 +211,8 @@ private:
 
     virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return block->GetData().Size();
     }
 
