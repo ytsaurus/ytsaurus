@@ -114,7 +114,7 @@ private:
 
     virtual void OnRemoved(TCachedReader* reader) override
     {
-        LOG_TRACE("Block chunk reader evicted from cache (ChunkId: %v)",
+        LOG_TRACE("Block chunk reader removed from cache (ChunkId: %v)",
             reader->GetKey());
     }
 

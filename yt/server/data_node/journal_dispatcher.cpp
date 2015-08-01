@@ -298,7 +298,7 @@ void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
 void TJournalDispatcher::TImpl::OnRemoved(TCachedChangelog* changelog)
 {
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk evicted from cache (LocationId: %v, ChunkId: %v)",
+    LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
