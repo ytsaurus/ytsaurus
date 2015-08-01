@@ -705,8 +705,9 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
     RemovedSinceLastSuccess_.erase(chunk);
     AddedSinceLastSuccess_.insert(chunk);
 
-    LOG_DEBUG("Chunk addition registered (ChunkId: %v)",
-        chunk->GetId());
+    LOG_DEBUG("Chunk addition registered (ChunkId: %v, LocationId: %v)",
+        chunk->GetId(),
+        chunk->GetLocation()->GetId());
 }
 
 void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
@@ -722,8 +723,9 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
     AddedSinceLastSuccess_.erase(chunk);
     RemovedSinceLastSuccess_.insert(chunk);
 
-    LOG_DEBUG("Chunk removal registered (ChunkId: %v)",
-        chunk->GetId());
+    LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
+        chunk->GetId(),
+        chunk->GetLocation()->GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
