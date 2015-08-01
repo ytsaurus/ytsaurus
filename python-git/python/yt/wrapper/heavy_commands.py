@@ -32,9 +32,6 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                 logger.debug("Processing {0} chunk (length: {1}, transaction: {2})"
                     .format(command_name, len(chunk), get_option("TRANSACTION", client)))
 
-                if isinstance(chunk, list):
-                    chunk = iter(chunk)
-
                 for attempt in xrange(get_request_retry_count(client)):
                     current_time = datetime.now()
                     try:
@@ -42,10 +39,15 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                             raise YtIncorrectResponse()
                         with Transaction(timeout=request_timeout, client=client):
                             params["path"] = path.to_yson_type()
+                            if isinstance(chunk, list):
+                                data = iter(chunk)
+                            else:
+                                data = chunk
+
                             _make_transactional_request(
                                 command_name,
                                 params,
-                                data=chunk,
+                                data=data,
                                 use_heavy_proxy=True,
                                 retry_unavailable_proxy=False,
                                 client=client)
