@@ -558,7 +558,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
 
     tmp_dir = tempfile.mkdtemp()
     try:
-        with yt.Transaction():
+        with yt_client.Transaction():
             yt_client.lock(src, mode="snapshot")
             files = _prepare_read_from_yt_command(yt_client, src, "<lenval=true>yamr", tmp_dir, fastbone, pack=True)
             _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
