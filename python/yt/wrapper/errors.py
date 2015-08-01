@@ -67,7 +67,7 @@ class YtHttpResponseError(YtResponseError):
         super(YtHttpResponseError, self).__init__(error)
         self.url = url
         self.headers = deepcopy(headers)
-        self.message = "Received an error while requesting {0}. Request headers are {1}"\
+        self.message = "Received response with error. Requested {0} with headers {1}"\
             .format(url, json.dumps(hide_token(self.headers), indent=4, sort_keys=True))
 
 
@@ -81,11 +81,26 @@ def build_http_response_error(url, headers, error):
 
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""
-    pass
+    def __init__(self, response):
+        self.response = response
+        attributes = {
+            "url": response.url,
+            "headers": response.request_headers}
+        super(YtProxyUnavailable, self).__init__(message="Proxy is under heavy load.", attributes=attributes)
+        #self.message = "Proxy is under heavy load. Requested {0} with headers {1}"\
+        #    .format(response.url, json.dumps(hide_token(response.request_headers), indent=4, sort_keys=True))
 
 class YtIncorrectResponse(YtError):
     """Incorrect proxy response."""
-    pass
+    def __init__(self, message, response):
+        self.response = response
+        attributes = {
+            "url": response.url,
+            "headers": response.request_headers}
+        super(YtIncorrectResponse, self).__init__(message, attributes=attributes)
+        #self.response = response
+        #self.message = message + " Requested {0} with headers {1}"\
+        #    .format(response.url, json.dumps(hide_token(response.request_headers), indent=4, sort_keys=True))
 
 class YtTokenError(YtError):
     """Some problem occurred with authentication token."""

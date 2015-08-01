@@ -79,7 +79,7 @@ def create_response(response, request_headers, client):
                 try:
                     response.json()
                 except json.JSONDecodeError:
-                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)")
+                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
             return response.json()
         else:
             error = parse_error_from_headers(response.headers)
@@ -125,9 +125,9 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         headers = kwargs.get("headers", {})
         try:
             try:
-                if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
-                    raise YtIncorrectResponse()
                 response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers, client)
+                if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
+                    raise YtIncorrectResponse("", response)
             except ConnectionError as error:
                 if hasattr(error, "response"):
                     raise build_http_response_error(url, headers, create_response(error.response, headers, client).error())
@@ -140,21 +140,22 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 try:
                     response.json()
                 except json.JSONDecodeError:
-                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)")
+                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
             if response.status_code == 503:
-                raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content)
+                raise YtProxyUnavailable(response)
             if not response.is_ok():
                 raise build_http_response_error(url, headers, response.error())
 
             return response
         except tuple(retriable_errors) as error:
-            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), str(error), headers)
+            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), error.message, headers)
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
                 if retry_action is not None:
                     retry_action(kwargs)
                 backoff = get_backoff(get_config(client)["proxy"]["request_retry_timeout"], current_time)
+                logger.warning(message)
                 if backoff:
-                    logger.warning("%s. Sleep for %.2lf seconds...", message, backoff)
+                    logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                     time.sleep(backoff)
                 logger.warning("New retry (%d) ...", attempt + 2)
             else:

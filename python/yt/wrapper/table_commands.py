@@ -66,7 +66,7 @@ from transaction import Transaction, Abort
 from format import create_format, YsonFormat, YamrFormat
 from lock import lock
 from heavy_commands import make_heavy_request
-from http import RETRIABLE_ERRORS, get_api_version
+from http import RETRIABLE_ERRORS, get_api_version, HTTPError
 from response_stream import ResponseStream, EmptyResponseStream
 import yt.logger as logger
 import yt.packages.simplejson as json
@@ -575,7 +575,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 use_heavy_proxy=True,
                 client=client)
             if response.response_parameters is None:
-                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
+                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response)
             set_response_parameters(response.response_parameters)
             return read_content(response)
         return execute_with_retries(simple_read)
@@ -593,7 +593,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                     try:
                         for elem in iter():
                             if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
-                                raise YtIncorrectResponse()
+                                raise HTTPError()
                             yield elem
                         break
                     except RETRIABLE_ERRORS as err:
@@ -620,7 +620,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
                 use_heavy_proxy=True,
                 client=client)
             if response.response_parameters is None:
-                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
+                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response)
             return response.response_parameters
 
         class Iterator(object):
