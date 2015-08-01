@@ -106,13 +106,13 @@ private:
     const TDataNodeConfigPtr Config_;
 
 
-    virtual void OnAdded(TCachedReader* reader) override
+    virtual void OnAdded(const TCachedReaderPtr& reader) override
     {
         LOG_TRACE("Block chunk reader added to cache (ChunkId: %v)",
             reader->GetKey());
     }
 
-    virtual void OnRemoved(TCachedReader* reader) override
+    virtual void OnRemoved(const TCachedReaderPtr& reader) override
     {
         LOG_TRACE("Block chunk reader removed from cache (ChunkId: %v)",
             reader->GetKey());

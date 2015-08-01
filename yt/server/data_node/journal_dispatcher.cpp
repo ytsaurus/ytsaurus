@@ -95,8 +95,8 @@ private:
         TInsertCookie cookie,
         const TErrorOr<IChangelogPtr>& changelogOrError);
 
-    virtual void OnAdded(TCachedChangelog* changelog) override;
-    virtual void OnRemoved(TCachedChangelog* changelog) override;
+    virtual void OnAdded(const TCachedChangelogPtr& changelog) override;
+    virtual void OnRemoved(const TCachedChangelogPtr& changelog) override;
 
 };
 
@@ -287,7 +287,7 @@ TFuture<void> TJournalDispatcher::TImpl::SealChangelog(TJournalChunkPtr chunk)
     return journalManager->SealChangelog(chunk);
 }
 
-void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
+void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
 {
     auto key = changelog->GetKey();
     LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
@@ -295,7 +295,7 @@ void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
         key.ChunkId);
 }
 
-void TJournalDispatcher::TImpl::OnRemoved(TCachedChangelog* changelog)
+void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
 {
     auto key = changelog->GetKey();
     LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
