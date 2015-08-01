@@ -38,9 +38,12 @@ public:
 
 private:
     class TCachedReader;
-    class TImpl;
+    using TCachedReaderPtr = TIntrusivePtr<TCachedReader>;
 
-    TIntrusivePtr<TImpl> Impl_;
+    class TImpl;
+    using TImplPtr = TIntrusivePtr<TImpl>;
+
+    const TImplPtr Impl_;
 
 };
 

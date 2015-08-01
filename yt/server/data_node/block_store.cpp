@@ -209,7 +209,7 @@ private:
 
 
 
-    virtual i64 GetWeight(TCachedBlock* block) const override
+    virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
         return block->GetData().Size();
     }

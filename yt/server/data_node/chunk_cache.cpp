@@ -277,27 +277,27 @@ private:
     }
 
 
-    virtual i64 GetWeight(TCachedBlobChunk* chunk) const override
+    virtual i64 GetWeight(const TCachedBlobChunkPtr& chunk) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return chunk->GetInfo().disk_space();
     }
 
-    virtual void OnAdded(TCachedBlobChunk* value) override
+    virtual void OnAdded(const TCachedBlobChunkPtr& chunk) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TAsyncSlruCacheBase::OnAdded(value);
-        ChunkAdded_.Fire(value);
+        TAsyncSlruCacheBase::OnAdded(chunk);
+        ChunkAdded_.Fire(chunk);
     }
 
-    virtual void OnRemoved(TCachedBlobChunk* value) override
+    virtual void OnRemoved(const TCachedBlobChunkPtr& chunk) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TAsyncSlruCacheBase::OnRemoved(value);
-        ChunkRemoved_.Fire(value);
+        TAsyncSlruCacheBase::OnRemoved(chunk);
+        ChunkRemoved_.Fire(chunk);
     }
 
     TLocationPtr FindNewChunkLocation() const

@@ -23,6 +23,8 @@ static const auto& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TCachedBlock)
+
 class TCachedBlock
     : public TSyncCacheValueBase<TBlockId, TCachedBlock>
 {
@@ -36,6 +38,8 @@ public:
     { }
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCachedBlock)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -88,7 +92,7 @@ public:
 private:
     const EBlockType Type_;
 
-    virtual i64 GetWeight(TCachedBlock* block) const override
+    virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
         return block->GetData().Size();
     }

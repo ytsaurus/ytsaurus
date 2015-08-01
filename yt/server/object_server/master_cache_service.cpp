@@ -191,7 +191,7 @@ private:
         const NLogging::TLogger Logger = ObjectServerLogger;
 
 
-        virtual void OnAdded(TEntry* entry) override
+        virtual void OnAdded(const TEntryPtr& entry) override
         {
             const auto& key = entry->GetKey();
             LOG_DEBUG("Cache entry added (Key: {%v}, Success: %v, TotalSpace: %v)",
@@ -200,7 +200,7 @@ private:
                 entry->GetTotalSpace());
         }
 
-        virtual void OnRemoved(TEntry* entry) override
+        virtual void OnRemoved(const TEntryPtr& entry) override
         {
             const auto& key = entry->GetKey();
             LOG_DEBUG("Cache entry removed (Path: %v, Method: %v:%v, Success: %v, TotalSpace: %v)",
@@ -211,7 +211,7 @@ private:
                 entry->GetTotalSpace());
         }
 
-        virtual i64 GetWeight(TEntry* entry) const override
+        virtual i64 GetWeight(const TEntryPtr& entry) const override
         {
             return entry->GetTotalSpace();
         }
