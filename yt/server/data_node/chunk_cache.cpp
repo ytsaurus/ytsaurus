@@ -237,10 +237,10 @@ private:
         TLocationPtr location,
         const TChunkDescriptor& descriptor)
     {
-        Bootstrap_->GetControlInvoker()->Invoke(BIND(([=] () {
+        Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
             location->UpdateChunkCount(+1);
             location->UpdateUsedSpace(+descriptor.DiskSpace);
-        })));
+        }));
     }
 
     void OnChunkDestroyed(
@@ -411,10 +411,9 @@ private:
             }
 
             LOG_INFO("Getting chunk meta");
-            auto chunkMetaOrError = WaitFor(chunkReader->GetMeta());
-            THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError);
+            auto chunkMeta = WaitFor(chunkReader->GetMeta())
+                .ThrowOnError();
             LOG_INFO("Chunk meta received");
-            const auto& chunkMeta = chunkMetaOrError.Value();
 
             // Download all blocks.
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
@@ -438,8 +437,8 @@ private:
                 LOG_INFO("Downloading block (BlockIndex: %v)",
                     blockIndex);
 
-                auto blockResult = WaitFor(sequentialReader->FetchNextBlock());
-                THROW_ERROR_EXCEPTION_IF_FAILED(blockResult);
+                WaitFor(sequentialReader->FetchNextBlock())
+                    .ThrowOnError();
 
                 LOG_INFO("Writing block (BlockIndex: %v)",
                     blockIndex);
@@ -453,8 +452,8 @@ private:
 
 
             LOG_INFO("Closing chunk");
-            auto closeResult = WaitFor(chunkWriter->Close(chunkMeta));
-            THROW_ERROR_EXCEPTION_IF_FAILED(closeResult);
+            WaitFor(chunkWriter->Close(chunkMeta))
+                .ThrowOnError();
             LOG_INFO("Chunk is closed");
 
             LOG_INFO("Chunk is downloaded into cache");
@@ -463,6 +462,8 @@ private:
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
             auto chunk = CreateChunk(location, key, descriptor, &chunkMeta);
             cookie.EndInsert(chunk);
+
+            ChunkAdded_.Fire(chunk);
 
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
@@ -510,6 +511,8 @@ private:
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
             cookie.EndInsert(chunk);
+
+            ChunkAdded_.Fire(chunk);
 
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
@@ -564,6 +567,8 @@ private:
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
             cookie.EndInsert(chunk);
+
+            ChunkAdded_.Fire(chunk);
 
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache: %v",
