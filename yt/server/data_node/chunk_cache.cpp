@@ -26,6 +26,7 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <ytlib/file_client/file_chunk_reader.h>
 
@@ -412,7 +413,7 @@ private:
 
             LOG_INFO("Getting chunk meta");
             auto chunkMeta = WaitFor(chunkReader->GetMeta())
-                .ThrowOnError();
+                .ValueOrThrow();
             LOG_INFO("Chunk meta received");
 
             // Download all blocks.
