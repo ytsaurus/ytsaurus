@@ -4,6 +4,12 @@ import os
 import sys
 
 def write_statistics(dict):
+    """
+    Write user statistics to proper file descriptor.
+    This function must be called from job.
+
+    :param dict: python dictionary with statistics.
+    """
     try:
         # File descriptor 5 is reserved for user statistics
         os.write(5, yson.dumps([dict], yson_type="list_fragment"))
