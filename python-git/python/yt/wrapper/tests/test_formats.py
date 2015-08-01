@@ -1,7 +1,6 @@
 from yt.wrapper.string_iter_io import StringIterIO
 import yt.yson as yson
 import yt.wrapper as yt
-from yt.wrapper.common import parse_bool
 from yt.wrapper.format import extract_key, create_format
 
 from cStringIO import StringIO
@@ -118,6 +117,7 @@ def test_yamr_table_switcher():
                       [yt.Record("a", "b", tableIndex=0), yt.Record("a", "b", tableIndex=1)])
 
 def test_json_format():
+    yt.format.ujson = None
     format = yt.JsonFormat()
     check_format(format, '{"a": 1}', {"a": 1})
 
@@ -125,6 +125,7 @@ def test_json_format():
     assert list(format.load_rows(stream)) == [{"a": 1}, {"b": 2}]
 
 def test_json_format_table_index():
+    yt.format.ujson = None
     format = yt.JsonFormat(process_table_index=True)
 
     stream = StringIO()
