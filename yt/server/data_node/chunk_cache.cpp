@@ -289,6 +289,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TAsyncSlruCacheBase::OnAdded(chunk);
+
         ChunkAdded_.Fire(chunk);
     }
 
@@ -297,6 +298,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TAsyncSlruCacheBase::OnRemoved(chunk);
+
         ChunkRemoved_.Fire(chunk);
     }
 

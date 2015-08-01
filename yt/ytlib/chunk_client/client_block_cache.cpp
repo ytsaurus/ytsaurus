@@ -8,6 +8,8 @@
 #include <core/misc/property.h>
 #include <core/misc/singleton.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <ytlib/chunk_client/block_id.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -94,6 +96,8 @@ private:
 
     virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return block->GetData().Size();
     }
 
