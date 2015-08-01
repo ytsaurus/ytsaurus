@@ -94,6 +94,12 @@ def _split_rows_yt(yt_client, table, split_size):
     data_size = yt_client.get(table + "/@uncompressed_data_size")
     return _split_rows(row_count, split_size, data_size)
 
+def _set_mapper_settings_for_read_from_yt(spec):
+    if "mapper" not in spec:
+        spec["mapper"] = {}
+    spec["mapper"]["memory_limit"] = 4 * 1024 * 1024 * 1024
+    spec["mapper"]["memory_reserve_factor"] = 0.2
+
 def _get_read_ranges_command(prepare_command, read_command):
     return """\
 set -uxe
@@ -237,7 +243,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
 
             spec = deepcopy(spec_template)
             spec["data_size_per_job"] = 1
-            spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
+            _set_mapper_settings_for_read_from_yt(spec)
             spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
             run_operation_and_notify(
@@ -514,6 +520,7 @@ while True:
     spec["locality_timeout"] = 0
     spec["pool"] = "transfer_kiwi"
     spec["mapper"] = {"cpu_limit": 0}
+    _set_mapper_settings_for_read_from_yt("mapper")
     if "max_failed_job_count" not in spec:
         spec["max_failed_job_count"] = 1000
 
@@ -545,7 +552,6 @@ while True:
             files=files,
             input_format=yt.YamrFormat(lenval=False,has_subkey=False),
             output_format=output_format,
-            memory_limit=1280 * yt.common.MB,
             spec=spec)
     finally:
         shutil.rmtree(tmp_dir)
@@ -581,7 +587,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spe
 
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
-    spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
+    _set_mapper_settings_for_read_from_yt(spec)
     run_operation_and_notify(
         message_queue,
         yt_client.run_map,
