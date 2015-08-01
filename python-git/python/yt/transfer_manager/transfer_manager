@@ -81,6 +81,17 @@ class SafeThread(Thread):
 
         super(SafeThread, self).__init__(group=group, target=safe_run, name=name, args=args, kwargs=kwargs)
 
+SIGTERM_SENT = False
+def sigterm_handler(signum, frame):
+    global SIGTERM_SENT
+    if not SIGTERM_SENT:
+        SIGTERM_SENT = True
+        os.killpg(0, signal.SIGINT)
+        time.sleep(0.5)
+        os.killpg(0, signal.SIGTERM)
+
+    sys.exit()
+
 def log_yt_exception(logger, message=None):
     # Python2.7 has a bug in unpickling exception with non-trivial constructor.
     # To overcome it we convert exception to string before logging through socket handler.
@@ -1253,6 +1264,8 @@ DEFAULT_CONFIG = {
 }
 
 def main():
+    signal.signal(signal.SIGTERM, sigterm_handler)
+
     parser = argparse.ArgumentParser(description="Transfer manager.")
     parser.add_argument("--config")
     args = parser.parse_args()
