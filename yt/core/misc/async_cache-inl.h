@@ -233,7 +233,8 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         auto value = TRefCounted::DangerousGetPtr(valueIt->second);
         if (value) {
             auto* item = new TItem(value);
-            auto valuePromise = item->ValuePromise;
+            auto value = item->Value;
+            YASSERT(value);
 
             YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
             ++ItemMapSize_;
@@ -241,12 +242,15 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             auto weight = PushToYounger(item);
             Profiler.Increment(HitWeightCounter_, weight);
 
+            // NB: Releases the lock.
             Trim(guard);
+
+            OnAdded(value.Get());
 
             return TInsertCookie(
                 key,
                 nullptr,
-                std::move(valuePromise),
+                MakeFuture(value),
                 false);
         }
 
