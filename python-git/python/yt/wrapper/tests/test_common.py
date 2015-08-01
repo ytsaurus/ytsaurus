@@ -107,11 +107,11 @@ def test_keyboard_interrupts_catcher():
     with KeyboardInterruptsCatcher(action, limit=5):
         raise KeyboardInterrupt()
     with KeyboardInterruptsCatcher(action, limit=5):
-        thread.interrupt_main()
+        raise KeyboardInterrupt()
 
     with pytest.raises(KeyboardInterrupt):
         with KeyboardInterruptsCatcher(action, limit=2):
-            thread.interrupt_main()
+            raise KeyboardInterrupt()
 
     with pytest.raises(KeyboardInterrupt):
         with KeyboardInterruptsCatcher(action, enable=False):
