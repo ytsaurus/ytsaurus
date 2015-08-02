@@ -5,10 +5,9 @@ from config import get_config
 from common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
 from http import get_api_version
-from heavy_commands import make_heavy_request
+from heavy_commands import make_write_request, make_read_request
 from cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
-from transaction_commands import _make_transactional_request
-from table import prepare_path
+from table import to_table
 
 from yt.yson import to_yson_type
 
@@ -36,19 +35,47 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
     if response_type is not None:
         logger.info("Option response_type is deprecated and ignored")
 
-    params = {"path": prepare_path(path, client=client)}
+    path = to_table(path, client=client)
+    params = {"path": path.to_yson_type()}
     if file_reader is not None:
         params["file_reader"] = file_reader
-    if offset is not None:
-        params["offset"] = offset
     if length is not None:
         params["length"] = length
+    if offset is not None:
+        params["offset"] = offset
 
-    return _make_transactional_request(
-        "download" if get_api_version(client=client) == "v2" else "read_file",
+    def process_response(response):
+        pass
+
+    class RetriableState(object):
+        def __init__(self):
+            if offset is not None:
+                self.offset = offset
+            else:
+                self.offset = 0
+            self.length = length
+
+        def prepare_params_for_retry(self):
+            params["offset"] = self.offset
+            if self.length is not None:
+                params["length"] = self.length
+            return params
+
+        def iterate(self, response):
+            for chunk in chunk_iter_stream(response, get_config(client)["read_buffer_size"]):
+                yield chunk
+                if self.offset is not None:
+                    self.offset += len(chunk)
+                if self.length is not None:
+                    self.length -= len(chunk)
+
+    command_name = "download" if get_api_version(client=client) == "v2" else "read_file"
+    return make_read_request(
+        command_name,
+        path,
         params,
-        return_content=False,
-        use_heavy_proxy=True,
+        process_response_action=process_response,
+        retriable_state_class=RetriableState,
         client=client)
 
 def upload_file(stream, destination, file_writer=None, client=None):
@@ -76,7 +103,7 @@ def upload_file(stream, destination, file_writer=None, client=None):
         params["file_writer"]["desired_chunk_size"] = 1024 ** 4
         enable_retries = False
 
-    make_heavy_request(
+    make_write_request(
         "upload" if get_api_version(client=client) == "v2" else "write_file",
         stream,
         destination,

@@ -126,6 +126,18 @@ class Transaction(object):
         set_option("TRANSACTION", self.transaction_id, self.client)
         set_option("PING_ANCESTOR_TRANSACTIONS", self.ping_ancestor_transactions, self.client)
 
+class EmptyTransaction(object):
+    def __init__(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def __nonzero__(self):
+        return False
 
 class PingTransaction(Thread):
     """
