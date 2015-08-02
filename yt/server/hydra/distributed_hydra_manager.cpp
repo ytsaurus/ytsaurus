@@ -214,14 +214,14 @@ public:
         switch (GetAutomatonState()) {
             case EPeerState::Leading:
             case EPeerState::LeaderRecovery:
-                StopLeading_.Fire();
                 DecoratedAutomaton_->OnStopLeading();
+                StopLeading_.Fire();
                 break;
 
             case EPeerState::Following:
             case EPeerState::FollowerRecovery:
-                StopFollowing_.Fire();
                 DecoratedAutomaton_->OnStopFollowing();
+                StopFollowing_.Fire();
                 break;
 
             default:
@@ -1088,8 +1088,8 @@ private:
             WaitFor(asyncRecoveryResult)
                 .ThrowOnError();
 
-            LeaderRecoveryComplete_.Fire();
             DecoratedAutomaton_->OnLeaderRecoveryComplete();
+            LeaderRecoveryComplete_.Fire();
 
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1146,8 +1146,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
-        StopLeading_.Fire();
         DecoratedAutomaton_->OnStopLeading();
+        StopLeading_.Fire();
 
         Participate();
     }
@@ -1238,8 +1238,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
-        StopFollowing_.Fire();
         DecoratedAutomaton_->OnStopFollowing();
+        StopFollowing_.Fire();
 
         Participate();
 
