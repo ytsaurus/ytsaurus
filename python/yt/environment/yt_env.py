@@ -349,6 +349,8 @@ class YTEnv(object):
             good_markers = ["Leader recovery complete", "World initialization completed"]
             bad_markers = ["Logging started", "Stopped leading"]
 
+
+            found_good_markers = 0
             ok = False
             master_id = 0
             for logging_file in self.log_paths[master_name]:
@@ -360,7 +362,9 @@ class YTEnv(object):
                     if any([good_marker in line for good_marker in good_markers]):
                         self.leader_log = logging_file
                         self.leader_id = master_id
-                        ok = True
+                        found_good_markers += 1
+                        if found_good_markers == len(good_markers):
+                            ok = True
                 master_id += 1
 
             if not ok:
