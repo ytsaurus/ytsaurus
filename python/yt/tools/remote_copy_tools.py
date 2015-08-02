@@ -123,7 +123,7 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
         },
         "read_retries": {
             "enable": True,
-            "create_transaction_and_take_snapshot_lock": True
+            "create_transaction_and_take_snapshot_lock": False
         }
     }
     command = """PATH=".:$PATH" PYTHONPATH=. """\
