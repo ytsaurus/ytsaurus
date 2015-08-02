@@ -526,7 +526,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     format = _prepare_format(format, raw, client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
         return StringIO() if raw else EMPTY_GENERATOR
-    attributes = get(table.name + "/@")
+    attributes = get(table.name + "/@", client=client)
     if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] / attributes["chunk_count"] < MB:
         logger.info("Table chunks are too small; consider running the following command to improve read performance: "
                     "yt merge --proxy {1} --src {0} --dst {0} "
