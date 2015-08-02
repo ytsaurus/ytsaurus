@@ -148,7 +148,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
 
             return response
         except tuple(retriable_errors) as error:
-            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), error.message, headers)
+            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, str(type(error)), error.message, headers)
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
                 if retry_action is not None:
                     retry_action(kwargs)
