@@ -1108,7 +1108,6 @@ public:
         return UnderlyingService_->GetLogger();
     }
 
-    // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void WriteAttributesFragment(
         IYsonConsumer* consumer,
         const TAttributeFilter& filter,

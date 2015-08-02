@@ -128,7 +128,6 @@ public:
         return OrchidLogger;
     }
 
-    // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void WriteAttributesFragment(
         NYson::IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,

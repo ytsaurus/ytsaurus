@@ -123,7 +123,6 @@ public:
         return ObjectServerLogger;
     }
 
-    // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void WriteAttributesFragment(
         IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
@@ -221,7 +220,6 @@ public:
         return ObjectServerLogger;
     }
 
-    // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void WriteAttributesFragment(
         IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
