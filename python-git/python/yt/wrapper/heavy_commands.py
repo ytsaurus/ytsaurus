@@ -54,7 +54,7 @@ def make_heavy_request(command_name, stream, path, params, create_object, use_re
                     except RETRIABLE_ERRORS as err:
                         if attempt + 1 == get_request_retry_count(client):
                             raise
-                        logger.warning(type(err) + ": " + str(err))
+                        logger.warning("%s: %s", type(err), str(err))
                         backoff = get_backoff(get_single_request_timeout(client), current_time)
                         if backoff:
                             logger.warning("Sleep for %.2lf seconds before next retry", backoff)
