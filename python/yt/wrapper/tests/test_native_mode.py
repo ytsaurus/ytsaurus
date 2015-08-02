@@ -551,6 +551,27 @@ class NativeModeTester(YtTestBase, YTEnv):
         yt.smart_upload_file(filename, placement_strategy="ignore")
         assert yt.download_file(destination).read() == "some content"
 
+    def test_download_with_retries(self):
+        text = "some long text repeated twice " * 2
+        file_path = TEST_DIR + "/file"
+        yt.upload_file(text, file_path)
+        assert text == yt.download_file(file_path).read()
+
+        old_value = yt.config["read_retries"]["enable"]
+        old_buffer_size = yt.config["read_buffer_size"]
+        yt.config["read_retries"]["enable"] = True
+        # NB: with lower values requests library works incorrectly :(
+        yt.config["read_buffer_size"] = 16
+        yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
+        try:
+            assert text == yt.download_file(file_path).read()
+            assert "twice " == yt.download_file(file_path, offset=len(text) - 6).read()
+            assert "some" == yt.download_file(file_path, length=4).read()
+        finally:
+            yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+            yt.config["read_retries"]["enable"] = old_value
+            yt.config["read_buffer_size"] = old_buffer_size
+
     ###
     ### test_table_commands
     ###
@@ -1042,7 +1063,7 @@ class NativeModeTester(YtTestBase, YTEnv):
                 x = line.strip().split("=")[1]
                 sum += int(x)
             sys.stdout.write("sum={0}\n".format(sum))
-        
+
         def write_statistics(row):
             yt.write_statistics({"row_count": 1})
             yield row

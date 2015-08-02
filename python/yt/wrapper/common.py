@@ -2,7 +2,6 @@
 
 from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
-import yt.packages.simplejson as json
 
 import random
 from datetime import datetime

@@ -65,7 +65,7 @@ from transaction_commands import _make_transactional_request, abort_transaction
 from transaction import Transaction, Abort
 from format import create_format, YsonFormat, YamrFormat
 from lock import lock
-from heavy_commands import make_heavy_request
+from heavy_commands import make_write_request, make_read_request
 from http import RETRIABLE_ERRORS, get_api_version, HTTPError
 from response_stream import ResponseStream, EmptyResponseStream
 import yt.logger as logger
@@ -493,7 +493,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
-    make_heavy_request(
+    make_write_request(
         "write" if get_api_version(client=client) == "v2" else "write_table",
         input_stream,
         table,
@@ -542,145 +542,57 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         params["table_reader"] = table_reader
 
     command_name = "read" if get_api_version(client=client) == "v2" else "read_table"
-    retry_count = get_config(client)["read_retries"]["retry_count"]
-
-    def read_content(response_stream):
-        if raw:
-            return response_stream
-        else:
-            return format.load_rows(response_stream)
 
     def set_response_parameters(parameters):
         if response_parameters is not None:
             for key in parameters:
                 response_parameters[key] = parameters[key]
 
-    def execute_with_retries(func):
-        for attempt in xrange(config.get_request_retry_count(client)):
-            try:
-                return func()
-            except RETRIABLE_ERRORS as err:
-                if attempt + 1 == config.get_request_retry_count(client):
-                    raise
-                logger.warning(str(err))
-                logger.warning("New retry (%d) ...", attempt + 2)
+    def process_response(response):
+        if response.response_parameters is None:
+            raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response)
+        set_response_parameters(response.response_parameters)
 
+    class RetriableState(object):
+        def __init__(self):
+            self.started = False
+            self.index = None
 
-    if not get_config(client)["read_retries"]["enable"]:
-        def simple_read():
-            response = _make_transactional_request(
-                command_name,
-                params,
-                return_content=False,
-                use_heavy_proxy=True,
-                client=client)
-            if response.response_parameters is None:
-                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response)
-            set_response_parameters(response.response_parameters)
-            return read_content(response)
-        return execute_with_retries(simple_read)
-    else:
-        if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
-            title = "Python wrapper: read {0}".format(to_name(table, client=client))
-            tx = Transaction(attributes={"title": title}, client=client)
-            tx.__enter__()
-        else:
-            tx = None
+        def prepare_params_for_retry(self):
+            if not self.started:
+                return params
 
-        def iter_with_retries(iter):
-            try:
-                for attempt in xrange(retry_count):
-                    try:
-                        for elem in iter():
-                            if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
-                                raise HTTPError()
-                            yield elem
-                        break
-                    except RETRIABLE_ERRORS as err:
-                        if attempt + 1 == retry_count:
-                            raise
-                        logger.warning(str(err))
-                        logger.warning("New retry (%d) ...", attempt + 2)
-            except exceptions.GeneratorExit:
-                if tx is not None:
-                    tx.__exit__(None, None, None)
-            except:
-                if tx is not None:
-                    tx.__exit__(*sys.exc_info())
-                raise
+            if "ranges" not in table.name.attributes:
+                table.name.attributes["lower_limit"] = {"row_index": self.index}
             else:
-                if tx is not None:
-                    tx.__exit__(None, None, None)
+                if len(table.name.attributes["ranges"]) > 1:
+                    raise YtError("Read table with multiple tanges using retries is not supported")
+                table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.index}
+            params["path"] = table.to_yson_type()
+            return params
 
-        def get_response_parameters():
-            response = _make_transactional_request(
-                command_name,
-                params,
-                return_content=False,
-                use_heavy_proxy=True,
-                client=client)
-            if response.response_parameters is None:
-                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response)
-            return response.response_parameters
+        def iterate(self, response):
+            if not self.started:
+                process_response(response)
+                self.index = response.response_parameters.get("start_row_index", None)
+                self.started = True
+            for row in format.load_rows(response, raw=True):
+                yield row
+                self.index += 1
 
-        class Iterator(object):
-            def __init__(self, index):
-                self.index = index
-                self.iterator = iter_with_retries(self.execute_read)
-                self.response = None
+    # For read commands response is actually ResponseStream
+    response = make_read_request(
+        command_name,
+        table,
+        params,
+        process_response_action=process_response,
+        retriable_state_class=RetriableState,
+        client=client)
 
-            def execute_read(self):
-                if "ranges" not in table.name.attributes:
-                    table.name.attributes["lower_limit"] = {"row_index": self.index}
-                else:
-                    if len(table.name.attributes["ranges"]) > 1:
-                        raise YtError("Read table with multiple tanges using retries is not supported")
-                    table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.index}
-                params["path"] = table.to_yson_type()
-                self.response = _make_transactional_request(
-                    command_name,
-                    params,
-                    return_content=False,
-                    use_heavy_proxy=True,
-                    client=client)
-                for row in format.load_rows(self.response, raw=True):
-                    yield row
-                    self.index += 1
-
-            def next(self):
-                return self.iterator.next()
-
-            def __iter__(self):
-                return self
-
-            def close(self):
-                if self.response is not None:
-                    self.response.close()
-                if tx is not None:
-                    tx.__exit__(Abort, None, None)
-
-        try:
-            if tx is not None:
-                lock(table, mode="snapshot", client=client)
-            parameters = execute_with_retries(get_response_parameters)
-            set_response_parameters(parameters)
-            index = parameters.get("start_row_index", None)
-            if index is None:
-                if tx is not None:
-                    tx.__exit__(None, None, None)
-                return read_content(EmptyResponseStream())
-            iterator = Iterator(index)
-            return read_content(
-                ResponseStream(
-                    lambda: iterator.response,
-                    iterator,
-                    close=iterator.close,
-                    process_error=lambda request: iterator.response._process_error(request),
-                    get_response_parameters=lambda: None))
-        except:
-            if tx is not None:
-                tx.__exit__(*sys.exc_info())
-            raise
+    if raw:
+        return response
+    else:
+        return format.load_rows(response)
 
 def _are_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and \
