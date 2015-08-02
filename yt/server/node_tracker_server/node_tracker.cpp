@@ -635,6 +635,8 @@ private:
                 THROW_ERROR_EXCEPTION("Node %v is banned", address);
             }
 
+            RemoveFromAddressMaps(existingNode);
+
             auto existingState = existingNode->GetLocalState();
             if (existingState != ENodeState::Offline) {
                 if (existingState == ENodeState::Registered || existingState == ENodeState::Online) {
@@ -667,7 +669,6 @@ private:
             } else {
                 existingAttributes->Attributes().clear();
             }
-
             NodeMap_.Remove(ObjectIdFromNodeId(existingNode->GetId()));
         }
 
@@ -1146,7 +1147,7 @@ private:
     void InsertToAddressMaps(TNode* node)
     {
         const auto& address = node->GetDefaultAddress();
-        AddressToNodeMap_.insert(std::make_pair(address, node));
+        YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
         HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
     }
 
