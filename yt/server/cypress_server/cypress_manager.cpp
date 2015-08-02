@@ -185,12 +185,8 @@ public:
             auto maybeExternalCellTag = attributes->Find<TCellTag>("external_cell_tag");
             if (maybeExternalCellTag) {
                 externalCellTag = *maybeExternalCellTag;
-                if (externalCellTag == Bootstrap_->GetCellTag()) {
-                    externalCellTag = NotReplicatedCellTag;
-                } else {
-                    if (!multicellManager->IsRegisteredSecondaryMaster(externalCellTag)) {
-                        THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
-                    }
+                if (!multicellManager->IsRegisteredSecondaryMaster(externalCellTag)) {
+                    THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
                 }
                 attributes->Remove("external_cell_tag");
             } else {
