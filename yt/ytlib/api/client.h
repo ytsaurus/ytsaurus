@@ -9,7 +9,7 @@
 #include <core/actions/future.h>
 
 #include <core/ytree/yson_string.h>
-#include <core/ytree/attribute_provider.h>
+#include <core/ytree/ypath_service.h>
 #include <core/ytree/permission.h>
 
 #include <core/rpc/public.h>

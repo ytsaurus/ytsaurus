@@ -81,13 +81,13 @@ static const std::unique_ptr<IAttributeDictionary> MutableEmptyAttributes = Crea
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectManager::TRemoteCellService
+class TObjectManager::TRemoteProxy
     : public IYPathService
 {
 public:
-    TRemoteCellService(TBootstrap* bootstrap, TCellTag cellTag)
+    TRemoteProxy(TBootstrap* bootstrap, const TObjectId& objectId)
         : Bootstrap_(bootstrap)
-        , CellTag_(cellTag)
+        , ObjectId_(objectId)
     { }
 
     virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
@@ -104,10 +104,17 @@ public:
 
     virtual void Invoke(IServiceContextPtr context) override
     {
+        auto requestMessage = context->GetRequestMessage();
+        NRpc::NProto::TRequestHeader requestHeader;
+        ParseRequestHeader(requestMessage, &requestHeader);
+
+        auto updatedYPath = FromObjectId(ObjectId_) + GetRequestYPath(context);
+        SetRequestYPath(&requestHeader, updatedYPath);
+        auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
+
+        auto cellTag = CellTagFromId(ObjectId_);
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto asyncResponseMessage = objectManager->ForwardToLeader(
-            CellTag_,
-            context->GetRequestMessage());
+        auto asyncResponseMessage = objectManager->ForwardToLeader(cellTag, updatedMessage);
         context->ReplyFrom(std::move(asyncResponseMessage));
     }
 
@@ -117,7 +124,7 @@ public:
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/) override
@@ -127,7 +134,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    const TCellTag CellTag_;
+    const TObjectId ObjectId_;
 
 };
 
@@ -215,7 +222,7 @@ public:
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/) override
@@ -269,16 +276,13 @@ private:
                         objectIdString);
                 }
 
-                if (Bootstrap_->IsPrimaryMaster()) {
-                    auto cellTag = CellTagFromId(objectId);
-                    if (cellTag != Bootstrap_->GetCellTag()) {
-                        auto remoteProxy = New<TRemoteCellService>(Bootstrap_, cellTag);
-                        return TResolveResult::There(remoteProxy, path);
-                    }
+                IYPathServicePtr proxy;
+                if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
+                    proxy = objectManager->CreateRemoteProxy(objectId);
+                } else {
+                    auto* object = objectManager->GetObjectOrThrow(objectId);
+                    proxy = objectManager->GetProxy(object, transaction);
                 }
-
-                auto* object = objectManager->GetObjectOrThrow(objectId);
-                auto proxy = objectManager->GetProxy(object, transaction);
                 return TResolveResult::There(proxy, tokenizer.GetSuffix());
             }
 
@@ -782,6 +786,11 @@ TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
     }
 
     return object;
+}
+
+IYPathServicePtr TObjectManager::CreateRemoteProxy(const TObjectId& id)
+{
+    return New<TRemoteProxy>(Bootstrap_, id);
 }
 
 IObjectProxyPtr TObjectManager::GetProxy(

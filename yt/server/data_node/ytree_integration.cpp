@@ -28,7 +28,7 @@ public:
 private:
     TIntrusivePtr<TCollection> Collection;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
         auto chunks = Collection->GetChunks();
         std::vector<Stroka> keys;
@@ -41,7 +41,7 @@ private:
         return keys;
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
         return Collection->GetChunkCount();
     }

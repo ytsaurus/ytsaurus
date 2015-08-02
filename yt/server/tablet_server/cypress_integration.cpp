@@ -62,12 +62,12 @@ public:
             "/@" + path);
     }
 
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
-        GetTargetProxy()->SerializeAttributes(consumer, filter, sortKeys);
+        GetTargetProxy()->WriteAttributesFragment(consumer, filter, sortKeys);
     }
 
 private:
@@ -121,13 +121,46 @@ INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVirtualTabletMap
+    : public TVirtualMulticellMapBase
+{
+public:
+    explicit TVirtualTabletMap(TBootstrap* bootstrap)
+        : TVirtualMulticellMapBase(bootstrap)
+    { }
+
+private:
+    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        return ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit));
+    }
+
+    virtual bool IsValid(TObjectBase* object) const
+    {
+        return object->GetType() == EObjectType::Tablet;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        return tabletManager->Tablets().GetSize();
+    }
+
+
+protected:
+    virtual TYPath GetWellKnownPath() const override
+    {
+        return "//sys/tablets";
+    }
+
+};
+
 INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = CreateVirtualObjectMap(
-        bootstrap,
-        bootstrap->GetTabletManager()->Tablets());
+    auto service = New<TVirtualTabletMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TabletMap,

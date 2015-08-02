@@ -55,13 +55,13 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         return ToNames(GetValues(securityManager->Accounts(), sizeLimit));
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         return securityManager->Accounts().GetSize();
@@ -105,13 +105,13 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         return ToNames(GetValues(securityManager->Users(), sizeLimit));
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         return securityManager->Users().GetSize();
@@ -155,13 +155,13 @@ public:
 private:
     TBootstrap* Bootstrap;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         return ToNames(GetValues(securityManager->Groups(), sizeLimit));
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
         auto securityManager = Bootstrap->GetSecurityManager();
         return securityManager->Groups().GetSize();

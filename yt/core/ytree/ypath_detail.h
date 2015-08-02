@@ -81,7 +81,7 @@ public:
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual TResolveResult Resolve(const TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual NLogging::TLogger GetLogger() const override;
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         NYson::IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override;

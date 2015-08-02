@@ -81,15 +81,11 @@ public:
     }
 
 
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
-        if ( filter.Mode == EAttributeFilterMode::None ||
-            (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty()))
-            return;
-
         if (!HasAttributes())
             return;
 
@@ -99,20 +95,11 @@ public:
             std::sort(keys.begin(), keys.end());
         }
         yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
-        bool seenMatching = false;
         for (const auto& key : keys) {
             if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
-                if (!seenMatching) {
-                    consumer->OnBeginAttributes();
-                    seenMatching = true;
-                }
                 consumer->OnKeyedItem(key);
                 consumer->OnRaw(attributes.GetYson(key).Data(), EYsonType::Node);
             }
-        }
-
-        if (seenMatching) {
-            consumer->OnEndAttributes();
         }
     }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <core/ypath/public.h>
+
 #include <server/object_server/public.h>
 
 #include <server/cypress_server/public.h>
@@ -11,8 +13,10 @@ namespace NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressServer::INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
-NCypressServer::INodeTypeHandlerPtr CreateTabletMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateTabletMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

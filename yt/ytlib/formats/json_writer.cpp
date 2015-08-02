@@ -174,7 +174,7 @@ void TJsonConsumerImpl::OnStringScalar(const TStringBuf& value)
             CheckLimit = false;
             OnBeginAttributes();
                 OnKeyedItem("incomplete");
-                OnStringScalar("true");
+                OnBooleanScalar(true);
             OnEndAttributes();
             CheckLimit = true;
 

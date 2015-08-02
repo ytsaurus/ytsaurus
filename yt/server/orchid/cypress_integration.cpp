@@ -129,7 +129,7 @@ public:
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         NYson::IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/) override

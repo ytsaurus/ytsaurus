@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "attribute_owner.h"
-#include "attribute_provider.h"
 #include "ypath_service.h"
 
 #include <core/yson/public.h>

@@ -1500,7 +1500,7 @@ private:
 
         ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
-            req->set_max_size(*options.MaxSize);
+            req->set_limit(*options.MaxSize);
         }
         req->set_ignore_opaque(options.IgnoreOpaque);
         if (options.Options) {
@@ -1566,13 +1566,13 @@ private:
 
         ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
-            req->set_max_size(*options.MaxSize);
+            req->set_limit(*options.MaxSize);
         }
 
         auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
-        return TYsonString(rsp->keys());
+        return TYsonString(rsp->value());
     }
 
     TNodeId DoCreateNode(

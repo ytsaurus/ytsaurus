@@ -18,6 +18,41 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAttributeFilter TAttributeFilter::All(EAttributeFilterMode::All, std::vector<Stroka>());
+TAttributeFilter TAttributeFilter::None(EAttributeFilterMode::None, std::vector<Stroka>());
+
+TAttributeFilter::TAttributeFilter()
+    : Mode(EAttributeFilterMode::None)
+{ }
+
+TAttributeFilter::TAttributeFilter(
+    EAttributeFilterMode mode,
+    const std::vector<Stroka>& keys)
+    : Mode(mode)
+      , Keys(keys)
+{ }
+
+TAttributeFilter::TAttributeFilter(EAttributeFilterMode mode)
+    : Mode(mode)
+{ }
+
+void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter)
+{
+    protoFilter->set_mode(static_cast<int>(filter.Mode));
+    for (const auto& key : filter.Keys) {
+        protoFilter->add_keys(key);
+    }
+}
+
+void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFilter)
+{
+    *filter = TAttributeFilter(
+        EAttributeFilterMode(protoFilter.mode()),
+        NYT::FromProto<Stroka>(protoFilter.keys()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFromProducerYPathService
     : public TYPathServiceBase
     , public TSupportsGet
@@ -208,6 +243,123 @@ private:
 IYPathServicePtr IYPathService::Cached(TDuration expirationTime)
 {
     return New<TCachedYPathService>(this, expirationTime);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAttributesWrapperConsumer
+    : public IYsonConsumer
+{
+public:
+    explicit TAttributesWrapperConsumer(IYsonConsumer* underlyingConsumer)
+        : UnderlyingConsumer_(underlyingConsumer)
+    { }
+
+    ~TAttributesWrapperConsumer()
+    {
+        if (HasAttributes_) {
+            UnderlyingConsumer_->OnEndAttributes();
+        }
+    }
+
+    virtual void OnStringScalar(const TStringBuf& value) override
+    {
+        UnderlyingConsumer_->OnStringScalar(value);
+    }
+
+    virtual void OnInt64Scalar(i64 value) override
+    {
+        UnderlyingConsumer_->OnInt64Scalar(value);
+    }
+
+    virtual void OnUint64Scalar(ui64 value) override
+    {
+        UnderlyingConsumer_->OnUint64Scalar(value);
+    }
+
+    virtual void OnDoubleScalar(double value) override
+    {
+        UnderlyingConsumer_->OnDoubleScalar(value);
+    }
+
+    virtual void OnBooleanScalar(bool value) override
+    {
+        UnderlyingConsumer_->OnBooleanScalar(value);
+    }
+
+    virtual void OnEntity() override
+    {
+        UnderlyingConsumer_->OnEntity();
+    }
+
+    virtual void OnBeginList() override
+    {
+        UnderlyingConsumer_->OnBeginList();
+    }
+
+    virtual void OnListItem() override
+    {
+        UnderlyingConsumer_->OnListItem();
+    }
+
+    virtual void OnEndList() override
+    {
+        UnderlyingConsumer_->OnEndList();
+    }
+
+    virtual void OnBeginMap() override
+    {
+        UnderlyingConsumer_->OnBeginMap();
+    }
+
+    virtual void OnKeyedItem(const TStringBuf& key) override
+    {
+        if (!HasAttributes_) {
+            UnderlyingConsumer_->OnBeginAttributes();
+            HasAttributes_ = true;
+        }
+        UnderlyingConsumer_->OnKeyedItem(key);
+    }
+
+    virtual void OnEndMap() override
+    {
+        UnderlyingConsumer_->OnEndMap();
+    }
+
+    virtual void OnBeginAttributes() override
+    {
+        UnderlyingConsumer_->OnBeginAttributes();
+    }
+
+    virtual void OnEndAttributes() override
+    {
+        UnderlyingConsumer_->OnEndAttributes();
+    }
+
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
+    {
+        UnderlyingConsumer_->OnRaw(yson, type);
+    }
+
+private:
+    IYsonConsumer* const UnderlyingConsumer_;
+    bool HasAttributes_ = false;
+
+};
+
+void IYPathService::WriteAttributes(
+    IYsonConsumer* consumer,
+    const TAttributeFilter& filter,
+    bool sortKeys)
+{
+    if (filter.Mode == EAttributeFilterMode::None)
+        return;
+
+    if (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
+        return;
+
+    TAttributesWrapperConsumer attributesConsumer(consumer);
+    WriteAttributesFragment(&attributesConsumer, filter, sortKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -46,7 +46,7 @@ private:
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
-        node->SerializeAttributes(Consumer, AttributeFilter, SortKeys);
+        node->WriteAttributes(Consumer, AttributeFilter, SortKeys);
 
         if (!isRoot &&
             !IgnoreOpaque &&

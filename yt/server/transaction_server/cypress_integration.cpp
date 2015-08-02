@@ -45,23 +45,23 @@ class TVirtualTopmostTransactionMap
 {
 public:
     explicit TVirtualTopmostTransactionMap(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+        : Bootstrap_(bootstrap)
     { }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         auto ids = ToObjectIds(transactionManager->TopmostTransactions(), sizeLimit);
         // NB: No size limit is needed here.
         return ConvertToStrings(ids);
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         return transactionManager->TopmostTransactions().size();
     }
 
@@ -69,7 +69,7 @@ private:
     {
         auto id = TTransactionId::FromString(key);
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(id);
         if (!IsObjectAlive(transaction)) {
             return nullptr;
@@ -79,7 +79,7 @@ private:
             return nullptr;
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(transaction);
     }
 };

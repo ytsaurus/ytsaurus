@@ -129,7 +129,7 @@ NLogging::TLogger TYPathServiceBase::GetLogger() const
     return Logger;
 }
 
-void TYPathServiceBase::SerializeAttributes(
+void TYPathServiceBase::WriteAttributesFragment(
     IYsonConsumer* /*consumer*/,
     const TAttributeFilter& /*filter*/,
     bool /*sortKeys*/)
@@ -479,7 +479,7 @@ void TSupportsAttributes::ListAttribute(
 {
     DoListAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (ysonOrError.IsOK()) {
-            response->set_keys(ysonOrError.Value().Data());
+            response->set_value(ysonOrError.Value().Data());
             context->Reply();
         } else {
             context->Reply(ysonOrError);
@@ -1109,12 +1109,12 @@ public:
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
-        UnderlyingService_->SerializeAttributes(consumer, filter, sortKeys);
+        UnderlyingService_->WriteAttributesFragment(consumer, filter, sortKeys);
     }
 
 private:

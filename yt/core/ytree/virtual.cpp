@@ -21,10 +21,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t DefaultMaxSize = 1000;
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool TVirtualMapBase::DoInvoke(IServiceContextPtr context)
 {
     DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -58,15 +54,14 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 {
     YASSERT(!NYson::TTokenizer(GetRequestYPath(context)).ParseNext());
 
-    auto attributeFilter =
-        request->has_attribute_filter()
+    auto attributeFilter = request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    int maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
+    i64 limit = request->limit();
 
-    auto keys = GetKeys(maxSize);
-    size_t size = GetSize();
+    auto keys = GetKeys(limit);
+    i64 size = GetSize();
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
@@ -83,7 +78,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
         auto service = FindItemService(key);
         if (service) {
             writer.OnKeyedItem(key);
-            service->SerializeAttributes(&writer, attributeFilter, false);
+            service->WriteAttributes(&writer, attributeFilter, false);
             writer.OnEntity();
         }
     }
@@ -100,10 +95,10 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    int maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
+    i64 limit = request->limit();
 
-    auto keys = GetKeys(maxSize);
-    size_t size = GetSize();
+    auto keys = GetKeys(limit);
+    i64 size = GetSize();
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
@@ -121,13 +116,13 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
         auto service = FindItemService(key);
         if (service) {
             writer.OnListItem();
-            service->SerializeAttributes(&writer, attributeFilter, false);
+            service->WriteAttributes(&writer, attributeFilter, false);
             writer.OnStringScalar(key);
         }
     }
     writer.OnEndList();
 
-    response->set_keys(stream.Str());
+    response->set_value(stream.Str());
     context->Reply();
 }
 
@@ -140,7 +135,7 @@ bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* cons
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
-            .Value(static_cast<i64>(GetSize()));
+            .Value(GetSize());
         return true;
     }
 
@@ -214,7 +209,7 @@ public:
         return TResolveResult::There(UnderlyingService, path);
     }
 
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/)

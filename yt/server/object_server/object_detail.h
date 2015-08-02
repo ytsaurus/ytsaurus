@@ -41,7 +41,7 @@ public:
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual TResolveResult Resolve(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         NYson::IYsonConsumer* consumer,
         const NYTree::TAttributeFilter& filter,
         bool sortKeys) override;

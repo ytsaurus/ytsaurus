@@ -9,6 +9,12 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TAttributeFilter;
+
+} // namespace NProto
+
 class TYsonSerializableLite;
 class TYsonSerializable;
 
@@ -38,6 +44,8 @@ class TYsonOutput;
 struct IAttributeDictionary;
 
 struct IAttributeOwner;
+
+struct TAttributeFilter;
 
 struct ISystemAttributeProvider;
 

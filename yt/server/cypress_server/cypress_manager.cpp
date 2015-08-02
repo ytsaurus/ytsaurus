@@ -188,7 +188,7 @@ public:
                 if (externalCellTag == Bootstrap_->GetCellTag()) {
                     externalCellTag = NotReplicatedCellTag;
                 } else {
-                    if (multicellManager->IsRegisteredSecondaryMaster(externalCellTag)) {
+                    if (!multicellManager->IsRegisteredSecondaryMaster(externalCellTag)) {
                         THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
                     }
                 }
