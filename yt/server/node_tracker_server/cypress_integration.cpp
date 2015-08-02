@@ -72,12 +72,12 @@ public:
             "/@" + path);
     }
 
-    virtual void SerializeAttributes(
+    virtual void WriteAttributesFragment(
         IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
-        GetTargetProxy()->SerializeAttributes(consumer, filter, sortKeys);
+        GetTargetProxy()->WriteAttributesFragment(consumer, filter, sortKeys);
     }
 
 private:
@@ -273,7 +273,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
         std::vector<Stroka> keys;
         auto nodeTracker = Bootstrap_->GetNodeTracker();
@@ -284,7 +284,7 @@ private:
         return keys;
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         return nodeTracker->Racks().GetSize();

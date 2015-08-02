@@ -313,7 +313,7 @@ void ParseRowLimit(
         limit->SetKey(key);
     }
 
-    tokenizer.CurrentToken().CheckType(separators);
+    tokenizer.CurrentToken().ExpectTypes(separators);
 }
 
 void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attributes)
@@ -362,7 +362,7 @@ TRichYPath TRichYPath::Parse(const Stroka& str)
         ysonTokenizer.ParseNext();
         ParseChannel(ysonTokenizer, attributes.get());
         ParseRowRanges(ysonTokenizer, attributes.get());
-        ysonTokenizer.CurrentToken().CheckType(NYson::ETokenType::EndOfStream);
+        ysonTokenizer.CurrentToken().ExpectType(NYson::ETokenType::EndOfStream);
     }
     return TRichYPath(path, *attributes);
 }

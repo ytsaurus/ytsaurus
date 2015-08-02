@@ -112,6 +112,9 @@ public:
     //! Finds object by id, throws if nothing is found.
     TObjectBase* GetObjectOrThrow(const TObjectId& id);
 
+    //! Creates a cross-cell read-only proxy for the object with the given #id.
+    NYTree::IYPathServicePtr CreateRemoteProxy(const TObjectId& id);
+
     //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(
         TObjectBase* object,
@@ -207,7 +210,7 @@ private:
 
     class TRootService;
     typedef TIntrusivePtr<TRootService> TRootServicePtr;
-    class TRemoteCellService;
+    class TRemoteProxy;
     class TObjectResolver;
 
     const TObjectManagerConfigPtr Config_;

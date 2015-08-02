@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/ypath/public.h>
+
 #include <server/cypress_server/public.h>
 
 #include <server/cell_master/public.h>

@@ -30,33 +30,33 @@ public:
     explicit TVirtualObjectMap(
         NCellMaster::TBootstrap* bootstrap,
         const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* map)
-        : Bootstrap(bootstrap)
-        , Map(map)
+        : Bootstrap_(bootstrap)
+        , Map_(map)
     { }
 
 protected:
-    NCellMaster::TBootstrap* Bootstrap;
-    const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* Map;
+    NCellMaster::TBootstrap* const Bootstrap_;
+    const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* const Map_;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        return ConvertToStrings(NYT::GetKeys(*Map, sizeLimit));
+        return ConvertToStrings(NYT::GetKeys(*Map_, sizeLimit));
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
-        return Map->GetSize();
+        return Map_->GetSize();
     }
 
     virtual NYTree::IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
         auto id = TId::FromString(key);
-        auto* object = Map->Find(id);
+        auto* object = Map_->Find(id);
         if (!NObjectServer::IsObjectAlive(object)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(object);
     }
 };

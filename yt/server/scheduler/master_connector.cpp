@@ -625,7 +625,7 @@ private:
 
             {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspList>("list_operations").Value();
-                auto operationsListNode = ConvertToNode(TYsonString(rsp->keys()));
+                auto operationsListNode = ConvertToNode(TYsonString(rsp->value()));
                 auto operationsList = operationsListNode->AsList();
                 LOG_INFO("Operations list received, %v operations total",
                     operationsList->GetChildCount());

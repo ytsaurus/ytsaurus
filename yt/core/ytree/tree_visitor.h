@@ -1,6 +1,8 @@
 #pragma once
 
-#include "attribute_provider.h"
+#include "ypath_service.h"
+
+#include <core/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {

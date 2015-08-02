@@ -172,6 +172,11 @@ public:
         return FindSecondaryCellEntry(cellTag) != nullptr;
     }
 
+    std::vector<NObjectClient::TCellTag> GetRegisteredSecondaryMasterCellTags()
+    {
+        return GetKeys(RegisteredSecondaryCellMap_);
+    }
+
     TCellTag GetLeastLoadedSecondaryMaster()
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
@@ -564,6 +569,11 @@ void TMulticellManager::PostToSecondaryMasters(
 bool TMulticellManager::IsRegisteredSecondaryMaster(TCellTag cellTag)
 {
     return Impl_->IsRegisteredSecondaryMaster(cellTag);
+}
+
+std::vector<NObjectClient::TCellTag> TMulticellManager::GetRegisteredSecondaryMasterCellTags()
+{
+    return Impl_->GetRegisteredSecondaryMasterCellTags();
 }
 
 TCellTag TMulticellManager::GetLeastLoadedSecondaryMaster()

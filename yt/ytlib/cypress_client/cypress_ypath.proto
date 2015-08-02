@@ -2,6 +2,7 @@ package NYT.NCypressClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/ytree/attributes.proto";
+import "yt/core/ytree/ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +50,26 @@ message TReqCopy
 message TRspCopy
 {
     required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqEnumerate
+{
+    optional NYT.NYTree.NProto.TAttributeFilter attribute_filter = 1;
+    required int64 limit = 2;
+}
+
+message TRspEnumerate
+{
+    message TItem
+    {
+        required bytes key = 1;
+        optional bytes attributes = 2;
+    }
+
+    required bool incomplete = 1;
+    repeated TItem items = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

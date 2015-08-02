@@ -62,18 +62,18 @@ const TToken TToken::EndOfStream;
 
 TToken::TToken()
     : Type_(ETokenType::EndOfStream)
-    , Int64Value(0)
-    , Uint64Value(0)
-    , DoubleValue(0.0)
-    , BooleanValue(false)
+    , Int64Value_(0)
+    , Uint64Value_(0)
+    , DoubleValue_(0.0)
+    , BooleanValue_(false)
 { }
 
 TToken::TToken(ETokenType type)
     : Type_(type)
-    , Int64Value(0)
-    , Uint64Value(0)
-    , DoubleValue(0.0)
-    , BooleanValue(false)
+    , Int64Value_(0)
+    , Uint64Value_(0)
+    , DoubleValue_(0.0)
+    , BooleanValue_(false)
 {
     switch (type) {
         case ETokenType::String:
@@ -89,41 +89,41 @@ TToken::TToken(ETokenType type)
 
 TToken::TToken(const TStringBuf& stringValue)
     : Type_(ETokenType::String)
-    , StringValue(stringValue)
-    , Int64Value(0)
-    , Uint64Value(0)
-    , DoubleValue(0.0)
-    , BooleanValue(false)
+    , StringValue_(stringValue)
+    , Int64Value_(0)
+    , Uint64Value_(0)
+    , DoubleValue_(0.0)
+    , BooleanValue_(false)
 { }
 
 TToken::TToken(i64 int64Value)
     : Type_(ETokenType::Int64)
-    , Int64Value(int64Value)
-    , Uint64Value(0)
-    , DoubleValue(0.0)
+    , Int64Value_(int64Value)
+    , Uint64Value_(0)
+    , DoubleValue_(0.0)
 { }
 
 TToken::TToken(ui64 uint64Value)
     : Type_(ETokenType::Uint64)
-    , Int64Value(0)
-    , Uint64Value(uint64Value)
-    , DoubleValue(0.0)
-    , BooleanValue(false)
+    , Int64Value_(0)
+    , Uint64Value_(uint64Value)
+    , DoubleValue_(0.0)
+    , BooleanValue_(false)
 { }
 
 TToken::TToken(double doubleValue)
     : Type_(ETokenType::Double)
-    , Int64Value(0)
-    , Uint64Value(0)
-    , DoubleValue(doubleValue)
-    , BooleanValue(false)
+    , Int64Value_(0)
+    , Uint64Value_(0)
+    , DoubleValue_(doubleValue)
+    , BooleanValue_(false)
 { }
 
 TToken::TToken(bool booleanValue)
     : Type_(ETokenType::Boolean)
-    , Int64Value(0)
-    , DoubleValue(0.0)
-    , BooleanValue(booleanValue)
+    , Int64Value_(0)
+    , DoubleValue_(0.0)
+    , BooleanValue_(booleanValue)
 { }
 
 bool TToken::IsEmpty() const
@@ -133,45 +133,48 @@ bool TToken::IsEmpty() const
 
 const TStringBuf& TToken::GetStringValue() const
 {
-    CheckType(ETokenType::String);
-    return StringValue;
+    ExpectType(ETokenType::String);
+    return StringValue_;
 }
 
 i64 TToken::GetInt64Value() const
 {
-    CheckType(ETokenType::Int64);
-    return Int64Value;
+    ExpectType(ETokenType::Int64);
+    return Int64Value_;
 }
 
 ui64 TToken::GetUint64Value() const
 {
-    CheckType(ETokenType::Uint64);
-    return Uint64Value;
+    ExpectType(ETokenType::Uint64);
+    return Uint64Value_;
 }
 
 double TToken::GetDoubleValue() const
 {
-    CheckType(ETokenType::Double);
-    return DoubleValue;
+    ExpectType(ETokenType::Double);
+    return DoubleValue_;
 }
 
 bool TToken::GetBooleanValue() const
 {
-    CheckType(ETokenType::Boolean);
-    return BooleanValue;
+    ExpectType(ETokenType::Boolean);
+    return BooleanValue_;
 }
 
-void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
+void TToken::ExpectTypes(const std::vector<ETokenType>& expectedTypes) const
 {
     if (expectedTypes.size() == 1) {
-        CheckType(expectedTypes.front());
+        ExpectType(expectedTypes.front());
     } else if (std::find(expectedTypes.begin(), expectedTypes.end(), Type_) == expectedTypes.end()) {
-        auto typesString = JoinStroku(expectedTypes.begin(), expectedTypes.end(), " or ");
+        auto typeStrings = ConvertToStrings(expectedTypes, [] (ETokenType type) {
+            return Format("Qlv", type);
+        });
+        auto typesString = JoinStroku(typeStrings.begin(), typeStrings.end(), " or ");
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %v)",
+            THROW_ERROR_EXCEPTION("Unexpected end of stream; expected types are %v",
                 typesString);
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected token (Token: %Qv, Type: %v, ExpectedTypes: %v)",
+            THROW_ERROR_EXCEPTION("Unexpected token %Qv of type %Qlv; expected types are %v)",
                 *this,
                 Type_,
                 typesString);
@@ -179,29 +182,41 @@ void TToken::CheckType(const std::vector<ETokenType>& expectedTypes) const
     }
 }
 
-void TToken::CheckType(ETokenType expectedType) const
+void TToken::ExpectType(ETokenType expectedType) const
 {
     if (Type_ != expectedType) {
         if (Type_ == ETokenType::EndOfStream) {
-            THROW_ERROR_EXCEPTION("Unexpected end of stream (ExpectedType: %v)",
+            THROW_ERROR_EXCEPTION("Unexpected end of stream; expected type is %Qlv",
                 expectedType);
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected token (Token: %Qv, Type: %v, ExpectedType: %v)",
+            THROW_ERROR_EXCEPTION("Unexpected token %Qv of type %Qlv; expected type is %Qlv",
                 *this,
                 Type_,
                 expectedType);
         }
+    }
+}
+
+
+void TToken::ThrowUnexpected() const
+{
+    if (Type_ == ETokenType::EndOfStream) {
+        THROW_ERROR_EXCEPTION("Unexpected end of stream");
+    } else {
+        THROW_ERROR_EXCEPTION("Unexpected token %Qv of type %Qlv",
+            *this,
+            Type_);
     }
 }
 
 void TToken::Reset()
 {
     Type_ = ETokenType::EndOfStream;
-    Int64Value = 0;
-    Uint64Value = 0;
-    DoubleValue = 0.0;
-    StringValue = TStringBuf();
-    BooleanValue = false;
+    Int64Value_ = 0;
+    Uint64Value_ = 0;
+    DoubleValue_ = 0.0;
+    StringValue_ = TStringBuf();
+    BooleanValue_ = false;
 }
 
 Stroka ToString(const TToken& token)

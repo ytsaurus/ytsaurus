@@ -65,6 +65,10 @@ public:
     //! Returns |true| if there is a registered secondary master with a given cell tag.
     bool IsRegisteredSecondaryMaster(NObjectClient::TCellTag cellTag);
 
+    //! Returns the list of cell tags for all registered secondary masters,
+    //! in a stable order.
+    std::vector<NObjectClient::TCellTag> GetRegisteredSecondaryMasterCellTags();
+
     //! Returns the cell tag of the secondary master with the smallest
     //! number of chunks. If no secondary masater is registered then
     //! returns the primary master cell tag.

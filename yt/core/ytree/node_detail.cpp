@@ -239,13 +239,13 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    int maxSize = request->has_max_size() ? request->max_size() : std::numeric_limits<int>::max();
+    int limit = request->limit();
 
     TStringStream stream;
     TYsonWriter writer(&stream);
 
     auto children = GetChildren();
-    if (children.size() > maxSize) {
+    if (children.size() > limit) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
         writer.OnStringScalar("true");
@@ -259,17 +259,17 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         const auto& key = pair.first;
         const auto& node = pair.second;
         writer.OnListItem();
-        node->SerializeAttributes(&writer, attributeFilter, false);
+        node->WriteAttributes(&writer, attributeFilter, false);
         writer.OnStringScalar(key);
 
         counter += 1;
-        if (counter == maxSize) {
+        if (counter == limit) {
             break;
         }
     }
     writer.OnEndList();
 
-    response->set_keys(stream.Str());
+    response->set_value(stream.Str());
 
     context->Reply();
 }

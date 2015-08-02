@@ -18,6 +18,7 @@ struct TGetRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
+    // TODO: Rename to "limit"
     TNullable<i64> MaxSize;
     bool IgnoreOpaque;
 
@@ -102,6 +103,7 @@ struct TListRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
+    // TODO: Rename to "limit"
     TNullable<i64> MaxSize;
 
     TListRequest()
