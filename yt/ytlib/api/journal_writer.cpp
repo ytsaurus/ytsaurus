@@ -49,6 +49,7 @@ namespace NApi {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NRpc;
 using namespace NCypressClient;

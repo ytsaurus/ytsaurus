@@ -7,6 +7,8 @@
 #include <core/misc/error.h>
 #include <core/misc/property.h>
 
+#include <core/actions/future.h>
+
 namespace NYT {
 namespace NChunkClient {
 

@@ -357,7 +357,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
         if (customAttributes) {
             for (const auto& key : customAttributes->List()) {
                 writer.OnKeyedItem(key);
-                Consume(customAttributes->GetYson(key), &writer);
+                Serialize(customAttributes->GetYson(key), &writer);
             }
         }
 

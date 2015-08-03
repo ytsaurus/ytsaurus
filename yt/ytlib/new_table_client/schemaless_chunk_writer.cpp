@@ -49,6 +49,7 @@ using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NApi;
 
 using NYT::ToProto;

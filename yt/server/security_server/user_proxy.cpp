@@ -12,6 +12,7 @@ namespace NYT {
 namespace NSecurityServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////

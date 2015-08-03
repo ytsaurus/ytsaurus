@@ -1,9 +1,7 @@
 #pragma once
 
 #include "ypath_service.h"
-#include "yson_producer.h"
 #include "tree_builder.h"
-#include "forwarding_yson_consumer.h"
 #include "attributes.h"
 #include "permission.h"
 
@@ -11,6 +9,8 @@
 
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
+#include <core/yson/producer.h>
+#include <core/yson/forwarding_consumer.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/ypath.pb.h>
@@ -223,35 +223,35 @@ protected:
     //! Called before attribute #key is updated (added, removed or changed).
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<NYTree::TYsonString>& oldValue,
-        const TNullable<NYTree::TYsonString>& newValue);
+        const TNullable<NYson::TYsonString>& oldValue,
+        const TNullable<NYson::TYsonString>& newValue);
 
     //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
     void GuardedValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<TYsonString>& oldValue,
-        const TNullable<TYsonString>& newValue);
+        const TNullable<NYson::TYsonString>& oldValue,
+        const TNullable<NYson::TYsonString>& newValue);
 
     //! Called after some custom attributes are changed.
     virtual void OnCustomAttributesUpdated();
 
 private:
-    TFuture<TYsonString> DoFindAttribute(const Stroka& key);
+    TFuture<NYson::TYsonString> DoFindAttribute(const Stroka& key);
 
-    static TYsonString DoGetAttributeFragment(const TYPath& path, const TYsonString& wholeYson);
-    TFuture<TYsonString> DoGetAttribute(const TYPath& path);
+    static NYson::TYsonString DoGetAttributeFragment(const TYPath& path, const NYson::TYsonString& wholeYson);
+    TFuture<NYson::TYsonString> DoGetAttribute(const TYPath& path);
 
-    static bool DoExistsAttributeFragment(const TYPath& path, const TErrorOr<TYsonString>& wholeYsonOrError);
+    static bool DoExistsAttributeFragment(const TYPath& path, const TErrorOr<NYson::TYsonString>& wholeYsonOrError);
     TFuture<bool> DoExistsAttribute(const TYPath& path);
 
-    static TYsonString DoListAttributeFragment(const TYPath& path, const TYsonString& wholeYson);
-    TFuture<TYsonString> DoListAttribute(const TYPath& path);
+    static NYson::TYsonString DoListAttributeFragment(const TYPath& path, const NYson::TYsonString& wholeYson);
+    TFuture<NYson::TYsonString> DoListAttribute(const TYPath& path);
 
-    void DoSetAttribute(const TYPath& path, const TYsonString& newYson);
+    void DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);
 
     void DoRemoveAttribute(const TYPath& path);
 
-    void GuardedSetBuiltinAttribute(const Stroka& key, const TYsonString& value);
+    void GuardedSetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value);
     void GuardedRemoveBuiltinAttribute(const Stroka& key);
 
 };
@@ -259,7 +259,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeSetterBase
-    : public TForwardingYsonConsumer
+    : public NYson::TForwardingYsonConsumer
 {
 public:
     void Commit();
@@ -454,7 +454,7 @@ private:
 template <class TNode>
 void SetNodeFromProducer(
     TNode* node,
-    TYsonProducer producer,
+    NYson::TYsonProducer producer,
     ITreeBuilder* builder)
 {
     YCHECK(node);

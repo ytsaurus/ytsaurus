@@ -5,7 +5,7 @@
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
 
 #include <server/cell_master/public.h>
 
@@ -17,7 +17,7 @@ namespace NObjectServer {
 class TAttributeSet
 {
 public:
-    using TAttributeMap = yhash_map<Stroka, TNullable<NYTree::TYsonString>>;
+    using TAttributeMap = yhash_map<Stroka, TNullable<NYson::TYsonString>>;
     DEFINE_BYREF_RW_PROPERTY(TAttributeMap, Attributes);
 
 public:

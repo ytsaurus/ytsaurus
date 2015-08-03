@@ -1,13 +1,10 @@
 #include "stdafx.h"
-#include "null_yson_consumer.h"
-
-#include <core/yson/consumer.h>
-#include "yson_string.h"
+#include "null_consumer.h"
+#include "consumer.h"
+#include "string.h"
 
 namespace NYT {
-namespace NYTree {
-
-using namespace NYson;
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,5 +79,5 @@ IYsonConsumer* GetNullYsonConsumer()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

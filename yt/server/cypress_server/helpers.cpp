@@ -15,6 +15,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +63,7 @@ TCypressNodeBase* FindMapNodeChild(
     return nullptr;
 }
 
-yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
+yhash_map<Stroka, NYson::TYsonString> GetNodeAttributes(
     NCellMaster::TBootstrap* bootstrap,
     TCypressNodeBase* trunkNode,
     TTransaction* transaction)

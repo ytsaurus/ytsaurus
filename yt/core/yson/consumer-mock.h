@@ -1,16 +1,16 @@
 #pragma once
 
-#include <core/yson/consumer.h>
+#include "consumer.h"
 
 #include <contrib/testing/gmock.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMockYsonConsumer
-    : public NYson::TYsonConsumerBase
+    : public TYsonConsumerBase
 {
 public:
     MOCK_METHOD1(OnStringScalar, void(const TStringBuf& value));
@@ -34,5 +34,5 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

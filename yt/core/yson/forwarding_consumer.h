@@ -1,16 +1,16 @@
 #pragma once
 
-#include "yson_string.h"
+#include "string.h"
 #include <core/yson/consumer.h>
 #include <core/actions/callback.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TForwardingYsonConsumer
-    : public virtual NYson::TYsonConsumerBase
+    : public virtual TYsonConsumerBase
 {
 public:
     // IYsonConsumer methods
@@ -32,13 +32,13 @@ public:
     virtual void OnBeginAttributes() override;
     virtual void OnEndAttributes() override;
 
-    virtual void OnRaw(const TStringBuf& yson, NYson::EYsonType type) override;
+    virtual void OnRaw(const TStringBuf& yson, EYsonType type) override;
 
 protected:
     void Forward(
-        NYson::IYsonConsumer* consumer,
+        IYsonConsumer* consumer,
         const TClosure& onFinished = TClosure(),
-        NYson::EYsonType type = NYson::EYsonType::Node);
+        EYsonType type = EYsonType::Node);
 
     virtual void OnMyStringScalar(const TStringBuf& value);
     virtual void OnMyInt64Scalar(i64 value);
@@ -58,12 +58,12 @@ protected:
     virtual void OnMyBeginAttributes();
     virtual void OnMyEndAttributes();
 
-    virtual void OnMyRaw(const TStringBuf& yson, NYson::EYsonType type);
+    virtual void OnMyRaw(const TStringBuf& yson, EYsonType type);
 
 private:
-    NYson::IYsonConsumer* ForwardingConsumer_ = nullptr;
+    IYsonConsumer* ForwardingConsumer_ = nullptr;
     int ForwardingDepth_ = 0;
-    NYson::EYsonType ForwardingType_;
+    EYsonType ForwardingType_;
     TClosure OnFinished_;
 
     bool CheckForwarding(int depthDelta = 0);
@@ -74,5 +74,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

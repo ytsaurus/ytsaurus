@@ -4,18 +4,18 @@
 #include "json_writer.h"
 #include "utf8_decoder.h"
 
-#include <core/ytree/forwarding_yson_consumer.h>
-#include <core/ytree/null_yson_consumer.h>
+#include <core/yson/forwarding_consumer.h>
+#include <core/yson/null_consumer.h>
 
 #include <library/json/json_writer.h>
 
 namespace NYT {
 namespace NFormats {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TJsonConsumerImpl
     : public NYson::TYsonConsumerBase
@@ -72,7 +72,7 @@ private:
 };
 
 class TJsonConsumer
-    : public NYTree::TForwardingYsonConsumer
+    : public TForwardingYsonConsumer
 {
 public:
     TJsonConsumer(

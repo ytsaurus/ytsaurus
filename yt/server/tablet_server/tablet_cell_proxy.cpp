@@ -21,6 +21,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;

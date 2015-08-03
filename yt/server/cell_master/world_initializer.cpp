@@ -44,6 +44,7 @@ namespace NCellMaster {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;

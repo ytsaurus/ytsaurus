@@ -4,13 +4,13 @@
 
 #include <core/ytree/node.h>
 #include <core/ytree/tree_builder.h>
-#include <core/ytree/yson_string.h>
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/convert.h>
 #include <core/ytree/ypath_client.h>
 
 #include <core/yson/consumer.h>
 #include <core/yson/writer.h>
+#include <core/yson/string.h>
 
 #include <ytlib/formats/format.h>
 #include <ytlib/formats/utf8_decoder.h>

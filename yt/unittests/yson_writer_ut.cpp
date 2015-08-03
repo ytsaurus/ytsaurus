@@ -3,8 +3,8 @@
 
 #include <core/yson/writer.h>
 #include <core/yson/parser.h>
-#include <core/ytree/yson_consumer-mock.h>
-#include <core/ytree/yson_stream.h>
+#include <core/yson/consumer-mock.h>
+#include <core/yson/stream.h>
 
 #include <util/string/escape.h>
 
@@ -12,10 +12,10 @@ namespace NYT {
 namespace NYson {
 namespace {
 
+using namespace NYson;
+
 using ::testing::InSequence;
 using ::testing::StrictMock;
-
-using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 

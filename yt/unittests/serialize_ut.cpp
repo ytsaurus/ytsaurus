@@ -8,6 +8,8 @@ namespace NYT {
 namespace NYTree {
 namespace {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka RemoveSpaces(const Stroka& str)

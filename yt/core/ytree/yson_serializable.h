@@ -131,7 +131,7 @@ TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj);
 void Serialize(const TYsonSerializableLite& value, NYson::IYsonConsumer* consumer);
 void Deserialize(TYsonSerializableLite& value, NYTree::INodePtr node);
 
-NYTree::TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value);
+NYson::TYsonString ConvertToYsonStringStable(const TYsonSerializableLite& value);
 
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
@@ -141,7 +141,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
 template <class T>
 bool ReconfigureYsonSerializable(
     TIntrusivePtr<T> config,
-    const NYTree::TYsonString& newConfigYson);
+    const NYson::TYsonString& newConfigYson);
 
 template <class T>
 bool ReconfigureYsonSerializable(

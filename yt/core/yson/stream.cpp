@@ -1,12 +1,11 @@
 #include "stdafx.h"
-#include "yson_stream.h"
-
-#include <core/yson/parser.h>
+#include "stream.h"
+#include "parser.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
-using namespace NYson;
+////////////////////////////////////////////////////////////////////////////////
 
 static const size_t ParseBufferSize = 1 << 16;
 
@@ -50,5 +49,5 @@ void ParseYson(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

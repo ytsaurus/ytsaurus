@@ -38,6 +38,8 @@ void Serialize(const TBaseStatistics<T>& statistics, NYson::IYsonConsumer* consu
         auto value = NYTree::ConvertToNode(pair.second);
         SetNodeByYPath(root, pair.first, std::move(value));
     }
+
+    using NYTree::Serialize;
     Serialize(*root, consumer);
 }
 
@@ -53,6 +55,7 @@ void TStatistics::AddComplex(const NYPath::TYPath& path, const T& statistics)
         path);
     consumer.OnListItem();
 
+    using NYTree::Serialize;
     Serialize(statistics, &consumer);
 }
 
@@ -71,6 +74,7 @@ T TStatistics::GetComplex(const NYPath::TYPath& path) const
     }
 
     T result;
+    using NYTree::Deserialize;
     Deserialize(result, std::move(root));
     return result;
  }

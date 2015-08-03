@@ -33,7 +33,7 @@ public:
     IInvokerPtr GetControlInvoker() const;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) override;
-    virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
+    virtual NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
 
 private:
     TJobProxyConfigPtr Config_;

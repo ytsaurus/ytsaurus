@@ -3,13 +3,15 @@
 
 #include <ytlib/formats/json_parser.h>
 
-#include <core/ytree/yson_consumer-mock.h>
+#include <core/yson/consumer-mock.h>
 
 #include <util/string/base64.h>
 
 namespace NYT {
 namespace NFormats {
 namespace {
+
+using namespace NYson;
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
@@ -26,7 +28,7 @@ inline Stroka SurroundWithQuotes(const Stroka& s)
 // Basic types:
 TEST(TJsonParserTest, List)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginList());
@@ -46,7 +48,7 @@ TEST(TJsonParserTest, List)
 
 TEST(TJsonParserTest, Map)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     //InSequence dummy; // order in map is not specified
 
     EXPECT_CALL(Mock, OnBeginMap());
@@ -64,7 +66,7 @@ TEST(TJsonParserTest, Map)
 
 TEST(TJsonParserTest, Entity)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnEntity());
@@ -77,7 +79,7 @@ TEST(TJsonParserTest, Entity)
 
 TEST(TJsonParserTest, EmptyString)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnStringScalar(""));
@@ -91,7 +93,7 @@ TEST(TJsonParserTest, EmptyString)
 
 TEST(TJsonParserTest, OutOfRangeUnicodeSymbols)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     Stroka input = SurroundWithQuotes("\\u0100");
     TStringInput stream(input);
@@ -103,7 +105,7 @@ TEST(TJsonParserTest, OutOfRangeUnicodeSymbols)
 
 TEST(TJsonParserTest, EscapedUnicodeSymbols)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     Stroka s = Stroka("\x80\n\xFF", 3);
@@ -117,7 +119,7 @@ TEST(TJsonParserTest, EscapedUnicodeSymbols)
 
 TEST(TJsonParserTest, Boolean)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     Stroka input = "true";
 
     EXPECT_CALL(Mock, OnBooleanScalar(true));
@@ -128,7 +130,7 @@ TEST(TJsonParserTest, Boolean)
 
 TEST(TJsonParserTest, InvalidJson)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     Stroka input = "{\"hello\" = \"world\"}"; // YSon style instead of json
 
     TStringInput stream(input);
@@ -142,7 +144,7 @@ TEST(TJsonParserTest, InvalidJson)
 // Values with attributes:
 TEST(TJsonParserTest, ListWithAttributes)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginAttributes());
@@ -168,7 +170,7 @@ TEST(TJsonParserTest, ListWithAttributes)
 
 TEST(TJsonParserTest, MapWithAttributes)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginAttributes());
@@ -194,7 +196,7 @@ TEST(TJsonParserTest, MapWithAttributes)
 
 TEST(TJsonParserTest, Int64WithAttributes)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginAttributes());
@@ -217,7 +219,7 @@ TEST(TJsonParserTest, Int64WithAttributes)
 
 TEST(TJsonParserTest, EntityWithAttributes)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginAttributes());
@@ -240,7 +242,7 @@ TEST(TJsonParserTest, EntityWithAttributes)
 
 TEST(TJsonParserTest, StringWithAttributes)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginAttributes());
@@ -263,7 +265,7 @@ TEST(TJsonParserTest, StringWithAttributes)
 
 TEST(TJsonParserTest, DoubleAttributes)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginAttributes());
@@ -297,7 +299,7 @@ TEST(TJsonParserTest, SomeHackyTest)
 {
     Stroka input = "{\"$value\": \"yamr\", \"$attributes\": {\"lenval\": \"false\", \"has_subkey\": \"false\"}}";
 
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnBeginAttributes());
@@ -315,7 +317,7 @@ TEST(TJsonParserTest, SomeHackyTest)
 
 TEST(TJsonParserTest, EmptyListFragment)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     Stroka empty;
@@ -325,7 +327,7 @@ TEST(TJsonParserTest, EmptyListFragment)
 
 TEST(TJsonParserTest, ListFragment)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -347,7 +349,7 @@ TEST(TJsonParserTest, ListFragment)
 
 TEST(TJsonParserTest, SpecialKeys)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -366,7 +368,7 @@ TEST(TJsonParserTest, SpecialKeys)
 
 TEST(TJsonParserTest, AttributesWithoutValue)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     Stroka input = "{\"$attributes\":\"20\"}";
 
@@ -378,7 +380,7 @@ TEST(TJsonParserTest, AttributesWithoutValue)
 
 TEST(TJsonParserTest, Trash)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     Stroka input = "fdslfsdhfkajsdhf";
 
@@ -390,7 +392,7 @@ TEST(TJsonParserTest, Trash)
 
 TEST(TJsonParserTest, TrailingTrash)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     Stroka input = "{\"a\":\"b\"} fdslfsdhfkajsdhf";
 
@@ -402,7 +404,7 @@ TEST(TJsonParserTest, TrailingTrash)
 
 TEST(TJsonParserTest, MultipleValues)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     Stroka input = "{\"a\":\"b\"}{\"a\":\"b\"}";
 
@@ -414,7 +416,7 @@ TEST(TJsonParserTest, MultipleValues)
 
 TEST(TJsonParserTest, ReservedKeyName)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     EXPECT_CALL(Mock, OnBeginMap());
 
@@ -428,7 +430,7 @@ TEST(TJsonParserTest, ReservedKeyName)
 
 TEST(TJsonParserTest, MemoryLimit1)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     auto config = New<TJsonFormatConfig>();
     config->MemoryLimit = 10;
@@ -443,7 +445,7 @@ TEST(TJsonParserTest, MemoryLimit1)
 
 TEST(TJsonParserTest, MemoryLimit2)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     EXPECT_CALL(Mock, OnBeginMap());
         EXPECT_CALL(Mock, OnKeyedItem("my_string"));
@@ -462,7 +464,7 @@ TEST(TJsonParserTest, MemoryLimit2)
 
 TEST(TJsonParserTest, MemoryLimit3)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     auto config = New<TJsonFormatConfig>();
     config->MemoryLimit = 1000;
@@ -485,7 +487,7 @@ TEST(TJsonParserTest, MemoryLimit3)
 
 TEST(TJsonParserTest, MemoryLimit4)
 {
-    NiceMock<NYTree::TMockYsonConsumer> Mock;
+    NiceMock<TMockYsonConsumer> Mock;
 
     auto config = New<TJsonFormatConfig>();
     config->MemoryLimit = 200000;

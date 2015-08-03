@@ -1,10 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "yson_string.h"
+#include "string.h"
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,10 +13,10 @@ class TYsonInput
 public:
     explicit TYsonInput(
         TInputStream* stream,
-        NYson::EYsonType type = NYson::EYsonType::Node);
+        EYsonType type = EYsonType::Node);
 
     DEFINE_BYVAL_RO_PROPERTY(TInputStream*, Stream);
-    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 
 };
 
@@ -27,10 +27,10 @@ class TYsonOutput
 public:
     explicit TYsonOutput(
         TOutputStream* stream,
-        NYson::EYsonType type = NYson::EYsonType::Node);
+        EYsonType type = EYsonType::Node);
 
     DEFINE_BYVAL_RO_PROPERTY(TOutputStream*, Stream);
-    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 
 };
 
@@ -40,14 +40,14 @@ public:
 // For direct calss, use ParseYson instead.
 void Serialize(
     const TYsonInput& input,
-    NYson::IYsonConsumer* consumer);
+    IYsonConsumer* consumer);
 
 void ParseYson(
     const TYsonInput& input,
-    NYson::IYsonConsumer* consumer,
+    IYsonConsumer* consumer,
     bool enableLinePositionInfo = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

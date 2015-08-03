@@ -56,7 +56,7 @@ TDuration TJob::GetDuration() const
 void TJob::SetResult(const NJobTrackerClient::NProto::TJobResult& result)
 {
     Result_ = result;
-    Statistics_ = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(Result_.statistics()));
+    Statistics_ = NYTree::ConvertTo<TStatistics>(NYson::TYsonString(Result_.statistics()));
 }
 
 ////////////////////////////////////////////////////////////////////

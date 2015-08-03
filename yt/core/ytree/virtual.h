@@ -31,8 +31,8 @@ protected:
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
 private:

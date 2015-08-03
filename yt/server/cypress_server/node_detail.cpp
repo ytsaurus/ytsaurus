@@ -12,6 +12,7 @@ namespace NYT {
 namespace NCypressServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;

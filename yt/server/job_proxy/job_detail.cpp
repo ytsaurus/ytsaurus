@@ -26,6 +26,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NVersionedTableClient;
 using namespace NYTree;
+using namespace NYson;
 using namespace NScheduler;
 using namespace NQueryClient;
 

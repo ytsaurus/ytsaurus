@@ -6,7 +6,8 @@
 
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/system_attribute_provider.h>
-#include <core/ytree/yson_string.h>
+
+#include <core/yson/string.h>
 
 #include <core/ypath/public.h>
 
@@ -53,8 +54,8 @@ protected:
     // ISystemAttributeProvider overrides
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYTree::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
 private:
@@ -63,7 +64,7 @@ private:
     struct TFetchItem
     {
         Stroka Key;
-        TNullable<NYTree::TYsonString> Attributes;
+        TNullable<NYson::TYsonString> Attributes;
     };
 
     struct TFetchItemsSession
@@ -91,7 +92,7 @@ private:
         TFetchItemsSessionPtr session,
         TPromise<TFetchItemsSessionPtr> promise);
 
-    NYTree::TYsonString GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
+    NYson::TYsonString GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
 

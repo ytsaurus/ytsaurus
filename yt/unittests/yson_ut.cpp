@@ -1,8 +1,9 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/ytree/yson_string.h>
-#include <core/ytree/yson_stream.h>
+#include <core/yson/string.h>
+#include <core/yson/stream.h>
+
 #include <core/ytree/convert.h>
 #include <core/ytree/fluent.h>
 #include <core/ytree/ypath_client.h>
@@ -12,8 +13,6 @@ namespace NYson {
 namespace {
 
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 

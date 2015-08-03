@@ -3,14 +3,14 @@
 #include <core/yson/public.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Returns the consumer that does nothing.
-NYson::IYsonConsumer* GetNullYsonConsumer();
+IYsonConsumer* GetNullYsonConsumer();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

@@ -14,7 +14,7 @@ namespace NDetail {
 template <class TArg, class TResult>
 TGenericTool Ysonize(std::function<TResult(const TArg&)> internal)
 {
-    return [internal] (const NYTree::TYsonString& serializedArg) {
+    return [internal] (const NYson::TYsonString& serializedArg) {
         auto func = TTrapExceptionHelper<TArg, TResult>::Trap(internal);
 
         TArg arg;

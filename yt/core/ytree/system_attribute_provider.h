@@ -4,8 +4,7 @@
 #include "permission.h"
 
 #include <core/yson/consumer.h>
-
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
 
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
@@ -94,13 +93,13 @@ struct ISystemAttributeProvider
     /*!
      *  \returns A future representing attribute value or null if there is no such async builtin attribute.
      */
-    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) = 0;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) = 0;
 
     //! Sets the value of a builtin attribute.
     /*!
      *  \returns |false| if there is no writable builtin attribute with the given key.
      */
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) = 0;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) = 0;
 
     //! Removes value of a builtin attribute.
     /*!
@@ -117,7 +116,7 @@ struct ISystemAttributeProvider
 
     //! A wrapper around interface method that returns the YSON string instead
     //! of writing it into a consumer.
-    TNullable<NYTree::TYsonString> GetBuiltinAttribute(const Stroka& key);
+    TNullable<NYson::TYsonString> GetBuiltinAttribute(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,11 +3,13 @@
 
 #include <ytlib/formats/dsv_parser.h>
 
-#include <core/ytree/yson_consumer-mock.h>
+#include <core/yson/consumer-mock.h>
 
 namespace NYT {
 namespace NFormats {
 namespace {
+
+using namespace NYson;
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
@@ -17,7 +19,7 @@ using ::testing::NiceMock;
 
 TEST(TDsvParserTest, Simple)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -46,7 +48,7 @@ TEST(TDsvParserTest, Simple)
 
 TEST(TDsvParserTest, EmptyInput)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     Stroka input = "";
@@ -55,7 +57,7 @@ TEST(TDsvParserTest, EmptyInput)
 
 TEST(TDsvParserTest, BinaryData)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     auto a = Stroka("\0\0\0\0", 4);
     auto b = Stroka("\x80\0\x16\xC8", 4);
@@ -74,7 +76,7 @@ TEST(TDsvParserTest, BinaryData)
 
 TEST(TDsvParserTest, EmptyRecord)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -87,7 +89,7 @@ TEST(TDsvParserTest, EmptyRecord)
 
 TEST(TDsvParserTest, EmptyRecords)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -104,7 +106,7 @@ TEST(TDsvParserTest, EmptyRecords)
 
 TEST(TDsvParserTest, EmptyKeysAndValues)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -119,7 +121,7 @@ TEST(TDsvParserTest, EmptyKeysAndValues)
 
 TEST(TDsvParserTest, UnescapedZeroInInput)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
 
     Stroka input = Stroka("a\0b=v", 5);
     EXPECT_ANY_THROW(
@@ -129,7 +131,7 @@ TEST(TDsvParserTest, UnescapedZeroInInput)
 
 TEST(TDsvParserTest, ZerosAreNotTerminals)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     Stroka key = Stroka("a\0b", 3);
@@ -147,7 +149,7 @@ TEST(TDsvParserTest, ZerosAreNotTerminals)
 
 TEST(TDsvParserTest, UnterminatedRecord)
 {
-    NiceMock<NYTree::TMockYsonConsumer> Mock;
+    NiceMock<TMockYsonConsumer> Mock;
 
     Stroka input = "a=b";
     EXPECT_ANY_THROW(
@@ -160,8 +162,8 @@ TEST(TDsvParserTest, UnterminatedRecord)
 class TTskvParserTest: public ::testing::Test
 {
 public:
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
-    NiceMock<NYTree::TMockYsonConsumer> ErrorMock;
+    StrictMock<TMockYsonConsumer> Mock;
+    NiceMock<TMockYsonConsumer> ErrorMock;
 
     TDsvFormatConfigPtr Config;
 

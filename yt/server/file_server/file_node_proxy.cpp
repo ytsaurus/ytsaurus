@@ -16,6 +16,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NCypressServer;
 using namespace NYTree;
+using namespace NYson;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 

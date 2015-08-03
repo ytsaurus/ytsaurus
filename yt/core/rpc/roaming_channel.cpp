@@ -9,7 +9,7 @@ namespace NYT {
 namespace NRpc {
 
 using namespace NBus;
-using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

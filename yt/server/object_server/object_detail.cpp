@@ -8,8 +8,9 @@
 #include <core/misc/string.h>
 #include <core/misc/enum.h>
 
+#include <core/yson/string.h>
+
 #include <core/ytree/fluent.h>
-#include <core/ytree/yson_string.h>
 #include <core/ytree/exception_helpers.h>
 
 #include <core/ypath/tokenizer.h>

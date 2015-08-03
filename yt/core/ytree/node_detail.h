@@ -55,7 +55,7 @@ public:
 
 protected:
     template <class TNode>
-    void DoSetSelf(TNode* node, const TYsonString& value)
+    void DoSetSelf(TNode* node, const NYson::TYsonString& value)
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
@@ -171,7 +171,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSetPtr context) override \
     { \
         UNUSED(response); \
-        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYTree::TYsonString(request->value())); \
+        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
         context->Reply(); \
     }
 

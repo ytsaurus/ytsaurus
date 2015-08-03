@@ -1,14 +1,16 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/ytree/yson_consumer-mock.h>
-#include <core/ytree/null_yson_consumer.h>
+#include <core/yson/consumer-mock.h>
+#include <core/yson/null_consumer.h>
 
 #include <ytlib/formats/yamr_parser.h>
 
 namespace NYT {
 namespace NFormats {
 namespace {
+
+using namespace NYson;
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
@@ -18,7 +20,7 @@ using ::testing::NiceMock;
 
 TEST(TYamrParserTest, Simple)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -54,7 +56,7 @@ TEST(TYamrParserTest, Simple)
 
 TEST(TYamrParserTest, ValueWithTabs)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -84,7 +86,7 @@ TEST(TYamrParserTest, ValueWithTabs)
 
 TEST(TYamrParserTest, SimpleWithSubkey)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -118,7 +120,7 @@ TEST(TYamrParserTest, SimpleWithSubkey)
 
 TEST(TYamrParserTest, IncompleteRows)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -162,7 +164,7 @@ TEST(TYamrParserTest, IncompleteRows)
 
 TEST(TYamrParserTest, IncorrectIncompleteRows)
 {
-    auto Null = NYTree::GetNullYsonConsumer();
+    auto Null = GetNullYsonConsumer();
 
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = false;
@@ -174,7 +176,7 @@ TEST(TYamrParserTest, IncorrectIncompleteRows)
 
 TEST(TYamrParserTest, TabsInValue)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -193,7 +195,7 @@ TEST(TYamrParserTest, TabsInValue)
 
 TEST(TYamrParserTest, Escaping)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -219,7 +221,7 @@ TEST(TYamrParserTest, Escaping)
 
 TEST(TYamrLenvalParserTest, Simple)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -265,7 +267,7 @@ TEST(TYamrLenvalParserTest, Simple)
 
 TEST(TYamrLenvalParserTest, SimpleWithSubkey)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -308,7 +310,7 @@ TEST(TYamrLenvalParserTest, SimpleWithSubkey)
 
 TEST(TYamrLenvalParserTest, EmptyFields)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -348,7 +350,7 @@ TEST(TYamrLenvalParserTest, HugeLength)
     config->HasSubkey = true;
     config->Lenval = true;
 
-    auto Null = NYTree::GetNullYsonConsumer();
+    auto Null = GetNullYsonConsumer();
 
     EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
 }

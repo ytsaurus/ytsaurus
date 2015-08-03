@@ -81,7 +81,7 @@ protected:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
     {
         auto* subject = this->GetThisTypedImpl();
         auto securityManager = this->Bootstrap_->GetSecurityManager();

@@ -1,11 +1,12 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
 #include "attributes.h"
-#include "yson_producer.h"
 #include "attribute_helpers.h"
 
 #include <core/misc/serialize.h>
 #include <core/misc/assert.h>
+
+#include <core/yson/producer.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>

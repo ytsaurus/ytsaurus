@@ -27,6 +27,7 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NYPath;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
