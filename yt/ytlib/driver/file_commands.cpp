@@ -39,24 +39,20 @@ void TReadFileCommand::DoExecute()
         Request_->Path.GetPath(),
         options);
 
-    {
-        auto result = WaitFor(reader->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    WaitFor(reader->Open())
+        .ThrowOnError();
 
     auto output = Context_->Request().OutputStream;
 
     while (true) {
-        auto blockOrError = WaitFor(reader->Read());
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(blockOrError);
-        auto block = blockOrError.Value();
+        auto block = WaitFor(reader->Read())
+            .ValueOrThrow();
 
         if (!block)
             break;
 
-        auto result = WaitFor(output->Write(block));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        WaitFor(output->Write(block))
+            .ThrowOnError();
     }
 }
 
@@ -81,10 +77,8 @@ void TWriteFileCommand::DoExecute()
         Request_->Path.GetPath(),
         options);
 
-    {
-        auto result = WaitFor(writer->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    WaitFor(writer->Open())
+        .ThrowOnError();
 
     struct TWriteBufferTag { };
 

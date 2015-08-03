@@ -243,10 +243,8 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     IAsyncOutputStreamPtr output)
 {
     switch (format.GetType()) {
-        // TODO(babenko): schemaful
         case EFormatType::Yson:
             return CreateSchemafulWriterForYson(format.Attributes(), output);
-        // TODO(babenko): schemaful
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), output);
         default:
