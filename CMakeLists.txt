@@ -179,7 +179,7 @@ else()
   set(DCH_VENDOR_FLAG "--distributor")
 endif()
 
-add_custom_target( package touch package-stamp
+add_custom_target( changelog touch changelog-stamp
   COMMAND cp -r ${CMAKE_SOURCE_DIR}/debian ${CMAKE_BINARY_DIR}/debian
   COMMAND mkdir -p ARTIFACTS
   COMMAND dch
@@ -189,6 +189,11 @@ add_custom_target( package touch package-stamp
     --urgency "low"
     --force-distribution
     "Package version bump\; no source changes."
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  COMMENT "Updating changelog..."
+)
+
+add_custom_target( package touch package-stamp
   COMMAND debuild
     -e SOURCE_DIR=${CMAKE_SOURCE_DIR}
     --no-tgz-check
@@ -200,6 +205,18 @@ add_custom_target( package touch package-stamp
     ARTIFACTS
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Packaging YT..."
+  DEPENDS changelog
+)
+
+add_custom_target( python-package touch python-package-stamp
+  COMMAND cp -r ${CMAKE_BINARY_DIR}/debian/changelog ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/
+  COMMAND ${CMAKE_SOURCE_DIR}/python/deploy.sh yandex-yt-python-driver
+  COMMAND mv
+    ../yandex-yt*${YT_VERSION}*
+    ${CMAKE_BINARY_DIR}/ARTIFACTS
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
+  COMMENT "Packaging YT python driver..."
+  DEPENDS changelog
 )
 
 add_custom_target(
