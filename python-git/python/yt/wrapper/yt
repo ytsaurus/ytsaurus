@@ -177,7 +177,7 @@ def add_structured_format_help(parser, name="--format", help="", **kwargs):
     add_argument(parser, name, help, description=STRUCTURED_FORMAT_HELP, action=ParseFormat, **kwargs)
 
 def add_format_help(parser, name="--format", help="", **kwargs):
-    FORMAT_HELP = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred-dsv", "shemaful-dsv" with modifications. See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    FORMAT_HELP = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred-dsv", "schemaful-dsv" with modifications. See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
     add_argument(parser, name, help, description=FORMAT_HELP, action=ParseFormat, **kwargs)
 
 def add_spec_help(parser, name="--spec", help="", **kwargs):
