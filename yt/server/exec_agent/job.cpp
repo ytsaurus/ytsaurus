@@ -17,6 +17,8 @@
 
 #include <core/rpc/bus_channel.h>
 
+#include <core/concurrency/async_stream.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/file_client/config.h>
@@ -715,12 +717,11 @@ private:
             WaitFor(reader->Open()).ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
                 auto controlAttributesConfig = New<TControlAttributesConfig>();
                 auto writer = CreateSchemalessWriterForFormat(
                     format,
                     nameTable,
-                    std::move(bufferedOutput),
+                    CreateAsyncAdapter(output),
                     false,
                     false,
                     0);

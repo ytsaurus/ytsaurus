@@ -210,7 +210,7 @@ void TRequestExecutor::DoExecute()
     }
 
     // Buffering is done in the upper layers.
-    request.OutputStream = CreateAsyncAdapter(&StdOutStream().get());
+    request.OutputStream = CreateAsyncAdapter(&StdOutStream());
     try {
         request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
