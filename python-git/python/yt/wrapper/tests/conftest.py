@@ -12,6 +12,11 @@ import shutil
 import logging
 import pytest
 
+def _pytest_finalize_func(environment, process_call_args):
+    pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
+                .format(" ".join(process_call_args)))
+    environment.clear_environment(safe=False)
+
 class YtTestEnvironment(object):
     def __init__(self, test_name, config=None):
         self.test_name = test_name
@@ -43,7 +48,7 @@ class YtTestEnvironment(object):
             }
         }
 
-        self.env.set_environment(dir, os.path.join(dir, "pids.txt"), supress_yt_output=True)
+        self.env.start(dir, os.path.join(dir, "pids.txt"), supress_yt_output=True)
 
         reload(yt)
         reload(yt.config)
@@ -74,7 +79,7 @@ class YtTestEnvironment(object):
             shutil.rmtree(node_config["data_node"]["cache_locations"][0]["path"])
 
     def check_liveness(self):
-        self.env.check_liveness()
+        self.env.check_liveness(callback_func=_pytest_finalize_func)
 
 def init_environment_for_test_session(mode):
     if mode == "v2" or mode == "yamr":
