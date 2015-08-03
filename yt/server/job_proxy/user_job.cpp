@@ -553,13 +553,12 @@ private:
 
         auto asyncOutput = pipe.CreateAsyncWriter();
         TablePipeWriters_.push_back(asyncOutput);
-        auto output = CreateSyncAdapter(asyncOutput);
         auto bufferRowCount = Config_->JobIO->BufferRowCount;
 
         auto writer = CreateSchemalessWriterForFormat(
             format,
             reader->GetNameTable(),
-            std::move(output),
+            asyncOutput,
             true,
             Config_->JobIO->ControlAttributes->EnableKeySwitch,
             reader->GetKeyColumns().size());
