@@ -73,14 +73,10 @@ void TReadTableCommand::DoExecute()
             .Item("approximate_row_count").Value(reader->GetTotalRowCount());
     }
 
-    auto output = CreateSyncAdapter(Context_->Request().OutputStream);
-    auto bufferedOutput = std::make_unique<TBufferedOutput>(output.get());
-    auto format = Context_->GetOutputFormat();
-
     auto writer = CreateSchemalessWriterForFormat(
-        format,
+        Context_->GetOutputFormat(),
         nameTable,
-        std::move(bufferedOutput),
+        Context_->Request().OutputStream,
         false,
         false,
         0);
