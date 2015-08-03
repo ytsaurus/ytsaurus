@@ -125,8 +125,8 @@ class TVirtualTabletMap
     : public TVirtualMulticellMapBase
 {
 public:
-    explicit TVirtualTabletMap(TBootstrap* bootstrap)
-        : TVirtualMulticellMapBase(bootstrap)
+    TVirtualTabletMap(TBootstrap* bootstrap, INodePtr owningProxy)
+        : TVirtualMulticellMapBase(bootstrap, owningProxy)
     { }
 
 private:
@@ -147,7 +147,6 @@ private:
         return tabletManager->Tablets().GetSize();
     }
 
-
 protected:
     virtual TYPath GetWellKnownPath() const override
     {
@@ -160,12 +159,13 @@ INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualTabletMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TabletMap,
-        service,
-        EVirtualNodeOptions::RedirectSelf);
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualTabletMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

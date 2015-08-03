@@ -27,6 +27,7 @@
 #include <server/object_server/object_proxy.h>
 
 #include <server/cypress_server/node.h>
+#include <server/cypress_server/node_proxy.h>
 #include <server/cypress_server/virtual.h>
 
 #include <server/hydra/mutation_context.h>
@@ -59,16 +60,10 @@ class TOrchidYPathService
     : public IYPathService
 {
 public:
-    TOrchidYPathService(
-        TBootstrap* bootstrap,
-        TCypressNodeBase* trunkNode,
-        TTransaction* transaction)
-        : Bootstrap(bootstrap)
-        , TrunkNode(trunkNode)
-        , Transaction(transaction)
-    {
-        YCHECK(trunkNode->IsTrunk());
-    }
+    TOrchidYPathService(TBootstrap* bootstrap, INodePtr owningProxy)
+        : Bootstrap_(bootstrap)
+        , OwningNode_(owningProxy)
+    { }
 
     TResolveResult Resolve(const TYPath& path, IServiceContextPtr /*context*/) override
     {
@@ -137,16 +132,15 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
-    TCypressNodeBase* TrunkNode;
-    TTransaction* Transaction;
+    TBootstrap* const Bootstrap_;
+    const INodePtr OwningNode_;
+
 
     TOrchidManifestPtr LoadManifest()
     {
-        auto objectManager = Bootstrap->GetObjectManager();
-        auto proxy = objectManager->GetProxy(TrunkNode, Transaction);
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto manifest = New<TOrchidManifest>();
-        auto manifestNode = ConvertToNode(proxy->Attributes());
+        auto manifestNode = ConvertToNode(OwningNode_->Attributes());
         try {
             manifest->Load(manifestNode);
         } catch (const std::exception& ex) {
@@ -169,7 +163,6 @@ private:
             auto innerResponseMessage = TSharedRefArray(rsp->Attachments());
             context->Reply(innerResponseMessage);
         } else {
-            LOG_DEBUG(rspOrError, "Orchid request failed");
             context->Reply(TError("Error executing Orchid request")
                 << TErrorAttribute("path", path)
                 << TErrorAttribute("method", method)
@@ -190,8 +183,8 @@ INodeTypeHandlerPtr CreateOrchidTypeHandler(TBootstrap* bootstrap)
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::Orchid,
-        BIND([=] (TCypressNodeBase* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
-            return New<TOrchidYPathService>(bootstrap, trunkNode, transaction);
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TOrchidYPathService>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::None);
 }

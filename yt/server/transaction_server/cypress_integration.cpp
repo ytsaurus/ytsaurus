@@ -28,13 +28,15 @@ INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = CreateVirtualObjectMap(
-        bootstrap,
-        bootstrap->GetTransactionManager()->Transactions());
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TransactionMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return CreateVirtualObjectMap(
+                bootstrap,
+                bootstrap->GetTransactionManager()->Transactions(),
+                owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
@@ -44,8 +46,9 @@ class TVirtualTopmostTransactionMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualTopmostTransactionMap(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+    TVirtualTopmostTransactionMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
     { }
 
 private:
@@ -88,11 +91,12 @@ INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualTopmostTransactionMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TopmostTransactionMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualTopmostTransactionMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 

@@ -27,10 +27,12 @@ class TVirtualObjectMap
     : public NYTree::TVirtualMapBase
 {
 public:
-    explicit TVirtualObjectMap(
+    TVirtualObjectMap(
         NCellMaster::TBootstrap* bootstrap,
-        const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* map)
-        : Bootstrap_(bootstrap)
+        const NHydra::TReadOnlyEntityMap<NObjectServer::TObjectId, TValue>* map,
+        NYTree::INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
         , Map_(map)
     { }
 
@@ -61,17 +63,16 @@ protected:
     }
 };
    
-template <
-    class TId,
-    class TValue
->
+template <class TId, class TValue>
 NYTree::IYPathServicePtr CreateVirtualObjectMap(
     NCellMaster::TBootstrap* bootstrap,
-    const NHydra::TReadOnlyEntityMap<TId, TValue>& map)
+    const NHydra::TReadOnlyEntityMap<TId, TValue>& map,
+    NYTree::INodePtr owningNode)
 {
     return New<TVirtualObjectMap<TId, TValue>>(
         bootstrap,
-        &map);
+        &map,
+        owningNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
