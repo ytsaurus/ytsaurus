@@ -209,6 +209,23 @@ add_custom_target( package touch package-stamp
   COMMENT "Packaging YT..."
 )
 
+add_custom_target( python-package
+  COMMAND cp -r ${CMAKE_SOURCE_DIR}/debian/changelog ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/
+  COMMAND cd ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver && dch
+    ${DCH_VENDOR_FLAG} "yandex"
+    --distribution "unstable"
+    --newversion "${YT_VERSION}"
+    --urgency "low"
+    --force-distribution
+    "Package version bump\; no source changes."
+  COMMAND ${CMAKE_SOURCE_DIR}/python/deploy.sh yandex-yt-python-driver
+  COMMAND mv
+    ../yandex-yt*${YT_VERSION}*
+    ${CMAKE_BINARY_DIR}/ARTIFACTS
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/python
+  COMMENT "Packaging YT python driver..."
+)
+
 add_custom_target(
   version
   touch version-stamp
