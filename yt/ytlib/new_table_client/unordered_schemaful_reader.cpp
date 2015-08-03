@@ -10,23 +10,25 @@ namespace NVersionedTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSession
+{
+    ISchemafulReaderPtr Reader;
+    TFutureHolder<void> ReadyEvent;
+    bool Exhausted = false;
+};
+
 class TUnorderedSchemafulReader
     : public ISchemafulReader
 {
 public:
-    TUnorderedSchemafulReader(std::function<ISchemafulReaderPtr()> getNextReader, int concurrency)
+    TUnorderedSchemafulReader(
+        std::function<ISchemafulReaderPtr()> getNextReader,
+        std::vector<TSession> sessions,
+        bool exhausted)
         : GetNextReader_(std::move(getNextReader))
-    {
-        for (int index = 0; index < concurrency; ++index) {
-            auto reader = GetNextReader_();
-            if (!reader) {
-                Exhausted_ = true;
-                break;
-            }
-            Sessions_.emplace_back();
-            Sessions_.back().Reader = std::move(reader);
-        }
-    }
+        , Sessions_(std::move(sessions))
+        , Exhausted_(exhausted)
+    { }
 
     ~TUnorderedSchemafulReader()
     {
@@ -96,16 +98,9 @@ public:
 
 private:
     std::function<ISchemafulReaderPtr()> GetNextReader_;
-    bool Exhausted_ = false;
-
-    struct TSession
-    {
-        ISchemafulReaderPtr Reader;
-        TFutureHolder<void> ReadyEvent;
-        bool Exhausted = false;
-    };
-
     std::vector<TSession> Sessions_;
+    bool Exhausted_;
+
     TPromise<void> ReadyEvent_;
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
@@ -141,7 +136,19 @@ ISchemafulReaderPtr CreateUnorderedSchemafulReader(
     std::function<ISchemafulReaderPtr()> getNextReader,
     int concurrency)
 {
-    return New<TUnorderedSchemafulReader>(std::move(getNextReader), concurrency);
+    std::vector<TSession> sessions;
+    bool exhausted = false;
+    for (int index = 0; index < concurrency; ++index) {
+        auto reader = getNextReader();
+        if (!reader) {
+            exhausted = true;
+            break;
+        }
+        sessions.emplace_back();
+        sessions.back().Reader = std::move(reader);
+    }
+
+    return New<TUnorderedSchemafulReader>(std::move(getNextReader), std::move(sessions), exhausted);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
