@@ -349,7 +349,7 @@ private:
                 UploadTransaction_ = transactionOrError.Value();
             }
 
-            LOG_INFO("Upload transaction created (TransactionId: %v)", UploadTransaction_->GetId());
+            LOG_INFO("Upload transaction started (UploadTransactionId: %v)", UploadTransaction_->GetId());
             
             ListenTransaction(UploadTransaction_);
 
