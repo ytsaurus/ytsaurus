@@ -38,7 +38,6 @@ static const char* UserConfigFileName = ".ytdriver.conf";
 static const char* SystemConfigFileName = "ytdriver.conf";
 static const char* SystemConfigPath = "/etc/";
 static const char* ConfigEnvVar = "YT_CONFIG";
-static const i64 OutputBufferSize = (1 << 16);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,10 +190,7 @@ void TRequestExecutor::DoExecute()
     if (!outputFormatString.empty()) {
         outputFormat = TYsonString(outputFormatString);
     }
-
-    // Set stream buffers.
-    OutputStream_ = std::unique_ptr<TOutputStream>(new TBufferedOutput(&StdOutStream(), OutputBufferSize));
-
+ 
     TDriverRequest request;
     // GetParameters() must be called before GetInputStream()
     request.Parameters = GetParameters();
@@ -213,7 +209,8 @@ void TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing input format") << ex;
     }
 
-    request.OutputStream = CreateAsyncAdapter(OutputStream_.get());
+    // Buffering is done in the upper layers.
+    request.OutputStream = CreateAsyncAdapter(&StdOutStream().get());
     try {
         request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
