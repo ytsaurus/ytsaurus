@@ -40,8 +40,7 @@ bool TNodeBase::DoInvoke(IServiceContextPtr context)
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    auto attributeFilter =
-        request->has_attribute_filter()
+    auto attributeFilter = request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
@@ -234,8 +233,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto attributeFilter =
-        request->has_attribute_filter()
+    auto attributeFilter = request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
