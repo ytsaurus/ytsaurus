@@ -58,7 +58,7 @@ public:
 
     NRpc::IServicePtr GetRpcService();
 
-    NYTree::TYsonProducer GetMonitoringProducer();
+    NYson::TYsonProducer GetMonitoringProducer();
 
     TEpochContextPtr GetEpochContext();
 

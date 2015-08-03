@@ -5,10 +5,8 @@
 #include <core/misc/nullable.h>
 #include <core/misc/property.h>
 
-#include <core/yson/public.h>
-
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,7 +21,7 @@ public:
 
     explicit TYsonString(
         const Stroka& data,
-        NYson::EYsonType type = NYson::EYsonType::Node);
+        EYsonType type = EYsonType::Node);
 
     void Validate() const;
 
@@ -34,21 +32,21 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TYsonString& yson, NYson::IYsonConsumer* consumer);
+void Serialize(const TYsonString& yson, IYsonConsumer* consumer);
 
 bool operator == (const TYsonString& lhs, const TYsonString& rhs);
 bool operator != (const TYsonString& lhs, const TYsonString& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT
 
 //! A hasher for TYsonString
 template <>
-struct hash<NYT::NYTree::TYsonString>
+struct hash<NYT::NYson::TYsonString>
 {
-    size_t operator () (const NYT::NYTree::TYsonString& str) const
+    size_t operator () (const NYT::NYson::TYsonString& str) const
     {
         return THash<Stroka>()(str.Data());
     }

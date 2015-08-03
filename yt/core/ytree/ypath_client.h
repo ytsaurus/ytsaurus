@@ -200,14 +200,14 @@ Stroka SyncYPathGetKey(
     const TYPath& path);
 
 //! Asynchronously executes |Get| verb.
-TFuture<TYsonString> AsyncYPathGet(
+TFuture<NYson::TYsonString> AsyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
     const TAttributeFilter& attributeFilter = TAttributeFilter::None,
     bool ignoreOpaque = false);
 
 //! Synchronously executes |Get| verb. Throws if an error has occurred.
-TYsonString SyncYPathGet(
+NYson::TYsonString SyncYPathGet(
     IYPathServicePtr service,
     const TYPath& path,
     const TAttributeFilter& attributeFilter = TAttributeFilter::None,
@@ -227,7 +227,7 @@ bool SyncYPathExists(
 void SyncYPathSet(
     IYPathServicePtr service,
     const TYPath& path,
-    const TYsonString& value);
+    const NYson::TYsonString& value);
 
 //! Synchronously executes |Remove| verb. Throws if an error has occurred.
 void SyncYPathRemove(

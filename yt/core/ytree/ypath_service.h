@@ -126,7 +126,7 @@ struct IYPathService
      *  Each time a request is issued, producer is called, its output is turned in
      *  an ephemeral tree, and the request is forwarded to that tree.
      */
-    static IYPathServicePtr FromProducer(TYsonProducer producer);
+    static IYPathServicePtr FromProducer(NYson::TYsonProducer producer);
 
     //! Creates a wrapper that handles all requests via the given invoker.
     IYPathServicePtr Via(IInvokerPtr invoker);
@@ -141,7 +141,6 @@ struct IYPathService
         NYson::IYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys);
-
 
 };
 

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
 
 #include <server/transaction_server/public.h>
 
@@ -24,7 +24,7 @@ TCypressNodeBase* FindMapNodeChild(
     NTransactionServer::TTransaction* transaction,
     const Stroka& key);
 
-yhash_map<Stroka, NYTree::TYsonString> GetNodeAttributes(
+yhash_map<Stroka, NYson::TYsonString> GetNodeAttributes(
     NCellMaster::TBootstrap* bootstrap,
     TCypressNodeBase* trunkNode,
     NTransactionServer::TTransaction* transaction);

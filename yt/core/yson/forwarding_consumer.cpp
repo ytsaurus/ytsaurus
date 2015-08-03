@@ -1,12 +1,10 @@
 #include "stdafx.h"
-#include "forwarding_yson_consumer.h"
+#include "forwarding_consumer.h"
 
 #include <core/misc/assert.h>
 
 namespace NYT {
-namespace NYTree {
-
-using namespace NYson;
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,5 +277,5 @@ void TForwardingYsonConsumer::OnMyRaw(const TStringBuf& yson, EYsonType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

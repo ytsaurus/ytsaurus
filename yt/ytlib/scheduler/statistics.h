@@ -2,7 +2,8 @@
 
 #include <ytlib/chunk_client/data_statistics.pb.h>
 
-#include <core/ytree/forwarding_yson_consumer.h>
+#include <core/yson/forwarding_consumer.h>
+
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/convert.h>
 
@@ -66,12 +67,12 @@ void Deserialize(TStatistics& value, NYTree::INodePtr node);
 NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics);
 NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics);
 
-extern const NYTree::TYsonString SerializedEmptyStatistics;
+extern const NYson::TYsonString SerializedEmptyStatistics;
 
 ////////////////////////////////////////////////////////////////////
 
 class TStatisticsConsumer
-    : public NYTree::TForwardingYsonConsumer
+    : public NYson::TForwardingYsonConsumer
 {
 public:
     typedef TCallback<void(const TStatistics&)> TParsedStatisticsConsumer;

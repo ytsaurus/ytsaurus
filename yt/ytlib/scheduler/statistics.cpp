@@ -9,6 +9,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NChunkClient::NProto;
 

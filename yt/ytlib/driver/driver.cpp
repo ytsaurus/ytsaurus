@@ -14,9 +14,10 @@
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
-#include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/null_yson_consumer.h>
+
+#include <core/yson/forwarding_consumer.h>
+#include <core/yson/null_consumer.h>
 
 #include <core/yson/parser.h>
 

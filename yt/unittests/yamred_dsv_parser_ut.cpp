@@ -3,11 +3,13 @@
 
 #include <ytlib/formats/yamred_dsv_parser.h>
 
-#include <core/ytree/yson_consumer-mock.h>
+#include <core/yson/consumer-mock.h>
 
 namespace NYT {
 namespace NFormats {
 namespace {
+
+using namespace NYson;
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
@@ -17,7 +19,7 @@ using ::testing::NiceMock;
 
 TEST(TYamredDsvParserTest, Simple)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -64,7 +66,7 @@ TEST(TYamredDsvParserTest, Simple)
 
 TEST(TYamredDsvParserTest, EmptyField)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -91,7 +93,7 @@ TEST(TYamredDsvParserTest, EmptyField)
 
 TEST(TYamredDsvParserTest, Escaping)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -119,7 +121,7 @@ TEST(TYamredDsvParserTest, Escaping)
 
 TEST(TYamredDsvParserTest, Lenval)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());

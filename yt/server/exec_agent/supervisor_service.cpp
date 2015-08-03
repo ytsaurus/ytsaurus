@@ -84,7 +84,7 @@ DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, OnJobProgress)
     auto job = jobController->GetJobOrThrow(jobId);
 
     job->SetProgress(progress);
-    job->SetStatistics(NYTree::TYsonString(statistics));
+    job->SetStatistics(NYson::TYsonString(statistics));
 }
 
 DEFINE_ONE_WAY_RPC_SERVICE_METHOD(TSupervisorService, UpdateResourceUsage)

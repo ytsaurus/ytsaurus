@@ -14,6 +14,7 @@ namespace NYT {
 namespace NNodeTrackerServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -108,7 +108,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
     {
         auto* account = GetThisTypedImpl();
         auto securityManager = Bootstrap_->GetSecurityManager();

@@ -7,6 +7,11 @@ set( SRCS
   ${BASE}/token.cpp
   ${BASE}/tokenizer.cpp
   ${BASE}/writer.cpp
+  ${BASE}/string.cpp
+  ${BASE}/stream.cpp
+  ${BASE}/producer.cpp
+  ${BASE}/forwarding_consumer.cpp
+  ${BASE}/null_consumer.cpp
 )
 set( HDRS
   ${BASE}/consumer.h
@@ -20,6 +25,11 @@ set( HDRS
   ${BASE}/token.h
   ${BASE}/tokenizer.h
   ${BASE}/writer.h
+  ${BASE}/string.h
+  ${BASE}/stream.h
+  ${BASE}/producer.h
+  ${BASE}/forwarding_consumer.h
+  ${BASE}/null_consumer.h
 )
 
 list(APPEND YT_SOURCE_FILES

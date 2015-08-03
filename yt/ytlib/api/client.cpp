@@ -80,6 +80,7 @@ namespace NApi {
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NCypressClient;

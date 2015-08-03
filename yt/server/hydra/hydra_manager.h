@@ -142,7 +142,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual NYTree::TYsonProducer GetMonitoringProducer() = 0;
+    virtual NYson::TYsonProducer GetMonitoringProducer() = 0;
 
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.

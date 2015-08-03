@@ -17,6 +17,10 @@
 
 #include <core/actions/cancelable_context.h>
 
+#include <core/ytree/ypath_client.h>
+
+#include <core/yson/string.h>
+
 #include <core/logging/log.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -27,9 +31,6 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/public.h>
-
-#include <core/ytree/ypath_client.h>
-#include <core/ytree/yson_string.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_service_proxy.h>
@@ -236,7 +237,7 @@ protected:
 
         std::vector<TEndpoint> Endpoints;
 
-        NYTree::TYsonString EffectiveAcl;
+        NYson::TYsonString EffectiveAcl;
 
         void Persist(TPersistenceContext& context);
     };
@@ -280,7 +281,7 @@ protected:
         : public TUserFileBase
     {
         NChunkClient::NProto::TRspFetch FetchResponse;
-        NYTree::TYsonString Format;
+        NYson::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
 

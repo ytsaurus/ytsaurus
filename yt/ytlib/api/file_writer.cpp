@@ -34,6 +34,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYPath;
+using namespace NYson;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;

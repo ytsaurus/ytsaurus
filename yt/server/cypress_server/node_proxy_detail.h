@@ -73,8 +73,8 @@ protected:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<NYTree::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
     virtual void AfterInvoke(NRpc::IServiceContextPtr context) override;
@@ -435,7 +435,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
     NObjectServer::IObjectProxyPtr FindTargetProxy() const;
     NObjectServer::IObjectProxyPtr GetTargetProxy() const;
@@ -481,7 +481,7 @@ private:
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
 };
 

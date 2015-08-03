@@ -21,6 +21,7 @@ using namespace NScheduler::NProto;
 using namespace NTransactionClient;
 using namespace NVersionedTableClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

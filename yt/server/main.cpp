@@ -217,7 +217,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
 #ifdef _linux_
     if (!toolName.Empty()) {
-        NYTree::TYsonString spec(parser.Spec.getValue());
+        NYson::TYsonString spec(parser.Spec.getValue());
         auto result = ExecuteTool(toolName, spec);
         Cout << result.Data();
         // NB: no shutdown, some initialization may still be in progress.

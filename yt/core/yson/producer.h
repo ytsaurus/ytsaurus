@@ -1,18 +1,18 @@
 #pragma once
 
 #include "public.h"
-#include "yson_string.h"
+#include "string.h"
 
 #include <core/actions/callback.h>
 
 namespace NYT {
-namespace NYTree {
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A callback capable of generating YSON by calling appropriate
 //! methods for its IYsonConsumer argument.
-typedef TCallback<void(NYson::IYsonConsumer*)> TYsonCallback;
+typedef TCallback<void(IYsonConsumer*)> TYsonCallback;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,12 +26,12 @@ public:
     TYsonProducer();
     TYsonProducer(
         TYsonCallback callback,
-        NYson::EYsonType type = NYson::EYsonType::Node);
+        EYsonType type = NYson::EYsonType::Node);
 
-    void Run(NYson::IYsonConsumer* consumer) const;
+    void Run(IYsonConsumer* consumer) const;
 
 private:
-    TYsonCallback Callback_;
+    const TYsonCallback Callback_;
 
 };
 
@@ -42,5 +42,5 @@ void Serialize(const TYsonCallback& value, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

@@ -36,6 +36,7 @@ namespace NJobProxy {
 
 using namespace NRpc;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -76,7 +77,7 @@ public:
         }
 
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
-                TYsonString(SchedulerJobSpecExt_.output_specs(0).table_writer_options()));
+            TYsonString(SchedulerJobSpecExt_.output_specs(0).table_writer_options()));
         OutputChunkListId_ = FromProto<TChunkListId>(
                 SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
 

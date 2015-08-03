@@ -1,17 +1,14 @@
 #include "stdafx.h"
-#include "yson_string.h"
-#include "yson_stream.h"
-#include "null_yson_consumer.h"
+#include "string.h"
+#include "stream.h"
+#include "null_consumer.h"
+#include "parser.h"
+#include "consumer.h"
 
 #include <core/misc/serialize.h>
 
-#include <core/yson/parser.h>
-#include <core/yson/consumer.h>
-
 namespace NYT {
-namespace NYTree {
-
-using namespace NYson;
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,5 +57,5 @@ bool operator != (const TYsonString& lhs, const TYsonString& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

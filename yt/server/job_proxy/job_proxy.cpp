@@ -86,7 +86,7 @@ std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext(const TJobId& jo
     return Job_->DumpInputContext();
 }
 
-NYTree::TYsonString TJobProxy::Strace(const TJobId& jobId)
+NYson::TYsonString TJobProxy::Strace(const TJobId& jobId)
 {
     ValidateJobId(jobId);
     return Job_->Strace();

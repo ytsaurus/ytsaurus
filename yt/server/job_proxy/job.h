@@ -41,7 +41,7 @@ struct IJobHost
     virtual NLogging::TLogger GetLogger() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
-    virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) = 0;
+    virtual NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) = 0;
 
 };
 
@@ -65,7 +65,7 @@ struct IJob
     virtual NScheduler::TStatistics GetStatistics() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
-    virtual NYTree::TYsonString Strace() = 0;
+    virtual NYson::TYsonString Strace() = 0;
 
 };
 

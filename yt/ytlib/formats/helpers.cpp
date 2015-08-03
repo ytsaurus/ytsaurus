@@ -3,7 +3,7 @@
 #include <core/misc/error.h>
 
 #include <core/yson/format.h>
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
 #include <core/yson/token.h>
 
 namespace NYT {

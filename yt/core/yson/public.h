@@ -33,6 +33,13 @@ DEFINE_ENUM(EYsonType,
 
 enum class ETokenType;
 
+class TYsonString;
+
+class TYsonProducer;
+
+class TYsonInput;
+class TYsonOutput;
+
 class TTokenizer;
 
 struct IYsonConsumer;

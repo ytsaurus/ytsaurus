@@ -1,8 +1,7 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <core/ytree/yson_consumer-mock.h>
-
+#include <core/yson/consumer-mock.h>
 #include <core/yson/parser.h>
 
 #include <util/stream/mem.h>
@@ -15,7 +14,7 @@ using ::testing::InSequence;
 using ::testing::StrictMock;
 using ::testing::HasSubstr;
 
-using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

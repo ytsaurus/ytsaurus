@@ -1,10 +1,8 @@
 #include "stdafx.h"
-#include "yson_producer.h"
+#include "producer.h"
 
 namespace NYT {
-namespace NYTree {
-
-using namespace NYson;
+namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,5 +35,5 @@ void Serialize(const TYsonCallback& value, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

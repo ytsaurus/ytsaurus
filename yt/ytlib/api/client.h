@@ -8,7 +8,8 @@
 
 #include <core/actions/future.h>
 
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
+
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/permission.h>
 
@@ -404,20 +405,20 @@ struct IClientBase
     // TODO(babenko): batch read and batch write
 
     // Cypress
-    virtual TFuture<NYTree::TYsonString> GetNode(
+    virtual TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options = TGetNodeOptions()) = 0;
 
     virtual TFuture<void> SetNode(
         const NYPath::TYPath& path,
-        const NYTree::TYsonString& value,
+        const NYson::TYsonString& value,
         const TSetNodeOptions& options = TSetNodeOptions()) = 0;
 
     virtual TFuture<void> RemoveNode(
         const NYPath::TYPath& path,
         const TRemoveNodeOptions& options = TRemoveNodeOptions()) = 0;
 
-    virtual TFuture<NYTree::TYsonString> ListNode(
+    virtual TFuture<NYson::TYsonString> ListNode(
         const NYPath::TYPath& path,
         const TListNodeOptions& options = TListNodeOptions()) = 0;
 
@@ -551,7 +552,7 @@ struct IClient
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(
         NScheduler::EOperationType type,
-        const NYTree::TYsonString& spec,
+        const NYson::TYsonString& spec,
         const TStartOperationOptions& options = TStartOperationOptions()) = 0;
 
     virtual TFuture<void> AbortOperation(
@@ -571,7 +572,7 @@ struct IClient
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options = TDumpJobContextOptions()) = 0;
 
-    virtual TFuture<NYTree::TYsonString> StraceJob(
+    virtual TFuture<NYson::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,
         const TStraceJobOptions& options = TStraceJobOptions()) = 0;
 };

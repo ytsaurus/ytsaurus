@@ -21,6 +21,7 @@ using namespace NRpc;
 using namespace NCellScheduler;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NYson;
 using namespace NSecurityClient;
 using namespace NCypressClient;
 using namespace NConcurrency;

@@ -380,7 +380,7 @@ DEFINE_REFCOUNTED_TYPE(INodeFactory)
 void Serialize(INode& value, NYson::IYsonConsumer* consumer);
 void Deserialize(INodePtr& value, INodePtr node);
 
-TYsonString ConvertToYsonStringStable(INodePtr node);
+NYson::TYsonString ConvertToYsonStringStable(INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
