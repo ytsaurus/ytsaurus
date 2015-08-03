@@ -10,6 +10,7 @@ import uuid
 
 from time import sleep
 from functools import wraps
+import pytest
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
@@ -27,6 +28,11 @@ def _wait(predicate):
     while not predicate():
         sleep(1)
 
+def _pytest_finalize_func(environment, process_call_args):
+    pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
+                .format(" ".join(process_call_args)))
+    environment.clear_environment(safe=False)
+
 class YTEnvSetup(YTEnv):
     @classmethod
     def setup_class(cls, test_name=None):
@@ -42,7 +48,7 @@ class YTEnvSetup(YTEnv):
 
         cls.path_to_test = path_to_test
         cls.Env = cls()
-        cls.Env.set_environment(path_to_run, pids_filename)
+        cls.Env.start(path_to_run, pids_filename)
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
@@ -59,7 +65,7 @@ class YTEnvSetup(YTEnv):
             self.transactions_at_start = set(yt_commands.get_transactions())
 
     def teardown_method(self, method):
-        self.Env.check_liveness()
+        self.Env.check_liveness(callback_func=_pytest_finalize_func)
         if self.Env.NUM_MASTERS > 0:
             current_txs = set(yt_commands.get_transactions())
             txs_to_abort = current_txs.difference(self.transactions_at_start)
