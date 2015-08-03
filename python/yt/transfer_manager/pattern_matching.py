@@ -75,6 +75,8 @@ def match_copy_pattern(client, source_pattern, destination_pattern):
     prefix = _get_prefix(source_tokens, client._type)
     result = []
     if client._type == "yt":
+        if not client.exists(prefix):
+            raise yt.YtError("Prefix of source pattern does not exist")
         for table in client.search(prefix, node_type="table"):
             _match(table, source_tokens, destination_tokens, result)
     elif client._type == "yamr":
