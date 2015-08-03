@@ -893,7 +893,7 @@ void TSchemalessTableWriter::DoOpen()
         UploadTransaction_ = transactionOrError.Value();
         ListenTransaction(UploadTransaction_);
 
-        LOG_INFO("Upload transaction created (TransactionId: %v)",
+        LOG_INFO("Upload transaction started (UploadTransactionId: %v)",
             UploadTransaction_->GetId());
     }
 
