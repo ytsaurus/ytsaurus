@@ -8,6 +8,8 @@
 
 #include <core/yson/public.h>
 
+#include <core/concurrency/public.h>
+
 #include <core/misc/blob_output.h>
 
 #include <memory>
@@ -24,7 +26,7 @@ public:
     TSchemalessWriterAdapter(
         const TFormat& format,
         NVersionedTableClient::TNameTablePtr nameTable,
-        std::unique_ptr<TOutputStream> outputStream,
+        NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         bool enableKeySwitch,
         int keyColumnCount);
@@ -53,7 +55,7 @@ private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
     NVersionedTableClient::TNameTablePtr NameTable_;
 
-    std::unique_ptr<TOutputStream> OutputStream_;
+    std::unique_ptr<TOutputStream> Output_;
 
     bool EnableContextSaving_;
     TBlobOutput CurrentBuffer_;

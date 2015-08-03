@@ -120,8 +120,12 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
     try {
          value = FromString<i64>(tableIndex);
     } catch (const std::exception& ex) {
+        Stroka tableIndexString(tableIndex);
+        if (tableIndex.Size() > ContextBufferSize) {
+            tableIndexString = Stroka(tableIndex.SubStr(0, ContextBufferSize)) + "...truncated...";
+        }
         THROW_ERROR_EXCEPTION("YAMR line %Qv cannot be parsed as a table switch; did you forget a record separator?",
-            tableIndex)
+            tableIndexString)
             << GetDebugInfo();
     }
     Consumer->SwitchTable(value);

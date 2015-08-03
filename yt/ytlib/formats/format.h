@@ -92,7 +92,7 @@ NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NVersionedTableClient::TNameTablePtr nameTable,
-    std::unique_ptr<TOutputStream> outputStream,
+    NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount);

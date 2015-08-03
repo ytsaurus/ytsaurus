@@ -11,6 +11,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/async_stream.h>
 
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
@@ -554,12 +555,11 @@ private:
                 .ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
                 auto controlAttributesConfig = New<TControlAttributesConfig>();
                 auto writer = CreateSchemalessWriterForFormat(
                     format,
                     nameTable,
-                    std::move(bufferedOutput),
+                    CreateAsyncAdapter(output),
                     false,
                     false,
                     0);

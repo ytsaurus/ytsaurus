@@ -151,12 +151,8 @@ public:
             FinalizeJobIO();
         }
 
-        {
-            // One do not need to get a lock here
-            TGuard<TSpinLock> guard(StatisticsLock_);
-            FillCurrentDataStatistics(Statistics_);
-        }
-
+        FillCurrentDataStatistics(Statistics_);
+        AddStatistic("/user_job/woodpecker", IsWoodpecker_ ? 1 : 0);
         CleanupCGroups();
 
         JobErrorPromise_.TrySet(TError());
@@ -217,6 +213,7 @@ private:
     TPromise<void> JobErrorPromise_;
 
     std::atomic<bool> Prepared_ = { false };
+    std::atomic<bool> IsWoodpecker_ = { false };
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
@@ -565,7 +562,7 @@ private:
         auto writer = CreateSchemalessWriterForFormat(
             format,
             reader->GetNameTable(),
-            CreateSyncAdapter(asyncOutput),
+            asyncOutput,
             true,
             Config_->JobIO->ControlAttributes->EnableKeySwitch,
             reader->GetKeyColumns().size());
@@ -606,7 +603,7 @@ private:
             auto writer = CreateSchemalessWriterForFormat(
                 format,
                 nameTable,
-                CreateSyncAdapter(asyncOutput),
+                asyncOutput,
                 true,
                 false,
                 0);
@@ -750,16 +747,19 @@ private:
             if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CpuAccounting_.Create();
                 Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+                Process_.AddEnvVar(Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()));
             }
 
             if (Config_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
                 Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+                Process_.AddEnvVar(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
             }
 
             if (Config_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
                 Process_.AddArguments({ "--cgroup", Memory_.GetFullPath() });
+                Process_.AddEnvVar(Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()));
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Unable to create required cgroups");
@@ -1014,13 +1014,11 @@ private:
 
     void CheckBlockIOUsage()
     {
-        if (!BlockIO_.IsCreated() || !Config_->IopsThreshold) {
+        if (!BlockIO_.IsCreated()) {
             return;
         }
 
         auto period = Config_->BlockIOWatchdogPeriod;
-        auto iopsThreshold = *Config_->IopsThreshold;
-
         auto servicedIOs = BlockIO_.GetIOServiced();
 
         for (const auto& item : servicedIOs) {
@@ -1044,12 +1042,12 @@ private:
                     item.DeviceId);
             }
 
-            if (deltaOperations > iopsThreshold * period.Seconds()) {
-                LOG_INFO(
-                    "Woodpecker detected for device %v; limiting it to %v IOPS", 
-                    item.DeviceId, 
-                    iopsThreshold);
-                BlockIO_.ThrottleOperations(item.DeviceId, iopsThreshold);
+            if (deltaOperations > UserJobSpec_.iops_threshold() * period.Seconds()) {
+                LOG_DEBUG("Woodpecker detected (DeviceId: %v)", item.DeviceId);
+                IsWoodpecker_ = true;
+                if (Config_->EnableIopsThrottling) {
+                    BlockIO_.ThrottleOperations(item.DeviceId, UserJobSpec_.iops_threshold());
+                } 
             }
         }
 
