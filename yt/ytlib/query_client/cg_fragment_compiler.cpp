@@ -1418,9 +1418,8 @@ TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
-    int keySize,
-    int groupRowSize,
-    TTableSchema groupedSchema)
+    std::vector<EValueType> keyTypes,
+    int groupRowSize)
 {
     // codegenInitialize calls the aggregates' initialisation functions
     // codegenEvaluateGroups evaluates the group expressions
@@ -1428,15 +1427,14 @@ TCodegenSource MakeCodegenGroupOp(
     // codegenUpdate calls the aggregates' update or merge functions
     // codegenFinalize calls the aggregates' finalize functions if needed
     return [
-        codegenInitialize = std::move(codegenInitialize),
-        codegenEvaluateGroups = std::move(codegenEvaluateGroups),
-        codegenEvaluateAggregateArgs = std::move(codegenEvaluateAggregateArgs),
-        codegenUpdate = std::move(codegenUpdate),
-        codegenFinalize = std::move(codegenFinalize),
-        codegenSource = std::move(codegenSource),
-        keySize,
-        groupRowSize,
-        groupedSchema
+        MOVE(codegenInitialize),
+        MOVE(codegenEvaluateGroups),
+        MOVE(codegenEvaluateAggregateArgs),
+        MOVE(codegenUpdate),
+        MOVE(codegenFinalize),
+        MOVE(codegenSource),
+        MOVE(keyTypes),
+        groupRowSize
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
         auto collect = MakeClosure<void(void*, void*)>(builder, "CollectGroups", [&] (
             TCGContext& builder,
@@ -1468,7 +1466,7 @@ TCodegenSource MakeCodegenGroupOp(
                         lookupRef,
                         groupedRowsRef,
                         newRowRef,
-                        builder.getInt32(keySize));
+                        builder.getInt32(keyTypes.size()));
 
                     CodegenIf<TCGContext>(
                         builder,
@@ -1530,11 +1528,6 @@ TCodegenSource MakeCodegenGroupOp(
 
             builder.CreateRetVoid();
         });
-
-        auto keyTypes = std::vector<EValueType>();
-        for (int id = 0; id < keySize; id++) {
-            keyTypes.push_back(groupedSchema.Columns()[id].Type);
-        }
 
         builder.CreateCallWithArgs(
             builder.Module->GetRoutine("GroupOpHelper"),

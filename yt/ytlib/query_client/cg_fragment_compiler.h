@@ -475,9 +475,8 @@ TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
-    int keySize,
-    int groupRowSize,
-    TTableSchema inputSchema);
+    std::vector<EValueType> keyTypes,
+    int groupRowSize);
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
