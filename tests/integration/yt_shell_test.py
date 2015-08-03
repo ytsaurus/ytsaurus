@@ -53,7 +53,7 @@ class ExecutableItem(pytest.Item):
 
         env = CurrentYTEnvironment()
         try:
-            env.set_environment(self.environment_path, self.pids_file)
+            env.start(self.environment_path, self.pids_file)
             self.on_runtest(env)
         finally:
             env.clear_environment()
