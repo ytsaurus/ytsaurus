@@ -19,7 +19,13 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TVirtualMapBase::TVirtualMapBase(INodePtr owningNode)
+    : OwningNode_(owningNode)
+{ }
 
 bool TVirtualMapBase::DoInvoke(IServiceContextPtr context)
 {
@@ -55,7 +61,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     YASSERT(!NYson::TTokenizer(GetRequestYPath(context)).ParseNext());
 
     auto attributeFilter = request->has_attribute_filter()
-        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
+        ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
     i64 limit = request->limit();
@@ -66,12 +72,15 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
 
+    writer.OnBeginAttributes();
     if (keys.size() != size) {
-        writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
-        writer.OnStringScalar("true");
-        writer.OnEndAttributes();
+        writer.OnBooleanScalar(true);
     }
+    if (OwningNode_) {
+        OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
+    }
+    writer.OnEndAttributes();
 
     writer.OnBeginMap();
     for (const auto& key : keys) {
@@ -90,9 +99,8 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    auto attributeFilter =
-        request->has_attribute_filter()
-        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
+    auto attributeFilter = request->has_attribute_filter()
+        ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
     i64 limit = request->limit();
@@ -102,7 +110,6 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
 
     TStringStream stream;
     TYsonWriter writer(&stream, EYsonFormat::Binary);
-    BuildYsonFluently(&writer);
 
     if (keys.size() != size) {
         writer.OnBeginAttributes();
@@ -170,54 +177,54 @@ class TVirtualEntityNode
     , public IEntityNode
     , public TEphemeralAttributeOwner
 {
+public:
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
     explicit TVirtualEntityNode(IYPathServicePtr underlyingService)
-        : UnderlyingService(underlyingService)
+        : UnderlyingService_(underlyingService)
     { }
 
     virtual INodeFactoryPtr CreateFactory() const override
     {
-        YASSERT(Parent);
-        return Parent->CreateFactory();
+        YASSERT(Parent_);
+        return Parent_->CreateFactory();
     }
 
     virtual INodeResolverPtr GetResolver() const override
     {
-        YASSERT(Parent);
-        return Parent->GetResolver();
+        YASSERT(Parent_);
+        return Parent_->GetResolver();
     }
 
     virtual ICompositeNodePtr GetParent() const override
     {
-        return Parent;
+        return Parent_;
     }
 
     virtual void SetParent(ICompositeNodePtr parent) override
     {
-        Parent = parent.Get();
+        Parent_ = parent.Get();
     }
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        IServiceContextPtr context) override
+        IServiceContextPtr /*context*/) override
     {
-        UNUSED(context);
-
         // TODO(babenko): handle ugly face
-        return TResolveResult::There(UnderlyingService, path);
+        return TResolveResult::There(UnderlyingService_, path);
     }
 
     virtual void WriteAttributesFragment(
         IYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
-        bool /*sortKeys*/)
+        bool /*sortKeys*/) override
     { }
 
 private:
-    IYPathServicePtr UnderlyingService;
-    ICompositeNode* Parent;
+    const IYPathServicePtr UnderlyingService_;
+
+    ICompositeNode* Parent_ = nullptr;
 
     // TSupportsAttributes members
 

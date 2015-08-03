@@ -13,6 +13,8 @@ class TVirtualMapBase
     , public ISystemAttributeProvider
 {
 protected:
+    explicit TVirtualMapBase(INodePtr owningNode = nullptr);
+
     virtual std::vector<Stroka> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const = 0;
     virtual i64 GetSize() const = 0;
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const = 0;
@@ -32,6 +34,9 @@ protected:
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+
+private:
+    const INodePtr OwningNode_;
 
 };
 

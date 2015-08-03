@@ -29,8 +29,12 @@ class TVirtualMulticellMapBase
 {
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
+    const NYTree::INodePtr OwningNode_;
 
-    explicit TVirtualMulticellMapBase(NCellMaster::TBootstrap* bootstrap);
+
+    TVirtualMulticellMapBase(
+        NCellMaster::TBootstrap* bootstrap,
+        NYTree::INodePtr owningNode);
 
     virtual std::vector<NObjectClient::TObjectId> GetKeys(i64 sizeLimit = std::numeric_limits<i64>::max()) const = 0;
     virtual i64 GetSize() const = 0;
@@ -87,6 +91,8 @@ private:
         TFetchItemsSessionPtr session,
         TPromise<TFetchItemsSessionPtr> promise);
 
+    NYTree::TYsonString GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
+
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
 
 };
@@ -99,9 +105,7 @@ DEFINE_BIT_ENUM(EVirtualNodeOptions,
     ((RedirectSelf)    (0x0002))
 );
 
-typedef
-    TCallback< NYTree::IYPathServicePtr(TCypressNodeBase*, NTransactionServer::TTransaction*) >
-    TYPathServiceProducer;
+using TYPathServiceProducer = TCallback<NYTree::IYPathServicePtr(NYTree::INodePtr owningNode)>;
 
 INodeTypeHandlerPtr CreateVirtualTypeHandler(
     NCellMaster::TBootstrap* bootstrap,
@@ -109,19 +113,11 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
     TYPathServiceProducer producer,
     EVirtualNodeOptions options);
 
-INodeTypeHandlerPtr CreateVirtualTypeHandler(
-    NCellMaster::TBootstrap* bootstrap,
-    NObjectClient::EObjectType objectType,
-    NYTree::IYPathServicePtr service,
-    EVirtualNodeOptions options);
-
-template <
-    class TId,
-    class TValue
->
+template <class TId, class TValue>
 NYTree::IYPathServicePtr CreateVirtualObjectMap(
     NCellMaster::TBootstrap* bootstrap,
-    const NHydra::TReadOnlyEntityMap<TId, TValue>& map);
+    const NHydra::TReadOnlyEntityMap<TId, TValue>& map,
+    NYTree::INodePtr owningNode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

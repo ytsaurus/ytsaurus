@@ -266,8 +266,9 @@ class TVirtualRackMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualRackMap(TBootstrap* bootstrap)
-        : Bootstrap_(bootstrap)
+    TVirtualRackMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
     { }
 
 private:
@@ -307,11 +308,12 @@ INodeTypeHandlerPtr CreateRackMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualRackMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::RackMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualRackMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 

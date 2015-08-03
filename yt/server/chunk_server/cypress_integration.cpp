@@ -28,10 +28,8 @@ class TVirtualChunkMap
     : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualChunkMap(
-        TBootstrap* bootstrap,
-        EObjectType type)
-        : TVirtualMulticellMapBase(bootstrap)
+    TVirtualChunkMap(TBootstrap* bootstrap, INodePtr owningNode, EObjectType type)
+        : TVirtualMulticellMapBase(bootstrap, owningNode)
         , Type_(type)
     { }
 
@@ -135,11 +133,12 @@ INodeTypeHandlerPtr CreateChunkMapTypeHandler(
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualChunkMap>(bootstrap, type);
     return CreateVirtualTypeHandler(
         bootstrap,
         type,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualChunkMap>(bootstrap, owningNode, type);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
@@ -149,8 +148,8 @@ class TVirtualChunkListMap
     : public TVirtualMulticellMapBase
 {
 public:
-    explicit TVirtualChunkListMap(TBootstrap* bootstrap)
-        : TVirtualMulticellMapBase(bootstrap)
+    TVirtualChunkListMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMulticellMapBase(bootstrap, owningNode)
     { }
 
 private:
@@ -182,11 +181,12 @@ INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualChunkListMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkListMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualChunkListMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 

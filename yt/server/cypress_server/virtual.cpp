@@ -46,8 +46,11 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVirtualMulticellMapBase::TVirtualMulticellMapBase(NCellMaster::TBootstrap* bootstrap)
+TVirtualMulticellMapBase::TVirtualMulticellMapBase(
+    NCellMaster::TBootstrap* bootstrap,
+    INodePtr owningNode)
     : Bootstrap_(bootstrap)
+    , OwningNode_(owningNode)
 { }
 
 bool TVirtualMulticellMapBase::DoInvoke(IServiceContextPtr context)
@@ -108,45 +111,50 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
 
     i64 limit = request->limit();
 
-    FetchItems(limit, attributeFilter).Subscribe(BIND([=] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
-        if (!sessionOrError.IsOK()) {
-            context->Reply(TError(sessionOrError));
-            return;
-        }
+    // NB: Must deal with owning node's attributes here due to thread affinity issues.
+    auto owningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
 
-        const auto& session = sessionOrError.Value();
-
-        TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
-
-        if (session->Incomplete) {
-            writer.OnBeginAttributes();
-            writer.OnKeyedItem("incomplete");
-            writer.OnBooleanScalar(true);
-            writer.OnEndAttributes();
-        }
-
-        writer.OnBeginMap();
-        for (const auto& item : session->Items) {
-            writer.OnKeyedItem(item.Key);
-            if (item.Attributes) {
-                writer.OnBeginAttributes();
-                writer.OnRaw(item.Attributes->Data(), item.Attributes->GetType());
-                writer.OnEndAttributes();
+    FetchItems(limit, attributeFilter)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
+            if (!sessionOrError.IsOK()) {
+                context->Reply(TError(sessionOrError));
+                return;
             }
-            writer.OnEntity();
-        }
-        writer.OnEndMap();
 
-        const auto& str = stream.Str();
-        response->set_value(str);
+            const auto& session = sessionOrError.Value();
 
-        context->SetRequestInfo("Count: %v, Limit: %v, ByteSize: %v",
-            session->Items.size(),
-            limit,
-            str.length());
-        context->Reply();
-    }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
+            TStringStream stream;
+            TYsonWriter writer(&stream, EYsonFormat::Binary);
+
+            writer.OnBeginAttributes();
+            writer.OnRaw(owningNodeAttributes.Data(), owningNodeAttributes.GetType());
+            if (session->Incomplete) {
+                writer.OnKeyedItem("incomplete");
+                writer.OnBooleanScalar(true);
+            }
+            writer.OnEndAttributes();
+
+            writer.OnBeginMap();
+            for (const auto& item : session->Items) {
+                writer.OnKeyedItem(item.Key);
+                if (item.Attributes) {
+                    writer.OnBeginAttributes();
+                    writer.OnRaw(item.Attributes->Data(), item.Attributes->GetType());
+                    writer.OnEndAttributes();
+                }
+                writer.OnEntity();
+            }
+            writer.OnEndMap();
+
+            const auto& str = stream.Str();
+            response->set_value(str);
+
+            context->SetRequestInfo("Count: %v, Limit: %v, ByteSize: %v",
+                session->Items.size(),
+                limit,
+                str.length());
+            context->Reply();
+        }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
 }
 
 void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
@@ -157,45 +165,46 @@ void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, T
 
     i64 limit = request->limit();
 
-    FetchItems(limit, attributeFilter).Subscribe(BIND([=] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
-        if (!sessionOrError.IsOK()) {
-            context->Reply(TError(sessionOrError));
-            return;
-        }
-
-        const auto& session = sessionOrError.Value();
-
-        TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary);
-
-        if (session->Incomplete) {
-            writer.OnBeginAttributes();
-            writer.OnKeyedItem("incomplete");
-            writer.OnBooleanScalar(true);
-            writer.OnEndAttributes();
-        }
-
-        writer.OnBeginList();
-        for (const auto& item : session->Items) {
-            writer.OnListItem();
-            if (item.Attributes) {
-                writer.OnBeginAttributes();
-                writer.OnRaw(item.Attributes->Data(), item.Attributes->GetType());
-                writer.OnEndAttributes();
+    FetchItems(limit, attributeFilter)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
+            if (!sessionOrError.IsOK()) {
+                context->Reply(TError(sessionOrError));
+                return;
             }
-            writer.OnStringScalar(item.Key);
-        }
-        writer.OnEndList();
 
-        const auto& str = stream.Str();
-        response->set_value(str);
+            const auto& session = sessionOrError.Value();
 
-        context->SetRequestInfo("Count: %v, Limit: %v, ByteSize: %v",
-            session->Items.size(),
-            limit,
-            str.length());
-        context->Reply();
-    }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
+            TStringStream stream;
+            TYsonWriter writer(&stream, EYsonFormat::Binary);
+
+            writer.OnBeginAttributes();
+            if (session->Incomplete) {
+                writer.OnKeyedItem("incomplete");
+                writer.OnBooleanScalar(true);
+            }
+            writer.OnEndAttributes();
+
+            writer.OnBeginList();
+            for (const auto& item : session->Items) {
+                writer.OnListItem();
+                if (item.Attributes) {
+                    writer.OnBeginAttributes();
+                    writer.OnRaw(item.Attributes->Data(), item.Attributes->GetType());
+                    writer.OnEndAttributes();
+                }
+                writer.OnStringScalar(item.Key);
+            }
+            writer.OnEndList();
+
+            const auto& str = stream.Str();
+            response->set_value(str);
+
+            context->SetRequestInfo("Count: %v, Limit: %v, ByteSize: %v",
+                session->Items.size(),
+                limit,
+                str.length());
+            context->Reply();
+        }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
 }
 
 void TVirtualMulticellMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
@@ -398,6 +407,16 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
     }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
 }
 
+TYsonString TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAttributeFilter & attributeFilter)
+{
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    if (OwningNode_) {
+        OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
+    }
+    return TYsonString(stream.Str(), NYson::EYsonType::MapFragment);
+}
+
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
     i64 limit = request->limit();
@@ -459,31 +478,32 @@ public:
         TBootstrap* bootstrap,
         TTransaction* transaction,
         TVirtualNode* trunkNode,
-        IYPathServicePtr service,
-        EVirtualNodeOptions options)
+        EVirtualNodeOptions options,
+        TYPathServiceProducer producer)
         : TBase(
             typeHandler,
             bootstrap,
             transaction,
             trunkNode)
-        , Service_(service)
         , Options_(options)
+        , Producer_(producer)
     { }
 
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TVirtualNode> TBase;
 
-    const IYPathServicePtr Service_;
     const EVirtualNodeOptions Options_;
+    const TYPathServiceProducer Producer_;
 
 
     virtual TResolveResult ResolveSelf(const TYPath& path, IServiceContextPtr context) override
     {
+        auto service = GetService();
         const auto& method = context->GetMethod();
         if ((Options_ & EVirtualNodeOptions::RedirectSelf) != EVirtualNodeOptions::None &&
             method != "Remove")
         {
-            return TResolveResult::There(Service_, path);
+            return TResolveResult::There(service, path);
         } else {
             return TBase::ResolveSelf(path, context);
         }
@@ -491,20 +511,22 @@ private:
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, IServiceContextPtr context) override
     {
+        auto service = GetService();
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::EndOfStream:
             case NYPath::ETokenType::Slash:
-                return TResolveResult::There(Service_, path);
+                return TResolveResult::There(service, path);
             default:
-                return TResolveResult::There(Service_, "/" + path);
+                return TResolveResult::There(service, "/" + path);
         }
     }
 
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        auto* provider = GetTargetBuiltinAttributeProvider();
+        auto service = GetService();
+        auto* provider = GetTargetBuiltinAttributeProvider(service);
         if (provider) {
             provider->ListSystemAttributes(descriptors);
         }
@@ -514,7 +536,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        auto* provider = GetTargetBuiltinAttributeProvider();
+        auto service = GetService();
+        auto* provider = GetTargetBuiltinAttributeProvider(service);
         if (provider && provider->GetBuiltinAttribute(key, consumer)) {
             return true;
         }
@@ -524,7 +547,8 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
-        auto* provider = GetTargetBuiltinAttributeProvider();
+        auto service = GetService();
+        auto* provider = GetTargetBuiltinAttributeProvider(service);
         if (provider) {
             auto result = provider->GetBuiltinAttributeAsync(key);
             if (result) {
@@ -537,7 +561,8 @@ private:
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        auto* provider = GetTargetBuiltinAttributeProvider();
+        auto service = GetService();
+        auto* provider = GetTargetBuiltinAttributeProvider(service);
         if (provider && provider->SetBuiltinAttribute(key, value)) {
             return true;
         }
@@ -550,9 +575,15 @@ private:
         return Any(Options_ & EVirtualNodeOptions::RequireLeader);
     }
 
-    ISystemAttributeProvider* GetTargetBuiltinAttributeProvider()
+
+    static ISystemAttributeProvider* GetTargetBuiltinAttributeProvider(IYPathServicePtr service)
     {
-        return dynamic_cast<ISystemAttributeProvider*>(Service_.Get());
+        return dynamic_cast<ISystemAttributeProvider*>(service.Get());
+    }
+
+    IYPathServicePtr GetService()
+    {
+        return Producer_.Run(this);
     }
 
 };
@@ -594,14 +625,13 @@ private:
         TVirtualNode* trunkNode,
         TTransaction* transaction) override
     {
-        auto service = Producer_.Run(trunkNode, transaction);
         return New<TVirtualNodeProxy>(
             this,
             Bootstrap_,
             transaction,
             trunkNode,
-            service,
-            Options_);
+            Options_,
+            Producer_);
     }
 
 };
@@ -616,23 +646,6 @@ INodeTypeHandlerPtr CreateVirtualTypeHandler(
         bootstrap,
         producer,
         objectType,
-        options);
-}
-
-INodeTypeHandlerPtr CreateVirtualTypeHandler(
-    TBootstrap* bootstrap,
-    EObjectType objectType,
-    IYPathServicePtr service,
-    EVirtualNodeOptions options)
-{
-    return CreateVirtualTypeHandler(
-        bootstrap,
-        objectType,
-        BIND([=] (TCypressNodeBase* trunkNode, TTransaction* transaction) -> IYPathServicePtr {
-            UNUSED(trunkNode);
-            UNUSED(transaction);
-            return service;
-        }),
         options);
 }
 
