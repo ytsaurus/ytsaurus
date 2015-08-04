@@ -9,9 +9,9 @@
 
 #include <core/actions/cancelable_context.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/versioned_chunk_reader.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/versioned_chunk_reader.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -36,8 +36,8 @@ struct TTabletSnapshot
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
-    NVersionedTableClient::TTableSchema Schema;
-    NVersionedTableClient::TKeyColumns KeyColumns;
+    NTableClient::TTableSchema Schema;
+    NTableClient::TKeyColumns KeyColumns;
 
     TPartitionSnapshotPtr Eden;
 
@@ -91,8 +91,8 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TTabletSnapshotPtr, Snapshot);
 
-    DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TTableSchema, Schema);
-    DEFINE_BYREF_RO_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, Schema);
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TKeyColumns, KeyColumns);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<Stroka>, LockIndexToName);
@@ -119,8 +119,8 @@ public:
         const TTabletId& tabletId,
         const NObjectClient::TObjectId& tableId,
         TTabletSlotPtr slot,
-        const NVersionedTableClient::TTableSchema& schema,
-        const NVersionedTableClient::TKeyColumns& keyColumns,
+        const NTableClient::TTableSchema& schema,
+        const NTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,
         TOwningKey nextPivotKey);
 

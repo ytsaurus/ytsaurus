@@ -7,7 +7,7 @@
 #include <core/misc/ref_tracked.h>
 #include <core/misc/nullable.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/node_tracker_client/node_tracker_service.pb.h>
 
@@ -87,7 +87,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
     DEFINE_BYVAL_RW_PROPERTY(NTableServer::TTableNode*, Table);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
-    DEFINE_BYVAL_RW_PROPERTY(NVersionedTableClient::TOwningKey, PivotKey);
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TTabletStatistics, NodeStatistics);
     DEFINE_BYREF_RW_PROPERTY(TTabletPerformanceCounters, PerformanceCounters);
     // Only makes sense for mounted tablets.

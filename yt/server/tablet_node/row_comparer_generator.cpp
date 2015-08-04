@@ -3,8 +3,8 @@
 #include "dynamic_memory_store_bits.h"
 #include "llvm_types.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/llvm_types.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/llvm_types.h>
 
 #include <core/codegen/routine_registry.h>
 #include <core/codegen/module.h>
@@ -24,7 +24,7 @@
 namespace NYT {
 namespace NTabletNode {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NCodegen;
 using namespace llvm;
 

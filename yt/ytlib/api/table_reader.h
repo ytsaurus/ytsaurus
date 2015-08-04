@@ -1,6 +1,6 @@
 #include "client.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <ytlib/ypath/rich.h>
 
@@ -9,7 +9,7 @@ namespace NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
     IClientPtr client,
     const NYPath::TRichYPath& path,
     const TTableReaderOptions& options);

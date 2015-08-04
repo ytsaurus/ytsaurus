@@ -33,7 +33,7 @@ using namespace NRpc;
 using namespace NCompression;
 using namespace NChunkClient;
 using namespace NTabletClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NHydra;
 using namespace NCellNode;
 

@@ -17,9 +17,9 @@
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/name_table.h>
 
 #include <ytlib/ypath/rich.h>
 
@@ -41,8 +41,8 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;

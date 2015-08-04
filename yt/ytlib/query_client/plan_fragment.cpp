@@ -16,8 +16,8 @@
 
 #include <ytlib/tablet_client/wire_protocol.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/query_client/plan_fragment.pb.h>
 
@@ -30,7 +30,7 @@
 namespace NYT {
 namespace NQueryClient {
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using NYT::ToProto;
 using NYT::FromProto;

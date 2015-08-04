@@ -11,8 +11,8 @@
 
 #include <core/profiling/public.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/versioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/versioned_row.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_meta.pb.h>
@@ -71,13 +71,13 @@ public:
     virtual TTimestamp GetMinTimestamp() const override;
     virtual TTimestamp GetMaxTimestamp() const override;
 
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
@@ -119,7 +119,7 @@ private:
     NChunkClient::IChunkReaderPtr ChunkReader_;
 
     NConcurrency::TReaderWriterSpinLock CachedVersionedChunkMetaLock_;
-    NVersionedTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
+    NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
     NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
@@ -133,7 +133,7 @@ private:
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(
         NDataNode::IChunkPtr chunk);
-    NVersionedTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
+    NTableClient::TCachedVersionedChunkMetaPtr PrepareCachedVersionedChunkMeta(
         NChunkClient::IChunkReaderPtr chunkReader);
     IStorePtr GetBackingStore();
     NChunkClient::IBlockCachePtr GetBlockCache();

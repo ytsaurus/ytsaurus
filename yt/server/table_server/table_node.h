@@ -7,7 +7,7 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <server/chunk_server/chunk_owner_base.h>
 
@@ -27,7 +27,7 @@ class TTableNode
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
-    DEFINE_BYREF_RW_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
+    DEFINE_BYREF_RW_PROPERTY(NTableClient::TKeyColumns, KeyColumns);
 
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
     typedef TTabletList::iterator TTabletListIterator; 
@@ -43,8 +43,8 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
-        const NVersionedTableClient::TOwningKey& minKey,
-        const NVersionedTableClient::TOwningKey& maxKey);
+        const NTableClient::TOwningKey& minKey,
+        const NTableClient::TOwningKey& maxKey);
 
     bool IsDynamic() const;
     bool HasMountedTablets() const;

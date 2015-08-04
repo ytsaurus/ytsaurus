@@ -2,12 +2,12 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <ytlib/new_table_client/helpers.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/table_consumer.h>
+#include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/table_consumer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
@@ -27,7 +27,7 @@ using namespace NQueryClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NHive;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,7 +8,7 @@
 
 #include <core/logging/log.h>
 
-#include <ytlib/new_table_client/schema.h>
+#include <ytlib/table_client/schema.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -47,8 +47,8 @@ protected:
 
     const TTabletPerformanceCountersPtr PerformanceCounters_;
     const TTabletId TabletId_;
-    const NVersionedTableClient::TTableSchema Schema_;
-    const NVersionedTableClient::TKeyColumns KeyColumns_;
+    const NTableClient::TTableSchema Schema_;
+    const NTableClient::TKeyColumns KeyColumns_;
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
     const int ColumnLockCount_;

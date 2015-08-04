@@ -17,8 +17,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/samples_fetcher.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/samples_fetcher.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -39,7 +39,7 @@ namespace NTabletNode {
 
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NTabletNode::NProto;

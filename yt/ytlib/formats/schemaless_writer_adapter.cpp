@@ -2,7 +2,7 @@
 
 #include "schemaless_writer_adapter.h"
 
-#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/table_client/name_table.h>
 
 #include <core/actions/future.h>
 
@@ -17,7 +17,7 @@
 namespace NYT {
 namespace NFormats {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;

@@ -8,7 +8,7 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 

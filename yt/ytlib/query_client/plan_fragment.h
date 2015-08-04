@@ -5,9 +5,9 @@
 #include "plan_fragment_common.h"
 #include "ast.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <core/misc/property.h>
 #include <core/misc/guid.h>

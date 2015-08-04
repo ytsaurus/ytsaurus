@@ -8,15 +8,15 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/ytlib/new_table_client/public.h>
-#include <yt/ytlib/new_table_client/schema.h>
-#include <yt/ytlib/new_table_client/name_table.h>
-#include <yt/ytlib/new_table_client/writer.h>
-#include <yt/ytlib/new_table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/new_table_client/schemaful_chunk_writer.h>
-#include <yt/ytlib/new_table_client/versioned_row.h>
-#include <yt/ytlib/new_table_client/unversioned_row.h>
-#include <yt/ytlib/new_table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/writer.h>
+#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaful_chunk_writer.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
@@ -37,7 +37,7 @@ namespace NTabletNode {
 namespace {
 
 using namespace NTabletClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
@@ -90,7 +90,7 @@ protected:
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
     {
-        return NVersionedTableClient::BuildRow(yson, Tablet_->KeyColumns(), Tablet_->Schema(), treatMissingAsNull);
+        return NTableClient::BuildRow(yson, Tablet_->KeyColumns(), Tablet_->Schema(), treatMissingAsNull);
     }
 
 

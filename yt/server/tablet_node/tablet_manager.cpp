@@ -25,8 +25,8 @@
 
 #include <core/compression/codec.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/tablet_client/config.h>
 #include <ytlib/tablet_client/wire_protocol.h>
@@ -68,7 +68,7 @@ using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -665,7 +665,7 @@ private:
         for (const auto& descriptor : request.chunk_stores()) {
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(descriptor.chunk_meta().extensions());
             if (!miscExt.eden()) {
-                auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
+                auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
                 auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
                 auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
                 chunkBoundaries.push_back(std::make_pair(minKey, 1));

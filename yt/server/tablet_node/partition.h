@@ -5,7 +5,7 @@
 
 #include <core/misc/property.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NTabletNode {

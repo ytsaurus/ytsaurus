@@ -93,5 +93,5 @@ NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

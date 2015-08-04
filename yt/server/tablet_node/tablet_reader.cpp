@@ -13,10 +13,10 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/row_merger.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/row_merger.h>
 
 #include <atomic>
 
@@ -24,7 +24,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,7 +3,7 @@
 #include "schemaful_dsv_table.h"
 #include "parser.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NFormats {
@@ -129,8 +129,8 @@ const char* TSchemafulDsvParser::Consume(const char* begin, const char* end)
 
 void TSchemafulDsvParser::SwitchTable(int newTableIndex)
 {
-    static const Stroka key = FormatEnum(NVersionedTableClient::EControlAttribute(
-        NVersionedTableClient::EControlAttribute::TableIndex));
+    static const Stroka key = FormatEnum(NTableClient::EControlAttribute(
+        NTableClient::EControlAttribute::TableIndex));
     if (newTableIndex != TableIndex_) {
         TableIndex_ = newTableIndex;
 

@@ -29,11 +29,11 @@
 
 #include <core/profiling/profile_manager.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/private.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/private.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -58,8 +58,8 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

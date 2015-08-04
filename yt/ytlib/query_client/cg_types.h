@@ -3,7 +3,7 @@
 #include "private.h"
 #include "evaluation_helpers.h"
 
-#include <ytlib/new_table_client/llvm_types.h>
+#include <ytlib/table_client/llvm_types.h>
 
 namespace llvm {
 

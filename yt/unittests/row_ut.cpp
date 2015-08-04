@@ -3,10 +3,10 @@
 
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,5 +71,5 @@ TEST(TUnversionedRowTest, Serialize5)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

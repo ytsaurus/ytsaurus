@@ -3,8 +3,8 @@
 #include "public.h"
 #include "format.h"
 
-#include <ytlib/new_table_client/public.h>
-#include <ytlib/new_table_client/schemaless_writer.h>
+#include <ytlib/table_client/public.h>
+#include <ytlib/table_client/schemaless_writer.h>
 
 #include <core/yson/public.h>
 
@@ -25,7 +25,7 @@ class TSchemalessWriterAdapter
 public:
     TSchemalessWriterAdapter(
         const TFormat& format,
-        NVersionedTableClient::TNameTablePtr nameTable,
+        NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         bool enableKeySwitch,
@@ -33,13 +33,13 @@ public:
 
     virtual TFuture<void> Open() override;
 
-    virtual bool Write(const std::vector<NVersionedTableClient::TUnversionedRow> &rows) override;
+    virtual bool Write(const std::vector<NTableClient::TUnversionedRow> &rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
     virtual TFuture<void> Close() override;
 
-    virtual NVersionedTableClient::TNameTablePtr GetNameTable() const override;
+    virtual NTableClient::TNameTablePtr GetNameTable() const override;
 
     virtual bool IsSorted() const override;
 
@@ -53,7 +53,7 @@ public:
 
 private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
-    NVersionedTableClient::TNameTablePtr NameTable_;
+    NTableClient::TNameTablePtr NameTable_;
 
     std::unique_ptr<TOutputStream> Output_;
 
@@ -62,8 +62,8 @@ private:
     TBlobOutput PreviousBuffer_;
 
     bool EnableKeySwitch_;
-    NVersionedTableClient::TOwningKey LastKey_;
-    NVersionedTableClient::TKey CurrentKey_;
+    NTableClient::TOwningKey LastKey_;
+    NTableClient::TKey CurrentKey_;
 
     int KeyColumnCount_;
 
@@ -72,10 +72,10 @@ private:
 
     template <class T>
     void WriteControlAttribute(
-        NVersionedTableClient::EControlAttribute controlAttribute,
+        NTableClient::EControlAttribute controlAttribute,
         T value);
 
-    void ConsumeRow(const NVersionedTableClient::TUnversionedRow& row);
+    void ConsumeRow(const NTableClient::TUnversionedRow& row);
     void FlushBuffer();
 };
 
