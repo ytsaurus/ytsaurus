@@ -380,6 +380,9 @@ def abort_op(op, **kwargs):
 def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)
 
+def get_version():
+    return yson.loads(execute_command("get_version", {}))
+
 def gc_collect():
     get_driver().gc_collect()
 
