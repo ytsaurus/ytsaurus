@@ -52,7 +52,7 @@ from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                    compose, bool_to_string, chunk_iter_lines, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
-from errors import YtIncorrectResponse, YtError
+from errors import YtIncorrectResponse, YtError, YtOperationFailedError
 from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -1141,9 +1141,12 @@ class Finalizer(object):
 
         if get_config(self.client)["auto_merge_output"]["action"] == "merge":
             table = TablePath(table, append=False)
-            run_merge(source_table=table, destination_table=table, mode=mode,
-                      spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
-                      client=self.client)
+            try:
+                run_merge(source_table=table, destination_table=table, mode=mode,
+                          spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
+                          client=self.client)
+            except YtOperationFailedError():
+                logger.warning("Failed to merge table " + table)
         else:
             logger.info("Chunks of output table {0} are too small. "
                         "This may cause suboptimal system performance. "
