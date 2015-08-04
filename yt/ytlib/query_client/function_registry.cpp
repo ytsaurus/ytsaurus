@@ -701,7 +701,7 @@ IFunctionRegistryPtr CreateJobFunctionRegistry(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetUdfDescriptorPath(Stroka registryPath, Stroka functionName)
+Stroka GetUdfDescriptorPath(const TYPath& registryPath, const Stroka& functionName)
 {
     return registryPath + "/" + ToYPathLiteral(to_lower(functionName));
 }
