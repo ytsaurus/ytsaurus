@@ -337,7 +337,7 @@ YtCommand.prototype._getUser = function() {
         throw new YtError("Failed to identify user credentials");
     }
 
-    if (this.name === "ping_tx") {
+    if (this.name === "ping_tx" || this.name === "parse_ypath") {
         // Do not check stickness for `ping_tx` command.
         return;
     }
