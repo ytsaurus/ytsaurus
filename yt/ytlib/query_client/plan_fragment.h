@@ -421,7 +421,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    IFunctionRegistry* functionRegistry,
+    IFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
