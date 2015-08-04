@@ -520,7 +520,7 @@ while True:
     spec["locality_timeout"] = 0
     spec["pool"] = "transfer_kiwi"
     spec["mapper"] = {"cpu_limit": 0}
-    _set_mapper_settings_for_read_from_yt("mapper")
+    _set_mapper_settings_for_read_from_yt(spec)
     if "max_failed_job_count" not in spec:
         spec["max_failed_job_count"] = 1000
 
