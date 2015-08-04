@@ -3038,7 +3038,7 @@ void TOperationControllerBase::InitQuerySpec(
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     auto ast = PrepareJobQueryAst(queryString);
     auto registry = CreateBuiltinFunctionRegistry();
-    auto externalFunctions = GetExternalFunctions(ast, registry.Get());
+    auto externalFunctions = GetExternalFunctions(ast, registry);
     bool fetchUdfs = externalFunctions.size() > 0;
 
     std::vector<TUserFile> udfFiles;
@@ -3049,7 +3049,7 @@ void TOperationControllerBase::InitQuerySpec(
             THROW_ERROR_EXCEPTION("External UDF registry is not configured");
         }
 
-        LOG_INFO("Requesting UDF descriptors for %v", JoinToString(externalFunctions));
+        LOG_INFO("Requesting UDF descriptors for: [%v]", JoinToString(externalFunctions));
 
         for (const auto& function : externalFunctions) {
             udfFiles.emplace_back();
@@ -3074,7 +3074,7 @@ void TOperationControllerBase::InitQuerySpec(
         registry = CreateJobFunctionRegistry(descriptors, Null, std::move(registry));
     }
 
-    auto query = PrepareJobQuery(queryString, std::move(ast), schema, registry.Get());
+    auto query = PrepareJobQuery(queryString, std::move(ast), schema, registry);
 
     if (fetchUdfs) {
         FetchFileObjects(&udfFiles);

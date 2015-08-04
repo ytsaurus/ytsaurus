@@ -430,18 +430,18 @@ NAst::TQuery PrepareJobQueryAst(const Stroka& source);
 
 std::vector<Stroka> GetExternalFunctions(
     const NAst::TQuery& ast,
-    IFunctionRegistry* builtinRegistry);
+    IFunctionRegistryPtr builtinRegistry);
 
 TQueryPtr PrepareJobQuery(
     const Stroka& source,
     NAst::TQuery ast,
     const TTableSchema& tableSchema,
-    IFunctionRegistry* functionRegistry);
+    IFunctionRegistryPtr functionRegistry);
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema initialTableSchema,
-    IFunctionRegistry* functionRegistry = CreateBuiltinFunctionRegistry().Get());
+    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);
