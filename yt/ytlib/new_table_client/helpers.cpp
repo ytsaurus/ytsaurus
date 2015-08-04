@@ -124,10 +124,11 @@ void PipeReaderToWriter(
             if (rangeIndex != newRangeIndex) {
                 writer->WriteRangeIndex(newRangeIndex);
                 rangeIndex = newRangeIndex;
-                if (config->EnableRowIndex) {
-                    writer->WriteRowIndex(reader->GetTableRowIndex() - rows.size());
-                }
             }
+        }
+
+        if (config->EnableRowIndex) {
+            writer->WriteRowIndex(reader->GetTableRowIndex() - rows.size());
         }
 
         if (!writer->Write(rows)) {
