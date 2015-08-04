@@ -926,7 +926,7 @@ class Application(object):
                     "message": str(error),
                     "code": 1,
                     "attributes": {
-                        "details": (traceback_helpers.format_exc() if self.config["enable_detailed_traceback"] else traceback.format_exc())
+                        "details": (traceback_helpers.format_exc() if self._config["enable_detailed_traceback"] else traceback.format_exc())
                     }
                 }
             })
