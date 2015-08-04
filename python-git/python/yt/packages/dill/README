@@ -1,3 +1,4 @@
-This module is manually load from http://dev.danse.us/trac/pathos/browser/dill
-Dill project is closed now, but it provides very powerful tool for pickling python objects.
-TODO(ignat): add license description here.
+Package was originally taken from: https://github.com/uqfoundation/dill
+We keep our local fork in https://github.yandex-team.ru/yt/github-uqfoundation-dill
+If you want to update dill version, merge yt fork master branch with new dill master branch and
+then copy files from dill/* folder to appropriate python wrapper folder.
