@@ -7,7 +7,7 @@ namespace NCompression {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int Lz4CompressionBound(const std::vector<int>& lengths);
+size_t Lz4CompressionBound(const std::vector<int>& lengths);
 
 void Lz4Compress(bool highCompression, StreamSource* source, TBlob* output);
 
