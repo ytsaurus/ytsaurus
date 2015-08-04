@@ -79,17 +79,20 @@ typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
 class TUserJobSpec;
 typedef TIntrusivePtr<TUserJobSpec> TUserJobSpecPtr;
 
+class TUnorderedOperationSpecBase;
+typedef TIntrusivePtr<TUnorderedOperationSpecBase> TUnorderedOperationSpecBasePtr;
+
 class  TMapOperationSpec;
 typedef TIntrusivePtr<TMapOperationSpec> TMapOperationSpecPtr;
 
-class TMergeOperationSpecBase;
-typedef TIntrusivePtr<TMergeOperationSpecBase> TMergeOperationSpecBasePtr;
+class TUnorderedMergeOperationSpec;
+typedef TIntrusivePtr<TUnorderedMergeOperationSpec> TUnorderedMergeOperationSpecPtr;
+
+class TSimpleOperationSpecBase;
+typedef TIntrusivePtr<TSimpleOperationSpecBase> TSimpleOperationSpecBasePtr;
 
 class TMergeOperationSpec;
 typedef TIntrusivePtr<TMergeOperationSpec> TMergeOperationSpecPtr;
-
-class TUnorderedMergeOperationSpec;
-typedef TIntrusivePtr<TUnorderedMergeOperationSpec> TUnorderedMergeOperationSpecPtr;
 
 class TOrderedMergeOperationSpec;
 typedef TIntrusivePtr<TOrderedMergeOperationSpec> TOrderedMergeOperationSpecPtr;

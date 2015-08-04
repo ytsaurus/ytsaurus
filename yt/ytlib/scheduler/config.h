@@ -274,57 +274,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapOperationSpec
-    : public TOperationSpecBase
-    , public TInputlyQueryableSpec
-{
-public:
-    TUserJobSpecPtr Mapper;
-    std::vector<NYPath::TRichYPath> InputTablePaths;
-    std::vector<NYPath::TRichYPath> OutputTablePaths;
-    TNullable<int> JobCount;
-    i64 DataSizePerJob;
-    TDuration LocalityTimeout;
-    TJobIOConfigPtr JobIO;
-
-    TMapOperationSpec()
-    {
-        RegisterParameter("mapper", Mapper)
-            .DefaultNew();
-        RegisterParameter("input_table_paths", InputTablePaths)
-            .NonEmpty();
-        RegisterParameter("output_table_paths", OutputTablePaths)
-            .NonEmpty();
-        RegisterParameter("job_count", JobCount)
-            .Default()
-            .GreaterThan(0);
-        RegisterParameter("data_size_per_job", DataSizePerJob)
-            .Default((i64) 128 * 1024 * 1024)
-            .GreaterThan(0);
-        RegisterParameter("locality_timeout", LocalityTimeout)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("job_io", JobIO)
-            .DefaultNew();
-
-        RegisterInitializer([&] () {
-            JobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
-        });
-    }
-
-    virtual void OnLoaded() override
-    {
-        TOperationSpecBase::OnLoaded();
-
-        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
-        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMergeOperationSpecBase
+class TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
 public:
@@ -339,8 +289,7 @@ public:
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
-    TMergeOperationSpecBase()
-        : DataSizePerJob(-1)
+    TSimpleOperationSpecBase()
     {
         RegisterParameter("data_size_per_job", DataSizePerJob)
             .Default((i64) 256 * 1024 * 1024)
@@ -357,6 +306,91 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnorderedOperationSpecBase
+    : public TSimpleOperationSpecBase
+    , public TInputlyQueryableSpec
+{
+public:
+    std::vector<NYPath::TRichYPath> InputTablePaths;
+
+    TUnorderedOperationSpecBase()
+    {
+        RegisterParameter("input_table_paths", InputTablePaths)
+            .NonEmpty();
+
+        RegisterInitializer([&] () {
+            JobIO->TableReader->MaxBufferSize = (i64) 256 * 1024 * 1024;
+        });
+    }
+
+    virtual void OnLoaded() override
+    {
+        TSimpleOperationSpecBase::OnLoaded();
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMapOperationSpec
+    : public TUnorderedOperationSpecBase
+{
+public:
+    TUserJobSpecPtr Mapper;
+    std::vector<NYPath::TRichYPath> OutputTablePaths;
+
+    TMapOperationSpec()
+    {
+        RegisterParameter("mapper", Mapper)
+            .DefaultNew();
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
+
+        RegisterInitializer([&] () {
+            DataSizePerJob = (i64) 128 * 1024 * 1024;
+        });
+    }
+
+    virtual void OnLoaded() override
+    {
+        TUnorderedOperationSpecBase::OnLoaded();
+
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnorderedMergeOperationSpec
+    : public TUnorderedOperationSpecBase
+{
+public:
+    NYPath::TRichYPath OutputTablePath;
+    bool CombineChunks;
+    bool ForceTransform;
+
+    TUnorderedMergeOperationSpec()
+    {
+        RegisterParameter("output_table_path", OutputTablePath);
+        RegisterParameter("combine_chunks", CombineChunks)
+            .Default(false);
+        RegisterParameter("force_transform", ForceTransform)
+            .Default(false);
+    }
+
+    virtual void OnLoaded() override
+    {
+        TUnorderedOperationSpecBase::OnLoaded();
+
+        OutputTablePath = OutputTablePath.Normalize();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EMergeMode,
     (Sorted)
     (Ordered)
@@ -364,7 +398,7 @@ DEFINE_ENUM(EMergeMode,
 );
 
 class TMergeOperationSpec
-    : public TMergeOperationSpecBase
+    : public TSimpleOperationSpecBase
 {
 public:
     std::vector<NYPath::TRichYPath> InputTablePaths;
@@ -391,17 +425,12 @@ public:
 
     virtual void OnLoaded() override
     {
-        TMergeOperationSpecBase::OnLoaded();
+        TSimpleOperationSpecBase::OnLoaded();
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePath = OutputTablePath.Normalize();
     }
 };
-
-class TUnorderedMergeOperationSpec
-    : public TMergeOperationSpec
-    , public TInputlyQueryableSpec
-{ };
 
 class TOrderedMergeOperationSpec
     : public TMergeOperationSpec
@@ -415,7 +444,7 @@ class TSortedMergeOperationSpec
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEraseOperationSpec
-    : public TMergeOperationSpecBase
+    : public TSimpleOperationSpecBase
 {
 public:
     NYPath::TRichYPath TablePath;
@@ -430,7 +459,7 @@ public:
 
     virtual void OnLoaded() override
     {
-        TMergeOperationSpecBase::OnLoaded();
+        TSimpleOperationSpecBase::OnLoaded();
 
         TablePath = TablePath.Normalize();
     }
@@ -439,7 +468,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReduceOperationSpec
-    : public TMergeOperationSpecBase
+    : public TSimpleOperationSpecBase
 {
 public:
     TUserJobSpecPtr Reducer;
@@ -465,7 +494,7 @@ public:
 
     virtual void OnLoaded() override
     {
-        TMergeOperationSpecBase::OnLoaded();
+        TSimpleOperationSpecBase::OnLoaded();
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
