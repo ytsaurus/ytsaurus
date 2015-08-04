@@ -309,7 +309,7 @@ protected:
         TMatcher matcher)
     {
         EXPECT_THROW_THAT(
-            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get()); },
+            [&] { PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry()); },
             matcher);
     }
 
@@ -322,7 +322,7 @@ TEST_F(TQueryPrepareTest, Simple)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry().Get());
+    PreparePlanFragment(&PrepareMock_, "a, b FROM [//t] WHERE k > 3", CreateBuiltinFunctionRegistry());
 }
 
 TEST_F(TQueryPrepareTest, BadSyntax)
@@ -399,7 +399,7 @@ TEST_F(TQueryPrepareTest, BigQuery)
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
 
-    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry().Get());
+    PreparePlanFragment(&PrepareMock_, query, CreateBuiltinFunctionRegistry());
 }
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
@@ -469,7 +469,7 @@ protected:
 
     void Coordinate(const Stroka& source, const TDataSplits& dataSplits, size_t subqueriesCount)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
 
         TDataSources sources;
         for (const auto& split : dataSplits) {
@@ -2347,7 +2347,7 @@ protected:
         }
 
         auto prepareAndExecute = [&] () {
-            auto primaryFragment = PreparePlanFragment(&PrepareMock_, query, functionRegistry.Get(), inputRowLimit, outputRowLimit);
+            auto primaryFragment = PreparePlanFragment(&PrepareMock_, query, functionRegistry, inputRowLimit, outputRowLimit);
 
             size_t foreignSplitIndex = 1;
             auto executeCallback = [&] (
@@ -4713,14 +4713,14 @@ protected:
 
     std::vector<TKeyRange> Coordinate(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             planFragment->Query,
             planFragment->DataSources,
             rowBuffer,
             ColumnEvaluatorCache_,
-            CreateBuiltinFunctionRegistry().Get(),
+            CreateBuiltinFunctionRegistry(),
             1000,
             true);
 
@@ -4729,7 +4729,7 @@ protected:
 
     std::vector<TKeyRange> CoordinateForeign(const Stroka& source)
     {
-        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry().Get());
+        auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
 
         const auto& query = planFragment->Query;
 

@@ -1360,7 +1360,7 @@ void ParseYqlString(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    IFunctionRegistry* functionRegistry,
+    IFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit,
     i64 outputRowLimit,
     TTimestamp timestamp)
@@ -1443,8 +1443,8 @@ TPlanFragmentPtr PreparePlanFragment(
             joinClause->JoinedTableSchema.Columns().push_back(*selfColumn);
         }
 
-        auto leftEquations = schemaProxy->BuildTypedExpression(join.Left.Get(), source, functionRegistry);
-        auto rightEquations = foreignSourceProxy->BuildTypedExpression(join.Right.Get(), source, functionRegistry);
+        auto leftEquations = schemaProxy->BuildTypedExpression(join.Left.Get(), source, functionRegistry.Get());
+        auto rightEquations = foreignSourceProxy->BuildTypedExpression(join.Right.Get(), source, functionRegistry.Get());
 
         if (leftEquations.size() != rightEquations.size()) {
             THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
@@ -1474,7 +1474,7 @@ TPlanFragmentPtr PreparePlanFragment(
         query->JoinClauses.push_back(std::move(joinClause));
     }
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
+    PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get());
 
     auto planFragment = New<TPlanFragment>(source);
 
@@ -1526,7 +1526,7 @@ NAst::TQuery PrepareJobQueryAst(const Stroka& source)
 
 std::vector<Stroka> GetExternalFunctions(
     const NAst::TQuery& ast,
-    IFunctionRegistry* builtinRegistry)
+    IFunctionRegistryPtr builtinRegistry)
 {
     std::vector<Stroka> externalFunctions;
 
@@ -1582,7 +1582,7 @@ TQueryPtr PrepareJobQuery(
     const Stroka& source,
     NAst::TQuery ast,
     const TTableSchema& tableSchema,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistryPtr functionRegistry)
 {
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
@@ -1593,7 +1593,7 @@ TQueryPtr PrepareJobQuery(
         &query->TableSchema,
         tableSchema);
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
+    PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get());
 
     return query;
 }
@@ -1601,7 +1601,7 @@ TQueryPtr PrepareJobQuery(
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema tableSchema,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistryPtr functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>()};
     ParseYqlString(
@@ -1613,7 +1613,7 @@ TConstExpressionPtr PrepareExpression(
 
     auto schemaProxy = New<TSchemaProxy>(&tableSchema);
 
-    auto typedExprs = schemaProxy->BuildTypedExpression(expr.Get(), source, functionRegistry);
+    auto typedExprs = schemaProxy->BuildTypedExpression(expr.Get(), source, functionRegistry.Get());
 
     if (typedExprs.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
