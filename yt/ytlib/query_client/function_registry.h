@@ -41,7 +41,7 @@ IFunctionRegistryPtr CreateJobFunctionRegistry(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetUdfDescriptorPath(Stroka registryPath, Stroka functionName);
+Stroka GetUdfDescriptorPath(const NYPath::TYPath& registryPath, const Stroka& functionName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
