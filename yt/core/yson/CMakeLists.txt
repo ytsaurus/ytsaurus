@@ -2,6 +2,7 @@
 set( BASE ${CMAKE_SOURCE_DIR}/yt/core/yson )
 set( SRCS
   ${BASE}/consumer.cpp
+  ${BASE}/async_consumer.cpp
   ${BASE}/lexer.cpp
   ${BASE}/parser.cpp
   ${BASE}/token.cpp
