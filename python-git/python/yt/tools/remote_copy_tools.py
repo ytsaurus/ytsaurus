@@ -128,7 +128,7 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
     }
     command = """PATH=".:$PATH" PYTHONPATH=. """\
               """yt2 read "{0}"'[#'"${{start}}"':#'"${{end}}"']' --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
-              .format(src, format, yt_client.config["proxy"]["url"], yson.dumps(config), yt_client.TRANSACTION)
+              .format(src, format, yt_client.config["proxy"]["url"], yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
 
     return command
 
