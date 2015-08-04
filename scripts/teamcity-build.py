@@ -62,7 +62,7 @@ def prepare(options):
     options.build_enable_llvm = checked_yes_no(os.environ.get("BUILD_ENABLE_LLVM", "YES"))
 
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
-    options.branch = re.sub(r"/0.\d\d$", "", options.branch)
+    options.branch = options.branch.split("/")[0]
 
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
