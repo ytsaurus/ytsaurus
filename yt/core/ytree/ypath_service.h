@@ -115,7 +115,7 @@ struct IYPathService
      *  If #sortKeys is |true| then the implementation must ensure a stable ordering of keys.
      */
     virtual void WriteAttributesFragment(
-        NYson::IYsonConsumer* consumer,
+        NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) = 0;
 
@@ -136,9 +136,9 @@ struct IYPathService
     IYPathServicePtr Cached(TDuration expirationTime);
 
     //! Wraps WriteAttributesFragment by enclosing attributes with angle brackets.
-    //! If WriteAttributesFragment writes no attributes then this method also does nothing.
+    //! If WriteAttributesFragment writes nothing then this method also does nothing.
     void WriteAttributes(
-        NYson::IYsonConsumer* consumer,
+        NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys);
 

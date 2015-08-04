@@ -7,7 +7,7 @@
 #include "ephemeral_attribute_owner.h"
 
 #include <core/yson/tokenizer.h>
-#include <core/yson/writer.h>
+#include <core/yson/async_writer.h>
 
 #include <core/ypath/tokenizer.h>
 
@@ -69,8 +69,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     auto keys = GetKeys(limit);
     i64 size = GetSize();
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
 
     writer.OnBeginAttributes();
     if (keys.size() != size) {
@@ -93,8 +92,14 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     }
     writer.OnEndMap();
 
-    response->set_value(stream.Str());
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
@@ -108,13 +113,12 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     auto keys = GetKeys(limit);
     i64 size = GetSize();
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
 
     if (keys.size() != size) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
-        writer.OnStringScalar("true");
+        writer.OnBooleanScalar(true);
         writer.OnEndAttributes();
     }
 
@@ -129,8 +133,14 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     }
     writer.OnEndList();
 
-    response->set_value(stream.Str());
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
@@ -216,7 +226,7 @@ public:
     }
 
     virtual void WriteAttributesFragment(
-        IYsonConsumer* /*consumer*/,
+        IAsyncYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/) override
     { }

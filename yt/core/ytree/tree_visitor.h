@@ -16,6 +16,13 @@ void VisitTree(
     bool sortKeys = false,
     bool ignoreOpaque = false);
 
+void VisitTree(
+    INodePtr root,
+    NYson::IAsyncYsonConsumer* consumer,
+    const TAttributeFilter& attributeFilter = TAttributeFilter::All,
+    bool sortKeys = false,
+    bool ignoreOpaque = false);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYTree

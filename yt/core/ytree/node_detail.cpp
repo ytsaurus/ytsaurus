@@ -11,6 +11,7 @@
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/yson/writer.h>
+#include <core/yson/async_writer.h>
 #include <core/yson/tokenizer.h>
 
 #include <core/ypath/token.h>
@@ -52,8 +53,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    TStringStream stream;
-    TYsonWriter writer(&stream);
+    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
 
     VisitTree(
         this,
@@ -62,9 +62,14 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         false,
         ignoreOpaque);
 
-    response->set_value(stream.Str());
-
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 void TNodeBase::GetKeySelf(TReqGetKey* /*request*/, TRspGetKey* response, TCtxGetKeyPtr context)
@@ -237,20 +242,19 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    int limit = request->limit();
+    i64 limit = request->limit();
 
-    TStringStream stream;
-    TYsonWriter writer(&stream);
+    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
 
     auto children = GetChildren();
     if (children.size() > limit) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
-        writer.OnStringScalar("true");
+        writer.OnBooleanScalar(true);
         writer.OnEndAttributes();
     }
 
-    size_t counter = 0;
+    i64 counter = 0;
 
     writer.OnBeginList();
     for (const auto& pair : children) {
@@ -267,9 +271,14 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
     }
     writer.OnEndList();
 
-    response->set_value(stream.Str());
-
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 void TMapNodeMixin::SetChild(
@@ -303,7 +312,7 @@ void TMapNodeMixin::SetChild(
         auto newValue = lastStep ? value : factory->CreateMap();
         if (maxChildCount && node->GetChildCount() >= *maxChildCount) {
             THROW_ERROR_EXCEPTION("Too many children in map node")
-                    << TErrorAttribute("limit", *maxChildCount);
+                << TErrorAttribute("limit", *maxChildCount);
         }
         YCHECK(node->AddChild(newValue, key));
 

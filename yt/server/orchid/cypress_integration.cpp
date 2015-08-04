@@ -39,6 +39,7 @@ namespace NOrchid {
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
+using namespace NYson;
 using namespace NHydra;
 using namespace NCypressServer;
 using namespace NObjectServer;
@@ -124,7 +125,7 @@ public:
     }
 
     virtual void WriteAttributesFragment(
-        NYson::IYsonConsumer* /*consumer*/,
+        IAsyncYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/) override
     {

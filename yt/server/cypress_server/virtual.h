@@ -64,7 +64,7 @@ private:
     struct TFetchItem
     {
         Stroka Key;
-        TNullable<NYson::TYsonString> Attributes;
+        NYson::TYsonString Attributes;
     };
 
     struct TFetchItemsSession
@@ -73,7 +73,7 @@ private:
         i64 Limit = -1;
         NYTree::TAttributeFilter AttributeFilter;
         std::vector<NObjectClient::TCellTag> CellTags;
-        int CellTagIndex = 0;
+        int CellTagIndex = -1; // -1 means local
         bool Incomplete = false;
         std::vector<TFetchItem> Items;
     };
@@ -84,6 +84,10 @@ private:
         i64 limit,
         const NYTree::TAttributeFilter& attributeFilter);
 
+    void FetchItemsFromAnywhere(
+        TFetchItemsSessionPtr session,
+        TPromise<TFetchItemsSessionPtr> promise);
+
     void FetchItemsFromLocal(
         TFetchItemsSessionPtr session,
         TPromise<TFetchItemsSessionPtr> promise);
@@ -92,7 +96,7 @@ private:
         TFetchItemsSessionPtr session,
         TPromise<TFetchItemsSessionPtr> promise);
 
-    NYson::TYsonString GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
+    TFuture<NYson::TYsonString> GetOwningNodeAttributes(const NYTree::TAttributeFilter& attributeFilter);
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Enumerate);
 

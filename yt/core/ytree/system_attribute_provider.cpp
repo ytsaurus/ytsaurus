@@ -13,7 +13,7 @@ using namespace NYson;
 TNullable<TYsonString> ISystemAttributeProvider::GetBuiltinAttribute(const Stroka& key)
 {
     TStringStream stream;
-    TYsonWriter writer(&stream);
+    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
     if (!GetBuiltinAttribute(key, &writer)) {
         return Null;
     }

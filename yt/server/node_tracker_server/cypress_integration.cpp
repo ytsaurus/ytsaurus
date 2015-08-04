@@ -73,7 +73,7 @@ public:
     }
 
     virtual void WriteAttributesFragment(
-        IYsonConsumer* consumer,
+        IAsyncYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
