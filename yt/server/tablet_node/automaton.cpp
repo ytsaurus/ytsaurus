@@ -6,7 +6,7 @@
 
 #include <core/misc/chunked_memory_pool.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <server/hydra/hydra_manager.h>
 
@@ -16,7 +16,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NHydra;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////

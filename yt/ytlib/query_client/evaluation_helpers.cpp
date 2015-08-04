@@ -15,7 +15,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
-using NVersionedTableClient::GetUnversionedRowDataSize;
+using NTableClient::GetUnversionedRowDataSize;
 
 static const auto& Logger = QueryClientLogger;
 

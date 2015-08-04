@@ -8,7 +8,7 @@
 
 #include <core/yson/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <ytlib/api/public.h>
 
@@ -61,7 +61,7 @@ struct IStore
     *
     *  Thread affinity: any
     */
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
@@ -78,7 +78,7 @@ struct IStore
     *
     *  Thread affinity: any
     */
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) = 0;

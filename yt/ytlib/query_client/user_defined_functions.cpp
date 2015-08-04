@@ -3,8 +3,8 @@
 #include "cg_fragment_compiler.h"
 #include "plan_helpers.h"
 
-#include <new_table_client/row_base.h>
-#include <new_table_client/llvm_types.h>
+#include <ytlib/table_client/row_base.h>
+#include <ytlib/table_client/llvm_types.h>
 
 #include <llvm/Object/ObjectFile.h>
 

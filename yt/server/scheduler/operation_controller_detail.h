@@ -21,8 +21,8 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
@@ -206,7 +206,7 @@ protected:
 
     struct TEndpoint
     {
-        NVersionedTableClient::TOwningKey Key;
+        NTableClient::TOwningKey Key;
         bool Left;
         int ChunkTreeKey;
 
@@ -221,9 +221,9 @@ protected:
         bool AppendRequested = false;
         NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
-        NVersionedTableClient::TTableWriterOptionsPtr Options =
-            New<NVersionedTableClient::TTableWriterOptions>();
-        TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
+        NTableClient::TTableWriterOptionsPtr Options =
+            New<NTableClient::TTableWriterOptions>();
+        TNullable<NTableClient::TKeyColumns> KeyColumns;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
@@ -471,7 +471,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            TNullable<NVersionedTableClient::TKeyColumns> keyColumns);
+            TNullable<NTableClient::TKeyColumns> keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -585,7 +585,7 @@ protected:
         const Stroka& queryString,
         const NQueryClient::TTableSchema& schema);
 
-    void ValidateKey(const NVersionedTableClient::TOwningKey& key);
+    void ValidateKey(const NTableClient::TOwningKey& key);
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
@@ -714,7 +714,7 @@ protected:
 
 
     void RegisterEndpoints(
-        const NVersionedTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
+        const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
         int key,
         TOutputTable* outputTable);
 

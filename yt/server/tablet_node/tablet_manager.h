@@ -8,7 +8,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 

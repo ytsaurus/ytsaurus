@@ -5,7 +5,7 @@
 
 #include <core/misc/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <server/hydra/composite_automaton.h>
 

@@ -10,10 +10,10 @@
 
 #include <core/logging/log.h>
 
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/writer.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unordered_schemaful_reader.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/writer.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unordered_schemaful_reader.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -23,7 +23,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

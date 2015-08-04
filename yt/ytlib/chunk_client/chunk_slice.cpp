@@ -3,7 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -15,8 +15,8 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,8 +136,8 @@ void TChunkSlice::Persist(NPhoenix::TPersistenceContext& context)
 
 TChunkSlicePtr CreateChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
-    const TNullable<NVersionedTableClient::TOwningKey>& lowerKey,
-    const TNullable<NVersionedTableClient::TOwningKey>& upperKey)
+    const TNullable<NTableClient::TOwningKey>& lowerKey,
+    const TNullable<NTableClient::TOwningKey>& upperKey)
 {
     i64 dataSize;
     i64 rowCount;

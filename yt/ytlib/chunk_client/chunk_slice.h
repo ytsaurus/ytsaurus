@@ -7,7 +7,7 @@
 
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -52,8 +52,8 @@ private:
 
     friend TChunkSlicePtr CreateChunkSlice(
         TRefCountedChunkSpecPtr chunkSpec,
-        const TNullable<NVersionedTableClient::TOwningKey>& lowerKey,
-        const TNullable<NVersionedTableClient::TOwningKey>& upperKey);
+        const TNullable<NTableClient::TOwningKey>& lowerKey,
+        const TNullable<NTableClient::TOwningKey>& upperKey);
 
     // XXX(sandello): Do we really need codecId here?
     friend std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
@@ -79,8 +79,8 @@ DEFINE_REFCOUNTED_TYPE(TChunkSlice)
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TChunkSlicePtr CreateChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
-    const TNullable<NVersionedTableClient::TOwningKey>& startKey = Null,
-    const TNullable<NVersionedTableClient::TOwningKey>& endKey = Null);
+    const TNullable<NTableClient::TOwningKey>& startKey = Null,
+    const TNullable<NTableClient::TOwningKey>& endKey = Null);
 
 //! Constructs separate chunk slice for each part of erasure chunk.
 std::vector<TChunkSlicePtr> CreateErasureChunkSlices(

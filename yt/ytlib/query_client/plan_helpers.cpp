@@ -10,14 +10,14 @@
 #include "function_registry.h"
 #include "column_evaluator.h"
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using ::ToString;
 

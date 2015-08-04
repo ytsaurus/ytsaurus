@@ -18,7 +18,7 @@
 namespace NYT {
 namespace NTableServer {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NYTree;

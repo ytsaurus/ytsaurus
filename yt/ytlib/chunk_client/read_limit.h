@@ -4,7 +4,7 @@
 
 #include <ytlib/chunk_client/schema.pb.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <core/misc/phoenix.h>
 
@@ -29,10 +29,10 @@ public:
 
     const NProto::TReadLimit& AsProto() const;
 
-    const NVersionedTableClient::TOwningKey& GetKey() const;
+    const NTableClient::TOwningKey& GetKey() const;
     bool HasKey() const;
-    void SetKey(const NVersionedTableClient::TOwningKey& key);
-    void SetKey(NVersionedTableClient::TOwningKey&& key);
+    void SetKey(const NTableClient::TOwningKey& key);
+    void SetKey(NTableClient::TOwningKey&& key);
 
     i64 GetRowIndex() const;
     bool HasRowIndex() const;
@@ -52,7 +52,7 @@ public:
 
 private:
     NProto::TReadLimit ReadLimit_;
-    NVersionedTableClient::TOwningKey Key_;
+    NTableClient::TOwningKey Key_;
 
     void InitKey();
     void InitCopy(const NProto::TReadLimit& readLimit);

@@ -3,16 +3,16 @@
 
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/versioned_block_writer.h>
-#include <ytlib/new_table_client/versioned_block_reader.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/versioned_block_writer.h>
+#include <ytlib/table_client/versioned_block_reader.h>
 
 #include <ytlib/transaction_client/public.h>
 
 #include <core/compression/codec.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 namespace {
 
 using namespace NTransactionClient;
@@ -210,5 +210,5 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

@@ -6,7 +6,7 @@
 
 #include <ytlib/api/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/formats/format.h>
 
@@ -37,10 +37,10 @@ class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    NVersionedTableClient::TTableReaderConfigPtr TableReader;
-    NVersionedTableClient::TTableWriterConfigPtr TableWriter;
+    NTableClient::TTableReaderConfigPtr TableReader;
+    NTableClient::TTableWriterConfigPtr TableWriter;
 
-    NVersionedTableClient::TControlAttributesConfigPtr ControlAttributes;
+    NTableClient::TControlAttributesConfigPtr ControlAttributes;
 
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
@@ -266,7 +266,7 @@ class TInputlyQueryableSpec
 {
 public:
     TNullable<Stroka> InputQuery;
-    TNullable<NVersionedTableClient::TTableSchema> InputSchema;
+    TNullable<NTableClient::TTableSchema> InputSchema;
 
     TInputlyQueryableSpec()
     {

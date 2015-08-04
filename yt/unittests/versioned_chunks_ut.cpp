@@ -3,14 +3,14 @@
 
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/versioned_chunk_reader.h>
-#include <ytlib/new_table_client/versioned_chunk_writer.h>
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/versioned_writer.h>
-#include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
+#include <ytlib/table_client/config.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/versioned_chunk_reader.h>
+#include <ytlib/table_client/versioned_chunk_writer.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/versioned_writer.h>
+#include <ytlib/table_client/cached_versioned_chunk_meta.h>
 
 #include <ytlib/chunk_client/memory_reader.h>
 #include <ytlib/chunk_client/memory_writer.h>
@@ -21,7 +21,7 @@
 #include <core/compression/public.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 namespace {
 
 using namespace NChunkClient;
@@ -676,5 +676,5 @@ TEST_F(TVersionedChunksTest, WideSchemaBoundaryRow)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

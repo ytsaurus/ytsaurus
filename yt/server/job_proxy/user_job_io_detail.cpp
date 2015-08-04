@@ -8,10 +8,10 @@
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/schema.pb.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -25,8 +25,8 @@ using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////

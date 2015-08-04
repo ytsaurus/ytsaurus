@@ -11,8 +11,8 @@
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/chunk_splits_fetcher.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_splits_fetcher.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -29,7 +29,7 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;

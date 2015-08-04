@@ -3,11 +3,11 @@
 
 #include <core/actions/future.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <ytlib/tablet_client/wire_protocol.h>
 
@@ -15,7 +15,7 @@ namespace NYT {
 namespace NApi {
 
 using namespace NTabletClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

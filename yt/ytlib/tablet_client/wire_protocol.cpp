@@ -9,18 +9,18 @@
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/row_buffer.h>
-#include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/row_buffer.h>
+#include <ytlib/table_client/chunk_meta.pb.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 
 namespace NYT {
 namespace NTabletClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +54,7 @@ public:
 
     void WriteTableSchema(const TTableSchema& schema)
     {
-        WriteMessage(ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(schema));
+        WriteMessage(ToProto< NTableClient::NProto::TTableSchemaExt>(schema));
     }
 
     void WriteMessage(const ::google::protobuf::MessageLite& message)
@@ -366,7 +366,7 @@ public:
 
     TTableSchema ReadTableSchema()
     {
-        NVersionedTableClient::NProto::TTableSchemaExt protoSchema;
+        NTableClient::NProto::TTableSchemaExt protoSchema;
         ReadMessage(&protoSchema);
         return FromProto<TTableSchema>(protoSchema);
     }

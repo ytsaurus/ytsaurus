@@ -2,8 +2,8 @@
 
 #include "dynamic_memory_store_bits.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schema.h>
 
 #include <core/codegen/function.h>
 

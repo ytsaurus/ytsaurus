@@ -25,10 +25,10 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_writer.h>
-#include <ytlib/new_table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_writer.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -58,7 +58,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NFileClient;
 using namespace NCellNode;
 using namespace NDataNode;
@@ -610,14 +610,14 @@ private:
     static bool IsFatalError(const TError& error)
     {
         return
-            error.FindMatching(NVersionedTableClient::EErrorCode::SortOrderViolation) ||
+            error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
-            error.FindMatching(NVersionedTableClient::EErrorCode::InvalidDoubleValue) ||
-            error.FindMatching(NVersionedTableClient::EErrorCode::IncomparableType) ||
-            error.FindMatching(NVersionedTableClient::EErrorCode::UnhashableType);
+            error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
+            error.FindMatching(NTableClient::EErrorCode::IncomparableType) ||
+            error.FindMatching(NTableClient::EErrorCode::UnhashableType);
     }
 
 };

@@ -7,7 +7,7 @@
 
 #include <ytlib/tablet_client/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <server/cell_node/public.h>
 

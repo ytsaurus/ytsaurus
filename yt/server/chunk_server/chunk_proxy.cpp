@@ -15,8 +15,8 @@
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <server/node_tracker_server/node.h>
 #include <server/node_tracker_server/node_directory_builder.h>
@@ -38,11 +38,11 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
 using namespace NChunkClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NNodeTrackerServer;
 
 using NChunkClient::NProto::TMiscExt;
-using NVersionedTableClient::NProto::TBoundaryKeysExt;
+using NTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 

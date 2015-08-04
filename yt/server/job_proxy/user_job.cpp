@@ -14,12 +14,12 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/new_table_client/helpers.h>
-#include <ytlib/new_table_client/table_consumer.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/schemaful_reader_adapter.h>
-#include <ytlib/new_table_client/schemaful_writer_adapter.h>
+#include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/table_consumer.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/schemaful_reader_adapter.h>
+#include <ytlib/table_client/schemaful_writer_adapter.h>
 
 #include <ytlib/scheduler/statistics.h>
 
@@ -59,7 +59,7 @@ namespace NJobProxy {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
 using namespace NScheduler::NProto;

@@ -16,13 +16,13 @@
 
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/schemaful_chunk_reader.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/unordered_schemaful_reader.h>
-#include <ytlib/new_table_client/pipe.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/config.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_chunk_reader.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/unordered_schemaful_reader.h>
+#include <ytlib/table_client/pipe.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/evaluator.h>
@@ -68,8 +68,8 @@ using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NTabletClient;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode;
 using namespace NDataNode;

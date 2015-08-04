@@ -18,7 +18,7 @@
 
 #include <ytlib/chunk_client/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/scheduler/public.h>
 

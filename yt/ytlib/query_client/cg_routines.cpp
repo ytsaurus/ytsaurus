@@ -7,11 +7,11 @@
 #include "query_statistics.h"
 #include "evaluation_helpers.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/unordered_schemaful_reader.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/unordered_schemaful_reader.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_spec.h>
 
@@ -28,7 +28,7 @@ namespace NQueryClient {
 namespace NRoutines {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 

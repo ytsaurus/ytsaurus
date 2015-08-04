@@ -27,10 +27,10 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_writer.h>
-#include <ytlib/new_table_client/schemaless_buffered_table_writer.h>
-#include <ytlib/new_table_client/table_consumer.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_writer.h>
+#include <ytlib/table_client/schemaless_buffered_table_writer.h>
+#include <ytlib/table_client/table_consumer.h>
 
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
@@ -52,7 +52,7 @@ using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 

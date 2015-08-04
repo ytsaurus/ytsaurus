@@ -33,9 +33,9 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/formats/format.h>
 
@@ -54,7 +54,7 @@ using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NNodeTrackerClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NCellNode;
 using namespace NRpc;
 using namespace NChunkClient::NProto;

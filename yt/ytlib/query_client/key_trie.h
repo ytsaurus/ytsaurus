@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/row_buffer.h>
 
 namespace NYT {
 namespace NQueryClient {

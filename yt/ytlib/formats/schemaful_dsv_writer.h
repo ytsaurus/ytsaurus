@@ -10,8 +10,8 @@
 
 #include <core/concurrency/async_stream.h>
 
-#include <ytlib/new_table_client/public.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/table_client/public.h>
+#include <ytlib/table_client/schemaful_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -72,7 +72,7 @@ private:
 
     EState State_ = EState::None;
 
-    NVersionedTableClient::EControlAttribute ControlAttribute_;
+    NTableClient::EControlAttribute ControlAttribute_;
 
     void WriteRow();
     void EscapeAndWrite(const TStringBuf& value) const;
@@ -81,7 +81,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulDsvWriter
-    : public NVersionedTableClient::ISchemafulWriter
+    : public NTableClient::ISchemafulWriter
 {
 public:
     explicit TSchemafulDsvWriter(
@@ -89,17 +89,17 @@ public:
         TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
     virtual TFuture<void> Open(
-        const NVersionedTableClient::TTableSchema& schema,
-        const TNullable<NVersionedTableClient::TKeyColumns>& keyColumns) override;
+        const NTableClient::TTableSchema& schema,
+        const TNullable<NTableClient::TKeyColumns>& keyColumns) override;
 
     virtual TFuture<void> Close() override;
 
-    virtual bool Write(const std::vector<NVersionedTableClient::TUnversionedRow>& rows) override;
+    virtual bool Write(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
 private:
-    void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
+    void WriteValue(const NTableClient::TUnversionedValue& value);
     static char* WriteInt64Reversed(char* ptr, i64 value);
     static char* WriteUint64Reversed(char* ptr, ui64 value);
 

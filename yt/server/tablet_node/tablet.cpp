@@ -15,8 +15,8 @@
 
 #include <core/concurrency/delayed_executor.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/chunk_meta.pb.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -24,7 +24,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NHydra;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
@@ -357,7 +357,7 @@ void TTablet::CreateInitialPartition()
     PartitionList_.push_back(std::move(partition));
 }
 
-TPartition* TTablet::FindPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey)
+TPartition* TTablet::FindPartitionByPivotKey(const NTableClient::TOwningKey& pivotKey)
 {
     auto it = std::lower_bound(
         PartitionList_.begin(),
@@ -369,7 +369,7 @@ TPartition* TTablet::FindPartitionByPivotKey(const NVersionedTableClient::TOwnin
     return it != PartitionList_.end() && (*it)->GetPivotKey() == pivotKey ? it->get() : nullptr;
 }
 
-TPartition* TTablet::GetPartitionByPivotKey(const NVersionedTableClient::TOwningKey& pivotKey)
+TPartition* TTablet::GetPartitionByPivotKey(const NTableClient::TOwningKey& pivotKey)
 {
     auto* partition = FindPartitionByPivotKey(pivotKey);
     YCHECK(partition);

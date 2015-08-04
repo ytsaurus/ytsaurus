@@ -23,10 +23,10 @@
 #include <ytlib/query_client/plan_fragment.pb.h>
 #include <ytlib/query_client/user_defined_functions.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_writer.h>
 
 #include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
@@ -39,7 +39,7 @@
 #define _NULL_ "<\"type\"=\"null\">#"
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +60,7 @@ void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT
 
 
@@ -89,7 +89,7 @@ namespace {
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NObjectClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NApi;
 
 using ::testing::_;
@@ -1792,7 +1792,7 @@ TEST_P(TArithmeticTest, Evaluate)
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
-    auto row = NVersionedTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
+    auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
 
     TQueryStatistics statistics;
     auto permanentBuffer = New<TRowBuffer>();
@@ -1887,7 +1887,7 @@ TEST_P(TCompareWithNullTest, Simple)
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
+    auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
     auto expr = PrepareExpression(exprString, schema);
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
     executionContext.LiteralRows = &variables.LiteralRows;
@@ -2103,7 +2103,7 @@ TOwningRow BuildRow(
     auto keyColumns = GetKeyColumnsFromDataSplit(dataSplit);
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
 
-    return NVersionedTableClient::BuildRow(
+    return NTableClient::BuildRow(
             yson, keyColumns, tableSchema, treatMissingAsNull);
 }
 
@@ -2122,7 +2122,7 @@ TFuture<TQueryStatistics> DoExecuteQuery(
 
     TKeyColumns emptyKeyColumns;
     for (const auto& row : source) {
-        owningSource.push_back(NVersionedTableClient::BuildRow(row, emptyKeyColumns, fragment->Query->TableSchema));
+        owningSource.push_back(NTableClient::BuildRow(row, emptyKeyColumns, fragment->Query->TableSchema));
     }
 
     sourceRows.resize(owningSource.size());
@@ -4634,7 +4634,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
 
-    auto row = NVersionedTableClient::BuildRow(rowString, keyColumns, schema, true);
+    auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;
 
     TQueryStatistics statistics;

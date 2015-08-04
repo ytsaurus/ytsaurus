@@ -6,9 +6,9 @@
 
 #include <server/exec_agent/public.h>
 
-#include <ytlib/new_table_client/helpers.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -26,7 +26,7 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NYTree;
 using namespace NScheduler;
 using namespace NQueryClient;

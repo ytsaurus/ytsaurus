@@ -47,8 +47,8 @@
 #include <ytlib/hive/config.h>
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/name_table.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/plan_helpers.h>
@@ -69,11 +69,11 @@
 
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/row_merger.h>
-#include <ytlib/new_table_client/row_base.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/row_merger.h>
+#include <ytlib/table_client/row_base.h>
 
 namespace NYT {
 namespace NApi {
@@ -86,8 +86,8 @@ using namespace NObjectClient::NProto;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NRpc;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
@@ -749,20 +749,20 @@ public:
     IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
 
     virtual TFuture<IRowsetPtr> LookupRow(
         const TYPath& path,
         TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TKey key,
         const TLookupRowsOptions& options) override
     {
         return LookupRows(
             path,
             std::move(nameTable),
-            std::vector<NVersionedTableClient::TKey>(1, key),
+            std::vector<NTableClient::TKey>(1, key),
             options);
     }
 
@@ -809,7 +809,7 @@ public:
         (path, options))
     IMPLEMENT_METHOD(void, ReshardTable, (
         const TYPath& path,
-        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options),
         (path, pivotKeys, options))
 
@@ -1014,7 +1014,7 @@ private:
 
     static TTabletInfoPtr SyncGetTabletInfo(
         TTableMountInfoPtr tableInfo,
-        NVersionedTableClient::TKey key)
+        NTableClient::TKey key)
     {
         auto tabletInfo = tableInfo->GetTablet(key);
         if (tabletInfo->State != ETabletState::Mounted) {
@@ -1129,7 +1129,7 @@ private:
             , IdMapping_(idMapping)
         { }
 
-        void AddKey(int index, NVersionedTableClient::TKey key)
+        void AddKey(int index, NTableClient::TKey key)
         {
             if (Batches_.empty() || Batches_.back()->Indexes.size() >= Config_->MaxRowsPerReadRequest) {
                 Batches_.emplace_back(new TBatch());
@@ -1188,7 +1188,7 @@ private:
         struct TBatch
         {
             std::vector<int> Indexes;
-            std::vector<NVersionedTableClient::TKey> Keys;
+            std::vector<NTableClient::TKey> Keys;
             std::vector<TSharedRef> RequestData;
             TTabletServiceProxy::TRspReadPtr Response;
         };
@@ -1241,7 +1241,7 @@ private:
     IRowsetPtr DoLookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
@@ -1256,7 +1256,7 @@ private:
 
         // Server-side is specifically optimized for handling long runs of keys
         // from the same partition. Let's sort the keys to facilitate this.
-        std::vector<std::pair<NVersionedTableClient::TKey, int>> sortedKeys;
+        std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.size());
 
         auto rowBuffer = New<TRowBuffer>();
@@ -1424,7 +1424,7 @@ private:
 
     void DoReshardTable(
         const TYPath& path,
-        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options)
     {
         auto req = TTableYPathProxy::Reshard(path);
@@ -1945,20 +1945,20 @@ public:
     virtual void DeleteRow(
         const TYPath& path,
         TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TKey key,
         const TDeleteRowsOptions& options) override
     {
         DeleteRows(
             path,
             std::move(nameTable),
-            std::vector<NVersionedTableClient::TKey>(1, key),
+            std::vector<NTableClient::TKey>(1, key),
             options);
     }
 
     virtual void DeleteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::TKey> keys,
+        std::vector<NTableClient::TKey> keys,
         const TDeleteRowsOptions& options) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
@@ -1997,13 +1997,13 @@ public:
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRow, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TKey key,
         const TLookupRowsOptions& options),
         (path, nameTable, key, options))
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
 
@@ -2234,7 +2234,7 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<NVersionedTableClient::TKey> keys,
+            std::vector<NTableClient::TKey> keys,
             const TDeleteRowsOptions& options)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
@@ -2326,7 +2326,7 @@ private:
                 RowBuffer_->GetPool(),
                 SchemaColumnCount_,
                 KeyColumnCount_,
-                NVersionedTableClient::TColumnFilter());
+                NTableClient::TColumnFilter());
 
             auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
                 switch (submittedRow.Command) {

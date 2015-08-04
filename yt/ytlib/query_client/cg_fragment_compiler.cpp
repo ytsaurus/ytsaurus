@@ -8,9 +8,9 @@
 #include <core/codegen/public.h>
 #include <core/codegen/module.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schema.h>
 
 #include <core/logging/log.h>
 
@@ -28,7 +28,7 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NConcurrency;
 
 TCGValue MakePhi(

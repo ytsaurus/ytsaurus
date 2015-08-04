@@ -4,7 +4,7 @@
 
 #include <core/logging/log.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 // FIXME(lukyan): try to fix in new visual studio
 #ifdef _win_

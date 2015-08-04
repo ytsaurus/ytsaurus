@@ -10,9 +10,9 @@
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/small_vector.h>
 
-#include <yt/ytlib/new_table_client/row_buffer.h>
-#include <yt/ytlib/new_table_client/schema.h>
-#include <yt/ytlib/new_table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 #include <cstdlib>
 
@@ -20,7 +20,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
