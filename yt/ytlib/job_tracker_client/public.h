@@ -38,6 +38,7 @@ DEFINE_ENUM(EJobType,
     ((ReduceCombiner)    ( 11))
     ((RemoteCopy)        ( 12))
     ((IntermediateSort)  ( 13))
+    ((OrderedMap)        ( 14))
     ((SchedulerLast)     ( 99)) // sentinel
 
     // Master jobs
