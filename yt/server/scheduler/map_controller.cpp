@@ -7,6 +7,8 @@
 #include "job_resources.h"
 #include "helpers.h"
 
+#include <ytlib/chunk_client/chunk_slice.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -16,76 +18,67 @@ using namespace NYPath;
 using namespace NChunkServer;
 using namespace NJobProxy;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static const NProfiling::TProfiler Profiler("/operations/map");
+static const NProfiling::TProfiler Profiler("/operations/unordered");
 
 ////////////////////////////////////////////////////////////////////
 
-class TMapController
+class TUnorderedOperationControllerBase
     : public TOperationControllerBase
 {
 public:
-    TMapController(
+    TUnorderedOperationControllerBase(
         TSchedulerConfigPtr config,
-        TMapOperationSpecPtr spec,
+        TUnorderedOperationSpecBasePtr spec,
+        TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
         , Spec(spec)
-        , Options(config->MapOperationOptions)
-        , StartRowIndex(0)
+        , Options(options)
     { }
 
-    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
-    {
-        TOperationControllerBase::BuildBriefSpec(consumer);
-        BuildYsonMapFluently(consumer)
-            .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("mapper").BeginMap()
-                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
-                    .EndMap();
-            });
-    }
-
     // Persistence.
-
     virtual void Persist(TPersistenceContext& context) override
     {
         TOperationControllerBase::Persist(context);
 
         using NYT::Persist;
-        Persist(context, StartRowIndex);
-        Persist(context, MapTask);
-        Persist(context, MapTaskGroup);
         Persist(context, JobIOConfig);
         Persist(context, JobSpecTemplate);
+        Persist(context, UnorderedTask);
+        Persist(context, UnorderedTaskGroup);
     }
 
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapController, 0xbac5fd82);
+protected:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase, 0x73fa73d6);
 
-    TMapOperationSpecPtr Spec;
-    TMapOperationOptionsPtr Options;
+    TUnorderedOperationSpecBasePtr Spec;
+    TSimpleOperationOptionsPtr Options;
 
-    i64 StartRowIndex;
+    //! Customized job IO config.
+    TJobIOConfigPtr JobIOConfig;
+
+    //! The template for starting new jobs.
+    TJobSpec JobSpecTemplate;
 
 
-    class TMapTask
+    class TUnorderedTask
         : public TTask
     {
     public:
         //! For persistence only.
-        TMapTask()
+        TUnorderedTask()
             : Controller(nullptr)
         { }
 
-        explicit TMapTask(TMapController* controller, int jobCount)
+        explicit TUnorderedTask(TUnorderedOperationControllerBase* controller, int jobCount)
             : TTask(controller)
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
@@ -96,12 +89,12 @@ private:
 
         virtual Stroka GetId() const override
         {
-            return "Map";
+            return "Unordered";
         }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
-            return Controller->MapTaskGroup;
+            return Controller->UnorderedTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -111,7 +104,7 @@ private:
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
         {
-            return GetMapResources(
+            return Controller->GetUnorderedOperationResources(
                 joblet->InputStripeList->GetStatistics(),
                 joblet->MemoryReserveEnabled);
         }
@@ -136,9 +129,9 @@ private:
         }
 
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TMapTask, 0x87bacfe3);
+        DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedTask, 0x8ab75ee7);
 
-        TMapController* Controller;
+        TUnorderedOperationControllerBase* Controller;
 
         std::unique_ptr<IChunkPool> ChunkPool;
 
@@ -149,23 +142,9 @@ private:
 
         virtual TNodeResources GetMinNeededResourcesHeavy() const override
         {
-            return GetMapResources(
+            return Controller->GetUnorderedOperationResources(
                 ChunkPool->GetApproximateStripeStatistics(),
                 IsMemoryReserveEnabled());
-        }
-
-        TNodeResources GetMapResources(const TChunkStripeStatisticsVector& statistics, bool isReserveEnabled) const
-        {
-            TNodeResources result;
-            result.set_user_slots(1);
-            result.set_cpu(Controller->Spec->Mapper->CpuLimit);
-            result.set_memory(
-                Controller->GetFinalIOMemorySize(
-                    Controller->Spec->JobIO,
-                    AggregateStatistics(statistics)) +
-                GetFootprintMemorySize() +
-                Controller->GetMemoryReserve(isReserveEnabled, Controller->Spec->Mapper));
-            return result;
         }
 
         virtual int GetChunkListCountPerJob() const override
@@ -175,7 +154,7 @@ private:
 
         virtual EJobType GetJobType() const override
         {
-            return EJobType(Controller->JobSpecTemplate.type());
+            return EJobType(Controller->GetJobType());
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -183,13 +162,6 @@ private:
             jobSpec->CopyFrom(Controller->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
             AddFinalOutputSpecs(jobSpec, joblet);
-
-            auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-            Controller->InitUserJobSpec(
-                schedulerJobSpecExt->mutable_user_job_spec(),
-                joblet,
-                Controller->GetMemoryReserve(joblet->MemoryReserveEnabled, Controller->Spec->Mapper));
         }
 
         virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
@@ -207,97 +179,109 @@ private:
 
     };
 
-    typedef TIntrusivePtr<TMapTask> TMapTaskPtr;
+    typedef TIntrusivePtr<TUnorderedTask> TUnorderedTaskPtr;
 
-    TMapTaskPtr MapTask;
-    TTaskGroupPtr MapTaskGroup;
-
-
-    TJobIOConfigPtr JobIOConfig;
-    TJobSpec JobSpecTemplate;
+    TUnorderedTaskPtr UnorderedTask;
+    TTaskGroupPtr UnorderedTaskGroup;
 
 
     // Custom bits of preparation pipeline.
-
-    virtual void DoInitialize() override
-    {
-        TOperationControllerBase::DoInitialize();
-
-        if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Mapper->FilePaths.size());
-        }
-
-        MapTaskGroup = New<TTaskGroup>();
-        RegisterTaskGroup(MapTaskGroup);
-    }
-
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
     }
 
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    virtual void DoInitialize() override
     {
-        return Spec->OutputTablePaths;
+        TOperationControllerBase::DoInitialize();
+
+        UnorderedTaskGroup = New<TTaskGroup>();
+        RegisterTaskGroup(UnorderedTaskGroup);
     }
 
-    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    virtual bool IsCompleted() const override
     {
-        std::vector<TPathWithStage> result;
-        for (const auto& path : Spec->Mapper->FilePaths) {
-            result.push_back(std::make_pair(path, EOperationStage::Map));
-        }
-        return result;
+        return UnorderedTask->IsCompleted();
     }
 
     virtual void CustomPrepare() override
     {
-        TOperationControllerBase::CustomPrepare();
+        // The total data size for processing (except teleport chunks).
+        i64 totalDataSize = 0;
+
+        // The number of output partitions generated so far.
+        // Each partition either corresponds to a teleport chunk.
+        int currentPartitionIndex = 0;
 
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
-            auto jobCount = SuggestJobCount(
-                TotalEstimatedInputDataSize,
-                Spec->DataSizePerJob,
-                Spec->JobCount,
-                Options->MaxJobCount);
-            auto stripes = SliceInputChunks(Options->JobMaxSliceDataSize, &jobCount);
+            std::vector<TRefCountedChunkSpecPtr> mergedChunks;
 
-            MapTask = New<TMapTask>(this, jobCount);
-            MapTask->Initialize();
-            MapTask->AddInput(stripes);
-            MapTask->FinishInput();
-            RegisterTask(MapTask);
+            for (const auto& chunkSpec : CollectInputChunks()) {
+                if (IsTeleportChunk(*chunkSpec)) {
+                    // Chunks not requiring merge go directly to the output chunk list.
+                    LOG_TRACE("Teleport chunk added (ChunkId: %v, Partition: %v)",
+                        FromProto<TChunkId>(chunkSpec->chunk_id()),
+                        currentPartitionIndex);
 
-            LOG_INFO("Inputs processed (JobCount: %v)",
-                jobCount);
+                    // Place the chunk directly to the output table.
+                    RegisterOutput(chunkSpec, currentPartitionIndex, 0);
+                    ++currentPartitionIndex;
+                } else {
+                    mergedChunks.push_back(chunkSpec);
+                    i64 dataSize;
+                    GetStatistics(*chunkSpec, &dataSize);
+                    totalDataSize += dataSize;
+                }
+            }
+
+            // Create the task, if any data.
+            if (totalDataSize > 0) {
+                auto jobCount = SuggestJobCount(
+                    totalDataSize,
+                    Spec->DataSizePerJob,
+                    Spec->JobCount,
+                    Options->MaxJobCount);
+                auto stripes = SliceChunks(mergedChunks, Options->JobMaxSliceDataSize, &jobCount);
+
+                UnorderedTask = New<TUnorderedTask>(this, jobCount);
+                UnorderedTask->Initialize();
+                UnorderedTask->AddInput(stripes);
+                UnorderedTask->FinishInput();
+                RegisterTask(UnorderedTask);
+
+                LOG_INFO("Inputs processed (JobCount: %v)",
+                    jobCount);
+            } else {
+                LOG_INFO("Inputs processed (JobCount: 0). All chunks were teleported");
+            }
         }
 
         InitJobIOConfig();
         InitJobSpecTemplate();
     }
 
-    virtual void CustomizeJoblet(TJobletPtr joblet) override
+
+    // Resource management.
+    virtual TNodeResources GetUnorderedOperationResources(
+        const TChunkStripeStatisticsVector& statistics,
+        bool isReserveEnabled) const
     {
-        joblet->StartRowIndex = StartRowIndex;
-        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+        TNodeResources result;
+        result.set_user_slots(1);
+        result.set_cpu(GetCpuLimit());
+        result.set_memory(
+            GetFinalIOMemorySize(
+                Spec->JobIO,
+                AggregateStatistics(statistics)) +
+            GetFootprintMemorySize() +
+            GetAdditionalMemorySize(isReserveEnabled));
+        return result;
     }
 
-    virtual bool IsOutputLivePreviewSupported() const override
-    {
-        return true;
-    }
-
-    virtual bool IsCompleted() const override
-    {
-        return MapTask->IsCompleted();
-    }
 
     // Progress reporting.
-
     virtual Stroka GetLoggingProgress() const override
     {
         return Format(
@@ -314,10 +298,17 @@ private:
 
 
     // Unsorted helpers.
+    virtual EJobType GetJobType() const = 0;
 
-    virtual bool IsSortedOutputSupported() const override
+    virtual i32 GetCpuLimit() const
     {
-        return true;
+        return 1;
+    }
+
+    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const
+    {
+        UNUSED(memoryReserveEnabled);
+        return 0;
     }
 
     void InitJobIOConfig()
@@ -326,31 +317,150 @@ private:
         InitFinalOutputConfig(JobIOConfig);
     }
 
-    void InitJobSpecTemplate()
+    //! Returns |true| if the chunk can be included into the output as-is.
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const {
+        return false;
+    }
+
+    virtual void InitJobSpecTemplate()
     {
-        JobSpecTemplate.set_type(static_cast<int>(EJobType::Map));
+        JobSpecTemplate.set_type(static_cast<int>(GetJobType()));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         if (Spec->InputQuery) {
             ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
+        }
+        if (Spec->InputSchema) {
             ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
         }
+    }
+};
 
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TUnorderedTask);
+
+////////////////////////////////////////////////////////////////////
+
+class TMapController
+    : public TUnorderedOperationControllerBase
+{
+public:
+    TMapController(
+        TSchedulerConfigPtr config,
+        TMapOperationSpecPtr spec,
+        TMapOperationOptionsPtr options,
+        IOperationHost* host,
+        TOperation* operation)
+        : TUnorderedOperationControllerBase(config, spec, options, host, operation)
+        , Spec(spec)
+    { }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        TUnorderedOperationControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("mapper").BeginMap()
+                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
+                    .EndMap();
+            });
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapController, 0xbac5fd82);
+
+    TMapOperationSpecPtr Spec;
+
+    i64 StartRowIndex = 0;
+
+
+    // Custom bits of preparation pipeline.
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::Map;
+    }
+
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    {
+        return Spec->OutputTablePaths;
+    }
+
+    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    {
+        std::vector<TPathWithStage> result;
+        for (const auto& path : Spec->Mapper->FilePaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Map));
+        }
+        return result;
+    }
+
+    virtual void DoInitialize() override
+    {
+        TUnorderedOperationControllerBase::DoInitialize();
+
+        if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
+                Config->MaxUserFileCount,
+                Spec->Mapper->FilePaths.size());
+        }
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+
+    // Unsorted helpers.
+    virtual i32 GetCpuLimit() const override
+    {
+        return Spec->Mapper->CpuLimit;
+    }
+
+    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
+    {
+        return GetMemoryReserve(memoryReserveEnabled, Spec->Mapper);
+    }
+
+    virtual bool IsSortedOutputSupported() const override
+    {
+        return true;
+    }
+
+    virtual void InitJobSpecTemplate() override
+    {
+        TUnorderedOperationControllerBase::InitJobSpecTemplate();
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
             Files);
-
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    {
+        joblet->StartRowIndex = StartRowIndex;
+        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+    }
+
+    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    {
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        InitUserJobSpec(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            joblet,
+            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController::TMapTask);
+
+////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateMapController(
     TSchedulerConfigPtr config,
@@ -358,7 +468,74 @@ IOperationControllerPtr CreateMapController(
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-    return New<TMapController>(config, spec, host, operation);
+    return New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
+}
+
+////////////////////////////////////////////////////////////////////
+
+class TUnorderedMergeController
+    : public TUnorderedOperationControllerBase
+{
+public:
+    TUnorderedMergeController(
+        TSchedulerConfigPtr config,
+        TUnorderedMergeOperationSpecPtr spec,
+        TUnorderedMergeOperationOptionsPtr options,
+        IOperationHost* host,
+        TOperation* operation)
+        : TUnorderedOperationControllerBase(config, spec, options, host, operation)
+        , Spec(spec)
+    { }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x9a17a41f);
+
+    TUnorderedMergeOperationSpecPtr Spec;
+
+
+    // Custom bits of preparation pipeline.
+    virtual EJobType GetJobType() const override
+    {
+        return EJobType::UnorderedMerge;
+    }
+
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    {
+        std::vector<TRichYPath> result;
+        result.push_back(Spec->OutputTablePath);
+        return result;
+    }
+
+    // Unsorted helpers.
+    virtual bool IsRowCountPreserved() const override
+    {
+        return true;
+    }
+
+    //! Returns |true| if the chunk can be included into the output as-is.
+    //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
+    {
+        if (Spec->ForceTransform)
+            return false;
+
+        return Spec->CombineChunks
+            ? IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize)
+            : IsCompleteChunk(chunkSpec);
+    }
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
+
+////////////////////////////////////////////////////////////////////
+
+IOperationControllerPtr CreateUnorderedMergeController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(operation->GetSpec());
+    return New<TUnorderedMergeController>(config, spec, config->UnorderedMergeOperationOptions, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

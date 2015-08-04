@@ -2223,7 +2223,7 @@ private:
         TSortControllerBase::DoInitialize();
 
         if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in maper: maximum allowed %v, actual %v",
+            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
                 Config->MaxUserFileCount,
                 Spec->Mapper->FilePaths.size());
         }

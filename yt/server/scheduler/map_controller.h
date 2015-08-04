@@ -12,6 +12,11 @@ IOperationControllerPtr CreateMapController(
     IOperationHost* host,
     TOperation* operation);
 
+IOperationControllerPtr CreateUnorderedMergeController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
