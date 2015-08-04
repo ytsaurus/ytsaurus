@@ -35,6 +35,9 @@ class TestPatternMatching(object):
                              "//d/d3", "//d/d3/a", "//d/d3/a/b"]
                 return "map_node" if path in map_nodes else "table"
 
+            def exists(self, path, *args, **kwargs):
+                return True
+
         client = YtClientMock()
 
         with pytest.raises(yt.YtError):
