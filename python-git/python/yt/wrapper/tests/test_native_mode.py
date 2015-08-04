@@ -1393,16 +1393,14 @@ class NativeModeTester(YtTestBase, YTEnv):
             yt.write_table(table, ["x=1\n", "y=2\n"])
             self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
 
-            #rsp = yt.read_table(table)
-            #assert rsp.next() == "x=1\n"
-            #yt.write_table(table, ["x=1\n", "y=3\n"])
-            #assert rsp.next() == "y=2\n"
-            #rsp.close()
+            rsp = yt.read_table(table)
+            assert rsp.next() == "x=1\n"
+            yt.write_table(table, ["x=1\n", "y=3\n"])
+            assert rsp.next() == "y=2\n"
+            rsp.close()
 
             rsp = yt.read_table(table, raw=False)
-            # y != 3 because rsp.close() aborts inner write_table() transaction
-            # TODO(asaitgalin): snapshot transaction in read_table() should not be put into transaction stack
-            assert [("x", "1"), ("y", "2")] == sorted([x.items()[0] for x in rsp])
+            assert [("x", "1"), ("y", "3")] == sorted([x.items()[0] for x in rsp])
 
             response_parameters = {}
             rsp = yt.read_table(table, response_parameters=response_parameters)
@@ -1412,7 +1410,7 @@ class NativeModeTester(YtTestBase, YTEnv):
             with yt.Transaction():
                 yt.lock(table, mode="snapshot")
                 yt.config["read_retries"]["create_transaction_and_take_snapshot_lock"] = False
-                self.check(["x=1\n", "y=2\n"], list(yt.read_table(table)))
+                self.check(["x=1\n", "y=3\n"], list(yt.read_table(table)))
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value

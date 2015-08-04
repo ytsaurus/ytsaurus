@@ -62,20 +62,16 @@ from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribu
 from file_commands import smart_upload_file
 from operation_commands import Operation, WaitStrategy
 from transaction_commands import _make_transactional_request, abort_transaction
-from transaction import Transaction, Abort
+from transaction import Transaction, null_transaction_id
 from format import create_format, YsonFormat, YamrFormat
-from lock import lock
 from heavy_commands import make_write_request, make_read_request
-from http import RETRIABLE_ERRORS, get_api_version, HTTPError
-from response_stream import ResponseStream, EmptyResponseStream
+from http import get_api_version
 import yt.logger as logger
 import yt.packages.simplejson as json
 
 import os
 import sys
 import types
-import random
-import exceptions
 import tempfile
 import socket
 import getpass
@@ -153,7 +149,7 @@ def _reliably_upload_files(files, client=None):
         return []
 
     file_paths = []
-    with Transaction(null=True, client=client):
+    with Transaction(transaction_id=null_transaction_id, client=client):
         for file in flatten(files):
             file_paths.append(smart_upload_file(file, client=client))
     return file_paths
