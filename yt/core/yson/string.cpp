@@ -42,7 +42,7 @@ void TYsonString::Load(TStreamLoadContext& context)
 
 void Serialize(const TYsonString& yson, IYsonConsumer* consumer)
 {
-    consumer->OnRaw(yson.Data(), yson.GetType());
+    consumer->OnRaw(yson);
 }
 
 bool operator == (const TYsonString& lhs, const TYsonString& rhs)

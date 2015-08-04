@@ -360,7 +360,7 @@ public:
             for (const auto& key : attributes.List()) {
                 const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
+                this->Consumer->OnRaw(yson);
             }
             return *this;
         }
@@ -444,7 +444,7 @@ public:
             for (const auto& key : attributes.List()) {
                 const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
+                this->Consumer->OnRaw(yson);
             }
             return *this;
         }

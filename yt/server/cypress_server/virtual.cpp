@@ -127,7 +127,7 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
             TYsonWriter writer(&stream, EYsonFormat::Binary);
 
             writer.OnBeginAttributes();
-            writer.OnRaw(owningNodeAttributes.Data(), owningNodeAttributes.GetType());
+            writer.OnRaw(owningNodeAttributes);
             if (session->Incomplete) {
                 writer.OnKeyedItem("incomplete");
                 writer.OnBooleanScalar(true);
@@ -139,7 +139,7 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
                 writer.OnKeyedItem(item.Key);
                 if (item.Attributes) {
                     writer.OnBeginAttributes();
-                    writer.OnRaw(item.Attributes->Data(), item.Attributes->GetType());
+                    writer.OnRaw(*item.Attributes);
                     writer.OnEndAttributes();
                 }
                 writer.OnEntity();
@@ -189,7 +189,7 @@ void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, T
                 writer.OnListItem();
                 if (item.Attributes) {
                     writer.OnBeginAttributes();
-                    writer.OnRaw(item.Attributes->Data(), item.Attributes->GetType());
+                    writer.OnRaw(*item.Attributes);
                     writer.OnEndAttributes();
                 }
                 writer.OnStringScalar(item.Key);
