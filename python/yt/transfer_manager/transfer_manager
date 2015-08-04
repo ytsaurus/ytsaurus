@@ -713,6 +713,9 @@ class Application(object):
                     logger.info("Task %s running", id)
                     error = None
                     completed = False
+
+                    process_is_alive = process.is_alive()
+
                     while not message_queue.empty():
                         message = None
                         try:
@@ -731,7 +734,7 @@ class Application(object):
                             assert False, "Incorrect message type: " + message["type"]
 
 
-                    if not process.is_alive() and not (process.aborted or error is not None or completed):
+                    if not process_is_alive and not (process.aborted or error is not None or completed):
                         message = "Process died silently"
                         logger.warning(message)
                         error = {"message": message, "code": 1}
@@ -744,7 +747,7 @@ class Application(object):
                             self._tasks[id].error = error
                             self._change_task_state(id, "failed")
                         elif completed:
-                            if process.is_alive():
+                            if process_is_alive:
                                 logger.warning("Task completed, but process still alive!")
                             self._change_task_state(id, "completed")
 
