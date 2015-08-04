@@ -1099,3 +1099,40 @@ class TestJobQuery(YTEnvSetup):
             spec={"input_query": "a where abs_udf(a) > 0", "input_schema": [{"name": "a", "type": "int64"}]})
 
         assert read_table("//tmp/t2") == [{"a": -1}]
+
+    def test_ordered_map_many_jobs(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        original_data = [{"index": i} for i in xrange(10)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row)
+
+        command = "cat; echo stderr 1>&2"
+        op_id = map(dont_track=True, in_="//tmp/t_input", out="//tmp/t_output", command=command,
+                spec={"ordered": True, "data_size_per_job": 1})
+
+        track_op(op_id)
+        jobs = get("//sys/operations/" + op_id + "/jobs/@count")
+
+        assert get("//sys/operations/" + op_id + "/jobs/@count") == 10
+        assert read_table("//tmp/t_output") == original_data
+
+    def test_ordered_map_remains_sorted(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        original_data = [{"key": i} for i in xrange(1000)]
+        for i in xrange(10):
+            write_table("<append=true>//tmp/t_input", original_data[100*i:100*(i+1)])
+
+        command = "cat; echo stderr 1>&2"
+        sorted_out = "<sorted_by=[key]>//tmp/t_output"
+        op_id = map(dont_track=True, in_="//tmp/t_input", out=sorted_out, command=command,
+                spec={"ordered": True, "job_count": 5})
+
+        track_op(op_id)
+        jobs = get("//sys/operations/" + op_id + "/jobs/@count")
+
+        assert jobs == 5
+        assert get("//tmp/t_output/@sorted")
+        assert get("//tmp/t_output/@sorted_by") == ["key"]
+        assert read_table("//tmp/t_output") == original_data

@@ -2180,7 +2180,7 @@ public:
         , ReduceStartRowIndex(0)
     { }
 
-    void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TSortControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)

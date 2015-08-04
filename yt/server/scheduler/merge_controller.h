@@ -7,6 +7,11 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IOperationControllerPtr CreateOrderedMapController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation);
+
 IOperationControllerPtr CreateMergeController(
     TSchedulerConfigPtr config,
     IOperationHost* host,

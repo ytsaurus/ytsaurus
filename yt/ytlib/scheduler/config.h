@@ -350,6 +350,7 @@ class TMapOperationSpec
 public:
     TUserJobSpecPtr Mapper;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
+    bool Ordered;
 
     TMapOperationSpec()
     {
@@ -357,6 +358,8 @@ public:
             .DefaultNew();
         RegisterParameter("output_table_paths", OutputTablePaths)
             .NonEmpty();
+        RegisterParameter("ordered", Ordered)
+            .Default(false);
 
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
