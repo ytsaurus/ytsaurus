@@ -7,10 +7,7 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A SAX-like interface to YTree.
-/*!
- *  Describes a bunch of events that are raised during YTree traversal.
- */
+//! A SAX-like interface for building a YSON stream.
 struct IYsonConsumer
 {
     virtual ~IYsonConsumer()
@@ -106,6 +103,8 @@ struct IYsonConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A base class that handles OnRaw and converts it into a sequence
+//! of elementary calls.
 class TYsonConsumerBase
     : public virtual IYsonConsumer
 {
