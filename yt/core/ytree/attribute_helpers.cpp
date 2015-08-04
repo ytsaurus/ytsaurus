@@ -119,7 +119,7 @@ void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
     for (const auto& key : list) {
         consumer->OnKeyedItem(key);
         auto yson = attributes.GetYson(key);
-        consumer->OnRaw(yson.Data(), yson.GetType());
+        consumer->OnRaw(yson);
     }
     consumer->OnEndMap();
 }

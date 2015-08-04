@@ -97,8 +97,9 @@ public:
         yhash_set<Stroka> matchingKeys(filter.Keys.begin(), filter.Keys.end());
         for (const auto& key : keys) {
             if (filter.Mode == EAttributeFilterMode::All || matchingKeys.find(key) != matchingKeys.end()) {
+                auto yson = attributes.GetYson(key);
                 consumer->OnKeyedItem(key);
-                consumer->OnRaw(attributes.GetYson(key).Data(), EYsonType::Node);
+                consumer->OnRaw(yson);
             }
         }
     }

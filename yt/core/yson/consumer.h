@@ -99,6 +99,11 @@ struct IYsonConsumer
      *  \param type Type of data.
      */
     virtual void OnRaw(const TStringBuf& yson, EYsonType type) = 0;
+
+
+    // Extension methods.
+    void OnRaw(const TYsonString& str);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

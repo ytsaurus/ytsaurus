@@ -47,6 +47,7 @@ public:
     virtual void OnBeginAttributes();
     virtual void OnEndAttributes();
 
+    using IYsonConsumer::OnRaw;
     virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
 protected:

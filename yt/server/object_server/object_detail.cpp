@@ -416,8 +416,9 @@ void TObjectProxyBase::WriteAttributesFragment(
             }
 
             for (const auto& key : userKeys) {
+                auto value = customAttributes.GetYson(key);
                 consumer->OnKeyedItem(key);
-                consumer->OnRaw(customAttributes.GetYson(key).Data(), EYsonType::Node);
+                consumer->OnRaw(value);
             }
 
             for (const auto& attribute : builtinAttributes) {
@@ -445,7 +446,7 @@ void TObjectProxyBase::WriteAttributesFragment(
                 if (!GetBuiltinAttribute(key, &attributeValueConsumer)) {
                     auto value = customAttributes.FindYson(key);
                     if (value) {
-                        attributeValueConsumer.OnRaw(value->Data(), EYsonType::Node);
+                        attributeValueConsumer.OnRaw(*value);
                     }
                 }
             }
