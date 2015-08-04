@@ -26,6 +26,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         # Change cell tag of remote cluster
         cls.Env._run_all(masters_count=1,
                          nodes_count=9,
+                         secondary_master_cell_count=0,
                          schedulers_count=0,
                          has_proxy=False,
                          instance_id="-remote",
