@@ -25,7 +25,7 @@ class TCodecBase
     : public ICodec
 {
 protected:
-    static size_t ZeroSizeEstimator(const std::vector<size_t>&)
+    static size_t ZeroSizeEstimator(const std::vector<int>&)
     {
         return 0;
     }
