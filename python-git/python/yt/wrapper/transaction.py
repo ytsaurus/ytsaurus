@@ -1,38 +1,36 @@
 from config import get_option, set_option, get_config, get_total_request_timeout, get_request_retry_count
 import yt.logger as logger
 from common import get_value
-from errors import YtResponseError
+from errors import YtResponseError, YtError
 from transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
 
-from copy import deepcopy
 from thread import interrupt_main
 from time import sleep
 from threading import Thread
 from datetime import datetime, timedelta
 
-class Abort(Exception):
-    pass
+null_transaction_id = "0-0-0-0"
 
 class TransactionStack(object):
     def __init__(self):
-        self.stack = []
-        self.initial_transaction = "0-0-0-0"
+        self._stack = []
+        self.initial_transaction = null_transaction_id
         self.initial_ping_ancestor_transactions = False
 
     def init(self, initial_transaction, initial_ping_ancestor_transactions):
-        if not self.stack:
+        if not self._stack:
             self.initial_transaction = initial_transaction
             self.initial_ping_ancestor_transactions = initial_ping_ancestor_transactions
 
     def append(self, transaction_id, ping_ancestor_transactions):
-        self.stack.append((transaction_id, ping_ancestor_transactions))
+        self._stack.append((transaction_id, ping_ancestor_transactions))
 
     def pop(self):
-        self.stack.pop()
+        self._stack.pop()
 
     def get(self):
-        if self.stack:
-            return self.stack[-1]
+        if self._stack:
+            return self._stack[-1]
         else:
             return self.initial_transaction, self.initial_ping_ancestor_transactions
 
@@ -55,89 +53,96 @@ class Transaction(object):
     .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
     """
 
-    def __init__(self, timeout=None, attributes=None, ping=True, null=False,
+    def __init__(self, timeout=None, attributes=None, ping=True, transaction_id=None,
                  ping_ancestor_transactions=False, client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
+        if transaction_id == null_transaction_id:
+            ping = False
 
-        self.null = null
-        self.client = client
-        self.ping = ping
-        self.timeout = timeout
-        self.ping_ancestor_transactions = ping_ancestor_transactions
-        self.attributes = deepcopy(attributes)
+        self.transaction_id = transaction_id
 
-        if get_option("_transaction_stack", self.client) is None:
-            set_option("_transaction_stack", TransactionStack(), self.client)
-        self.stack = get_option("_transaction_stack", self.client)
+        self._client = client
+        self._ping = ping
+        self._ping_ancestor_transactions = ping_ancestor_transactions
+        self._finished = False
 
-        self.stack.init(get_option("TRANSACTION", self.client), get_option("PING_ANCESTOR_TRANSACTIONS", self.client))
+        if get_option("_transaction_stack", self._client) is None:
+            set_option("_transaction_stack", TransactionStack(), self._client)
+        self._stack = get_option("_transaction_stack", self._client)
+        self._stack.init(get_option("TRANSACTION", self._client), get_option("PING_ANCESTOR_TRANSACTIONS", self._client))
 
-        self.finished = False
-
-    def __enter__(self):
-        if not self.finished:
-            self._start_new_transaction()
-            if self.ping and not self.null:
-                delay = (self.timeout / 1000.0) / max(2, get_request_retry_count(self.client))
-                self.ping_thread = PingTransaction(self.transaction_id, delay, client=self.client)
-                self.ping_thread.start()
-        return self
-
-    def __exit__(self, type, value, traceback):
-        if self.finished:
-            return
-        if self.ping and not self.null:
-            self.ping_thread.stop()
-        try:
-            if not self.null:
-                if type is not None and type is not Abort:
-                    logger.warning(
-                        "Error: (type=%s, value=%s), aborting transaction %s ...",
-                        type,
-                        value,
-                        self.transaction_id)
-
-                try:
-                    if type is None:
-                        commit_transaction(self.transaction_id, client=self.client)
-                    else:
-                        abort_transaction(self.transaction_id, client=self.client)
-                except YtResponseError as rsp:
-                    if rsp.is_resolve_error():
-                        logger.warning("Transaction %s is missing, cannot commit or abort" % self.transaction_id)
-                    else:
-                        raise
-        finally:
-            self.stack.pop()
-            transaction_id, ping_ancestor_transactions = self.stack.get()
-            set_option("TRANSACTION", transaction_id, self.client)
-            set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self.client)
-            self.finished = True
-
-    def _start_new_transaction(self):
-        if self.null:
-            self.transaction_id = "0-0-0-0"
+        if self.transaction_id is None:
+            self.transaction_id = start_transaction(timeout=timeout,
+                                                    attributes=attributes,
+                                                    client=self._client)
+            self._started = True
         else:
-            self.transaction_id = start_transaction(timeout=self.timeout,
-                                                    attributes=self.attributes,
-                                                    client=self.client)
+            self._started = False
 
-        self.stack.append(self.transaction_id, self.ping_ancestor_transactions)
-        set_option("TRANSACTION", self.transaction_id, self.client)
-        set_option("PING_ANCESTOR_TRANSACTIONS", self.ping_ancestor_transactions, self.client)
+        if self._ping and self._started:
+            delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
+            self._ping_thread = PingTransaction(self.transaction_id, delay, client=self._client)
+            self._ping_thread.start()
 
-class EmptyTransaction(object):
-    def __init__(self):
-        pass
+    def abort(self):
+        """ Abort transaction. """
+        if self._finished or self.transaction_id == null_transaction_id:
+            return
+        self._stop_pinger()
+        abort_transaction(self.transaction_id, client=self._client)
+        self._finished = True
+
+    def commit(self):
+        """ Commit transaction. """
+        if self.transaction_id == null_transaction_id:
+            return
+        if self._finished:
+            raise YtError("Transaction is already finished, cannot commit")
+        self._stop_pinger()
+        commit_transaction(self.transaction_id, client=self._client)
+        self._finished = True
 
     def __enter__(self):
+        self._stack.append(self.transaction_id, self._ping_ancestor_transactions)
+        set_option("TRANSACTION", self.transaction_id, self._client)
+        set_option("PING_ANCESTOR_TRANSACTIONS", self._ping_ancestor_transactions, self._client)
         return self
 
     def __exit__(self, type, value, traceback):
-        pass
+        if self._finished:
+            return
 
-    def __nonzero__(self):
-        return False
+        try:
+            if not self._started or self.transaction_id == null_transaction_id:
+                return
+
+            if type is not None:
+                logger.warning(
+                    "Error: (type=%s, value=%s), aborting transaction %s ...",
+                    type,
+                    value,
+                    self.transaction_id)
+
+            try:
+                if type is None:
+                    self.commit()
+                else:
+                    self.abort()
+            except YtResponseError as rsp:
+                if rsp.is_resolve_error():
+                    logger.warning("Transaction %s is missing, cannot commit or abort" % self.transaction_id)
+                else:
+                    raise
+        finally:
+            self._stack.pop()
+            transaction_id, ping_ancestor_transactions = self._stack.get()
+            set_option("TRANSACTION", transaction_id, self._client)
+            set_option("PING_ANCESTOR_TRANSACTIONS", ping_ancestor_transactions, self._client)
+
+    def _stop_pinger(self):
+        if self._ping:
+            self._ping_thread.stop()
+
 
 class PingTransaction(Thread):
     """
@@ -155,7 +160,7 @@ class PingTransaction(Thread):
         self.is_running = True
         self.daemon = True
         self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0) # in seconds
-        self.client = client
+        self._client = client
 
     def __enter__(self):
         self.start()
@@ -168,7 +173,7 @@ class PingTransaction(Thread):
         if not self.is_running:
             return
         self.is_running = False
-        timeout = get_total_request_timeout(self.client) / 1000.0
+        timeout = get_total_request_timeout(self._client) / 1000.0
         # timeout should be enough to execute ping
         self.join(timeout + 2 * self.step)
         if self.is_alive():
@@ -177,7 +182,7 @@ class PingTransaction(Thread):
     def run(self):
         while self.is_running:
             try:
-                ping_transaction(self.transaction, client=self.client)
+                ping_transaction(self.transaction, client=self._client)
             except:
                 logger.exception("Ping failed")
                 interrupt_main()
@@ -195,7 +200,6 @@ class PingableTransaction(Transaction):
             timeout=timeout,
             attributes=attributes,
             ping=True,
-            null=False,
             ping_ancestor_transactions=ping_ancestor_transactions,
             client=client)
 
