@@ -8,6 +8,8 @@
 #include <core/ytree/attribute_helpers.h>
 #include <core/ytree/system_attribute_provider.h>
 
+#include <core/yson/async_writer.h>
+
 #include <core/ypath/tokenizer.h>
 
 #include <core/rpc/rpc.pb.h>
@@ -333,8 +335,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+        TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
 
         writer.OnBeginMap();
 
@@ -342,14 +343,22 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
             std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
             builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
             for (const auto& descriptor : builtinDescriptors) {
-                if (descriptor.Present) {
-                    writer.OnKeyedItem(descriptor.Key);
-                    if (descriptor.Opaque) {
-                        writer.OnEntity();
-                    } else {
-                        YCHECK(builtinAttributeProvider->GetBuiltinAttribute(descriptor.Key, &writer));
-                    }
+                if (!descriptor.Present)
+                    continue;
+
+                writer.OnKeyedItem(descriptor.Key);
+                if (descriptor.Opaque) {
+                    writer.OnEntity();
+                    continue;
                 }
+
+                if (builtinAttributeProvider->GetBuiltinAttribute(descriptor.Key, &writer)) {
+                    continue;
+                }
+
+                auto asyncValue = builtinAttributeProvider->GetBuiltinAttributeAsync(descriptor.Key);
+                YCHECK(asyncValue);
+                writer.OnRaw(std::move(asyncValue));
             }
         }
 
@@ -362,8 +371,8 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
         }
 
         writer.OnEndMap();
-        TYsonString yson(stream.Str());
-        return MakeFuture(yson);
+
+        return writer.Finish();
     } else {
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();

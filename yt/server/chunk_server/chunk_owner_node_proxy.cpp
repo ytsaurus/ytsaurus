@@ -467,29 +467,27 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     auto isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("chunk_list_id")
-        .SetPresent(!isExternal));
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor("chunk_ids")
-        .SetPresent(!isExternal)
+        .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("compression_statistics")
-        .SetPresent(!isExternal)
+        .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("erasure_statistics")
-        .SetPresent(!isExternal)
+        .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor("chunk_count")
-        .SetPresent(!isExternal));
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor("uncompressed_data_size")
-        .SetPresent(!isExternal));
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor("compressed_data_size")
-        .SetPresent(!isExternal));
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor("compression_ratio")
-        .SetPresent(!isExternal));
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor("compression_codec")
-        .SetPresent(!isExternal)
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("erasure_codec")
-        .SetPresent(!isExternal)
         .SetCustom(true));
     descriptors->push_back("update_mode");
     descriptors->push_back(TAttributeDescriptor("replication_factor")

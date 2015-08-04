@@ -82,11 +82,15 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         const auto* table = GetThisTypedImpl();
+        bool isDynamic = table->IsDynamic();
+        bool isExternal = table->IsExternal();
 
         descriptors->push_back(TAttributeDescriptor("row_count")
-            .SetPresent(!table->IsDynamic()));
+            .SetPresent(!isDynamic)
+            .SetExternal(!isDynamic && isExternal));
         descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
-            .SetPresent(table->IsDynamic()));
+            .SetPresent(isDynamic)
+            .SetExternal(isDynamic && isExternal));
         descriptors->push_back("sorted");
         descriptors->push_back(TAttributeDescriptor("key_columns")
             .SetReplicated(true));
@@ -94,7 +98,8 @@ private:
             .SetPresent(table->GetSorted()));
         descriptors->push_back("dynamic");
         descriptors->push_back(TAttributeDescriptor("tablets")
-            .SetPresent(table->IsDynamic())
+            .SetPresent(isDynamic)
+            .SetExternal(isDynamic && isExternal)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("channels")
             .SetCustom(true));

@@ -74,6 +74,7 @@ protected:
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(const Stroka& key);
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
@@ -180,6 +181,7 @@ protected:
         const NYPath::TYPath& path,
         NYTree::INodePtr value,
         bool recursive);
+
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
