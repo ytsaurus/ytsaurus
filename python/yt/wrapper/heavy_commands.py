@@ -5,17 +5,33 @@ import config
 from config import get_option, get_config, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
 from common import get_backoff
 from table import to_table, to_name
-from transaction import Transaction, EmptyTransaction, Abort
+from transaction import Transaction
 from transaction_commands import _make_transactional_request
 from http import RETRIABLE_ERRORS, HTTPError
 from response_stream import ResponseStream
 from lock import lock
 
-import sys
 import time
 import random
 import exceptions
 from datetime import datetime
+
+class FakeTransaction(object):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def __nonzero__(self):
+        return False
+
+    def abort(self):
+        pass
+
+    def commit(self):
+        pass
+
 
 def make_write_request(command_name, stream, path, params, create_object, use_retries, client=None):
     path = to_table(path, client=client)
@@ -103,9 +119,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
         if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
             title = "Python wrapper: read {0}".format(to_name(path, client=client))
             tx = Transaction(attributes={"title": title}, client=client)
-            tx.__enter__()
         else:
-            tx = EmptyTransaction()
+            tx = FakeTransaction()
 
         def iter_with_retries(iter):
             try:
@@ -122,12 +137,9 @@ def make_read_request(command_name, path, params, process_response_action, retri
                         logger.warning(str(err))
                         logger.warning("New retry (%d) ...", attempt + 2)
             except exceptions.GeneratorExit:
-                tx.__exit__(None, None, None)
-            except:
-                tx.__exit__(*sys.exc_info())
-                raise
-            else:
-                tx.__exit__(None, None, None)
+                pass
+            finally:
+                tx.abort()
 
         class Iterator(object):
             def __init__(self):
@@ -137,12 +149,17 @@ def make_read_request(command_name, path, params, process_response_action, retri
 
             def execute_read(self):
                 params = self.retriable_state.prepare_params_for_retry()
-                self.response = _make_transactional_request(
+                make_request = lambda: _make_transactional_request(
                     command_name,
                     params,
                     return_content=False,
                     use_heavy_proxy=True,
                     client=client)
+                if tx:
+                    with Transaction(transaction_id=tx.transaction_id, client=client):
+                        self.response = make_request()
+                else:
+                    self.response = make_request()
                 for elem in self.retriable_state.iterate(self.response):
                     yield elem
 
@@ -155,11 +172,12 @@ def make_read_request(command_name, path, params, process_response_action, retri
             def close(self):
                 if self.response is not None:
                     self.response.close()
-                tx.__exit__(Abort, None, None)
+                tx.abort()
 
         try:
             if tx:
-                lock(path, mode="snapshot", client=client)
+                with Transaction(transaction_id=tx.transaction_id, client=client):
+                    lock(path, mode="snapshot", client=client)
             iterator = Iterator()
             return ResponseStream(
                 lambda: iterator.response,
@@ -168,5 +186,5 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 process_error=lambda request: iterator.response._process_error(request),
                 get_response_parameters=lambda: None)
         except:
-            tx.__exit__(*sys.exc_info())
+            tx.abort()
             raise
