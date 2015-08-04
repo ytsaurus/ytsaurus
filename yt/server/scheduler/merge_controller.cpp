@@ -229,7 +229,7 @@ protected:
             TNodeResources result;
 
             result.set_user_slots(1);
-            result.set_cpu(1);
+            result.set_cpu(Controller->GetCpuLimit());
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
@@ -430,8 +430,8 @@ protected:
             Spec->JobCount,
             Options->MaxJobCount);
 
-        MaxDataSizePerJob = 1 + TotalEstimatedInputDataSize / jobCount;
-        ChunkSliceSize = std::min(Options->JobMaxSliceDataSize, MaxDataSizePerJob);
+        MaxDataSizePerJob = (TotalEstimatedInputDataSize + jobCount - 1) / jobCount;
+        ChunkSliceSize = static_cast<int>(Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize));
     }
 
     void ProcessInputs()
@@ -487,6 +487,10 @@ protected:
 
 
     // Unsorted helpers.
+    virtual i32 GetCpuLimit() const
+    {
+        return 1;
+    }
 
     virtual bool IsSingleStripeInput() const
     {
@@ -499,7 +503,7 @@ protected:
     }
 
     //! Returns True if the chunk can be included into the output as-is.
-    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) = 0;
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const = 0;
 
     virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const
     {
@@ -508,7 +512,7 @@ protected:
     }
 
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
-    bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks)
+    bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks) const
     {
         return combineChunks
             ? IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize)
@@ -539,7 +543,7 @@ public:
     TOrderedMergeControllerBase(
         TSchedulerConfigPtr config,
         TSimpleOperationSpecBasePtr spec,
-        TOrderedMergeOperationOptionsPtr options,
+        TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
         : TMergeControllerBase(config, spec, options, host, operation)
@@ -565,6 +569,164 @@ private:
     }
 
 };
+
+////////////////////////////////////////////////////////////////////
+
+class TOrderedMapController
+    : public TOrderedMergeControllerBase
+{
+public:
+    TOrderedMapController(
+        TSchedulerConfigPtr config,
+        TMapOperationSpecPtr spec,
+        TMapOperationOptionsPtr options,
+        IOperationHost* host,
+        TOperation* operation)
+        : TOrderedMergeControllerBase(config, spec, options, host, operation)
+        , Spec(spec)
+    { }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        TOrderedMergeControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("mapper").BeginMap()
+                .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
+            .EndMap();
+    }
+
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TOrderedMergeControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, StartRowIndex);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController, 0x1e5a7e32);
+
+    TMapOperationSpecPtr Spec;
+
+    i64 StartRowIndex = 0;
+
+
+    virtual bool IsRowCountPreserved() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    {
+        return Spec->InputTablePaths;
+    }
+
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    {
+        return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<int> GetTeleportTableIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    {
+        std::vector<TPathWithStage> result;
+        for (const auto& path : Spec->Mapper->FilePaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Map));
+        }
+        return result;
+    }
+
+    virtual void DoInitialize() override
+    {
+        TOrderedMergeControllerBase::DoInitialize();
+
+        if (Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
+                Config->MaxUserFileCount,
+                Spec->Mapper->FilePaths.size());
+        }
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+
+    // Unsorted helpers.
+    virtual i32 GetCpuLimit() const override
+    {
+        return Spec->Mapper->CpuLimit;
+    }
+
+    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
+    {
+        return GetMemoryReserve(memoryReserveEnabled, Spec->Mapper);
+    }
+
+    virtual bool IsSortedOutputSupported() const override
+    {
+        return true;
+    }
+
+    virtual void InitJobSpecTemplate() override
+    {
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        InitUserJobSpecTemplate(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            Spec->Mapper,
+            Files);
+
+        if (Spec->InputQuery) {
+            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+        }
+    }
+
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    {
+        joblet->StartRowIndex = StartRowIndex;
+        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+    }
+
+    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    {
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        InitUserJobSpec(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            joblet,
+            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
+    }
+
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
+
+////////////////////////////////////////////////////////////////////
+
+IOperationControllerPtr CreateOrderedMapController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
+    return New<TOrderedMapController>(config, spec, config->MapOperationOptions, host, operation);
+}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -599,7 +761,7 @@ private:
         return result;
     }
 
-    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
         if (Spec->ForceTransform)
             return false;
@@ -678,7 +840,7 @@ private:
         return result;
     }
 
-    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
@@ -876,7 +1038,7 @@ protected:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
         YUNREACHABLE();
     }
@@ -1336,7 +1498,7 @@ public:
         , TeleportOutputTable(Null)
     { }
 
-    void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TSortedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
@@ -1603,6 +1765,11 @@ private:
     virtual bool IsSortedOutputSupported() const override
     {
         return true;
+    }
+
+    virtual i32 GetCpuLimit() const override
+    {
+        return Spec->Reducer->CpuLimit;
     }
 
     virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
