@@ -6,8 +6,19 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncYsonWriter::TAsyncYsonWriter()
-    : SyncWriter_(&Stream_)
+TAsyncYsonWriter::TAsyncYsonWriter(
+    EYsonFormat format,
+    EYsonType type,
+    bool enableRaw,
+    bool booleanAsString,
+    int indent)
+    : SyncWriter_(
+        &Stream_,
+        format,
+        type,
+        enableRaw,
+        booleanAsString,
+        indent)
 { }
 
 void TAsyncYsonWriter::OnStringScalar(const TStringBuf& value)

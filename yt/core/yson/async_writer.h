@@ -15,7 +15,12 @@ class TAsyncYsonWriter
     , private TNonCopyable
 {
 public:
-    TAsyncYsonWriter();
+    TAsyncYsonWriter(
+        EYsonFormat format = EYsonFormat::Binary,
+        EYsonType type = EYsonType::Node,
+        bool enableRaw = false,
+        bool booleanAsString = false,
+        int indent = 4);
 
     virtual void OnStringScalar(const TStringBuf& value) override;
     virtual void OnInt64Scalar(i64 value) override;
