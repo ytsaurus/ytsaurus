@@ -215,6 +215,9 @@ std::unique_ptr<IUserJobIO> TJobProxy::CreateUserJobIO()
         case NScheduler::EJobType::Map:
             return CreateMapJobIO(this);
 
+        case NScheduler::EJobType::OrderedMap:
+            return CreateOrderedMapJobIO(this);
+
         case NScheduler::EJobType::SortedReduce:
             return CreateSortedReduceJobIO(this);
 

@@ -3534,7 +3534,7 @@ int TOperationControllerBase::SuggestJobCount(
     TNullable<int> configJobCount,
     int maxJobCount) const
 {
-    i64 suggestionBySize = 1 + totalDataSize / dataSizePerJob;
+    i64 suggestionBySize = (totalDataSize + dataSizePerJob - 1) / dataSizePerJob;
     i64 jobCount = configJobCount.Get(suggestionBySize);
     return static_cast<int>(Clamp(jobCount, 1, maxJobCount));
 }

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "map_controller.h"
+#include "merge_controller.h"
 #include "private.h"
 #include "operation_controller_detail.h"
 #include "chunk_pool.h"
@@ -57,8 +58,6 @@ public:
     }
 
 protected:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase, 0x73fa73d6);
-
     TUnorderedOperationSpecBasePtr Spec;
     TSimpleOperationOptionsPtr Options;
 
@@ -337,7 +336,6 @@ protected:
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TUnorderedTask);
 
 ////////////////////////////////////////////////////////////////////
@@ -360,12 +358,18 @@ public:
     {
         TUnorderedOperationControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
-            .DoIf(Spec->Mapper.operator bool(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("mapper").BeginMap()
-                        .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
-                    .EndMap();
-            });
+            .Item("mapper").BeginMap()
+                .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
+            .EndMap();
+    }
+
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TUnorderedOperationControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, StartRowIndex);
     }
 
 private:
@@ -411,7 +415,6 @@ private:
     {
         return true;
     }
-
 
     // Unsorted helpers.
     virtual i32 GetCpuLimit() const override
@@ -465,6 +468,9 @@ IOperationControllerPtr CreateMapController(
     TOperation* operation)
 {
     auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
+    if (spec->Ordered)
+        return CreateOrderedMapController(config, host, operation);
+
     return New<TMapController>(config, spec, config->MapOperationOptions, host, operation);
 }
 
