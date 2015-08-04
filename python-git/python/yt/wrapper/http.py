@@ -71,7 +71,8 @@ def create_response(response, request_headers, client):
                 url_base = "/".join(response.url.split("/")[:3])
                 raise YtTokenError(
                     "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
-                    "Please refer to {1}/auth/ for obtaining a valid token or submit your request to https://st.yandex-team.ru/createTicket?queue=YTADMIN"\
+                    "Please refer to {1}/auth/ for obtaining a valid token if it will not fix error: "
+                    "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMIN"\
                         .format(
                             response.headers.get("X-YT-Request-ID", "missing"),
                             url_base))
