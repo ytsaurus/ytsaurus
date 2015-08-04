@@ -11,6 +11,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
+#include <core/ytree/ypath_proxy.h> // XXX(babenko): improve
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/node_detail.h>
 #include <core/ytree/convert.h>
@@ -20,6 +21,10 @@
 #include <core/ytree/exception_helpers.h>
 
 #include <core/ypath/tokenizer.h>
+
+#include <ytlib/hive/cell_directory.h>
+
+#include <ytlib/object_client/object_service_proxy.h> // XXX(babenko): improve
 
 #include <server/cell_master/config.h>
 #include <server/cell_master/bootstrap.h>
@@ -285,7 +290,58 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
         return visitor->Run(this);
     }
 
+    auto asyncValue = GetExternalBuiltinAttributeAsync(key);
+    if (asyncValue) {
+        return asyncValue;
+    }
+
     return TObjectProxyBase::GetBuiltinAttributeAsync(key);
+}
+
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttributeAsync(const Stroka& key)
+{
+    const auto* node = GetThisImpl();
+    if (!node->IsExternal()) {
+        return Null;
+    }
+
+    auto maybeDescriptor = FindBuiltinAttributeDescriptor(key);
+    if (!maybeDescriptor) {
+        return Null;
+    }
+
+    const auto& descriptor = *maybeDescriptor;
+    if (!descriptor.External) {
+        return Null;
+    }
+
+    auto cellTag = node->GetExternalCellTag();
+    auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
+
+    auto cellDirectory = Bootstrap_->GetCellDirectory();
+    auto channel = cellDirectory->GetChannelOrThrow(cellId);
+
+    // XXX(babenko): improve
+    TObjectServiceProxy proxy(channel);
+    proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+
+    auto versionedId = GetVersionedId();
+
+    auto req = TYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@" + key);
+    SetTransactionId(req, versionedId.TransactionId);
+
+    return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error requesting attribute %Qv of object %v from cell %v",
+                key,
+                versionedId,
+                cellTag)
+                << rspOrError;
+        }
+
+        const auto& rsp = rspOrError.Value();
+        return TYsonString(rsp->value());
+    }));
 }
 
 bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
