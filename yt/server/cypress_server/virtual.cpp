@@ -9,7 +9,13 @@
 #include <core/ytree/convert.h>
 #include <core/ytree/ypath_proxy.h>
 
+#include <core/yson/writer.h>
+#include <core/yson/async_writer.h>
+#include <core/yson/attribute_fragment_consumer.h>
+
 #include <core/rpc/dispatcher.h>
+
+#include <core/concurrency/scheduler.h>
 
 #include <ytlib/hive/cell_directory.h>
 
@@ -41,6 +47,7 @@ using namespace NTransactionServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCypressClient;
+using namespace NConcurrency;
 
 using NYT::FromProto;
 
@@ -112,7 +119,7 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
     i64 limit = request->limit();
 
     // NB: Must deal with owning node's attributes here due to thread affinity issues.
-    auto owningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
+    auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
 
     FetchItems(limit, attributeFilter)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
@@ -121,25 +128,34 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
                 return;
             }
 
+            auto owningNodeAttributesOrError = WaitFor(asyncOwningNodeAttributes);
+            if (!owningNodeAttributesOrError.IsOK()) {
+                context->Reply(owningNodeAttributesOrError);
+                return;
+            }
+
+            const auto& owningNodeAttributes = owningNodeAttributesOrError.Value();
             const auto& session = sessionOrError.Value();
 
             TStringStream stream;
-            TYsonWriter writer(&stream, EYsonFormat::Binary);
+            TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
 
-            writer.OnBeginAttributes();
-            writer.OnRaw(owningNodeAttributes);
-            if (session->Incomplete) {
-                writer.OnKeyedItem("incomplete");
-                writer.OnBooleanScalar(true);
+            {
+                TAsyncYsonConsumerAdapter asyncAdapter(&writer);
+                TAttributeFragmentConsumer attributesConsumer(&asyncAdapter);
+                attributesConsumer.OnRaw(owningNodeAttributes);
+                if (session->Incomplete) {
+                    attributesConsumer.OnKeyedItem("incomplete");
+                    attributesConsumer.OnBooleanScalar(true);
+                }
             }
-            writer.OnEndAttributes();
 
             writer.OnBeginMap();
             for (const auto& item : session->Items) {
                 writer.OnKeyedItem(item.Key);
-                if (item.Attributes) {
+                if (!item.Attributes.Data().empty()) {
                     writer.OnBeginAttributes();
-                    writer.OnRaw(*item.Attributes);
+                    writer.OnRaw(item.Attributes);
                     writer.OnEndAttributes();
                 }
                 writer.OnEntity();
@@ -175,21 +191,23 @@ void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, T
             const auto& session = sessionOrError.Value();
 
             TStringStream stream;
-            TYsonWriter writer(&stream, EYsonFormat::Binary);
+            TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
 
-            writer.OnBeginAttributes();
-            if (session->Incomplete) {
-                writer.OnKeyedItem("incomplete");
-                writer.OnBooleanScalar(true);
+            {
+                TAsyncYsonConsumerAdapter asyncAdapter(&writer);
+                TAttributeFragmentConsumer attributesConsumer(&asyncAdapter);
+                if (session->Incomplete) {
+                    attributesConsumer.OnKeyedItem("incomplete");
+                    attributesConsumer.OnBooleanScalar(true);
+                }
             }
-            writer.OnEndAttributes();
 
             writer.OnBeginList();
             for (const auto& item : session->Items) {
                 writer.OnListItem();
-                if (item.Attributes) {
+                if (!item.Attributes.Data().empty()) {
                     writer.OnBeginAttributes();
-                    writer.OnRaw(*item.Attributes);
+                    writer.OnRaw(item.Attributes);
                     writer.OnEndAttributes();
                 }
                 writer.OnStringScalar(item.Key);
@@ -306,70 +324,86 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
     session->CellTags = multicellManager->GetRegisteredSecondaryMasterCellTags();
 
     auto promise = NewPromise<TFetchItemsSessionPtr>();
-    FetchItemsFromLocal(session, promise);
-    if (Bootstrap_->IsPrimaryMaster()) {
-        FetchItemsFromRemote(session, promise);
-    } else {
-        promise.Set(session);
-    }
+    FetchItemsFromAnywhere(session, promise);
 
     return promise.ToFuture();
 }
 
-void TVirtualMulticellMapBase::FetchItemsFromLocal(
-    TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
-    TPromise<TFetchItemsSessionPtr> promise)
-{
-    YCHECK(session->Items.empty());
-    auto keys = GetKeys(session->Limit);
-    session->Incomplete |= (keys.size() == session->Limit);
-
-    auto objectManager = Bootstrap_->GetObjectManager();
-
-    for (const auto& key : keys) {
-        auto* object = objectManager->FindObject(key);
-        if (IsObjectAlive(object)) {
-            TFetchItem item;
-            item.Key = ToString(key);
-            if (session->AttributeFilter.Mode != EAttributeFilterMode::None) {
-                TStringStream stream;
-                TYsonWriter writer(&stream, EYsonFormat::Binary);
-                auto proxy = objectManager->GetProxy(object, nullptr);
-                proxy->WriteAttributesFragment(&writer, session->AttributeFilter, false);
-                const auto& str = stream.Str();
-                if (!str.empty()) {
-                    item.Attributes = TYsonString(str, EYsonType::MapFragment);
-                }
-            }
-            session->Items.push_back(item);
-        }
-    }
-
-    if (session->Items.size() >= session->Limit) {
-        promise.Set(session);
-    }
-}
-
-void TVirtualMulticellMapBase::FetchItemsFromRemote(
+void TVirtualMulticellMapBase::FetchItemsFromAnywhere(
     TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
     TPromise<TFetchItemsSessionPtr> promise)
 {
     if (promise.IsSet())
         return;
 
-    if (session->CellTagIndex >= session->CellTags.size() ||
+    if (session->CellTagIndex >= (int) session->CellTags.size() ||
         session->Items.size() >= session->Limit)
     {
         promise.Set(session);
-        return;
+    } else if (session->CellTagIndex < 0) {
+        FetchItemsFromLocal(session, promise);
+    } else {
+        FetchItemsFromRemote(session, promise);
+    }
+}
+
+void TVirtualMulticellMapBase::FetchItemsFromLocal(
+    TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
+    TPromise<TFetchItemsSessionPtr> promise)
+{
+    auto keys = GetKeys(session->Limit);
+    session->Incomplete |= (keys.size() == session->Limit);
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+
+    std::vector<TFuture<TYsonString>> asyncAttributes;
+    for (const auto& key : keys) {
+        auto* object = objectManager->FindObject(key);
+        if (IsObjectAlive(object)) {
+            TFetchItem item;
+            item.Key = ToString(key);
+            if (session->AttributeFilter.Mode != EAttributeFilterMode::None) {
+                TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::MapFragment, true);
+                auto proxy = objectManager->GetProxy(object, nullptr);
+                proxy->WriteAttributesFragment(&writer, session->AttributeFilter, false);
+                asyncAttributes.emplace_back(writer.Finish());
+            } else {
+                static const auto EmptyFragment = MakeFuture(TYsonString(Stroka(), EYsonType::MapFragment));
+                asyncAttributes.push_back(EmptyFragment);
+            }
+            session->Items.push_back(item);
+        }
     }
 
+    Combine(asyncAttributes)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TYsonString>>& errorOrAttributes) mutable {
+            if (!errorOrAttributes.IsOK()) {
+                promise.Set(errorOrAttributes);
+                return;
+            }
+
+            const auto& attributes = errorOrAttributes.Value();
+            YCHECK(session->Items.size() == attributes.size());
+            for (int index = 0; index < session->Items.size(); ++index) {
+                session->Items[index].Attributes = attributes[index];
+            }
+
+            // Proceed to remotes.
+            session->CellTagIndex = 0;
+            FetchItemsFromAnywhere(session, promise);
+        }));
+}
+
+void TVirtualMulticellMapBase::FetchItemsFromRemote(
+    TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
+    TPromise<TFetchItemsSessionPtr> promise)
+{
     auto cellDirectory = Bootstrap_->GetCellDirectory();
     auto cellTag = session->CellTags[session->CellTagIndex++];
     auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
     auto channel = cellDirectory->FindChannel(cellId);
     if (!channel) {
-        FetchItemsFromRemote(session, promise);
+        FetchItemsFromAnywhere(session, promise);
         return;
     }
 
@@ -381,40 +415,41 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
     req->set_limit(session->Limit - session->Items.size());
     ToProto(req->mutable_attribute_filter(), session->AttributeFilter);
 
-    proxy.Execute(req).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TCypressYPathProxy::TErrorOrRspEnumeratePtr& rspOrError) mutable {
-        if (!rspOrError.IsOK()) {
-            auto error = TError("Error fetching content of virtual map %v from cell %v",
-                path,
-                cellTag)
-                << rspOrError;
-            promise.Set(error);
-            return;
-        }
-
-        const auto& rsp = rspOrError.Value();
-
-        session->Incomplete |= rsp->incomplete();
-        for (const auto& protoItem : rsp->items()) {
-            TFetchItem item;
-            item.Key = protoItem.key();
-            if (protoItem.has_attributes()) {
-                item.Attributes = TYsonString(protoItem.attributes(), EYsonType::MapFragment);
+    proxy.Execute(req)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TCypressYPathProxy::TErrorOrRspEnumeratePtr& rspOrError) mutable {
+            if (!rspOrError.IsOK()) {
+                auto error = TError("Error fetching content of virtual map %v from cell %v",
+                    path,
+                    cellTag)
+                    << rspOrError;
+                promise.Set(error);
+                return;
             }
-            session->Items.push_back(item);
-        }
 
-        FetchItemsFromRemote(session, promise);
-    }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
+            const auto& rsp = rspOrError.Value();
+
+            session->Incomplete |= rsp->incomplete();
+            for (const auto& protoItem : rsp->items()) {
+                TFetchItem item;
+                item.Key = protoItem.key();
+                if (protoItem.has_attributes()) {
+                    item.Attributes = TYsonString(protoItem.attributes(), EYsonType::MapFragment);
+                }
+                session->Items.push_back(item);
+            }
+
+            // Proceed to the next remote.
+            FetchItemsFromAnywhere(session, promise);
+        }).Via(NRpc::TDispatcher::Get()->GetInvoker()));
 }
 
-TYsonString TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAttributeFilter & attributeFilter)
+TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAttributeFilter& attributeFilter)
 {
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::MapFragment, true);
     if (OwningNode_) {
         OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
     }
-    return TYsonString(stream.Str(), NYson::EYsonType::MapFragment);
+    return writer.Finish();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
@@ -430,29 +465,44 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 
     auto objectManager = Bootstrap_->GetObjectManager();
 
+    std::vector<TFuture<TYsonString>> asyncValues;
     for (const auto& key : keys) {
         auto* object = objectManager->FindObject(key);
         if (IsObjectAlive(object)) {
             auto* protoItem = response->add_items();
             protoItem->set_key(ToString(key));
             if (attributeFilter.Mode != EAttributeFilterMode::None) {
-                TStringStream stream;
-                TYsonWriter writer(&stream, EYsonFormat::Binary);
+                TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::MapFragment, true);
                 auto proxy = objectManager->GetProxy(object, nullptr);
                 proxy->WriteAttributesFragment(&writer, attributeFilter, false);
-                const auto& str = stream.Str();
-                if (!str.empty()) {
-                    protoItem->set_attributes(str);
-                }
+                asyncValues.push_back(writer.Finish());
             }
         }
     }
 
     response->set_incomplete(response->items_size() == limit);
-    context->SetResponseInfo("Count: %v, Incomplete: %v",
-        response->items_size(),
-        response->incomplete());
-    context->Reply();
+
+    Combine(asyncValues)
+        .Subscribe(BIND([=] (const TErrorOr<std::vector<TYsonString>>& valuesOrError) {
+            if (!valuesOrError.IsOK()) {
+                context->Reply(valuesOrError);
+                return;
+            }
+
+            const auto& values = valuesOrError.Value();
+            YCHECK(response->items_size() == values.size());
+            for (int index = 0; index < response->items_size(); ++index) {
+                const auto& value = values[index];
+                if (!value.Data().empty()) {
+                    response->mutable_items(index)->set_attributes(value.Data());
+                }
+            }
+
+            context->SetResponseInfo("Count: %v, Incomplete: %v",
+                response->items_size(),
+                response->incomplete());
+            context->Reply();
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

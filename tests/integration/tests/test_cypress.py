@@ -452,13 +452,15 @@ class TestCypress(YTEnvSetup):
         set("//tmp/a", {})
         assert ls("//tmp", attr=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
 
-    def test_get_list_with_attributes_virtual_maps(self):
+    def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
+        assert get("//sys/transactions", attr=["type"]) == to_yson_type(\
+            {tx: to_yson_type(None, attributes={"type": "transaction"})},
+            attributes={"type": "transaction_map"})
 
-        assert get("//sys/transactions", attr=["type"]) == {tx: to_yson_type(None, attributes={"type": "transaction"})}
+    def test_list_with_attributes_virtual_maps(self):
+        tx = start_transaction()
         assert ls("//sys/transactions", attr=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
-
-        abort_transaction(tx)
 
     def test_exists(self):
         assert exists("//tmp")

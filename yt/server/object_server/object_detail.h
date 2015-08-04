@@ -42,7 +42,7 @@ public:
     virtual TResolveResult Resolve(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
     virtual void WriteAttributesFragment(
-        NYson::IYsonConsumer* consumer,
+        NYson::IAsyncYsonConsumer* consumer,
         const NYTree::TAttributeFilter& filter,
         bool sortKeys) override;
 

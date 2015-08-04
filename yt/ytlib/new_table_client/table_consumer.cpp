@@ -28,7 +28,7 @@ TBuildingValueConsumer::TBuildingValueConsumer(
     , KeyColumns_(keyColumns)
     , NameTable_(TNameTable::FromSchema(Schema_))
     , WrittenFlags_(NameTable_->GetSize(), false)
-    , ValueWriter_(&ValueBuffer_)
+    , ValueWriter_(&ValueBuffer_, EYsonFormat::Binary, EYsonType::Node, true)
 { }
 
 const std::vector<TUnversionedOwningRow>& TBuildingValueConsumer::GetOwningRows() const

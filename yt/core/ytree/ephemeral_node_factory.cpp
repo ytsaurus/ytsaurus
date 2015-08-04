@@ -8,6 +8,8 @@
 #include <core/misc/hash.h>
 #include <core/misc/singleton.h>
 
+#include <core/yson/async_consumer.h>
+
 #include <algorithm>
 
 namespace NYT {
@@ -38,7 +40,7 @@ public:
     }
 
 private:
-    INodePtr Node;
+    const INodePtr Node;
 
     INodePtr GetRoot()
     {
@@ -82,7 +84,7 @@ public:
 
 
     virtual void WriteAttributesFragment(
-        IYsonConsumer* consumer,
+        IAsyncYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {

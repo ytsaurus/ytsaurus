@@ -9,6 +9,7 @@
 #include <core/misc/enum.h>
 
 #include <core/yson/string.h>
+#include <core/yson/async_consumer.h>
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/exception_helpers.h>
@@ -272,18 +273,17 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 }
 
 void TObjectProxyBase::WriteAttributesFragment(
-    IYsonConsumer* consumer,
+    IAsyncYsonConsumer* consumer,
     const TAttributeFilter& filter,
     bool sortKeys)
 {
     class TValueConsumer
-        : public IYsonConsumer
+        : public IAsyncYsonConsumer
     {
     public:
-        TValueConsumer(IYsonConsumer* underlyingConsumer, const Stroka& key)
+        TValueConsumer(IAsyncYsonConsumer* underlyingConsumer, const Stroka& key)
             : UnderlyingConsumer_(underlyingConsumer)
             , Key_(key)
-            , Empty_(true)
         { }
 
         virtual void OnStringScalar(const TStringBuf& value) override
@@ -370,16 +370,24 @@ void TObjectProxyBase::WriteAttributesFragment(
             UnderlyingConsumer_->OnEndAttributes();
         }
 
+        using IYsonConsumer::OnRaw;
+
         virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
         {
             ProduceKeyIfNeeded();
             UnderlyingConsumer_->OnRaw(yson, type);
         }
 
+        virtual void OnRaw(TFuture<TYsonString> asyncStr) override
+        {
+            ProduceKeyIfNeeded();
+            UnderlyingConsumer_->OnRaw(std::move(asyncStr));
+        }
+
     private:
-        IYsonConsumer* const UnderlyingConsumer_;
+        IAsyncYsonConsumer* const UnderlyingConsumer_;
         const Stroka Key_;
-        bool Empty_;
+        bool Empty_ = true;
 
 
         void ProduceKeyIfNeeded()
@@ -443,11 +451,20 @@ void TObjectProxyBase::WriteAttributesFragment(
 
             for (const auto& key : keys) {
                 TValueConsumer attributeValueConsumer(consumer, key);
-                if (!GetBuiltinAttribute(key, &attributeValueConsumer)) {
-                    auto value = customAttributes.FindYson(key);
-                    if (value) {
-                        attributeValueConsumer.OnRaw(*value);
-                    }
+
+                if (GetBuiltinAttribute(key, &attributeValueConsumer))
+                    continue;
+
+                auto asyncValue = GetBuiltinAttributeAsync(key);
+                if (asyncValue) {
+                    attributeValueConsumer.OnRaw(std::move(asyncValue));
+                    continue;
+                }
+
+                auto value = customAttributes.FindYson(key);
+                if (value) {
+                    attributeValueConsumer.OnRaw(*value);
+                    continue; // just for the symmetry
                 }
             }
 

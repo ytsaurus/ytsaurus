@@ -130,7 +130,7 @@ NLogging::TLogger TYPathServiceBase::GetLogger() const
 }
 
 void TYPathServiceBase::WriteAttributesFragment(
-    IYsonConsumer* /*consumer*/,
+    IAsyncYsonConsumer* /*consumer*/,
     const TAttributeFilter& /*filter*/,
     bool /*sortKeys*/)
 { }
@@ -334,7 +334,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
 
         writer.OnBeginMap();
 
@@ -407,7 +407,7 @@ TYsonString TSupportsAttributes::DoListAttributeFragment(const TYPath& path, con
     auto listedKeys = SyncYPathList(node, path);
 
     TStringStream stream;
-    TYsonWriter writer(&stream);
+    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
     writer.OnBeginList();
     for (const auto& listedKey : listedKeys) {
         writer.OnListItem();
@@ -426,7 +426,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         TStringStream stream;
-        TYsonWriter writer(&stream);
+        TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
         writer.OnBeginList();
 
         auto* customAttributes = GetCustomAttributes();
@@ -687,7 +687,13 @@ void TSupportsAttributes::SetAttribute(
 {
     context->SetRequestInfo();
 
-    DoSetAttribute(path, TYsonString(request->value()));
+    // Binarize the value.
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node);
+    writer.OnRaw(request->value(), EYsonType::Node);
+    auto value = TYsonString(stream.Str());
+
+    DoSetAttribute(path, value);
     
     context->Reply();
 }
@@ -888,7 +894,11 @@ private:
     virtual void OnMyKeyedItem(const TStringBuf& key) override
     {
         Stroka keyString(key);
-        AttributeWriter_.reset(new TYsonWriter(&AttributeStream_));
+        AttributeWriter_.reset(new TYsonWriter(
+            &AttributeStream_,
+            EYsonFormat::Binary,
+            EYsonType::Node,
+            true));
         Forward(
             AttributeWriter_.get(),
             BIND ([=] () {
@@ -1109,7 +1119,7 @@ public:
     }
 
     virtual void WriteAttributesFragment(
-        IYsonConsumer* consumer,
+        IAsyncYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
@@ -1117,7 +1127,7 @@ public:
     }
 
 private:
-    IYPathServicePtr UnderlyingService_;
+    const IYPathServicePtr UnderlyingService_;
 
 };
 
