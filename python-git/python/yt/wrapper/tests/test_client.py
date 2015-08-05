@@ -142,8 +142,8 @@ class TestClient(object):
             assert op.get_progress()["total"] != 0
             assert op.get_stderrs() == []
 
-            client.upload_file("0" * 1000, TEST_DIR + "/file")
-            assert client.download_file(TEST_DIR + "/file").read() == "0" * 1000
+            client.write_file(TEST_DIR + "/file", "0" * 1000)
+            assert client.read_file(TEST_DIR + "/file").read() == "0" * 1000
             with pytest.raises(yt.YtError):
                 client.smart_upload_file("/unexisting")
 

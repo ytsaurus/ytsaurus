@@ -68,7 +68,7 @@ class TestCypressCommands(object):
     def test_search(self):
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
         yt.create_table(TEST_DIR + "/dir/table")
-        yt.upload_file("", TEST_DIR + "/file")
+        yt.write_file(TEST_DIR + "/file", "")
 
         res = set([TEST_DIR, TEST_DIR + "/dir",
                    TEST_DIR + "/dir/other_dir",

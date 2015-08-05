@@ -10,14 +10,14 @@ import tempfile
 class TestFileCommands(object):
     def test_file_commands(self):
         with pytest.raises(yt.YtError):
-            yt.upload_file("", TEST_DIR + "/dir/file")
+            yt.write_file(TEST_DIR + "/dir/file", "")
 
         file_path = TEST_DIR + "/file"
-        yt.upload_file("", file_path)
-        assert yt.download_file(file_path).read() == ""
+        yt.write_file(file_path, "")
+        assert yt.read_file(file_path).read() == ""
 
-        yt.upload_file("0" * 1000, file_path)
-        assert yt.download_file(file_path).read() == "0" * 1000
+        yt.write_file(file_path, "0" * 1000)
+        assert yt.read_file(file_path).read() == "0" * 1000
 
         _, filename = tempfile.mkstemp()
         with open(filename, "w") as fout:
@@ -46,10 +46,10 @@ class TestFileCommands(object):
         with pytest.raises(yt.YtError):
             yt.smart_upload_file(filename, destination=destination, placement_strategy="hash")
 
-        assert yt.download_file(destination, length=4).read() == "some"
-        assert yt.download_file(destination, offset=5).read() == "content"
+        assert yt.read_file(destination, length=4).read() == "some"
+        assert yt.read_file(destination, offset=5).read() == "content"
 
         destination = yt.smart_upload_file(filename, placement_strategy="ignore")
         yt.smart_upload_file(filename, placement_strategy="ignore")
-        assert yt.download_file(destination).read() == "some content"
+        assert yt.read_file(destination).read() == "some content"
 
