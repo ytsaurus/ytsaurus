@@ -90,7 +90,7 @@ def sigterm_handler(signum, frame):
         time.sleep(0.5)
         os.killpg(0, signal.SIGTERM)
 
-    sys.exit()
+    os._exit(1)
 
 def log_yt_exception(logger, message=None):
     # Python2.7 has a bug in unpickling exception with non-trivial constructor.
