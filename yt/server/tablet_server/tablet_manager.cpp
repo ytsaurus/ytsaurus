@@ -3,6 +3,7 @@
 #include "tablet_cell.h"
 #include "tablet.h"
 #include "tablet_cell_proxy.h"
+#include "tablet_cell_bundle_proxy.h"
 #include "tablet_proxy.h"
 #include "cypress_integration.h"
 #include "config.h"
@@ -104,6 +105,50 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 static const auto& Logger = TabletServerLogger;
 static const auto CleanupPeriod = TDuration::Seconds(10);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletManager::TTabletCellBundleTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TTabletCellBundle>
+{
+public:
+    explicit TTabletCellBundleTypeHandler(TImpl* owner);
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::TabletCellBundle;
+    }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Forbidden,
+            EObjectAccountMode::Forbidden);
+    }
+
+    virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
+        TTransaction* transaction,
+        TAccount* account,
+        IAttributeDictionary* attributes,
+        const TObjectCreationExtensions& /*extensions*/) override;
+
+private:
+    TImpl* const Owner_;
+
+    virtual Stroka DoGetName(TTabletCellBundle* bundle) override
+    {
+        return Format("tablet cell bundle %Qv", bundle->GetName());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TTabletCellBundle* bundle, TTransaction* /*transaction*/) override
+    {
+        return CreateTabletCellBundleProxy(Bootstrap_, bundle);
+    }
+
+    virtual void DoDestroyObject(TTabletCellBundle* bundle) override;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,6 +285,7 @@ public:
     void Initialize()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RegisterHandler(New<TTabletCellBundleTypeHandler>(this));
         objectManager->RegisterHandler(New<TTabletCellTypeHandler>(this));
         objectManager->RegisterHandler(New<TTabletTypeHandler>(this));
 
@@ -248,6 +294,43 @@ public:
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
     }
 
+    TTabletCellBundle* CreateCellBundle(const Stroka& name, IAttributeDictionary* attributes, const TObjectId& hintId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (name.empty()) {
+            THROW_ERROR_EXCEPTION("Tablet cell bundle name cannot be empty");
+        }
+
+        if (FindTabletCellBundleByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Tablet cell bundle %Qv already exists",
+                name);
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto id = objectManager->GenerateId(EObjectType::TabletCellBundle, hintId);
+        auto bundleHolder = std::make_unique<TTabletCellBundle>(id);
+
+        bundleHolder->SetName(name);
+        bundleHolder->SetOptions(ConvertTo<TTabletCellOptionsPtr>(attributes)); // may throw
+
+        auto* bundle = TabletCellBundleMap_.Insert(id, std::move(bundleHolder));
+        YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(bundle->GetName(), bundle)).second);
+
+        objectManager->RefObject(bundle);
+
+        return bundle;
+    }
+
+    void DestroyCellBundle(TTabletCellBundle* bundle)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // Remove tablet cell bundle from maps.
+        YCHECK(NameToTabletCellBundleMap_.erase(bundle->GetName()) == 1);
+    }
 
     TTabletCell* CreateCell(int size, IAttributeDictionary* attributes, const TObjectId& hintId)
     {
@@ -817,10 +900,18 @@ public:
         return cell;
     }
 
+    TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name)
+    {
+        auto it = NameToTabletCellBundleMap_.find(name);
+        return it == NameToTabletCellBundleMap_.end() ? nullptr : it->second;
+    }
+
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle, TTabletCellBundleId);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
 
 private:
+    friend class TTabletCellBundleTypeHandler;
     friend class TTabletCellTypeHandler;
     friend class TTabletTypeHandler;
 
@@ -828,8 +919,11 @@ private:
 
     const TTabletTrackerPtr TabletTracker_;
 
+    TEntityMap<TTabletCellBundleId, TTabletCellBundle> TabletCellBundleMap_;
     TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
     TEntityMap<TTabletId, TTablet> TabletMap_;
+
+    yhash_map<Stroka, TTabletCellBundle*> NameToTabletCellBundleMap_;
 
     yhash_multimap<Stroka, TTabletCell*> AddressToCell_;
     yhash_map<TTransaction*, TTabletCell*> TransactionToCellMap_;
@@ -841,12 +935,14 @@ private:
     
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
+        TabletCellBundleMap_.SaveKeys(context);
         TabletCellMap_.SaveKeys(context);
         TabletMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
     {
+        TabletCellBundleMap_.SaveValues(context);
         TabletCellMap_.SaveValues(context);
         TabletMap_.SaveValues(context);
     }
@@ -856,6 +952,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (context.GetVersion() >= 202) {
+            TabletCellBundleMap_.LoadKeys(context);
+        }
         TabletCellMap_.LoadKeys(context);
         TabletMap_.LoadKeys(context);
     }
@@ -864,6 +963,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (context.GetVersion() >= 202) {
+            TabletCellBundleMap_.LoadValues(context);
+        }
         TabletCellMap_.LoadValues(context);
         TabletMap_.LoadValues(context);
     }
@@ -872,6 +974,12 @@ private:
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        NameToTabletCellBundleMap_.clear();
+        for (const auto& pair : TabletCellBundleMap_) {
+            auto* bundle = pair.second;
+            YCHECK(NameToTabletCellBundleMap_.insert(std::make_pair(bundle->GetName(), bundle)).second);
+        }
 
         AddressToCell_.clear();
 
@@ -895,8 +1003,10 @@ private:
 
         TMasterAutomatonPart::Clear();
 
+        TabletCellBundleMap_.Clear();
         TabletCellMap_.Clear();
         TabletMap_.Clear();
+        NameToTabletCellBundleMap_.clear();
         AddressToCell_.clear();
         TransactionToCellMap_.clear();
     }
@@ -1909,8 +2019,35 @@ private:
     }
 };
 
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCellBundle, TTabletCellBundle, TTabletCellBundleId, TabletCellBundleMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletCell, TTabletCell, TTabletCellId, TabletCellMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
+
+///////////////////////////////////////////////////////////////////////////////
+
+TTabletManager::TTabletCellBundleTypeHandler::TTabletCellBundleTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->TabletCellBundleMap_)
+    , Owner_(owner)
+{ }
+
+TObjectBase* TTabletManager::TTabletCellBundleTypeHandler::CreateObject(
+    const TObjectId& hintId,
+    TTransaction* transaction,
+    TAccount* account,
+    IAttributeDictionary* attributes,
+    const TObjectCreationExtensions& /*extensions*/)
+{
+    auto name = attributes->Get<Stroka>("name");
+    attributes->Remove("name");
+
+    return Owner_->CreateCellBundle(name, attributes, hintId);
+}
+
+void TTabletManager::TTabletCellBundleTypeHandler::DoDestroyObject(TTabletCellBundle* bundle)
+{
+    TObjectTypeHandlerWithMapBase::DoDestroyObject(bundle);
+    Owner_->DestroyCellBundle(bundle);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -2046,6 +2183,12 @@ TTabletCell* TTabletManager::GetTabletCellOrThrow(const TTabletCellId& id)
     return Impl_->GetTabletCellOrThrow(id);
 }
 
+TTabletCellBundle* TTabletManager::FindTabletCellBundleByName(const Stroka& name)
+{
+    return Impl_->FindTabletCellBundleByName(name);
+}
+
+DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCellBundle, TTabletCellBundle, TTabletCellBundleId, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletCell, TTabletCell, TTabletCellId, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, TTabletId, *Impl_)
 

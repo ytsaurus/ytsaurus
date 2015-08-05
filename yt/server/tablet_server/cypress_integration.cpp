@@ -12,6 +12,8 @@
 
 #include <server/tablet_server/tablet_manager.h>
 
+#include <server/misc/object_helpers.h>
+
 namespace NYT {
 namespace NTabletServer {
 
@@ -166,6 +168,59 @@ INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
             return New<TVirtualTabletMap>(bootstrap, owningNode);
         }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualTabletCellBundleMap
+    : public TVirtualMapBase
+{
+public:
+    explicit TVirtualTabletCellBundleMap(TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+private:
+    const TBootstrap* Bootstrap_;
+
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        return ToNames(GetValues(tabletManager->TabletCellBundles(), sizeLimit));
+    }
+
+    virtual i64 GetSize() const override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        return tabletManager->TabletCellBundles().GetSize();
+    }
+
+    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        auto* bundle = tabletManager->FindTabletCellBundleByName(Stroka(key));
+        if (!IsObjectAlive(bundle)) {
+            return nullptr;
+        }
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(bundle);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+INodeTypeHandlerPtr CreateTabletCellBundleMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::TabletCellBundleMap,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualTabletCellBundleMap>(bootstrap);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

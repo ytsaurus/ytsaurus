@@ -17,6 +17,8 @@ NCypressServer::INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 NCypressServer::INodeTypeHandlerPtr CreateTabletMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
+NCypressServer::INodeTypeHandlerPtr CreateTabletCellBundleMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

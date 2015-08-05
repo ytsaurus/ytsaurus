@@ -558,6 +558,7 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateGroupMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletCellNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTabletMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateTabletCellBundleMapTypeHandler(this));
 
     HttpServer_->Register(
         "/orchid",

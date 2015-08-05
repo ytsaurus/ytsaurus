@@ -19,6 +19,8 @@
 
 #include <server/cell_master/bootstrap.h>
 
+#include <server/misc/object_helpers.h>
+
 namespace NYT {
 namespace NNodeTrackerServer {
 

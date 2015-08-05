@@ -17,6 +17,8 @@
 #include <server/object_server/object_manager.h>
 #include <server/object_server/object_detail.h>
 
+#include <server/misc/object_helpers.h>
+
 namespace NYT {
 namespace NSecurityServer {
 
@@ -24,23 +26,6 @@ using namespace NYTree;
 using namespace NCypressServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-template <class T>
-std::vector<Stroka> ToNames(const std::vector<T>& objects)
-{
-    std::vector<Stroka> names;
-    names.reserve(objects.size());
-    for (const auto* object : objects) {
-        names.push_back(object->GetName());
-    }
-    return names;
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

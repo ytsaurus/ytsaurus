@@ -165,7 +165,9 @@ DEFINE_ENUM(EObjectType,
     ((TabletMap)                  (703))
     ((DynamicMemoryTabletStore)   (704))
     ((TabletPartition)            (705))
-    
+    ((TabletCellBundle)           (706))
+    ((TabletCellBundleMap)        (707))
+
     // Node Tracker stuff
     ((Rack)                       (800))
     ((RackMap)                    (801))

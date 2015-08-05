@@ -5,6 +5,8 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/public.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_cell.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_cell_bundle.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_cell_bundle_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_cell_proxy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_manager.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tablet_proxy.cpp
@@ -17,6 +19,8 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/public.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet_cell.h
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_cell_bundle.h
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_cell_bundle_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet_cell_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/tablet_proxy.h
