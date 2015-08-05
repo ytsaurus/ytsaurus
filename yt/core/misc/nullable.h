@@ -9,16 +9,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+struct TNull
+{
+    struct TNullInitializer
+    { };
+    constexpr TNull(TNullInitializer)
+    { };
+};
 
-struct TNullHelper
-{ };
-
-} // namespace NDetail
-
-typedef int NDetail::TNullHelper::* TNull;
-
-const TNull Null = static_cast<TNull>(nullptr);
+constexpr TNull Null{TNull::TNullInitializer{}};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -454,6 +454,23 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobQueryPrepareTest
+    : public ::testing::Test
+{
+};
+
+TEST_F(TJobQueryPrepareTest, TruePredicate)
+{
+    PrepareJobQueryAst("* where true");
+}
+
+TEST_F(TJobQueryPrepareTest, FalsePredicate)
+{
+    PrepareJobQueryAst("* where false");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryCoordinateTest
     : public ::testing::Test
 {
