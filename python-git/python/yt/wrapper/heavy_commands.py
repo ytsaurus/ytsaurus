@@ -4,6 +4,7 @@ import yt.logger as logger
 import config
 from config import get_option, get_config, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
 from common import get_backoff
+from errors import YtResponseError
 from table import to_table, to_name
 from transaction import Transaction
 from transaction_commands import _make_transactional_request
@@ -91,6 +92,8 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 client=client)
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
+    retriable_errors = tuple(list(RETRIABLE_ERRORS) + [YtResponseError])
+
     def execute_with_retries(func):
         for attempt in xrange(config.get_request_retry_count(client)):
             try:
@@ -131,7 +134,9 @@ def make_read_request(command_name, path, params, process_response_action, retri
                                 raise HTTPError()
                             yield elem
                         break
-                    except RETRIABLE_ERRORS as err:
+                    except retriable_errors as err:
+                        if isinstance(err, YtResponseError) and not err.is_chunk_unavailable():
+                            raise
                         if attempt + 1 == retry_count:
                             raise
                         logger.warning(str(err))
