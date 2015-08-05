@@ -140,7 +140,7 @@ default_config = {
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": {
         "enable": False,
-        "retry_count": 10,
+        "retry_count": 30,
         "create_transaction_and_take_snapshot_lock": True
     },
 
