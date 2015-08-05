@@ -252,7 +252,7 @@ class TestTables(YTEnvSetup):
 
         # Test row_index without range index.
         control_attributes = {"enable_row_index": True}
-        result = read("//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes)
+        result = read_table("//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes)
         assert result == [v2, v3, v4, v5, v7, v8, v9]
 
     def test_range_and_row_index2(self):
