@@ -24,18 +24,16 @@ Common operations parameters
 * **strategy** : (`yt.wrapper.operation_commands.WaitStrategy`) (Deprecated!) \
 strategy of waiting result, `yt.wrapper.get_config(client).DEFAULT_STRATEGY` by default
 
-* **replication_factor** : (integer) number of output data replicas
+* **replication_factor** : (Deprecated!) (integer) number of output data replicas
 
-* **compression_codec** : (one of "none" (default for files), "lz4" (default for tables), "snappy",\
+* **compression_codec** : (Deprecated!) (one of "none" (default for files), "lz4" (default for tables), "snappy",\
  "gzip_best_compression", "gzip_normal", "lz4_high_compresion", "quick_lz") compression \
 algorithm for output data
 
-* **job_count** : (integer) recommendation how many jobs should run
-
-* **table_writer** : (dict) spec of `"write" operation \
+* **table_writer** : (dict) spec of `"write_table" operation \
 <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
 
-* **table_reader** : (dict) spec of `"read" operation \
+* **table_reader** : (dict) spec of `"read_table" operation \
 <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#read>`_.
 
 * **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output \
@@ -934,11 +932,11 @@ def run_merge(source_table, destination_table, mode=None,
     :param mode: ['auto' (default), 'unordered', 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
                  of output tables, mode `ordered` is about chunk magic, not for ordinary users.
                  In 'auto' mode system chooses proper mode depending on the table sortedness.
+    :param job_count:  (integer) recommendation how many jobs should run.
     :param strategy: standard operation parameter
     :param table_writer: standard operation parameter
     :param replication_factor: (int) number of destination table replicas.
     :param compression_codec: (string) compression algorithm of destination_table.
-    :param job_count: (integer) standard operation parameter.
     :param spec: (dict) standard operation parameter.
 
 
@@ -1201,6 +1199,7 @@ def _run_operation(binary, source_table, destination_table,
     :param local_files: (string or list  of string) paths to scripts on local machine.
     :param yt_files: (string or list  of string) paths to scripts in Cypress.
     :param op_name: (one of "map" (default), "reduce", ...) TODO(veronikaiv): list it!
+    :param job_count:  (integer) recommendation how many jobs should run.
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
