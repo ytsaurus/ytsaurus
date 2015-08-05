@@ -222,8 +222,8 @@ class TestRetries(object):
     def test_download_with_retries(self):
         text = "some long text repeated twice " * 2
         file_path = TEST_DIR + "/file"
-        yt.upload_file(text, file_path)
-        assert text == yt.download_file(file_path).read()
+        yt.write_file(file_path, text)
+        assert text == yt.read_file(file_path).read()
 
         old_value = yt.config["read_retries"]["enable"]
         old_buffer_size = yt.config["read_buffer_size"]
@@ -232,9 +232,9 @@ class TestRetries(object):
         yt.config["read_buffer_size"] = 16
         yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
         try:
-            assert text == yt.download_file(file_path).read()
-            assert "twice " == yt.download_file(file_path, offset=len(text) - 6).read()
-            assert "some" == yt.download_file(file_path, length=4).read()
+            assert text == yt.read_file(file_path).read()
+            assert "twice " == yt.read_file(file_path, offset=len(text) - 6).read()
+            assert "some" == yt.read_file(file_path, length=4).read()
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value
