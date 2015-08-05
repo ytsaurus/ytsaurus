@@ -243,6 +243,8 @@ class TestOperations(object):
 
         def write_statistics(row):
             yt.write_statistics({"row_count": 1})
+            yt.get_blkio_cgroup_statistics()
+            yt.get_memory_cgroup_statistics()
             yield row
 
         table = TEST_DIR + "/table"

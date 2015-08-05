@@ -32,7 +32,7 @@ from py_wrapper import aggregator, raw, raw_io, simple
 from yt.packages.requests import HTTPError, ConnectionError
 from string_iter_io import StringIterIO
 from http import _cleanup_http_session
-from user_statistics import write_statistics
+from user_statistics import write_statistics, get_blkio_cgroup_statistics, get_memory_cgroup_statistics
 
 from common import get_version
 VERSION = get_version()
