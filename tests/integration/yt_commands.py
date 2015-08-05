@@ -461,12 +461,23 @@ def remove_member(member, group, **kwargs):
     kwargs["group"] = group
     execute_command("remove_member", kwargs)
 
+def create_tablet_cell_bundle(name, **kwargs):
+    kwargs["type"] = "tablet_cell_bundle"
+    if "attributes" not in kwargs:
+        kwargs["attributes"] = dict()
+    kwargs["attributes"]["name"] = name
+    return yson.loads(execute_command("create", kwargs))
+
 def create_tablet_cell(size, **kwargs):
     kwargs["type"] = "tablet_cell"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["size"] = size
     return yson.loads(execute_command("create", kwargs))
+
+def remove_tablet_cell_bundle(name):
+    remove("//sys/tablet_cell_bundles/" + name)
+    gc_collect()
 
 def remove_tablet_cell(id):
     remove("//sys/tablet_cells/" + id)

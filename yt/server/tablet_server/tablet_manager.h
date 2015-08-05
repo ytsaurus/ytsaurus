@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 
 #include <ytlib/table_client/public.h>
 
@@ -70,17 +71,19 @@ public:
         const std::vector<NTableClient::TOwningKey>& pivotKeys);
 
 
+    DECLARE_ENTITY_MAP_ACCESSORS(TabletCellBundle, TTabletCellBundle, TTabletCellBundleId);
+    TTabletCellBundle* FindTabletCellBundleByName(const Stroka& name);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TabletCell, TTabletCell, TTabletCellId);
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet, TTabletId);
-
 private:
+    class TTabletCellBundleTypeHandler;
     class TTabletCellTypeHandler;
     class TTabletTypeHandler;
     class TImpl;
-    
+
     TIntrusivePtr<TImpl> Impl_;
 
 };

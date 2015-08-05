@@ -62,6 +62,15 @@ class TestTablets(YTEnvSetup):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
            
+    def test_table_cell_bundle(self):
+        id = create_tablet_cell_bundle("test_bundle")
+        assert ls("//sys/tablet_cell_bundles") == ["test_bundle"]
+
+        test_bundle = get("//sys/tablet_cell_bundles/test_bundle/@")
+        assert test_bundle["id"] == id
+
+        remove_tablet_cell_bundle("test_bundle")
+        assert ls ("//sys/tablet_cell_bundles") == []
 
     def test_mount(self):
         self.sync_create_cells(1, 1)

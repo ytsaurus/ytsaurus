@@ -51,6 +51,7 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::LockMap ||
         type == EObjectType::TabletMap ||
         type == EObjectType::TabletCellNode ||
+        type == EObjectType::TabletCellBundleMap ||
         type == EObjectType::SysNode;
 }
 

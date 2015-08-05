@@ -25,6 +25,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletManager)
 
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)
 
+class TTabletCellBundle;
 class TTabletCell;
 class TTablet;
 
@@ -38,6 +39,8 @@ using NHydra::TPeerId;
 using NHydra::InvalidPeerId;
 using NHydra::EPeerState;
 
+using NTabletClient::TTabletCellBundleId;
+using NTabletClient::NullTabletCellBundleId;
 using NTabletClient::TTabletCellId;
 using NTabletClient::NullTabletCellId;
 using NTabletClient::TTabletId;

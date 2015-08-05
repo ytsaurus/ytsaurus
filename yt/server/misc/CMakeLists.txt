@@ -10,6 +10,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/memory_usage_tracker.h
   ${CMAKE_CURRENT_LIST_DIR}/public.h
   ${CMAKE_CURRENT_LIST_DIR}/fork_snapshot_builder.h
+  ${CMAKE_CURRENT_LIST_DIR}/object_helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES

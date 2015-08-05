@@ -406,6 +406,11 @@ private:
                 EObjectType::GroupMap);
 
             CreateNode(
+                "//sys/tablet_cell_bundles",
+                transactionId,
+                EObjectType::TabletCellBundleMap);
+
+            CreateNode(
                 "//sys/tablet_cells",
                 transactionId,
                 EObjectType::MapNode,
