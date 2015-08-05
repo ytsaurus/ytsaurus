@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
+if(POLICY CMP0037)
+    cmake_policy(SET CMP0037 OLD) # Enable reserved "package" target
+endif()
+if(POLICY CMP0042)
+    cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
+endif()
+
 project(YT)
 
 #################################################################################
