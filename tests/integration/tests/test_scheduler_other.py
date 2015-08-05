@@ -138,6 +138,21 @@ class TestSchedulerOther(YTEnvSetup):
 
         track_op(op1)
 
+    def test_pool_resource_limits(self):
+        resource_limits = {"cpu": 1, "memory": 100, "network": 10}
+        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
+
+        while True:
+            pools = get("//sys/scheduler/orchid/scheduler/pools")
+            if "test_pool" in pools:
+                break
+            time.sleep(0.1)
+
+        stats = get("//sys/scheduler/orchid/scheduler")
+        pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
+        for resource, limit in resource_limits.iteritems():
+            assert pool_resource_limits[resource] == limit
+
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     NUM_MASTERS = 3
@@ -319,8 +334,7 @@ class TestSchedulingTags(YTEnvSetup):
     def test_pools(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/test_pool")
-        set("//sys/pools/test_pool/@scheduling_tag", "tagA")
+        create("map_node", "//sys/pools/test_pool", attributes={"scheduling_tag": "tagA"})
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 

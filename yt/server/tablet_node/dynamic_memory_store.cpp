@@ -15,13 +15,13 @@
 
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/versioned_writer.h>
-#include <ytlib/new_table_client/versioned_chunk_reader.h>
-#include <ytlib/new_table_client/versioned_chunk_writer.h>
-#include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/versioned_writer.h>
+#include <ytlib/table_client/versioned_chunk_reader.h>
+#include <ytlib/table_client/versioned_chunk_writer.h>
+#include <ytlib/table_client/cached_versioned_chunk_meta.h>
 
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/memory_reader.h>
@@ -36,7 +36,7 @@ namespace NTabletNode {
 using namespace NYson;
 using namespace NYTree;
 using namespace NObjectClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -763,7 +763,7 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
 
 TDynamicRow TDynamicMemoryStore::DeleteRow(
     TTransaction* transaction,
-    NVersionedTableClient::TKey key,
+    NTableClient::TKey key,
     bool prelock)
 {
     TDynamicRow result;

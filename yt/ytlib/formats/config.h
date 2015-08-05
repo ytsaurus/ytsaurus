@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <core/ytree/yson_serializable.h>
 
@@ -125,7 +125,7 @@ public:
             .Default(16 * 1024 * 1024);
 
         // NB: yajl can consume two times more memory than row size.
-        MemoryLimit = 2 * NVersionedTableClient::MaxRowWeightLimit;
+        MemoryLimit = 2 * NTableClient::MaxRowWeightLimit;
     }
 };
 

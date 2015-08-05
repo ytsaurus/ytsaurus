@@ -34,7 +34,7 @@ namespace NFormats {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -241,10 +241,8 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     IAsyncOutputStreamPtr output)
 {
     switch (format.GetType()) {
-        // TODO(babenko): schemaful
         case EFormatType::Yson:
             return CreateSchemafulWriterForYson(format.Attributes(), output);
-        // TODO(babenko): schemaful
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), output);
         default:
@@ -258,7 +256,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
-    std::unique_ptr<TOutputStream> outputStream,
+    NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
@@ -266,7 +264,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     return New<TSchemalessWriterAdapter>(
         format,
         nameTable,
-        std::move(outputStream),
+        std::move(output),
         enableContextSaving,
         enableKeySwitch,
         keyColumnCount);

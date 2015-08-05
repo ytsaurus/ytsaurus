@@ -181,6 +181,9 @@ void TMultiChunkReaderBase::DoOpenChunk(int chunkIndex)
         return;
     }
 
+    if (CompletionError_.IsSet())
+        return;
+
     OnReaderOpened(reader, chunkIndex);
 
     FetchingCompletedEvents_.push_back(reader->GetFetchingCompletedEvent());

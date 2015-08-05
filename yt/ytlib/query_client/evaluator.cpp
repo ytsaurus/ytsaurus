@@ -10,7 +10,7 @@
 #include "evaluation_helpers.h"
 #include "folding_profiler.h"
 
-#include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/table_client/schemaful_writer.h>
 
 #include <core/profiling/scoped_timer.h>
 

@@ -4,7 +4,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 namespace NYT {
 namespace NApi {

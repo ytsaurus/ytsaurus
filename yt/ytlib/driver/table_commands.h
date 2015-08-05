@@ -6,9 +6,9 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 namespace NYT {
 namespace NDriver {
@@ -20,7 +20,7 @@ struct TReadTableRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
-    NVersionedTableClient::TControlAttributesConfigPtr ControlAttributes;
+    NTableClient::TControlAttributesConfigPtr ControlAttributes;
 
     TReadTableRequest()
     {
@@ -158,7 +158,7 @@ private:
 struct TReshardTableRequest
     : public TTabletRequest
 {
-    std::vector<NVersionedTableClient::TOwningKey> PivotKeys;
+    std::vector<NTableClient::TOwningKey> PivotKeys;
 
     TReshardTableRequest()
     {
@@ -180,7 +180,7 @@ struct TSelectRowsRequest
     : public TRequest
 {
     Stroka Query;
-    NVersionedTableClient::TTimestamp Timestamp;
+    NTableClient::TTimestamp Timestamp;
     TNullable<i64> InputRowLimit;
     TNullable<i64> OutputRowLimit;
     ui64 RangeExpansionLimit;
@@ -193,7 +193,7 @@ struct TSelectRowsRequest
     {
         RegisterParameter("query", Query);
         RegisterParameter("timestamp", Timestamp)
-            .Default(NVersionedTableClient::SyncLastCommittedTimestamp);
+            .Default(NTableClient::SyncLastCommittedTimestamp);
         RegisterParameter("input_row_limit", InputRowLimit)
             .Default();
         RegisterParameter("output_row_limit", OutputRowLimit)

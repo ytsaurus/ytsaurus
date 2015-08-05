@@ -8,6 +8,7 @@ from yt.wrapper import format
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from distutils.spawn import find_executable
 
 def get_statistics(statistics, complex_key):
     result = statistics
@@ -1002,35 +1003,99 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
-    @only_linux
+@only_linux
+class TestJobQuery(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "udf_registry_path" : "//tmp/udfs"
+        }
+    }
+
+    def _init_udf_registry(self):
+        registry_path =  "//tmp/udfs"
+        create("map_node", registry_path)
+
+        abs_path = os.path.join(registry_path, "abs_udf")
+        create("file", abs_path,
+            attributes = { "function_descriptor": {
+                "name": "abs_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "simple"}})
+
+        local_bitcode_path = find_executable("test_udfs.bc")
+        write_local_file(abs_path, local_bitcode_path)
+
     def test_query_simple(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
+            spec={"input_query": "a where a > 0", "input_schema": [{"name": "a", "type": "int64"}]})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+
+    def test_query_asterisk(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        rows = [
+            {"a": 1, "b": 2, "c": 3},
+            {"b": 5, "c": 6},
+            {"a": 7, "c": 8}]
+        write_table("//tmp/t1", rows)
+
+        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={
+                "input_query": "* where a > 0 or b > 0",
+                "input_schema": [
+                    {"name": "z", "type": "int64"},
+                    {"name": "a", "type": "int64"},
+                    {"name": "y", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                    {"name": "x", "type": "int64"},
+                    {"name": "c", "type": "int64"},
+                    {"name": "u", "type": "int64"}]})
+
+        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+
+    def test_query_udf(self):
+        self._init_udf_registry()
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(-1,1)])
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a where abs_udf(a) > 0", "input_schema": [{"name": "a", "type": "int64"}]})
+
+        assert read_table("//tmp/t2") == [{"a": -1}]

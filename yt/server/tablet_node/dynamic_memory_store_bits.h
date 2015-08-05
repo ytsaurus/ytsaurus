@@ -5,7 +5,7 @@
 #include <core/misc/enum.h>
 #include <core/misc/chunked_memory_pool.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <atomic>
 
@@ -37,7 +37,7 @@ union TDynamicValueData
 };
 
 static_assert(
-    sizeof(TDynamicValueData) == sizeof(NVersionedTableClient::TUnversionedValueData),
+    sizeof(TDynamicValueData) == sizeof(NTableClient::TUnversionedValueData),
     "TDynamicValueData and TUnversionedValueData must be of the same size.");
 
 struct TDynamicValue
@@ -333,8 +333,8 @@ public:
         {
             auto* lock = row.BeginLocks(keyColumnCount);
             for (int index = 0; index < columnLockCount; ++index, ++lock) {
-                lock->PrepareTimestamp = NVersionedTableClient::NotPreparedTimestamp;
-                lock->LastCommitTimestamp = NVersionedTableClient::MinTimestamp;
+                lock->PrepareTimestamp = NTableClient::NotPreparedTimestamp;
+                lock->LastCommitTimestamp = NTableClient::MinTimestamp;
             }
         }
 
@@ -492,13 +492,13 @@ struct TDynamicRowRef
 ////////////////////////////////////////////////////////////////////////////////
 
 TOwningKey RowToKey(
-    const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns,
+    const NTableClient::TTableSchema& schema,
+    const NTableClient::TKeyColumns& keyColumns,
     TDynamicRow row);
 
 TOwningKey RowToKey(
-    const NVersionedTableClient::TTableSchema& schema,
-    const NVersionedTableClient::TKeyColumns& keyColumns,
+    const NTableClient::TTableSchema& schema,
+    const NTableClient::TKeyColumns& keyColumns,
     TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////

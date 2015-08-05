@@ -276,6 +276,12 @@ void TNonOwningCGroup::RemoveAllSubcgroups() const
     );
 }
 
+void TNonOwningCGroup::RemoveRecursive() const
+{
+    RemoveAllSubcgroups();
+    DoRemove();
+}
+
 void TNonOwningCGroup::DoLock() const
 {
     LOG_INFO("Locking cgroup %v", FullPath_);

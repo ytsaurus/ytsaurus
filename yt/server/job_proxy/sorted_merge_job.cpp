@@ -7,10 +7,10 @@
 
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/schemaless_sorted_merging_reader.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/schemaless_sorted_merging_reader.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -19,7 +19,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NTransactionClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +62,7 @@ public:
         }
 
         // Read without table index.
-        Reader_ = CreateSchemalessSortedMergingReader(readers, false);
+        Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size(), false);
 
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

@@ -13,10 +13,10 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/new_table_client/versioned_row.h>
+#include <ytlib/table_client/versioned_row.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -83,7 +83,7 @@ public:
      */
     TDynamicRow WriteRow(
         TTransaction* transaction,
-        NVersionedTableClient::TUnversionedRow row,
+        NTableClient::TUnversionedRow row,
         bool prelock,
         ui32 lockMask);
 
@@ -106,7 +106,7 @@ public:
     void CommitRow(TTransaction* transaction, TDynamicRow row);
     void AbortRow(TTransaction* transaction, TDynamicRow row);
 
-    TDynamicRow FindRow(NVersionedTableClient::TUnversionedRow key);
+    TDynamicRow FindRow(NTableClient::TUnversionedRow key);
 
     int GetValueCount() const;
     int GetKeyCount() const;
@@ -126,13 +126,13 @@ public:
     virtual TTimestamp GetMinTimestamp() const override;
     virtual TTimestamp GetMaxTimestamp() const override;
 
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
@@ -164,7 +164,7 @@ private:
 
     TDynamicRowKeyComparer RowKeyComparer_;
 
-    NVersionedTableClient::TRowBufferPtr RowBuffer_;
+    NTableClient::TRowBufferPtr RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;

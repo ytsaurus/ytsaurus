@@ -154,6 +154,11 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
         int keySize = codegenGroupExprs.size();
 
+        auto keyTypes = std::vector<EValueType>();
+        for (int id = 0; id < keySize; id++) {
+            keyTypes.push_back(groupClause->GroupedTableSchema.Columns()[id].Type);
+        }
+
         codegenSource = MakeCodegenGroupOp(
             MakeCodegenAggregateInitialize(
                 codegenAggregates,
@@ -175,9 +180,8 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
                 keySize,
                 groupClause->IsFinal),
             std::move(codegenSource),
-            keySize,
-            keySize + codegenAggregates.size(),
-            groupClause->GroupedTableSchema);
+            keyTypes,
+            keySize + codegenAggregates.size());
 
         schema = groupClause->GetTableSchema();
     }

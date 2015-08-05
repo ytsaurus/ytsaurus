@@ -7,7 +7,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NCodegen;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

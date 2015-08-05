@@ -7,6 +7,8 @@
 namespace NYT {
 namespace NCellMaster {
 
+using namespace NHydra;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterHydraServiceBase::TMasterHydraServiceBase(
@@ -14,8 +16,7 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     const Stroka& serviceName,
     const NLogging::TLogger& logger,
     int protocolVersion)
-    : NHydra::THydraServiceBase(
-        bootstrap->GetHydraFacade()->GetHydraManager(),
+    : THydraServiceBase(
         bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
         NRpc::TServiceId(serviceName, bootstrap->GetCellId()),
         logger,
@@ -36,6 +37,11 @@ void TMasterHydraServiceBase::BeforeInvoke()
     if (!worldInitializer->CheckInitialized()) {
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
     }
+}
+
+IHydraManagerPtr TMasterHydraServiceBase::GetHydraManager()
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

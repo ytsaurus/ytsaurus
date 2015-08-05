@@ -5,7 +5,7 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -375,10 +375,9 @@ void GetRangesFromTrieWithinRangeImpl(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
     std::vector<std::pair<TRow, TRow>>* result,
-    std::vector<ui32>* resultMask,
     TRowBufferPtr rowBuffer,
+    bool insertUndefined,
     std::vector<TValue> prefix = std::vector<TValue>(),
-    ui32 mask = 0,
     bool refineLower = true,
     bool refineUpper = true)
 {
@@ -409,24 +408,20 @@ void GetRangesFromTrieWithinRangeImpl(
                 keyRange,
                 trie,
                 result,
-                resultMask,
                 rowBuffer,
+                insertUndefined,
                 prefix,
-                mask,
                 true,
                 true);
-        } else if (resultMask != nullptr && trie) {
-            YCHECK(prefix.size() < sizeof(mask) * 8);
-            mask |= 1 << prefix.size();
-            prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::Null));
+        } else if (trie && insertUndefined) {
+            prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::TheBottom));
             GetRangesFromTrieWithinRangeImpl(
                 keyRange,
                 trie,
                 result,
-                resultMask,
                 rowBuffer,
+                insertUndefined,
                 prefix,
-                mask,
                 false,
                 false);
         } else {
@@ -458,11 +453,8 @@ void GetRangesFromTrieWithinRangeImpl(
             range.second = rowBuffer->Capture(builder.GetRow());
             builder.Reset();
 
-            if (!IsEmpty(range)) {
+            if (insertUndefined || !IsEmpty(range)) {
                 result->push_back(range);
-                if (resultMask != nullptr) {
-                    resultMask->push_back(mask);
-                }
             }
         }
         return;
@@ -540,10 +532,8 @@ void GetRangesFromTrieWithinRangeImpl(
         range.second = rowBuffer->Capture(builder.GetRow());
         builder.Reset();
         result->push_back(range);
-        if (resultMask != nullptr) {
-            resultMask->push_back(mask);
-        }
     }
+
 
     prefix.emplace_back();
 
@@ -574,10 +564,9 @@ void GetRangesFromTrieWithinRangeImpl(
             keyRange,
             next.second,
             result,
-            resultMask,
             rowBuffer,
+            insertUndefined,
             prefix,
-            mask,
             refineLowerNext,
             refineUpperNext);
     }
@@ -586,22 +575,12 @@ void GetRangesFromTrieWithinRangeImpl(
 TRowRanges GetRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer)
+    TRowBufferPtr rowBuffer,
+    bool insertUndefined)
 {
     TRowRanges result;
-    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, nullptr, rowBuffer);
-    return MergeOverlappingRanges(std::move(result));
-}
-
-std::pair<TRowRanges, std::vector<ui32>> GetExtendedRangesFromTrieWithinRange(
-    const TRowRange& keyRange,
-    TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer)
-{
-    TRowRanges resultRanges;
-    std::vector<ui32> resultMasks;
-    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &resultRanges, &resultMasks, rowBuffer);
-    return std::make_pair(std::move(resultRanges), std::move(resultMasks));
+    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer, insertUndefined);
+    return insertUndefined ? result : MergeOverlappingRanges(std::move(result));
 }
 
 Stroka ToString(TKeyTriePtr node) {

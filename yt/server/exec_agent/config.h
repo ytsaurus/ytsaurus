@@ -137,7 +137,7 @@ public:
     TDuration MemoryWatchdogPeriod;
     TDuration BlockIOWatchdogPeriod;
 
-    TNullable<int> IopsThreshold;
+    bool EnableIopsThrottling;
 
     double MemoryLimitMultiplier;
 
@@ -169,8 +169,8 @@ public:
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
 
-        RegisterParameter("iops_threshold", IopsThreshold)
-            .Default();
+        RegisterParameter("enable_iops_throttling", EnableIopsThrottling)
+            .Default(false);
     }
 };
 

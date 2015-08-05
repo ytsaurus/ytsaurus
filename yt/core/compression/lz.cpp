@@ -43,10 +43,10 @@ namespace NCompression {
 
 struct TLzCompressedTag { };
 
-int Lz4CompressionBound(const std::vector<int>& lengths)
+size_t Lz4CompressionBound(const std::vector<int>& lengths)
 {
-    int bound = sizeof(THeader);
-    for (auto length: lengths) {
+    size_t bound = sizeof(THeader);
+    for (auto length : lengths) {
         bound += sizeof(TBlockHeader);
         bound += LZ4_compressBound(length);
     }

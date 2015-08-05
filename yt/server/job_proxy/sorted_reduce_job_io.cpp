@@ -4,16 +4,16 @@
 #include "user_job_io_detail.h"
 #include "job.h"
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_sorted_merging_reader.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_sorted_merging_reader.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NChunkClient::NProto;
@@ -61,7 +61,7 @@ public:
             readers.push_back(reader);
         }
 
-        return CreateSchemalessSortedMergingReader(readers);
+        return CreateSchemalessSortedMergingReader(readers, keyColumns.size());
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(

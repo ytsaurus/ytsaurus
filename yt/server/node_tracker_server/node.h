@@ -174,13 +174,13 @@ private:
     static TChunkPtrWithIndex ToGeneric(TChunkPtrWithIndex replica);
     static NChunkClient::TChunkIdWithIndex ToGeneric(const NChunkClient::TChunkIdWithIndex& replica);
 
-    bool DoAddStoredReplica(TChunkPtrWithIndex replica);
-    bool DoRemoveStoredReplica(TChunkPtrWithIndex replica);
-    bool DoContainsStoredReplica(TChunkPtrWithIndex replica) const;
+    bool AddStoredReplica(TChunkPtrWithIndex replica);
+    bool RemoveStoredReplica(TChunkPtrWithIndex replica);
+    bool ContainsStoredReplica(TChunkPtrWithIndex replica) const;
 
-    bool DoAddCachedReplica(TChunkPtrWithIndex replica);
-    bool DoRemoveCachedReplica(TChunkPtrWithIndex replica);
-    bool DoContainsCachedReplica(TChunkPtrWithIndex replica) const;
+    bool AddCachedReplica(TChunkPtrWithIndex replica);
+    bool RemoveCachedReplica(TChunkPtrWithIndex replica);
+    bool ContainsCachedReplica(TChunkPtrWithIndex replica) const;
 
 };
 

@@ -14,6 +14,7 @@
 #include "mutation_committer.h"
 #include "checkpointer.h"
 #include "snapshot_discovery.h"
+#include "hydra_service.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/scheduler.h>
@@ -49,7 +50,7 @@ class TDistributedHydraManager;
 typedef TIntrusivePtr<TDistributedHydraManager> TDistributedHydraManagerPtr;
 
 class TDistributedHydraManager
-    : public TServiceBase
+    : public THydraServiceBase
     , public IHydraManager
 {
 public:
@@ -110,7 +111,7 @@ public:
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
         const TDistributedHydraManagerOptions& options)
-        : TServiceBase(
+        : THydraServiceBase(
             controlInvoker,
             NRpc::TServiceId(THydraServiceProxy::GetServiceName(), cellManager->GetCellId()),
             HydraLogger)
@@ -145,15 +146,13 @@ public:
             controlInvoker,
             New<TElectionCallbacks>(this));
 
-        GuardedAutomatonInvoker_ = CreateGuardedAutomatonInvoker(AutomatonInvoker_);
-
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LogMutations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BuildSnapshot));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceBuildSnapshot)
-            .SetInvoker(GuardedAutomatonInvoker_));
+            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
@@ -215,14 +214,14 @@ public:
         switch (GetAutomatonState()) {
             case EPeerState::Leading:
             case EPeerState::LeaderRecovery:
-                StopLeading_.Fire();
                 DecoratedAutomaton_->OnStopLeading();
+                StopLeading_.Fire();
                 break;
 
             case EPeerState::Following:
             case EPeerState::FollowerRecovery:
-                StopFollowing_.Fire();
                 DecoratedAutomaton_->OnStopFollowing();
+                StopFollowing_.Fire();
                 break;
 
             default:
@@ -448,7 +447,6 @@ private:
     TElectionManagerPtr ElectionManager_;
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
-    IInvokerPtr GuardedAutomatonInvoker_;
 
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
@@ -1090,8 +1088,8 @@ private:
             WaitFor(asyncRecoveryResult)
                 .ThrowOnError();
 
-            LeaderRecoveryComplete_.Fire();
             DecoratedAutomaton_->OnLeaderRecoveryComplete();
+            LeaderRecoveryComplete_.Fire();
 
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1148,8 +1146,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
-        StopLeading_.Fire();
         DecoratedAutomaton_->OnStopLeading();
+        StopLeading_.Fire();
 
         Participate();
     }
@@ -1240,8 +1238,8 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_.Reset();
-        StopFollowing_.Fire();
         DecoratedAutomaton_->OnStopFollowing();
+        StopFollowing_.Fire();
 
         Participate();
 
@@ -1420,6 +1418,13 @@ private:
 
         DecoratedAutomaton_->CommitMutations(committedVersion);
         CheckForPendingLeaderSync(std::move(epochContext));
+    }
+
+
+    // THydraServiceBase overrides.
+    virtual IHydraManagerPtr GetHydraManager() override
+    {
+        return this;
     }
 
 

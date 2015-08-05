@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+// TODO(babenko): remove after switching to refcounted macros
+#include "slot.h"
 
 #include <server/cell_node/public.h>
 
@@ -33,7 +35,7 @@ public:
 
 private:
     const TSlotManagerConfigPtr Config_;
-    const NCellNode::TBootstrap* Bootstrap_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     std::vector<TSlotPtr> Slots_;
     std::vector<int> SlotPathCounters_;

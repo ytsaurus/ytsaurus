@@ -2,12 +2,12 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <ytlib/new_table_client/helpers.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/table_consumer.h>
+#include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/table_consumer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
@@ -27,7 +27,7 @@ using namespace NQueryClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NHive;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,35 +47,37 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto options = New<TRemoteReaderOptions>();
-    options->NetworkName = Context_->GetConfig()->NetworkName;
+    auto readerOptions = New<TRemoteReaderOptions>();
+    readerOptions->NetworkName = Context_->GetConfig()->NetworkName;
 
-    auto nameTable = New<TNameTable>();
+    auto options = TTableReaderOptions();
+    options.Config = config;
+    options.RemoteReaderOptions = readerOptions;
 
-    auto reader = CreateSchemalessTableReader(
-        config,
-        options,
-        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
-        AttachTransaction(false),
-        Context_->GetClient()->GetConnection()->GetBlockCache(),
+    options.TransactionId = Request_->TransactionId;
+    options.Ping = true;
+    options.PingAncestors = Request_->PingAncestors;
+
+    auto reader = Context_->GetClient()->CreateTableReader(
         Request_->Path,
-        nameTable);
+        options);
 
     WaitFor(reader->Open())
         .ThrowOnError();
 
-    BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
-        .Item("start_row_index").Value(reader->GetTableRowIndex())
-        .Item("approximate_row_count").Value(reader->GetTotalRowCount());
-
-    auto output = CreateSyncAdapter(Context_->Request().OutputStream);
-    auto bufferedOutput = std::make_unique<TBufferedOutput>(output.get());
-    auto format = Context_->GetOutputFormat();
+    if (reader->GetTotalRowCount() > 0) {
+        BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+            .Item("start_row_index").Value(reader->GetTableRowIndex())
+            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+    } else {
+        BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+    }
 
     auto writer = CreateSchemalessWriterForFormat(
-        format,
-        nameTable,
-        std::move(bufferedOutput),
+        Context_->GetOutputFormat(),
+        reader->GetNameTable(),
+        Context_->Request().OutputStream,
         false,
         false,
         0);

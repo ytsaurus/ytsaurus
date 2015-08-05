@@ -51,7 +51,7 @@ void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
     Load(context, Action);
 
     // COMPAT(sandello): Automatically promote write permissions to write+remove.
-    if (context.GetVersion() < 113) {
+    if (context.GetVersion() < 120) {
         if ((Permissions & EPermission::Write) != NonePermissions) {
             Permissions |= EPermission::Remove;
         }

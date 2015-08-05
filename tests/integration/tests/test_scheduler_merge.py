@@ -352,3 +352,18 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self.assertItemsEqual(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
 
+    @only_linux
+    def test_query_filtering(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        merge(mode="unordered",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "force_transform": "true",
+                "input_query": "a where a > 0",
+                "input_schema": [{"name": "a", "type": "int64"}]})
+
+        assert read_table("//tmp/t2") == [{"a": 1}]

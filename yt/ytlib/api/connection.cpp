@@ -108,7 +108,7 @@ public:
             GetMasterChannel(EMasterChannelKind::Cache),
             CellDirectory_);
 
-        FunctionRegistry_ = CreateFunctionRegistry(
+        FunctionRegistry_ = CreateClientFunctionRegistry(
             CreateClient(TClientOptions()));
 
         QueryEvaluator_ = New<TEvaluator>(Config_->QueryEvaluator);

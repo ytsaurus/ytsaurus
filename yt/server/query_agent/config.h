@@ -21,6 +21,7 @@ public:
     int MaxSubsplitsPerTablet;
     int MaxSubqueries;
     int MaxQueryRetries;
+    int MaxBottomReaderConcurrency;
 
     TQueryAgentConfig()
     {
@@ -42,6 +43,9 @@ public:
         RegisterParameter("max_query_retries", MaxQueryRetries)
             .GreaterThanOrEqual(1)
             .Default(10);
+        RegisterParameter("max_bottom_reader_concurrency", MaxBottomReaderConcurrency)
+            .GreaterThanOrEqual(1)
+            .Default(5);
     }
 };
 

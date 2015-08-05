@@ -1,0 +1,100 @@
+package NYT.NTableClient.NProto;
+
+import "yt/core/misc/guid.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
+import "yt/ytlib/hive/cell_directory.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Raises "sorted" flag for the root chunk list of the table.
+// No checks are performed, it's caller's responsibility to ensure proper row order.
+message TReqSetSorted
+{
+    repeated string key_columns = 1;
+}
+
+message TRspSetSorted
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+
+    // If omitted then cell is chosen automatically.
+    optional NYT.NProto.TGuid cell_id = 3;
+
+    required int64 estimated_uncompressed_size = 4;
+    required int64 estimated_compressed_size = 5;
+}
+
+message TRspMount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnmount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    required bool force = 3 [default = false];
+}
+
+message TRspUnmount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemount
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+}
+
+message TRspRemount
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReshard
+{
+    // If omitted then all tablets are affected.
+    required int32 first_tablet_index = 1 [default = -1];
+    required int32 last_tablet_index = 2 [default = -1];
+    repeated bytes pivot_keys = 3;
+}
+
+message TRspReshard
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetMountInfo
+{ }
+
+message TTabletInfo
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int32 state = 2;
+    required bytes pivot_key = 3;
+    optional NYT.NProto.TGuid cell_id = 4;
+    optional int32 cell_config_version = 5;
+    repeated int32 replica_node_ids = 6;
+}
+
+message TRspGetMountInfo
+{
+    required NYT.NProto.TGuid table_id = 1;
+    required TTableSchemaExt schema = 2;
+    required TKeyColumnsExt key_columns = 3;
+    repeated TTabletInfo tablets = 4;
+    repeated NYT.NHive.NProto.TCellDescriptor tablet_cells = 5;
+    required bool sorted = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////

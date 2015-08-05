@@ -14,24 +14,23 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 THydraServiceBase::THydraServiceBase(
-    IHydraManagerPtr hydraManager,
-    IInvokerPtr automatonInvoker,
+    IInvokerPtr invoker,
     const TServiceId& serviceId,
     const NLogging::TLogger& logger,
     int protocolVersion)
     : TServiceBase(
-        hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
+        invoker,
         serviceId,
         logger,
         protocolVersion)
-    , ServiceHydraManager_(hydraManager)
 { }
 
 void THydraServiceBase::ValidatePeer(EPeerKind kind)
 {
+    auto hydraManager = GetHydraManager();
     switch (kind) {
         case EPeerKind::Leader:
-            if (!ServiceHydraManager_->IsActiveLeader()) {
+            if (!hydraManager->IsActiveLeader()) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Not an active leader");
@@ -39,7 +38,7 @@ void THydraServiceBase::ValidatePeer(EPeerKind kind)
             break;
 
         case EPeerKind::Follower:
-            if (!ServiceHydraManager_->IsActiveFollower()) {
+            if (!hydraManager->IsActiveFollower()) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Not an active follower");
@@ -47,7 +46,7 @@ void THydraServiceBase::ValidatePeer(EPeerKind kind)
             break;
 
         case EPeerKind::LeaderOrFollower:
-            if (!ServiceHydraManager_->IsActiveLeader() && !ServiceHydraManager_->IsActiveFollower()) {
+            if (!hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower()) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Not an active peer");
@@ -58,13 +57,13 @@ void THydraServiceBase::ValidatePeer(EPeerKind kind)
             YUNREACHABLE();
     }
 
-    auto cancelableInvoker = ServiceHydraManager_
+    auto cancelableInvoker = hydraManager
         ->GetAutomatonCancelableContext()
         ->CreateInvoker(GetCurrentInvoker());
     SetCurrentInvoker(std::move(cancelableInvoker));
 }
 
-bool THydraServiceBase::IsUp(TCtxDiscoverPtr context) const
+bool THydraServiceBase::IsUp(TCtxDiscoverPtr context)
 {
     const auto& request = context->Request();
     EPeerKind kind;
@@ -75,8 +74,9 @@ bool THydraServiceBase::IsUp(TCtxDiscoverPtr context) const
         kind = EPeerKind::Leader;
     }
 
-    bool isLeader = ServiceHydraManager_->IsActiveLeader();
-    bool isFollower = ServiceHydraManager_->IsActiveFollower();
+    auto hydraManager = GetHydraManager();
+    bool isLeader = hydraManager->IsActiveLeader();
+    bool isFollower = hydraManager->IsActiveFollower();
     switch (kind) {
         case EPeerKind::Leader:
             return isLeader;

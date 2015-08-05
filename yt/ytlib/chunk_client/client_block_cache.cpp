@@ -8,6 +8,8 @@
 #include <core/misc/property.h>
 #include <core/misc/singleton.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <ytlib/chunk_client/block_id.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -23,6 +25,8 @@ static const auto& Logger = ChunkClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TCachedBlock)
+
 class TCachedBlock
     : public TSyncCacheValueBase<TBlockId, TCachedBlock>
 {
@@ -36,6 +40,8 @@ public:
     { }
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TCachedBlock)
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -88,8 +94,10 @@ public:
 private:
     const EBlockType Type_;
 
-    virtual i64 GetWeight(TCachedBlock* block) const override
+    virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return block->GetData().Size();
     }
 

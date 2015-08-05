@@ -10,7 +10,7 @@
 
 #include <core/yson/writer.h>
 
-#include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/table_client/schemaful_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -18,7 +18,7 @@ namespace NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulYsonWriter
-    : public NVersionedTableClient::ISchemafulWriter
+    : public NTableClient::ISchemafulWriter
 {
 public:
     explicit TSchemafulYsonWriter(
@@ -26,12 +26,12 @@ public:
         TYsonFormatConfigPtr config = New<TYsonFormatConfig>());
 
     virtual TFuture<void> Open(
-        const NVersionedTableClient::TTableSchema& schema,
-        const TNullable<NVersionedTableClient::TKeyColumns>& keyColumns) override;
+        const NTableClient::TTableSchema& schema,
+        const TNullable<NTableClient::TKeyColumns>& keyColumns) override;
 
     virtual TFuture<void> Close() override;
 
-    virtual bool Write(const std::vector<NVersionedTableClient::TUnversionedRow>& rows) override;
+    virtual bool Write(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 
     virtual TFuture<void> GetReadyEvent() override;
 
@@ -42,7 +42,7 @@ private:
     TBlobOutput Buffer_;
     NYson::TYsonWriter Writer_;
 
-    NVersionedTableClient::TTableSchema Schema_;
+    NTableClient::TTableSchema Schema_;
 
     TFuture<void> Result_;
 };

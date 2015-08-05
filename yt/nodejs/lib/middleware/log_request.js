@@ -22,10 +22,18 @@ exports.that = function Middleware__YtLogRequest()
         var request_id = req.uuid;
         var socket_id = req.connection.uuid;
         var correlation_id = req.headers["x-yt-correlation-id"];
+        var x_forwarded_for = req.headers["x-forwarded-for"];
 
         // We are actually keeping tagged logger lean.
         req.logger = new utils.TaggedLogger(logger, { request_id: request_id });
-        req.origin = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+
+        if (typeof(x_forwarded_for) !== "undefined") {
+            req.origin = x_forwarded_for.split(',')[0];
+            req.xff = x_forwarded_for;
+        } else {
+            req.origin = req.connection.remoteAddress;
+            req.xff = null;
+        }
 
         req._ts = new Date();
         req._bytes_in = 0;

@@ -11,6 +11,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/async_stream.h>
 
 #include <core/misc/serialize.h>
 #include <core/misc/string.h>
@@ -26,14 +27,17 @@
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/client_block_cache.h>
+#include <ytlib/chunk_client/chunk_meta.pb.h>
+
+#include <ytlib/file_client/file_chunk_reader.h>
 
 #include <ytlib/file_client/file_chunk_reader.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/formats/format.h>
 
@@ -52,7 +56,7 @@ using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NNodeTrackerClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NCellNode;
 using namespace NRpc;
 using namespace NChunkClient::NProto;
@@ -237,10 +241,10 @@ private:
         TLocationPtr location,
         const TChunkDescriptor& descriptor)
     {
-        Bootstrap_->GetControlInvoker()->Invoke(BIND(([=] () {
+        Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
             location->UpdateChunkCount(+1);
             location->UpdateUsedSpace(+descriptor.DiskSpace);
-        })));
+        }));
     }
 
     void OnChunkDestroyed(
@@ -277,27 +281,29 @@ private:
     }
 
 
-    virtual i64 GetWeight(TCachedBlobChunk* chunk) const override
+    virtual i64 GetWeight(const TCachedBlobChunkPtr& chunk) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return chunk->GetInfo().disk_space();
     }
 
-    virtual void OnAdded(TCachedBlobChunk* value) override
+    virtual void OnAdded(const TCachedBlobChunkPtr& chunk) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TAsyncSlruCacheBase::OnAdded(value);
-        ChunkAdded_.Fire(value);
+        TAsyncSlruCacheBase::OnAdded(chunk);
+
+        ChunkAdded_.Fire(chunk);
     }
 
-    virtual void OnRemoved(TCachedBlobChunk* value) override
+    virtual void OnRemoved(const TCachedBlobChunkPtr& chunk) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TAsyncSlruCacheBase::OnRemoved(value);
-        ChunkRemoved_.Fire(value);
+        TAsyncSlruCacheBase::OnRemoved(chunk);
+
+        ChunkRemoved_.Fire(chunk);
     }
 
     TLocationPtr FindNewChunkLocation() const
@@ -409,10 +415,9 @@ private:
             }
 
             LOG_INFO("Getting chunk meta");
-            auto chunkMetaOrError = WaitFor(chunkReader->GetMeta());
-            THROW_ERROR_EXCEPTION_IF_FAILED(chunkMetaOrError);
+            auto chunkMeta = WaitFor(chunkReader->GetMeta())
+                .ValueOrThrow();
             LOG_INFO("Chunk meta received");
-            const auto& chunkMeta = chunkMetaOrError.Value();
 
             // Download all blocks.
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
@@ -436,8 +441,8 @@ private:
                 LOG_INFO("Downloading block (BlockIndex: %v)",
                     blockIndex);
 
-                auto blockResult = WaitFor(sequentialReader->FetchNextBlock());
-                THROW_ERROR_EXCEPTION_IF_FAILED(blockResult);
+                WaitFor(sequentialReader->FetchNextBlock())
+                    .ThrowOnError();
 
                 LOG_INFO("Writing block (BlockIndex: %v)",
                     blockIndex);
@@ -451,8 +456,8 @@ private:
 
 
             LOG_INFO("Closing chunk");
-            auto closeResult = WaitFor(chunkWriter->Close(chunkMeta));
-            THROW_ERROR_EXCEPTION_IF_FAILED(closeResult);
+            WaitFor(chunkWriter->Close(chunkMeta))
+                .ThrowOnError();
             LOG_INFO("Chunk is closed");
 
             LOG_INFO("Chunk is downloaded into cache");
@@ -461,6 +466,8 @@ private:
             descriptor.DiskSpace = chunkWriter->GetChunkInfo().disk_space();
             auto chunk = CreateChunk(location, key, descriptor, &chunkMeta);
             cookie.EndInsert(chunk);
+
+            ChunkAdded_.Fire(chunk);
 
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading chunk %v into cache",
@@ -509,6 +516,8 @@ private:
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
             cookie.EndInsert(chunk);
 
+            ChunkAdded_.Fire(chunk);
+
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading file artifact into cache")
                 << TErrorAttribute("key", key)
@@ -548,12 +557,11 @@ private:
                 .ThrowOnError();
 
             auto producer = [&] (TOutputStream* output) {
-                auto bufferedOutput = std::make_unique<TBufferedOutput>(output);
                 auto controlAttributesConfig = New<TControlAttributesConfig>();
                 auto writer = CreateSchemalessWriterForFormat(
                     format,
                     nameTable,
-                    std::move(bufferedOutput),
+                    CreateAsyncAdapter(output),
                     false,
                     false,
                     0);
@@ -562,6 +570,8 @@ private:
 
             auto chunk = ProduceArtifactFile(key, location, chunkId, producer);
             cookie.EndInsert(chunk);
+
+            ChunkAdded_.Fire(chunk);
 
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache: %v",

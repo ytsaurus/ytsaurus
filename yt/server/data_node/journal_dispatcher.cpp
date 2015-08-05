@@ -10,6 +10,8 @@
 
 #include <core/misc/async_cache.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 #include <server/hydra/changelog.h>
 
 #include <server/cell_node/bootstrap.h>
@@ -95,8 +97,8 @@ private:
         TInsertCookie cookie,
         const TErrorOr<IChangelogPtr>& changelogOrError);
 
-    virtual void OnAdded(TCachedChangelog* changelog) override;
-    virtual void OnRemoved(TCachedChangelog* changelog) override;
+    virtual void OnAdded(const TCachedChangelogPtr& changelog) override;
+    virtual void OnRemoved(const TCachedChangelogPtr& changelog) override;
 
 };
 
@@ -287,18 +289,26 @@ TFuture<void> TJournalDispatcher::TImpl::SealChangelog(TJournalChunkPtr chunk)
     return journalManager->SealChangelog(chunk);
 }
 
-void TJournalDispatcher::TImpl::OnAdded(TCachedChangelog* changelog)
+void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TAsyncSlruCacheBase::OnAdded(changelog);
+
     auto key = changelog->GetKey();
     LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
 
-void TJournalDispatcher::TImpl::OnRemoved(TCachedChangelog* changelog)
+void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TAsyncSlruCacheBase::OnRemoved(changelog);
+
     auto key = changelog->GetKey();
-    LOG_TRACE("Journal chunk evicted from cache (LocationId: %v, ChunkId: %v)",
+    LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }

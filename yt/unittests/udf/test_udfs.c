@@ -68,6 +68,17 @@ void sum_udf(
     result_value->Data.Int64 = result;
 }
 
+int64_t throw_if_negative_udf(
+    TExecutionContext* context,
+    int64_t argument)
+{
+    if (argument < 0) {
+        ThrowException("Argument was negative");
+    }
+
+    return argument;
+}
+
 void avg_udaf_init(
     TExecutionContext* context,
     TUnversionedValue* result)

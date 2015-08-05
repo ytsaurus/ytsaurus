@@ -4,9 +4,9 @@
 #include "job.h"
 #include "user_job_io_detail.h"
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/partitioner.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/partitioner.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -15,7 +15,7 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NScheduler;

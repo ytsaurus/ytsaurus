@@ -739,8 +739,7 @@ class NativeModeTester(YtTestBase, YTEnv):
              "approximate_row_count": 3L}
 
         rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]))
-        assert rsp.response_parameters == {"start_row_index": 0L,
-                                           "approximate_row_count": 0L}
+        assert rsp.response_parameters == {"approximate_row_count": 0L}
 
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")

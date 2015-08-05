@@ -3,6 +3,7 @@
 
 #include "private.h"
 #include "plan_helpers.h"
+#include "plan_fragment.h"
 #include "helpers.h"
 #include "query_statistics.h"
 
@@ -14,7 +15,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
-using NVersionedTableClient::GetUnversionedRowDataSize;
+using NTableClient::GetUnversionedRowDataSize;
 
 static const auto& Logger = QueryClientLogger;
 

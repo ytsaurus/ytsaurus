@@ -622,7 +622,7 @@ private:
                         LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
-                    } else if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+                    } else if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError && GetState() == ETransactionState::Active) {
                         // Hard error.
                         LOG_WARNING("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
@@ -650,17 +650,24 @@ private:
 
     void RunPeriodicPings()
     {
-        if (GetState() != ETransactionState::Active)
+        if (!IsPingableState())
             return;
 
         SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
-            if (GetState() != ETransactionState::Active)
+            if (!IsPingableState())
                 return;
 
             TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
                 Owner_->Config_->PingPeriod);
         }));
+    }
+
+    bool IsPingableState()
+    {
+        auto state = GetState();
+        // NB: We have to continue pinging the transaction while committing.
+        return state == ETransactionState::Active || state == ETransactionState::Committing;
     }
 
 

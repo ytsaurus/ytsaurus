@@ -79,7 +79,11 @@ static TLazyIntrusivePtr<TActionQueue> FinalizerThread(
 
 IInvokerPtr GetFinalizerInvoker()
 {
-    return FinalizerThread->GetInvoker();
+    if (FinalizerThread->IsRunning()) {
+        return FinalizerThread->GetInvoker();
+    } else {
+        return GetSyncInvoker();
+    }
 }
 
 void ShutdownFinalizerThread()

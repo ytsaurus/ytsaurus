@@ -9,7 +9,7 @@
 #include <core/compression/public.h>
 #include <core/compression/helpers.h>
 
-#include <ytlib/new_table_client/schemaful_writer.h>
+#include <ytlib/table_client/schemaful_writer.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/query_service_proxy.h>
@@ -34,7 +34,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NCompression;
 using namespace NQueryClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NCellNode;

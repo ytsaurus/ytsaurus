@@ -5,7 +5,7 @@ from yt_commands import *
 ##################################################################
 
 class TestSnapshot(YTEnvSetup):
-    NUM_MASTERS = 1
+    NUM_MASTERS = 3
     NUM_NODES = 0
 
     def test(self):
