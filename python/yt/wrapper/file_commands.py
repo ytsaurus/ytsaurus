@@ -22,7 +22,7 @@ def md5sum(filename):
             h.update(buf)
     return h.hexdigest()
 
-def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
+def read_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
     """Download file from path in Cypress to local machine.
 
     :param path: (string of `TablePath`) path to file in Cypress
@@ -78,11 +78,18 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
         retriable_state_class=RetriableState,
         client=client)
 
-def upload_file(stream, destination, file_writer=None, client=None):
+def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
+    """Download file from path in Cypress to local machine. Deprecated!
+    .. seealso::  :py:func:`yt.wrapper.file_commands.read_file`.
+    """
+    return read_file(path=path, response_type=response_type, file_reader=file_reader,
+                     offset=offset, length=length, client=client)
+
+def write_file(destination, stream, file_writer=None, client=None):
     """Upload file to destination path from stream on local machine.
 
-    :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param destination: (string or `TablePath`) destination path in Cypress
+    :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param file_writer: (dict) spec of upload operation
     """
     # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration)
@@ -112,6 +119,14 @@ def upload_file(stream, destination, file_writer=None, client=None):
         enable_retries,
         client=client)
 
+def upload_file(stream, destination, file_writer=None, client=None):
+    """Upload file to destination path from stream on local machine. Deprecated!
+    .. seealso::  :py:func:`yt.wrapper.file_commands.write_file`.
+    .. note:: upload_file and write_file have different argument order. \
+    Be careful renaming upload_file to write_file!
+    """
+    write_file(destination=destination, stream=stream, file_writer=file_writer, client=client)
+
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
     """
     Upload file to destination path with custom placement strategy.
@@ -139,7 +154,7 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     def upload_with_check(path):
         require(not exists(path, client=client),
                 YtError("Cannot upload file to '{0}', node already exists".format(path)))
-        upload_file(open(filename), path, client=client)
+        write_file(path, open(filename), client=client)
 
     require(os.path.isfile(filename),
             YtError("Upload: %s should be file" % filename))

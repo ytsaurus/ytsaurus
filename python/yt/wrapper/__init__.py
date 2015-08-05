@@ -22,7 +22,8 @@ from table_commands import create_table, create_temp_table, write_table, read_ta
                            mount_table, unmount_table, remount_table, reshard_table, \
                            select_rows, insert_rows, lookup_rows, delete_rows
 from operation_commands import get_operation_state, abort_operation, suspend_operation, resume_operation, WaitStrategy, format_operation_stderrs
-from file_commands import download_file, upload_file, smart_upload_file
+from file_commands import read_file, write_file, smart_upload_file, \
+                          download_file, upload_file  # Compatibility
 from transaction_commands import start_transaction, abort_transaction, commit_transaction,\
                                  ping_transaction
 from lock import lock

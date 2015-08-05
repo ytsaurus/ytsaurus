@@ -6,7 +6,7 @@ from driver import make_request
 from http import get_proxy_url, RETRIABLE_ERRORS
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from cypress_commands import get_attribute, exists, get, list
-from file_commands import download_file
+from file_commands import read_file
 import yt.logger as logger
 import yt.yson as yson
 import yt.packages.dateutil.parser as dateutil_parser
@@ -249,7 +249,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         has_stderr = exists(stderr_path, client=client)
         if has_stderr:
             try:
-                job_with_stderr["stderr"] = download_file(stderr_path, client=client).read()
+                job_with_stderr["stderr"] = read_file(stderr_path, client=client).read()
             except RETRIABLE_ERRORS:
                 if get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]:
                     break
