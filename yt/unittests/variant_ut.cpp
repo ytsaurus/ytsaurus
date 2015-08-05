@@ -2,6 +2,7 @@
 #include "framework.h"
 
 #include <core/misc/variant.h>
+#include <core/misc/nullable.h>
 
 #include <util/generic/noncopyable.h>
 
@@ -254,6 +255,22 @@ TEST(TVariantTest, Inplace)
     EXPECT_TRUE(v2.Is<TNonCopyable2>());
 }
 
+TEST(TVariantTest, NullableVariant)
+{
+    using TValue = TVariant<bool>;
+
+    TNullable<TValue> t;
+    t = true;
+    EXPECT_TRUE(t.HasValue());
+    EXPECT_TRUE(t.Get().Is<bool>());
+    EXPECT_EQ(true, t.Get().As<bool>());
+
+    TNullable<TValue> f;
+    f = false;
+    EXPECT_TRUE(f.HasValue());
+    EXPECT_TRUE(f.Get().Is<bool>());
+    EXPECT_EQ(false, f.Get().As<bool>());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
