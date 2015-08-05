@@ -113,6 +113,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT
 
