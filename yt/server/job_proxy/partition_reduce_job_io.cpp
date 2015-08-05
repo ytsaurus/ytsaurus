@@ -4,9 +4,9 @@
 #include "user_job_io_detail.h"
 #include "job.h"
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_partition_sort_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_partition_sort_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -16,7 +16,7 @@ namespace NJobProxy {
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 

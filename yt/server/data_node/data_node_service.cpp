@@ -29,11 +29,11 @@
 
 #include <core/profiling/profile_manager.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/private.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/private.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -58,8 +58,8 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -345,11 +345,11 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto blockStore = Bootstrap_->GetBlockStore();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
         response->set_throttling(IsOutThrottling());
 
         if (IsOutThrottling()) {
@@ -430,8 +430,8 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
 
         response->set_throttling(IsOutThrottling());
 

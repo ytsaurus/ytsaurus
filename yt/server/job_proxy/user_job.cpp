@@ -14,12 +14,12 @@
 
 #include <ytlib/chunk_client/public.h>
 
-#include <ytlib/new_table_client/helpers.h>
-#include <ytlib/new_table_client/table_consumer.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/schemaful_reader_adapter.h>
-#include <ytlib/new_table_client/schemaful_writer_adapter.h>
+#include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/table_consumer.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/schemaful_reader_adapter.h>
+#include <ytlib/table_client/schemaful_writer_adapter.h>
 
 #include <ytlib/scheduler/statistics.h>
 
@@ -59,7 +59,7 @@ namespace NJobProxy {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -71,6 +71,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NPipes;
 using namespace NQueryClient;
+using namespace NExecAgent;
 
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
@@ -151,12 +152,8 @@ public:
             FinalizeJobIO();
         }
 
-        {
-            // One do not need to get a lock here
-            TGuard<TSpinLock> guard(StatisticsLock_);
-            FillCurrentDataStatistics(Statistics_);
-        }
-
+        FillCurrentDataStatistics(Statistics_);
+        AddStatistic("/user_job/woodpecker", IsWoodpecker_ ? 1 : 0);
         CleanupCGroups();
 
         JobErrorPromise_.TrySet(TError());
@@ -217,6 +214,7 @@ private:
     TPromise<void> JobErrorPromise_;
 
     std::atomic<bool> Prepared_ = { false };
+    std::atomic<bool> IsWoodpecker_ = { false };
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
 
@@ -272,7 +270,7 @@ private:
         Process_.AddArgument("--executor");
         Process_.AddArguments({"--command", UserJobSpec_.shell_command()});
         Process_.AddArguments({"--config", NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName)});
-        Process_.AddArguments({"--working-dir", Config_->SandboxName});
+        Process_.AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxIndex::User]});
 
         if (UserJobSpec_.enable_core_dump()) {
             Process_.AddArgument("--enable-core-dump");
@@ -284,7 +282,7 @@ private:
 
         // Init environment variables.
         TPatternFormatter formatter;
-        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), Config_->SandboxName));
+        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), SandboxDirectoryNames[ESandboxIndex::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Process_.AddEnvVar(formatter.Format(UserJobSpec_.environment(i)));
@@ -565,7 +563,7 @@ private:
         auto writer = CreateSchemalessWriterForFormat(
             format,
             reader->GetNameTable(),
-            CreateSyncAdapter(asyncOutput),
+            asyncOutput,
             true,
             Config_->JobIO->ControlAttributes->EnableKeySwitch,
             reader->GetKeyColumns().size());
@@ -593,7 +591,7 @@ private:
     }
 
     void PrepareInputActionsQuery(
-        TSchedulerJobSpecExt& spec,
+        const TQuerySpec& spec,
         int jobDescriptor,
         const TFormat& format,
         TAsyncWriterPtr asyncOutput)
@@ -606,7 +604,7 @@ private:
             auto writer = CreateSchemalessWriterForFormat(
                 format,
                 nameTable,
-                CreateSyncAdapter(asyncOutput),
+                asyncOutput,
                 true,
                 false,
                 0);
@@ -616,16 +614,21 @@ private:
             return writer;
         };
 
-        auto reader = CreateSchemafulReaderAdapter(JobIO_->GetReaderFactory());
-        auto writer = CreateSchemafulWriterAdapter(writerFactory);
+        auto readerFactory = JobIO_->GetReaderFactory();
 
         InputActions_.push_back(BIND([=] () {
             try {
-                auto registry = CreateBuiltinFunctionRegistry();
-                auto queryString = FromProto<Stroka>(spec.input_query());
-                auto schema = FromProto<TTableSchema>(spec.input_schema());
-                auto query = PrepareJobQuery(queryString, schema, registry.Get());
+                auto writer = CreateSchemafulWriterAdapter(writerFactory);
+                auto query = FromProto(spec.query());
+                std::vector<TUdfDescriptorPtr> descriptors;
+                for (const auto& descriptor : FromProto<Stroka>(spec.udf_descriptors())) {
+                    descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
+                }
+                auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxIndex::Udf]);
                 auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
+                auto reader = WaitFor(CreateSchemafulReaderAdapter(readerFactory, query->TableSchema))
+                    .ValueOrThrow();
+
                 evaluator->Run(query, reader, writer, registry, true);
                 WaitFor(asyncOutput->Close())
                     .ThrowOnError();
@@ -657,8 +660,8 @@ private:
         YCHECK(host);
 
         auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (jobSpec.has_input_query()) {
-            PrepareInputActionsQuery(jobSpec, jobDescriptor, format, asyncOutput);
+        if (jobSpec.has_input_query_spec()) {
+            PrepareInputActionsQuery(jobSpec.input_query_spec(), jobDescriptor, format, asyncOutput);
         } else {
             PrepareInputActionsPassthrough(jobDescriptor, format, asyncOutput);
         }
@@ -746,16 +749,19 @@ private:
             if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CpuAccounting_.Create();
                 Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
+                Process_.AddEnvVar(Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()));
             }
 
             if (Config_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
                 Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
+                Process_.AddEnvVar(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
             }
 
             if (Config_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
                 Process_.AddArguments({ "--cgroup", Memory_.GetFullPath() });
+                Process_.AddEnvVar(Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()));
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Unable to create required cgroups");
@@ -1010,13 +1016,11 @@ private:
 
     void CheckBlockIOUsage()
     {
-        if (!BlockIO_.IsCreated() || !Config_->IopsThreshold) {
+        if (!BlockIO_.IsCreated()) {
             return;
         }
 
         auto period = Config_->BlockIOWatchdogPeriod;
-        auto iopsThreshold = *Config_->IopsThreshold;
-
         auto servicedIOs = BlockIO_.GetIOServiced();
 
         for (const auto& item : servicedIOs) {
@@ -1040,9 +1044,12 @@ private:
                     item.DeviceId);
             }
 
-            if (deltaOperations > iopsThreshold * period.Seconds()) {
-                LOG_INFO("Woodpecker detected; limiting it to %v IOPS", iopsThreshold);
-                BlockIO_.ThrottleOperations(item.DeviceId, iopsThreshold);
+            if (deltaOperations > UserJobSpec_.iops_threshold() * period.Seconds()) {
+                LOG_DEBUG("Woodpecker detected (DeviceId: %v)", item.DeviceId);
+                IsWoodpecker_ = true;
+                if (Config_->EnableIopsThrottling) {
+                    BlockIO_.ThrottleOperations(item.DeviceId, UserJobSpec_.iops_threshold());
+                } 
             }
         }
 

@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "dsv_table.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <core/misc/enum.h>
 
@@ -72,7 +72,7 @@ public:
 private:
     using EState = EDsvTabularConsumerState;
 
-    NVersionedTableClient::EControlAttribute ControlAttribute;
+    NTableClient::EControlAttribute ControlAttribute;
 
     EState State;
     int TableIndex;

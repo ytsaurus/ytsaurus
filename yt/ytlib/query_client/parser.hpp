@@ -44,7 +44,7 @@
     #include "ast.h"
 
     namespace NYT { namespace NQueryClient { namespace NAst {
-        using namespace NVersionedTableClient;
+        using namespace NTableClient;
 
         class TLexer;
         class TParser;

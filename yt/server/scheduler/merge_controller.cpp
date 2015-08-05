@@ -12,8 +12,8 @@
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/chunk_splits_fetcher.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_splits_fetcher.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -30,7 +30,7 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
@@ -607,6 +607,11 @@ private:
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
 
+    virtual bool IsRowCountPreserved() const override
+    {
+        return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
+    }
+
     virtual void InitJobSpecTemplate() override
     {
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMerge));
@@ -617,8 +622,7 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         if (Spec->InputQuery) {
-            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
-            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
     }
 
@@ -1001,7 +1005,6 @@ private:
     virtual void SortEndpoints() override
     {
         int prefixLength = static_cast<int>(KeyColumns.size());
-
         std::sort(
             Endpoints.begin(),
             Endpoints.end(),
@@ -1614,6 +1617,8 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
+        YCHECK(!KeyColumns.empty());
+
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -1627,7 +1632,7 @@ private:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
+        ToProto(reduceJobSpecExt->mutable_key_columns(), GetSortingKeyColumns());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
@@ -1657,6 +1662,25 @@ private:
         return true;
     }
 
+    TKeyColumns GetSortingKeyColumns()
+    {
+        auto sortBy = InputTables[0].KeyColumns.Get();
+        for (const auto& table : InputTables) {
+            if (table.KeyColumns->size() < sortBy.size()) {
+                sortBy.erase(sortBy.begin() + table.KeyColumns->size(), sortBy.end());
+            }
+
+            int i = 0;
+            for (; i < sortBy.size(); ++i) {
+                if (sortBy[i] != table.KeyColumns->at(i)) {
+                    break;
+                }
+            }
+            sortBy.erase(sortBy.begin() + i, sortBy.end());
+        }
+        YCHECK(sortBy.size() >= KeyColumns.size());
+        return sortBy;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);

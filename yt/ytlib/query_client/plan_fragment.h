@@ -3,10 +3,11 @@
 #include "public.h"
 #include "function_registry.h"
 #include "plan_fragment_common.h"
+#include "ast.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <core/misc/property.h>
 #include <core/misc/guid.h>
@@ -112,6 +113,8 @@ struct TFunctionExpression
     Stroka FunctionName;
     std::vector<TConstExpressionPtr> Arguments;
 };
+
+DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
 
 struct TUnaryOpExpression
     : public TExpression
@@ -376,6 +379,9 @@ struct TQuery
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
 
+void ToProto(NProto::TQuery* proto, TConstQueryPtr original);
+TQueryPtr FromProto(const NProto::TQuery& serialized);
+
 struct TDataSource
 {
     //! Either a chunk id, a table id or a tablet id.
@@ -415,20 +421,27 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    IFunctionRegistry* functionRegistry,
+    IFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
+NAst::TQuery PrepareJobQueryAst(const Stroka& source);
+
+std::vector<Stroka> GetExternalFunctions(
+    const NAst::TQuery& ast,
+    IFunctionRegistryPtr builtinRegistry);
+
 TQueryPtr PrepareJobQuery(
     const Stroka& source,
-    const TTableSchema& initialTableSchema,
-    IFunctionRegistry* functionRegistry);
+    NAst::TQuery ast,
+    const TTableSchema& tableSchema,
+    IFunctionRegistryPtr functionRegistry);
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema initialTableSchema,
-    IFunctionRegistry* functionRegistry = CreateBuiltinFunctionRegistry().Get());
+    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);

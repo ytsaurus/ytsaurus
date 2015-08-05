@@ -25,7 +25,7 @@ class TCodecBase
     : public ICodec
 {
 protected:
-    static int ZeroSizeEstimator(const std::vector<int>&)
+    static size_t ZeroSizeEstimator(const std::vector<int>&)
     {
         return 0;
     }
@@ -58,7 +58,7 @@ protected:
         TConverter converter,
         bool compress,
         const std::vector<TSharedRef>& refs,
-        std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
+        std::function<size_t(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
     {
         // XXX(sandello): Disable tracing to due excessive output.
         // auto guard = CreateTraceContextGuard(compress);
@@ -71,7 +71,7 @@ protected:
         }
 
         std::vector<int> inputSizes;
-        i64 totalInputSize = 0;
+        size_t totalInputSize = 0;
         for (const auto& ref : refs) {
             inputSizes.push_back(ref.Size());
             totalInputSize += ref.Size();

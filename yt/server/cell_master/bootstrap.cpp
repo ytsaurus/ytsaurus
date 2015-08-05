@@ -284,8 +284,9 @@ void TBootstrap::DoInitialize()
         Config_->RpcPort);
 
     const auto& addresses = Config_->Master->Addresses;
-    auto selfIt = std::find_if(addresses.begin(), addresses.end(), [&] (const TNullable<Stroka>& x) {
-        return x && to_lower(*x) == to_lower(selfAddress);
+
+    auto selfIt = std::find_if(addresses.begin(), addresses.end(), [&] (const TNullable<Stroka>& maybeAddress) {
+        return to_lower(*maybeAddress) == to_lower(selfAddress);
     });
     if (selfIt == addresses.end()) {
         THROW_ERROR_EXCEPTION("Missing self address %Qv is the peer list",

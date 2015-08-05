@@ -323,7 +323,7 @@ private:
     }
 
 
-    virtual bool IsUp(TCtxDiscoverPtr /*context*/) const override
+    virtual bool IsUp(TCtxDiscoverPtr /*context*/) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

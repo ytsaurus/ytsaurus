@@ -40,7 +40,7 @@ using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;

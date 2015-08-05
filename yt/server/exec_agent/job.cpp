@@ -17,16 +17,18 @@
 
 #include <core/rpc/bus_channel.h>
 
+#include <core/concurrency/async_stream.h>
+
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_ypath_proxy.h>
 #include <ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_writer.h>
-#include <ytlib/new_table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_writer.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -56,7 +58,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NFileClient;
 using namespace NCellNode;
 using namespace NDataNode;
@@ -451,15 +453,25 @@ private:
     void PrepareUserFiles()
     {
         const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        if (!schedulerJobSpecExt.has_user_job_spec())
-            return;
 
-        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 
-        NodeDirectory->MergeFrom(userJobSpec.node_directory());
+            NodeDirectory->MergeFrom(userJobSpec.node_directory());
 
-        for (const auto& descriptor : userJobSpec.files()) {
-            PrepareFile(descriptor);
+            for (const auto& descriptor : userJobSpec.files()) {
+                PrepareFile(ESandboxIndex::User, descriptor);
+            }
+        }
+
+        if (schedulerJobSpecExt.has_input_query_spec()) {
+            const auto& querySpec = schedulerJobSpecExt.input_query_spec();
+
+            NodeDirectory->MergeFrom(querySpec.node_directory());
+
+            for (const auto& descriptor : querySpec.udf_files()) {
+                PrepareFile(ESandboxIndex::Udf, descriptor);
+            }
         }
     }
 
@@ -531,7 +543,7 @@ private:
         FinalizeJob();
     }
 
-    void PrepareFile(const TFileDescriptor& descriptor)
+    void PrepareFile(ESandboxIndex sandboxIndex, const TFileDescriptor& descriptor)
     {
         const auto& fileName = descriptor.file_name();
         LOG_INFO("Preparing user file (FileName: %v)",
@@ -553,6 +565,7 @@ private:
 
         try {
             Slot->MakeLink(
+                sandboxIndex,
                 chunk->GetFileName(),
                 fileName,
                 descriptor.executable());
@@ -597,13 +610,15 @@ private:
     static bool IsFatalError(const TError& error)
     {
         return
-            error.FindMatching(NVersionedTableClient::EErrorCode::SortOrderViolation) ||
+            error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
             error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
             error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
-            error.FindMatching(NVersionedTableClient::EErrorCode::InvalidDoubleValue);
+            error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
+            error.FindMatching(NTableClient::EErrorCode::IncomparableType) ||
+            error.FindMatching(NTableClient::EErrorCode::UnhashableType);
     }
 
 };

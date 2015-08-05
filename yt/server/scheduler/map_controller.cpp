@@ -57,8 +57,6 @@ public:
     }
 
 protected:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase, 0x73fa73d6);
-
     TUnorderedOperationSpecBasePtr Spec;
     TSimpleOperationOptionsPtr Options;
 
@@ -332,15 +330,11 @@ protected:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         if (Spec->InputQuery) {
-            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
-        }
-        if (Spec->InputSchema) {
-            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
     }
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationControllerBase::TUnorderedTask);
 
 ////////////////////////////////////////////////////////////////////
@@ -414,7 +408,6 @@ private:
     {
         return true;
     }
-
 
     // Unsorted helpers.
     virtual i32 GetCpuLimit() const override
@@ -509,7 +502,7 @@ private:
     // Unsorted helpers.
     virtual bool IsRowCountPreserved() const override
     {
-        return true;
+        return !Spec->InputQuery;
     }
 
     //! Returns |true| if the chunk can be included into the output as-is.

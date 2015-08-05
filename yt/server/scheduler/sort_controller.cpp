@@ -7,9 +7,9 @@
 #include "job_resources.h"
 #include "helpers.h"
 
-#include <ytlib/new_table_client/samples_fetcher.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemaless_block_writer.h>
+#include <ytlib/table_client/samples_fetcher.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schemaless_block_writer.h>
 
 #include <cmath>
 
@@ -20,7 +20,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
 using namespace NChunkServer;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
@@ -32,7 +32,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NChunkClient;
 
-using NVersionedTableClient::TOwningKey;
+using NTableClient::TOwningKey;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -2396,8 +2396,7 @@ private:
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             if (Spec->InputQuery) {
-                ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
-                ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+                InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
             }
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());

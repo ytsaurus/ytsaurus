@@ -10,11 +10,10 @@
 
 #include <core/logging/log.h>
 
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/writer.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unordered_schemaful_reader.h>
-#include <ytlib/new_table_client/ordered_schemaful_reader.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/writer.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unordered_schemaful_reader.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -24,7 +23,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +181,8 @@ TGroupedRanges GetPrunedRanges(
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
-    bool verboseLogging)
+    bool verboseLogging,
+    const NLogging::TLogger& Logger)
 {
     LOG_DEBUG("Infering ranges from predicate");
 
@@ -223,6 +223,30 @@ TGroupedRanges GetPrunedRanges(
 }
 
 TGroupedRanges GetPrunedRanges(
+    TConstExpressionPtr predicate,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    const TDataSources& sources,
+    const TRowBufferPtr& rowBuffer,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IFunctionRegistryPtr functionRegistry,
+    ui64 rangeExpansionLimit,
+    bool verboseLogging)
+{
+    return GetPrunedRanges(
+        predicate,
+        tableSchema,
+        keyColumns,
+        sources,
+        rowBuffer,
+        evaluatorCache,
+        functionRegistry,
+        rangeExpansionLimit,
+        verboseLogging,
+        Logger);
+}
+
+TGroupedRanges GetPrunedRanges(
     TConstQueryPtr query,
     const TDataSources& sources,
     const TRowBufferPtr& rowBuffer,
@@ -231,6 +255,7 @@ TGroupedRanges GetPrunedRanges(
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
+    auto Logger = BuildLogger(query);
     return GetPrunedRanges(
         query->WhereClause,
         query->TableSchema,
@@ -240,7 +265,8 @@ TGroupedRanges GetPrunedRanges(
         evaluatorCache,
         functionRegistry,
         rangeExpansionLimit,
-        verboseLogging);
+        verboseLogging,
+        Logger);
 }
 
 TRowRange GetRange(const TDataSources& sources)
@@ -282,45 +308,29 @@ TQueryStatistics CoordinateAndExecute(
 
     std::vector<ISchemafulReaderPtr> splitReaders;
 
-    ISchemafulReaderPtr topReader;
     // Use TFutureHolder to prevent leaking subqueries.
     std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
 
-    if (isOrdered) {
-        int index = 0;
-
-        topReader = CreateOrderedSchemafulReader([&, index] () mutable -> ISchemafulReaderPtr {
-            if (index >= subqueries.size()) {
-                return nullptr;
-            }
-
-            const auto& subquery = subqueries[index];
-
-            ISchemafulReaderPtr reader;
-            TFuture <TQueryStatistics> statistics;
-            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
-
-            subqueryHolders.push_back(MakeHolder(statistics, false));
-
-            ++index;
-
-            return reader;
-        });
-    } else {
-        for (int index = 0; index < subqueries.size(); ++index) {
-            auto subquery = subqueries[index];
-
-            ISchemafulReaderPtr reader;
-            TFuture<TQueryStatistics> statistics;
-            std::tie(reader, statistics) = evaluateSubquery(subquery, index);
-
-            splitReaders.push_back(reader);
-            subqueryHolders.push_back(statistics);
+    auto subqueryReaderCreator = [&, index = 0] () mutable -> ISchemafulReaderPtr {
+        if (index >= subqueries.size()) {
+            return nullptr;
         }
 
-        topReader = CreateUnorderedSchemafulReader(splitReaders);
-    }
+        const auto& subquery = subqueries[index];
 
+        ISchemafulReaderPtr reader;
+        TFuture <TQueryStatistics> statistics;
+        std::tie(reader, statistics) = evaluateSubquery(subquery, index);
+
+        subqueryHolders.push_back(MakeHolder(statistics, false));
+
+        ++index;
+
+        return reader;
+    };
+
+    int topReaderConcurrency = isOrdered ? 1 : subqueries.size();
+    auto topReader = CreateUnorderedSchemafulReader(std::move(subqueryReaderCreator), topReaderConcurrency);
     auto queryStatistics = evaluateTop(topQuery, std::move(topReader), std::move(writer));
 
     for (int index = 0; index < subqueryHolders.size(); ++index) {

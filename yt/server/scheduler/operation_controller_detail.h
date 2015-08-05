@@ -21,8 +21,8 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
@@ -172,7 +172,6 @@ protected:
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
-
     struct TUserTableBase
     {
         NYPath::TRichYPath Path;
@@ -209,7 +208,7 @@ protected:
 
     struct TEndpoint
     {
-        NVersionedTableClient::TOwningKey Key;
+        NTableClient::TOwningKey Key;
         bool Left;
         int ChunkTreeKey;
 
@@ -224,9 +223,9 @@ protected:
         bool AppendRequested = false;
         NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
-        NVersionedTableClient::TTableWriterOptionsPtr Options =
-            New<NVersionedTableClient::TTableWriterOptions>();
-        TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
+        NTableClient::TTableWriterOptionsPtr Options =
+            New<NTableClient::TTableWriterOptions>();
+        TNullable<NTableClient::TKeyColumns> KeyColumns;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
@@ -266,7 +265,6 @@ protected:
         NYTree::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
-
     };
 
     std::vector<TUserFile> Files;
@@ -478,7 +476,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            TNullable<NVersionedTableClient::TKeyColumns> keyColumns);
+            TNullable<NTableClient::TKeyColumns> keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -580,7 +578,7 @@ protected:
     void FetchInputTables();
     void RequestInputObjects();
     void RequestOutputObjects();
-    void FetchFileObjects();
+    void FetchFileObjects(std::vector<TUserFile>* files);
     void RequestFileObjects();
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
@@ -590,8 +588,12 @@ protected:
     void InitChunkListPool();
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
+    void InitQuerySpec(
+        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+        const Stroka& queryString,
+        const NQueryClient::TTableSchema& schema);
 
-    void ValidateKey(const NVersionedTableClient::TOwningKey& key);
+    void ValidateKey(const NTableClient::TOwningKey& key);
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
@@ -717,7 +719,7 @@ protected:
 
 
     void RegisterEndpoints(
-        const NVersionedTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
+        const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
         int key,
         TOutputTable* outputTable);
 
@@ -859,6 +861,11 @@ private:
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
         const NObjectClient::TTransactionId& transactionId);
+
+    void DoRequestFileObjects(
+        std::vector<TUserFile>* files,
+        std::function<void(NYTree::TAttributeFilter&)> updateAttributeFilter = nullptr,
+        std::function<void(const TUserFile&, const NYTree::IAttributeDictionary&)> onFileObject = nullptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

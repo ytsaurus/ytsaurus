@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +39,7 @@ void TColumnEvaluator::PrepareEvaluator(int index)
         Expressions_[index] = PrepareExpression(
             Schema_.Columns()[index].Expression.Get(),
             Schema_,
-            FunctionRegistry_.Get());
+            FunctionRegistry_);
         Evaluators_[index] = Profile(
             Expressions_[index],
             Schema_,

@@ -10,14 +10,14 @@
 #include "function_registry.h"
 #include "column_evaluator.h"
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using ::ToString;
 
@@ -383,64 +383,33 @@ TConstExpressionPtr RefinePredicate(
             }
 
             auto rowBuffer = New<TRowBuffer>();
-            std::function<bool(TRow)> inRange;
+            auto tempRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), keyColumns.size());
 
-            if (tableSchema.HasComputedColumns()) {
-                auto tempRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), keyColumns.size());
+            auto inRange = [&, tempRow] (TRow literalTuple) mutable {
+                for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
+                    int schemaIndex = idMapping[tupleIndex];
 
-                inRange = [&, tempRow] (TRow literalTuple) mutable {
-                    for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
-                        int schemaIndex = idMapping[tupleIndex];
-
-                        if (schemaIndex >= 0 && schemaIndex < rowSize) {
-                            tempRow[schemaIndex] = literalTuple[tupleIndex];
-                        }
+                    if (schemaIndex >= 0 && schemaIndex < rowSize) {
+                        tempRow[schemaIndex] = literalTuple[tupleIndex];
                     }
+                }
 
-                    for (int index = 0; index < rowSize; ++index) {
-                        if (reverseIdMapping[index] == -1) {
-                            columnEvaluator->EvaluateKey(tempRow, rowBuffer, index);
-                        }
+                for (int index = 0; index < rowSize; ++index) {
+                    if (reverseIdMapping[index] == -1) {
+                        columnEvaluator->EvaluateKey(tempRow, rowBuffer, index);
                     }
+                }
 
-                    auto cmpLower = CompareRows(
-                        keyRange.first,
-                        tempRow,
-                        std::min(keyRange.first.GetCount(), rowSize));
-                    auto cmpUpper = CompareRows(
-                        keyRange.second,
-                        tempRow,
-                        std::min(keyRange.second.GetCount(), rowSize));
-                    return cmpLower <= 0 && cmpUpper >= 0;
-                };
-            } else {
-                inRange = [&] (TRow literalTuple) {
-                    auto compareRows = [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
-                        for (int index = 0; index < lhs.GetCount(); ++index) {
-                            if (index >= reverseIdMapping.size() || reverseIdMapping[index] == -1) {
-                                return 0;
-                            }
-
-                            int result = CompareRowValues(
-                                lhs.Begin()[index],
-                                rhs.Begin()[reverseIdMapping[index]]);
-
-                            if (result != 0) {
-                                return result;
-                            }
-                        }
-
-                        return 0;
-                    };
-                    auto cmpLower = compareRows(
-                        keyRange.first,
-                        literalTuple);
-                    auto cmpUpper = compareRows(
-                        keyRange.second,
-                        literalTuple);
-                    return cmpLower <= 0 && cmpUpper >= 0;
-                };
-            }
+                auto cmpLower = CompareRows(
+                    keyRange.first,
+                    tempRow,
+                    std::min(keyRange.first.GetCount(), rowSize));
+                auto cmpUpper = CompareRows(
+                    keyRange.second,
+                    tempRow,
+                    std::min(keyRange.second.GetCount(), rowSize));
+                return cmpLower <= 0 && cmpUpper >= 0;
+            };
 
             std::vector<TRow> filteredValues;
             for (auto value : inExpr->Values) {

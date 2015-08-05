@@ -16,11 +16,11 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/schemaful_reader.h>
 
 #include <ytlib/tablet_client/config.h>
 
@@ -36,13 +36,13 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 
-using NVersionedTableClient::TKey;
+using NTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,7 +175,7 @@ TDynamicRowRef TStoreManager::WriteRow(
 
 TDynamicRowRef TStoreManager::DeleteRow(
     TTransaction* transaction,
-    NVersionedTableClient::TKey key,
+    NTableClient::TKey key,
     bool prelock)
 {
     ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());

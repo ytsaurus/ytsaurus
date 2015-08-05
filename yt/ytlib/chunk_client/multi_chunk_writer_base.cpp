@@ -300,6 +300,7 @@ void TNontemplateMultiChunkWriterBase::DoFinishSession(const TSession& session)
 
     if (!rspOrError.IsOK()) {
         CompletionError_.TrySet(TError(
+            EErrorCode::MasterCommunicationFailed,
             "Failed to confirm chunk %v",
             session.ChunkId)
             << rspOrError);

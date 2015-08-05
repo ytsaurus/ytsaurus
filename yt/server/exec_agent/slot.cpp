@@ -67,18 +67,23 @@ void TSlot::Initialize()
                 ProcessGroup_.GetFullPath());
         }
 #endif
-    }
 
-    DoResetProcessGroup();
+        ProcessGroup_.Unlock();
+    }
 
     Stroka currentPath;
     try {
-        int pathIndex = 0;
-        for (const auto& path : Paths_) {
+        for (int pathIndex = 0; pathIndex < Paths_.size(); ++pathIndex) {
+            const auto& path = Paths_[pathIndex];
             currentPath = path;
             NFS::ForcePath(path, 0755);
-            SandboxPaths_.push_back(NFS::CombinePaths(path, "sandbox"));
-            DoCleanSandbox(pathIndex++);
+            SandboxPaths_.emplace_back();
+            for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
+                const auto& sandboxName = SandboxDirectoryNames[sandboxIndex];
+                YASSERT(sandboxName);
+                SandboxPaths_[pathIndex][sandboxIndex] = NFS::CombinePaths(path, sandboxName);
+            }
+            DoCleanSandbox(pathIndex);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %v",
@@ -150,44 +155,44 @@ TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
 
 void TSlot::DoCleanSandbox(int pathIndex)
 {
-    const auto& sandboxPath = SandboxPaths_[pathIndex];
-    try {
-        if (NFS::Exists(sandboxPath)) {
-            if (UserId_) {
-                LOG_DEBUG("Clean sandbox %v", sandboxPath);
-                RunTool<TRemoveDirAsRootTool>(sandboxPath);
-            } else {
-                NFS::RemoveRecursive(sandboxPath);
+    for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
+        const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxIndex];
+        try {
+            if (NFS::Exists(sandboxPath)) {
+                if (UserId_) {
+                    LOG_DEBUG("Clean sandbox %v", sandboxPath);
+                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                } else {
+                    NFS::RemoveRecursive(sandboxPath);
+                }
             }
+        } catch (const std::exception& ex) {
+            auto wrappedError = TError("Failed to clean sandbox directory %v",
+                sandboxPath)
+                << ex;
+            LOG_ERROR(wrappedError);
+            THROW_ERROR wrappedError;
         }
-    } catch (const std::exception& ex) {
-        auto wrappedError = TError("Failed to clean sandbox directory %v",
-            sandboxPath)
-            << ex;
-        LOG_ERROR(wrappedError);
-        THROW_ERROR wrappedError;
     }
 }
 
 void TSlot::DoCleanProcessGroups()
 {
+    if (!Config_->EnableCGroups) {
+        return;
+    }
+
     try {
         for (const auto& path : GetCGroupPaths()) {
             NCGroup::TNonOwningCGroup group(path);
-            group.RemoveAllSubcgroups();
+            group.RemoveRecursive();
         }
+        ProcessGroup_.EnsureExistance();
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
             SlotIndex_) << ex;
         LOG_ERROR(wrappedError);
         THROW_ERROR wrappedError;
-    }
-}
-
-void TSlot::DoResetProcessGroup()
-{
-    if (Config_->EnableCGroups) {
-        ProcessGroup_.Unlock();
     }
 }
 
@@ -208,7 +213,9 @@ void TSlot::Release()
 {
     YCHECK(IsClean_);
 
-    DoResetProcessGroup();
+    if (Config_->EnableCGroups) {
+        ProcessGroup_.Unlock();
+    }
 
     IsFree_.store(true);
     PathIndex_ = -1;
@@ -218,28 +225,30 @@ void TSlot::InitSandbox()
 {
     YCHECK(!IsFree());
 
-    const auto& sandboxPath = SandboxPaths_[PathIndex_];
-    try {
-        NFS::ForcePath(sandboxPath, 0777);
-    } catch (const std::exception& ex) {
-        LogErrorAndExit(TError("Failed to create sandbox directory %Qv",
-            sandboxPath)
-            << ex);
+    for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
+        const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxIndex];
+        try {
+            NFS::ForcePath(sandboxPath, 0777);
+        } catch (const std::exception& ex) {
+            LogErrorAndExit(TError("Failed to create sandbox directory %Qv",
+                sandboxPath)
+                << ex);
+        }
+        LOG_INFO("Created slot sandbox directory %Qv", sandboxPath);
     }
-
-    LOG_INFO("Created slot sandbox directory %Qv", sandboxPath);
 
     IsClean_ = false;
 }
 
 void TSlot::MakeLink(
+    ESandboxIndex sandboxIndex,
     const Stroka& targetPath,
     const Stroka& linkName,
     bool isExecutable) noexcept
 {
     YCHECK(!IsFree());
 
-    const auto& sandboxPath = SandboxPaths_[PathIndex_];
+    const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxIndex];
     auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
     try {
         {

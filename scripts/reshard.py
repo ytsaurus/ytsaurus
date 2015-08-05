@@ -24,11 +24,13 @@ yt.config.http.HEADER_FORMAT = "yson"
 
 def make_pivot_keys(ty, expr, shards=1):
     logging.info("Type: %s ; Expression: %s ; Shards: %s", ty, expr, shards)
+    modulo = None
     if expr is not None:
         match = re.match(r"^.*%\s*(\d+)u?$", expr)
         if match:
             modulo = long(match.group(1))
-        elif ty == "int64":
+    if modulo is None:
+        if ty == "int64":
             modulo = 2L**63L
         elif ty == "uint64":
             modulo = 2L**64L

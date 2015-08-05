@@ -6,7 +6,7 @@
 
 #include <ytlib/api/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/formats/format.h>
 
@@ -37,10 +37,10 @@ class TJobIOConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    NVersionedTableClient::TTableReaderConfigPtr TableReader;
-    NVersionedTableClient::TTableWriterConfigPtr TableWriter;
+    NTableClient::TTableReaderConfigPtr TableReader;
+    NTableClient::TTableWriterConfigPtr TableWriter;
 
-    NVersionedTableClient::TControlAttributesConfigPtr ControlAttributes;
+    NTableClient::TControlAttributesConfigPtr ControlAttributes;
 
     NApi::TFileWriterConfigPtr ErrorFileWriter;
 
@@ -106,6 +106,8 @@ public:
     //! Limit on operation execution time.
     TNullable<TDuration> TimeLimit;
 
+    bool CheckMultichunkFiles;
+
     TOperationSpecBase()
     {
         RegisterParameter("intermediate_data_account", IntermediateDataAccount)
@@ -152,6 +154,9 @@ public:
         RegisterParameter("scheduling_tag", SchedulingTag)
             .Default();
 
+        RegisterParameter("check_multichunk_files", CheckMultichunkFiles)
+            .Default(true);
+
         SetKeepOptions(true);
 
         RegisterParameter("time_limit", TimeLimit)
@@ -190,6 +195,8 @@ public:
     i64 MemoryLimit;
     double MemoryReserveFactor;
 
+    int IopsThreshold;
+
     bool UseYamrDescriptors;
     bool CheckInputFullyConsumed;
     bool EnableCoreDump;
@@ -222,6 +229,10 @@ public:
             .Default(0.5)
             .GreaterThan(0.)
             .LessThanOrEqual(1.);
+        RegisterParameter("iops_threshold", IopsThreshold)
+            .Default(3)
+            .GreaterThan(0)
+            .LessThanOrEqual(100);
         RegisterParameter("use_yamr_descriptors", UseYamrDescriptors)
             .Default(false);
         RegisterParameter("check_input_fully_consumed", CheckInputFullyConsumed)
@@ -255,7 +266,7 @@ class TInputlyQueryableSpec
 {
 public:
     TNullable<Stroka> InputQuery;
-    TNullable<NVersionedTableClient::TTableSchema> InputSchema;
+    TNullable<NTableClient::TTableSchema> InputSchema;
 
     TInputlyQueryableSpec()
     {
@@ -600,7 +611,7 @@ public:
     {
         RegisterParameter("output_table_path", OutputTablePath);
         RegisterParameter("samples_per_partition", SamplesPerPartition)
-            .Default(10)
+            .Default(1000)
             .GreaterThan(1);
         RegisterParameter("partition_job_io", PartitionJobIO)
             .DefaultNew();
@@ -793,6 +804,7 @@ class TResourceLimitsConfig
 public:
     TNullable<int> UserSlots;
     TNullable<int> Cpu;
+    TNullable<int> Network;
     TNullable<i64> Memory;
 
     TResourceLimitsConfig()
@@ -801,6 +813,9 @@ public:
             .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("cpu", Cpu)
+            .Default()
+            .GreaterThanOrEqual(0);
+        RegisterParameter("network", Network)
             .Default()
             .GreaterThanOrEqual(0);
         RegisterParameter("memory", Memory)
@@ -816,6 +831,9 @@ public:
         }
         if (Cpu) {
             perTypeLimits.set_cpu(*Cpu);
+        }
+        if (Network) {
+            perTypeLimits.set_network(*Network);
         }
         if (Memory) {
             perTypeLimits.set_memory(*Memory);

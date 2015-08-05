@@ -19,8 +19,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -65,8 +65,8 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NYTree;

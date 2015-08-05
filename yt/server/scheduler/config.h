@@ -6,7 +6,7 @@
 
 #include <core/rpc/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
 
@@ -93,7 +93,7 @@ public:
 };
 
 class TEventLogConfig
-    : public NVersionedTableClient::TBufferedTableWriterConfig
+    : public NTableClient::TBufferedTableWriterConfig
 {
 public:
     NYPath::TYPath Path;
@@ -340,6 +340,8 @@ public:
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scratchers
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
+    TNullable<NYPath::TYPath> UdfRegistryPath;
+
     TSchedulerConfig()
     {
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
@@ -488,6 +490,9 @@ public:
 
         RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
             .DefaultNew();
+
+        RegisterParameter("udf_registry_path", UdfRegistryPath)
+            .Default(Null);
 
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;

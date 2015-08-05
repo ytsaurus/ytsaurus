@@ -10,7 +10,7 @@
 
 #include <core/rpc/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
 
@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletHydraManageConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountConfig
-    : public NVersionedTableClient::TRetentionConfig
+    : public NTableClient::TRetentionConfig
 {
 public:
     int MaxMemoryStoreKeyCount;
@@ -355,7 +355,7 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletChunkReaderConfig
-    : public NVersionedTableClient::TChunkReaderConfig
+    : public NTableClient::TChunkReaderConfig
     , public NChunkClient::TReplicationReaderConfig
 { };
 
@@ -443,7 +443,7 @@ public:
     TSecurityManagerConfigPtr SecurityManager;
 
     TTabletChunkReaderConfigPtr ChunkReader;
-    NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
+    NTableClient::TTableWriterConfigPtr ChunkWriter;
 
     //! Controls outcoming bandwidth used by store flushes.
     NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
