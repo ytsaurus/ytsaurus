@@ -87,6 +87,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchChunkTree)          (713))
     ((MasterNotConnected)       (714))
     ((ChunkCreationFailed)      (715))
+    ((ChunkUnavailable)         (716))
 );
 
 //! Values must be contiguous.

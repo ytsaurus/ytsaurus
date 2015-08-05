@@ -53,6 +53,10 @@ class YtResponseError(YtError):
         """Request rate limit exceeded."""
         return YtResponseError._contains_code(self.error, 904)
 
+    def is_chunk_unavailable(self):
+        """Chunk unavailable."""
+        return YtResponseError._contains_code(self.error, 716)
+
     @staticmethod
     def _contains_code(error, code):
         if int(error["code"]) == code:
