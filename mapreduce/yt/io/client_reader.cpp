@@ -95,7 +95,7 @@ void TClientReader::CreateRequest(bool initial)
         try {
             Stroka proxyName = GetProxyForHeavyRequest(ServerName_);
 
-            THttpHeader header("GET", "read");
+            THttpHeader header("GET", GetReadTableCommand());
             header.AddTransactionId(ReadTransaction_->GetId());
             header.SetDataStreamFormat(Format_);
 

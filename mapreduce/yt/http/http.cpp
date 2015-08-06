@@ -20,6 +20,11 @@ THttpHeader::THttpHeader(const Stroka& method, const Stroka& command, bool isApi
     , IsApi(isApi)
 { }
 
+void THttpHeader::AddParam(const Stroka& key, const char* value)
+{
+    Params[key] = value;
+}
+
 void THttpHeader::AddParam(const Stroka& key, const Stroka& value)
 {
     Params[key] = value;

@@ -28,6 +28,7 @@ class THttpHeader
 public:
     THttpHeader(const Stroka& method, const Stroka& command, bool isApi = true);
 
+    void AddParam(const Stroka& key, const char* value);
     void AddParam(const Stroka& key, const Stroka& value);
     void AddParam(const Stroka& key, i64 value);
     void AddParam(const Stroka& key, ui64 value);
