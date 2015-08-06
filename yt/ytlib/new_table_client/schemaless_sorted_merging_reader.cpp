@@ -32,7 +32,7 @@ public:
     TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
         int keyColumnCount,
-        bool enableTableIndex);
+        bool enableControlAttributes);
 
     virtual TFuture<void> Open() override;
 
@@ -71,7 +71,7 @@ private:
     NLogging::TLogger Logger;
 
     int KeyColumnCount_;
-    bool EnableTableIndex_;
+    bool EnableControlAttributes_;
 
     std::vector<TSession> SessionHolder_;
     std::vector<TSession*> SessionHeap_;
@@ -81,6 +81,7 @@ private:
 
     TFuture<void> ReadyEvent_;
     int TableIndex_ = 0;
+    i64 TableRowIndex_ = 0;
 
     TOwningKey LastKey_;
 
@@ -95,10 +96,10 @@ private:
 TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
         const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
         int keyColumnCount,
-        bool enableTableIndex)
+        bool enableControlAttributes)
     : Logger(TableClientLogger)
     , KeyColumnCount_(keyColumnCount)
-    , EnableTableIndex_(enableTableIndex)
+    , EnableControlAttributes_(enableControlAttributes)
 {
     YCHECK(!readers.empty());
     int rowsPerSession = RowBufferSize / readers.size();
@@ -197,12 +198,14 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
     }
 
     TableIndex_ = session->Reader->GetTableIndex();
+    TableRowIndex_ = session->Reader->GetTableRowIndex() - session->Rows.size() + session->CurrentRowIndex;
 
     i64 dataWeight = 0;
     while (rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
         rows->push_back(session->Rows[session->CurrentRowIndex]);
         dataWeight += GetDataWeight(rows->back());
         ++session->CurrentRowIndex;
+        ++TableRowIndex_;
         ++RowIndex_;
 
         if (session->CurrentRowIndex == session->Rows.size()) {
@@ -212,8 +215,8 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow> *rows)
 
         AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
 
-        if (EnableTableIndex_ && SessionHeap_.front() != session) {
-            // Minimal reader changed, table index possibly changed as well.
+        if (EnableControlAttributes_ && SessionHeap_.front() != session) {
+            // Minimal reader changed, table index or row index possibly changed as well.
             break;
         }
 
@@ -284,7 +287,7 @@ i64 TSchemalessSortedMergingReader::GetSessionRowIndex() const
 
 i64 TSchemalessSortedMergingReader::GetTableRowIndex() const
 {
-    YUNREACHABLE();
+    return TableRowIndex_;
 }
 
 i32 TSchemalessSortedMergingReader::GetRangeIndex() const
@@ -297,9 +300,9 @@ i32 TSchemalessSortedMergingReader::GetRangeIndex() const
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
     int keyColumnCount,
-    bool enableTableIndex)
+    bool enableControlAttributes)
 {
-    return New<TSchemalessSortedMergingReader>(readers, keyColumnCount, enableTableIndex);
+    return New<TSchemalessSortedMergingReader>(readers, keyColumnCount, enableControlAttributes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

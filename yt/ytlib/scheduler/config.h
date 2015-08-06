@@ -659,6 +659,28 @@ public:
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
+
+        RegisterValidator([&] () {
+            auto throwError = [] (NVersionedTableClient::EControlAttribute attribute, const Stroka& jobType) {
+                THROW_ERROR_EXCEPTION(
+                    "%Qlv contol attribute is not supported by %v jobs in map-reduce operation", 
+                    attribute, 
+                    jobType);
+            };
+            auto validateControlAttributes = [&] (const NVersionedTableClient::TControlAttributesConfigPtr& attributes, const Stroka& jobType) {
+                if (attributes->EnableTableIndex) {
+                    throwError(NVersionedTableClient::EControlAttribute::TableIndex, jobType);
+                }
+                if (attributes->EnableRowIndex) {
+                    throwError(NVersionedTableClient::EControlAttribute::RowIndex, jobType);
+                }
+                if (attributes->EnableRangeIndex) {
+                    throwError(NVersionedTableClient::EControlAttribute::RangeIndex, jobType);
+                }
+            };
+            validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
+            validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
+        });
     }
 
     virtual void OnLoaded() override
