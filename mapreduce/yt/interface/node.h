@@ -96,6 +96,12 @@ public:
         Double_ = d;
     }
 
+    TNode(bool b)
+        : Type_(BOOL)
+    {
+        Bool_ = b;
+    }
+
     TNode(const TNode& rhs)
     {
         Copy(rhs);
@@ -305,6 +311,12 @@ public:
     }
 
     // map
+
+    bool HasKey(const Stroka& key) const
+    {
+        CheckType(MAP);
+        return Map_->find(key) != Map_->end();
+    }
 
     TNode& operator()(const Stroka& key, const TNode& value)
     {

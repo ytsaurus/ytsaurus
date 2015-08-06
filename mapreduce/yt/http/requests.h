@@ -50,13 +50,9 @@ void AbortOperation(const Stroka& serverName, const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka ParseJsonString(const Stroka& response);
-
 bool ParseBool(const Stroka& response);
 
 TGUID ParseGuid(const Stroka& response);
-
-void ParseStringArray(const Stroka& response, yvector<Stroka>& result);
 
 ////////////////////////////////////////////////////////////////////////////////
 

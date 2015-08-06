@@ -17,33 +17,30 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseJson(const Stroka& response, NJson::TJsonValue& value)
-{
-    TStringInput input(response);
-    NJson::ReadJsonTree(&input, &value);
-}
-
-Stroka ParseJsonString(const Stroka& response)
-{
-    NJson::TJsonValue value;
-    ParseJson(response, value);
-    return value.GetString();
-}
-
 bool ParseBool(const Stroka& response)
 {
-    return ParseJsonString(response) == "true";
+    auto node = NodeFromYsonString(response);
+    if (node.IsBool()) {
+        return node.AsBool();
+    } else if (node.IsString()) {
+        return node.AsString() == "true";
+    } else {
+        LOG_FATAL("Cannot parse yson boolean for response '%s'", ~response);
+    }
+    return false;
 }
 
 TGUID ParseGuid(const Stroka& response)
 {
-    return GetGuid(ParseJsonString(response));
+    auto node = NodeFromYsonString(response);
+    return GetGuid(node.AsString());
 }
 
-void ParseStringArray(const Stroka& response, yvector<Stroka>& result)
+void ParseJsonStringArray(const Stroka& response, yvector<Stroka>& result)
 {
     NJson::TJsonValue value;
-    ParseJson(response, value);
+    TStringInput input(response);
+    NJson::ReadJsonTree(&input, &value);
 
     const NJson::TJsonValue::TArray& array = value.GetArray();
     result.clear();
@@ -157,16 +154,16 @@ void WaitForOperation(const Stroka& serverName, const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval = TDuration::Seconds(1);
 
+    Stroka opIdStr = GetGuidAsString(operationId);
+    Stroka opPath = Sprintf("//sys/operations/%s", ~opIdStr);
+    Stroka statePath = opPath + "/@state";
+
     while (true) {
-        Stroka opIdStr = GetGuidAsString(operationId);
-        Stroka opPath = Sprintf("//sys/operations/%s", ~opIdStr);
-        if (!Exists(serverName, opPath)) {
+       if (!Exists(serverName, opPath)) {
             LOG_FATAL("Operation %s does not exist", ~opIdStr);
         }
 
-        Stroka statePath = opPath + "/@state";
-        Stroka state = ParseJsonString(Get(serverName, statePath));
-
+        Stroka state = NodeFromYsonString(Get(serverName, statePath)).AsString();
         if (state == "completed") {
             LOG_INFO("Operation %s completed", ~opIdStr);
             break;
@@ -202,7 +199,7 @@ Stroka GetProxyForHeavyRequest(const Stroka& serverName)
     while (result.empty()) {
         THttpHeader header("GET", TConfig::Get()->Hosts, false);
         Stroka response = RetryRequest(serverName, header);
-        ParseStringArray(response, result);
+        ParseJsonStringArray(response, result);
         if (result.empty()) {
             Sleep(TConfig::Get()->RetryInterval);
         }
