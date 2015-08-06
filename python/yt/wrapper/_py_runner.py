@@ -30,13 +30,19 @@ def main():
         for name in dir(sys.modules['__main__']):
             globals()[name] = sys.modules['__main__'].__dict__[name]
 
-    from yt.wrapper.pickling import load
-    __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
-
     import _py_runner_helpers
     import yt.yson
+    import yt.wrapper.config
     from yt.wrapper.format import YsonFormat
-    yt.wrapper.config.config = load(open(__config_dump_filename))
+    from yt.wrapper.pickling import Unpickler
+    yt.wrapper.config.config = \
+        Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(__config_dump_filename))
+
+    unpickler = Unpickler(yt.wrapper.config.config["pickling"]["framework"])
+
+    __operation, __attributes, __operation_type, __input_format, __output_format, __keys = \
+        unpickler.load(open(__operation_dump))
+
 
     from yt.wrapper.format import extract_key
 
