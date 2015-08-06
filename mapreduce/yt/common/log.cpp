@@ -4,6 +4,7 @@
 #include <util/system/mutex.h>
 #include <util/stream/str.h>
 #include <util/stream/printf.h>
+#include <util/stream/file.h>
 
 namespace NYT {
 
@@ -23,13 +24,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdErrLogger
+class TLoggerBase
     : public ILogger
 {
 public:
-    TStdErrLogger(ELevel cutLevel)
+    TLoggerBase(ELevel cutLevel)
         : CutLevel_(cutLevel)
     { }
+
+    virtual void OutputLine(const Stroka& line) = 0;
 
     void Log(ELevel level, const char* format, va_list args) override
     {
@@ -43,7 +46,7 @@ public:
         stream << Endl;
 
         TGuard<TMutex> guard(Mutex_);
-        Cerr << stream.Str();
+        OutputLine(stream.Str());
     }
 
 private:
@@ -51,9 +54,50 @@ private:
     TMutex Mutex_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TStdErrLogger
+    : public TLoggerBase
+{
+public:
+    TStdErrLogger(ELevel cutLevel)
+        : TLoggerBase(cutLevel)
+    { }
+
+    void OutputLine(const Stroka& line) override
+    {
+        Cerr << line;
+    }
+};
+
 ILoggerPtr CreateStdErrLogger(ILogger::ELevel cutLevel)
 {
     return new TStdErrLogger(cutLevel);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileLogger
+    : public TLoggerBase
+{
+public:
+    TFileLogger(ELevel cutLevel, const Stroka& path)
+        : TLoggerBase(cutLevel)
+        , Stream_(path)
+    { }
+
+    void OutputLine(const Stroka& line) override
+    {
+        Stream_ << line;
+    }
+
+private:
+    TFileOutput Stream_;
+};
+
+ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path)
+{
+    return new TFileLogger(cutLevel, path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

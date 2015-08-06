@@ -1,6 +1,7 @@
 #pragma once
 
 #include <util/generic/ptr.h>
+#include <util/generic/stroka.h>
 #include <util/system/compat.h>
 
 namespace NYT {
@@ -28,6 +29,7 @@ void SetLogger(ILoggerPtr logger);
 ILoggerPtr GetLogger();
 
 ILoggerPtr CreateStdErrLogger(ILogger::ELevel cutLevel);
+ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
