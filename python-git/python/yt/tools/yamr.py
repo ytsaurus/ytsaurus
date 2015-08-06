@@ -223,3 +223,9 @@ class Yamr(object):
         shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
             .format(self.mr_user, self.binary, remote_server, self.server, src, dst, self._make_fastbone(fastbone))
         _check_call(shell_command, shell=True)
+
+    def get_scheduler_info(self):
+        return json.loads(sh.curl("{0}/json?info=scheduler".format(self.http_server), insecure=True, location=True).stdout)
+
+    def get_operations(self):
+        return self.get_scheduler_info()["scheduler"]["operationList"]

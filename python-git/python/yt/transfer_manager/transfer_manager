@@ -37,6 +37,7 @@ import logging.handlers
 import thread
 import argparse
 import traceback
+import pwd
 from copy import deepcopy
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -693,6 +694,16 @@ class Application(object):
                 new_error.inner_errors = [error]
                 raise new_error
 
+        if client._type == "yamr":
+            def is_transfer_manager_copy_operation(op):
+                return "read_from_yt" in op.get("additionalInfo", {}).get("application", "") \
+                    and op.get("systemUser") == pwd.getpwuid(os.getuid())[0]
+            transfer_manager_operations = filter(is_transfer_manager_copy_operation, client.get_operations())
+            job_count = sum(op.get("jobsInfo", {}).get("States", {}).get("Jobs", {}).get("inProgress", 0)
+                            for op in transfer_manager_operations)
+            if job_count > self._config["running_jobs_limit_per_direction"]:
+                return False
+
         return True
 
     def _execute_tasks(self):
@@ -1248,6 +1259,7 @@ DEFAULT_CONFIG = {
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
+    "running_jobs_limit_per_direction": 200,
     "enable_detailed_traceback": False,
 
     # Common config for all yt clients.
