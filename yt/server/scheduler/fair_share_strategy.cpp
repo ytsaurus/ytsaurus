@@ -207,10 +207,18 @@ public:
         Attributes_.DominantLimit = dominantLimit;
 
         Attributes_.MaxPossibleUsageRatio = GetMaxShareRatio();
-        if (Attributes_.UsageRatio > RatioComputationPrecision)
-        {
+        if (Attributes_.UsageRatio > RatioComputationPrecision) {
+            // In this case we know pool resource preferences and can take them into account.
+            // We find maximum number K such that Usage * K < Limit and use it to estimate
+            // maximum dominant resource usage.
             Attributes_.MaxPossibleUsageRatio = std::min(
                 GetMinResourceRatio(maxPossibleResourceUsage, usage) * Attributes_.UsageRatio,
+                Attributes_.MaxPossibleUsageRatio);
+        } else {
+            // In this case we have no information about pool resource preferences, so just assume
+            // that it uses all resources equally.
+            Attributes_.MaxPossibleUsageRatio = std::min(
+                Attributes_.DemandRatio,
                 Attributes_.MaxPossibleUsageRatio);
         }
     }
