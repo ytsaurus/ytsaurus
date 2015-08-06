@@ -129,7 +129,7 @@ private:
 
         Stroka proxyName = GetProxyForHeavyRequest(ServerName_);
 
-        THttpHeader header("PUT", "upload");
+        THttpHeader header("PUT", GetWriteFileCommand());
         header.AddPath(cypressPath);
         header.SetChunkedEncoding();
 

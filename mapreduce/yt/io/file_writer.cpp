@@ -16,7 +16,7 @@ TFileWriter::TFileWriter(
     , BlockWriter_(
         serverName,
         transactionId,
-        "upload",
+        GetWriteFileCommand(),
         DSF_BYTES,
         path,
         BUFFER_SIZE)

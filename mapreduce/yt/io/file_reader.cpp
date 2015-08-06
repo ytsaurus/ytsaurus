@@ -22,7 +22,7 @@ TFileReader::TFileReader(
     try {
         Stroka proxyName = GetProxyForHeavyRequest(ServerName_);
 
-        THttpHeader header("GET", "download");
+        THttpHeader header("GET", GetReadFileCommand());
         header.AddTransactionId(TransactionId_);
         header.SetDataStreamFormat(DSF_BYTES);
         header.SetParameters(YPathToJsonString(Path_));

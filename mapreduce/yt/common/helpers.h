@@ -29,6 +29,11 @@ TYPath AddPathPrefix(const TYPath& path);
 
 TRichYPath AddPathPrefix(const TRichYPath& path);
 
+Stroka GetWriteTableCommand();
+Stroka GetReadTableCommand();
+Stroka GetWriteFileCommand();
+Stroka GetReadFileCommand();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

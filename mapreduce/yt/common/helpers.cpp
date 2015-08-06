@@ -109,6 +109,26 @@ TRichYPath AddPathPrefix(const TRichYPath& path)
     return pathCopy;
 }
 
+Stroka GetWriteTableCommand()
+{
+    return TConfig::Get()->ApiVersion == "v2" ? "write" : "write_table";
+}
+
+Stroka GetReadTableCommand()
+{
+    return TConfig::Get()->ApiVersion == "v2" ? "read" : "read_table";
+}
+
+Stroka GetWriteFileCommand()
+{
+    return TConfig::Get()->ApiVersion == "v2" ? "upload" : "write_file";
+}
+
+Stroka GetReadFileCommand()
+{
+    return TConfig::Get()->ApiVersion == "v2" ? "download" : "read_file";
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

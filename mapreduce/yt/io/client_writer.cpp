@@ -20,7 +20,7 @@ TClientWriter::TClientWriter(
     , BlockWriter_(new TBlockWriter(
         serverName,
         transactionId,
-        "write",
+        GetWriteTableCommand(),
         format,
         path,
         BUFFER_SIZE))
