@@ -10,6 +10,8 @@ import default_config
 # To implement this translation we replace config module with special class Config!
 
 class Config(types.ModuleType):
+    DEFAULT_PICKLING_FRAMEWORK = "dill"
+
     def __init__(self):
         self.shortcuts = {
             "http.PROXY": "proxy/url",

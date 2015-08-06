@@ -73,7 +73,9 @@ default_config = {
         # It useful if local version of python differs from version installed on cluster.
         "force_using_py_instead_of_pyc": False,
         # Function to replace standard py_wrapper.create_modules_archive.
-        "create_modules_archive_function": None
+        "create_modules_archive_function": None,
+        # Pickling framework used to save user modules.
+        "framework": "dill"
     },
 
     "yamr_mode": {

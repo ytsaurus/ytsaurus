@@ -1,5 +1,6 @@
-from pickling import dump
+import config
 from config import get_config
+from pickling import Pickler
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -114,14 +115,17 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
     local_temp_directory = get_config(client)["local_temp_directory"]
     function_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                           prefix=get_function_name(function) + ".")
+
+    pickler = Pickler(get_config(client)["pickling"]["framework"])
+
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
-        dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
+        pickler.dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
 
     config_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                         prefix="config_dump")
     with open(config_filename, "w") as fout:
-        dump(get_config(client), fout)
+        Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
     if attributes.get('is_simple', False):
         files = [function_filename, config_filename] + [os.path.join(LOCATION, module + ".py")
