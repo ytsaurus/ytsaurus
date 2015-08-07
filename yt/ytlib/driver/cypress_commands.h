@@ -15,7 +15,6 @@ struct TGetRequest
     : public TTransactionalRequest
     , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
-    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
@@ -102,7 +101,6 @@ struct TListRequest
     : public TTransactionalRequest
     , public TReadOnlyRequest
     , public TSuppressableAccessTrackingRequest
-    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
@@ -278,7 +276,6 @@ private:
 struct TExistsRequest
     : public TTransactionalRequest
     , public TReadOnlyRequest
-    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
 
