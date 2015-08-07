@@ -12,21 +12,44 @@ namespace NPython {
 
 TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
-{ }
+    , ResponseParametersBuilder_(new NYTree::TPythonObjectBuilder(true))
+    , ResponseParametersConsumer_(new NYTree::TGilGuardedYsonConsumer(ResponseParametersBuilder_.get()))
+    , ResponseParameters_(Py::None())
+{
+    // TODO(ignat): remake usign forwarding yson consumer
+    ResponseParametersBuilder_->OnBeginMap();
+}
 
 void TDriverResponse::SetResponse(TFuture<void> response)
 {
     Response_ = response;
 }
 
+NYson::IYsonConsumer* TDriverResponse::GetResponseParametersConsumer()
+{
+    return ResponseParametersConsumer_.get();
+}
+
 void TDriverResponse::OwnInputStream(std::unique_ptr<TInputStreamWrap>& inputStream)
 {
     InputStream_.swap(inputStream);
 }
-    
+
 void TDriverResponse::OwnOutputStream(std::unique_ptr<TOutputStreamWrap>& outputStream)
 {
     OutputStream_.swap(outputStream);
+}
+
+Py::Object TDriverResponse::ResponseParameters(Py::Tuple& args, Py::Dict& kwargs)
+{
+    if (!ResponseParametersFinished_) {
+        ResponseParametersFinished_ = true;
+        ResponseParametersBuilder_->OnEndMap();
+        if (ResponseParametersBuilder_->HasObject()) {
+            ResponseParameters_ = ResponseParametersBuilder_->ExtractObject();
+        }
+    }
+    return ResponseParameters_;
 }
 
 Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
@@ -37,7 +60,7 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 
     return Py::None();
 }
-    
+
 Py::Object TDriverResponse::IsSet(Py::Tuple& args, Py::Dict& kwargs)
 {
     return Py::Boolean(Response_.IsSet());
@@ -69,6 +92,7 @@ void TDriverResponse::InitType()
     behaviors().supportGetattro();
     behaviors().supportSetattro();
 
+    PYCXX_ADD_KEYWORDS_METHOD(response_parameters, ResponseParameters, "Extract response parameters");
     PYCXX_ADD_KEYWORDS_METHOD(wait, Wait, "Synchronously wait command completion");
     PYCXX_ADD_KEYWORDS_METHOD(is_set, IsSet, "Check that response is finished");
     PYCXX_ADD_KEYWORDS_METHOD(is_ok, IsOk, "Check that response executed successfully (can be called only if response is set)");

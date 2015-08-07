@@ -1,11 +1,11 @@
 #include "helpers.h"
 #include "serialize.h"
 
-#include <numeric>
-
 #include <core/ytree/node.h>
 
 #include <core/yson/lexer_detail.h>
+
+#include <numeric>
 
 namespace NYT {
 
@@ -31,7 +31,7 @@ Py::Callable GetYsonType(const std::string& name)
             throw Py::RuntimeError("Failed to import module yt.yson.yson_types");
         }
     }
-    return Py::Callable(PyObject_GetAttr(ysonTypesModule, PyString_FromString(name.c_str())));
+    return Py::Callable(PyObject_GetAttrString(ysonTypesModule, name.c_str()));
 }
 
 Py::Object CreateYsonObject(const std::string& className, const Py::Object& object, const Py::Object& attributes)
@@ -49,20 +49,84 @@ namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void SerializeMapFragment(const Py::Mapping& map, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
+void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
-    auto iterator = Py::Object(PyObject_GetIter(*map), true);
-    while (auto* next = PyIter_Next(*iterator)) {
-        Py::Object key = Py::Object(next, true);
-        char* keyStr = PyString_AsString(ConvertToString(key).ptr());
-        auto value = Py::Object(PyMapping_GetItemString(*map, keyStr), true);
-        consumer->OnKeyedItem(TStringBuf(keyStr));
-        Serialize(value, consumer, ignoreInnerAttributes, depth + 1);
+    auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
+    auto iterator = Py::Object(PyObject_GetIter(*items), true);
+    while (auto* item = PyIter_Next(*iterator)) {
+         auto key = Py::Object(PyTuple_GET_ITEM(item, 0), false);
+         char* keyStr = PyString_AsString(ConvertToString(key).ptr());
+         auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
+         consumer->OnKeyedItem(TStringBuf(keyStr));
+         Serialize(value, consumer, ignoreInnerAttributes, depth + 1);
+         Py::_XDECREF(item);
     }
+}
+
+void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
+{
+    static Py::Callable YsonBooleanClass = GetYsonType("YsonBoolean");
+    static Py::Callable YsonUint64Class = GetYsonType("YsonUint64");
+    static Py::Callable YsonInt64Class = GetYsonType("YsonInt64");
+    static Py::LongLong SignedInt64Min(std::numeric_limits<i64>::min());
+    static Py::LongLong SignedInt64Max(std::numeric_limits<i64>::max());
+    static Py::LongLong UnsignedInt64Max(std::numeric_limits<ui64>::max());
+
+    if (PyObject_Compare(UnsignedInt64Max.ptr(), obj.ptr()) < 0 ||
+        PyObject_Compare(obj.ptr(), SignedInt64Min.ptr()) < 0)
+    {
+        throw Py::RuntimeError(
+            "Integer " + std::string(obj.repr()) +
+            " cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]");
+    }
+
+    auto consumeAsLong = [&] {
+        bool greaterThanInt64 = PyObject_Compare(SignedInt64Max.ptr(), obj.ptr()) < 0;
+        if (greaterThanInt64) {
+            consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(obj.ptr()));
+        } else {
+            consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+        }
+    };
+
+    if (PyLong_CheckExact(obj.ptr())) {
+        consumeAsLong();
+        return;
+    }
+
+    // YsonBoolean inherited from int
+    if (IsInstance(obj, YsonBooleanClass)) {
+        consumer->OnBooleanScalar(Py::Boolean(obj));
+        return;
+    }
+
+    bool isUint64 = IsInstance(obj, YsonUint64Class);
+    if (isUint64) {
+        bool negative = PyObject_Compare(Py::Int(0).ptr(), obj.ptr()) > 0;
+        if (negative) {
+            throw Py::RuntimeError("Can not dump negative integer as YSON uint64");
+        }
+        consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(obj.ptr()));
+        return;
+    }
+
+    bool isInt64 = IsInstance(obj, YsonInt64Class);
+    if (isInt64) {
+        bool greaterThanInt64 = PyObject_Compare(SignedInt64Max.ptr(), obj.ptr()) < 0;
+        if (greaterThanInt64) {
+            throw Py::RuntimeError("Can not dump integer greater than 2^63-1 as YSON int64");
+        }
+        consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+        return;
+    }
+
+    consumeAsLong();
 }
 
 void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
 {
+    static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
+
     const char* attributesStr = "attributes";
     if ((!ignoreInnerAttributes || depth == 0) && PyObject_HasAttrString(*obj, attributesStr)) {
         auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr), true);
@@ -75,13 +139,20 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
 
     if (PyString_Check(obj.ptr())) {
         consumer->OnStringScalar(ConvertToStringBuf(ConvertToString(obj)));
-    } else if (obj.isUnicode()) {
+    } else if (PyUnicode_Check(obj.ptr())) {
         Py::String encoded = Py::String(PyUnicode_AsUTF8String(obj.ptr()), true);
         consumer->OnStringScalar(ConvertToStringBuf(ConvertToString(encoded)));
     } else if (obj.isMapping()) {
         consumer->OnBeginMap();
-        SerializeMapFragment(Py::Mapping(obj), consumer, ignoreInnerAttributes, depth);
+        SerializeMapFragment(obj, consumer, ignoreInnerAttributes, depth);
         consumer->OnEndMap();
+    // Fast check for simple integers
+    } else if (PyInt_CheckExact(obj.ptr())) {
+        consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
+    } else if (obj.isBoolean()) {
+        consumer->OnBooleanScalar(Py::Boolean(obj));
+    } else if (obj.isInteger() or PyLong_Check(obj.ptr())) {
+        SerializePythonInteger(obj, consumer);
     } else if (obj.isSequence()) {
         const auto& objList = Py::Sequence(obj);
         consumer->OnBeginList();
@@ -90,26 +161,9 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
             Serialize(*it, consumer, ignoreInnerAttributes, depth + 1);
         }
         consumer->OnEndList();
-    } else if (obj.isBoolean() || IsInstance(obj, GetYsonType("YsonBoolean"))) {
-        consumer->OnBooleanScalar(Py::Boolean(obj));
-    } else if (obj.isInteger() or PyLong_Check(obj.ptr())) {
-        if (PyObject_Compare(Py::Long(std::numeric_limits<ui64>::max()).ptr(), obj.ptr()) < 0 ||
-            PyObject_Compare(obj.ptr(), Py::Long(std::numeric_limits<i64>::min()).ptr()) < 0)
-        {
-            throw Py::RuntimeError(
-                "Value " + std::string(obj.repr()) +
-                " cannot be serialized to YSON since it is out of range [-2^63, 2^64 - 1]");
-        }
-
-        auto longObj = Py::Long(obj);
-        if (PyObject_Compare(Py::Int(std::numeric_limits<i64>::max()).ptr(), obj.ptr()) < 0) {
-            consumer->OnUint64Scalar(PyLong_AsUnsignedLongLong(longObj.ptr()));
-        } else {
-            consumer->OnInt64Scalar(PyLong_AsLongLong(longObj.ptr()));
-        }
     } else if (obj.isFloat()) {
         consumer->OnDoubleScalar(Py::Float(obj));
-    } else if (obj.isNone() || IsInstance(obj, GetYsonType("YsonEntity"))) {
+    } else if (obj.isNone() || IsInstance(obj, YsonEntityClass)) {
         consumer->OnEntity();
     } else {
         throw Py::RuntimeError(
@@ -139,12 +193,12 @@ void TPythonObjectBuilder::OnStringScalar(const TStringBuf& value)
 
 void TPythonObjectBuilder::OnInt64Scalar(i64 value)
 {
-    Py::_XDECREF(AddObject(PyInt_FromLong(value), YsonInt64));
+    Py::_XDECREF(AddObject(PyLong_FromLongLong(value), YsonInt64));
 }
 
 void TPythonObjectBuilder::OnUint64Scalar(ui64 value)
 {
-    Py::_XDECREF(AddObject(PyLong_FromUnsignedLongLong(value), YsonUint64));
+    Py::_XDECREF(AddObject(PyLong_FromUnsignedLongLong(value), YsonUint64, true));
 }
 
 void TPythonObjectBuilder::OnDoubleScalar(double value)
@@ -205,9 +259,9 @@ void TPythonObjectBuilder::OnEndAttributes()
     Attributes_ = Pop();
 }
 
-PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& type)
+PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& type, bool forceYsonTypeCreation)
 {
-    if (AlwaysCreateAttributes_ && !Attributes_) {
+    if ((AlwaysCreateAttributes_ && !Attributes_) || forceYsonTypeCreation) {
         Attributes_ = Py::Dict();
     }
 
@@ -279,6 +333,97 @@ bool TPythonObjectBuilder::HasObject() const
 
 ///////////////////////////////////////////////////////////////////////////////
 
+
+TGilGuardedYsonConsumer::TGilGuardedYsonConsumer(IYsonConsumer* consumer)
+    : Consumer_(consumer)
+{ }
+
+void TGilGuardedYsonConsumer::OnStringScalar(const TStringBuf& value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnStringScalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnInt64Scalar(i64 value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnInt64Scalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnUint64Scalar(ui64 value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnUint64Scalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnDoubleScalar(double value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnDoubleScalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnBooleanScalar(bool value)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBooleanScalar(value);
+}
+
+void TGilGuardedYsonConsumer::OnEntity()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEntity();
+}
+
+void TGilGuardedYsonConsumer::OnBeginList()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBeginList();
+}
+
+void TGilGuardedYsonConsumer::OnListItem()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnListItem();
+}
+
+void TGilGuardedYsonConsumer::OnEndList()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEndList();
+}
+
+void TGilGuardedYsonConsumer::OnBeginMap()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBeginMap();
+}
+
+void TGilGuardedYsonConsumer::OnKeyedItem(const TStringBuf& key)
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnKeyedItem(key);
+}
+
+void TGilGuardedYsonConsumer::OnEndMap()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEndMap();
+}
+
+void TGilGuardedYsonConsumer::OnBeginAttributes()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnBeginAttributes();
+}
+
+void TGilGuardedYsonConsumer::OnEndAttributes()
+{
+    NPython::TGilGuard guard;
+    Consumer_->OnEndAttributes();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 void Deserialize(Py::Object& obj, INodePtr node)
 {
     Py::Object attributes = Py::Dict();
@@ -302,7 +447,7 @@ void Deserialize(Py::Object& obj, INodePtr node)
     } else if (type == ENodeType::Int64) {
         obj = CreateYsonObject("YsonInt64", Py::Int(node->AsInt64()->GetValue()), attributes);
     } else if (type == ENodeType::Uint64) {
-        obj = CreateYsonObject("YsonUint64", Py::Long(node->AsUint64()->GetValue()), attributes);
+        obj = CreateYsonObject("YsonUint64", Py::LongLong(node->AsUint64()->GetValue()), attributes);
     } else if (type == ENodeType::Double) {
         obj = CreateYsonObject("YsonDouble", Py::Float(node->AsDouble()->GetValue()), attributes);
     } else if (type == ENodeType::String) {
@@ -329,7 +474,9 @@ class TStreamReader
 public:
     explicit TStreamReader(TInputStream* stream)
         : Stream_(stream)
-    { }
+    {
+        RefreshBlock();
+    }
 
     const char* Begin() const
     {
@@ -344,7 +491,7 @@ public:
     void RefreshBlock()
     {
         YCHECK(BeginPtr_ == EndPtr_);
-        auto blob = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_);
+        auto blob = TSharedMutableRef::Allocate<TInputStreamBlobTag>(BlockSize_, false);
         auto size = Stream_->Load(blob.Begin(), blob.Size());
         if (size != BlockSize_) {
             Finished_ = true;
@@ -379,7 +526,7 @@ public:
         if (Blobs_.size() == 1) {
             result = Blobs_[0].Slice(PrefixStart_, BeginPtr_);
         } else {
-            result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_);
+            result = TSharedMutableRef::Allocate<TInputStreamBlobTag>(ReadByteCount_, false);
 
             size_t index = 0;
             auto append = [&] (const char* begin, const char* end) {
@@ -483,7 +630,7 @@ public:
         if (hasRow) {
             auto prefix = Lexer_.ExtractPrefix();
             YCHECK(*(prefix.End() - 1) != NYson::NDetail::ListItemSeparatorSymbol);
-            auto result = TSharedMutableRef::Allocate(prefix.Size() + 1);
+            auto result = TSharedMutableRef::Allocate(prefix.Size() + 1, false);
             std::copy(prefix.Begin(), prefix.End(), result.Begin());
             *(result.End() - 1) = ';';
             return result;

@@ -17,7 +17,7 @@ namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-// This methods allow use methods convertTo* with Py::Object.
+// This methods allow use methods ConvertTo* with Py::Object.
 void Serialize(
     const Py::Object& obj,
     NYson::IYsonConsumer* consumer,
@@ -77,12 +77,39 @@ private:
     std::stack<Stroka> Keys_;
     TNullable<Py::Object> Attributes_;
 
-    PyObject* AddObject(PyObject* obj, const Py::Callable& type);
+    PyObject* AddObject(PyObject* obj, const Py::Callable& type, bool forceYsonTypeCreation = false);
     PyObject* AddObject(const Py::Callable& type);
     PyObject* AddObject(PyObject* obj);
 
     void Push(const Py::Object& obj, EPythonObjectType objectType);
     Py::Object Pop();
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TGilGuardedYsonConsumer
+    : public NYson::TYsonConsumerBase
+{
+public:
+    explicit TGilGuardedYsonConsumer(IYsonConsumer* consumer);
+
+    virtual void OnStringScalar(const TStringBuf& value) override;
+    virtual void OnInt64Scalar(i64 value) override;
+    virtual void OnUint64Scalar(ui64 value) override;
+    virtual void OnDoubleScalar(double value) override;
+    virtual void OnBooleanScalar(bool value) override;
+    virtual void OnEntity() override;
+    virtual void OnBeginList() override;
+    virtual void OnListItem() override;
+    virtual void OnEndList() override;
+    virtual void OnBeginMap() override;
+    virtual void OnKeyedItem(const TStringBuf& key) override;
+    virtual void OnEndMap() override;
+    virtual void OnBeginAttributes() override;
+    virtual void OnEndAttributes() override;
+
+private:
+    IYsonConsumer* Consumer_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
