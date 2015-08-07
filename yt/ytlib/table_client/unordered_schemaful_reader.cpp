@@ -41,7 +41,7 @@ public:
         rows->clear();
 
         for (auto& session : Sessions_) {
-            if (session.Exhausted && !RefillSession(session)) {
+            if (session.Exhausted) {
                 continue;
             }
 
@@ -62,6 +62,9 @@ public:
 
             if (!session.Reader->Read(rows)) {
                 session.Exhausted = true;
+                if (RefillSession(session)) {
+                    pending = true;
+                }
                 continue;
             }
 
