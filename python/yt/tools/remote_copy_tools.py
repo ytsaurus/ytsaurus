@@ -235,6 +235,8 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             sorted_by = None
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
+                dst_table = yt.TablePath(dst)
+                dst.attributes["sorted_by"] = sorted_by
             row_count = source_client.get(src + "/@row_count")
 
             ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
@@ -251,7 +253,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 destination_client.run_map,
                 "bash read_from_yt.sh",
                 temp_table,
-                dst,
+                dst_table,
                 files=files,
                 spec=spec,
                 input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
@@ -263,13 +265,13 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            if sorted_by:
-                logger.info("Sorting '%s'", dst)
-                run_operation_and_notify(
-                    message_queue,
-                    destination_client.run_sort,
-                    dst,
-                    sort_by=sorted_by)
+            #if sorted_by:
+            #    logger.info("Sorting '%s'", dst)
+            #    run_operation_and_notify(
+            #        message_queue,
+            #        destination_client.run_sort,
+            #        dst,
+            #        sort_by=sorted_by)
 
             run_erasure_merge(source_client, destination_client, src, dst)
             copy_user_attributes(source_client, destination_client, src, dst)
