@@ -596,6 +596,8 @@ class Application(object):
             task.kiwi_user = self._config.get("default_kiwi_user")
         if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yamr":
             task.copy_method = "pull"
+        if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yt":
+            task.copy_method = "proxy" if source_client._version != destination_client._version else "native"
 
     def _precheck(self, task, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
         if custom_logger is None:
@@ -606,7 +608,7 @@ class Application(object):
         source_client = task.get_source_client(self._clusters)
         destination_client = task.get_destination_client(self._clusters)
 
-        if task.copy_method not in [None, "pull", "push"]:
+        if task.copy_method not in [None, "pull", "push", "proxy", "native"]:
             raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
 
         if task.source_cluster not in self._availability_graph or \
@@ -631,6 +633,13 @@ class Application(object):
                 keys = list(source_client.read_table(path, format=yt.JsonFormat(), raw=False).next())
                 if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                     raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
+
+            if source_client._type == "yt" and destination_client._type == "yt":
+                if task.copy_method not in ["proxy", "native"]:
+                    raise yt.YtError("Incorrect copy method {0} for YT to YT copy task".format(task.copy_method))
+                if task.copy_method == "native" and source_client._version != destination_client._version:
+                    raise yt.YtError("Native copy method should not be specified for clusters with "
+                                     "different YT versions")
 
             if destination_client._type == "yt":
                 destination_dir = os.path.dirname(task.destination_table)
@@ -828,7 +837,7 @@ class Application(object):
 
             if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
-                if source_client._version != destination_client._version:
+                if task.copy_method == "proxy":
                     copy_yt_to_yt_through_proxy(
                         source_client,
                         destination_client,
@@ -837,7 +846,7 @@ class Application(object):
                         fastbone=fastbone,
                         spec_template=task_spec,
                         message_queue=message_queue)
-                else:
+                else:  # native
                     network_name = "fastbone" if fastbone else "default"
                     network_name = parameters.get("network_name", network_name)
                     copy_yt_to_yt(
