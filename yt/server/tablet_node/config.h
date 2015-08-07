@@ -217,6 +217,12 @@ public:
 
     NCompression::ECodec ChangelogCodec;
 
+    //! When committing a non-atomic transaction, clients provide timestamps based
+    //! on wall clock readings. These timestamps are checked for sanity using the server-side
+    //! timestamp estimates.
+    TDuration ClientTimestampThreshold;
+
+
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
@@ -234,6 +240,9 @@ public:
 
         RegisterParameter("changelog_codec", ChangelogCodec)
             .Default(NCompression::ECodec::Lz4);
+
+        RegisterParameter("client_timestamp_threshold", ClientTimestampThreshold)
+            .Default(TDuration::Minutes(1));
     }
 };
 

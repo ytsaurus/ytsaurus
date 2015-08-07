@@ -48,8 +48,9 @@ public:
 
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
-        const TTransactionId& transctionId,
-        NTabletClient::TWireProtocolReader* reader);
+        const TTransactionId& transactionId,
+        NTabletClient::TWireProtocolReader* reader,
+        TFuture<void>* commitResult);
 
 
     IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId);

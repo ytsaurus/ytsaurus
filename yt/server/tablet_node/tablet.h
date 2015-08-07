@@ -38,6 +38,7 @@ struct TTabletSnapshot
     TOwningKey NextPivotKey;
     NVersionedTableClient::TTableSchema Schema;
     NVersionedTableClient::TKeyColumns KeyColumns;
+    NTransactionClient::EAtomicity Atomicity;
 
     TPartitionSnapshotPtr Eden;
 
@@ -109,6 +110,8 @@ public:
     // NB: Avoid keeping IStorePtr to simplify store removal.
     DEFINE_BYREF_RW_PROPERTY(std::deque<TStoreId>, PreloadStoreIds);
 
+    DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
+
 public:
     TTablet(
         const TTabletId& tabletId,
@@ -122,7 +125,8 @@ public:
         const NVersionedTableClient::TTableSchema& schema,
         const NVersionedTableClient::TKeyColumns& keyColumns,
         TOwningKey pivotKey,
-        TOwningKey nextPivotKey);
+        TOwningKey nextPivotKey,
+        NTransactionClient::EAtomicity atomicity);
 
     ~TTablet();
 

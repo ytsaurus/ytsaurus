@@ -47,15 +47,25 @@ public:
     void StartEpoch(TTabletSlotPtr slot);
     void StopEpoch();
 
-    TDynamicRowRef WriteRow(
+    TDynamicRowRef WriteRowAtomic(
         TTransaction* transaction,
         TUnversionedRow row,
         bool prelock);
 
-    TDynamicRowRef DeleteRow(
+    void WriteRowNonAtomic(
+        const TTransactionId& transactionId,
+        TTimestamp commitTimestamp,
+        TUnversionedRow row);
+
+    TDynamicRowRef DeleteRowAtomic(
         TTransaction* transaction,
         TKey key,
         bool prelock);
+
+    void DeleteRowNonAtomic(
+        const TTransactionId& transactionId,
+        TTimestamp commitTimestamp,
+        TKey key);
 
     void ConfirmRow(TTransaction* transaction, const TDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TDynamicRowRef& rowRef);

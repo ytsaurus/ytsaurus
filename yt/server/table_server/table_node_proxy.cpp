@@ -90,6 +90,7 @@ private:
         attributes->push_back(TAttributeInfo("tablets", table->IsDynamic(), true));
         attributes->push_back(TAttributeInfo("channels", true, false, true));
         attributes->push_back(TAttributeInfo("schema", true, false, true));
+        attributes->push_back("atomicity");
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -157,6 +158,12 @@ private:
             return true;
         }
 
+        if (key == "atomicity") {
+            BuildYsonFluently(consumer)
+                .Value(table->GetAtomicity());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -185,6 +192,20 @@ private:
             if (!table->IsDynamic() && !keyColumns.empty()) {
                 table->SetSorted(true);
             }
+            return true;
+        }
+
+        if (key == "atomicity") {
+            auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
+
+            ValidateNoTransaction();
+
+            auto* table = LockThisTypedImpl();
+            if (table->HasMountedTablets()) {
+                THROW_ERROR_EXCEPTION("Cannot atomicity mode of a dynamic table with mounted tablets");
+            }
+
+            table->SetAtomicity(atomicity);
             return true;
         }
 

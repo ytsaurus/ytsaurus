@@ -9,6 +9,8 @@
 
 #include <ytlib/new_table_client/public.h>
 
+#include <ytlib/transaction_client/public.h>
+
 #include <server/chunk_server/chunk_owner_base.h>
 
 #include <server/cypress_server/node_detail.h>
@@ -29,9 +31,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
     DEFINE_BYREF_RW_PROPERTY(NVersionedTableClient::TKeyColumns, KeyColumns);
 
+    // For dynamic tables only.
     typedef std::vector<NTabletServer::TTablet*> TTabletList;
     typedef TTabletList::iterator TTabletListIterator; 
     DEFINE_BYREF_RW_PROPERTY(TTabletList, Tablets);
+
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity);
 
 public:
     explicit TTableNode(const NCypressServer::TVersionedNodeId& id);

@@ -28,6 +28,7 @@ using namespace NVersionedTableClient;
 using namespace NTabletClient;
 using namespace NChunkClient;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,7 +90,8 @@ TTablet::TTablet(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     TOwningKey pivotKey,
-    TOwningKey nextPivotKey)
+    TOwningKey nextPivotKey,
+    EAtomicity atomicity)
     : TabletId_(tabletId)
     , TableId_(tableId)
     , Slot_(slot)
@@ -98,6 +100,7 @@ TTablet::TTablet(
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
+    , Atomicity_(atomicity)
     , Config_(config)
     , WriterOptions_(writerOptions)
     , Eden_(std::make_unique<TPartition>(
@@ -170,6 +173,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, GetPersistentState());
     Save(context, Schema_);
     Save(context, KeyColumns_);
+    Save(context, Atomicity_);
 
     TSizeSerializer::Save(context, Stores_.size());
     // NB: This is not stable.
@@ -205,6 +209,7 @@ void TTablet::Load(TLoadContext& context)
     // TODO(babenko): consider moving schema and key columns to async part
     Load(context, Schema_);
     Load(context, KeyColumns_);
+    Load(context, Atomicity_);
 
     // NB: Call Initialize here since stores that we're about to create
     // may request some tablet properties (e.g. column lock count) during construction.
@@ -615,6 +620,7 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
     Snapshot_->Schema = Schema_;
     Snapshot_->KeyColumns = KeyColumns_;
     Snapshot_->Eden = Eden_->RebuildSnapshot();
+    Snapshot_->Atomicity = Atomicity_;
     Snapshot_->Partitions.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->RebuildSnapshot();
@@ -652,7 +658,9 @@ void TTablet::Initialize()
     for (int index = KeyColumns_.size(); index < Schema_.Columns().size(); ++index) {
         const auto& columnSchema = Schema_.Columns()[index];
         int lockIndex = TDynamicRow::PrimaryLockIndex;
-        if (columnSchema.Lock) {
+        // No locking supported for non-atomic tablets, however we still need the primary
+        // lock descriptor to maintain last commit timestamps.
+        if (columnSchema.Lock && Atomicity_ == EAtomicity::Full) {
             auto it = groupToIndex.find(*columnSchema.Lock);
             if (it == groupToIndex.end()) {
                 lockIndex = groupToIndex.size() + 1;

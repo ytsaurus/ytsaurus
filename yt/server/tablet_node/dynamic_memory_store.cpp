@@ -657,6 +657,8 @@ int TDynamicMemoryStore::GetLockCount() const
 
 int TDynamicMemoryStore::Lock()
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     int result = ++StoreLockCount_;
     LOG_TRACE("Store locked (Count: %v)",
         result);
@@ -665,7 +667,9 @@ int TDynamicMemoryStore::Lock()
 
 int TDynamicMemoryStore::Unlock()
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
     YASSERT(StoreLockCount_ > 0);
+
     int result = --StoreLockCount_;
     LOG_TRACE("Store unlocked (Count: %v)",
         result);
@@ -678,6 +682,8 @@ void TDynamicMemoryStore::WaitOnBlockedRow(
     TTimestamp timestamp)
 {
     if (timestamp == AsyncLastCommittedTimestamp)
+        return;
+    if (Tablet_->GetAtomicity() == EAtomicity::None)
         return;
 
     auto now = NProfiling::GetCpuInstant();
@@ -700,12 +706,13 @@ void TDynamicMemoryStore::WaitOnBlockedRow(
     }
 }
 
-TDynamicRow TDynamicMemoryStore::WriteRow(
+TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
     TTransaction* transaction,
     TUnversionedRow row,
     bool prelock,
     ui32 lockMask)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
     YASSERT(lockMask != 0);
 
     TDynamicRow result;
@@ -761,11 +768,67 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::DeleteRow(
+TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
+    TUnversionedRow row,
+    TTimestamp commitTimestamp)
+{
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+
+    TDynamicRow result;
+
+    ui32 commitRevision = RegisterRevision(commitTimestamp);
+
+    auto addValues = [&] (TDynamicRow dynamicRow) {
+        for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+            const auto& value = row[index];
+            auto list = PrepareFixedValue(dynamicRow, value.Id);
+            auto& uncommittedValue = list.GetUncommitted();
+            uncommittedValue.Revision = commitRevision;
+            CaptureUnversionedValue(&uncommittedValue, value);
+            list.Commit();
+        }
+    };
+
+    auto newKeyProvider = [&] () -> TDynamicRow {
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+
+        auto dynamicRow = AllocateRow();
+
+        // Copy keys.
+        SetKeys(dynamicRow, row.Begin());
+
+        // Copy values.
+        addValues(dynamicRow);
+
+        result = dynamicRow;
+        return dynamicRow;
+    };
+
+    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+        // Copy values.
+        addValues(dynamicRow);
+
+        result = dynamicRow;
+    };
+
+    Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
+
+    AddRevisionNonAtomic(result, commitTimestamp, commitRevision, ERevisionListKind::Write);
+
+    OnMemoryUsageUpdated();
+
+    ++PerformanceCounters_->DynamicMemoryRowWriteCount;
+
+    return result;
+}
+
+TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
     TTransaction* transaction,
     NVersionedTableClient::TKey key,
     bool prelock)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     TDynamicRow result;
 
     auto newKeyProvider = [&] () -> TDynamicRow {
@@ -803,8 +866,49 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     return result;
 }
 
+TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
+    NVersionedTableClient::TKey key,
+    TTimestamp commitTimestamp)
+{
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+
+    ui32 commitRevision = RegisterRevision(commitTimestamp);
+
+    TDynamicRow result;
+
+    auto newKeyProvider = [&] () -> TDynamicRow {
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+
+        auto dynamicRow = AllocateRow();
+
+        // Copy keys.
+        SetKeys(dynamicRow, key.Begin());
+
+        result = dynamicRow;
+        return dynamicRow;
+    };
+
+    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+        result = dynamicRow;
+    };
+
+    Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
+
+    AddRevisionNonAtomic(result, commitTimestamp, commitRevision, ERevisionListKind::Delete);
+
+    UpdateTimestampRange(commitTimestamp);
+
+    OnMemoryUsageUpdated();
+
+    ++PerformanceCounters_->DynamicMemoryRowDeleteCount;
+
+    return result;
+}
+
 TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
         auto* locks = row.BeginLocks(KeyColumnCount_);
         auto* migratedLocks = migratedRow.BeginLocks(KeyColumnCount_);
@@ -875,11 +979,15 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 
 void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
 }
 
 void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto prepareTimestamp = transaction->GetPrepareTimestamp();
     YASSERT(prepareTimestamp != NullTimestamp);
 
@@ -895,6 +1003,8 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 
 void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto commitTimestamp = transaction->GetCommitTimestamp();
     ui32 commitRevision = RegisterRevision(commitTimestamp);
 
@@ -934,17 +1044,13 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 
     Unlock();
 
-    // NB: Don't update min/max timestamps for passive stores since
-    // others are relying on its properties to remain constant.
-    // See, e.g., TStoreManager::MaxTimestampToStore_.
-    if (StoreState_ == EStoreState::ActiveDynamic) {
-        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
-        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
-    }
+    UpdateTimestampRange(commitTimestamp);
 }
 
 void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto* locks = row.BeginLocks(KeyColumnCount_);
 
     if (!row.GetDeleteLockFlag()) {
@@ -995,6 +1101,8 @@ int TDynamicMemoryStore::GetBlockingLockIndex(
     ui32 lockMask,
     TTimestamp timestamp)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
     for (int index = 0;
@@ -1024,6 +1132,8 @@ void TDynamicMemoryStore::CheckRowLocks(
     TTransaction* transaction,
     ui32 lockMask)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
     for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
@@ -1067,6 +1177,8 @@ void TDynamicMemoryStore::AcquireRowLocks(
     ui32 lockMask,
     bool deleteFlag)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     if (!prelock) {
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }
@@ -1113,6 +1225,23 @@ void TDynamicMemoryStore::AddRevision(TDynamicRow row, ui32 revision, ERevisionL
         row.SetRevisionList(revisionList, kind, KeyColumnCount_, ColumnLockCount_);
     }
     revisionList.Push(revision);
+}
+
+void TDynamicMemoryStore::AddRevisionNonAtomic(
+    TDynamicRow row,
+    TTimestamp commitTimestamp,
+    ui32 commitRevision,
+    ERevisionListKind kind)
+{
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+
+    AddRevision(row, commitRevision, kind);
+
+    auto* lock = row.BeginLocks(KeyColumnCount_);
+    YASSERT(lock->LastCommitTimestamp < commitTimestamp);
+    lock->LastCommitTimestamp = commitTimestamp;
+
+    UpdateTimestampRange(commitTimestamp);
 }
 
 void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys)
@@ -1549,6 +1678,17 @@ ui32 TDynamicMemoryStore::RegisterRevision(TTimestamp timestamp)
 TTimestamp TDynamicMemoryStore::TimestampFromRevision(ui32 revision)
 {
     return RevisionToTimestamp_[revision];
+}
+
+void TDynamicMemoryStore::UpdateTimestampRange(TTimestamp commitTimestamp)
+{
+    // NB: Don't update min/max timestamps for passive stores since
+    // others are relying on these values to remain constant.
+    // See, e.g., TStoreManager::MaxTimestampToStore_.
+    if (StoreState_ == EStoreState::ActiveDynamic) {
+        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
+        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
+    }
 }
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()

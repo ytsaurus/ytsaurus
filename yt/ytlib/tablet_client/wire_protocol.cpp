@@ -342,6 +342,16 @@ public:
         return Current_ == Data_.End();
     }
 
+    TIterator GetBegin() const
+    {
+        return Data_.Begin();
+    }
+
+    TIterator GetEnd() const
+    {
+        return Data_.End();
+    }
+
     TIterator GetCurrent() const
     {
         return Current_;
@@ -552,6 +562,16 @@ TWireProtocolReader::~TWireProtocolReader()
 bool TWireProtocolReader::IsFinished() const
 {
     return Impl_->IsFinished();
+}
+
+auto TWireProtocolReader::GetBegin() const -> TIterator
+{
+    return Impl_->GetBegin();
+}
+
+auto TWireProtocolReader::GetEnd() const -> TIterator
+{
+    return Impl_->GetEnd();
 }
 
 auto TWireProtocolReader::GetCurrent() const -> TIterator

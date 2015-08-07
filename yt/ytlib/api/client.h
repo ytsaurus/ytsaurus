@@ -147,6 +147,8 @@ struct TTransactionStartOptions
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+    NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
+    NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
 };
 
 struct TTransactionCommitOptions
