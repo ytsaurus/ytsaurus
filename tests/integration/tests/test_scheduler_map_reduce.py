@@ -270,3 +270,14 @@ print "x={0}\ty={1}".format(x, y)
             map_reduce(mapper_command="cat", reducer_command="cat",
                        in_="//tmp/t1", out="//tmp/t2",
                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
+
+    def test_bad_control_attributes(self):
+        create("table", "//tmp/t1")
+        write("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        with pytest.raises(YtError):
+            map_reduce(mapper_command="cat", reducer_command="cat",
+                       in_="//tmp/t1", out="//tmp/t2",
+                       sort_by=["foo"], 
+                       spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})
