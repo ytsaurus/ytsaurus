@@ -66,6 +66,11 @@ void TUserJobIOBase::Init()
     }
 }
 
+int TUserJobIOBase::GetReduceKeyColumnCount() const
+{
+    return 0;
+}
+
 const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() const
 {
     return Writers_;
