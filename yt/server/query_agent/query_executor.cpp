@@ -466,8 +466,9 @@ private:
 
                     int totalSampleCount, partitionCount;
                     std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
+                    YCHECK(partitionCount > 0);
 
-                    if (totalSampleCount != 0 || partitionCount != 0) {
+                    if (totalSampleCount != 0 || partitionCount != 1) {
                         addRange(index - lastIndex, keyRanges[lastIndex].first, upperBound);
                         lastIndex = index;
                     }
@@ -597,7 +598,7 @@ private:
             [] (const TPartitionSnapshotPtr& lhs, const TRow& rhs) {
                 return lhs->PivotKey.Get() < rhs;
             });
-        int partitionCount = std::distance(startPartitionIt, endPartitionIt) - 1;
+        int partitionCount = std::distance(startPartitionIt, endPartitionIt);
 
         int totalSampleCount = 0;
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {

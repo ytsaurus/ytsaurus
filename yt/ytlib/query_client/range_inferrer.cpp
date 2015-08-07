@@ -706,7 +706,7 @@ private:
         {
             finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
             finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
-            YCHECK(lowerRow <= upperRow);
+            YASSERT(lowerRow <= upperRow);
             ranges.push_back(std::make_pair(Copy(lowerRow), Copy(upperRow)));
         };
 
