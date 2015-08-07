@@ -63,7 +63,6 @@ void TCommitTransactionCommand::DoExecute()
     auto transaction = AttachTransaction(true);
     TTransactionCommitOptions options;
     SetMutatingOptions(&options);
-    SetPrerequisites(&options);
     WaitFor(transaction->Commit(options))
         .ThrowOnError();
 }
@@ -75,7 +74,6 @@ void TAbortTransactionCommand::DoExecute()
     auto transaction = AttachTransaction(true);
     TTransactionAbortOptions options;
     SetMutatingOptions(&options);
-    SetPrerequisites(&options);
     options.Force = Request_->Force;
     WaitFor(transaction->Abort(options))
         .ThrowOnError();

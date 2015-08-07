@@ -62,7 +62,6 @@ void TCheckPermissionCommand::DoExecute()
     TCheckPermissionOptions options;
     SetTransactionalOptions(&options);
     SetReadOnlyOptions(&options);
-    SetPrerequisites(&options);
 
     auto resultOrError = WaitFor(Context_->GetClient()->CheckPermission(
         Request_->User,

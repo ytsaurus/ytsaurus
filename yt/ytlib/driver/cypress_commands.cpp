@@ -32,7 +32,6 @@ void TGetCommand::DoExecute()
     SetTransactionalOptions(&options);
     SetReadOnlyOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
-    SetPrerequisites(&options);
 
     auto asyncResult = Context_->GetClient()->GetNode(
         Request_->Path.GetPath(),
@@ -90,7 +89,6 @@ void TListCommand::DoExecute()
     SetTransactionalOptions(&options);
     SetReadOnlyOptions(&options);
     SetSuppressableAccessTrackingOptions(&options);
-    SetPrerequisites(&options);
     
     auto asyncResult = Context_->GetClient()->ListNode(
         Request_->Path.GetPath(),
@@ -225,7 +223,6 @@ void TExistsCommand::DoExecute()
     TNodeExistsOptions options;
     SetTransactionalOptions(&options);
     SetReadOnlyOptions(&options);
-    SetPrerequisites(&options);
 
     auto asyncResult = Context_->GetClient()->NodeExists(
         Request_->Path.GetPath(),
