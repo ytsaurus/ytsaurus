@@ -8,6 +8,7 @@ import sh
 import ctypes
 import signal
 import subprocess32 as subprocess
+from datetime import datetime, timedelta
 from urllib import quote_plus
 
 
@@ -44,7 +45,7 @@ def _check_call(command, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=5.0):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
         self.server = self._make_address(server, server_port)
@@ -66,6 +67,10 @@ class Yamr(object):
         if max_failed_jobs is None:
             max_failed_jobs = 100
         self.max_failed_jobs = max_failed_jobs
+
+        self.scheduler_info_update_period = scheduler_info_update_period
+        self._last_update_time_of_scheduler_info = None
+        self.scheduler_info = {}
 
         # Check that binary exists and supports help
         _check_output("{0} --help".format(self.binary), shell=True)
@@ -225,7 +230,18 @@ class Yamr(object):
         _check_call(shell_command, shell=True)
 
     def get_scheduler_info(self):
-        return json.loads(sh.curl("{0}/json?info=scheduler".format(self.http_server), insecure=True, location=True).stdout)
+        if self._last_update_time_of_scheduler_info is None or \
+                datetime.now() - self._last_update_time_of_scheduler_info > timedelta(seconds=self.scheduler_info_update_period):
+            self._last_update_time_of_scheduler_info = datetime.now()
+            try:
+                scheduler_info = sh.curl("{0}/json?info=scheduler".format(self.http_server), "--max-time", 1, insecure=True, location=True).stdout
+                try:
+                    self.scheduler_info = json.loads(scheduler_info)
+                except ValueError:
+                    self.scheduler_info = {}
+            except sh.ErrorReturnCode_28:
+                logger.warning("Timeout occured while requesting scheduler info from %s", self.http_server)
+        return self.scheduler_info
 
     def get_operations(self):
-        return self.get_scheduler_info()["scheduler"]["operationList"]
+        return self.get_scheduler_info().get("scheduler", {}).get("operationList", [])
