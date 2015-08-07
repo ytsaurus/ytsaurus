@@ -286,7 +286,11 @@ message TReduceJobSpecExt
         optional TReduceJobSpecExt reduce_job_spec_ext = 105;
     }
 
+    // Sort by key columns.
     repeated string key_columns = 1;
+
+    // Reduce by prefix length of key columns.
+    required int32 reduce_key_column_count = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

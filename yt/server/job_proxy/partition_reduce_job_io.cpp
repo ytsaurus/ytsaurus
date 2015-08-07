@@ -28,7 +28,15 @@ class TPartitionReduceJobIO
 public:
     TPartitionReduceJobIO(IJobHost* host)
         : TUserJobIOBase(host)
-    { }
+    { 
+        const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        ReduceKeyColumnCount_ = reduceJobSpecExt.reduce_key_column_count();
+    }
+
+    virtual int GetReduceKeyColumnCount() const override
+    {
+        return ReduceKeyColumnCount_;
+    }
 
     virtual std::vector<ISchemalessMultiChunkReaderPtr> DoCreateReaders() override
     {
@@ -78,6 +86,9 @@ public:
         writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_node_directory());
         ToProto(schedulerJobResult->mutable_chunks(), writer->GetWrittenChunks());
     }
+
+private:
+    int ReduceKeyColumnCount_;
 };
 
 std::unique_ptr<IUserJobIO> CreatePartitionReduceJobIO(IJobHost* host)
