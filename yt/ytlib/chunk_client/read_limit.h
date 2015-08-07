@@ -24,6 +24,9 @@ public:
     explicit TReadLimit(const NProto::TReadLimit& readLimit);
     explicit TReadLimit(NProto::TReadLimit&& readLimit);
 
+    explicit TReadLimit(const NVersionedTableClient::TOwningKey& key);
+    explicit TReadLimit(NVersionedTableClient::TOwningKey&& key);
+
     TReadLimit& operator= (const NProto::TReadLimit& protoLimit);
     TReadLimit& operator= (NProto::TReadLimit&& protoLimit);
 
