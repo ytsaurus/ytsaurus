@@ -564,6 +564,8 @@ private:
         const TRow& lowerBound,
         const TRow& upperBound)
     {
+        YCHECK(lowerBound <= upperBound);
+
         auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
             return std::upper_bound(
                 sampleKeys.begin(),

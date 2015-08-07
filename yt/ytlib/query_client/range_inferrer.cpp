@@ -512,10 +512,6 @@ private:
         bool canEnumerate = false;
         size_t prefixSize = 0;
         for (; prefixSize < std::min(range.first.GetCount(), range.second.GetCount()); ++prefixSize) {
-            if (Schema_.Columns()[prefixSize].Expression) {
-                continue;
-            }
-
             if (lower[prefixSize].Type == EValueType::TheBottom) {
                 YCHECK(upper[prefixSize].Type == EValueType::TheBottom);
                 continue;
@@ -542,8 +538,8 @@ private:
         std::set<TUnversionedValue> divisorsSet;
         ui64 rangeCount = 1;
 
-        size_t shrinkSize = 0;
-        for (;shrinkSize < KeySize_; ++shrinkSize) {
+        size_t shrinkSize;
+        for (shrinkSize = 0; shrinkSize < KeySize_; ++shrinkSize) {
             if (shrinkSize < prefixSize && lower[shrinkSize].Type != EValueType::TheBottom) {
                 // Is fixed.
                 continue;
@@ -710,6 +706,7 @@ private:
         {
             finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
             finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
+            YCHECK(lowerRow <= upperRow);
             ranges.push_back(std::make_pair(Copy(lowerRow), Copy(upperRow)));
         };
 
