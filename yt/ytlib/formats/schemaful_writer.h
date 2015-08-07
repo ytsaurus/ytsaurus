@@ -17,13 +17,17 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemafulYsonWriter
+class TSchemafulWriter
     : public NTableClient::ISchemafulWriter
 {
 public:
-    explicit TSchemafulYsonWriter(
+    template <class TMakeWriter>
+    explicit TSchemafulWriter(
         NConcurrency::IAsyncOutputStreamPtr stream,
-        TYsonFormatConfigPtr config = New<TYsonFormatConfig>());
+        TMakeWriter&& makeWriter)
+        : Stream_(stream)
+        , Writer_(makeWriter(&Buffer_))
+    { }
 
     virtual TFuture<void> Open(
         const NTableClient::TTableSchema& schema,
@@ -38,9 +42,8 @@ public:
 private:
     NConcurrency::IAsyncOutputStreamPtr Stream_;
 
-    TYsonFormatConfigPtr Config_;
     TBlobOutput Buffer_;
-    NYson::TYsonWriter Writer_;
+    std::unique_ptr<NYson::TYsonConsumerBase> Writer_;
 
     NTableClient::TTableSchema Schema_;
 
