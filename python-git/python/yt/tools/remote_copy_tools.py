@@ -340,12 +340,18 @@ done"""
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
         with yt_client.Transaction():
+            if sorted:
+                dst_path = yt.TablePath(dst, client=yt_client)
+                dst_path.attributes["sorted_by"] = ["key", "subkey"]
+            else:
+                dst_path = dst
+
             run_operation_and_notify(
                 message_queue,
                 yt_client.run_map,
                 command,
                 temp_table,
-                dst,
+                dst_path,
                 input_format=yt.SchemafulDsvFormat(columns=["command"]),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                 files=yamr_client.binary,
@@ -358,14 +364,15 @@ done"""
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            if (sorted and force_sort is None) or force_sort:
-                logger.info("Sorting '%s'", dst)
-                run_operation_and_notify(
-                    message_queue,
-                    yt_client.run_sort,
-                    dst,
-                    sort_by=["key", "subkey"],
-                    spec=sort_spec)
+            # NB: Remove if sorted_by will be working properly.
+            #if (sorted and force_sort is None) or force_sort:
+            #    logger.info("Sorting '%s'", dst)
+            #    run_operation_and_notify(
+            #        message_queue,
+            #        yt_client.run_sort,
+            #        dst,
+            #        sort_by=["key", "subkey"],
+            #        spec=sort_spec)
 
             convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client)
 
