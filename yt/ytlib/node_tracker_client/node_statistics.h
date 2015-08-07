@@ -1,4 +1,4 @@
-#pragma once
+pragma once
 
 #include "public.h"
 
@@ -13,6 +13,7 @@ struct TTotalNodeStatistics
     i64 UsedSpace = 0;
     int ChunkCount = 0;
     int OnlineNodeCount = 0;
+    int FullNodeCount = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -412,7 +412,6 @@ public:
         return config ? config : New<TNodeConfig>();
     }
 
-    
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
@@ -422,6 +421,7 @@ public:
             result.AvailableSpace += statistics.total_available_space();
             result.UsedSpace += statistics.total_used_space();
             result.ChunkCount += statistics.total_chunk_count();
+            result.FullNodeCount += statistics.full() ? 1 : 0;
             result.OnlineNodeCount++;
         }
         return result;
