@@ -519,6 +519,7 @@ public:
             ToProto(req.mutable_next_pivot_key(), nextPivotKey);
             req.set_mount_config(serializedMountConfig.Data());
             req.set_writer_options(serializedWriterOptions.Data());
+            req.set_atomicity(static_cast<int>(table->GetAtomicity()));
 
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
@@ -532,11 +533,13 @@ public:
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
+                "Atomicity: %v)",
                 table->GetId(),
                 tablet->GetId(),
                 cell->GetId(),
-                chunks.size());
+                chunks.size(),
+                table->GetAtomicity());
         }
     }
 

@@ -15,6 +15,8 @@
 #include <ytlib/tablet_client/tablet_service_proxy.h>
 #include <ytlib/tablet_client/wire_protocol.h>
 
+#include <ytlib/transaction_client/helpers.h>
+
 #include <server/hydra/hydra_service.h>
 
 #include <server/hydra/hydra_manager.h>
@@ -33,6 +35,7 @@ using namespace NRpc;
 using namespace NCompression;
 using namespace NChunkClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NVersionedTableClient;
 using namespace NHydra;
 using namespace NCellNode;
@@ -144,10 +147,17 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto atomicity = AtomicityFromTransactionId(transactionId);
+        auto durability = EDurability(request->durability());
 
-        context->SetRequestInfo("TabletId: %v, TransactionId: %v",
+        context->SetRequestInfo("TabletId: %v, TransactionId: %v, Atomicity: %v, Durability: %v",
             tabletId,
-            transactionId);
+            transactionId,
+            atomicity,
+            durability);
+
+        // NB: Must serve the whole request within a single epoch.
+        TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
         const auto& user = context->GetUser();
         auto securityManager = Bootstrap_->GetSecurityManager();
@@ -162,19 +172,42 @@ private:
                 tabletSnapshot->Slot->GetCellId());
         }
 
+        if (tabletSnapshot->Atomicity != atomicity) {
+            THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
+                atomicity,
+                tabletSnapshot->Atomicity);
+        }
+
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
         TWireProtocolReader reader(requestData);
 
         auto tabletManager = Slot_->GetTabletManager();
 
+        TFuture<void> commitResult;
         while (!reader.IsFinished()) {
+            // Due to possible row blocking, serving the request may involve a number of write attempts.
+            // Each attempt causes a mutation to be enqueued to Hydra.
+            // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
+            // actually relevant.
             tabletManager->Write(
                 tabletSnapshot,
                 transactionId,
-                &reader);
+                &reader,
+                &commitResult);
         }
 
-        context->Reply();
+        switch (durability) {
+            case EDurability::Sync:
+                context->ReplyFrom(commitResult);
+                break;
+
+            case EDurability::Async:
+                context->Reply();
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
     }
 
 };

@@ -38,6 +38,8 @@ struct ITransaction
     virtual NTransactionClient::ETransactionType GetType() const = 0;
     virtual const NTransactionClient::TTransactionId& GetId() const = 0;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
+    virtual NTransactionClient::EAtomicity GetAtomicity() const = 0;
+    virtual NTransactionClient::EDurability GetDurability() const = 0;
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
