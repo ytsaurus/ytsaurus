@@ -1,4 +1,4 @@
-from yt.wrapper.common import generate_uuid, bool_to_string
+from yt.wrapper.common import generate_uuid, bool_to_string, MB
 from yt.tools.conversion_tools import convert_to_erasure
 import yt.yson as yson
 import yt.logger as logger
@@ -192,18 +192,25 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
     if spec_template is None:
         spec_template = {}
 
-    if check_permission(source_client, "write", src):
-        try:
-            merge_spec = deepcopy(spec_template)
-            merge_spec["combine_chunks"] = bool_to_string(True)
-            run_operation_and_notify(
-                message_queue,
-                source_client.run_merge,
-                src,
-                src,
-                spec=merge_spec)
-        except yt.YtError as error:
-            raise yt.YtError("Failed to merge source table", inner_errors=[error])
+    compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
+    chunk_count = source_client.get_attribute(src, "chunk_count")
+
+    if compressed_data_size / chunk_count < 10 * MB and chunk_count > 100:
+        if check_permission(source_client, "write", src):
+            try:
+                merge_spec = deepcopy(spec_template)
+                merge_spec["combine_chunks"] = bool_to_string(True)
+                run_operation_and_notify(
+                    message_queue,
+                    source_client.run_merge,
+                    src,
+                    src,
+                    spec=merge_spec)
+            except yt.YtError as error:
+                raise yt.YtError("Failed to merge source table", inner_errors=[error])
+        else:
+            raise yt.YtError("Failed to merge source table {0}, no write permission. "
+                             "If you can not get a write permission use 'proxy' copy method".format(src))
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     with destination_client.Transaction():
