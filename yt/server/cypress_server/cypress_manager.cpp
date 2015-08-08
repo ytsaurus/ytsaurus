@@ -174,13 +174,26 @@ public:
         }
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto externalizationMode = multicellManager->GetExternalizationMode();
+
+        bool isExternal = false;
+        if (attributes && attributes->Contains("external")) {
+            isExternal = attributes->Get<bool>("external");
+            attributes->Remove("external");
+        } else {
+            isExternal = (externalizationMode == EExternalizationMode::Automatic);
+        }
+
         auto externalCellTag = NotReplicatedCellTag;
-        if (attributes && attributes->Find<bool>("external").Get(false)) {
+        if (isExternal) {
+            if (externalizationMode == EExternalizationMode::Disabled) {
+                THROW_ERROR_EXCEPTION("External nodes are disabled");
+            }
+
             if (!handler->IsExternalizable()) {
                 THROW_ERROR_EXCEPTION("Type %Qlv is not externalizable",
                     handler->GetObjectType());
             }
-            attributes->Remove("external");
 
             auto maybeExternalCellTag = attributes->Find<TCellTag>("external_cell_tag");
             if (maybeExternalCellTag) {
@@ -194,11 +207,9 @@ public:
             }
         }
 
-        auto replicated = (externalCellTag != NotReplicatedCellTag);
-
         // INodeTypeHandler::SetDefaultAttributes may modify the attributes.
         std::unique_ptr<IAttributeDictionary> replicatedAttributes;
-        if (attributes && replicated) {
+        if (attributes && isExternal) {
             replicatedAttributes = attributes->Clone();
         }
 
@@ -225,7 +236,7 @@ public:
 
         cypressManager->LockNode(trunkNode, Transaction_, ELockMode::Exclusive);
 
-        if (replicated) {
+        if (isExternal) {
             auto replicateRequest = TMasterYPathProxy::CreateObject();
             if (Transaction_) {
                 ToProto(replicateRequest->mutable_transaction_id(), Transaction_->GetId());
