@@ -178,6 +178,8 @@ public:
 
     TFuture<void> SyncWith(const TCellId& cellId)
     {
+        YCHECK(EpochAutomatonInvoker_);
+        
         auto proxy = FindHiveProxy(cellId);
         if (!proxy) {
             return MakeFuture(TError("Cannot connect to cell %v",
