@@ -321,10 +321,11 @@ class YTEnv(object):
                 config["primary_master"]["cell_id"] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
                 config["primary_master"]["addresses"] = self._master_addresses[master_name]
                 for index in xrange(secondary_master_cell_count):
+                    name = self._secondary_master_name(master_name, index)
                     config["secondary_masters"].append({})
                     config["secondary_masters"][index]["cell_id"] = "ffffffff-ffffffff-%x0259-ffffffff" % (cell_tag + index + 1)
                     config["secondary_masters"][index]["addresses"] = \
-                        ["%s:%s" % (self._hostname, self._ports[current_master_name][2 * i]) for i in xrange(masters_count)]
+                        ["%s:%s" % (self._hostname, self._ports[name][2 * i]) for i in xrange(masters_count)]
                 config["timestamp_provider"]["addresses"] = self._master_addresses[master_name]
                 config["changelogs"]["path"] = os.path.join(current, "changelogs")
                 config["snapshots"]["path"] = os.path.join(current, "snapshots")
