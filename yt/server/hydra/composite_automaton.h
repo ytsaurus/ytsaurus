@@ -183,6 +183,10 @@ private:
         const Stroka& name,
         TCallback<void(TMutationContext*)> callback);
 
+
+    void StartEpoch();
+    void StopEpoch();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomatonPart)
