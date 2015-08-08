@@ -229,11 +229,13 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribePopulateCellDescriptors(BIND(&TImpl::OnPopulateCellDescriptors, MakeWeak(this)));
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
+            nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+            nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+            nodeTracker->SubscribePopulateCellDescriptors(BIND(&TImpl::OnPopulateCellDescriptors, MakeWeak(this)));
+        }
     }
 
     void Initialize()
