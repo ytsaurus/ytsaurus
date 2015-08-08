@@ -298,7 +298,8 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
                     if (!rspOrError.IsOK()) {
                         THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
                             path,
-                            cellTag);
+                            cellTag)
+                            << rspOrError;
                     }
                     const auto& rsp = rspOrError.Value();
                     return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
