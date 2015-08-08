@@ -636,6 +636,8 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
             slotManager->ConfigureSlot(slot, info);
         }
     }
+
+    ScheduleNodeHeartbeat(cellTag);
 }
 
 TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
