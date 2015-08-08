@@ -38,6 +38,13 @@ DEFINE_ENUM(ENodeCloneMode,
     (Move)
 );
 
+//! Defines the way Cypress Manager externalizes nodes
+DEFINE_ENUM(EExternalizationMode,
+    (Disabled)   // no external nodes can be created
+    (Automatic)  // all externalizable are externalized by default
+    (Manual)     // only explicit externalization is allowed
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NCypressClient::TNodeId;

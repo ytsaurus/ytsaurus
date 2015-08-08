@@ -79,10 +79,12 @@ class TCypressManager::TNodeFactory
 public:
     TNodeFactory(
         NCellMaster::TBootstrap* bootstrap,
+        TCypressManagerConfigPtr config,
         TTransaction* transaction,
         TAccount* account,
         bool preserveAccount)
         : Bootstrap_(bootstrap)
+        , Config_(std::move(config))
         , Transaction_(transaction)
         , Account_(account)
         , PreserveAccount_(preserveAccount)
@@ -173,18 +175,19 @@ public:
                 type);
         }
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        auto externalizationMode = multicellManager->GetExternalizationMode();
-
+        auto externalizationMode = Config_->ExternalizationMode;
         bool isExternal = false;
         if (attributes && attributes->Contains("external")) {
             isExternal = attributes->Get<bool>("external");
             attributes->Remove("external");
         } else {
-            isExternal = (externalizationMode == EExternalizationMode::Automatic);
+            isExternal =
+                externalizationMode == EExternalizationMode::Automatic &&
+                handler->IsExternalizable();
         }
 
         auto externalCellTag = NotReplicatedCellTag;
+        auto multicellManager = Bootstrap_->GetMulticellManager();
         if (isExternal) {
             if (externalizationMode == EExternalizationMode::Disabled) {
                 THROW_ERROR_EXCEPTION("External nodes are disabled");
@@ -298,6 +301,7 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
+    const TCypressManagerConfigPtr Config_;
     TTransaction* const Transaction_;
     TAccount* const Account_;
     const bool PreserveAccount_;
@@ -624,6 +628,7 @@ public:
     {
         return New<TNodeFactory>(
             Bootstrap_,
+            Config_,
             transaction,
             account,
             preserveAccount);
