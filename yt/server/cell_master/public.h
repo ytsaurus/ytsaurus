@@ -35,12 +35,6 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (IncrementalHeartbeat)
 );
 
-DEFINE_ENUM(EExternalizationMode,
-    (Disabled)
-    (Automatic)
-    (Manual)
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NCellMaster

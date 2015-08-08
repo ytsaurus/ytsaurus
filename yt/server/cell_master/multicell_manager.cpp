@@ -74,12 +74,6 @@ public:
     }
 
 
-    EExternalizationMode GetExternalizationMode()
-    {
-        return Config_->ExternalizationMode;
-    }
-
-
     void PostToPrimaryMaster(
         const ::google::protobuf::MessageLite& requestMessage,
         bool reliable = true)
@@ -502,11 +496,6 @@ TMulticellManager::TMulticellManager(
 
 TMulticellManager::~TMulticellManager()
 { }
-
-EExternalizationMode TMulticellManager::GetExternalizationMode()
-{
-    return Impl_->GetExternalizationMode();
-}
 
 void TMulticellManager::PostToPrimaryMaster(
     const ::google::protobuf::MessageLite& requestMessage,
