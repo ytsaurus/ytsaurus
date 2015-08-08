@@ -349,7 +349,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     IThroughputThrottlerPtr throttler,
@@ -373,7 +373,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     return New<TVersionedMultiChunkWriter>(
         config,
         options,
-        masterChannel,
+        client,
         transactionId,
         parentChunkListId,
         createChunkWriter,

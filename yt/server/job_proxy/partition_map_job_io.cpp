@@ -51,7 +51,7 @@ public:
             options,
             nameTable,
             keyColumns,
-            Host_->GetMasterChannel(),
+            Host_->GetClient(),
             transactionId,
             chunkListId,
             std::move(partitioner));

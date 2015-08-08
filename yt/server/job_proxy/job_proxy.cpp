@@ -33,6 +33,9 @@
 
 #include <core/ytree/public.h>
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+
 #include <ytlib/scheduler/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
@@ -52,6 +55,7 @@ using namespace NScheduler;
 using namespace NExecAgent;
 using namespace NBus;
 using namespace NRpc;
+using namespace NApi;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient;
@@ -275,9 +279,11 @@ TJobResult TJobProxy::DoRun()
     SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
     SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-    MasterChannel_ = CreateAuthenticatedChannel(
-        CreateBusChannel(supervisorClient),
-        NSecurityClient::JobUserName);
+    auto clusterConnection = CreateConnection(Config_->ClusterConnection);
+    
+    TClientOptions clientOptions;
+    clientOptions.User = NSecurityClient::JobUserName;
+    Client_ = clusterConnection->CreateClient(clientOptions);
 
     RetrieveJobSpec();
 
@@ -304,9 +310,9 @@ TJobResult TJobProxy::DoRun()
             auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
             Job_ = CreateUserJob(
-                this, 
-                userJobSpec, 
-                JobId_, 
+                this,
+                userJobSpec,
+                JobId_,
                 CreateUserJobIO());
         } else {
             Job_ = CreateBuiltinJob();
@@ -383,9 +389,9 @@ void TJobProxy::ReleaseNetwork()
     SetResourceUsage(usage);
 }
 
-IChannelPtr TJobProxy::GetMasterChannel() const
+NApi::IClientPtr TJobProxy::GetClient() const
 {
-    return MasterChannel_;
+    return Client_;
 }
 
 IBlockCachePtr TJobProxy::GetBlockCache() const

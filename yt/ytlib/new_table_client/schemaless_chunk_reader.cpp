@@ -12,6 +12,9 @@
 #include "schemaless_block_reader.h"
 #include "table_ypath_proxy.h"
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/multi_chunk_reader_base.h>
@@ -48,6 +51,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NRpc;
+using namespace NApi;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TChannel;
@@ -477,7 +481,7 @@ public:
     TSchemalessMultiChunkReader(
         TTableReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const std::vector<TChunkSpec>& chunkSpecs,
@@ -526,7 +530,7 @@ template<class TBase>
 TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     TTableReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
@@ -536,7 +540,7 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     : TBase(
         config,
         options,
-        masterChannel,
+        client,
         blockCache,
         nodeDirectory,
         chunkSpecs,
@@ -654,7 +658,7 @@ int TSchemalessMultiChunkReader<TBase>::GetTableIndex() const
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TTableReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
@@ -665,7 +669,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     return New<TSchemalessMultiChunkReader<TSequentialMultiChunkReaderBase>>(
         config,
         options,
-        masterChannel,
+        client,
         blockCache,
         nodeDirectory,
         chunkSpecs,
@@ -679,7 +683,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TTableReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
@@ -690,7 +694,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     return New<TSchemalessMultiChunkReader<TParallelMultiChunkReaderBase>>(
         config,
         options,
-        masterChannel,
+        client,
         blockCache,
         nodeDirectory,
         chunkSpecs,
@@ -709,7 +713,7 @@ public:
     TSchemalessTableReader(
         TTableReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         TTransactionPtr transaction,
         IBlockCachePtr blockCache,
         const TRichYPath& richPath,
@@ -740,6 +744,7 @@ private:
 
     const TTableReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
+    const IClientPtr Client_;
     const IChannelPtr MasterChannel_;
     const TTransactionPtr Transaction_;
     const IBlockCachePtr BlockCache_;
@@ -762,7 +767,7 @@ private:
 TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     TTransactionPtr transaction,
     IBlockCachePtr blockCache,
     const TRichYPath& richPath,
@@ -770,7 +775,8 @@ TSchemalessTableReader::TSchemalessTableReader(
     IThroughputThrottlerPtr throttler)
     : Config_(config)
     , Options_(options)
-    , MasterChannel_(masterChannel)
+    , Client_(client)
+    , MasterChannel_(client->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower))
     , Transaction_(transaction)
     , BlockCache_(blockCache)
     , RichPath_(richPath)
@@ -865,13 +871,10 @@ void TSchemalessTableReader::DoOpen()
                 NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
 
-        auto options = New<TMultiChunkReaderOptions>();
-        options->NetworkName = Options_->NetworkName;
-
         UnderlyingReader_ = New<TUnderlyingReader>(
             Config_,
-            options,
-            MasterChannel_,
+            New<TMultiChunkReaderOptions>(),
+            Client_,
             BlockCache_,
             nodeDirectory,
             chunkSpecs,
@@ -973,7 +976,7 @@ std::vector<TChunkId> TSchemalessTableReader::GetFailedChunkIds() const
 ISchemalessMultiChunkReaderPtr CreateSchemalessTableReader(
     TTableReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     TTransactionPtr transaction,
     IBlockCachePtr blockCache,
     const NYPath::TRichYPath& richPath,
@@ -983,7 +986,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessTableReader(
     return New<TSchemalessTableReader>(
         config,
         options,
-        masterChannel,
+        client,
         transaction,
         blockCache,
         richPath,

@@ -388,6 +388,7 @@ private:
 
         auto options = New<TRemoteWriterOptions>();
         options->SessionType = EWriteSessionType::Replication;
+        options->AllowAllocatingNewTargetNodes = false;
 
         auto writer = CreateReplicationWriter(
             Config_->ReplicationWriter,
@@ -395,7 +396,7 @@ private:
             ChunkId_,
             targets,
             nodeDirectory,
-            nullptr,
+            Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
             Bootstrap_->GetReplicationOutThrottler());
 
@@ -535,7 +536,7 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
                 options,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
+                Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 partId,
@@ -551,13 +552,14 @@ private:
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto options = New<TRemoteWriterOptions>();
             options->SessionType = EWriteSessionType::Repair;
+            options->AllowAllocatingNewTargetNodes = false;
             auto writer = CreateReplicationWriter(
                 Config_->RepairWriter,
                 options,
                 partId,
                 TChunkReplicaList(1, targets[index]),
                 nodeDirectory,
-                nullptr,
+                Bootstrap_->GetMasterClient(),
                 GetNullBlockCache(),
                 Bootstrap_->GetRepairOutThrottler());
             writers.push_back(writer);
@@ -660,7 +662,7 @@ private:
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
                 options,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
+                Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Null,
                 ChunkId_,

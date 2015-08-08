@@ -154,9 +154,7 @@ public:
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
             New<TRemoteWriterOptions>(),
-            // TODO(ignat): pass Client instead of Channel and TransactionManager
-            Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-            Bootstrap_->GetMasterClient()->GetTransactionManager(),
+            Bootstrap_->GetMasterClient(),
             nameTable,
             Config_->EventLog->Path);
 

@@ -12,6 +12,10 @@
 #include "private.h"
 #include "replication_reader.h"
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+#include <ytlib/api/config.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/concurrency/scheduler.h>
@@ -27,6 +31,7 @@ using namespace NConcurrency;
 using namespace NErasure;
 using namespace NProto;
 using namespace NNodeTrackerClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +68,7 @@ static TMultiChunkReaderConfigPtr PatchConfig(TMultiChunkReaderConfigPtr config,
 TMultiChunkReaderBase::TMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    IClientPtr client,
     IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NProto::TChunkSpec>& chunkSpecs,
@@ -74,7 +79,7 @@ TMultiChunkReaderBase::TMultiChunkReaderBase(
     , Throttler_(throttler)
     , CompletionError_(NewPromise<void>())
     , BlockCache_(blockCache)
-    , MasterChannel_(masterChannel)
+    , Client_(client)
     , NodeDirectory_(nodeDirectory)
     , FreeBufferSize_(Config_->MaxBufferSize)
 {
@@ -230,7 +235,7 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
             auto reader = CreateReplicationReader(
                 PatchConfig(Config_, chunk.MemoryEstimate),
                 Options_,
-                MasterChannel_,
+                Client_,
                 NodeDirectory_,
                 Null,
                 partId,
@@ -248,7 +253,7 @@ IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
         return CreateReplicationReader(
             PatchConfig(Config_, chunk.MemoryEstimate),
             Options_,
-            MasterChannel_,
+            Client_,
             NodeDirectory_,
             Null,
             chunkId,
@@ -307,7 +312,7 @@ void TMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
 TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NProto::TChunkSpec>& chunkSpecs,
@@ -315,7 +320,7 @@ TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
     : TMultiChunkReaderBase(
         config, 
         options, 
-        masterChannel, 
+        client, 
         blockCache, 
         nodeDirectory,
         chunkSpecs,
@@ -410,7 +415,7 @@ void TSequentialMultiChunkReaderBase::OnError()
 TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    IClientPtr client,
     IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NProto::TChunkSpec>& chunkSpecs,
@@ -418,7 +423,7 @@ TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
     : TMultiChunkReaderBase(
         config,
         options,
-        masterChannel,
+        client,
         blockCache,
         nodeDirectory,
         chunkSpecs,

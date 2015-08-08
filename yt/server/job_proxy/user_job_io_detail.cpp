@@ -120,7 +120,7 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
         nameTable,
         keyColumns,
         TOwningKey(),
-        Host_->GetMasterChannel(),
+        Host_->GetClient(),
         transactionId,
         chunkListId,
         true);
@@ -153,7 +153,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
         return CreateSchemalessParallelMultiChunkReader(
             JobIOConfig_->TableReader,
             options,
-            Host_->GetMasterChannel(),
+            Host_->GetClient(),
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,
@@ -162,7 +162,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
         return CreateSchemalessSequentialMultiChunkReader(
             JobIOConfig_->TableReader,
             options,
-            Host_->GetMasterChannel(),
+            Host_->GetClient(),
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             chunkSpecs,

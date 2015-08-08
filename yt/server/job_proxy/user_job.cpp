@@ -342,7 +342,7 @@ private:
 
         ErrorOutput_.reset(new TErrorOutput(
             Config_->JobIO->ErrorFileWriter,
-            host->GetMasterChannel(),
+            host->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
@@ -399,7 +399,7 @@ private:
         for (int index = 0; index < contexts.size(); ++index) {
             TErrorOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
-                host->GetMasterChannel(),
+                host->GetClient(),
                 transactionId);
 
             const auto& context = contexts[index];

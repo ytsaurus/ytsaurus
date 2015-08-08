@@ -245,7 +245,7 @@ private:
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
                 options,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
+                Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId,
