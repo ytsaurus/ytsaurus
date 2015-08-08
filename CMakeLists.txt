@@ -209,7 +209,7 @@ add_custom_target( package touch package-stamp
 )
 
 add_custom_target( python-package touch python-package-stamp
-  COMMAND cp -r ${CMAKE_BINARY_DIR}/debian/changelog ${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/
+  COMMAND cat ${CMAKE_BINARY_DIR}/debian/changelog | sed 's/^yandex-yt/yandex-yt-python-driver/' >${CMAKE_SOURCE_DIR}/python/yandex-yt-python-driver/debian/changelog
   COMMAND ${CMAKE_SOURCE_DIR}/python/deploy.sh yandex-yt-python-driver
   COMMAND mv
     ../yandex-yt*${YT_VERSION}*
