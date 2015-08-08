@@ -397,7 +397,8 @@ public:
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeDisposed, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeRackChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
 
@@ -1022,7 +1023,7 @@ private:
         }
     }
 
-    void OnNodeRackChanged(TNode* node)
+    void OnNodeChanged(TNode* node)
     {
         if (ChunkReplicator_ && node->GetLocalState() == ENodeState::Online) {
             ChunkReplicator_->ScheduleNodeRefresh(node);
