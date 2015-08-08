@@ -289,7 +289,6 @@ public:
     DEFINE_SIGNAL(void(TNode* node), NodeRackChanged);
     DEFINE_SIGNAL(void(TNode* node, const TReqFullHeartbeat& request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
-    DEFINE_SIGNAL(void(std::vector<TCellDescriptor>*), PopulateCellDescriptors);
 
 
     void DestroyNode(TNode* node)
@@ -526,14 +525,6 @@ public:
     int GetOnlineNodeCount()
     {
         return OnlineNodeCount_;
-    }
-
-
-    std::vector<TCellDescriptor> GetCellDescriptors()
-    {
-        std::vector<TCellDescriptor> result;
-        PopulateCellDescriptors_.Fire(&result);
-        return result;
     }
 
 private:
@@ -1415,11 +1406,6 @@ int TNodeTracker::GetOnlineNodeCount()
     return Impl_->GetOnlineNodeCount();
 }
 
-std::vector<NHive::TCellDescriptor> TNodeTracker::GetCellDescriptors()
-{
-    return Impl_->GetCellDescriptors();
-}
-
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TObjectId, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, TRackId, *Impl_)
 
@@ -1431,7 +1417,6 @@ DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRackChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(std::vector<TCellDescriptor>*), PopulateCellDescriptors, *Impl_);
 
 ///////////////////////////////////////////////////////////////////////////////
 

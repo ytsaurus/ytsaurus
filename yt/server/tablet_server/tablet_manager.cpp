@@ -234,7 +234,6 @@ public:
             nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
             nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
             nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
-            nodeTracker->SubscribePopulateCellDescriptors(BIND(&TImpl::OnPopulateCellDescriptors, MakeWeak(this)));
         }
     }
 
@@ -1113,14 +1112,6 @@ private:
             ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
-        }
-    }
-
-    void OnPopulateCellDescriptors(std::vector<TCellDescriptor>* descriptors)
-    {
-        for (const auto& pair : TabletCellMap_) {
-            const auto* tablet = pair.second;
-            descriptors->push_back(tablet->GetDescriptor());
         }
     }
 

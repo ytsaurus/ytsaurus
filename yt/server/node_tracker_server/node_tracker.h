@@ -88,10 +88,6 @@ public:
         NNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response),
         IncrementalHeartbeat);
 
-    //! Fired when the list of registered cells is being constructed.
-    DECLARE_SIGNAL(void(std::vector<NHive::TCellDescriptor>* descriptors),
-        PopulateCellDescriptors);
-
 
     //! Returns a node with a given id (|nullptr| if none).
     TNode* FindNode(TNodeId id);
