@@ -742,7 +742,10 @@ public:
     {
         const auto& channels = MasterChannels_[kind];
         auto it = channels.find(cellTag == PrimaryMasterCellTag ? Connection_->GetPrimaryMasterCellTag() : cellTag);
-        YCHECK(it != channels.end());
+        if (it == channels.end()) {
+            THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+                cellTag);
+        }
         return it->second;
     }
 
