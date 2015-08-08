@@ -470,7 +470,10 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    auto client = Bootstrap_->GetMasterClient();
+    auto connection = client->GetConnection();
+
+    auto channel = client->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.IncrementalHeartbeat()
@@ -497,40 +500,42 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
-    auto slotManager = Bootstrap_->GetTabletSlotManager();
-    for (auto slot : slotManager->Slots()) {
-        auto* protoSlotInfo = request->add_tablet_slots();
-        if (slot) {
-            ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
-            protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
-            protoSlotInfo->set_peer_id(slot->GetPeerId());
-            ToProto(protoSlotInfo->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
-        } else {
-            protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
+    if (cellTag == connection->GetPrimaryMasterCellTag()) {
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        for (auto slot : slotManager->Slots()) {
+            auto* protoSlotInfo = request->add_tablet_slots();
+            if (slot) {
+                ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
+                protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
+                protoSlotInfo->set_peer_id(slot->GetPeerId());
+                ToProto(protoSlotInfo->mutable_prerequisite_transaction_id(), slot->GetPrerequisiteTransactionId());
+            } else {
+                protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
+            }
         }
-    }
 
-    auto tabletSnapshots = slotManager->GetTabletSnapshots();
-    for (auto snapshot : tabletSnapshots) {
-        auto* protoTabletInfo = request->add_tablets();
-        ToProto(protoTabletInfo->mutable_tablet_id(), snapshot->TabletId);
+        auto tabletSnapshots = slotManager->GetTabletSnapshots();
+        for (auto snapshot : tabletSnapshots) {
+            auto* protoTabletInfo = request->add_tablets();
+            ToProto(protoTabletInfo->mutable_tablet_id(), snapshot->TabletId);
 
-        auto* protoStatistics = protoTabletInfo->mutable_statistics();
-        protoStatistics->set_partition_count(snapshot->Partitions.size());
-        protoStatistics->set_store_count(snapshot->StoreCount);
+            auto* protoStatistics = protoTabletInfo->mutable_statistics();
+            protoStatistics->set_partition_count(snapshot->Partitions.size());
+            protoStatistics->set_store_count(snapshot->StoreCount);
 
-        auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
-        auto performanceCounters = snapshot->PerformanceCounters;
-        protoPerformanceCounters->set_dynamic_memory_row_read_count(performanceCounters->DynamicMemoryRowReadCount);
-        protoPerformanceCounters->set_dynamic_memory_row_lookup_count(performanceCounters->DynamicMemoryRowLookupCount);
-        protoPerformanceCounters->set_dynamic_memory_row_write_count(performanceCounters->DynamicMemoryRowWriteCount);
-        protoPerformanceCounters->set_dynamic_memory_row_delete_count(performanceCounters->DynamicMemoryRowDeleteCount);
-        protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
-        protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
-        protoPerformanceCounters->set_static_chunk_row_lookup_true_negative_count(performanceCounters->StaticChunkRowLookupTrueNegativeCount);
-        protoPerformanceCounters->set_static_chunk_row_lookup_false_positive_count(performanceCounters->StaticChunkRowLookupFalsePositiveCount);
-        protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
-        protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
+            auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
+            auto performanceCounters = snapshot->PerformanceCounters;
+            protoPerformanceCounters->set_dynamic_memory_row_read_count(performanceCounters->DynamicMemoryRowReadCount);
+            protoPerformanceCounters->set_dynamic_memory_row_lookup_count(performanceCounters->DynamicMemoryRowLookupCount);
+            protoPerformanceCounters->set_dynamic_memory_row_write_count(performanceCounters->DynamicMemoryRowWriteCount);
+            protoPerformanceCounters->set_dynamic_memory_row_delete_count(performanceCounters->DynamicMemoryRowDeleteCount);
+            protoPerformanceCounters->set_static_chunk_row_read_count(performanceCounters->StaticChunkRowReadCount);
+            protoPerformanceCounters->set_static_chunk_row_lookup_count(performanceCounters->StaticChunkRowLookupCount);
+            protoPerformanceCounters->set_static_chunk_row_lookup_true_negative_count(performanceCounters->StaticChunkRowLookupTrueNegativeCount);
+            protoPerformanceCounters->set_static_chunk_row_lookup_false_positive_count(performanceCounters->StaticChunkRowLookupFalsePositiveCount);
+            protoPerformanceCounters->set_unmerged_row_read_count(performanceCounters->UnmergedRowReadCount);
+            protoPerformanceCounters->set_merged_row_read_count(performanceCounters->MergedRowReadCount);
+        }
     }
 
     LOG_INFO("Incremental node heartbeat sent to master (%v, AddedChunks: %v, RemovedChunks: %v)",
@@ -589,46 +594,48 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
         delta->ReportedRemoved.clear();
     }
 
-    for (const auto& info : rsp->tablet_slots_to_remove()) {
-        auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
-        auto slot = slotManager->FindSlot(cellId);
-        if (!slot) {
-            LOG_WARNING("Requested to remove a non-existing slot %v, ignored",
-                cellId);
-            continue;
-        }
-        slotManager->RemoveSlot(slot);
-    }
+    if (cellTag == connection->GetPrimaryMasterCellTag()) {
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
 
-    for (const auto& info : rsp->tablet_slots_to_create()) {
-        auto cellId = FromProto<TCellId>(info.cell_id());
-        YCHECK(cellId != NullCellId);
-        if (slotManager->GetAvailableTabletSlotCount() == 0) {
-            LOG_WARNING("Requested to start cell %v when all slots are used, ignored",
-                cellId);
-            continue;
+        for (const auto& info : rsp->tablet_slots_to_remove()) {
+            auto cellId = FromProto<TCellId>(info.cell_id());
+            YCHECK(cellId != NullCellId);
+            auto slot = slotManager->FindSlot(cellId);
+            if (!slot) {
+                LOG_WARNING("Requested to remove a non-existing slot %v, ignored",
+                    cellId);
+                continue;
+            }
+            slotManager->RemoveSlot(slot);
         }
-        if (slotManager->FindSlot(cellId)) {
-            LOG_WARNING("Requested to start cell %v when this cell is already being served by the node, ignored",
-                cellId);
-            continue;
-        }
-        slotManager->CreateSlot(info);
-    }
 
-    for (const auto& info : rsp->tablet_slots_configure()) {
-        auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
-        auto slot = slotManager->FindSlot(descriptor.CellId);
-        if (!slot) {
-            LOG_WARNING("Requested to configure a non-existing slot %v, ignored",
-                descriptor.CellId);
-            continue;
+        for (const auto& info : rsp->tablet_slots_to_create()) {
+            auto cellId = FromProto<TCellId>(info.cell_id());
+            YCHECK(cellId != NullCellId);
+            if (slotManager->GetAvailableTabletSlotCount() == 0) {
+                LOG_WARNING("Requested to start cell %v when all slots are used, ignored",
+                    cellId);
+                continue;
+            }
+            if (slotManager->FindSlot(cellId)) {
+                LOG_WARNING("Requested to start cell %v when this cell is already being served by the node, ignored",
+                    cellId);
+                continue;
+            }
+            slotManager->CreateSlot(info);
         }
-        slotManager->ConfigureSlot(slot, info);
-    }
 
-    ScheduleNodeHeartbeat(cellTag);
+        for (const auto& info : rsp->tablet_slots_configure()) {
+            auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());
+            auto slot = slotManager->FindSlot(descriptor.CellId);
+            if (!slot) {
+                LOG_WARNING("Requested to configure a non-existing slot %v, ignored",
+                    descriptor.CellId);
+                continue;
+            }
+            slotManager->ConfigureSlot(slot, info);
+        }
+    }
 }
 
 TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
