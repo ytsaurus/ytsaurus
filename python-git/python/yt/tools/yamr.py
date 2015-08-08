@@ -239,8 +239,10 @@ class Yamr(object):
                     self.scheduler_info = json.loads(scheduler_info)
                 except ValueError:
                     self.scheduler_info = {}
-            except sh.ErrorReturnCode_28:
-                logger.warning("Timeout occured while requesting scheduler info from %s", self.http_server)
+            #except sh.ErrorReturnCode_28:
+            #    logger.warning("Timeout occured while requesting scheduler info from %s", self.http_server)
+            except Exception as err:
+                logger.warning("Error occured (%s: %s) while requesting scheduler info from %s", str(type(err)), str(err), self.http_server)
         return self.scheduler_info
 
     def get_operations(self):
