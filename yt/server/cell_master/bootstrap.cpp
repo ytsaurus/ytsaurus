@@ -352,19 +352,6 @@ void TBootstrap::DoInitialize()
             localAdddress);
     }
 
-    if (PrimaryMaster_) {
-        LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, PeerId: %v)",
-            CellId_,
-            CellTag_,
-            localPeerId);
-    } else {
-        LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
-            CellId_,
-            CellTag_,
-            PrimaryCellTag_,
-            localPeerId);
-    }
-
     Multicell_ = !Config_->SecondaryMasters.empty();
 
     CellId_ = localCellConfig->CellId;
@@ -375,6 +362,20 @@ void TBootstrap::DoInitialize()
 
     for (const auto& cellConfig : Config_->SecondaryMasters) {
         SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
+    }
+
+    if (PrimaryMaster_) {
+        LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: [%v], PeerId: %v)",
+            CellId_,
+            CellTag_,
+            JoinToString(SecondaryCellTags_),
+            localPeerId);
+    } else if (SecondaryMaster_) {
+        LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
+            CellId_,
+            CellTag_,
+            PrimaryCellTag_,
+            localPeerId);
     }
 
     CellDirectory_ = New<TCellDirectory>(
