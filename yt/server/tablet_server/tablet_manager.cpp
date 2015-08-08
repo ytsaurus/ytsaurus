@@ -426,7 +426,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-        
+
+        if (table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
+        }
+
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
         ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns()); // may throw
@@ -650,6 +654,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
+
+        if (table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
+        }
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto chunkManager = Bootstrap_->GetChunkManager();
