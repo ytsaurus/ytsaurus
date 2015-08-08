@@ -13,8 +13,9 @@ class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    explicit TOrderedPartitioner(const std::vector<TOwningKey>* keys)
+    TOrderedPartitioner(const std::vector<TOwningKey>* keys, int keyColumnCount)
         : Keys(keys)
+        , KeyColumnCount_(keyColumnCount)
     { }
 
     virtual int GetPartitionCount() override
@@ -28,20 +29,21 @@ public:
             Keys->begin(),
             Keys->end(),
             row,
-            [] (const TUnversionedRow& row, const TOwningKey& element) {
-                return row < element.Get();
+            [=] (const TUnversionedRow& row, const TOwningKey& element) {
+                return CompareRows(row, element.Get(), KeyColumnCount_) < 0;
             });
         return std::distance(Keys->begin(), it);
     }
 
 private:
     const std::vector<TOwningKey>* Keys;
+    const int KeyColumnCount_;
 
 };
 
-std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys)
+std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys, int keyColumnCount)
 {
-    return std::unique_ptr<IPartitioner>(new TOrderedPartitioner(keys));
+    return std::unique_ptr<IPartitioner>(new TOrderedPartitioner(keys, keyColumnCount));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
