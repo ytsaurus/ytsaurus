@@ -228,6 +228,7 @@ private:
                 EObjectType::Table,
                 BuildYsonStringFluently()
                     .BeginMap()
+                        .Item("external").Value(false)
                         .Item("key_columns").BeginList()
                             .Item().Value("key")
                             .Item().Value("subkey")
@@ -251,8 +252,11 @@ private:
             CreateNode(
                 "//sys/scheduler/event_log",
                 transactionId,
-                EObjectType::Table);
-
+                EObjectType::Table,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("external").Value(false)
+                    .EndMap());
 
             CreateNode(
                 "//sys/operations",
