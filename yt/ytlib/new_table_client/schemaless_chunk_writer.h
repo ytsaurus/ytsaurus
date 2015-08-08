@@ -3,6 +3,8 @@
 #include "public.h"
 #include "schemaless_writer.h"
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_writer_base.h>
 #include <ytlib/chunk_client/multi_chunk_writer.h>
@@ -65,7 +67,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     NVersionedTableClient::TOwningKey lastKey,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
     bool reorderValues = false,
@@ -77,7 +79,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
     std::unique_ptr<IPartitioner> partitioner,
@@ -92,9 +94,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NTransactionClient::TTransactionPtr transaction,
-    NTransactionClient::TTransactionManagerPtr transactionManager,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

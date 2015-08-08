@@ -652,7 +652,7 @@ private:
         auto reader = CreateFileMultiChunkReader(
             New<TFileReaderConfig>(),
             New<TMultiChunkReaderOptions>(),
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap->GetMasterClient(),
             Bootstrap->GetBlockCache(),
             NodeDirectory,
             std::move(chunks));
@@ -705,7 +705,7 @@ private:
         auto reader = CreateSchemalessSequentialMultiChunkReader(
             config,
             options,
-            Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap->GetMasterClient(),
             Bootstrap->GetBlockCache(),
             NodeDirectory,
             chunks,

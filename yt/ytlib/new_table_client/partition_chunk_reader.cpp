@@ -19,6 +19,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NVersionedTableClient::NProto;
 
@@ -124,7 +125,7 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec> &chunkSpecs,
@@ -134,7 +135,7 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(
     : TParallelMultiChunkReaderBase(
           config,
           options,
-          masterChannel,
+          client,
           blockCache,
           nodeDirectory,
           chunkSpecs,

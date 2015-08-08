@@ -6,6 +6,12 @@
 #include "chunk_meta_extensions.h"
 #include "replication_writer.h"
 
+#include <ytlib/api/client.h>
+
+#include <ytlib/chunk_client/chunk_service_proxy.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 
@@ -14,10 +20,6 @@
 #include <core/misc/address.h>
 
 #include <core/ytree/yson_serializable.h>
-
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -460,7 +462,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     const TChunkId& chunkId,
     NErasure::ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -468,7 +470,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto partConfig = NYTree::CloneYsonSerializable(config);
     partConfig->UploadReplicationFactor = 1;
 
-    TChunkServiceProxy proxy(masterChannel);
+    TChunkServiceProxy proxy(client->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower));
 
     auto req = proxy.AllocateWriteTargets();
     req->set_desired_target_count(codec->GetTotalPartCount());
@@ -500,7 +502,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             partId,
             TChunkReplicaList(1, replicas[index]),
             nodeDirectory,
-            nullptr,
+            client,
             blockCache,
             throttler));
     }

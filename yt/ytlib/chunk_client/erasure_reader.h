@@ -3,6 +3,10 @@
 #include "public.h"
 #include "client_block_cache.h"
 
+#include <ytlib/api/public.h>
+
+#include <ytlib/node_tracker_client/public.h>
+
 #include <core/misc/error.h>
 
 #include <core/erasure/public.h>
@@ -10,8 +14,6 @@
 #include <core/rpc/public.h>
 
 #include <core/concurrency/throughput_throttler.h>
-
-#include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -33,7 +35,7 @@ TFuture<void> RepairErasedParts(
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
@@ -44,7 +46,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,

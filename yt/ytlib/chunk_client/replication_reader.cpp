@@ -9,13 +9,9 @@
 #include "data_node_service_proxy.h"
 #include "dispatcher.h"
 
-#include <core/misc/string.h>
-#include <core/misc/protobuf_helpers.h>
-
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
-
-#include <core/logging/log.h>
+#include <ytlib/api/config.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
 
@@ -25,6 +21,14 @@
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 #include <ytlib/chunk_client/replication_reader.h>
+
+#include <core/misc/string.h>
+#include <core/misc/protobuf_helpers.h>
+
+#include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/delayed_executor.h>
+
+#include <core/logging/log.h>
 
 #include <util/random/shuffle.h>
 #include <util/generic/ymath.h>
@@ -36,6 +40,7 @@ namespace NChunkClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NApi;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NNodeTrackerClient;
@@ -56,7 +61,7 @@ public:
     TReplicationReader(
         TReplicationReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
         const TNullable<TNodeDescriptor>& localDescriptor,
         const TChunkId& chunkId,
@@ -70,8 +75,9 @@ public:
         , ChunkId_(chunkId)
         , BlockCache_(blockCache)
         , Throttler_(throttler)
-        , ObjectServiceProxy_(masterChannel)
-        , ChunkServiceProxy_(masterChannel)
+        , NetworkName_(client->GetConnection()->GetConfig()->NetworkName)
+        , ObjectServiceProxy_(client->GetMasterChannel(EMasterChannelKind::LeaderOrFollower))
+        , ChunkServiceProxy_(client->GetMasterChannel(EMasterChannelKind::LeaderOrFollower))
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
     {
@@ -90,8 +96,7 @@ public:
             GetSeedsPromise_ = MakePromise(InitialSeedReplicas_);
         }
 
-        const auto& networkName = Options_->NetworkName;
-        auto maybeLocalAddress = LocalDescriptor_ ? MakeNullable(LocalDescriptor_->GetAddressOrThrow(networkName)) : Null;
+        auto maybeLocalAddress = LocalDescriptor_ ? MakeNullable(LocalDescriptor_->GetAddressOrThrow(NetworkName_)) : Null;
         LOG_DEBUG("Reader initialized (InitialSeedReplicas: [%v], FetchPromPeers: %v, LocalAddress: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Network: %v)",
             JoinToString(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
@@ -99,7 +104,7 @@ public:
             maybeLocalAddress,
             Config_->PopulateCache,
             Config_->AllowFetchingSeedsFromMaster,
-            networkName);
+            NetworkName_);
     }
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
@@ -131,6 +136,7 @@ private:
 
     NLogging::TLogger Logger = ChunkClientLogger;
 
+    Stroka NetworkName_;
     TObjectServiceProxy ObjectServiceProxy_;
     TChunkServiceProxy ChunkServiceProxy_;
 
@@ -286,7 +292,7 @@ protected:
     explicit TSessionBase(TReplicationReader* reader)
         : Reader_(reader)
         , NodeDirectory_(reader->NodeDirectory_)
-        , NetworkName_(reader->Options_->NetworkName)
+        , NetworkName_(reader->NetworkName_)
         , StartTime_(TInstant::Now())
     {
         Logger.AddTag("Session: %p, ChunkId: %v",
@@ -1247,7 +1253,7 @@ TFuture<TChunkMeta> TReplicationReader::GetMeta(
 IChunkReaderPtr CreateReplicationReader(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
     const TNullable<TNodeDescriptor>& localDescriptor,
     const TChunkId& chunkId,
@@ -1257,13 +1263,13 @@ IChunkReaderPtr CreateReplicationReader(
 {
     YCHECK(config);
     YCHECK(blockCache);
-    YCHECK(masterChannel);
+    YCHECK(client);
     YCHECK(nodeDirectory);
 
     auto reader = New<TReplicationReader>(
         config,
         options,
-        masterChannel,
+        client,
         nodeDirectory,
         localDescriptor,
         chunkId,

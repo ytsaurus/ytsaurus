@@ -7,6 +7,8 @@
 #include "private.h"
 #include "schemaless_block_reader.h"
 
+#include <ytlib/api/client.h>
+
 #include <core/profiling/profiler.h>
 
 #include <core/concurrency/action_queue.h>
@@ -50,7 +52,7 @@ class TSchemalessPartitionSortReader
 public:
     TSchemalessPartitionSortReader(
         TMultiChunkReaderConfigPtr config,
-        IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const TKeyColumns& keyColumns,
@@ -84,7 +86,7 @@ public:
         UnderlyingReader_ = New<TPartitionMultiChunkReader>(
             config,
             options,
-            masterChannel,
+            client,
             blockCache,
             nodeDirectory,
             std::move(chunks),
@@ -534,7 +536,7 @@ private:
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     TMultiChunkReaderConfigPtr config,
-    IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const TKeyColumns& keyColumns,
@@ -546,7 +548,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
 {
     return New<TSchemalessPartitionSortReader>(
         config,
-        masterChannel,
+        client,
         blockCache,
         nodeDirectory,
         keyColumns,

@@ -795,7 +795,7 @@ private:
             chunkReader = CreateReplicationReader(
                 Bootstrap_->GetConfig()->TabletNode->ChunkReader,
                 options,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
+                Bootstrap_->GetMasterClient(),
                 New<TNodeDirectory>(),
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId,

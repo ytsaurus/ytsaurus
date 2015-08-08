@@ -184,8 +184,9 @@ private:
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
             auto writerNodeDirectory = New<TNodeDirectory>();
 
+            auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
             auto rspOrError = WaitFor(CreateChunk(
-                host->GetMasterChannel(),
+                channel,
                 WriterConfig_,
                 writerOptions,
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
@@ -211,12 +212,10 @@ private:
 
         if (isErasure) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-            auto readerOptions = New<TRemoteReaderOptions>();
-            readerOptions->NetworkName = RemoteConnectionConfig_->NetworkName;
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
-                readerOptions,
-                RemoteClient_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+                New<TRemoteReaderOptions>(),
+                RemoteClient_,
                 RemoteNodeDirectory_,
                 inputChunkId,
                 inputReplicas,
@@ -225,14 +224,13 @@ private:
 
             chunkMeta = GetChunkMeta(readers.front());
 
-            auto writerOptions = New<TRemoteWriterOptions>();
             auto writers = CreateErasurePartWriters(
                 WriterConfig_,
-                writerOptions,
+                New<TRemoteWriterOptions>(),
                 outputChunkId,
                 erasureCodec,
                 nodeDirectory,
-                host->GetMasterChannel());
+                host->GetClient());
 
             YCHECK(readers.size() == writers.size());
 
@@ -261,12 +259,10 @@ private:
             }
             chunkInfo.set_disk_space(diskSpace);
         } else {
-            auto readerOptions = New<TRemoteReaderOptions>();
-            readerOptions->NetworkName = RemoteConnectionConfig_->NetworkName;
             auto reader = CreateReplicationReader(
                 ReaderConfig_,
-                readerOptions,
-                RemoteClient_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+                New<TRemoteReaderOptions>(),
+                RemoteClient_,
                 RemoteNodeDirectory_,
                 Null,
                 inputChunkId,
@@ -275,14 +271,13 @@ private:
 
             chunkMeta = GetChunkMeta(reader);
 
-            auto writerOptions = New<TRemoteWriterOptions>();
             auto writer = CreateReplicationWriter(
                 WriterConfig_,
-                writerOptions,
+                New<TRemoteWriterOptions>(),
                 outputChunkId,
                 TChunkReplicaList(),
                 nodeDirectory,
-                host->GetMasterChannel());
+                host->GetClient());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
             int blockCount = static_cast<int>(blocksExt.blocks_size());
@@ -305,7 +300,9 @@ private:
         chunkStatistics.set_chunk_count(1);
         DataStatistics_ += chunkStatistics;
 
-        TObjectServiceProxy objectProxy(host->GetMasterChannel());
+        auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy objectProxy(channel);
+
 
         // Confirm chunk.
         LOG_INFO("Confirming output chunk");

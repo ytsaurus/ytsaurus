@@ -4,6 +4,8 @@
 #include "schema.h"
 #include "versioned_writer.h"
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/chunk_client/chunk_writer_base.h>
 #include <ytlib/chunk_client/multi_chunk_writer.h>
 #include <ytlib/chunk_client/client_block_cache.h>
@@ -53,7 +55,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
