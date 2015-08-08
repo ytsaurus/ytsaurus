@@ -26,6 +26,8 @@ public:
         TBootstrap* bootstrap);
     ~TMulticellManager();
 
+    EExternalizationMode GetExternalizationMode();
+
     void PostToPrimaryMaster(
         const ::google::protobuf::MessageLite& requestMessage,
         bool reliable = true);

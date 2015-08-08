@@ -63,11 +63,14 @@ class TMulticellManagerConfig
 {
 public:
     TDuration CellStatisticsGossipPeriod;
+    EExternalizationMode ExternalizationMode;
 
     TMulticellManagerConfig()
     {
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(10));
+        RegisterParameter("externalization_mode", ExternalizationMode)
+            .Default(EExternalizationMode::Manual);
     }
 };
 
