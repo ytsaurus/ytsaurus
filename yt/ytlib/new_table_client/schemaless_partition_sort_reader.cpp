@@ -341,6 +341,9 @@ private:
     TSortComparer SortComparer_;
     TMergeComparer MergeComparer_;
 
+    // Sort error may occur due to CompositeValues in keys.
+    std::vector<TFuture<void>> SortErrors_;
+
 
     void InitInput()
     {
@@ -374,7 +377,7 @@ private:
                 Buckets_.push_back(BucketEndSentinel);
                 BucketStart_.push_back(Buckets_.size());
 
-                InvokeSortBucket(bucketId);
+                SortErrors_.push_back(InvokeSortBucket(bucketId));
                 ++bucketId;
                 bucketSize = 0;
             };
@@ -451,7 +454,8 @@ private:
     {
         LOG_INFO("Waiting for sort thread");
         PROFILE_TIMING ("/reduce/sort_wait_time") {
-            SortQueueBarrier();
+            WaitFor(Combine(SortErrors_))
+                .ThrowOnError();
         }
         LOG_INFO("Sort thread is idle");
 
@@ -506,12 +510,15 @@ private:
         BIND([] () { }).AsyncVia(SortQueue_->GetInvoker()).Run().Get();
     }
 
-    void InvokeSortBucket(int bucketId)
+    TFuture<void> InvokeSortBucket(int bucketId)
     {
-        SortQueue_->GetInvoker()->Invoke(BIND(
-            &TSchemalessPartitionSortReader::DoSortBucket,
-            MakeWeak(this),
-            bucketId));
+        return 
+            BIND(
+                &TSchemalessPartitionSortReader::DoSortBucket,
+                MakeWeak(this),
+                bucketId)
+            .AsyncVia(SortQueue_->GetInvoker())
+            .Run();
     }
 
     void InvokeMerge()
