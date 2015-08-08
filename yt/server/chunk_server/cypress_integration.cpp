@@ -103,7 +103,7 @@ private:
     {
         switch (Type_) {
             case EObjectType::ChunkMap:
-                return "///sys/chunks";
+                return "//sys/chunks";
             case EObjectType::LostChunkMap:
                 return "///sys/lost_chunks";
             case EObjectType::LostVitalChunkMap:
