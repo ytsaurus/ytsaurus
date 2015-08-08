@@ -110,18 +110,20 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
+        bool isExternal = table->IsExternal();
+
         auto tabletManager = Bootstrap_->GetTabletManager();
 
         const auto* chunkList = table->GetChunkList();
         const auto& statistics = chunkList->Statistics();
 
-        if (key == "row_count" && !table->IsDynamic()) {
+        if (key == "row_count" && !table->IsDynamic() && !isExternal) {
             BuildYsonFluently(consumer)
                 .Value(statistics.RowCount);
             return true;
         }
 
-        if (key == "unmerged_row_count" && table->IsDynamic()) {
+        if (key == "unmerged_row_count" && table->IsDynamic() && !isExternal) {
             BuildYsonFluently(consumer)
                 .Value(statistics.RowCount);
             return true;
