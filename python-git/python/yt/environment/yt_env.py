@@ -576,6 +576,14 @@ class YTEnv(object):
             config = configs.get_driver_config()
             for key in ("addresses", "cell_id"):
                 config['primary_master'][key] = master_config[key]
+
+            # Main driver config requires secondary masters
+            if cell_index == 0:
+                config['secondary_masters'] = [{} for _ in xrange(secondary_master_cell_count)]
+                for index in xrange(secondary_master_cell_count):
+                    for key in ("addresses", "cell_id"):
+                        config['secondary_masters'][index][key] = self.configs[master_name][0]["secondary_masters"][index][key]
+
             config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
             self.configs[current_driver_name] = config
