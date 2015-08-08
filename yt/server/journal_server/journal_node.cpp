@@ -91,6 +91,11 @@ public:
         return EObjectType::Journal;
     }
 
+    virtual bool IsExternalizable() override
+    {
+        return true;
+    }
+
     virtual ENodeType GetNodeType() override
     {
         return ENodeType::Entity;
@@ -133,18 +138,21 @@ protected:
         INodeTypeHandler::TReqCreate* request,
         INodeTypeHandler::TRspCreate* response) override
     {
-        auto chunkManager = this->Bootstrap_->GetChunkManager();
-        auto objectManager = this->Bootstrap_->GetObjectManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
 
-        auto node = TBase::DoCreate(id, cellTag, request, response);
+        auto nodeHolder = TBase::DoCreate(id, cellTag, request, response);
+        auto* node = nodeHolder.get();
 
-        // Create an empty chunk list and reference it from the node.
-        auto* chunkList = chunkManager->CreateChunkList();
-        node->SetChunkList(chunkList);
-        YCHECK(chunkList->OwningNodes().insert(node.get()).second);
-        objectManager->RefObject(chunkList);
+        if (!node->IsExternal()) {
+            // Create an empty chunk list and reference it from the node.
+            auto* chunkList = chunkManager->CreateChunkList();
+            node->SetChunkList(chunkList);
+            YCHECK(chunkList->OwningNodes().insert(node).second);
+            objectManager->RefObject(chunkList);
+        }
 
-        return node;
+        return nodeHolder;
     }
 
     virtual void DoValidateCreated(TJournalNode* node) override
@@ -177,7 +185,7 @@ protected:
             objectManager->UnrefObject(chunkList);
         }
 
-        if (IsLeader() && !node->IsTrunk()) {
+        if (IsLeader() && !node->IsTrunk() && !node->IsExternal()) {
             ScheduleSeal(node);
         }
     }
@@ -188,13 +196,15 @@ protected:
     {
         TBase::DoBranch(originatingNode, branchedNode);
 
-        auto* chunkList = originatingNode->GetChunkList();
+        if (!originatingNode->IsExternal()) {
+            auto* chunkList = originatingNode->GetChunkList();
 
-        branchedNode->SetChunkList(chunkList);
-        YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
+            branchedNode->SetChunkList(chunkList);
+            YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(branchedNode->GetChunkList());
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->RefObject(branchedNode->GetChunkList());
+        }
 
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
         branchedNode->SetReadQuorum(originatingNode->GetReadQuorum());
@@ -205,7 +215,7 @@ protected:
             IsRecovery(),
             "Journal node branched (BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v)",
             branchedNode->GetId(),
-            originatingNode->GetChunkList()->GetId(),
+            GetObjectId(originatingNode->GetChunkList()),
             originatingNode->GetReplicationFactor(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum());
@@ -218,22 +228,31 @@ protected:
         TBase::DoMerge(originatingNode, branchedNode);
 
         auto* originatingChunkList = originatingNode->GetChunkList();
+        auto originatingChunkListId = GetObjectId(originatingChunkList);
+
         auto* branchedChunkList = branchedNode->GetChunkList();
-        YCHECK(originatingChunkList == branchedChunkList);
-        YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+        auto branchedChunkListId = GetObjectId(branchedChunkList);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(branchedChunkList);
+        if (!originatingNode->IsExternal()) {
+            YCHECK(originatingChunkList == branchedChunkList);
+            YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
 
-        if (IsLeader()) {
-            ScheduleSeal(originatingNode);
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(branchedChunkList);
+
+            if (IsLeader()) {
+                ScheduleSeal(originatingNode);
+            }
         }
 
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
+            "Journal node merged (OriginatingNodeId: %v, OriginatingChunkListId: %v, BranchedNodeId: %v, "
+            "BranchedChunkListId: %v)",
             originatingNode->GetVersionedId(),
-            branchedNode->GetVersionedId());
+            originatingChunkListId,
+            branchedNode->GetVersionedId(),
+            branchedChunkListId);
     }
 
     virtual void DoClone(

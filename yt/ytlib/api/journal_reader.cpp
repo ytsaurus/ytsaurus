@@ -139,13 +139,15 @@ private:
             }
         }
 
+        auto objectIdPath = FromObjectId(objectId);
+
         {
             LOG_INFO("Fetching journal chunks");
 
             auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TJournalYPathProxy::Fetch(Path_);
+            auto req = TJournalYPathProxy::Fetch(objectIdPath);
 
             TReadLimit lowerLimit, upperLimit;
             i64 firstRowIndex = Options_.FirstRowIndex.Get(0);

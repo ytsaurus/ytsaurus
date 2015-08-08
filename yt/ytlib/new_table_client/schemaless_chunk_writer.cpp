@@ -939,6 +939,7 @@ void TSchemalessTableWriter::DoOpen()
         }
     }
 
+    auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
     auto objectIdPath = FromObjectId(objectId);
 
     {
@@ -1008,8 +1009,6 @@ void TSchemalessTableWriter::DoOpen()
             Options_->ErasureCodec);
     }
 
-    IChannelPtr writerChannel;
-
     auto makePrepareForUpdateRequest = [&] () -> TTableYPathProxy::TReqPrepareForUpdatePtr {
         auto req = TTableYPathProxy::PrepareForUpdate(objectIdPath);
         SetTransactionId(req, UploadTransaction_);
@@ -1022,10 +1021,7 @@ void TSchemalessTableWriter::DoOpen()
         return req;
     };
 
-    auto handlePrepareForUpdateResponse = [&] (
-        TTableYPathProxy::TRspPrepareForUpdatePtr rsp,
-        IChannelPtr channel)
-    {
+    auto handlePrepareForUpdateResponse = [&] (TTableYPathProxy::TRspPrepareForUpdatePtr rsp) {
         ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
 
         if (append && sorted) {
@@ -1038,15 +1034,13 @@ void TSchemalessTableWriter::DoOpen()
 
         LOG_INFO("Table prepared for update (ChunkListId: %v)",
             ChunkListId_);
-
-        writerChannel = channel;
     };
 
     {
         LOG_INFO("Preparing table for update at primary master");
 
-        auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(masterChannel);
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
 
@@ -1065,16 +1059,14 @@ void TSchemalessTableWriter::DoOpen()
         if (cellTag == Client_->GetConnection()->GetPrimaryMasterCellTag()) {
             auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update")
                 .Value();
-            handlePrepareForUpdateResponse(rsp, masterChannel);
+            handlePrepareForUpdateResponse(rsp);
         }
     }
 
     if (cellTag != Client_->GetConnection()->GetPrimaryMasterCellTag()) {
         LOG_INFO("Preparing table for update at secondary master");
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
-        TObjectServiceProxy proxy(channel);
-
+        TObjectServiceProxy proxy(uploadMasterChannel);
         auto req = makePrepareForUpdateRequest();
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -1082,7 +1074,7 @@ void TSchemalessTableWriter::DoOpen()
             path);
 
         const auto& rsp = rspOrError.Value();
-        handlePrepareForUpdateResponse(rsp, channel);
+        handlePrepareForUpdateResponse(rsp);
     }
 
     UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
@@ -1091,7 +1083,7 @@ void TSchemalessTableWriter::DoOpen()
         NameTable_,
         KeyColumns_,
         LastKey_,
-        writerChannel,
+        uploadMasterChannel,
         UploadTransaction_->GetId(),
         ChunkListId_,
         true,
