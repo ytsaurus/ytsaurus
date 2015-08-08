@@ -195,7 +195,11 @@ class Config(types.ModuleType):
                 load_func = self.json_module.load
             else:
                 raise self.common_module.YtError("Incorrect config_format '%s'" % format)
-            self.update_config(load_func(open(config_path)))
+            try:
+                self.update_config(load_func(open(config_path)))
+            except Exception:
+                print >>sys.stderr, "Failed to parse YT config from " + config_path
+                raise
 
         old_options = sorted(list(self.shortcuts))
         old_options_short = [value.split(".")[-1] for value in old_options]
