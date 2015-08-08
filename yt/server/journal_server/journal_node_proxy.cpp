@@ -50,12 +50,17 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
+        const auto* node = GetThisImpl();
+        auto isExternal = node->IsExternal();
+
         descriptors->push_back(TAttributeDescriptor("read_quorum")
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("write_quorum")
             .SetReplicated(true));
-        descriptors->push_back("row_count");
+        descriptors->push_back(TAttributeDescriptor("row_count")
+            .SetExternal(isExternal));
         descriptors->push_back(TAttributeDescriptor("quorum_row_count")
+            .SetExternal(isExternal)
             .SetOpaque(true));
         descriptors->push_back("sealed");
     }
@@ -63,6 +68,7 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* node = GetThisTypedImpl();
+        auto isExternal = node->IsExternal();
 
         if (key == "read_quorum") {
             BuildYsonFluently(consumer)
@@ -76,7 +82,7 @@ private:
             return true;
         }
 
-        if (key == "row_count") {
+        if (key == "row_count" && !isExternal) {
             BuildYsonFluently(consumer)
                 .Value(node->GetChunkList()->Statistics().RowCount);
             return true;
@@ -147,7 +153,9 @@ private:
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
         const auto* node = GetThisTypedImpl();
-        if (key == "quorum_row_count") {
+        auto isExternal = node->IsExternal();
+
+        if (key == "quorum_row_count" && !isExternal) {
             const auto* chunkList = node->GetChunkList();
             if (chunkList->Children().empty()) {
                 return MakeFuture(ConvertToYsonString(0));
@@ -201,16 +209,22 @@ private:
 
         SetModified();
 
-        LOG_DEBUG_UNLESS(
-            IsRecovery(),
-            "Node is switched to \"append\" mode (NodeId: %v, ChunkListId: %v)",
-            node->GetId(),
-            chunkList->GetId());
+        if (node->IsExternal()) {
+            LOG_DEBUG_UNLESS(
+                IsRecovery(),
+                "Node is switched to \"append\" mode (NodeId: %v)",
+                node->GetId());
+        } else {
+            LOG_DEBUG_UNLESS(
+                IsRecovery(),
+                "Node is switched to \"append\" mode (NodeId: %v, ChunkListId: %v)",
+                node->GetId(),
+                chunkList->GetId());
 
-        ToProto(response->mutable_chunk_list_id(), chunkList->GetId());
-
-        context->SetResponseInfo("ChunkListId: %v",
-            chunkList->GetId());
+            ToProto(response->mutable_chunk_list_id(), chunkList->GetId());
+            context->SetResponseInfo("ChunkListId: %v",
+                chunkList->GetId());
+        }
 
         context->Reply();
     }

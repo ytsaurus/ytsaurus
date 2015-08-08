@@ -120,17 +120,17 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
         branchedNode->SetChunkList(chunkList);
         objectManager->RefObject(branchedNode->GetChunkList());
         YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
-
-        branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
-        branchedNode->SetVital(originatingNode->GetVital());
-
-        LOG_DEBUG_UNLESS(
-            TBase::IsRecovery(),
-            "Chunk owner node branched (BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v)",
-            branchedNode->GetId(),
-            originatingNode->GetChunkList()->GetId(),
-            originatingNode->GetReplicationFactor());
     }
+
+    branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
+    branchedNode->SetVital(originatingNode->GetVital());
+
+    LOG_DEBUG_UNLESS(
+        TBase::IsRecovery(),
+        "Chunk owner node branched (BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v)",
+        branchedNode->GetId(),
+        GetObjectId(originatingNode->GetChunkList()),
+        originatingNode->GetReplicationFactor());
 }
 
 template <class TChunkOwner>
@@ -140,31 +140,31 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
+    auto originatingChunkListId = NObjectServer::GetObjectId(originatingNode->GetChunkList());
+    auto branchedChunkListId = NObjectServer::GetObjectId(branchedNode->GetChunkList());
+
+    auto originatingUpdateMode = originatingNode->GetUpdateMode();
+    auto branchedUpdateMode = branchedNode->GetUpdateMode();
+
     if (!originatingNode->IsExternal()) {
-        auto originatingChunkListId = originatingNode->GetChunkList()->GetId();
-        auto branchedChunkListId = branchedNode->GetChunkList()->GetId();
-
-        auto originatingUpdateMode = originatingNode->GetUpdateMode();
-        auto branchedUpdateMode = branchedNode->GetUpdateMode();
-
         MergeChunkLists(originatingNode, branchedNode);
-
-        LOG_DEBUG_UNLESS(
-            TBase::IsRecovery(),
-            "Chunk owner node merged (OriginatingNodeId: %v, OriginatingChunkListId: %v, OriginatingUpdateMode: %v, OriginatingReplicationFactor: %v, "
-                "BranchedNodeId: %v, BranchedChunkListId: %v, BranchedUpdateMode: %v, BranchedReplicationFactor: %v, "
-                "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
-            originatingNode->GetVersionedId(),
-            originatingChunkListId,
-            originatingUpdateMode,
-            originatingNode->GetReplicationFactor(),
-            branchedNode->GetVersionedId(),
-            branchedChunkListId,
-            branchedUpdateMode,
-            branchedNode->GetReplicationFactor(),
-            originatingNode->GetChunkList()->GetId(),
-            originatingNode->GetUpdateMode());
     }
+
+    LOG_DEBUG_UNLESS(
+        TBase::IsRecovery(),
+        "Chunk owner node merged (OriginatingNodeId: %v, OriginatingChunkListId: %v, OriginatingUpdateMode: %v, OriginatingReplicationFactor: %v, "
+        "BranchedNodeId: %v, BranchedChunkListId: %v, BranchedUpdateMode: %v, BranchedReplicationFactor: %v, "
+        "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
+        originatingNode->GetVersionedId(),
+        originatingChunkListId,
+        originatingUpdateMode,
+        originatingNode->GetReplicationFactor(),
+        branchedNode->GetVersionedId(),
+        branchedChunkListId,
+        branchedUpdateMode,
+        branchedNode->GetReplicationFactor(),
+        originatingNode->GetChunkList()->GetId(),
+        originatingNode->GetUpdateMode());
 }
 
 template <class TChunkOwner>

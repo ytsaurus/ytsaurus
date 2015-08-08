@@ -143,10 +143,10 @@ private:
         auto writerOptions = New<TMultiChunkWriterOptions>();
 
         {
+            LOG_INFO("Requesting basic file attributes");
+
             auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
             TObjectServiceProxy proxy(channel);
-
-            LOG_INFO("Requesting basic file attributes");
 
             auto req = TFileYPathProxy::GetBasicAttributes(Path_);
             SetTransactionId(req, Transaction_);
@@ -176,6 +176,7 @@ private:
             }
         }
 
+        auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
         auto objectIdPath = FromObjectId(objectId);
 
         {
@@ -212,7 +213,6 @@ private:
         }
 
         TChunkListId chunkListId;
-        IChannelPtr writerChannel;
 
         auto makePrepareForUpdateRequest = [&] () -> TFileYPathProxy::TReqPrepareForUpdatePtr {
             auto req = TFileYPathProxy::PrepareForUpdate(objectIdPath);
@@ -223,13 +223,8 @@ private:
             return req;
         };
 
-        auto handlePrepareForUpdateResponse = [&] (
-            TFileYPathProxy::TRspPrepareForUpdatePtr rsp,
-            IChannelPtr channel)
-        {
+        auto handlePrepareForUpdateResponse = [&] (TFileYPathProxy::TRspPrepareForUpdatePtr rsp) {
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            writerChannel = channel;
-
             LOG_INFO("File prepared for update (ChunkListId: %v)",
                 chunkListId);
         };
@@ -265,16 +260,14 @@ private:
             if (cellTag == Client_->GetConnection()->GetPrimaryMasterCellTag()) {
                 auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update")
                     .Value();
-                handlePrepareForUpdateResponse(rsp, channel);
+                handlePrepareForUpdateResponse(rsp);
             }
         }
 
         if (cellTag != Client_->GetConnection()->GetPrimaryMasterCellTag()) {
             LOG_INFO("Preparing file for update at secondary master");
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
-            TObjectServiceProxy proxy(channel);
-
+            TObjectServiceProxy proxy(uploadMasterChannel);
             auto req = makePrepareForUpdateRequest();
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -284,13 +277,13 @@ private:
                 Path_);
 
             const auto& rsp = rspOrError.Value();
-            handlePrepareForUpdateResponse(rsp, channel);
+            handlePrepareForUpdateResponse(rsp);
         }
 
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
-            writerChannel,
+            uploadMasterChannel,
             UploadTransaction_->GetId(),
             chunkListId);
 

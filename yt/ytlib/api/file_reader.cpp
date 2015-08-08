@@ -140,13 +140,15 @@ private:
             }
         }
 
+        auto objectIdPath = FromObjectId(objectId);
+
         {
             LOG_INFO("Fetching file chunks");
 
             auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
             TObjectServiceProxy proxy(channel);
 
-            auto req = TFileYPathProxy::Fetch(FromObjectId(objectId));
+            auto req = TFileYPathProxy::Fetch(objectIdPath);
 
             TReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.Get(0);
