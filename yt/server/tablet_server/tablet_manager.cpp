@@ -423,7 +423,6 @@ public:
         const TTabletCellId& cellId,
         i64 estimatedUncompressedSize,
         i64 estimatedCompressedSize)
-
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
@@ -705,13 +704,8 @@ public:
         }
 
         // Validate that all tablets are unmounted.
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
-            if (tablet->GetState() != ETabletState::Unmounted) {
-                THROW_ERROR_EXCEPTION("Cannot reshard table: tablet %v is in %Qlv state",
-                    tablet->GetId(),
-                    tablet->GetState());
-            }
+        if (table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard the table since it has mounted tablets");
         }
 
         // Drop old tablets.
