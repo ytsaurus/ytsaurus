@@ -71,7 +71,7 @@ public:
 
     //! Returns the cell tag of the secondary master with the smallest
     //! number of chunks. If no secondary masater is registered then
-    //! returns the primary master cell tag.
+    //! returns #InvalidCellTag.
     NObjectClient::TCellTag GetLeastLoadedSecondaryMaster();
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
