@@ -1869,7 +1869,9 @@ private:
                 lastPartition->Maniac = true;
                 YCHECK(skippedCount >= 1);
 
-                auto successorKey = GetKeySuccessor(sampleKey->Get());
+                // NB: in partitioner we compare keys with the whole rows,
+                // so key prefix successor in required here. 
+                auto successorKey = GetKeyPrefixSuccessor(sampleKey->Get(), Spec->SortBy.size());
                 AddPartition(successorKey);
             }
         }
