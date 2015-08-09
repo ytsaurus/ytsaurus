@@ -175,6 +175,7 @@ void TCopyCommand::DoExecute()
 {
     TCopyNodeOptions options;
     options.Recursive = Request_->Recursive;
+    options.Force = Request_->Force;
     options.PreserveAccount = Request_->PreserveAccount;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
@@ -198,6 +199,7 @@ void TMoveCommand::DoExecute()
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
     options.Recursive = Request_->Recursive;
+    options.Force = Request_->Force;
     options.PreserveAccount = Request_->PreserveAccount;
 
     auto asyncNodeId = Context_->GetClient()->MoveNode(

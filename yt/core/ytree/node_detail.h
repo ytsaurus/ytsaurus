@@ -57,8 +57,9 @@ protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const TYsonString& value)
     {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+        ValidatePermission(
+            EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+            EPermission::Write);
 
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(factory);
@@ -99,9 +100,11 @@ protected:
     virtual void SetChild(
         INodeFactoryPtr factory,
         const TYPath& path,
-        INodePtr value,
-        bool recursive,
-        TNullable<int> maxChildCount) = 0;
+        INodePtr child,
+        bool recursive) = 0;
+
+    virtual int GetMaxChildCount() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,9 +127,8 @@ protected:
     virtual void SetChild(
         INodeFactoryPtr factory,
         const TYPath& path,
-        INodePtr value,
-        bool recursive,
-        TNullable<int> maxChildCount) override;
+        INodePtr child,
+        bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,9 +145,8 @@ protected:
     virtual void SetChild(
         INodeFactoryPtr factory,
         const TYPath& path,
-        INodePtr value,
-        bool recursive,
-        TNullable<int> maxChildCount) override;
+        INodePtr child,
+        bool recursive) override;
 
 };
 
