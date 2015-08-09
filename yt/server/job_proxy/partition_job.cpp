@@ -65,9 +65,7 @@ public:
                 FromProto(&key, protoKey);
                 PartitionKeys_.push_back(key);
             }
-            partitioner = CreateOrderedPartitioner(
-                &PartitionKeys_,
-                PartitionJobSpecExt_.reduce_key_column_count());
+            partitioner = CreateOrderedPartitioner(&PartitionKeys_);
         } else {
             partitioner = CreateHashPartitioner(
                 PartitionJobSpecExt_.partition_count(),
