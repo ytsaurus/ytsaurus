@@ -181,7 +181,7 @@ public:
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
-        TCellTag bestCellTag = Bootstrap_->GetCellTag();
+        auto bestCellTag = InvalidCellTag;
         int minChunkCount = std::numeric_limits<int>::max();
         for (const auto& pair : RegisteredSecondaryCellMap_) {
             const auto& entry = pair.second;
@@ -190,6 +190,7 @@ public:
                 bestCellTag = pair.first;
             }
         }
+
         return bestCellTag;
     }
 
