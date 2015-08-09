@@ -258,6 +258,7 @@ struct TCopyNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = false;
 };
 
@@ -268,6 +269,7 @@ struct TMoveNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = true;
 };
 

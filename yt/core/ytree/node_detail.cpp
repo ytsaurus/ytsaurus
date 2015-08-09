@@ -112,9 +112,9 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
         ThrowCannotRemoveRoot();
     }
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
-    ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
+    ValidatePermission(
+        EPermissionCheckScope::This | EPermissionCheckScope::Descendants | EPermissionCheckScope::Parent,
+        EPermission::Write);
 
     bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
     if (!request->recursive() && isComposite && AsComposite()->GetChildCount() > 0) {
@@ -153,8 +153,8 @@ void TCompositeNodeMixin::SetRecursive(
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
     auto factory = CreateFactory();
-    auto value = ConvertToNode(TYsonString(request->value()), factory.Get());
-    SetChild(factory, "/" + path, value, false, Null);
+    auto child = ConvertToNode(TYsonString(request->value()), factory.Get());
+    SetChild(factory, "/" + path, child, false);
     factory->Commit();
 
     context->Reply();
@@ -176,8 +176,9 @@ void TCompositeNodeMixin::RemoveRecursive(
         tokenizer.Advance();
         tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Write);
+        ValidatePermission(
+            EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
+            EPermission::Write);
         Clear();
 
         context->Reply();
@@ -187,6 +188,11 @@ void TCompositeNodeMixin::RemoveRecursive(
     } else {
         ThrowNoSuchChildKey(this, tokenizer.GetLiteralValue());
     }
+}
+
+int TCompositeNodeMixin::GetMaxChildCount() const
+{
+    return std::numeric_limits<int>::max();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,18 +222,24 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
                 THROW_ERROR_EXCEPTION("Child key cannot be empty");
             }
 
+            auto suffix = tokenizer.GetSuffix();
+            bool lastToken =  tokenizer.Advance() == NYPath::ETokenType::EndOfStream;
+
             auto child = FindChild(key);
             if (!child) {
-                if (method == "Exists" || method == "Create" || method == "Copy" || method == "Remove" ||
-                    method == "Set" && tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
+                if (method == "Exists" ||
+                    method == "Create" ||
+                    method == "Copy" ||
+                    method == "Remove" ||
+                    method == "Set" && lastToken)
+                {
                     return IYPathService::TResolveResult::Here("/" + path);
                 } else {
                     ThrowNoSuchChildKey(this, key);
                 }
             }
 
-            return IYPathService::TResolveResult::There(child, tokenizer.GetSuffix());
-            break;
+            return IYPathService::TResolveResult::There(child, suffix);
         }
 
         default:
@@ -285,17 +297,15 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 void TMapNodeMixin::SetChild(
     INodeFactoryPtr factory,
     const TYPath& path,
-    INodePtr value,
-    bool recursive,
-    TNullable<int> maxChildCount)
+    INodePtr child,
+    bool recursive)
 {
     NYPath::TTokenizer tokenizer(path);
-    tokenizer.Advance();
-    if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
         tokenizer.ThrowUnexpected();
     }
 
-    auto node = AsMap();
+    auto currentNode = AsMap();
     while (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
         tokenizer.Expect(NYPath::ETokenType::Slash);
 
@@ -310,15 +320,17 @@ void TMapNodeMixin::SetChild(
             THROW_ERROR_EXCEPTION("Cannot create intermediate nodes");
         }
 
-        auto newValue = lastStep ? value : factory->CreateMap();
-        if (maxChildCount && node->GetChildCount() >= *maxChildCount) {
+        int maxChildCount = GetMaxChildCount();
+        if (currentNode->GetChildCount() >= maxChildCount) {
             THROW_ERROR_EXCEPTION("Too many children in map node")
-                    << TErrorAttribute("limit", *maxChildCount);
+                << TErrorAttribute("limit", maxChildCount);
         }
-        YCHECK(node->AddChild(newValue, key));
+
+        auto newChild = lastStep ? child : factory->CreateMap();
+        YCHECK(currentNode->AddChild(newChild, key));
 
         if (!lastStep) {
-            node = newValue->AsMap();
+            currentNode = newChild->AsMap();
         }
     }
 }
@@ -380,9 +392,8 @@ IYPathService::TResolveResult TListNodeMixin::ResolveRecursive(
 void TListNodeMixin::SetChild(
     INodeFactoryPtr /*factory*/,
     const TYPath& path,
-    INodePtr value,
-    bool recursive,
-    TNullable<int> maxChildCount)
+    INodePtr child,
+    bool recursive)
 {
     if (recursive) {
         THROW_ERROR_EXCEPTION("Cannot create intermediate nodes in a list");
@@ -419,11 +430,13 @@ void TListNodeMixin::SetChild(
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-    if (maxChildCount && GetChildCount() >= *maxChildCount) {
+    int maxChildCount = GetMaxChildCount();
+    if (GetChildCount() >= maxChildCount) {
         THROW_ERROR_EXCEPTION("Too many children in list node")
-                << TErrorAttribute("limit", *maxChildCount);
+            << TErrorAttribute("limit", maxChildCount);
     }
-    AddChild(value, beforeIndex);
+
+    AddChild(child, beforeIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
