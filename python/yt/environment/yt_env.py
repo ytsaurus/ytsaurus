@@ -347,11 +347,13 @@ class YTEnv(object):
 
         self._run_ytserver("master", master_name)
         def masters_ready():
-            good_markers = ["Leader recovery complete", "World initialization completed"]
+            last_good_marker = "Leader recovery complete"
+            good_markers = [last_good_marker, "World initialization completed"]
             bad_markers = ["Logging started", "Stopped leading"]
 
 
             found_good_markers = 0
+            has_last_good_marker = False
             ok = False
             master_id = 0
             for logging_file in self.log_paths[master_name]:
@@ -359,7 +361,9 @@ class YTEnv(object):
                 if ok: break
 
                 for line in reversed(open(logging_file).readlines()):
-                    if any([bad_marker in line for bad_marker in bad_markers]): break
+                    if any([bad_marker in line for bad_marker in bad_markers]) and not has_last_good_marker: break
+                    if last_good_marker in line:
+                        has_last_good_marker = True
                     if any([good_marker in line for good_marker in good_markers]):
                         self.leader_log = logging_file
                         self.leader_id = master_id
