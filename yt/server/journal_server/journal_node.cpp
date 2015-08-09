@@ -15,6 +15,7 @@ namespace NJournalServer {
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NChunkClient;
@@ -118,6 +119,19 @@ public:
         if (!attributes->Contains("write_quorum")) {
             attributes->Set("write_quorum", DefaultWriteQuorum);
         }
+    }
+
+    virtual TClusterResources GetIncrementalResourceUsage(const TCypressNodeBase* node) override
+    {
+        const auto* journalNode = static_cast<const TJournalNode*>(node);
+        return
+            TBase::GetIncrementalResourceUsage(node) +
+            GetDiskUsage(journalNode->GetChunkList(), journalNode->GetReplicationFactor());
+    }
+
+    virtual TClusterResources GetTotalResourceUsage(const TCypressNodeBase* node) override
+    {
+        return GetIncrementalResourceUsage(node);
     }
 
 protected:
