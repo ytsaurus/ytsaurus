@@ -124,9 +124,7 @@ public:
         auto mailboxHolder = std::make_unique<TMailbox>(cellId);
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
         
-        if (IsLeader()) {
-            SendPeriodicPing(mailbox);
-        }
+        SendPeriodicPing(mailbox);
 
         LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
@@ -569,6 +567,14 @@ private:
             mailbox->GetCellId());
     }
 
+    void SetMailboxesDisconnected()
+    {
+        for (const auto& pair : MailboxMap_) {
+            auto* mailbox = pair.second;
+            SetMailboxDisconnected(mailbox);
+        }
+    }
+
 
     void SchedulePeriodicPing(TMailbox* mailbox)
     {
@@ -576,6 +582,15 @@ private:
             BIND(&TImpl::OnPeriodicPingTick, MakeWeak(this), mailbox->GetCellId())
                 .Via(EpochAutomatonInvoker_),
             Config_->PingPeriod);
+    }
+
+    void ScheduleReconnectMailboxes()
+    {
+        for (const auto& pair : MailboxMap_) {
+            auto* mailbox = pair.second;
+            YCHECK(!mailbox->GetConnected());
+            SendPeriodicPing(mailbox);
+        }
     }
 
     void OnPeriodicPingTick(const TCellId& cellId)
@@ -591,7 +606,7 @@ private:
     {
         const auto& cellId = mailbox->GetCellId();
 
-        if (CellDirectory_->IsCellUnregistered(cellId)) {
+        if (IsLeader() && CellDirectory_->IsCellUnregistered(cellId)) {
             TReqUnregisterMailbox req;
             ToProto(req.mutable_cell_id(), cellId);
 
@@ -659,8 +674,11 @@ private:
             lastOutcomingMessageId);
 
         SetMailboxConnected(mailbox);
-        HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
-        MaybePostOutcomingMessages(mailbox);
+
+        if (IsLeader()) {
+            HandleAcknowledgedMessages(mailbox, lastIncomingMessageId);
+            MaybePostOutcomingMessages(mailbox);
+        }
     }
 
 
@@ -1015,15 +1033,28 @@ private:
     }
 
 
-    virtual void OnLeaderActive() override
+    virtual void OnStartLeading() override
     {
-        TCompositeAutomatonPart::OnLeaderActive();
+        TCompositeAutomatonPart::OnStartLeading();
+        ScheduleReconnectMailboxes();
+    }
 
-        for (const auto& pair : MailboxMap_) {
-            auto* mailbox = pair.second;
-            SetMailboxDisconnected(mailbox);
-            SendPeriodicPing(mailbox);
-        }
+    virtual void OnStopLeading() override
+    {
+        TCompositeAutomatonPart::OnStopLeading();
+        SetMailboxesDisconnected();
+    }
+
+    virtual void OnStartFollowing() override
+    {
+        TCompositeAutomatonPart::OnStartFollowing();
+        ScheduleReconnectMailboxes();
+    }
+
+    virtual void OnStopFollowing() override
+    {
+        TCompositeAutomatonPart::OnStopFollowing();
+        SetMailboxesDisconnected();
     }
 
 
