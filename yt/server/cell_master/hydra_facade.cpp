@@ -99,10 +99,8 @@ public:
     void Initialize()
     {
         if (Bootstrap_->IsSecondaryMaster()) {
-            HydraManager_->SubscribeUpstreamSync(BIND(
-                &THiveManager::SyncWith,
-                Bootstrap_->GetHiveManager(),
-                Bootstrap_->GetPrimaryCellId()));
+            // NB: This causes a cyclic reference but we don't care.
+            HydraManager_->SubscribeUpstreamSync(BIND(&TImpl::OnUpstreamSync, MakeStrong(this)));
         }
 
         HydraManager_->Initialize();
@@ -267,6 +265,12 @@ private:
         }
     }
 
+
+    TFuture<void> OnUpstreamSync()
+    {
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        return hiveManager->SyncWith(Bootstrap_->GetPrimaryCellId());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
