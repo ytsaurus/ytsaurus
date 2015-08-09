@@ -67,10 +67,6 @@ private:
         TChunkOwner* originatingNode,
         TChunkOwner* branchedNode);
 
-    static NSecurityServer::TClusterResources GetDiskUsage(
-        const TChunkOwner* node,
-        const TChunkList* chunkList);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

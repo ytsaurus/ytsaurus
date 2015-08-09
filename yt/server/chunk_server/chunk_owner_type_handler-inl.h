@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include chunk_owner_type_handler.h"
 #endif
 
+#include "helpers.h"
+
 #include <core/erasure/public.h>
 
 #include <server/cypress_server/node.h>
@@ -54,7 +56,7 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetIncre
     const auto* chunkOwnerNode = static_cast<const TChunkOwner*>(node);
     return
         TBase::GetIncrementalResourceUsage(node) +
-        GetDiskUsage(chunkOwnerNode, chunkOwnerNode->GetIncrementalChunkList());
+        GetDiskUsage(chunkOwnerNode->GetIncrementalChunkList(), chunkOwnerNode->GetReplicationFactor());
 }
 
 template <class TChunkOwner>
@@ -64,7 +66,7 @@ NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetTotal
     const auto* chunkOwnerNode = static_cast<const TChunkOwner*>(node);
     return
         TBase::GetTotalResourceUsage(node) +
-        GetDiskUsage(chunkOwnerNode, chunkOwnerNode->GetChunkList());
+        GetDiskUsage(chunkOwnerNode->GetChunkList(), chunkOwnerNode->GetReplicationFactor());
 }
 
 template <class TChunkOwner>
@@ -284,24 +286,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedNode->SetVital(sourceNode->GetVital());
     objectManager->RefObject(chunkList);
     YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
-}
-
-template <class TChunkOwner>
-NSecurityServer::TClusterResources TChunkOwnerTypeHandler<TChunkOwner>::GetDiskUsage(
-    const TChunkOwner* node,
-    const TChunkList* chunkList)
-{
-    if (!chunkList) {
-        return NSecurityServer::TClusterResources();
-    }
-
-    NSecurityServer::TClusterResources result;
-    const auto& statistics = chunkList->Statistics();
-    result.DiskSpace =
-        statistics.RegularDiskSpace * node->GetReplicationFactor() +
-        statistics.ErasureDiskSpace;
-    result.ChunkCount = statistics.ChunkCount;
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

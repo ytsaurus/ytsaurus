@@ -21,6 +21,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
 using namespace NCypressServer;
+using namespace NSecurityServer;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 
@@ -125,6 +126,23 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 
     ++statistics.Rank;
     chunkList->Statistics() = statistics;
+}
+
+TClusterResources GetDiskUsage(
+    const TChunkList* chunkList,
+    int replicationFactor)
+{
+    if (!chunkList) {
+        return TClusterResources();
+    }
+
+    TClusterResources result;
+    const auto& statistics = chunkList->Statistics();
+    result.DiskSpace =
+        statistics.RegularDiskSpace * replicationFactor +
+        statistics.ErasureDiskSpace;
+    result.ChunkCount = statistics.ChunkCount;
+    return result;
 }
 
 void VisitOwningNodes(

@@ -4,9 +4,11 @@
 
 #include <core/yson/public.h>
 
+#include <ytlib/new_table_client/public.h>
+
 #include <server/cypress_server/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <server/security_server/cluster_resources.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -43,6 +45,10 @@ void AccumulateChildStatistics(
     TChunkTreeStatistics* statistics);
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
+
+NSecurityServer::TClusterResources GetDiskUsage(
+    const TChunkList* chunkList,
+    int replicationFactor);
 
 std::vector<TChunkOwnerBase*> GetOwningNodes(
     TChunkTree* chunkTree);
