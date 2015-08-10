@@ -2,6 +2,7 @@ package NYT.NObjectServer.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/ytree/attributes.proto";
+import "yt/ytlib/object_client/master_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,6 +28,7 @@ message TReqCreateForeignObject
     required int32 type = 3;
     optional NYT.NYTree.NProto.TAttributes object_attributes = 4;
     optional NYT.NProto.TGuid account_id = 5;
+    optional NYT.NObjectClient.NProto.TObjectCreationExtensions extensions = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

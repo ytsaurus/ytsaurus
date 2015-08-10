@@ -71,7 +71,7 @@ TJobResult TSimpleJobBase::Run()
         auto host = Host.Lock();
         YCHECK(host);
 
-        auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        const auto& jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query()) {
             auto reader = CreateSchemafulReaderAdapter(ReaderFactory_);
             auto writer = CreateSchemafulWriterAdapter(WriterFactory_);

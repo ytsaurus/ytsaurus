@@ -471,7 +471,7 @@ private:
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* requestExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
+        auto* requestExt = req->mutable_extensions()->MutableExtension(TTransactionCreationExt::transaction_creation_ext);
         requestExt->set_timeout(InitTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();

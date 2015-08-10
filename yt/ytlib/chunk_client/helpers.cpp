@@ -38,7 +38,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectPtr> CreateChunk(
     req->set_type(static_cast<int>(chunkType));
     req->set_account(options->Account);
 
-    auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
+    auto* reqExt = req->mutable_extensions()->MutableExtension(NProto::TChunkCreationExt::chunk_creation_ext);
     reqExt->set_replication_factor(options->ReplicationFactor);
     reqExt->set_movable(config->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);

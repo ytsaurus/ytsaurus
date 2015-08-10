@@ -5,11 +5,11 @@ import "yt/ytlib/hive/transaction_supervisor_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartTransactionExt
+message TTransactionCreationExt
 {
-    extend NYT.NObjectClient.NProto.TReqCreateObject
+    extend NYT.NObjectClient.NProto.TObjectCreationExtensions
     {
-        optional TReqStartTransactionExt create_transaction_ext = 101;
+        optional TTransactionCreationExt transaction_creation_ext = 101;
     }
 
     // Transaction timeout (in ms).

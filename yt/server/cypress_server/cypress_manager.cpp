@@ -62,6 +62,7 @@ using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
@@ -414,8 +415,7 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* /*request*/,
-        TRspCreateObject* /*response*/) override
+        const TObjectCreationExtensions& /*extensions*/) override
     {
         // NB: This is for external nodes only.
         YCHECK(Bootstrap_->IsSecondaryMaster());
