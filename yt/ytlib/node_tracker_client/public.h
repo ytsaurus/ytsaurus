@@ -61,7 +61,6 @@ DEFINE_ENUM(EMemoryCategory,
     ((Jobs)           (3))
     ((TabletStatic)   (4))
     ((TabletDynamic)  (5))
-    ((BlobSession)    (6))
 );
 
 ///////////////////////////////////////////////////////////////////////////////
