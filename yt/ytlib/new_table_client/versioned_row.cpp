@@ -348,12 +348,11 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger Logger("MAGIC");
-
-void Magic(const TStringBuf& what, TVersionedRow row)
+bool Magic(const TStringBuf& what, TVersionedRow row)
 {
+    static NLogging::TLogger Logger("MAGIC");
     if (!row) {
-        return;
+        return false;
     }
     auto key = row.BeginKeys();
     auto keyCount = row.GetKeyCount();
@@ -362,6 +361,9 @@ void Magic(const TStringBuf& what, TVersionedRow row)
         key[1].Data.Int64 % 5 == 3)
     {
         LOG_DEBUG("%v %v", what, row);
+        return true;
+    } else {
+        return false;
     }
 }
 
