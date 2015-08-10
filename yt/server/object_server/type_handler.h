@@ -147,7 +147,7 @@ struct IObjectTypeHandler
     //! with additional data.
     virtual void PopulateObjectReplicationRequest(
         const TObjectBase* object,
-        NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr request) = 0;
+        NObjectServer::NProto::TReqCreateForeignObject* request) = 0;
 
 };
 

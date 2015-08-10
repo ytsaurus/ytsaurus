@@ -249,18 +249,17 @@ public:
         cypressManager->LockNode(trunkNode, Transaction_, ELockMode::Exclusive);
 
         if (isExternal) {
-            auto replicateRequest = TMasterYPathProxy::CreateObject();
+            NObjectServer::NProto::TReqCreateForeignObject replicationRequest;
+            ToProto(replicationRequest.mutable_object_id(), trunkNode->GetId());
             if (Transaction_) {
-                ToProto(replicateRequest->mutable_transaction_id(), Transaction_->GetId());
+                ToProto(replicationRequest.mutable_transaction_id(), Transaction_->GetId());
             }
-            replicateRequest->set_type(static_cast<int>(type));
+            replicationRequest.set_type(static_cast<int>(type));
             if (replicatedAttributes) {
-                ToProto(replicateRequest->mutable_object_attributes(), *replicatedAttributes);
+                ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
             }
-            replicateRequest->set_account(Account_->GetName());
-            ToProto(replicateRequest->mutable_object_id(), trunkNode->GetId());
-
-            multicellManager->PostToSecondaryMaster(replicateRequest, externalCellTag);
+            ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
+            multicellManager->PostToSecondaryMaster(replicationRequest, externalCellTag);
         }
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);

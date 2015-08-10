@@ -92,16 +92,20 @@ public:
     bool IsForeign(const TObjectBase* object);
 
     //! Adds a reference.
-    void RefObject(TObjectBase* object);
+    // Returns the strong reference counter.
+    int RefObject(TObjectBase* object);
 
     //! Removes a reference.
-    void UnrefObject(TObjectBase* object);
+    // Returns the strong reference counter.
+    int UnrefObject(TObjectBase* object);
 
     //! Increments the object weak reference counter thus temporarily preventing it from being destructed.
-    void WeakRefObject(TObjectBase* object);
+    //! Returns the weak reference counter.
+    int WeakRefObject(TObjectBase* object);
 
     //! Decrements the object weak reference counter thus making it eligible for destruction.
-    void WeakUnrefObject(TObjectBase* object);
+    //! Returns the weak reference counter.
+    int WeakUnrefObject(TObjectBase* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObjectBase* FindObject(const TObjectId& id);
@@ -271,6 +275,8 @@ private:
         NRpc::IServiceContextPtr context);
     void HydraExecuteFollower(const NProto::TReqExecute& request);
     void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
+    void HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) throw();
+    void HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) throw();
 
     void OnProfiling();
 

@@ -101,7 +101,7 @@ public:
 
     virtual void PopulateObjectReplicationRequest(
         const TObjectBase* object,
-        NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr request) override
+        NObjectServer::NProto::TReqCreateForeignObject* request) override
     {
         DoPopulateObjectReplicationRequest(static_cast<const TObject*>(object), request);
     }
@@ -143,7 +143,7 @@ protected:
 
     virtual void DoPopulateObjectReplicationRequest(
         const TObject* /*object*/,
-        NObjectClient::TMasterYPathProxy::TReqCreateObjectPtr /*request*/)
+        NObjectServer::NProto::TReqCreateForeignObject* /*request*/)
     { }
 };
 

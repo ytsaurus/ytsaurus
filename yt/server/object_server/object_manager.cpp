@@ -428,6 +428,8 @@ TObjectManager::TObjectManager(
 
     RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraCreateForeignObject, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
 
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
 }
@@ -582,7 +584,7 @@ bool TObjectManager::IsForeign(const TObjectBase* object)
     return CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag();
 }
 
-void TObjectManager::RefObject(TObjectBase* object)
+int TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(object->IsTrunk());
@@ -592,9 +594,10 @@ void TObjectManager::RefObject(TObjectBase* object)
         object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
+    return refCounter;
 }
 
-void TObjectManager::UnrefObject(TObjectBase* object)
+int TObjectManager::UnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(object->IsTrunk());
@@ -616,15 +619,17 @@ void TObjectManager::UnrefObject(TObjectBase* object)
             if (Any(replicationFlags & EObjectReplicationFlags::ReplicateDestroy) &&
                 replicationCellTag != NotReplicatedCellTag)
             {
-                auto replicationRequest = TObjectYPathProxy::Remove(FromObjectId(object->GetId()));
+                NProto::TReqRemoveForeignObject request;
+                ToProto(request.mutable_object_id(), object->GetId());
                 auto multicellManager = Bootstrap_->GetMulticellManager();
-                multicellManager->PostToSecondaryMaster(replicationRequest, replicationCellTag);
+                multicellManager->PostToSecondaryMaster(request, replicationCellTag);
             }
         }
     }
+    return refCounter;
 }
 
-void TObjectManager::WeakRefObject(TObjectBase* object)
+int TObjectManager::WeakRefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!IsRecovery());
@@ -634,9 +639,10 @@ void TObjectManager::WeakRefObject(TObjectBase* object)
     if (weakRefCounter == 1) {
         ++LockedObjectCount_;
     }
+    return weakRefCounter;
 }
 
-void TObjectManager::WeakUnrefObject(TObjectBase* object)
+int TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!IsRecovery());
@@ -649,6 +655,7 @@ void TObjectManager::WeakUnrefObject(TObjectBase* object)
             GarbageCollector_->DisposeGhost(object);
         }
     }
+    return weakRefCounter;
 }
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1011,18 +1018,18 @@ TObjectBase* TObjectManager::CreateObject(
     if (replicate) {
         YASSERT(handler->GetReplicationCellTag(object) == AllSecondaryMastersCellTag);
 
-        auto replicationRequest = TMasterYPathProxy::CreateObject();
+        NProto::TReqCreateForeignObject replicationRequest;
+        ToProto(replicationRequest.mutable_object_id(), object->GetId());
         if (transaction) {
-            ToProto(replicationRequest->mutable_transaction_id(), transaction->GetId());
+            ToProto(replicationRequest.mutable_transaction_id(), transaction->GetId());
         }
-        replicationRequest->set_type(static_cast<int>(type));
+        replicationRequest.set_type(static_cast<int>(type));
         if (replicatedAttributes) {
-            ToProto(replicationRequest->mutable_object_attributes(), *replicatedAttributes);
+            ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
         }
         if (account) {
-            replicationRequest->set_account(account->GetName());
+            ToProto(replicationRequest.mutable_account_id(), account->GetId());
         }
-        ToProto(replicationRequest->mutable_object_id(), object->GetId());
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(replicationRequest);
@@ -1145,16 +1152,16 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
         return;
     }
 
-    auto req = TMasterYPathProxy::CreateObject();
-    ToProto(req->mutable_object_id(), object->GetId());
-    req->set_type(static_cast<int>(object->GetType()));
-    ToProto(req->mutable_object_attributes(), *GetReplicatedAttributes(object));
+    NProto::TReqCreateForeignObject request;
+    ToProto(request.mutable_object_id(), object->GetId());
+    request.set_type(static_cast<int>(object->GetType()));
+    ToProto(request.mutable_object_attributes(), *GetReplicatedAttributes(object));
 
     auto handler = GetHandler(object);
-    handler->PopulateObjectReplicationRequest(object, req);
+    handler->PopulateObjectReplicationRequest(object, &request);
 
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToSecondaryMaster(req, cellTag);
+    multicellManager->PostToSecondaryMaster(request, cellTag);
 }
 
 void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
@@ -1245,6 +1252,58 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
     }
 
     GarbageCollector_->CheckEmpty();
+}
+
+void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) throw()
+{
+    auto objectId = FromProto<TObjectId>(request.object_id());
+    auto transactionId = request.has_transaction_id()
+        ? FromProto<TTransactionId>(request.transaction_id())
+        : NullTransactionId;
+    auto accountId = request.has_account_id()
+        ? FromProto<TAccountId>(request.account_id())
+        : NullObjectId;
+    auto type = EObjectType(request.type());
+
+    auto transactionManager = Bootstrap_->GetTransactionManager();
+    auto* transaction =  transactionId == NullTransactionId
+        ? nullptr
+        : transactionManager->GetTransaction(transactionId);
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    auto* account = accountId == NullObjectId
+        ? nullptr
+        : securityManager->GetAccount(accountId);
+
+    auto attributes = request.has_object_attributes()
+        ? FromProto(request.object_attributes())
+        : std::unique_ptr<IAttributeDictionary>();
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign object (ObjectId: %v, TransactionId: %v, Type: %v, Account: %v)",
+        objectId,
+        transactionId,
+        type,
+        account ? MakeNullable(account->GetName()) : Null);
+
+    CreateObject(
+        objectId,
+        transaction,
+        account,
+        type,
+        attributes.get(),
+        nullptr,
+        nullptr);
+}
+
+void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) throw()
+{
+    auto objectId = FromProto<TObjectId>(request.object_id());
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v)",
+        objectId);
+
+    auto* object = GetObject(objectId);
+    YCHECK(UnrefObject(object) == 0);
 }
 
 const NProfiling::TProfiler& TObjectManager::GetProfiler()
