@@ -110,19 +110,16 @@ class TestOperations(object):
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, ["x={0}\n".format(i) for i in xrange(6)])
 
-        def identity(rec):
-            yield rec
-
         old_auto_merge_output = yt.config["auto_merge_output"]
 
         yt.config["auto_merge_output"]["min_chunk_count"] = 2
         yt.config["auto_merge_output"]["max_chunk_size"] = 5 * 1024
         try:
             yt.config["auto_merge_output"]["action"] = "none"
-            yt.run_map(identity, table, other_table, job_count=6)
+            yt.run_map("cat", table, other_table, job_count=6)
             assert yt.get_attribute(other_table, "chunk_count") == 6
             yt.config["auto_merge_output"]["action"] = "merge"
-            yt.run_map(identity, table, other_table, job_count=6)
+            yt.run_map("cat", table, other_table, job_count=6)
             assert yt.get_attribute(other_table, "chunk_count") == 1
         finally:
             yt.config["auto_merge_output"].update(old_auto_merge_output)

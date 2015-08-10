@@ -389,6 +389,17 @@ if __name__ == '__main__':
     check "`echo -e "c3=x\tc2=5\nc3=z\tc2=2\n" | ./order.py`" "`./mapreduce -read "ignat/reduced_table" -dsv | ./order.py`"
 
     rm -f my_reducer.py order.py
+
+    echo -e "a=1\tb=2\na=1\tb=1" | ./mapreduce -dsv -write "<sorted_by=[a]>ignat/test_table"
+
+    ./mapreduce -reduce "cat" -src "ignat/test_table" -dst "ignat/reduced_table" -reduceby "a" -dsv
+    check "`echo -e "a=1\tb=2\na=1\tb=1"`" "`./mapreduce -read "ignat/reduced_table" -dsv`"
+
+    ./mapreduce -reduce "cat" -src "ignat/test_table" -dst "ignat/reduced_table" -reduceby "a" -sortby "a" -sortby "b" -dsv
+    check "`echo -e "a=1\tb=1\na=1\tb=2"`" "`./mapreduce -read "ignat/reduced_table" -dsv`"
+
+    ./mapreduce -reduce "cat" -src "ignat/test_table" -dst "ignat/reduced_table" -reduceby "b" -sortby "b" -dsv
+    check "`echo -e "b=1\ta=1\nb=2\ta=1"`" "`./mapreduce -read "ignat/reduced_table" -dsv`"
 }
 
 test_empty_destination()
