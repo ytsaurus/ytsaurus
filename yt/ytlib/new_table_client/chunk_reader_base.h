@@ -67,7 +67,7 @@ protected:
         const std::vector<TOwningKey>& blockIndexKeys, 
         int beginBlockIndex = 0);
 
-    void CheckBlockUpperLimits(const NProto::TBlockMeta& blockMeta, int keyPadding = 0);
+    void CheckBlockUpperLimits(const NProto::TBlockMeta& blockMeta, TNullable<int> keyColumnCount = Null);
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
@@ -85,7 +85,7 @@ protected:
     virtual void InitNextBlock() = 0;
 
 private:
-    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyPadding);
+    std::vector<TUnversionedValue> WidenKey(const TOwningKey& key, int keyColumnCount);
 
 };
 
