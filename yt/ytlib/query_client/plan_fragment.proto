@@ -124,6 +124,7 @@ message TGroupClause
 message TOrderClause
 {
     repeated string order_columns = 1;
+    required bool is_desc = 2;
 }
 
 message TProjectClause
