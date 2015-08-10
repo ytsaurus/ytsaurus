@@ -1227,16 +1227,14 @@ def _run_operation(binary, source_table, destination_table,
         reduce_by = _prepare_reduce_by(reduce_by, client)
 
         if get_config(client)["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]:
-            are_tables_not_sorted = False
+            are_input_tables_not_properly_sorted = False
             for table in source_table:
                 sorted_by = get_sorted_by(table.name, [], client=client)
-                if not sorted_by:
-                    are_tables_not_sorted = True
+                if not sorted_by or not is_prefix(sort_by, sorted_by):
+                    are_input_tables_not_properly_sorted = True
                     continue
-                if not is_prefix(reduce_by, sorted_by):
-                    raise YtError("reduce_by parameter {0} conflicts with sorted_by attribute {1} of input table {2}".format(reduce_by, sorted_by, table.name))
 
-            if are_tables_not_sorted and not are_sorted_output:
+            if are_input_tables_not_properly_sorted and not are_sorted_output:
                 if job_count is not None:
                     spec = update({"partition_count": job_count}, spec)
                 run_map_reduce(
@@ -1261,7 +1259,7 @@ def _run_operation(binary, source_table, destination_table,
                     spec=spec)
                 return
 
-            if are_sorted_output and are_tables_not_sorted:
+            if are_input_tables_not_properly_sorted and are_sorted_output:
                 logger.info("Sorting %s", source_table)
                 temp_table = create_temp_table(client=client)
                 run_sort(source_table, temp_table, sort_by=sort_by, client=client)
