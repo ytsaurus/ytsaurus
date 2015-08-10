@@ -277,15 +277,17 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
 {
     TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
-    auto objectManager = TBase::Bootstrap_->GetObjectManager();
+    if (!sourceNode->IsExternal()) {
+        auto objectManager = TBase::Bootstrap_->GetObjectManager();
+        auto* chunkList = sourceNode->GetChunkList();
+        YCHECK(!clonedNode->GetChunkList());
+        clonedNode->SetChunkList(chunkList);
+        objectManager->RefObject(chunkList);
+        YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
+    }
 
-    auto* chunkList = sourceNode->GetChunkList();
-    YCHECK(!clonedNode->GetChunkList());
-    clonedNode->SetChunkList(chunkList);
     clonedNode->SetReplicationFactor(sourceNode->GetReplicationFactor());
     clonedNode->SetVital(sourceNode->GetVital());
-    objectManager->RefObject(chunkList);
-    YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

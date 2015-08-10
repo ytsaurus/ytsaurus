@@ -288,6 +288,15 @@ protected:
                 YUNREACHABLE();
         }
 
+        if (!sourceNode->IsExternal()) {
+            auto objectManager = TBase::Bootstrap_->GetObjectManager();
+            auto* chunkList = sourceNode->GetChunkList();
+            YCHECK(!clonedNode->GetChunkList());
+            clonedNode->SetChunkList(chunkList);
+            objectManager->RefObject(chunkList);
+            YCHECK(chunkList->OwningNodes().insert(clonedNode).second);
+        }
+
         clonedNode->SetReadQuorum(sourceNode->GetReadQuorum());
         clonedNode->SetWriteQuorum(sourceNode->GetWriteQuorum());
 

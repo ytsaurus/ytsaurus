@@ -6,14 +6,26 @@ import "yt/core/misc/guid.proto";
 
 message TAccessStatisticsUpdate
 {
-	required NYT.NProto.TGuid node_id = 1;
-	required int64 access_time = 2;
-	required int64 access_counter_delta = 3;	
+    required NYT.NProto.TGuid node_id = 1;
+    required int64 access_time = 2;
+    required int64 access_counter_delta = 3;
 }
 
 message TReqUpdateAccessStatistics
 {
-	repeated TAccessStatisticsUpdate updates = 1;
+    repeated TAccessStatisticsUpdate updates = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCloneForeignNode
+{
+    required NYT.NProto.TGuid source_node_id = 1;
+    optional NYT.NProto.TGuid source_transaction_id = 2;
+    required NYT.NProto.TGuid cloned_node_id = 3;
+    optional NYT.NProto.TGuid cloned_transaction_id = 4;
+    required int32 mode = 5; // ENodeCloneMode
+    required NYT.NProto.TGuid account_id = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -35,7 +35,8 @@ struct INodeTypeHandler
     //! Create an empty instance of a node.
     //! Called during snapshot deserialization and node cloning.
     virtual std::unique_ptr<TCypressNodeBase> Instantiate(
-        const TVersionedNodeId& id) = 0;
+        const TVersionedNodeId& id,
+        NObjectClient::TCellTag externalCellTag) = 0;
 
     typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
     typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
@@ -94,6 +95,7 @@ struct INodeTypeHandler
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory,
+        const TNodeId& hintId,
         ENodeCloneMode mode) = 0;
 
     //! Returns |true| if nodes of this type can be stored at external cells.

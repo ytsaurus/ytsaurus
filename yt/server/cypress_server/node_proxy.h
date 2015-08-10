@@ -40,8 +40,9 @@ struct ICypressNodeFactory
         TReqCreate* request,
         TRspCreate* response) = 0;
 
-    virtual TCypressNodeBase* CreateNode(
-        const TNodeId& id) = 0;
+    virtual TCypressNodeBase* InstantiateNode(
+        const TNodeId& id,
+        NObjectClient::TCellTag externalCellTag) = 0;
 
     virtual TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
