@@ -32,6 +32,11 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
         .Run(chunkReader, schema, keyColumns);
 }
 
+int TCachedVersionedChunkMeta::GetKeyColumnCount() const
+{
+    return KeyColumns_.size();
+}
+
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     IChunkReaderPtr chunkReader,
     const TTableSchema& readerSchema,
@@ -60,11 +65,7 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
         for (const auto& block : BlockMeta_.blocks()) {
             YCHECK(block.has_last_key());
             auto key = FromProto<TOwningKey>(block.last_key());
-            if (GetKeyPadding() == 0) {
-                BlockIndexKeys_.push_back(key);
-            } else {
-                BlockIndexKeys_.push_back(WidenKey(key, GetKeyPadding()));
-            }
+            BlockIndexKeys_.push_back(WidenKey(key, GetKeyColumnCount()));
         }
 
         return this;
@@ -115,8 +116,7 @@ void TCachedVersionedChunkMeta::ValidateKeyColumns(const TKeyColumns& chunkKeyCo
         }
     }
 
-    KeyColumnCount_ = chunkKeyColumns.size();
-    KeyPadding_ = KeyColumns_.size() - chunkKeyColumns.size();
+    ChunkKeyColumnCount_ = chunkKeyColumns.size();
 }
 
 void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
