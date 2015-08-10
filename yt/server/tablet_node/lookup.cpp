@@ -191,8 +191,6 @@ private:
             return;
         }
 
-        Magic(STRINGBUF("TLookupSession:LookupInPartition"), TUnversionedRow());
-
         TSchemafulRowMerger merger(
             &MemoryPool_,
             SchemaColumnCount_,
