@@ -21,6 +21,7 @@ struct TReadTableRequest
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
     NTableClient::TControlAttributesConfigPtr ControlAttributes;
+    bool Unordered;
 
     TReadTableRequest()
     {
@@ -29,6 +30,8 @@ struct TReadTableRequest
             .Default(nullptr);
         RegisterParameter("control_attributes", ControlAttributes)
             .DefaultNew();
+        RegisterParameter("unordered", Unordered)
+            .Default(false);
     }
 
     virtual void OnLoaded() override
