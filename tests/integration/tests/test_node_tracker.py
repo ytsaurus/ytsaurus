@@ -23,5 +23,7 @@ class TestNodeTracker(YTEnvSetup):
         sleep(1)
         assert get("//sys/nodes/%s/@state" % test_node) == "online"
 
-    def test_node_attr(self): #regression
-        ls("//sys/nodes", attr=["statistics"])
+##################################################################
+
+class TestNodeTrackerMulticell(TestNodeTracker):
+    NUM_SECONDARY_MASTER_CELLS = 2

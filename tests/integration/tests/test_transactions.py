@@ -254,3 +254,8 @@ class TestTransactions(YTEnvSetup):
         lock("//tmp/file", mode="snapshot", tx=tx)
         remove("//tmp/file")
         commit_transaction(tx)
+
+##################################################################
+
+class TestTransactionsMulticell(TestTransactions):
+    NUM_SECONDARY_MASTER_CELLS = 2

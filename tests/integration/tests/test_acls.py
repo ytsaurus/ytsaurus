@@ -499,3 +499,8 @@ class TestAcls(YTEnvSetup):
         check("//sys/schemas/user", RWRAC)
         check("//sys/schemas/group", RWRAC)
         check("//sys/schemas/account", RWRAC + ["use"])
+
+##################################################################
+
+class TestAclsMulticell(TestAcls):
+    NUM_SECONDARY_MASTER_CELLS = 2

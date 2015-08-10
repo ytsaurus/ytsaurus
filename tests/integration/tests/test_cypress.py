@@ -12,6 +12,13 @@ class TestCypress(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            # See test_map_node_children_limit
+            "max_node_child_count" : 100 
+        }
+    }
+
     def test_root(self):
         # should not crash
         get("//@")
@@ -722,19 +729,16 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/my_uint/@type") == "uint64_node"
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
 
-class TestCypressNodeChildrenLimit(YTEnvSetup):
-    NUM_MASTERS = 3
-
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "max_node_child_count" : 100
-        }
-    }
-
     def test_map_node_children_limit(self):
         create("map_node", "//tmp/test_node")
         for i in xrange(100):
             create("map_node", "//tmp/test_node/" + str(i))
-
         with pytest.raises(YtError):
             create("map_node", "//tmp/test_node/100")
+
+##################################################################
+
+class TestCypressMulticell(TestCypress):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+ 

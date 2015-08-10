@@ -273,3 +273,9 @@ class TestRacks(YTEnvSetup):
         assert get("//tmp/j/@sealed")
 
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
+
+##################################################################
+
+class TestRacksMulticell(TestRacks):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
