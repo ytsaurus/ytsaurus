@@ -53,14 +53,6 @@ TBlobChunkBase::TBlobChunkBase(
     }
 }
 
-TBlobChunkBase::~TBlobChunkBase()
-{
-    if (CachedMeta_) {
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        tracker->Release(EMemoryCategory::ChunkMeta, CachedMeta_->SpaceUsed());
-    }
-}
-
 TChunkInfo TBlobChunkBase::GetInfo() const
 {
     return Info_;
@@ -130,7 +122,10 @@ void TBlobChunkBase::SetMetaLoadSuccess(const NChunkClient::NProto::TChunkMeta& 
     CachedMeta_ = New<TRefCountedChunkMeta>(meta);
 
     auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    tracker->Acquire(EMemoryCategory::ChunkMeta, CachedMeta_->SpaceUsed());
+    MemoryTrackerGuard_ = TNodeMemoryTrackerGuard::Acquire(
+        tracker,
+        EMemoryCategory::ChunkMeta,
+        CachedMeta_->SpaceUsed());
 
     if (!CachedMetaPromise_) {
         CachedMetaPromise_ = NewPromise<void>();

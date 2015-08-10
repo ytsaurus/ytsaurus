@@ -9,6 +9,8 @@
 
 #include <core/concurrency/rw_spinlock.h>
 
+#include <server/misc/memory_usage_tracker.h>
+
 namespace NYT {
 namespace NDataNode {
 
@@ -48,7 +50,6 @@ protected:
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         const NChunkClient::NProto::TChunkMeta* meta);
-    ~TBlobChunkBase();
 
     virtual TFuture<void> AsyncRemove() override;
 
@@ -77,6 +78,7 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedMetaLock_;
     TPromise<void> CachedMetaPromise_;
     TRefCountedChunkMetaPtr CachedMeta_;
+    NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard_;
     NChunkClient::NProto::TBlocksExt CachedBlocksExt_;
 
 
