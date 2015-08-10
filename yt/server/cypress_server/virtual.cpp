@@ -286,7 +286,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto cellDirectory = Bootstrap_->GetCellDirectory();
         for (auto cellTag : multicellManager->GetRegisteredSecondaryMasterCellTags()) {
-            auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
+            auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
             auto channel = cellDirectory->FindChannel(cellId);
             if (channel) {
                 TObjectServiceProxy proxy(channel);
@@ -401,7 +401,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
 {
     auto cellDirectory = Bootstrap_->GetCellDirectory();
     auto cellTag = session->CellTags[session->CellTagIndex++];
-    auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
+    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
     auto channel = cellDirectory->FindChannel(cellId);
     if (!channel) {
         FetchItemsFromAnywhere(session, promise);

@@ -57,6 +57,7 @@ public:
     const NObjectClient::TCellId& GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
+    NObjectClient::TCellId GetSecondaryCellId(NObjectClient::TCellTag cellTag) const;
     const std::vector<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
 
     TMulticellManagerPtr GetMulticellManager() const;
