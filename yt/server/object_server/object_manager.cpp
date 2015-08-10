@@ -1120,7 +1120,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto cellId = ReplaceCellTagInId(Bootstrap_->GetCellId(), cellTag);
+    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
     auto cellDirectory = Bootstrap_->GetCellDirectory();
     auto channel = cellDirectory->GetChannelOrThrow(cellId, EPeerKind::Leader);
 

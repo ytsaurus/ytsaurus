@@ -2010,9 +2010,9 @@ private:
 
         auto factory = CreateNodeFactory(transaction, account, false);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, DestinationNodeId: %v, Account: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
             TVersionedNodeId(sourceNodeId, sourceTransactionId),
-            TVersionedNodeId(destinationNodeId, destinationTransactionId),
+            TVersionedNodeId(clonedNodeId, clonedTransactionId),
             account->GetName());
 
         auto* clonedTrunkNode = DoCloneNode(

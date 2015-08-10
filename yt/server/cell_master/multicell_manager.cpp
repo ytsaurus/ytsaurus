@@ -365,7 +365,7 @@ private:
     {
         auto hiveManager = Bootstrap_->GetHiveManager();
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellId = ReplaceCellTagInId(Bootstrap_->GetPrimaryCellId(), cellTag);
+        auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
         YCHECK(!entry->Mailbox);
         entry->Mailbox = hiveManager->GetOrCreateMailbox(cellId);
     }
@@ -463,7 +463,7 @@ private:
     {
         auto hiveManager = Bootstrap_->GetHiveManager();
         if (cellTag >= MinimumValidCellTag && cellTag <= MaximumValidCellTag) {
-            auto cellId = ReplaceCellTagInId(Bootstrap_->GetPrimaryCellId(), cellTag);
+            auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
             auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
             hiveManager->PostMessage(mailbox, requestMessage, reliable);
         } else if (cellTag == PrimaryMasterCellTag) {
