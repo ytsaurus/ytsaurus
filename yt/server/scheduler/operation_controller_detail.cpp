@@ -1181,7 +1181,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
+        auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
         reqExt->set_enable_uncommitted_accounting(false);
         reqExt->set_enable_staged_accounting(false);
@@ -1235,7 +1235,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         }
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
+        auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
@@ -1282,7 +1282,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         ToProto(req->mutable_transaction_id(), parentTransactionId);
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
+        auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
@@ -1327,7 +1327,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         ToProto(req->mutable_transaction_id(), parentTransactionId);
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
+        auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_enable_uncommitted_accounting(false);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 

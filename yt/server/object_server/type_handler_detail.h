@@ -58,8 +58,7 @@ public:
         NTransactionServer::TTransaction* /*transaction*/,
         NSecurityServer::TAccount* /*account*/,
         NYTree::IAttributeDictionary* /*attributes*/,
-        TReqCreateObject* /*request*/,
-        TRspCreateObject* /*response*/) override
+        const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/) override
     {
         YUNREACHABLE();
     }

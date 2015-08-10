@@ -163,7 +163,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         GenerateMutationId(req);
 
         // ToDo(psushin): Use CreateChunk here.
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
+        auto* reqExt = req->mutable_extensions()->MutableExtension(NProto::TChunkCreationExt::chunk_creation_ext);
         reqExt->set_movable(Config_->ChunksMovable);
         reqExt->set_replication_factor(Options_->ReplicationFactor);
         reqExt->set_vital(Options_->ChunksVital);

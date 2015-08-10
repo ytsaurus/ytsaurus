@@ -20,6 +20,7 @@ namespace NObjectServer {
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NYTree;
 using namespace NCellMaster;
 
@@ -89,8 +90,7 @@ private:
                 account,
                 type,
                 nullptr,
-                nullptr,
-                nullptr);
+                TObjectCreationExtensions::default_instance());
             const auto& objectId = object->GetId();
             ToProto(response->add_object_ids(), objectId);
         }
@@ -133,8 +133,7 @@ private:
             account,
             type,
             attributes.get(),
-            request,
-            response);
+            request->extensions());
 
         const auto& objectId = object->GetId();
         ToProto(response->mutable_object_id(), objectId);

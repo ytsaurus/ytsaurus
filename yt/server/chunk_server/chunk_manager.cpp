@@ -70,6 +70,7 @@ using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NCypressServer;
@@ -157,8 +158,7 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        const TObjectCreationExtensions& extensions) override;
 
     virtual void ResetAllObjects() override
     {
@@ -318,8 +318,7 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        const TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -1559,8 +1558,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
-    TReqCreateObject* request,
-    TRspCreateObject* /*response*/)
+    const TObjectCreationExtensions& extensions)
 {
     YCHECK(transaction);
     YCHECK(account);
@@ -1571,7 +1569,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     bool isErasure = (chunkType == EObjectType::ErasureChunk);
     bool isJournal = (chunkType == EObjectType::JournalChunk);
 
-    const auto& requestExt = request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
+    const auto& requestExt = extensions.GetExtension(TChunkCreationExt::chunk_creation_ext);
     auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec::None;
     int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
@@ -1637,8 +1635,7 @@ TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
-    TReqCreateObject* /*request*/,
-    TRspCreateObject* /*response*/)
+    const TObjectCreationExtensions& extensions)
 {
     auto* chunkList = Owner_->CreateChunkList();
     chunkList->SetStagingTransaction(transaction);

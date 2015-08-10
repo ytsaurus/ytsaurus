@@ -73,6 +73,7 @@ using namespace NConcurrency;
 using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NSecurityServer;
@@ -142,8 +143,7 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        const TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -1851,8 +1851,7 @@ TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObject* request,
-    TRspCreateObject* response)
+    const TObjectCreationExtensions& /*extensions*/)
 {
     // TODO(babenko): support arbitrary size
     return Owner_->CreateCell(1, attributes, hintId);

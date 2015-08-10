@@ -909,8 +909,7 @@ TObjectBase* TObjectManager::CreateObject(
     TAccount* account,
     EObjectType type,
     IAttributeDictionary* attributes,
-    IObjectTypeHandler::TReqCreateObject* request,
-    IObjectTypeHandler::TRspCreateObject* response)
+    const NObjectClient::NProto::TObjectCreationExtensions& extensions)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -994,8 +993,7 @@ TObjectBase* TObjectManager::CreateObject(
         transaction,
         account,
         attributes ? attributes : MutableEmptyAttributes.get(),
-        request,
-        response);
+        extensions);
 
     if (attributes) {
         FillAttributes(object, *attributes);
@@ -1291,8 +1289,7 @@ void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObj
         account,
         type,
         attributes.get(),
-        nullptr,
-        nullptr);
+        request.extensions());
 }
 
 void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) throw()

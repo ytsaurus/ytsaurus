@@ -516,7 +516,7 @@ private:
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
 
-                auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
+                auto* reqExt = req->mutable_extensions()->MutableExtension(TChunkCreationExt::chunk_creation_ext);
                 reqExt->set_replication_factor(ReplicationFactor_);
                 reqExt->set_read_quorum(ReadQuorum_);
                 reqExt->set_write_quorum(WriteQuorum_);

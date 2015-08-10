@@ -119,8 +119,7 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
@@ -184,8 +183,7 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -239,8 +237,7 @@ public:
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -1716,8 +1713,7 @@ TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObject* /*request*/,
-    TRspCreateObject* /*response*/)
+    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
@@ -1750,8 +1746,7 @@ TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObject* /*request*/,
-    TRspCreateObject* /*response*/)
+    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
@@ -1784,8 +1779,7 @@ TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObject* /*request*/,
-    TRspCreateObject* /*response*/)
+    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");

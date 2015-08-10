@@ -48,6 +48,7 @@ namespace NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NHydra;
@@ -240,10 +241,9 @@ public:
     virtual TNonversionedObjectBase* CreateObject(
         const TObjectId& hintId,
         TTransaction* parent,
-        TAccount* /*account*/,
+        TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) override;
+        const TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -891,10 +891,9 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
     TTransaction* parent,
     TAccount* /*account*/,
     IAttributeDictionary* /*attributes*/,
-    TReqCreateObject* request,
-    TRspCreateObject* /*response*/)
+    const TObjectCreationExtensions& extensions)
 {
-    const auto& requestExt = request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
+    const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
     auto timeout = TDuration::MilliSeconds(requestExt.timeout());
     auto* transaction = Owner_->StartTransaction(parent, timeout, hintId);
     transaction->SetUncommittedAccountingEnabled(requestExt.enable_uncommitted_accounting());

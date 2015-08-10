@@ -9,7 +9,7 @@
 
 #include <core/rpc/service_detail.h>
 
-#include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/public.h>
 
 #include <server/transaction_server/public.h>
 
@@ -35,7 +35,7 @@ DEFINE_ENUM(EObjectAccountMode,
 DEFINE_BIT_ENUM(EObjectReplicationFlags,
     ((None)                 (0x0000))
     ((ReplicateCreate)      (0x0001)) // replicate object creation
-    ((ReplicateDestroy)     (0x0002)) // replicate object destruction
+    ((ReplicateDestroy)     (0x0002)) // replicate object destructionT
     ((ReplicateAttributes)  (0x0004)) // replicate object attribute changes
 );
 
@@ -89,8 +89,6 @@ struct IObjectTypeHandler
     //! In the latter case #Create is never called.
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const = 0;
 
-    typedef NRpc::TTypedServiceRequest<NObjectClient::NProto::TReqCreateObject> TReqCreateObject;
-    typedef NRpc::TTypedServiceResponse<NObjectClient::NProto::TRspCreateObject> TRspCreateObject;
     //! Creates a new object instance.
     /*!
      *  \param hintId Id for the new object, if |NullObjectId| then a new id is generated.
@@ -107,8 +105,7 @@ struct IObjectTypeHandler
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
-        TReqCreateObject* request,
-        TRspCreateObject* response) = 0;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) = 0;
 
     //! Raised when the strong ref-counter of the object decreases to zero.
     virtual void ZombifyObject(TObjectBase* object) throw() = 0;
