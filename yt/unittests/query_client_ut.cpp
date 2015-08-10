@@ -3745,11 +3745,15 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
         result.push_back(BuildRow(row, split, false));
     }
 
+    std::vector<TOwningRow> limitedResult;
+
     std::sort(result.begin(), result.end());
+    limitedResult.assign(result.begin(), result.begin() + 100);
+    Evaluate("* FROM [//t] order by a limit 100", split, source, limitedResult);
 
-    result.resize(100);
-
-    Evaluate("* FROM [//t] order by a limit 100", split, source, result);
+    std::reverse(result.begin(), result.end());
+    limitedResult.assign(result.begin(), result.begin() + 100);
+    Evaluate("* FROM [//t] order by a desc limit 100", split, source, limitedResult);
 
     SUCCEED();
 }

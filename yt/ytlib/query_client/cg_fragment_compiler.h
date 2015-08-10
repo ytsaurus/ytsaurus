@@ -481,7 +481,8 @@ TCodegenSource MakeCodegenGroupOp(
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
     TTableSchema sourceSchema,
-    TCodegenSource codegenSource);
+    TCodegenSource codegenSource,
+    bool isDesc);
 
 TCodegenSource MakeCodegenProjectOp(
     std::vector<TCodegenExpression> codegenArgs,

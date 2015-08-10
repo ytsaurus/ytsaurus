@@ -223,6 +223,7 @@ struct TQuery
     TNullableNamedExpressionList GroupExprs;
     TExpressionPtr HavingPredicate;
     TNullableIdentifierList OrderFields;
+    bool IsOrderDesc = false;
     i64 Limit = 0;
 };
 

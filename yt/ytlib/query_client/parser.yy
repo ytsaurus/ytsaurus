@@ -69,6 +69,8 @@
 %token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
 %token KwOrderBy "keyword `ORDER BY`"
+%token KwAsc "keyword `ASC`"
+%token KwDesc "keyword `DESC`"
 %token KwAs "keyword `AS`"
 %token KwOn "keyword `ON`"
 
@@ -109,6 +111,8 @@
 %token OpGreaterOrEqual "`>=`"
 
 %type <TTableDescriptor> table-descriptor
+
+%type <bool> is-desc
 
 %type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
@@ -181,7 +185,6 @@ table-descriptor
         {
             $$ = TTableDescriptor(Stroka($path), Stroka($alias));
         }
-    |
     |   Identifier[path]
         {
             $$ = TTableDescriptor(Stroka($path), Stroka());
@@ -232,11 +235,27 @@ having-clause
 ;
 
 order-by-clause
-    : KwOrderBy identifier-list[fields]
+    : KwOrderBy identifier-list[fields] is-desc[isDesc]
         {
             head->As<TQuery>().OrderFields = $fields;
+            head->As<TQuery>().IsOrderDesc = $isDesc;
         }
     |
+;
+
+is-desc
+    : KwDesc
+        {
+            $$ = true;
+        }
+    | KwAsc
+        {
+            $$ = false;
+        }
+    |
+        {
+            $$ = false;
+        }
 ;
 
 limit-clause

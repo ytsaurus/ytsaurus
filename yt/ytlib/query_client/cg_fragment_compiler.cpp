@@ -409,13 +409,18 @@ Function* CodegenGroupHasherFunction(
 
 Function* CodegenTupleComparerFunction(
     const std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>>& codegenArgs,
-    const TCGModule& module)
+    const TCGModule& module,
+    bool isDesc = false)
 {
     return MakeFunction<char(TRow, TRow)>(module.GetModule(), "RowComparer", [&] (
         TCGIRBuilder& builder,
         Value* lhsRow,
         Value* rhsRow
     ) {
+        if (isDesc) {
+            std::swap(lhsRow, rhsRow);
+        }
+
         auto returnIf = [&] (Value* condition, const TCodegenBlock& codegenInner) {
             auto* thenBB = builder.CreateBBHere("then");
             auto* elseBB = builder.CreateBBHere("else");
@@ -1549,9 +1554,11 @@ TCodegenSource MakeCodegenGroupOp(
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
     TTableSchema sourceSchema,
-    TCodegenSource codegenSource)
+    TCodegenSource codegenSource,
+    bool isDesc)
 {
     return [
+        isDesc,
         MOVE(orderColumns),
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
@@ -1607,7 +1614,7 @@ TCodegenSource MakeCodegenOrderOp(
             builder.Module->GetRoutine("OrderOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
-                CodegenTupleComparerFunction(compareArgs, *builder.Module),
+                CodegenTupleComparerFunction(compareArgs, *builder.Module, isDesc),
 
                 collectRows.ClosurePtr,
                 collectRows.Function,
