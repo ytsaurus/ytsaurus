@@ -1696,7 +1696,7 @@ void TTabletManager::Read(
     TTimestamp timestamp,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
- {
+{
     Impl_->Read(
         std::move(tabletSnapshot),
         timestamp,
