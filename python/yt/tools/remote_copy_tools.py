@@ -243,7 +243,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             dst_table = dst
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
-                dst_table = yt.TablePath(dst)
+                dst_table = yt.TablePath(dst, client=source_client)
                 dst_table.attributes["sorted_by"] = sorted_by
             row_count = source_client.get(src + "/@row_count")
 
