@@ -96,7 +96,10 @@ class TestJournals(YTEnvSetup):
 
     def test_move(self):
         create("journal", "//tmp/j1")
+        write_journal("//tmp/j1", self.DATA)
+
         move('//tmp/j1', '//tmp/j2')
+        assert read_journal("//tmp/j2") == self.DATA
 
 ##################################################################
 
