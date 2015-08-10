@@ -52,7 +52,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
         return;
     }
 
-    // Magic(STRINGBUF("TSchemafulRowMerger:AddPartialRow"), row);
+    Magic(STRINGBUF("TSchemafulRowMerger:AddPartialRow"), row);
 
     YASSERT(row.GetKeyCount() == KeyColumnCount_);
     YASSERT(row.GetWriteTimestampCount() <= 1);
@@ -190,7 +190,8 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
-    // Magic(STRINGBUF("TUnversionedRowMerger:InitPartialRow"), row);
+    Magic(STRINGBUF("TUnversionedRowMerger:InitPartialRow"), row);
+
     if (!Started_) {
         MergedRow_ = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
 
@@ -216,7 +217,7 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
         return;
     }
 
-    // Magic(STRINGBUF("TUnversionedRowMerger:AddPartialRow"), row);
+    Magic(STRINGBUF("TUnversionedRowMerger:AddPartialRow"), row);
 
     InitPartialRow(row);
 
@@ -236,7 +237,8 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
 void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 {
-    // Magic(STRINGBUF("TUnversionedRowMerger:DeletePartialRow"), row);
+    Magic(STRINGBUF("TUnversionedRowMerger:DeletePartialRow"), row);
+
     InitPartialRow(row);
 
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
@@ -338,7 +340,7 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         return;
     }
 
-    // Magic(STRINGBUF("TVersionedRowMerger:AddPartialRow"), row);
+    Magic(STRINGBUF("TVersionedRowMerger:AddPartialRow"), row);
 
     if (!Started_) {
         Started_ = true;

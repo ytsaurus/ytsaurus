@@ -191,6 +191,8 @@ private:
             return;
         }
 
+        Magic(STRINGBUF("TLookupSession:LookupInPartition"), TUnversionedRow());
+
         TSchemafulRowMerger merger(
             &MemoryPool_,
             SchemaColumnCount_,
@@ -216,6 +218,9 @@ private:
 
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteUnversionedRow(mergedRow);
+
+            Magic(STRINGBUF("TLookupSession:LookupInPartition:Key"), keys[index]);
+            Magic(STRINGBUF("TLookupSession:LookupInPartition:Value"), mergedRow);
         }
     }
 
@@ -230,7 +235,6 @@ private:
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
             if (partitionSnapshot != currentPartitionSnapshot) {
-                Magic(STRINGBUF("TLookupSession:DoRun"), key);
                 LookupInPartition(
                     currentPartitionSnapshot,
                     LookupKeys_.Slice(currentPartitionStartOffset, index),
