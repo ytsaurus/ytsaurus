@@ -43,23 +43,18 @@ def get_master_config():
 {
     enable_provision_lock = false;
 
-    "primary_master" = {
-    };
-    secondary_masters = [
-    ];
+    primary_master = { };
+
+    secondary_masters = [ ];
 
     timestamp_provider = {
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
 
-    changelogs = {
-        path = "";
-    };
+    changelogs = { };
 
-    snapshots = {
-        path = "";
-    };
+    snapshots = { };
 
     cell_directory = {
         soft_backoff_time = 100;
@@ -84,6 +79,7 @@ def get_master_config():
 
     cypress_manager = {
         statistics_flush_period = 10;
+        externalization_mode = automatic;
     };
 
     security_manager = {
@@ -264,8 +260,7 @@ def get_node_config():
         };
     };
 
-    query_agent = {
-    };
+    query_agent = { };
 
     tracing = { };
 
