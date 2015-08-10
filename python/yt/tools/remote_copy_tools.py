@@ -240,10 +240,11 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
 
             sorted_by = None
+            dst_table = dst
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
                 dst_table = yt.TablePath(dst)
-                dst.attributes["sorted_by"] = sorted_by
+                dst_table.attributes["sorted_by"] = sorted_by
             row_count = source_client.get(src + "/@row_count")
 
             ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
