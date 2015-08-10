@@ -1508,16 +1508,10 @@ TUnversionedOwningRow BuildRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NLogging::TLogger Logger("MAGIC");
-
-void Magic(const TStringBuf& what, TUnversionedRow row)
+void Magic(const TStringBuf& what, TUnversionedRow row, bool checked)
 {
-    if (!row) {
-        LOG_DEBUG("%v null", what);
-    } else if (
-        row.GetCount() >= 12 &&
-        row[1].Data.Int64 % 5 == 3)
-    {
+    static NLogging::TLogger Logger("MAGIC");
+    if (!checked || (row && row.GetCount() >= 12 && row[1].Data.Int64 % 5 == 3)) {
         LOG_DEBUG("%v %v", what, row);
     }
 }

@@ -32,6 +32,18 @@ using namespace NTabletClient::NProto;
 
 static const auto& Logger = TabletNodeLogger;
 
+template <class R>
+void MagicLookup(const TStringBuf& what, TUnversionedRow key, R value)
+{
+    static NLogging::TLogger Logger("MAGIC");
+
+    if (!key || key.GetCount() < 12 || key[1].Data.Int64 % 5 != 3) {
+        return;
+    }
+
+    LOG_DEBUG("%v %v -> %v", what, key, value);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLookupPoolTag { };
@@ -217,8 +229,10 @@ private:
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteUnversionedRow(mergedRow);
 
-            Magic(STRINGBUF("TLookupSession:LookupInPartition:Key"), keys[index]);
-            Magic(STRINGBUF("TLookupSession:LookupInPartition:Value"), mergedRow);
+            MagicLookup(
+                STRINGBUF("TLookupSession:LookupInPartition:Key"),
+                keys[index],
+                mergedRow);
         }
     }
 

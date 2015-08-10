@@ -52,7 +52,9 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
         return;
     }
 
-    Magic(STRINGBUF("TSchemafulRowMerger:AddPartialRow"), row);
+    if (Magic(STRINGBUF("TSchemafulRowMerger:AddPartialRow"), row)) {
+        Magical_ = true;
+    }
 
     YASSERT(row.GetKeyCount() == KeyColumnCount_);
     YASSERT(row.GetWriteTimestampCount() <= 1);
@@ -133,7 +135,9 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
     MergedRow_ = TUnversionedRow();
 
     Cleanup();
-    Magic(STRINGBUF("TSchemafulRowMerger:BuildMergedRow"), mergedRow);
+    if (Magical_) {
+        Magic(STRINGBUF("TSchemafulRowMerger:BuildMergedRow"), mergedRow, false);
+    }
     return mergedRow;
 }
 
@@ -149,6 +153,7 @@ void TSchemafulRowMerger::Cleanup()
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
     Started_ = false;
+    Magical_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,8 +195,6 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
-    Magic(STRINGBUF("TUnversionedRowMerger:InitPartialRow"), row);
-
     if (!Started_) {
         MergedRow_ = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
 
@@ -217,8 +220,6 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
         return;
     }
 
-    Magic(STRINGBUF("TUnversionedRowMerger:AddPartialRow"), row);
-
     InitPartialRow(row);
 
     auto* mergedValuesBegin = MergedRow_.Begin();
@@ -237,8 +238,6 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
 
 void TUnversionedRowMerger::DeletePartialRow(TUnversionedRow row)
 {
-    Magic(STRINGBUF("TUnversionedRowMerger:DeletePartialRow"), row);
-
     InitPartialRow(row);
 
     for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
@@ -290,7 +289,6 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     }
 
     Cleanup();
-    Magic(STRINGBUF("TUnversionedRowMerger:BuildMergedRow"), mergedRow);
     return mergedRow;
 }
 
