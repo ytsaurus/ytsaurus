@@ -319,8 +319,7 @@ private:
                 }
             };
 
-            // XXX(babenko): masters -> primary_masters?
-            createMasters("//sys/masters", Config_->PrimaryMaster);
+            createMasters("//sys/primary_masters", Config_->PrimaryMaster);
             for (auto cellConfig : Config_->SecondaryMasters) {
                 auto cellTag = CellTagFromId(cellConfig->CellId);
                 createMasters("//sys/secondary_masters/" + ToYPathLiteral(cellTag), cellConfig);
