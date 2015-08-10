@@ -74,6 +74,7 @@ class TestJournals(YTEnvSetup):
                 break
             sleep(1)
 
+        get("#" + chunk_id + "/@owning_nodes")
         disk_space_delta = get("//tmp/j/@resource_usage/disk_space")
         assert disk_space_delta > 0
 
@@ -96,3 +97,8 @@ class TestJournals(YTEnvSetup):
     def test_move(self):
         create("journal", "//tmp/j1")
         move('//tmp/j1', '//tmp/j2')
+
+##################################################################
+
+class TestJournalsMulticell(TestJournals):
+    NUM_SECONDARY_MASTER_CELLS = 2

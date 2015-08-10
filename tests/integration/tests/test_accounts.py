@@ -486,3 +486,9 @@ class TestAccounts(YTEnvSetup):
         create_account("a1")
         create_account("a2")
         with pytest.raises(YtError): set("//sys/accounts/a1/@name", "a2")
+
+##################################################################
+
+class TestAccountsMulticell(TestAccounts):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    

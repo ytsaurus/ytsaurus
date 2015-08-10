@@ -650,3 +650,8 @@ class TestTables(YTEnvSetup):
         format = yson.loads("<format=text>yson")
         write_table("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
         assert '{"x"=1u};\n{"x"=4u};\n{"x"=9u};\n' == read_table("//tmp/t", output_format=format)
+
+##################################################################
+
+class TestTablesMulticell(TestTables):
+    NUM_SECONDARY_MASTER_CELLS = 2

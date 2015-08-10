@@ -192,4 +192,8 @@ class TestUsers(YTEnvSetup):
                 found = True
         assert found
 
+##################################################################
+
+class TestUsersMulticell(TestUsers):
+    NUM_SECONDARY_MASTER_CELLS = 2
 
