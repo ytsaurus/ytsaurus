@@ -129,15 +129,6 @@ TFuture<void> TBlobSession::DoPutBlocks(
                 "No enough space left on node"));
         }
 
-        auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-        auto guardOrError = TNodeMemoryTrackerGuard::TryAcquire(
-            tracker,
-            EMemoryCategory::BlobSession,
-            block.Size());
-        if (!guardOrError.IsOK()) {
-            return MakeFuture(TError(guardOrError));
-        }
-
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             if (TRef::AreBitwiseEqual(slot.Block, block)) {
@@ -157,7 +148,6 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
         slot.State = ESlotState::Received;
         slot.Block = block;
-        slot.MemoryTrackerGuard = std::move(guardOrError.Value());
 
         if (enableCaching) {
             blockStore->PutCachedBlock(blockId, block, Null);
@@ -470,7 +460,6 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         auto& slot = GetSlot(WindowStartBlockIndex_);
         YCHECK(slot.State == ESlotState::Written);
         slot.Block = TSharedRef();
-        slot.MemoryTrackerGuard.Release();
         slot.WrittenPromise.Reset();
         ++WindowStartBlockIndex_;
     }
@@ -508,7 +497,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
         // NB: do not use resize here!
         // Newly added slots must get a fresh copy of WrittenPromise promise.
         // Using resize would cause all of these slots to share a single promise.
-        Window_.emplace_back();
+        Window_.push_back(TSlot());
     }
 
     return Window_[blockIndex];
