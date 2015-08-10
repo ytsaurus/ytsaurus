@@ -266,10 +266,12 @@ public:
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
     }
 
-    virtual TCypressNodeBase* CreateNode(const TNodeId& id) override
+    virtual TCypressNodeBase* InstantiateNode(
+        const TNodeId& id,
+        TCellTag externalCellTag) override
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->CreateNode(id);
+        auto* node = cypressManager->InstantiateNode(id, externalCellTag);
 
         RegisterCreatedNode(node);
 
@@ -291,9 +293,9 @@ public:
 
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
 
-        RegisterCreatedNode(clonedTrunkNode);
+        auto* clonedNode = cypressManager->LockNode(clonedTrunkNode, Transaction_, ELockMode::Exclusive);
 
-        cypressManager->LockNode(clonedTrunkNode, Transaction_, ELockMode::Exclusive);
+        RegisterClonedNode(sourceNode, clonedNode, mode);
 
         return clonedTrunkNode;
     }
@@ -306,6 +308,22 @@ public:
                 transactionManager->StageNode(Transaction_, node);
             }
         }
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        for (const auto& request : CloneRequests_) {
+            NProto::TReqCloneForeignNode protoRequest;
+            ToProto(protoRequest.mutable_source_node_id(), request.Source->GetId());
+            if (request.Source->GetTransaction()) {
+                ToProto(protoRequest.mutable_source_transaction_id(), request.Source->GetTransaction()->GetId());
+            }
+            ToProto(protoRequest.mutable_cloned_node_id(), request.ClonedTrunk->GetId());
+            if (request.ClonedTrunk->GetTransaction()) {
+                ToProto(protoRequest.mutable_cloned_transaction_id(), request.ClonedTrunk->GetTransaction()->GetId());
+            }
+            protoRequest.set_mode(static_cast<int>(request.Mode));
+            ToProto(protoRequest.mutable_account_id(), request.ClonedTrunk->GetAccount()->GetId());
+            multicellManager->PostToSecondaryMaster(protoRequest, request.Source->GetExternalCellTag());
+        }
     }
 
 private:
@@ -316,6 +334,14 @@ private:
     const bool PreserveAccount_;
 
     std::vector<TCypressNodeBase*> CreatedNodes_;
+
+    struct TCloneRequest
+    {
+        TCypressNodeBase* Source;
+        TCypressNodeBase* ClonedTrunk;
+        ENodeCloneMode Mode;
+    };
+    std::vector<TCloneRequest> CloneRequests_;
 
 
     void ValidateCreatedNodeType(EObjectType type)
@@ -332,6 +358,23 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(node);
         CreatedNodes_.push_back(node);
+    }
+
+    void RegisterClonedNode(
+        TCypressNodeBase* sourceNode,
+        TCypressNodeBase* clonedNode,
+        ENodeCloneMode mode)
+    {
+        // NB: No need to call RegisterCreatedNode since
+        // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
+        // which calls RegisterCreatedNode.
+        if (sourceNode->IsExternal()) {
+            CloneRequests_.push_back(TCloneRequest{
+                sourceNode,
+                clonedNode,
+                mode
+            });
+        }
     }
 
 };
@@ -571,6 +614,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraUpdateAccessStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraCloneForeignNode, Unretained(this)));
     }
 
     void Initialize()
@@ -675,12 +719,13 @@ public:
     }
 
 
-    TCypressNodeBase* CreateNode(const TNodeId& id)
+    TCypressNodeBase* InstantiateNode(
+        const TNodeId& id,
+        TCellTag externalCellTag)
     {
         auto type = TypeFromId(id);
         auto handler = GetHandler(type);
-
-        auto nodeHolder = handler->Instantiate(TVersionedNodeId(id));
+        auto nodeHolder = handler->Instantiate(TVersionedNodeId(id), externalCellTag);
         return RegisterNode(std::move(nodeHolder));
     }
 
@@ -697,18 +742,11 @@ public:
         auto* account = factory->GetClonedNodeAccount(sourceNode);
         securityManager->ValidatePermission(account, EPermission::Use);
 
-        auto handler = GetHandler(sourceNode);
-        auto* clonedNode = handler->Clone(sourceNode, factory, mode);
-
-        // Set account.
-        securityManager->SetAccount(clonedNode, account);
-
-        // Set owner.
-        auto* user = securityManager->GetAuthenticatedUser();
-        auto* acd = securityManager->GetAcd(clonedNode);
-        acd->SetOwner(user);
-
-        return clonedNode;
+        return DoCloneNode(
+            sourceNode,
+            factory,
+            NullObjectId,
+            mode);
     }
 
 
@@ -790,7 +828,7 @@ public:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction,
         const TLockRequest& request,
-        bool recursive)
+        bool recursive = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(trunkNode->IsTrunk());
@@ -1901,6 +1939,33 @@ private:
     }
 
 
+    TCypressNodeBase* DoCloneNode(
+        TCypressNodeBase* sourceNode,
+        ICypressNodeFactoryPtr factory,
+        const TNodeId& hintId,
+        ENodeCloneMode mode)
+    {
+        auto handler = GetHandler(sourceNode);
+        auto* clonedNode = handler->Clone(
+            sourceNode,
+            factory,
+            hintId,
+            mode);
+
+        // Set account.
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = factory->GetClonedNodeAccount(sourceNode);
+        securityManager->SetAccount(clonedNode, account);
+
+        // Set owner.
+        auto* user = securityManager->GetAuthenticatedUser();
+        auto* acd = securityManager->GetAcd(clonedNode);
+        acd->SetOwner(user);
+
+        return clonedNode;
+    }
+
+
     void HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)
     {
         for (const auto& update : request.updates()) {
@@ -1921,6 +1986,45 @@ private:
         }
     }
 
+    void HydraCloneForeignNode(const NProto::TReqCloneForeignNode& request) throw()
+    {
+        auto sourceNodeId = FromProto<TNodeId>(request.source_node_id());
+        auto sourceTransactionId = request.has_source_transaction_id()
+            ? FromProto<TTransactionId>(request.source_transaction_id())
+            : NullTransactionId;
+        auto clonedNodeId = FromProto<TNodeId>(request.cloned_node_id());
+        auto clonedTransactionId = request.has_cloned_transaction_id()
+            ? FromProto<TNodeId>(request.cloned_transaction_id())
+            : NullTransactionId;
+        auto mode = ENodeCloneMode(request.mode());
+        auto accountId = FromProto<TAccountId>(request.account_id());
+
+        auto* sourceNode = GetNode(TVersionedObjectId(sourceNodeId, sourceTransactionId));
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = securityManager->GetAccount(accountId);
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = clonedTransactionId == NullTransactionId
+            ? nullptr
+            : transactionManager->GetTransaction(clonedTransactionId);
+
+        auto factory = CreateNodeFactory(transaction, account, false);
+
+        auto* clonedTrunkNode = DoCloneNode(
+            sourceNode,
+            factory,
+            clonedNodeId,
+            mode);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(clonedTrunkNode);
+
+        LockNode(clonedTrunkNode, transaction, ELockMode::Exclusive);
+
+        factory->Commit();
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNodeBase, TVersionedNodeId, NodeMap_);
@@ -1936,7 +2040,8 @@ auto TCypressManager::TImpl::TNodeMapTraits::Create(const TVersionedNodeId& id) 
 {
     auto type = TypeFromId(id.ObjectId);
     auto handler = Owner_->GetHandler(type);
-    return handler->Instantiate(id);
+    // This cell tag is fake and will be overwritten on load.
+    return handler->Instantiate(id, InvalidCellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2027,9 +2132,11 @@ TCypressNodeBase* TCypressManager::CreateNode(
         response);
 }
 
-TCypressNodeBase* TCypressManager::CreateNode(const TNodeId& id)
+TCypressNodeBase* TCypressManager::InstantiateNode(
+    const TNodeId& id,
+    TCellTag externalCellTag)
 {
-    return Impl_->CreateNode(id);
+    return Impl_->InstantiateNode(id, externalCellTag);
 }
 
 TCypressNodeBase* TCypressManager::CloneNode(

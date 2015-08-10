@@ -123,12 +123,17 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     originatingNode->SetRevision(mutationContext->GetVersion().ToRevision());
 }
 
-TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(ICypressNodeFactoryPtr factory)
+TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
+    ICypressNodeFactoryPtr factory,
+    const TNodeId& hintId,
+    TCellTag externalCellTag)
 {
     auto type = GetObjectType();
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto clonedId = objectManager->GenerateId(type, NullObjectId);
-    return factory->CreateNode(clonedId);
+    auto clonedId = hintId == NullObjectId
+        ? objectManager->GenerateId(type, NullObjectId)
+        : hintId;
+    return factory->InstantiateNode(clonedId, externalCellTag);
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(

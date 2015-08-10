@@ -56,7 +56,10 @@ protected:
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode);
 
-    TCypressNodeBase* CloneCorePrologue(ICypressNodeFactoryPtr factory);
+    TCypressNodeBase* CloneCorePrologue(
+        ICypressNodeFactoryPtr factory,
+        const TNodeId& hintId,
+        NObjectClient::TCellTag externalCellTag);
 
     void CloneCoreEpilogue(
         TCypressNodeBase* sourceNode,
@@ -83,10 +86,13 @@ public:
         return DoGetProxy(static_cast<TImpl*>(trunkNode), transaction);
     }
 
-    virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
+    virtual std::unique_ptr<TCypressNodeBase> Instantiate(
+        const TVersionedNodeId& id,
+        NObjectClient::TCellTag externalCellTag) override
     {
         std::unique_ptr<TCypressNodeBase> nodeHolder(new TImpl(id));
         nodeHolder->SetTrunkNode(nodeHolder.get());
+        nodeHolder->SetExternalCellTag(externalCellTag);
         return nodeHolder;
     }
 
@@ -165,10 +171,14 @@ public:
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory,
+        const TNodeId& hintId,
         ENodeCloneMode mode) override
     {
         // Run core prologue stuff.
-        auto* clonedNode = CloneCorePrologue(factory);
+        auto* clonedNode = CloneCorePrologue(
+            factory,
+            hintId,
+            sourceNode->GetExternalCellTag());
 
         // Run custom stuff.
         DoClone(

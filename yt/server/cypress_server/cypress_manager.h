@@ -58,7 +58,9 @@ public:
         TRspCreate* response);
 
     //! Creates a new node and registers it.
-    TCypressNodeBase* CreateNode(const TNodeId& id);
+    TCypressNodeBase* InstantiateNode(
+        const TNodeId& id,
+        NObjectClient::TCellTag externalCellTag);
 
     //! Clones a node and registers its clone.
     TCypressNodeBase* CloneNode(
