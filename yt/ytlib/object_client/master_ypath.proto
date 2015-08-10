@@ -30,7 +30,6 @@ message TReqCreateObject
     required int32 type = 2;
     optional NYT.NYTree.NProto.TAttributes object_attributes = 3;
     optional string account = 4;
-    optional NYT.NProto.TGuid object_id = 5;
 
     extensions 100 to max;
 }

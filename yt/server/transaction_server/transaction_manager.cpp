@@ -266,14 +266,11 @@ private:
 
     virtual void DoPopulateObjectReplicationRequest(
         const TTransaction* transaction,
-        TMasterYPathProxy::TReqCreateObjectPtr request) override
+        NObjectServer::NProto::TReqCreateForeignObject* request) override
     {
         if (transaction->GetParent()) {
             ToProto(request->mutable_transaction_id(), transaction->GetParent()->GetId());
         }
-
-        // NB: We could also provide TReqStartTransactionExt but
-        // it's just redundant.
     }
 };
 
