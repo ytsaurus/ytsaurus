@@ -1513,7 +1513,7 @@ static NLogging::TLogger Logger("MAGIC");
 void Magic(const TStringBuf& what, TUnversionedRow row)
 {
     if (!row) {
-        LOG_DEBUG("%v null");
+        LOG_DEBUG("%v null", what);
     } else if (
         row.GetCount() >= 12 &&
         row[1].Data.Int64 % 5 == 3)

@@ -353,7 +353,7 @@ static NLogging::TLogger Logger("MAGIC");
 void Magic(const TStringBuf& what, TVersionedRow row)
 {
     if (!row) {
-        LOG_DEBUG("%v null");
+        return;
     }
     auto key = row.BeginKeys();
     auto keyCount = row.GetKeyCount();
