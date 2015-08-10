@@ -287,7 +287,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=False, message_queue=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
