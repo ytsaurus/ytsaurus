@@ -35,7 +35,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     def setup(self):
         set("//sys/clusters/remote",
             {
-                "master": self.Env.configs["master-remote"][0]["master"],
+                "primary_master": self.Env.configs["master-remote"][0]["primary_master"],
+                "secondary_masters": self.Env.configs["master-remote"][0]["secondary_masters"],
                 "timestamp_provider": self.Env.configs["master-remote"][0]["timestamp_provider"],
                 "transaction_manager": self.Env.configs["master-remote"][0]["transaction_manager"],
                 "cell_tag": 10
