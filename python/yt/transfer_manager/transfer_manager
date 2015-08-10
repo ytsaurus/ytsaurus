@@ -808,6 +808,8 @@ class Application(object):
             time.sleep(self._sleep_step)
 
     def _execute_task(self, task, message_queue):
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
         prctl.set_pdeathsig(signal.SIGINT)
         logger.LOGGER = TaskIdLogger(task.id)
 
@@ -1061,10 +1063,16 @@ class Application(object):
                 process, _ = self._task_processes[id]
                 process.aborted = True
 
-                os.kill(process.pid, signal.SIGINT)
+                try:
+                    os.kill(process.pid, signal.SIGINT)
+                except OSError:
+                    pass
                 time.sleep(0.5)
                 if process.is_alive():
-                    process.terminate()
+                    try:
+                        os.kill(process.pid, signal.SIGTERM)
+                    except OSError:
+                        pass
 
             if id in self._pending_tasks:
                 self._pending_tasks_per_user[self._tasks[id].user] -= 1
