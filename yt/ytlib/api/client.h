@@ -344,6 +344,7 @@ struct TJournalWriterOptions
 struct TTableReaderOptions
     : public TTransactionalOptions
 {
+    bool Unordered = false;
     NTableClient::TTableReaderConfigPtr Config;
     NChunkClient::TRemoteReaderOptionsPtr RemoteReaderOptions;
 };

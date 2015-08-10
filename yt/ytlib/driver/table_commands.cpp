@@ -57,6 +57,7 @@ void TReadTableCommand::DoExecute()
     options.TransactionId = Request_->TransactionId;
     options.Ping = true;
     options.PingAncestors = Request_->PingAncestors;
+    options.Unordered = Request_->Unordered;
 
     auto reader = Context_->GetClient()->CreateTableReader(
         Request_->Path,
