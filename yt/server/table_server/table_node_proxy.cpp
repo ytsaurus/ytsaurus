@@ -140,7 +140,7 @@ private:
             return true;
         }
 
-        if (key == "key_columns") {
+        if (key == "key_columns" && !isExternal) {
             BuildYsonFluently(consumer)
                 .Value(table->KeyColumns());
             return true;

@@ -964,9 +964,8 @@ void TSupportsAttributes::RemoveAttribute(
 {
     context->SetRequestInfo();
 
-    DoRemoveAttribute(path);
-
-    context->Reply();
+    auto result = DoRemoveAttribute(path);
+    context->ReplyFrom(result);
 }
 
 void TSupportsAttributes::ValidateCustomAttributeUpdate(
