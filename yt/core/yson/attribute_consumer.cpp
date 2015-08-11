@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "attribute_consumer.h"
+#include "writer.h"
 
 namespace NYT {
 namespace NYson {
@@ -218,8 +219,28 @@ void TAttributeValueConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
 
 void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
 {
-    ProduceKeyIfNeeded();
-    UnderlyingConsumer_->OnRaw(std::move(asyncStr));
+    if (Empty_) {
+        auto key = Key_;
+        UnderlyingConsumer_->OnRaw(asyncStr.Apply(BIND([key] (const TYsonString& str) {
+            switch (str.GetType()) {
+                case EYsonType::None:
+                    return TYsonString();
+
+                case EYsonType::Node: {
+                    TStringStream stream;
+                    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::MapFragment, true);
+                    writer.OnKeyedItem(key);
+                    writer.OnRaw(str);
+                    return TYsonString(stream.Str(), EYsonType::MapFragment);
+                }
+
+                default:
+                    YUNREACHABLE();
+            }
+        })));
+    } else {
+        UnderlyingConsumer_->OnRaw(std::move(asyncStr));
+    }
 }
 
 void TAttributeValueConsumer::ProduceKeyIfNeeded()

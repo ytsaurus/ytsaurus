@@ -30,6 +30,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto NoneYsonFuture = MakeFuture(TYsonString());
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYPathService::TResolveResult TYPathServiceBase::Resolve(
     const TYPath& path,
     IServiceContextPtr context)
@@ -323,8 +327,14 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(const Stroka& key)
     return Null;
 }
 
-TYsonString TSupportsAttributes::DoGetAttributeFragment(const TYPath& path, const TYsonString& wholeYson)
+TYsonString TSupportsAttributes::DoGetAttributeFragment(
+    const Stroka& key,
+    const TYPath& path,
+    const TYsonString& wholeYson)
 {
+    if (wholeYson.GetType() == EYsonType::None) {
+        ThrowNoSuchAttribute(key);
+    }
     auto node = ConvertToNode<TYsonString>(wholeYson);
     return SyncYPathGet(node, path, TAttributeFilter::All);
 }
@@ -386,18 +396,14 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
 
         auto asyncYson = DoFindAttribute(key);
         if (!asyncYson) {
-            return MakeFuture<TYsonString>(TError(
-                NYTree::EErrorCode::ResolveError,
-                "Attribute %Qv is not found",
-                ToYPathLiteral(key)));
+            asyncYson = NoneYsonFuture;
         }
 
-        if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            return asyncYson;
-        }
-
-        auto suffixPath = tokenizer.GetInput();
-        return asyncYson.Apply(BIND(&TSupportsAttributes::DoGetAttributeFragment, suffixPath));
+        tokenizer.Advance();
+        return asyncYson.Apply(BIND(
+            &TSupportsAttributes::DoGetAttributeFragment,
+            key,
+            tokenizer.GetInput()));
    }
 }
 
@@ -417,8 +423,15 @@ void TSupportsAttributes::GetAttribute(
     }));
 }
 
-TYsonString TSupportsAttributes::DoListAttributeFragment(const TYPath& path, const TYsonString& wholeYson)
+TYsonString TSupportsAttributes::DoListAttributeFragment(
+    const Stroka& key,
+    const TYPath& path,
+    const TYsonString& wholeYson)
 {
+    if (wholeYson.GetType() == EYsonType::None) {
+        ThrowNoSuchAttribute(key);
+    }
+
     auto node = ConvertToNode(wholeYson);
     auto listedKeys = SyncYPathList(node, path);
 
@@ -498,14 +511,14 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
 
         auto asyncYson = DoFindAttribute(key);
         if (!asyncYson) {
-            return MakeFuture(TErrorOr<TYsonString>(TError(
-                NYTree::EErrorCode::ResolveError,
-                "Attribute %Qv is not found",
-                ToYPathLiteral(key))));
+            asyncYson = NoneYsonFuture;
         }
 
-        auto pathSuffix = tokenizer.GetSuffix();
-        return asyncYson.Apply(BIND(&TSupportsAttributes::DoListAttributeFragment, pathSuffix));
+        tokenizer.Advance();
+        return asyncYson.Apply(BIND(
+            &TSupportsAttributes::DoListAttributeFragment,
+            key,
+            tokenizer.GetInput()));
     }
 }
 
@@ -526,13 +539,18 @@ void TSupportsAttributes::ListAttribute(
 }
 
 bool TSupportsAttributes::DoExistsAttributeFragment(
+    const Stroka& key,
     const TYPath& path,
     const TErrorOr<TYsonString>& wholeYsonOrError)
 {
     if (!wholeYsonOrError.IsOK()) {
         return false;
     }
-    auto node = ConvertToNode<TYsonString>(wholeYsonOrError.Value());
+    const auto& wholeYson = wholeYsonOrError.Value();
+    if (wholeYson.GetType() == EYsonType::None) {
+        return false;
+    }
+    auto node = ConvertToNode<TYsonString>(wholeYson);
     try {
         return SyncYPathExists(node, path);
     } catch (const std::exception&) {
@@ -585,8 +603,10 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
             return FalseFuture;
         }
 
-        auto pathSuffix = tokenizer.GetInput();
-        return asyncYson.Apply(BIND(&TSupportsAttributes::DoExistsAttributeFragment, pathSuffix));
+        return asyncYson.Apply(BIND(
+            &TSupportsAttributes::DoExistsAttributeFragment,
+            key,
+            tokenizer.GetInput()));
     }
 }
 
