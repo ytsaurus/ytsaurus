@@ -174,6 +174,11 @@ bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& /*key*/, const TYsonStri
     return false;
 }
 
+TFuture<void> TVirtualMapBase::SetBuiltinAttributeAsync(const Stroka& /*key*/, const TYsonString& /*value*/)
+{
+    return Null;
+}
+
 bool TVirtualMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
 {
     return false;

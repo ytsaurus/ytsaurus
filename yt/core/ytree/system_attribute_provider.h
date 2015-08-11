@@ -87,9 +87,6 @@ struct ISystemAttributeProvider
      */
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) = 0;
 
-    //! Populates the list of all builtin attributes supported by this object.
-    void ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors);
-
     //! Gets the value of a builtin attribute.
     /*!
      *  \returns |false| if there is no builtin attribute with the given key.
@@ -108,14 +105,26 @@ struct ISystemAttributeProvider
      */
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) = 0;
 
-    //! Removes value of a builtin attribute.
+    //! Asynchronously sets the value of a builtin attribute.
     /*!
-     *  \returns |false| if there is no removalbe builtin attribute with the given key.
+     *  \returns A future representing the outcome of the operation or |Null| if no such asynchronous attribute is known.
+     */
+    virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) = 0;
+
+    //! Removes the builtin attribute.
+    /*!
+     *  \returns |false| if there is no removable builtin attribute with the given key.
      */
     virtual bool RemoveBuiltinAttribute(const Stroka& key) = 0;
 
 
     // Extension methods.
+
+    //! Similar to its interface counterpart, but populates a map rather than a vector.
+    void ListSystemAttributes(std::map<Stroka, TAttributeDescriptor>* descriptors);
+
+    //! Populates the list of all builtin attributes supported by this object.
+    void ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors);
 
     //! Returns an instance of TAttributeDescriptor matching a given #key or |Null| if no such
     //! builtin attribute is known.

@@ -705,6 +705,11 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
     return false;
 }
 
+TFuture<void> TObjectProxyBase::SetBuiltinAttributeAsync(const Stroka& /*key*/, const TYsonString& /*value*/)
+{
+    return Null;
+}
+
 bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
 {
     return false;
