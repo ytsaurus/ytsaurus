@@ -588,11 +588,11 @@ test_many_to_many_copy_move()
 }
 
 prepare_table_files
-test_sortby_reduceby
 test_base_functionality
 test_list
 test_codec
 test_many_output_tables
+test_sortby_reduceby
 test_chunksize
 test_mapreduce
 test_input_output_format
