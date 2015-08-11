@@ -50,26 +50,28 @@ public:
     using IYsonConsumer::OnRaw;
     virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
+    bool IsNodeExpected() const;
+
 protected:
-    TOutputStream* Stream;
-    EYsonFormat Format;
-    EYsonType Type;
-    bool EnableRaw;
-
-    int Depth;
-    bool BeforeFirstItem;
-
-    bool BooleanAsString;
+    TOutputStream* const Stream;
+    const EYsonFormat Format;
+    const EYsonType Type;
+    const bool EnableRaw;
+    const bool BooleanAsString;
     const int IndentSize;
+
+    int Depth = 0;
+    bool EmptyCollection = true;
+    bool NodeExpected;
+
 
     void WriteIndent();
     void WriteStringScalar(const TStringBuf& value);
 
     void BeginCollection(ETokenType beginToken);
-    void CollectionItem(ETokenType separatorToken);
+    void CollectionItem();
     void EndCollection(ETokenType endToken);
 
-    bool IsTopLevelFragmentContext() const;
     void EndNode();
 
 };

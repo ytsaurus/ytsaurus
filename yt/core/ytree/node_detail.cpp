@@ -53,7 +53,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
+    TAsyncYsonWriter writer;
 
     VisitTree(
         this,
@@ -244,7 +244,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 
     i64 limit = request->limit();
 
-    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
+    TAsyncYsonWriter writer;
 
     auto children = GetChildren();
     if (children.size() > limit) {

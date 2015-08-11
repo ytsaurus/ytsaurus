@@ -338,18 +338,18 @@ void TObjectProxyBase::WriteAttributesFragment(
             for (const auto& key : keys) {
                 TAttributeValueConsumer attributeValueConsumer(consumer, key);
 
+                auto value = customAttributes.FindYson(key);
+                if (value) {
+                    attributeValueConsumer.OnRaw(*value);
+                    continue;
+                }
+
                 if (GetBuiltinAttribute(key, &attributeValueConsumer))
                     continue;
 
                 auto asyncValue = GetBuiltinAttributeAsync(key);
                 if (asyncValue) {
                     attributeValueConsumer.OnRaw(std::move(asyncValue));
-                    continue;
-                }
-
-                auto value = customAttributes.FindYson(key);
-                if (value) {
-                    attributeValueConsumer.OnRaw(*value);
                     continue; // just for the symmetry
                 }
             }
