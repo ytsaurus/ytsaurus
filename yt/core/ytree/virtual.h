@@ -35,6 +35,7 @@ protected:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+    TFuture<bool> CheckBuiltinAttributeExistsAsync(const Stroka& key) override;
 
 private:
     const INodePtr OwningNode_;

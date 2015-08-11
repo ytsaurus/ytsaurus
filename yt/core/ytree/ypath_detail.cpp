@@ -7,6 +7,7 @@
 #include <core/ytree/node.h>
 #include <core/ytree/attribute_helpers.h>
 #include <core/ytree/system_attribute_provider.h>
+#include <core/ytree/fluent.h>
 
 #include <core/yson/async_writer.h>
 #include <core/yson/attribute_consumer.h>
@@ -25,6 +26,7 @@ using namespace NRpc;
 using namespace NYPath;
 using namespace NRpc::NProto;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -344,13 +346,14 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
             std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
             builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
             for (const auto& descriptor : builtinDescriptors) {
-                if (!descriptor.Present)
+                if (descriptor.Present == EAttributePresenceMode::False)
                     continue;
 
                 auto key = Stroka(descriptor.Key);
                 TAttributeValueConsumer attributeValueConsumer(&writer, key);
 
                 if (descriptor.Opaque) {
+                    // TODO(babenko): Opaque && Present == Async is not currently supported
                     attributeValueConsumer.OnEntity();
                     continue;
                 }
@@ -438,8 +441,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        TStringStream stream;
-        TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+        TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
         writer.OnBeginList();
 
         auto* customAttributes = GetCustomAttributes();
@@ -456,17 +458,40 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
             std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
             builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
             for (const auto& descriptor : builtinDescriptors) {
-                if (descriptor.Present) {
-                    writer.OnListItem();
-                    writer.OnStringScalar(descriptor.Key);
+                switch (descriptor.Present) {
+                    case EAttributePresenceMode::True:
+                        writer.OnListItem();
+                        writer.OnStringScalar(descriptor.Key);
+                        break;
+
+                    case EAttributePresenceMode::False:
+                        break;
+
+                    case EAttributePresenceMode::Async: {
+                        auto key = Stroka(descriptor.Key);
+                        auto asyncResult = builtinAttributeProvider->CheckBuiltinAttributeExistsAsync(key);
+                        if (asyncResult) {
+                            writer.OnRaw(asyncResult.Apply(BIND([=] (bool value) {
+                                TStringStream stream;
+                                TYsonWriter writer(&stream);
+                                if (value) {
+                                    writer.OnListItem();
+                                    writer.OnStringScalar(key);
+                                }
+                                return TYsonString(stream.Str(), EYsonType::ListFragment);
+                            })));
+                        }
+                        break;
+                    }
+                    default:
+                        YUNREACHABLE();
                 }
             }
         }
 
         writer.OnEndList();
 
-        TYsonString yson(stream.Str());
-        return MakeFuture(TErrorOr<TYsonString>(yson));
+        return writer.Finish();
     } else  {
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
@@ -535,11 +560,20 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
 
         auto* builtinAttributeProvider = GetBuiltinAttributeProvider();
         if (builtinAttributeProvider) {
-            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
-            builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
-            for (const auto& descriptor : builtinDescriptors) {
-                if (descriptor.Key == key && descriptor.Present) {
-                    return TrueFuture;
+            auto maybeDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
+            if (maybeDescriptor) {
+                const auto& descriptor = *maybeDescriptor;
+                switch (descriptor.Present) {
+                    case EAttributePresenceMode::True:
+                        return TrueFuture;
+                    case EAttributePresenceMode::False:
+                        return FalseFuture;
+                    case EAttributePresenceMode::Async: {
+                        auto asyncResult = builtinAttributeProvider->CheckBuiltinAttributeExistsAsync(key);
+                        return  asyncResult ? asyncResult : FalseFuture;
+                    }
+                    default:
+                        YUNREACHABLE();
                 }
             }
         }
