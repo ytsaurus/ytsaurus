@@ -14,7 +14,7 @@ set( SRCS
   ${BASE}/producer.cpp
   ${BASE}/forwarding_consumer.cpp
   ${BASE}/null_consumer.cpp
-  ${BASE}/attribute_fragment_consumer.cpp
+  ${BASE}/attribute_consumer.cpp
 )
 set( HDRS
   ${BASE}/consumer.h
@@ -36,7 +36,7 @@ set( HDRS
   ${BASE}/forwarding_consumer.h
   ${BASE}/null_consumer.h
   ${BASE}/async_consumer.h
-  ${BASE}/attribute_fragment_consumer.h
+  ${BASE}/attribute_consumer.h
 )
 
 list(APPEND YT_SOURCE_FILES
