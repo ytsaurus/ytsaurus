@@ -53,16 +53,16 @@ public:
     bool IsNodeExpected() const;
 
 protected:
-    TOutputStream* const Stream;
-    const EYsonFormat Format;
-    const EYsonType Type;
-    const bool EnableRaw;
-    const bool BooleanAsString;
-    const int IndentSize;
+    TOutputStream* const Stream_;
+    const EYsonFormat Format_;
+    const EYsonType Type_;
+    const bool EnableRaw_;
+    const bool BooleanAsString_;
+    const int IndentSize_;
 
-    int Depth = 0;
-    bool EmptyCollection = true;
-    bool NodeExpected;
+    int Depth_ = 0;
+    bool EmptyCollection_ = true;
+    bool NodeExpected_;
 
 
     void WriteIndent();
