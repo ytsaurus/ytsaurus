@@ -91,11 +91,16 @@ private:
         descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
             .SetPresent(isDynamic)
             .SetExternal(isDynamic && isExternal));
-        descriptors->push_back("sorted");
+        descriptors->push_back(TAttributeDescriptor("sorted")
+            .SetExternal(isExternal));
         descriptors->push_back(TAttributeDescriptor("key_columns")
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetExternal(isExternal));
         descriptors->push_back(TAttributeDescriptor("sorted_by")
-            .SetPresent(table->GetSorted()));
+            .SetPresent(isExternal
+                ? EAttributePresenceMode::Async
+                : (table->GetSorted() ? EAttributePresenceMode::True : EAttributePresenceMode::False))
+            .SetExternal(isExternal));
         descriptors->push_back("dynamic");
         descriptors->push_back(TAttributeDescriptor("tablets")
             .SetPresent(isDynamic)
@@ -129,7 +134,7 @@ private:
             return true;
         }
 
-        if (key == "sorted") {
+        if (key == "sorted" && !isExternal) {
             BuildYsonFluently(consumer)
                 .Value(table->GetSorted());
             return true;
@@ -141,7 +146,7 @@ private:
             return true;
         }
 
-        if (key == "sorted_by" && table->GetSorted()) {
+        if (key == "sorted_by" && !isExternal && table->GetSorted()) {
             BuildYsonFluently(consumer)
                 .Value(table->KeyColumns());
             return true;
@@ -178,15 +183,18 @@ private:
 
     bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        if (key == "key_columns") {
+        const auto* table = GetThisImpl();
+        bool isExternal = table->IsExternal();
+
+        if (key == "key_columns" && !isExternal) {
             auto keyColumns = ConvertTo<TKeyColumns>(value);
 
             ValidateNoTransaction();
 
-            auto* table = LockThisTypedImpl();
-            auto* chunkList = table->GetChunkList();
-            if (table->IsDynamic()) {
-                if (table->HasMountedTablets()) {
+            auto* lockedTable = LockThisTypedImpl();
+            auto* chunkList = lockedTable->GetChunkList();
+            if (lockedTable->IsDynamic()) {
+                if (lockedTable->HasMountedTablets()) {
                     THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
                 }
             } else {
@@ -195,11 +203,11 @@ private:
                 }
             }
 
-            ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
+            ValidateKeyColumnsUpdate(lockedTable->KeyColumns(), keyColumns);
 
-            table->KeyColumns() = keyColumns;
-            if (!table->IsDynamic() && !keyColumns.empty()) {
-                table->SetSorted(true);
+            lockedTable->KeyColumns() = keyColumns;
+            if (!lockedTable->IsDynamic() && !keyColumns.empty()) {
+                lockedTable->SetSorted(true);
             }
             return true;
         }
