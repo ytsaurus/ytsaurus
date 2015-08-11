@@ -10,14 +10,25 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNullable<TYsonString> ISystemAttributeProvider::GetBuiltinAttribute(const Stroka& key)
+void ISystemAttributeProvider::ListSystemAttributes(std::map<Stroka, TAttributeDescriptor>* descriptors)
 {
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
-    if (!GetBuiltinAttribute(key, &writer)) {
-        return Null;
+    std::vector<TAttributeDescriptor> list;
+    ListSystemAttributes(&list);
+    for (const auto& descriptor : list) {
+        YCHECK(descriptors->insert(std::make_pair(Stroka(descriptor.Key), descriptor)).second);
     }
-    return TYsonString(stream.Str());
+}
+
+void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors)
+{
+    std::vector<TAttributeDescriptor> systemAttributes;
+    ListSystemAttributes(&systemAttributes);
+
+    for (const auto& attribute : systemAttributes) {
+        if (!attribute.Custom) {
+            (*descriptors).push_back(attribute);
+        }
+    }
 }
 
 TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvider::FindBuiltinAttributeDescriptor(
@@ -34,16 +45,14 @@ TNullable<ISystemAttributeProvider::TAttributeDescriptor> ISystemAttributeProvid
     return it == builtinAttributes.end() ? Null : MakeNullable(*it);
 }
 
-void ISystemAttributeProvider::ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors)
+TNullable<TYsonString> ISystemAttributeProvider::GetBuiltinAttribute(const Stroka& key)
 {
-    std::vector<TAttributeDescriptor> systemAttributes;
-    ListSystemAttributes(&systemAttributes);
-
-    for (const auto& attribute : systemAttributes) {
-        if (!attribute.Custom) {
-            (*descriptors).push_back(attribute);
-        }
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node, true);
+    if (!GetBuiltinAttribute(key, &writer)) {
+        return Null;
     }
+    return TYsonString(stream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

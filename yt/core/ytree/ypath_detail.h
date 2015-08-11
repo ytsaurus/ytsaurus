@@ -247,12 +247,12 @@ private:
     static NYson::TYsonString DoListAttributeFragment(const TYPath& path, const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoListAttribute(const TYPath& path);
 
-    void DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);
+    TFuture<void> DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);
 
-    void DoRemoveAttribute(const TYPath& path);
+    TFuture<void> DoRemoveAttribute(const TYPath& path);
 
-    void GuardedSetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value);
-    void GuardedRemoveBuiltinAttribute(const Stroka& key);
+    TFuture<void> GuardedSetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value);
+    TFuture<void> GuardedRemoveBuiltinAttribute(const Stroka& key);
 
 };
 
