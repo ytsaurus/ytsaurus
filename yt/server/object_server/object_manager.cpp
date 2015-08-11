@@ -1354,10 +1354,13 @@ std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttri
     std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
     proxy->ListBuiltinAttributes(&descriptors);
     for (const auto& descriptor : descriptors) {
-        if (descriptor.Present && descriptor.Replicated) {
-            auto key = Stroka(descriptor.Key);
-            auto value = *proxy->GetBuiltinAttribute(key);
-            replicateKey(key, value);
+        if (!descriptor.Replicated)
+            continue;
+
+        auto key = Stroka(descriptor.Key);
+        auto maybeValue = *proxy->GetBuiltinAttribute(key);
+        if (maybeValue) {
+            replicateKey(key, *maybeValue);
         }
     }
 
