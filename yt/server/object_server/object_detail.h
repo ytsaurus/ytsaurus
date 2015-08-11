@@ -95,6 +95,7 @@ protected:
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
     virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+    virtual TFuture<bool> CheckBuiltinAttributeExistsAsync(const Stroka& key);
 
     void DeclareMutating();
     void DeclareNonMutating();
