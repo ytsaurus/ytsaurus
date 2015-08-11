@@ -348,6 +348,6 @@ def remove_with_empty_dirs(path, force=True, client=None):
             else:
                 raise
         path = os.path.dirname(path)
-        if path == "//" or not exists(path) or list(path) or get(path + "/@acl"):
+        if path == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
             break
 
