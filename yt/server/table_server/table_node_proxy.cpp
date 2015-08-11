@@ -434,7 +434,7 @@ private:
         context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, PivotKeyCount: %v",
             firstTabletIndex,
             lastTabletIndex,
-            static_cast<int>(pivotKeys.size()));
+            pivotKeys.size());
 
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
