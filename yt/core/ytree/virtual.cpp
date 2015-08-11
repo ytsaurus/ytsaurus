@@ -69,7 +69,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     auto keys = GetKeys(limit);
     i64 size = GetSize();
 
-    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
+    TAsyncYsonWriter writer;
 
     writer.OnBeginAttributes();
     if (keys.size() != size) {
@@ -113,7 +113,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     auto keys = GetKeys(limit);
     i64 size = GetSize();
 
-    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
+    TAsyncYsonWriter writer;
 
     if (keys.size() != size) {
         writer.OnBeginAttributes();

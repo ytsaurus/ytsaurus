@@ -374,7 +374,7 @@ void TVirtualMulticellMapBase::FetchItemsFromLocal(
             TFetchItem item;
             item.Key = ToString(key);
             if (session->AttributeFilter.Mode != EAttributeFilterMode::None) {
-                TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::MapFragment, true);
+                TAsyncYsonWriter writer(EYsonType::MapFragment);
                 auto proxy = objectManager->GetProxy(object, nullptr);
                 proxy->WriteAttributesFragment(&writer, session->AttributeFilter, false);
                 asyncAttributes.emplace_back(writer.Finish());
@@ -456,7 +456,7 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
 
 TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAttributeFilter& attributeFilter)
 {
-    TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::MapFragment, true);
+    TAsyncYsonWriter writer(EYsonType::MapFragment);
     if (OwningNode_) {
         OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
     }
@@ -483,7 +483,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             auto* protoItem = response->add_items();
             protoItem->set_key(ToString(key));
             if (attributeFilter.Mode != EAttributeFilterMode::None) {
-                TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::MapFragment, true);
+                TAsyncYsonWriter writer(EYsonType::MapFragment);
                 auto proxy = objectManager->GetProxy(object, nullptr);
                 proxy->WriteAttributesFragment(&writer, attributeFilter, false);
                 asyncValues.push_back(writer.Finish());

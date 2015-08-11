@@ -12,8 +12,6 @@ namespace NYT {
 namespace NYson {
 namespace {
 
-using namespace NYson;
-
 using ::testing::InSequence;
 using ::testing::StrictMock;
 
@@ -204,7 +202,7 @@ TEST_F(TYsonWriterTest, Escaping)
         "\\xEB\\xEC\\xED\\xEE\\xEF\\xF0\\xF1\\xF2\\xF3\\xF4\\xF5\\xF6"
         "\\xF7\\xF8\\xF9\\xFA\\xFB\\xFC\\xFD\\xFE\\xFF\"";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST_F(TYsonWriterTest, ConvertToYson)
@@ -236,7 +234,7 @@ TEST_F(TYsonWriterTest, ConvertToYson)
         "\\xEB\\xEC\\xED\\xEE\\xEF\\xF0\\xF1\\xF2\\xF3\\xF4\\xF5\\xF6"
         "\\xF7\\xF8\\xF9\\xFA\\xFB\\xFC\\xFD\\xFE\\xFF\"";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST_F(TYsonWriterTest, NoNewLinesInEmptyMap)
@@ -246,7 +244,7 @@ TEST_F(TYsonWriterTest, NoNewLinesInEmptyMap)
     writer.OnBeginMap();
     writer.OnEndMap();
 
-    EXPECT_EQ(outputStream.Str(), "{}\n");
+    EXPECT_EQ("{}", outputStream.Str());
 }
 
 TEST_F(TYsonWriterTest, NoNewLinesInEmptyList)
@@ -256,7 +254,36 @@ TEST_F(TYsonWriterTest, NoNewLinesInEmptyList)
     writer.OnBeginList();
     writer.OnEndList();
 
-    EXPECT_EQ(outputStream.Str(), "[]\n");
+    EXPECT_EQ("[]", outputStream.Str());
+}
+
+TEST_F(TYsonWriterTest, NestedAttributes)
+{
+
+    InSequence dummy;
+    EXPECT_CALL(Mock, OnBeginAttributes());
+        EXPECT_CALL(Mock, OnKeyedItem("a"));
+        EXPECT_CALL(Mock, OnBeginAttributes());
+            EXPECT_CALL(Mock, OnKeyedItem("b"));
+            EXPECT_CALL(Mock, OnStringScalar("c"));
+        EXPECT_CALL(Mock, OnEndAttributes());
+        EXPECT_CALL(Mock, OnInt64Scalar(2));
+    EXPECT_CALL(Mock, OnEndAttributes());
+    EXPECT_CALL(Mock, OnInt64Scalar(1));
+
+    TYsonWriter writer(&Stream, EYsonFormat::Binary);
+
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("a");
+        writer.OnBeginAttributes();
+            writer.OnKeyedItem("b");
+            writer.OnStringScalar("c");
+        writer.OnEndAttributes();
+        writer.OnInt64Scalar(2);
+    writer.OnEndAttributes();
+    writer.OnInt64Scalar(1);
+
+    Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,10 +310,10 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
 
     Stroka output =
         "200;\n"
-        "{\"key\"=42;\"yek\"=24;\"list\"=[]};\n"
+        "{\"key\"=42;\"yek\"=24;\"list\"=[];};\n"
         "\"aaa\";\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 
@@ -314,13 +341,13 @@ TEST(TYsonFragmentWriterTest, NewLinesInMap)
 
     Stroka output =
         "\"a\"=100;\n"
-        "\"b\"=[{\"key\"=42;\"yek\"=24};-1];\n"
+        "\"b\"=[{\"key\"=42;\"yek\"=24;};-1;];\n"
         "\"c\"=\"word\";\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TYsonFragmentWriter, NoFirstIndent)
+TEST(TYsonFragmentWriterTest, NoFirstIndent)
 {
     TStringStream outputStream;
 
@@ -335,15 +362,15 @@ TEST(TYsonFragmentWriter, NoFirstIndent)
 
     Stroka output =
         "\"a1\" = {\n"
-        "    \"key\" = 42\n"
+        "    \"key\" = 42;\n"
         "};\n"
         "\"a2\" = 0;\n";
 
-    EXPECT_EQ(outputStream.Str(), output);
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYTree
+} // namespace NYson
 } // namespace NYT

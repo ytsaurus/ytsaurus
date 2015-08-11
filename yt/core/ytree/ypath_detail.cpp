@@ -348,7 +348,7 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
+        TAsyncYsonWriter writer;
 
         writer.OnBeginMap();
 
@@ -454,7 +454,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        TAsyncYsonWriter writer(EYsonFormat::Binary, EYsonType::Node, true);
+        TAsyncYsonWriter writer;
         writer.OnBeginList();
 
         auto* customAttributes = GetCustomAttributes();
@@ -486,7 +486,7 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
                         if (asyncResult) {
                             writer.OnRaw(asyncResult.Apply(BIND([=] (bool value) {
                                 TStringStream stream;
-                                TYsonWriter writer(&stream);
+                                TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::ListFragment);
                                 if (value) {
                                     writer.OnListItem();
                                     writer.OnStringScalar(key);

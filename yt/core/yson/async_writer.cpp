@@ -6,19 +6,12 @@ namespace NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAsyncYsonWriter::TAsyncYsonWriter(
-    EYsonFormat format,
-    EYsonType type,
-    bool enableRaw,
-    bool booleanAsString,
-    int indent)
+TAsyncYsonWriter::TAsyncYsonWriter(EYsonType type)
     : SyncWriter_(
         &Stream_,
-        format,
+        EYsonFormat::Binary,
         type,
-        enableRaw,
-        booleanAsString,
-        indent)
+        true)
 { }
 
 void TAsyncYsonWriter::OnStringScalar(const TStringBuf& value)
@@ -99,11 +92,17 @@ void TAsyncYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 void TAsyncYsonWriter::OnRaw(TFuture<TYsonString> asyncStr)
 {
     FlushCurrentSegment();
+    if (SyncWriter_.IsNodeExpected()) {
+        // Fake.
+        SyncWriter_.OnEntity();
+        Stream_.Str().clear();
+    }
     AsyncSegments_.emplace_back(std::move(asyncStr));
 }
 
 TFuture<TYsonString> TAsyncYsonWriter::Finish()
 {
+    YASSERT(!SyncWriter_.IsNodeExpected());
     FlushCurrentSegment();
 
     return Combine(AsyncSegments_).Apply(BIND([] (const std::vector<TYsonString>& segments) {

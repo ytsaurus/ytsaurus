@@ -224,7 +224,7 @@ void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
         UnderlyingConsumer_->OnRaw(asyncStr.Apply(BIND([key] (const TYsonString& str) {
             switch (str.GetType()) {
                 case EYsonType::None:
-                    return TYsonString();
+                    return TYsonString(Stroka(), EYsonType::MapFragment);
 
                 case EYsonType::Node: {
                     TStringStream stream;
