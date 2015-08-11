@@ -63,11 +63,13 @@ def reshard(table, shards, yes=False):
     logging.info("You have 5 seconds to press Ctrl+C to abort...")
     time.sleep(5)
 
-    logging.info("Unmounting %s", table)
-    yt.unmount_table(table)
-    while not all(x["state"] == "unmounted" for x in yt.get(table + "/@tablets")):
-        logging.info("Waiting for tablets to become unmounted...")
-        time.sleep(1)
+    has_tablets = "tablets" in yt.list(table + "/@")
+    if has_tablets:
+        logging.info("Unmounting %s", table)
+        yt.unmount_table(table)
+        while not all(x["state"] == "unmounted" for x in yt.get(table + "/@tablets")):
+            logging.info("Waiting for tablets to become unmounted...")
+            time.sleep(1)
 
     logging.info("Resharding %s", table)
     yt.reshard_table(table, pivot_keys)
