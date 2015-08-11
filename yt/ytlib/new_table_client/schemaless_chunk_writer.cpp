@@ -787,6 +787,9 @@ private:
 
     TTransactionId TransactionId_;
 
+    TCellTag CellTag_ = InvalidCellTag;
+    TObjectId ObjectId_;
+
     TTransactionPtr UploadTransaction_;
     TChunkListId ChunkListId_;
 
@@ -902,9 +905,6 @@ void TSchemalessTableWriter::DoOpen()
     bool append = RichPath_.GetAppend();
     bool sorted = !KeyColumns_.empty();
 
-    auto cellTag = InvalidCellTag;
-    TObjectId objectId;
-
     {
         auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
         TObjectServiceProxy proxy(channel);
@@ -921,16 +921,16 @@ void TSchemalessTableWriter::DoOpen()
             path);
 
         const auto& rsp = rspOrError.Value();
-        objectId = FromProto<TObjectId>(rsp->object_id());
-        cellTag = rsp->cell_tag();
+        ObjectId_ = FromProto<TObjectId>(rsp->object_id());
+        CellTag_ = rsp->cell_tag();
 
         LOG_INFO("Basic file attributes received (ObjectId: %v, CellTag: %v)",
-            objectId,
-            cellTag);
+            ObjectId_,
+            CellTag_);
     }
 
     {
-        auto type = TypeFromId(objectId);
+        auto type = TypeFromId(ObjectId_);
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 path,
@@ -939,8 +939,8 @@ void TSchemalessTableWriter::DoOpen()
         }
     }
 
-    auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
-    auto objectIdPath = FromObjectId(objectId);
+    auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, CellTag_);
+    auto objectIdPath = FromObjectId(ObjectId_);
 
     {
         LOG_INFO("Requesting extended table attributes");
@@ -1056,14 +1056,14 @@ void TSchemalessTableWriter::DoOpen()
             path);
         const auto& batchRsp = batchRspOrError.Value();
 
-        if (cellTag == Client_->GetConnection()->GetPrimaryMasterCellTag()) {
+        if (CellTag_ == Client_->GetConnection()->GetPrimaryMasterCellTag()) {
             auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update")
                 .Value();
             handlePrepareForUpdateResponse(rsp);
         }
     }
 
-    if (cellTag != Client_->GetConnection()->GetPrimaryMasterCellTag()) {
+    if (CellTag_ != Client_->GetConnection()->GetPrimaryMasterCellTag()) {
         LOG_INFO("Preparing table for update at secondary master");
 
         TObjectServiceProxy proxy(uploadMasterChannel);
@@ -1111,12 +1111,15 @@ void TSchemalessTableWriter::DoClose()
         LOG_INFO("Marking table as sorted by %v",
             ConvertToYsonString(KeyColumns_, NYson::EYsonFormat::Text).Data());
 
-        auto req = TTableYPathProxy::SetSorted(path);
+        auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, CellTag_);
+        auto objectIdPath = FromObjectId(ObjectId_);
+
+        auto req = TTableYPathProxy::SetSorted(objectIdPath);
         SetTransactionId(req, UploadTransaction_);
         GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), KeyColumns_);
 
-        TObjectServiceProxy objectProxy(Client_->GetMasterChannel(EMasterChannelKind::Leader));
+        TObjectServiceProxy objectProxy(uploadMasterChannel);
         auto rspOrError = WaitFor(objectProxy.Execute(req));
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -1133,7 +1136,7 @@ void TSchemalessTableWriter::DoClose()
         THROW_ERROR_EXCEPTION_IF_FAILED(
             error, 
             "Error committing upload transaction",
-            RichPath_.GetPath());
+            path);
     }
     LOG_INFO("Upload transaction committed");
 
