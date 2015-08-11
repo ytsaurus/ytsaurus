@@ -127,7 +127,7 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
         }
     }
     command = """PATH=".:$PATH" PYTHONPATH=. """\
-              """yt2 read "{0}"'[#'"${{start}}"':#'"${{end}}"']' --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
+              """yt2 read '{0}[#'"${{start}}"':#'"${{end}}"']' --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
               .format(src, format, yt_client.config["proxy"]["url"], yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
 
     return command
@@ -236,6 +236,8 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
         with source_client.Transaction(), destination_client.Transaction():
+            # NB: for reliable access to table under snapshot lock we should use id.
+            src = "#" + source_client.get(src + "/@id")
             source_client.lock(src, mode="snapshot")
             files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
 
@@ -350,11 +352,12 @@ done"""
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
         with yt_client.Transaction():
-            if sorted:
-                dst_path = yt.TablePath(dst, client=yt_client)
-                dst_path.attributes["sorted_by"] = ["key", "subkey"]
-            else:
-                dst_path = dst
+            # NB: put back when it start working properly
+            #if sorted:
+            #    dst_path = yt.TablePath(dst, client=yt_client)
+            #    dst_path.attributes["sorted_by"] = ["key", "subkey"]
+            #else:
+            dst_path = dst
 
             run_operation_and_notify(
                 message_queue,
@@ -374,15 +377,14 @@ done"""
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            # NB: Remove if sorted_by will be working properly.
-            #if (sorted and force_sort is None) or force_sort:
-            #    logger.info("Sorting '%s'", dst)
-            #    run_operation_and_notify(
-            #        message_queue,
-            #        yt_client.run_sort,
-            #        dst,
-            #        sort_by=["key", "subkey"],
-            #        spec=sort_spec)
+            if (sorted and force_sort is None) or force_sort:
+                logger.info("Sorting '%s'", dst)
+                run_operation_and_notify(
+                    message_queue,
+                    yt_client.run_sort,
+                    dst,
+                    sort_by=["key", "subkey"],
+                    spec=sort_spec)
 
             convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client)
 
@@ -420,6 +422,9 @@ while True:
 
     try:
         with yt_client.Transaction():
+            # NB: for reliable access to table under snapshot lock we should use id.
+            src = "#" + yt_client.get(src + "/@id")
+
             yt_client.lock(src, mode="snapshot")
 
             is_sorted = yt_client.exists(src + "/@sorted_by")
