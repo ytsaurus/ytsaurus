@@ -382,8 +382,6 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
 
     const auto* node = GetThisImpl();
     bool hasKey = NodeHasKey(Bootstrap_, node);
-
-    auto cypressManager = Bootstrap_->GetCypressManager();
     bool isExternal = node->IsExternal();
 
     descriptors->push_back(TAttributeDescriptor("parent_id")
@@ -402,9 +400,12 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back("access_time");
     descriptors->push_back("access_counter");
     descriptors->push_back("revision");
-    descriptors->push_back("resource_usage");
+    descriptors->push_back(TAttributeDescriptor("resource_usage")
+        .SetOpaque(true)
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
-        .SetOpaque(true));
+        .SetOpaque(true)
+        .SetExternal(isExternal));
     descriptors->push_back(TAttributeDescriptor("account")
         .SetReplicated(true)
         .SetWritePermission(EPermission::Administer));
@@ -513,7 +514,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         return true;
     }
 
-    if (key == "resource_usage") {
+    if (key == "resource_usage" && !isExternal) {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->GetHandler(node);
         BuildYsonFluently(consumer)
