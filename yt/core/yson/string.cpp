@@ -13,7 +13,7 @@ namespace NYson {
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonString::TYsonString()
-    : Type_(EYsonType::Node)
+    : Type_(EYsonType::None)
 { }
 
 TYsonString::TYsonString(const Stroka& data, EYsonType type)
@@ -29,13 +29,25 @@ void TYsonString::Validate() const
 
 void TYsonString::Save(TStreamSaveContext& context) const
 {
-    YCHECK(GetType() == EYsonType::Node);
-    NYT::Save(context, Data_);
+    using NYT::Save;
+    switch (Type_) {
+        case EYsonType::None:
+            Save(context, Stroka());
+            break;
+
+        case EYsonType::Node:
+            Save(context, Data_);
+            break;
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 void TYsonString::Load(TStreamLoadContext& context)
 {
     NYT::Load(context, Data_);
+    Type_ = Data_.empty() ? EYsonType::None : EYsonType::Node;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

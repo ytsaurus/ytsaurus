@@ -238,13 +238,22 @@ protected:
 private:
     TFuture<NYson::TYsonString> DoFindAttribute(const Stroka& key);
 
-    static NYson::TYsonString DoGetAttributeFragment(const TYPath& path, const NYson::TYsonString& wholeYson);
+    static NYson::TYsonString DoGetAttributeFragment(
+        const Stroka& key,
+        const TYPath& path,
+        const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoGetAttribute(const TYPath& path);
 
-    static bool DoExistsAttributeFragment(const TYPath& path, const TErrorOr<NYson::TYsonString>& wholeYsonOrError);
+    static bool DoExistsAttributeFragment(
+        const Stroka& key,
+        const TYPath& path,
+        const TErrorOr<NYson::TYsonString>& wholeYsonOrError);
     TFuture<bool> DoExistsAttribute(const TYPath& path);
 
-    static NYson::TYsonString DoListAttributeFragment(const TYPath& path, const NYson::TYsonString& wholeYson);
+    static NYson::TYsonString DoListAttributeFragment(
+        const Stroka& key,
+        const TYPath& path,
+        const NYson::TYsonString& wholeYson);
     TFuture<NYson::TYsonString> DoListAttribute(const TYPath& path);
 
     TFuture<void> DoSetAttribute(const TYPath& path, const NYson::TYsonString& newYson);

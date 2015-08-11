@@ -326,6 +326,9 @@ void TYsonWriter::OnEndAttributes()
 
 void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 {
+    if (type == EYsonType::None)
+        return;
+
     if (EnableRaw) {
         Stream->Write(yson);
         BeforeFirstItem = false;
