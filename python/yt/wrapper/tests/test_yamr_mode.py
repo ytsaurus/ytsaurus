@@ -290,8 +290,9 @@ class TestYamrMode(object):
         yt.write_table(table, ["1\t2\t3\n"])
         yt.run_sort(table, sort_by=["key"])
 
-        with pytest.raises(yt.YtError):
-            yt.run_reduce("cat", table, TEST_DIR + "/other_table", sort_by=["subkey"], reduce_by=["subkey"])
+        # NB: map-reduce should be run
+        yt.run_reduce("cat", table, TEST_DIR + "/other_table", sort_by=["subkey"], reduce_by=["subkey"])
+        assert list(yt.read_table(table)) == ["1\t2\t3\n"]
 
     def test_throw_on_missing_destination(self):
         table = TEST_DIR + "/table"

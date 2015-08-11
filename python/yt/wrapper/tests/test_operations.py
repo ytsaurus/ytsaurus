@@ -426,6 +426,7 @@ class TestOperations(object):
         with pytest.raises(yt.YtError):
             # No reduce_by
             yt.run_reduce("cat", source_table=table, destination_table=other_table, sort_by=["a"])
+
         with pytest.raises(yt.YtError):
             yt.run_reduce("cat", source_table=table, destination_table=other_table, reduce_by=["c"])
 
