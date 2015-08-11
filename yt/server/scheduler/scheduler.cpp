@@ -2346,7 +2346,7 @@ TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TY
     return Impl_->DumpInputContext(jobId, path);
 }
 
-void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context) noexcept
+void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 {
     Impl_->ProcessHeartbeat(node, context);
 }
