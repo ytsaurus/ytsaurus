@@ -313,6 +313,7 @@ private:
         attributes->push_back("used_space");
         attributes->push_back("chunk_count");
         attributes->push_back("online_node_count");
+        attributes->push_back("full_node_count");
         attributes->push_back("chunk_replicator_enabled");
         TMapNodeProxy::ListSystemAttributes(attributes);
     }
@@ -345,6 +346,7 @@ private:
         }
 
         auto statistics = nodeTracker->GetTotalNodeStatistics();
+
         if (key == "available_space") {
             BuildYsonFluently(consumer)
                 .Value(statistics.AvailableSpace);
@@ -366,6 +368,12 @@ private:
         if (key == "online_node_count") {
             BuildYsonFluently(consumer)
                 .Value(statistics.OnlineNodeCount);
+            return true;
+        }
+
+        if (key == "full_node_count") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.FullNodeCount);
             return true;
         }
 

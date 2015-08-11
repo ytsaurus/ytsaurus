@@ -217,7 +217,7 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
-        const auto* table = GetThisTypedImpl();
+        auto* table = GetThisTypedImpl();
 
         if (key == "channels") {
             if (!newValue) {
@@ -234,7 +234,13 @@ private:
                 ThrowCannotRemoveAttribute(key);
             }
 
-            ConvertTo<TTableSchema>(*newValue);
+            auto newSchema = ConvertTo<TTableSchema>(*newValue);
+
+            if (table->IsDynamic()) {
+                auto tabletManager = Bootstrap_->GetTabletManager();
+                auto schema = tabletManager->GetTableSchema(table);
+                ValidateTableSchemaUpdate(schema, newSchema);
+            }
 
             if (table->HasMountedTablets()) {
                 THROW_ERROR_EXCEPTION("Table has mounted tablets");

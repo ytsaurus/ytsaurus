@@ -152,6 +152,7 @@ def package(options):
 
     with cwd(options.working_directory):
         run(["make", "-j", "8", "package"])
+        run(["make", "-j", "8", "python-package"])
         run(["make", "version"])
 
         with open("ytversion") as handle:

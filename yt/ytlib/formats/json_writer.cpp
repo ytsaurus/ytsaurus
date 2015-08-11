@@ -316,12 +316,12 @@ void TJsonConsumerImpl::Flush()
     JsonWriter->Flush();
 }
 
-std::unique_ptr<IYsonConsumer> CreateJsonConsumer(
+std::unique_ptr<TYsonConsumerBase> CreateJsonConsumer(
     TOutputStream* output,
     NYson::EYsonType type,
     TJsonFormatConfigPtr config)
 {
-    return std::unique_ptr<IYsonConsumer>(new TJsonConsumer(output, type, config));
+    return std::make_unique<TJsonConsumer>(output, type, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

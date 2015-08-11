@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "etc_commands.h"
 
+#include <core/build.h>
 #include <core/concurrency/scheduler.h>
 
 #include <ytlib/ypath/rich.h>
@@ -53,6 +54,13 @@ void TParseYPathCommand::DoExecute()
 {
     auto richPath = TRichYPath::Parse(Request_->Path);
     Reply(ConvertToYsonString(richPath));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TGetVersionCommand::DoExecute()
+{
+    Reply(ConvertToYsonString(GetVersion()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -386,6 +386,8 @@ private:
                 chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
                 chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
                 chunkSpec->mutable_chunk_meta()->CopyFrom(store->GetChunkMeta());
+                ToProto(chunkSpec->mutable_lower_limit(), TReadLimit(partition->GetPivotKey()));
+                ToProto(chunkSpec->mutable_upper_limit(), TReadLimit(partition->GetNextPivotKey()));
                 fetcher->AddChunk(chunkSpec);
             }
         }
@@ -396,6 +398,9 @@ private:
         }
 
         auto samples = fetcher->GetSamples();
+
+        // NB(psushin): This filtering is typically redundant (except for the first pivot), 
+        // since fetcher already returns samples within given limits.
         samples.erase(
             std::remove_if(
                 samples.begin(),

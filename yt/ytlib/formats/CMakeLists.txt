@@ -11,6 +11,7 @@ set( SRCS
   ${BASE}/parser.cpp
   ${BASE}/schemaful_dsv_parser.cpp
   ${BASE}/schemaful_dsv_writer.cpp
+  ${BASE}/schemaful_writer.cpp
   ${BASE}/schemaless_writer_adapter.cpp
   ${BASE}/symbols.cpp
   ${BASE}/utf8_decoder.cpp
@@ -20,7 +21,6 @@ set( SRCS
   ${BASE}/yamred_dsv_parser.cpp
   ${BASE}/yamred_dsv_writer.cpp
   ${BASE}/yson_parser.cpp
-  ${BASE}/yson_writer.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -37,6 +37,7 @@ set( HDRS
   ${BASE}/schemaful_dsv_parser.h
   ${BASE}/schemaful_dsv_table.h
   ${BASE}/schemaful_dsv_writer.h
+  ${BASE}/schemaful_writer.h
   ${BASE}/schemaless_writer_adapter.h
   ${BASE}/symbols.h
   ${BASE}/utf8_decoder.h
@@ -47,7 +48,6 @@ set( HDRS
   ${BASE}/yamred_dsv_parser.h
   ${BASE}/yamred_dsv_writer.h
   ${BASE}/yson_parser.h
-  ${BASE}/yson_writer.h
 )
 
 list(APPEND YT_SOURCE_FILES
