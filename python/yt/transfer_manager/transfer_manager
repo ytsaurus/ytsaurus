@@ -677,8 +677,8 @@ class Application(object):
             pool_path = "//sys/scheduler/orchid/scheduler/pools/" + task.pool
 
             try:
-                if not client.exists(pool_path):
-                    raise SchedulingError("Pool %s does not exist" % task.pool)
+                #if not client.exists(pool_path):
+                #    raise SchedulingError("Pool %s does not exist" % task.pool)
 
                 # TODO(ignat): uncomment after fix of resource_limits in 0.17 (YT-2222).
                 #pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
