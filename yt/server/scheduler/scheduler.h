@@ -77,7 +77,7 @@ public:
     typedef TIntrusivePtr<TCtxHeartbeat> TCtxHeartbeatPtr;
     void ProcessHeartbeat(
         TExecNodePtr node,
-        TCtxHeartbeatPtr context) noexcept;
+        TCtxHeartbeatPtr context);
 
 private:
     class TImpl;
