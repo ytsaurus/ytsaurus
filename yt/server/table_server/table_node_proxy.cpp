@@ -333,15 +333,20 @@ private:
 
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
-        auto* table = LockThisTypedImpl();
+        ValidateKeyColumns(keyColumns);
 
+        const auto* table = GetThisTypedImpl();
+        if (table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("Cannot handle SetSorted at an external node");
+        }
         if (table->GetUpdateMode() == EUpdateMode::None) {
             THROW_ERROR_EXCEPTION("Table must not be in \"none\" mode");
         }
 
-        ValidateKeyColumns(keyColumns);
-        table->KeyColumns() = keyColumns;
-        table->SetSorted(true);
+        auto* lockedTable = LockThisTypedImpl();
+
+        lockedTable->KeyColumns() = keyColumns;
+        lockedTable->SetSorted(true);
 
         SetModified();
 
