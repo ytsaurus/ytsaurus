@@ -71,7 +71,7 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         self.assertTrue(isinstance(obj, dict))
         self.assertTrue(isinstance(obj["a"], list))
         self.assertTrue(isinstance(obj["a"][0], str))
-        self.assertTrue(isinstance(obj["a"][1], int))
+        self.assertTrue(isinstance(obj["a"][1], long))
 
         obj = loads("{a=[b;<attr=#>1]}", always_create_attributes=False)
         self.assertFalse(isinstance(obj, YsonMap))

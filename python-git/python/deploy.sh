@@ -21,21 +21,31 @@ DEB=1 python setup.py sdist --dist-dir=../
 DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
 # Upload debian package
-if [ "$PACKAGE" = "yandex-yt-python-yson" ]; then
-    REPO="yandex-$(lsb_release --short --codename)"
-elif [ "$PACKAGE" = "yandex-yt-python-fennel" ] || [ "$PACKAGE" = "yandex-yt-transfer-manager" ]; then
-    REPO="yt-common"
-else
-    REPO="common"
+REPOS=""
+case $PACKAGE in
+    yandex-yt-python)
+        REPOS="common yt-common"
+        ;;
+    yandex-yt-python-tools)
+        REPOS="common"
+        ;;
+    yandex-yt-transfer-manager|yandex-yt-python-fennel)
+        REPOS="yt-common"
+        ;;
+    yandex-yt-python-yson)
+        REPOS="yandex-$(lsb_release --short --codename)"
+        ;;
+esac
+
+if [ -n "$REPOS" ]; then
+    for REPO in $REPOS; do
+        VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
+        dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
+    done
+    
+    # Upload python wheel
+    python setup.py bdist_wheel upload -r yandex
 fi
-
-VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
-
-
-# Upload python wheel
-python setup.py bdist_wheel upload -r yandex
-
 
 # Some postprocess steps
 if [ -f "$PACKAGE/postprocess.sh" ]; then
