@@ -290,9 +290,9 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
         return visitor->Run(this);
     }
 
-    auto asyncValue = GetExternalBuiltinAttributeAsync(key);
-    if (asyncValue) {
-        return asyncValue;
+    auto asyncResult = GetExternalBuiltinAttributeAsync(key);
+    if (asyncResult) {
+        return asyncResult;
     }
 
     return TObjectProxyBase::GetBuiltinAttributeAsync(key);
@@ -332,6 +332,9 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
 
     return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
         if (!rspOrError.IsOK()) {
+            if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+                return TYsonString();
+            }
             THROW_ERROR_EXCEPTION("Error requesting attribute %Qv of object %v from cell %v",
                 key,
                 versionedId,
@@ -369,6 +372,62 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
     }
 
     return TObjectProxyBase::SetBuiltinAttribute(key, value);
+}
+
+TFuture<bool> TNontemplateCypressNodeProxyBase::CheckBuiltinAttributeExistsAsync(const Stroka& key)
+{
+    auto asyncResult = CheckExternalBuiltinAttributeExistsAsync(key);
+    if (asyncResult) {
+        return asyncResult;
+    }
+
+    return TObjectProxyBase::CheckBuiltinAttributeExistsAsync(key);
+}
+
+TFuture<bool> TNontemplateCypressNodeProxyBase::CheckExternalBuiltinAttributeExistsAsync(const Stroka& key)
+{
+    const auto* node = GetThisImpl();
+    if (!node->IsExternal()) {
+        return Null;
+    }
+
+    auto maybeDescriptor = FindBuiltinAttributeDescriptor(key);
+    if (!maybeDescriptor) {
+        return Null;
+    }
+
+    const auto& descriptor = *maybeDescriptor;
+    if (!descriptor.External) {
+        return Null;
+    }
+
+    auto cellTag = node->GetExternalCellTag();
+    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
+
+    auto cellDirectory = Bootstrap_->GetCellDirectory();
+    auto channel = cellDirectory->GetChannelOrThrow(cellId);
+
+    // XXX(babenko): improve
+    TObjectServiceProxy proxy(channel);
+    proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+
+    auto versionedId = GetVersionedId();
+
+    auto req = TYPathProxy::Exists(FromObjectId(versionedId.ObjectId) + "/@" + key);
+    SetTransactionId(req, versionedId.TransactionId);
+
+    return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspExistsPtr& rspOrError) {
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error checking attribute %Qv of object %v from cell %v",
+                key,
+                versionedId,
+                cellTag)
+                << rspOrError;
+        }
+
+        const auto& rsp = rspOrError.Value();
+        return rsp->value();
+    }));
 }
 
 TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
