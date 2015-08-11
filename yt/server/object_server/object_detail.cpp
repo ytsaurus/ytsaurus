@@ -429,14 +429,22 @@ void TObjectProxyBase::WriteAttributesFragment(
                 consumer->OnRaw(value);
             }
 
-            for (const auto& attribute : builtinAttributes) {
-                if (attribute.Present){
-                    consumer->OnKeyedItem(attribute.Key);
-                    if (attribute.Opaque) {
-                        consumer->OnEntity();
-                    } else {
-                        YCHECK(GetBuiltinAttribute(attribute.Key, consumer));
-                    }
+            for (const auto& descriptor : builtinAttributes) {
+                auto key = Stroka(descriptor.Key);
+                TValueConsumer attributeValueConsumer(consumer, key);
+
+                if (descriptor.Opaque) {
+                    attributeValueConsumer.OnEntity();
+                    continue;
+                }
+
+                if (GetBuiltinAttribute(descriptor.Key, &attributeValueConsumer))
+                    continue;
+
+                auto asyncValue = GetBuiltinAttributeAsync(key);
+                if (asyncValue) {
+                    attributeValueConsumer.OnRaw(std::move(asyncValue));
+                    continue; // just for the symmetry
                 }
             }
             break;
