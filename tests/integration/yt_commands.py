@@ -1,5 +1,5 @@
 import yt.yson as yson
-from yt.bindings.driver import Driver, Request, make_request
+from yt_driver_bindings import Driver, Request
 from yt.common import YtError, flatten, update
 
 import pytest
@@ -7,8 +7,9 @@ import pytest
 import sys
 import time
 
-from datetime import datetime
+import cStringIO
 from cStringIO import StringIO
+from datetime import datetime
 
 
 ###########################################################################
@@ -79,20 +80,37 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         parameters["path"] = prepare_path(parameters["path"])
 
     parameters = prepare_parameters(parameters)
+    
+    yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
+    description = driver.get_command_descriptor(command_name)
+    if description.input_type() != "null" and parameters.get("input_format") is None:
+        parameters["input_format"] = yson_format
+    if description.output_type() != "null":
+        if parameters.get("output_format") is None:
+            parameters["output_format"] = yson_format
+        if output_stream is None:
+            output_stream = cStringIO.StringIO()
 
     if verbose:
         print >>sys.stderr, str(datetime.now()), command_name, parameters
-    result = make_request(
-        driver,
+    response = driver.execute(
         Request(command_name=command_name,
                 parameters=parameters,
                 input_stream=input_stream,
                 output_stream=output_stream,
                 user=user))
-    if verbose and result:
-        print >>sys.stderr, result
+    response.wait()
+    if not response.is_ok():
+        error = YtError(**response.error())
+        print >>sys.stderr, str(error)
         print >>sys.stderr
-    return result
+        raise error
+    if isinstance(output_stream, cStringIO.OutputType):
+        result = output_stream.getvalue()
+        if verbose:
+            print >>sys.stderr, result
+            print >>sys.stderr
+        return result
 
 def execute_command_with_output_format(command_name, kwargs, input_stream=None):
     has_output_format = "output_format" in kwargs
@@ -379,6 +397,9 @@ def abort_op(op, **kwargs):
 
 def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)
+
+def get_version():
+    return yson.loads(execute_command("get_version", {}))
 
 def gc_collect():
     get_driver().gc_collect()

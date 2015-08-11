@@ -62,6 +62,24 @@ Py::Exception CreateYtError(const std::string& message)
     return Py::Exception(ytErrorClass, message);
 }
 
+Py::Exception CreateYtError(const std::string& message, const TError& error)
+{
+    static PyObject* ytErrorClass = nullptr;
+    if (!ytErrorClass) {
+        ytErrorClass = PyObject_GetAttr(
+            PyImport_ImportModule("yt.common"),
+            PyString_FromString("YtError"));
+    }
+    auto kwargs = Py::Dict();
+    kwargs.setItem("message", Py::String(message));
+    auto innerErrors = Py::List();
+    innerErrors.append(ConvertTo<Py::Object>(error));
+    kwargs.setItem("inner_errors", innerErrors);
+    auto object = Py::Callable(ytErrorClass).apply(Py::Tuple(), kwargs);
+
+    return Py::Exception(ytErrorClass, object);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TDriver
@@ -117,6 +135,7 @@ public:
         TDriverRequest request;
         request.CommandName = ConvertToStroka(Py::String(GetAttr(pyRequest, "command_name")));
         request.Parameters = ConvertToNode(GetAttr(pyRequest, "parameters"))->AsMap();
+        request.ResponseParametersConsumer = response->GetResponseParametersConsumer();
 
         auto user = GetAttr(pyRequest, "user");
         if (!user.isNone()) {
@@ -131,11 +150,12 @@ public:
         }
 
         auto outputStreamObj = GetAttr(pyRequest, "output_stream");
+        TBufferedStreamWrap* bufferedOutputStream = nullptr;
         if (!outputStreamObj.isNone()) {
             bool isBufferedStream = PyObject_IsInstance(outputStreamObj.ptr(), TBufferedStreamWrap::type().ptr());
             if (isBufferedStream) {
-                auto* pythonStream = dynamic_cast<TBufferedStreamWrap*>(Py::getPythonExtensionBase(outputStreamObj.ptr()));
-                request.OutputStream = pythonStream->GetStream();
+                bufferedOutputStream = dynamic_cast<TBufferedStreamWrap*>(Py::getPythonExtensionBase(outputStreamObj.ptr()));
+                request.OutputStream = bufferedOutputStream->GetStream();
             } else {
                 std::unique_ptr<TOutputStreamWrap> outputStream(new TOutputStreamWrap(outputStreamObj));
                 request.OutputStream = CreateAsyncAdapter(outputStream.get());
@@ -144,7 +164,16 @@ public:
         }
 
         try {
-            response->SetResponse(DriverInstance_->Execute(request));
+            auto driverResponse = DriverInstance_->Execute(request);
+            response->SetResponse(driverResponse);
+            if (bufferedOutputStream) {
+                auto outputStream = bufferedOutputStream->GetStream();
+                driverResponse.Subscribe(BIND([=] (TError error) {
+                    outputStream->Finish();
+                }));
+            }
+        } catch (const TErrorException& error) {
+            throw CreateYtError(error.what(), error.Error());
         } catch (const std::exception& error) {
             throw CreateYtError(error.what());
         }
@@ -175,12 +204,12 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto descriptors = Py::List();
+            auto descriptors = Py::Dict();
             for (const auto& nativeDescriptor : DriverInstance_->GetCommandDescriptors()) {
                 Py::Callable class_type(TCommandDescriptor::type());
                 Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
                 descriptor.getCxxObject()->SetDescriptor(nativeDescriptor);
-                descriptors.append(descriptor);
+                descriptors.setItem(~nativeDescriptor.CommandName, descriptor);
             }
             return descriptors;
         } catch (const std::exception& error) {
@@ -284,6 +313,7 @@ public:
         Py::Dict moduleDict(moduleDictionary());
         moduleDict["Driver"] = TDriver::type();
         moduleDict["BufferedStream"] = TBufferedStreamWrap::type();
+        moduleDict["Response"] = TDriverResponse::type();
     }
 
     Py::Object ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)

@@ -859,7 +859,9 @@ void TSchemalessTableReader::DoOpen()
                 continue;
             }
              
-            THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::ChunkUnavailable,
+                "Chunk %v is unavailable",
                 NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
 

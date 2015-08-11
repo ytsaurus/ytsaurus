@@ -54,7 +54,7 @@ exports.that = function Middleware__YtCheckPythonWrapperVersion()
                 if (utils.lexicographicalCompare(version, parseVersion(range[0])) >= 0 &&
                     utils.lexicographicalCompare(version, parseVersion(range[1])) < 0)
                 {
-                    error = YtError(
+                    error = new YtError(
                         ("You are using banned version of `yandex-yt-python` ({} <= {} < {}); " +
                         "please consider upgrading")
                             .format(range[0], printVersion(version), range[1]));

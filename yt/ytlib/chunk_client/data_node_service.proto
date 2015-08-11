@@ -190,6 +190,8 @@ message TReqGetTableSamples
     {
         required NYT.NProto.TGuid chunk_id = 1;
         required int32 sample_count = 2;
+        optional bytes lower_key = 3;
+        optional bytes upper_key = 4;
     }
 
     repeated TSampleRequest sample_requests = 1;
