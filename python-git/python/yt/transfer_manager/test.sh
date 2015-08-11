@@ -90,14 +90,14 @@ test_copy_from_cedar_to_redwood() {
 
 test_copy_from_redwood_to_plato() {
     echo "Importing from Redwood to Plato"
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata"}')
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "redwood", "destination_table": "//tmp/test_table", "destination_cluster": "plato", "mr_user": "userdata", "pool": "ignat"}')
     wait_task $id
     check "true" "$(yt2 exists //tmp/test_table/@sorted --proxy plato.yt.yandex.net)"
 }
 
 test_copy_from_plato_to_smith() {
     echo "Importing from Plato to Smith"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat"}')
     wait_task $id
 
     check \
@@ -109,7 +109,7 @@ test_copy_from_plato_to_smith() {
 
 test_copy_from_plato_to_quine() {
     echo "Importing from Plato to Quine"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "quine"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "quine", "pool": "ignat"}')
     wait_task $id
 
     check \
@@ -122,7 +122,7 @@ test_copy_from_plato_to_quine() {
 test_copy_from_cedar_to_plato() {
     echo "Importing from Cedar to Plato"
     # mr_user: asaitgalin because this user has zero quota
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table_from_cedar", "destination_cluster": "plato", "mr_user": "asaitgalin"}')
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table_from_cedar", "destination_cluster": "plato", "mr_user": "asaitgalin", "pool": "ignat"}')
     wait_task $id
 
     check \
@@ -133,7 +133,7 @@ test_copy_from_cedar_to_plato() {
 test_abort_restart_task() {
     yt2 remove //tmp/test_table_from_plato --proxy smith.yt.yandex.net --force
     echo "Importing from Plato to Smith"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat"}')
     echo "Aborting, than restarting task"
     abort_task $id
     restart_task $id
@@ -155,7 +155,7 @@ test_copy_table_attributes() {
     set_attribute "erasure_codec" "lrc_12_2_2"
     set_attribute "compression_codec" "gzip_best_compression"
 
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "//tmp/test_table_from_smith", "destination_cluster": "plato", "pool": "ignat"}')
     wait_task $id
 
     check_attribute() {
