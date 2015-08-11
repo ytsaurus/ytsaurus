@@ -9,7 +9,7 @@
 #include <core/rpc/dispatcher.h>
 
 #include <core/yson/async_consumer.h>
-#include <core/yson/attribute_fragment_consumer.h>
+#include <core/yson/attribute_consumer.h>
 #include <core/yson/writer.h>
 
 namespace NYT {

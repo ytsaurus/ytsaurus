@@ -11,7 +11,7 @@
 
 #include <core/yson/writer.h>
 #include <core/yson/async_writer.h>
-#include <core/yson/attribute_fragment_consumer.h>
+#include <core/yson/attribute_consumer.h>
 
 #include <core/rpc/dispatcher.h>
 

@@ -10,6 +10,7 @@
 
 #include <core/yson/string.h>
 #include <core/yson/async_consumer.h>
+#include <core/yson/attribute_consumer.h>
 
 #include <core/ytree/fluent.h>
 #include <core/ytree/exception_helpers.h>
@@ -277,129 +278,6 @@ void TObjectProxyBase::WriteAttributesFragment(
     const TAttributeFilter& filter,
     bool sortKeys)
 {
-    class TValueConsumer
-        : public IAsyncYsonConsumer
-    {
-    public:
-        TValueConsumer(IAsyncYsonConsumer* underlyingConsumer, const Stroka& key)
-            : UnderlyingConsumer_(underlyingConsumer)
-            , Key_(key)
-        { }
-
-        virtual void OnStringScalar(const TStringBuf& value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnStringScalar(value);
-        }
-
-        virtual void OnInt64Scalar(i64 value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnInt64Scalar(value);
-        }
-
-        virtual void OnUint64Scalar(ui64 value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnUint64Scalar(value);
-        }
-
-        virtual void OnDoubleScalar(double value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnDoubleScalar(value);
-        }
-
-        virtual void OnBooleanScalar(bool value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBooleanScalar(value);
-        }
-
-        virtual void OnEntity() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEntity();
-        }
-
-        virtual void OnBeginList() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBeginList();
-        }
-
-        virtual void OnListItem() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnListItem();
-        }
-
-        virtual void OnEndList() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEndList();
-        }
-
-        virtual void OnBeginMap() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBeginMap();
-        }
-
-        virtual void OnKeyedItem(const TStringBuf& key) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnKeyedItem(key);
-        }
-
-        virtual void OnEndMap() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEndMap();
-        }
-
-        virtual void OnBeginAttributes() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBeginAttributes();
-        }
-
-        virtual void OnEndAttributes() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEndAttributes();
-        }
-
-        using IYsonConsumer::OnRaw;
-
-        virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnRaw(yson, type);
-        }
-
-        virtual void OnRaw(TFuture<TYsonString> asyncStr) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnRaw(std::move(asyncStr));
-        }
-
-    private:
-        IAsyncYsonConsumer* const UnderlyingConsumer_;
-        const Stroka Key_;
-        bool Empty_ = true;
-
-
-        void ProduceKeyIfNeeded()
-        {
-            if (Empty_) {
-                UnderlyingConsumer_->OnKeyedItem(Key_);
-                Empty_ = false;
-            }
-        }
-
-    };
-
     const auto& customAttributes = Attributes();
 
     switch (filter.Mode) {
@@ -431,7 +309,7 @@ void TObjectProxyBase::WriteAttributesFragment(
 
             for (const auto& descriptor : builtinAttributes) {
                 auto key = Stroka(descriptor.Key);
-                TValueConsumer attributeValueConsumer(consumer, key);
+                TAttributeValueConsumer attributeValueConsumer(consumer, key);
 
                 if (descriptor.Opaque) {
                     attributeValueConsumer.OnEntity();
@@ -458,7 +336,7 @@ void TObjectProxyBase::WriteAttributesFragment(
             }
 
             for (const auto& key : keys) {
-                TValueConsumer attributeValueConsumer(consumer, key);
+                TAttributeValueConsumer attributeValueConsumer(consumer, key);
 
                 if (GetBuiltinAttribute(key, &attributeValueConsumer))
                     continue;

@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "attribute_fragment_consumer.h"
+#include "attribute_consumer.h"
 
 namespace NYT {
 namespace NYson {
@@ -114,6 +114,119 @@ void TAttributeFragmentConsumer::End()
 {
     if (HasAttributes_) {
         UnderlyingConsumer_->OnEndAttributes();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAttributeValueConsumer::TAttributeValueConsumer(
+    IAsyncYsonConsumer* underlyingConsumer,
+    const Stroka& key)
+    : UnderlyingConsumer_(underlyingConsumer)
+    , Key_(key)
+{ }
+
+void TAttributeValueConsumer::OnStringScalar(const TStringBuf& value)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnStringScalar(value);
+}
+
+void TAttributeValueConsumer::OnInt64Scalar(i64 value)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnInt64Scalar(value);
+}
+
+void TAttributeValueConsumer::OnUint64Scalar(ui64 value)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnUint64Scalar(value);
+}
+
+void TAttributeValueConsumer::OnDoubleScalar(double value)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnDoubleScalar(value);
+}
+
+void TAttributeValueConsumer::OnBooleanScalar(bool value)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnBooleanScalar(value);
+}
+
+void TAttributeValueConsumer::OnEntity()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnEntity();
+}
+
+void TAttributeValueConsumer::OnBeginList()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnBeginList();
+}
+
+void TAttributeValueConsumer::OnListItem()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnListItem();
+}
+
+void TAttributeValueConsumer::OnEndList()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnEndList();
+}
+
+void TAttributeValueConsumer::OnBeginMap()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnBeginMap();
+}
+
+void TAttributeValueConsumer::OnKeyedItem(const TStringBuf& key)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnKeyedItem(key);
+}
+
+void TAttributeValueConsumer::OnEndMap()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnEndMap();
+}
+
+void TAttributeValueConsumer::OnBeginAttributes()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnBeginAttributes();
+}
+
+void TAttributeValueConsumer::OnEndAttributes()
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnEndAttributes();
+}
+
+void TAttributeValueConsumer::OnRaw(const TStringBuf& yson, EYsonType type)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnRaw(yson, type);
+}
+
+void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
+{
+    ProduceKeyIfNeeded();
+    UnderlyingConsumer_->OnRaw(std::move(asyncStr));
+}
+
+void TAttributeValueConsumer::ProduceKeyIfNeeded()
+{
+    if (Empty_) {
+        UnderlyingConsumer_->OnKeyedItem(Key_);
+        Empty_ = false;
     }
 }
 
