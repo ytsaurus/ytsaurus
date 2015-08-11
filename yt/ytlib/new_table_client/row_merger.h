@@ -40,7 +40,6 @@ private:
     TTimestamp LatestWrite_;
     TTimestamp LatestDelete_;
     bool Started_ = false;
-    bool Magical_ = false;
 
     void Cleanup();
 
