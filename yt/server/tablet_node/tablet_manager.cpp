@@ -622,8 +622,8 @@ private:
             }
             if (!miscExt.eden()) {
                 auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
-                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
-                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumns.size());
+                auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
+                auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
                 chunkBoundaries.push_back(std::make_pair(minKey, 1));
                 chunkBoundaries.push_back(std::make_pair(maxKey, -1));
             }
