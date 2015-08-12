@@ -637,7 +637,7 @@ private:
                 if (boundary.second == -1 && depth == 0 && boundary.first > pivotKey) {
                     pivots.push_back(boundary.first);
                 }
-                depth += boundary.second;
+                depth -= boundary.second;
             }
             YCHECK(tablet->Partitions().size() == 1);
             tablet->SplitPartition(0, pivots);
