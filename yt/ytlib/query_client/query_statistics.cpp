@@ -17,6 +17,7 @@ TQueryStatistics& TQueryStatistics::operator+=(const TQueryStatistics& other)
     ExecuteTime += other.ExecuteTime;
     ReadTime += other.ReadTime;
     WriteTime += other.WriteTime;
+    CodegenTime += other.CodegenTime;
     IncompleteInput |= other.IncompleteInput;
     IncompleteOutput |= other.IncompleteOutput;
     return *this;
