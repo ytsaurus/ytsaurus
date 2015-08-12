@@ -739,7 +739,7 @@ TUnversionedOwningRow BuildRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Magic(const TStringBuf& what, TUnversionedRow row, bool checked = true);
+bool Magic(const TStringBuf& what, TUnversionedRow row, bool checked = true);
 
 } // namespace NVersionedTableClient
 } // namespace NYT

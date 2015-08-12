@@ -134,10 +134,11 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
     auto mergedRow = MergedRow_;
     MergedRow_ = TUnversionedRow();
 
-    Cleanup();
     if (Magical_) {
         Magic(STRINGBUF("TSchemafulRowMerger:BuildMergedRow"), mergedRow, false);
     }
+
+    Cleanup();
     return mergedRow;
 }
 
