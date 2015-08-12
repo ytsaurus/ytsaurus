@@ -7,33 +7,39 @@ import argparse
 import logging
 import time
 from threading import Thread
-from copy import deepcopy
 
 
-def do_action(tables, action, **kwargs):
-    for table in tables:
-        action(table, **kwargs)
+def do_action(action, tables, **kwargs):
+    def _mount(table, **kwargs):
+        logging.info("Mounting table %s", table)
+        yt.mount_table(table, **kwargs)
 
+    def _unmount(table, **kwargs):
+        logging.info("Unmounting table %s", table)
+        yt.unmount_table(table, **kwargs)
 
-def _mount_action(table, **kwargs):
-    logging.info("Mounting table %s", table)
-    yt.mount_table(table, **kwargs)
+    def _remount(table, **kwargs):
+        logging.info("Remounting table %s", table)
+        yt.remount_table(table, **kwargs)
 
+    ops = []
+    if action == "mount":
+        ops.append([_mount, "mounted"])
+    if action == "unmount":
+        ops.append([_unmount, "unmounted"])
+    if action == "remount":
+        ops.append([_remount, "mounted"])
+    if action == "unmount_mount":
+        ops.append([_unmount, "unmounted"])
+        ops.append([_mount, "mounted"])
 
-def _unmount_action(table, **kwargs):
-    logging.info("Unmounting table %s", table)
-    yt.unmount_table(table, **kwargs)
-
-
-def _remount_action(table, **kwargs):
-    logging.info("Remounting table %s", table)
-    yt.remount_table(table, **kwargs)
-
-
-def _await_action(table, **kwargs):
-    while not all(tablet["state"] == kwargs["state"] for tablet in yt.get(table + "/@tablets")):
-        logging.info("Waiting for table %s tablets to become %s", table, kwargs["state"])
-        time.sleep(1)
+    for fn, state in ops:
+        for table in tables:
+            fn(table, **kwargs)
+        for table in tables:
+            while not all(tablet["state"] == state for tablet in yt.get(table + "/@tablets")):
+                logging.info("Waiting for table %s tablets to become %s", table, state)
+                time.sleep(1)
 
 
 def main():
@@ -51,22 +57,10 @@ def main():
     else:
         logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-    if args.action == "mount":
-        action = _mount_action
-        kwargs = {}
-    if args.action == "unmount":
-        action = _unmount_action
+    if args.action == "unmount" or args.action == "unmount_mount":
         kwargs = {"force": args.force}
-    if args.action == "remount":
-        action = _remount_action
+    else:
         kwargs = {}
-    if args.action == "unmount_mount":
-        def func(table, **kwargs):
-            _unmount_action(table, **kwargs)
-            _await_action(table, state="unmounted")
-            _mount_action(table)
-        action = func
-        kwargs = {"force": args.force}
 
     tables = []
     for table in yt.search("/", node_type="table", attributes=["dynamic"]):
@@ -78,16 +72,13 @@ def main():
     tables_per_thread = 1 + (len(tables) / args.thread_count)
 
     threads = []
-    for index in xrange(args.thread_count):
-        start_index = index * tables_per_thread
-        end_index = min(len(tables), (index + 1) * tables_per_thread)
+    for thread_index in xrange(args.thread_count):
+        start_index = thread_index * tables_per_thread
+        end_index = min(len(tables), (thread_index + 1) * tables_per_thread)
         if start_index >= end_index:
             break
         tables_for_thread = tables[start_index:end_index]
-        thread_kwargs = deepcopy(kwargs)
-        thread_kwargs["tables"] = tables_for_thread
-        thread_kwargs["action"] = action
-        thread = Thread(target=do_action, kwargs=thread_kwargs)
+        thread = Thread(target=do_action, args=(args.action, tables_for_thread), kwargs=kwargs)
         thread.start()
         threads.append(thread)
 
