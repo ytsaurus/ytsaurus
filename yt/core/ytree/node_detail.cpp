@@ -116,7 +116,7 @@ void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemove
         EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
         EPermission::Remove);
     ValidatePermission(
-        EPermissionCheckScope::This | EPermissionCheckScope::Descendants | EPermissionCheckScope::Parent,
+        EPermissionCheckScope::Parent,
         EPermission::Write);
 
     bool isComposite = (GetType() == ENodeType::Map || GetType() == ENodeType::List);
