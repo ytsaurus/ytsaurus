@@ -37,6 +37,7 @@ message TReqWrite
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid tablet_id = 2;
+    required int32 durability = 3; // EDurability
     // Wire-encoded request is passed via attachments.
 }
 

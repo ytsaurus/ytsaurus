@@ -27,11 +27,12 @@ class TestTablets(YTEnvSetup):
         self._wait_for_cells(ids)
         return ids
 
-    def _create_table(self, path):
+    def _create_table(self, path, atomicity="full"):
         create("table", path,
             attributes = {
                 "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}],
-                "key_columns": ["key"]
+                "key_columns": ["key"],
+                "atomicity": atomicity
             })
 
     def _create_table_with_computed_column(self, path):
@@ -557,6 +558,34 @@ class TestTablets(YTEnvSetup):
         self._create_table("//tmp/t")
         with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
 
+    def test_update_schema_fails(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self._sync_mount_table("//tmp/t")
+        self._sync_unmount_table("//tmp/t")
+        with pytest.raises(YtError): set("//tmp/t/@schema", [
+            {"name": "key1", "type": "int64"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t/@schema", [
+            {"name": "key", "type": "uint64"},
+            {"name": "value", "type": "string"}])
+
+        self._create_table_with_computed_column("//tmp/t1")
+        self._sync_mount_table("//tmp/t1")
+        self._sync_unmount_table("//tmp/t1")
+        with pytest.raises(YtError): set("//tmp/t1/@schema", [
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t1/@schema", [
+            {"name": "key1", "type": "int64", "expression": "key2 * 100 + 3"},
+            {"name": "key2", "type": "int64"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t1/@schema", [
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64", "expression": "key1 * 100"},
+            {"name": "value", "type": "string"}])
+
     def test_update_key_columns_success(self):
         self._sync_create_cells(1, 1)
         self._create_table("//tmp/t")
@@ -578,16 +607,31 @@ class TestTablets(YTEnvSetup):
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
         assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
 
-    def test_snapshots(self):
+    def test_atomicity_mode_should_match(self):
+        def do(a1, a2):
+            self._sync_create_cells(1, 1)
+            self._create_table("//tmp/t", atomicity=a1)
+            
+            self._sync_mount_table("//tmp/t")
+            rows = [{"key": i, "value": str(i)} for i in xrange(100)]
+            with pytest.raises(YtError): insert_rows("//tmp/t", rows, atomicity=a2)
+            remove("//tmp/t")
+
+            clear_metadata_caches()
+
+        do("full", "none")
+        do("none", "full")
+
+    def _test_snapshots(self, atomicity):
         cell_ids = self._sync_create_cells(1, 1)
         assert len(cell_ids) == 1
         cell_id = cell_ids[0]
 
-        self._create_table("//tmp/t")
+        self._create_table("//tmp/t", atomicity=atomicity)
         self._sync_mount_table("//tmp/t")
         
         rows = [{"key": i, "value": str(i)} for i in xrange(100)]
-        insert_rows("//tmp/t", rows)
+        insert_rows("//tmp/t", rows, atomicity=atomicity)
 
         build_snapshot(cell_id=cell_id)
 
@@ -604,3 +648,9 @@ class TestTablets(YTEnvSetup):
         keys = [{"key": i} for i in xrange(100)]
         actual = lookup_rows("//tmp/t", keys);
         self.assertItemsEqual(actual, rows);
+
+    def test_atomic_snapshots(self):
+        self._test_snapshots("full")
+
+    def test_nonatomic_snapshots(self):
+        self._test_snapshots("none")

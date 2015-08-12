@@ -460,7 +460,7 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength);
 TOwningKey GetKeyPrefix(TKey key, int prefixLength);
 
 //! Makes a new, wider key padded with null values.
-TOwningKey WidenKey(const TOwningKey& key, int padding);
+TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount);
 
 //! Returns the key with no components.
 const TOwningKey EmptyKey();

@@ -111,6 +111,12 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);
             sampleRequest->set_sample_count(sampleCount - currentSampleCount);
+            if (chunk->has_lower_limit() && chunk->lower_limit().has_key()) {
+                sampleRequest->set_lower_key(chunk->lower_limit().key());
+            }
+            if (chunk->has_upper_limit() && chunk->upper_limit().has_key()) {
+                sampleRequest->set_upper_key(chunk->upper_limit().key());
+            }
             currentSampleCount = sampleCount;
         }
     }

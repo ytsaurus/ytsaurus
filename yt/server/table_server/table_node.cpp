@@ -34,6 +34,7 @@ using namespace NTabletServer;
 TTableNode::TTableNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
     , Sorted_(false)
+    , Atomicity_(NTransactionClient::EAtomicity::Full)
 { }
 
 EObjectType TTableNode::GetObjectType() const
@@ -54,6 +55,7 @@ void TTableNode::Save(TSaveContext& context) const
     Save(context, Sorted_);
     Save(context, KeyColumns_);
     Save(context, Tablets_);
+    Save(context, Atomicity_);
 }
 
 void TTableNode::Load(TLoadContext& context)
@@ -66,6 +68,10 @@ void TTableNode::Load(TLoadContext& context)
         Load(context, Sorted_);
         Load(context, KeyColumns_);
         Load(context, Tablets_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 120) {
+        Load(context, Atomicity_);
     }
 }
 

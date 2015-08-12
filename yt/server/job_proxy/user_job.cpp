@@ -566,7 +566,7 @@ private:
             asyncOutput,
             true,
             Config_->JobIO->ControlAttributes->EnableKeySwitch,
-            reader->GetKeyColumns().size());
+            JobIO_->GetReduceKeyColumnCount());
 
         FormatWriters_.push_back(writer);
 

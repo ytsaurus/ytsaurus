@@ -49,7 +49,8 @@ DEFINE_ENUM(EObjectType,
     ((Transaction)                (  1))
     ((TransactionMap)             (407))
     ((TopmostTransactionMap)      (418))
-    ((TabletTransaction)          (  2))
+    ((AtomicTabletTransaction)    (  2))
+    ((NonAtomicTabletTransaction) (  3))
     ((LockMap)                    (422))
         
     // Chunk Manager stuff

@@ -11,8 +11,18 @@ namespace NTransactionClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETransactionType,
-    (Master) // accepted by both masters and tablets
-    (Tablet) // accepted by tablets only
+    ((Master)          (0)) // Accepted by both masters and tablets
+    ((Tablet)          (1)) // Accepted by tablets only
+);
+
+DEFINE_ENUM(EAtomicity,
+    ((Full)            (0)) // P2C enabled, Percolator mode :)
+    ((None)            (1)) // P2C disabled, HBase mode
+);
+
+DEFINE_ENUM(EDurability,
+    ((Sync)            (0)) // Wait for Hydra commit result
+    ((Async)           (1)) // Reply as soon as the request is enqueued to Hydra
 );
 
 DECLARE_REFCOUNTED_CLASS(TTransaction)

@@ -152,6 +152,8 @@ struct TTransactionStartOptions
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+    NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
+    NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
 };
 
 struct TTransactionCommitOptions
@@ -267,6 +269,7 @@ struct TCopyNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = false;
 };
 
@@ -277,6 +280,7 @@ struct TMoveNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = true;
 };
 

@@ -218,6 +218,7 @@ void TFileLogWriter::Flush()
         try {
             FileOutput_->Flush();
         } catch (const std::exception& ex) {
+            Disabled_.store(true);
             LOG_ERROR(ex, "Failed to flush log file %v", FileName_);
         }
     }
