@@ -8,15 +8,7 @@ from yt.transfer_manager.pattern_matching import match_copy_pattern
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
 from yt.tools.hadoop import Hive
-from yt.tools.remote_copy_tools import \
-    copy_yamr_to_yt_pull, \
-    copy_yt_to_yamr_pull, \
-    copy_yt_to_yamr_push, \
-    copy_yt_to_kiwi, \
-    copy_yt_to_yt, \
-    copy_yt_to_yt_through_proxy, \
-    copy_hive_to_yt, \
-    Kiwi
+from yt.tools.remote_copy_tools import Kiwi
 
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid, get_value, update
@@ -232,6 +224,8 @@ class Application(object):
         self._load_config(config)
         self._path = config["path"]
         self._logging_port = self._config["port"] + 1
+
+        self._yandex_yt_python_tools_version = self._get_yandex_yt_python_tools_version()
 
         # Run logging process. It inherits current logging configuration.
         self._logging_process = Process(target=self._run_logging_server, name="LoggingThread")
@@ -581,6 +575,12 @@ class Application(object):
                 raise IncorrectTokenError("Authorization token is incorrect: " + token)
         return token, user
 
+    @staticmethod
+    def _get_yandex_yt_python_tools_version():
+        if os.path.exists("/etc/yandex_yt_python_tools/version"):
+            return open("/etc/yandex_yt_python_tools/version").read().strip()
+        return None
+
     def _check_permission(self, id, headers, action_name):
         _, user = self._get_token_and_user(headers)
         if self._tasks[id].user != user and \
@@ -812,6 +812,19 @@ class Application(object):
 
         prctl.set_pdeathsig(signal.SIGINT)
         logger.LOGGER = TaskIdLogger(task.id)
+
+        import yt.tools.remote_copy_tools
+        if self._yandex_yt_python_tools_version and self._get_yandex_yt_python_tools_version() == self._yandex_yt_python_tools_version:
+            reload(yt.tools.remote_copy_tools)
+        import yt.wrapper as yt
+        from yt.tools.remote_copy_tools import \
+            copy_yamr_to_yt_pull, \
+            copy_yt_to_yamr_pull, \
+            copy_yt_to_yamr_push, \
+            copy_yt_to_kiwi, \
+            copy_yt_to_yt, \
+            copy_yt_to_yt_through_proxy, \
+            copy_hive_to_yt
 
         yt._cleanup_http_session()
 
