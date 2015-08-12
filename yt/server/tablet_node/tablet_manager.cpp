@@ -624,8 +624,8 @@ private:
                 auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
                 auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
                 auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
-                chunkBoundaries.push_back(std::make_pair(minKey, 1));
-                chunkBoundaries.push_back(std::make_pair(maxKey, -1));
+                chunkBoundaries.push_back(std::make_pair(minKey, -1));
+                chunkBoundaries.push_back(std::make_pair(maxKey, 1));
             }
         }
 
@@ -634,7 +634,7 @@ private:
             std::vector<TOwningKey> pivots{pivotKey};
             int depth = 0;
             for (const auto& boundary : chunkBoundaries) {
-                if (boundary.second == 1 && depth == 0 && boundary.first > pivotKey) {
+                if (boundary.second == -1 && depth == 0 && boundary.first > pivotKey) {
                     pivots.push_back(boundary.first);
                 }
                 depth += boundary.second;
