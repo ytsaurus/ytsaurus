@@ -622,8 +622,8 @@ void TChunkStore::PrecacheProperties()
     MaxTimestamp_ = miscExt.max_timestamp();
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
-    MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), KeyColumnCount_);
-    MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), KeyColumnCount_);
+    MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
+    MaxKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
 }
 
 void TChunkStore::OnLocalReaderFailed()

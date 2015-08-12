@@ -102,7 +102,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         Meta,
         Schema,
         KeyColumns.size(),
-        KeyColumns.size() + 2, // Two padding key columns.
+        2, // Two padding key columns.
         schemaIdMapping,
         7);
 
@@ -131,7 +131,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         Meta,
         Schema,
         KeyColumns.size(),
-        KeyColumns.size(),
+        0,
         schemaIdMapping,
         9);
 
@@ -156,7 +156,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         Meta,
         Schema,
         KeyColumns.size(),
-        KeyColumns.size(),
+        0,
         schemaIdMapping,
         SyncLastCommittedTimestamp);
 
@@ -183,7 +183,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         Meta,
         Schema,
         KeyColumns.size(),
-        KeyColumns.size(),
+        0,
         schemaIdMapping,
         AllCommittedTimestamp);
 
