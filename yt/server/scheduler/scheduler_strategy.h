@@ -48,30 +48,30 @@ struct ISchedulerStrategy
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
     //! Builds a YSON structure reflecting operation's progress.
     //! This progress is periodically pushed into Cypress and is also displayed via Orchid.
     virtual void BuildOperationProgress(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
     //! Similar to #BuildOperationProgress but constructs a reduced version to used by UI.
     virtual void BuildBriefOperationProgress(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchid(NYson::IYsonConsumer* consumer) = 0;
 
     //! Provides a string describing operation status and statistics.
-    virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) = 0;
+    virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) = 0;
 
     //! Called for a just initialized operation to construct its brief spec
     //! to be used by UI.
     virtual void BuildBriefSpec(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
 };

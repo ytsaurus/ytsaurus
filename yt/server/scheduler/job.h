@@ -31,6 +31,9 @@ public:
     //! The operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
 
+    //! The id of operation the job belongs to.
+    DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
+
     //! Exec node where the job is running.
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
 

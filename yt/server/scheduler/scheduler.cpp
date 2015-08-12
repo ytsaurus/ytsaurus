@@ -542,7 +542,7 @@ public:
                         LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
                             node->GetDefaultAddress(),
                             job->GetId(),
-                            job->GetOperation()->GetId());
+                            job->GetOperationId());
                         AbortJob(job, TError("Job vanished"));
                         UnregisterJob(job);
                     }
@@ -563,10 +563,19 @@ public:
                 }
 
                 for (auto job : schedulingContext->StartedJobs()) {
+                    // TODO(acid): Should we filter started jobs list in Strategy?
+                    if (!FindOperation(job->GetOperationId())) {
+                        LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                        continue;
+                    }
                     RegisterJob(job);
                 }
 
                 for (auto job : schedulingContext->PreemptedJobs()) {
+                    if (!FindOperation(job->GetOperationId())) {
+                        LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                        continue;
+                    }
                     PreemptJob(job);
                     ToProto(response->add_jobs_to_abort(), job->GetId());
                 }
@@ -574,6 +583,11 @@ public:
                 std::vector<TFuture<void>> asyncResults;
                 auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
                 for (auto job : schedulingContext->StartedJobs()) {
+                    auto operation = FindOperation(job->GetOperationId());
+                    if (!operation) {
+                        continue;
+                    }
+
                     auto* startInfo = response->add_jobs_to_start();
                     ToProto(startInfo->mutable_job_id(), job->GetId());
                     *startInfo->mutable_resource_limits() = job->ResourceUsage();
@@ -586,7 +600,7 @@ public:
 
                         // Release to avoid circular references.
                         job->SetSpecBuilder(TJobSpecBuilder());
-                        operationsToLog.insert(job->GetOperation());
+                        operationsToLog.insert(operation);
                 }
 
                 context->ReplyFrom(Combine(asyncResults));
@@ -1316,7 +1330,7 @@ private:
             LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
                 address,
                 job->GetId(),
-                job->GetOperation()->GetId());
+                job->GetOperationId());
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
@@ -1373,7 +1387,7 @@ private:
 
         LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
             operation->GetController()->GetLoggingProgress(),
-            Strategy_->GetOperationLoggingProgress(operation),
+            Strategy_->GetOperationLoggingProgress(operation->GetId()),
             operation->GetId());
     }
 
@@ -1443,7 +1457,9 @@ private:
 
     void RegisterJob(TJobPtr job)
     {
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         auto node = job->GetNode();
 
         ++JobTypeCounters_[job->GetType()];
@@ -1460,7 +1476,9 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         auto node = job->GetNode();
 
         --JobTypeCounters_[job->GetType()];
@@ -1499,7 +1517,9 @@ private:
 
         OnJobFinished(job);
 
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         if (operation->GetState() == EOperationState::Running) {
             LogFinishedJobFluently(ELogEventType::JobAborted, job)
                 .Item("reason").Value(GetAbortReason(job->Result()));
@@ -1510,9 +1530,11 @@ private:
 
     void PreemptJob(TJobPtr job)
     {
+        YCHECK(FindOperation(job->GetOperationId()));
+
         LOG_DEBUG("Job preempted (JobId: %v, OperationId: %v)",
             job->GetId(),
-            job->GetOperation()->GetId());
+            job->GetOperationId());
 
         TError error("Job preempted");
         error.Attributes().Set("abort_reason", EAbortReason::Preemption);
@@ -1522,7 +1544,9 @@ private:
 
     void OnJobRunning(TJobPtr job, const TJobStatus& status)
     {
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         if (operation->GetState() == EOperationState::Running) {
             operation->GetController()->OnJobRunning(job->GetId(), status);
         }
@@ -1543,7 +1567,9 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = job->GetOperation();
+            auto operation = FindOperation(job->GetOperationId());
+            YCHECK(operation);
+
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobCompleted, job);
                 operation->UpdateJobStatistics(job);
@@ -1560,7 +1586,7 @@ private:
     {
         return LogEventFluently(eventType)
             .Item("job_id").Value(job->GetId())
-            .Item("operation_id").Value(job->GetOperation()->GetId())
+            .Item("operation_id").Value(job->GetOperationId())
             .Item("start_time").Value(job->GetStartTime())
             .Item("finish_time").Value(job->GetFinishTime())
             .Item("resource_limits").Value(job->ResourceLimits())
@@ -1579,7 +1605,9 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = job->GetOperation();
+            auto operation = FindOperation(job->GetOperationId());
+            YCHECK(operation);
+
             if (operation->GetState() == EOperationState::Running) {
                 auto error = FromProto<TError>(job->Result()->error());
                 LogFinishedJobFluently(ELogEventType::JobFailed, job)
@@ -1608,7 +1636,9 @@ private:
 
             OnJobFinished(job);
 
-            auto operation = job->GetOperation();
+            auto operation = FindOperation(job->GetOperationId());
+            YCHECK(operation);
+
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobAborted, job)
                     .Item("reason").Value(GetAbortReason(job->Result()));
@@ -1653,7 +1683,9 @@ private:
             ? FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id())
             : NullChunkId;
 
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         if (jobFailed) {
             if (stderrChunkId) {
                 operation->SetStderrCount(operation->GetStderrCount() + 1);
@@ -1936,11 +1968,11 @@ private:
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
@@ -2025,7 +2057,8 @@ private:
             return nullptr;
         }
 
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
 
         Logger.AddTag("JobType: %v, State: %v, OperationId: %v",
             job->GetType(),
