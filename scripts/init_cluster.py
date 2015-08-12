@@ -36,13 +36,12 @@ if __name__ == "__main__":
     for dir in ["//sys", "//tmp", "//sys/tokens"]:
         yt.set(dir + "/@opaque", "true")
 
-    add_acl("/", {"action": "allow", "subjects": ["admins", "cron"], "permissions": ["write", "remove"]})
-    add_acl("/", {"action": "allow", "subjects": ["admins"], "permissions": ["administer"]})
+    add_acl("/", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]})
     add_acl("//sys", {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]})
     add_acl("//sys", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer"]})
     yt.set("//sys/@inherit_acl", "false")
 
-    add_acl("//sys/accounts/sys", {"action": "allow", "subjects": ["root", "admins", "cron"], "permissions": ["use"]})
+    add_acl("//sys/accounts/sys", {"action": "allow", "subjects": ["root", "admins"], "permissions": ["use"]})
 
     add_acl("//sys/tokens", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove"]})
     yt.set("//sys/tokens/@inherit_acl", "false")
