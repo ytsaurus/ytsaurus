@@ -105,6 +105,7 @@ function(UDF udf output type)
         ${_compiler} -c
           -emit-llvm
           -DYT_COMPILING_UDF
+          -DNDEBUG
           ${_options}
           ${_include_dirs}
           $$f\;
