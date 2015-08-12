@@ -605,6 +605,7 @@ private:
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
+        writerOptions->ChunksEden = partition->IsEden();
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, Eden: %v, PartitionRange: %v .. %v",
