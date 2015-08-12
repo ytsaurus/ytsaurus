@@ -304,11 +304,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // identifier-list
       char dummy5[sizeof(TIdentifierList)];
 
-      // literal-list
-      // literal-tuple
+      // const-list
+      // const-tuple
       char dummy6[sizeof(TLiteralValueList)];
 
-      // literal-tuple-list
+      // const-tuple-list
       char dummy7[sizeof(TLiteralValueTupleList)];
 
       // named-expression
@@ -318,6 +318,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       char dummy9[sizeof(TNamedExpressionList)];
 
       // literal-value
+      // const-value
       char dummy10[sizeof(TNullable<TLiteralValue>)];
 
       // qualified-identifier
@@ -908,8 +909,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 148,     ///< Last index in yytable_.
-      yynnts_ = 37,  ///< Number of nonterminal symbols.
+      yylast_ = 165,     ///< Last index in yytable_.
+      yynnts_ = 38,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 37, ///< Termination state number.
       yyterror_ = 1,
