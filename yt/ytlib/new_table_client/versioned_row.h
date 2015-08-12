@@ -508,7 +508,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Magic(const TStringBuf& what, TVersionedRow row);
+bool Magic(const TStringBuf& what, TVersionedRow row, bool checked = true);
 
 } // namespace NVersionedTableClient
 } // namespace NYT

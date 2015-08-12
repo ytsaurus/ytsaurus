@@ -348,7 +348,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Magic(const TStringBuf& what, TVersionedRow row)
+bool Magic(const TStringBuf& what, TVersionedRow row, bool checked)
 {
     static NLogging::TLogger Logger("MAGIC");
     if (!row) {
@@ -356,10 +356,7 @@ bool Magic(const TStringBuf& what, TVersionedRow row)
     }
     auto key = row.BeginKeys();
     auto keyCount = row.GetKeyCount();
-    if (
-        keyCount >= 12 &&
-        key[1].Data.Int64 % 5 == 3)
-    {
+    if (!checked || (keyCount >= 12 && key[1].Data.Int64 % 5 == 3)) {
         LOG_DEBUG("%v %v", what, row);
         return true;
     } else {

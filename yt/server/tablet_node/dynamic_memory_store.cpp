@@ -581,10 +581,14 @@ public:
             if (RowCount_ == Keys_.Size())
                 break;
 
+            auto magical = Magic("TDynamicMemoryStore:TLookupReader:Read -> Key", Keys_[RowCount_]);
             auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});
             if (iterator.IsValid()) {
                 auto row = ProduceSingleRowVersion(iterator.GetCurrent());
                 rows->push_back(row);
+                if (magical) {
+                    Magic("TDynamicMemoryStore:TLookupReader:Read -> Value", row, false);
+                }
             } else {
                 rows->push_back(TVersionedRow());
             }
