@@ -18,11 +18,6 @@
 #include "udf/max.h"
 #include "udf/sum.h"
 #include "udf/avg.h"
-#include "udf/regex_match.h"
-#include "udf/regex_get_group.h"
-#include "udf/unixtime.h"
-#include "udf/get_suffix.h"
-#include "udf/strtoint.h"
 
 #include <ytlib/api/public.h>
 #include <ytlib/api/client.h>
@@ -310,58 +305,6 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
             hyperloglog_bc_len,
             nullptr),
         ECallingConvention::UnversionedValue));
-
-
-    auto regexGetGroupImpl = TSharedRef(
-        regex_get_group_bc,
-        regex_get_group_bc_len,
-        nullptr);
-    registry->RegisterFunction(New<TUserDefinedFunction>(
-        "regex_get_group",
-        std::vector<TType>{EValueType::String, EValueType::String, EValueType::Uint64},
-        EValueType::String,
-        regexGetGroupImpl,
-        ECallingConvention::UnversionedValue));
-    auto regexMatchImpl = TSharedRef(
-        regex_match_bc,
-        regex_match_bc_len,
-        nullptr);
-    registry->RegisterFunction(New<TUserDefinedFunction>(
-        "regex_match",
-        std::vector<TType>{EValueType::String, EValueType::String},
-        EValueType::Boolean,
-        regexMatchImpl,
-        ECallingConvention::Simple));
-    auto strtointImpl = TSharedRef(
-        strtoint_bc,
-        strtoint_bc_len,
-        nullptr);
-    registry->RegisterFunction(New<TUserDefinedFunction>(
-        "strtoint",
-        std::vector<TType>{EValueType::String},
-        EValueType::Int64,
-        strtointImpl,
-        ECallingConvention::Simple));
-    auto unixtimeImpl = TSharedRef(
-        unixtime_bc,
-        unixtime_bc_len,
-        nullptr);
-    registry->RegisterFunction(New<TUserDefinedFunction>(
-        "unixtime",
-        std::vector<TType>{EValueType::String, EValueType::String},
-        EValueType::Int64,
-        unixtimeImpl,
-        ECallingConvention::Simple));
-    auto getSuffixImpl = TSharedRef(
-        get_suffix_bc,
-        get_suffix_bc_len,
-        nullptr);
-    registry->RegisterFunction(New<TUserDefinedFunction>(
-        "get_suffix",
-        std::vector<TType>{EValueType::String, EValueType::Uint64},
-        EValueType::String,
-        getSuffixImpl,
-        ECallingConvention::Simple));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
