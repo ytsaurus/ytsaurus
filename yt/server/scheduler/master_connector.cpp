@@ -91,24 +91,24 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto id = operation->GetId();
+        auto operationId = operation->GetId();
         LOG_INFO("Creating operation node (OperationId: %v)",
-            id);
+            operationId);
 
         auto* list = CreateUpdateList(operation);
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
-        auto path = GetOperationPath(id);
+        auto path = GetOperationPath(operationId);
         auto batchReq = StartBatchRequest(list);
         {
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
                     .Item("brief_spec").BeginMap()
                         .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
-                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operation))
+                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
                     .EndMap()
                     .Item("progress").BeginMap().EndMap()
                     .Item("brief_progress").BeginMap().EndMap()
@@ -157,11 +157,11 @@ public:
         YCHECK(Connected);
         YCHECK(operation->GetState() == EOperationState::Reviving);
 
-        auto id = operation->GetId();
+        auto operationId = operation->GetId();
         LOG_INFO("Resetting reviving operation node (OperationId: %v)",
-            id);
+            operationId);
 
-        auto* list = GetUpdateList(operation);
+        auto* list = GetUpdateList(operationId);
         auto batchReq = StartBatchRequest(list);
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -172,7 +172,7 @@ public:
             .EndMap());
 
         for (const auto& key : attributes->List()) {
-            auto req = TYPathProxy::Set(GetOperationPath(id) + "/@" + ToYPathLiteral(key));
+            auto req = TYPathProxy::Set(GetOperationPath(operationId) + "/@" + ToYPathLiteral(key));
             req->set_value(attributes->GetYson(key).Data());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -195,7 +195,7 @@ public:
         LOG_INFO("Flushing operation node (OperationId: %v)",
             id);
 
-        auto* list = FindUpdateList(operation);
+        auto* list = FindUpdateList(id);
         if (!list) {
             LOG_INFO("Operation node is not registered, omitting flush (OperationId: %v)",
                 id);
@@ -216,12 +216,12 @@ public:
         YCHECK(Connected);
 
         LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StdErrChunkId: %v, FailContextChunkIds: %v)",
-            job->GetOperation()->GetId(),
+            job->GetOperationId(),
             job->GetId(),
             stderrChunkId,
             failContextChunkId);
 
-        auto* list = GetUpdateList(job->GetOperation());
+        auto* list = GetUpdateList(job->GetOperationId());
         TJobRequest request;
         request.Job = job;
         request.StderrChunkId = stderrChunkId;
@@ -242,7 +242,7 @@ public:
             chunkListId,
             childId);
 
-        auto* list = GetUpdateList(operation);
+        auto* list = GetUpdateList(operation->GetId());
         TLivePreviewRequest request;
         request.ChunkListId = chunkListId;
         request.ChildId = childId;
@@ -262,7 +262,7 @@ public:
             chunkListId,
             childrenIds.size());
 
-        auto* list = GetUpdateList(operation);
+        auto* list = GetUpdateList(operation->GetId());
         for (const auto& childId : childrenIds) {
             TLivePreviewRequest request;
             request.ChunkListId = chunkListId;
@@ -1211,15 +1211,15 @@ private:
         return &pair.first->second;
     }
 
-    TUpdateList* FindUpdateList(TOperationPtr operation)
+    TUpdateList* FindUpdateList(const TOperationId& operationId)
     {
-        auto it = UpdateLists.find(operation->GetId());
+        auto it = UpdateLists.find(operationId);
         return it == UpdateLists.end() ? nullptr : &it->second;
     }
 
-    TUpdateList* GetUpdateList(TOperationPtr operation)
+    TUpdateList* GetUpdateList(const TOperationId& operationId)
     {
-        auto* result = FindUpdateList(operation);
+        auto* result = FindUpdateList(operationId);
         YCHECK(result);
         return result;
     }

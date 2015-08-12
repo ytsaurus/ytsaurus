@@ -22,6 +22,7 @@ using NJobTrackerClient::EJobState;
 DECLARE_REFCOUNTED_CLASS(TSchedulerService);
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
+
 DECLARE_REFCOUNTED_CLASS(TJob)
 
 using TJobList = std::list<TJobPtr>;

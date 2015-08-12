@@ -319,6 +319,12 @@ public:
         return DynamicAttributesMap.At(this);
     }
 
+    virtual TInstant GetMinSubtreeStartTime(const TDynamicAttributesMap& dynamicAttributesMap) const override
+    {
+        YCHECK(dynamicAttributesMap.GetActive(this));
+        return dynamicAttributesMap.At(this).MinSubtreeStartTime;
+    }
+
     ESchedulableStatus GetStatus(double defaultTolerance) const
     {
         double usageRatio = Attributes_.UsageRatio;
@@ -577,12 +583,6 @@ public:
     {
         YCHECK(dynamicAttributesMap.GetActive(this));
         return dynamicAttributesMap.At(this).BestLeafDescendant.Get();
-    }
-
-    virtual TInstant GetMinSubtreeStartTime(const TDynamicAttributesMap& dynamicAttributesMap) const override
-    {
-        YCHECK(dynamicAttributesMap.GetActive(this));
-        return dynamicAttributesMap.At(this).MinSubtreeStartTime;
     }
 
     virtual bool IsRoot() const
@@ -1089,11 +1089,6 @@ public:
         return this;
     }
 
-    virtual TInstant GetMinSubtreeStartTime(const TDynamicAttributesMap& /*dynamicAttributesMap*/) const override
-    {
-        return Operation_->GetStartTime();
-    }
-
     virtual const TNodeResources& ResourceDemand() const override
     {
         ResourceDemand_ = ZeroNodeResources();
@@ -1431,11 +1426,11 @@ public:
             Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
                 .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    auto operation = pair.first;
+                    auto operationId = pair.first;
                     BuildYsonMapFluently(fluent)
-                        .Item(ToString(operation->GetId()))
+                        .Item(ToString(operationId))
                         .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operation))
+                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
                         .EndMap();
                 });
             LastLogTime = now;
@@ -1455,8 +1450,12 @@ public:
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         for (const auto& job : schedulingContext->RunningJobs()) {
-            auto operation = job->GetOperation();
-            auto operationElement = GetOperationElement(operation);
+            auto operationElement = FindOperationElement(job->GetOperationId());
+            if (!operationElement) {
+                LOG_INFO("Dangling running job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                continue;
+            }
+
             if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
                 TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
@@ -1505,8 +1504,11 @@ public:
             });
 
         auto poolLimitsViolated = [&] (TJobPtr job) -> bool {
-            auto operation = job->GetOperation();
-            auto operationElement = GetOperationElement(operation);
+            auto operationElement = FindOperationElement(job->GetOperationId());
+            if (!operationElement) {
+                return false;
+            }
+
             TCompositeSchedulerElement* pool = operationElement->GetPool();
             while (pool) {
                 if (!Dominates(pool->ResourceLimits(), pool->ResourceUsage())) {
@@ -1530,6 +1532,11 @@ public:
         bool poolsLimitsViolated = true;
 
         for (const auto& job : preemptableJobs) {
+            if (!FindOperationElement(job->GetOperationId())) {
+                LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                continue;
+            }
+
             // Update flags only if violation is not resolved yet to avoid costly computations.
             if (nodeLimitsViolated) {
                 nodeLimitsViolated = !Dominates(node->ResourceLimits(), node->ResourceUsage());
@@ -1558,28 +1565,28 @@ public:
             FormatResources(resourceDiscount));
     }
 
-    virtual void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
         BuildYsonMapFluently(consumer)
             .Items(*serializedParams);
     }
 
-    virtual void BuildOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         auto pool = element->GetPool();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
-            .Item("start_time").Value(operation->GetStartTime())
+            .Item("start_time").Value(element->DynamicAttributes().MinSubtreeStartTime)
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
-    virtual void BuildBriefOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         auto pool = element->GetPool();
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
@@ -1587,9 +1594,9 @@ public:
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
-    virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) override
+    virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         const auto& attributes = element->Attributes();
         const auto& dynamicAttributes = element->DynamicAttributes();
 
@@ -1637,9 +1644,9 @@ public:
         BuildPoolsInformation(consumer);
     }
 
-    virtual void BuildBriefSpec(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(element->GetPool()->GetId());
     }
@@ -1651,7 +1658,7 @@ private:
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
-    typedef yhash_map<TOperationPtr, TOperationElementPtr> TOperationMap;
+    typedef yhash_map<TOperationId, TOperationElementPtr> TOperationMap;
     TOperationMap OperationToElement;
 
     std::list<TOperationPtr> OperationQueue;
@@ -1665,12 +1672,7 @@ private:
 
     bool IsJobPreemptable(TJobPtr job)
     {
-        auto operation = job->GetOperation();
-        if (operation->GetState() != EOperationState::Running) {
-            return false;
-        }
-
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(job->GetOperationId());
         auto spec = element->GetSpec();
 
         double usageRatio = element->Attributes().UsageRatio;
@@ -1692,8 +1694,7 @@ private:
 
     void PreemptJob(TJobPtr job, TFairShareContext& context)
     {
-        auto operation = job->GetOperation();
-        auto operationElement = GetOperationElement(operation);
+        auto operationElement = GetOperationElement(job->GetOperationId());
 
         context.SchedulingContext->GetNode()->ResourceUsage() -= job->ResourceUsage();
         operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
@@ -1751,8 +1752,9 @@ private:
             Host,
             operation,
             DynamicAttributesMap);
-        YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
+        YCHECK(OperationToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
         DynamicAttributesMap.Initialize(operationElement);
+        DynamicAttributesMap.At(operationElement).MinSubtreeStartTime = operation->GetStartTime();
 
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
@@ -1781,9 +1783,10 @@ private:
         }
     }
 
+    // TODO(acid): This interface can also use operationId.
     void ActivateOperation(TOperationPtr operation)
     {
-        auto operationElement = GetOperationElement(operation);
+        auto operationElement = GetOperationElement(operation->GetId());
         auto pool = operationElement->GetPool();
         pool->EnableChild(operationElement);
 
@@ -1800,10 +1803,10 @@ private:
 
     void OnOperationUnregistered(TOperationPtr operation)
     {
-        auto operationElement = GetOperationElement(operation);
+        auto operationElement = GetOperationElement(operation->GetId());
         auto* pool = operationElement->GetPool();
 
-        YCHECK(OperationToElement.erase(operation) == 1);
+        YCHECK(OperationToElement.erase(operation->GetId()) == 1);
         DynamicAttributesMap.Erase(operationElement);
         pool->RemoveChild(operationElement);
         pool->IncreaseUsage(-operationElement->ResourceUsage());
@@ -1836,7 +1839,7 @@ private:
             auto it = OperationQueue.begin();
             while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
                 auto operation = *it;
-                if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
+                if (CanAddOperationToPool(GetOperationElement(operation->GetId())->GetPool())) {
                     ActivateOperation(operation);
                     operation->SetState(EOperationState::Running);
                     operation->SetQueued(false);
@@ -1858,7 +1861,7 @@ private:
         TOperationPtr operation,
         INodePtr update)
     {
-        auto element = FindOperationElement(operation);
+        auto element = FindOperationElement(operation->GetId());
         if (!element)
             return;
 
@@ -1877,13 +1880,13 @@ private:
 
     void OnJobFinished(TJobPtr job)
     {
-        auto element = GetOperationElement(job->GetOperation());
+        auto element = GetOperationElement(job->GetOperationId());
         element->OnJobFinished(job->GetId());
     }
 
     void OnJobUpdated(TJobPtr job, const TNodeResources& resourcesDelta)
     {
-        auto element = GetOperationElement(job->GetOperation());
+        auto element = GetOperationElement(job->GetOperationId());
         element->IncreaseJobResourceUsage(job->GetId(), resourcesDelta);
     }
 
@@ -1954,15 +1957,15 @@ private:
     }
 
 
-    TOperationElementPtr FindOperationElement(TOperationPtr operation)
+    TOperationElementPtr FindOperationElement(const TOperationId& operationId)
     {
-        auto it = OperationToElement.find(operation);
+        auto it = OperationToElement.find(operationId);
         return it == OperationToElement.end() ? nullptr : it->second;
     }
 
-    TOperationElementPtr GetOperationElement(TOperationPtr operation)
+    TOperationElementPtr GetOperationElement(const TOperationId& operationId)
     {
-        auto element = FindOperationElement(operation);
+        auto element = FindOperationElement(operationId);
         YCHECK(element);
         return element;
     }

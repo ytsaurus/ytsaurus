@@ -25,6 +25,7 @@ TJob::TJob(
     : Id_(id)
     , Type_(type)
     , Operation_(operation.Get())
+    , OperationId_(operation->GetId())
     , Node_(node)
     , StartTime_(startTime)
     , Restarted_(restarted)
