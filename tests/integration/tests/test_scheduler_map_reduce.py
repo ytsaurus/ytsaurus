@@ -328,7 +328,7 @@ print "x={0}\ty={1}".format(x, y)
 
     def test_bad_control_attributes(self):
         create("table", "//tmp/t1")
-        write("//tmp/t1", {"foo": "bar"})
+        write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
 
         with pytest.raises(YtError):

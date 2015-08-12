@@ -99,13 +99,13 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     @only_linux
     def test_control_attributes_yson(self):
         create('table', '//tmp/in1')
-        write(
+        write_table(
             '//tmp/in1',
             {'key': 4, 'value': 3},
             sorted_by = 'key')
 
         create('table', '//tmp/in2')
-        write(
+        write_table(
             '//tmp/in2',
             {'key': 1, 'value': 6},
             sorted_by = 'key')
