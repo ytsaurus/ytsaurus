@@ -1899,47 +1899,53 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 71:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > (), yystack_[1].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionPtr > () = New<TFunctionExpression>(yylhs.location, yystack_[2].value.as< TStringBuf > (), New<TEmptyExpression>(yylhs.location));
         }
     break;
 
   case 72:
     {
-            yylhs.value.as< TExpressionPtr > () = yystack_[1].value.as< TExpressionPtr > ();
+            yylhs.value.as< TExpressionPtr > () = New<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > (), yystack_[1].value.as< TExpressionPtr > ());
         }
     break;
 
   case 73:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
+            yylhs.value.as< TExpressionPtr > () = yystack_[1].value.as< TExpressionPtr > ();
         }
     break;
 
   case 74:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< i64 > (); }
+    {
+            yylhs.value.as< TExpressionPtr > () = New<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
+        }
     break;
 
   case 75:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< ui64 > (); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< i64 > (); }
     break;
 
   case 76:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< double > (); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< ui64 > (); }
     break;
 
   case 77:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< Stroka > (); }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< double > (); }
     break;
 
   case 78:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = false; }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< Stroka > (); }
     break;
 
   case 79:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = true; }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = false; }
     break;
 
   case 80:
+    { yylhs.value.as< TNullable<TLiteralValue> > () = true; }
+    break;
+
+  case 81:
     {
             switch (yystack_[1].value.as< EUnaryOp > ()) {
                 case EUnaryOp::Minus: {
@@ -1964,19 +1970,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         }
     break;
 
-  case 81:
-    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > (); }
-    break;
-
   case 82:
-    {
-            yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
-        }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > (); }
     break;
 
   case 83:
     {
+            yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
             yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
@@ -1989,18 +1989,24 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 85:
     {
-            yylhs.value.as< TLiteralValueList > () = yystack_[1].value.as< TLiteralValueList > ();
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 86:
+    {
+            yylhs.value.as< TLiteralValueList > () = yystack_[1].value.as< TLiteralValueList > ();
+        }
+    break;
+
+  case 87:
     {
             yylhs.value.as< TLiteralValueTupleList > ().swap(yystack_[2].value.as< TLiteralValueTupleList > ());
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
     break;
 
-  case 87:
+  case 88:
     {
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
@@ -2261,108 +2267,110 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -101;
+  const signed char TParser::yypact_ninf_ = -90;
 
   const signed char TParser::yytable_ninf_ = -1;
 
-  const signed char
+  const short int
   TParser::yypact_[] =
   {
-     125,    21,    21,    56,    10,    70,  -101,  -101,    22,  -101,
-    -101,  -101,  -101,    56,  -101,  -101,  -101,  -101,    29,     7,
-    -101,    27,    32,    42,  -101,   105,   -12,   -10,    11,   112,
-    -101,  -101,  -101,  -101,    59,  -101,  -101,  -101,   105,    56,
-      63,  -101,    26,    66,    59,    56,    77,    56,    56,  -101,
-    -101,  -101,  -101,  -101,  -101,    70,  -101,  -101,    70,  -101,
-    -101,  -101,    70,    70,    36,  -101,    56,  -101,    33,  -101,
-    -101,    56,     0,  -101,    93,  -101,  -101,    42,  -101,   -12,
-    -101,   -10,  -101,    91,    84,    32,  -101,  -101,    89,  -101,
-     106,    56,   109,    70,    98,    46,  -101,  -101,  -101,    54,
-    -101,    66,     7,    56,   110,  -101,  -101,    68,  -101,  -101,
-      84,    45,    32,    94,   122,  -101,    98,  -101,    94,    70,
-      96,    -4,  -101,   116,  -101,  -101,   115,   -15,  -101,  -101,
-      94,  -101,  -101,    70,  -101,   -12
+     141,    22,    22,    72,    10,    86,   -90,   -90,    23,   -90,
+     -90,   -90,   -90,    72,   -90,   -90,   -90,   -90,    15,   -19,
+     -90,     7,     9,    21,   -90,   121,    82,   -13,    54,   128,
+     -90,   -90,   -90,   -90,    37,   -90,   -90,   -90,   121,    57,
+      36,   -90,     0,    41,    37,    72,    42,    72,    72,   -90,
+     -90,   -90,   -90,   -90,   -90,    86,   -90,   -90,    86,   -90,
+     -90,   -90,    86,    86,    63,   -90,    72,   -90,   -90,    27,
+     -90,   -90,    72,    -6,   -90,    40,   -90,   -90,    21,   -90,
+      82,   -90,   -13,   -90,    89,   100,     9,   -90,   -90,    79,
+     -90,   109,    72,   113,    86,   114,    45,   -90,   -90,   -90,
+      55,   -90,    41,   -19,    72,   112,   -90,   -90,    70,   -90,
+     -90,   100,    46,     9,   105,   123,   -90,   114,   -90,   105,
+      86,    96,    -2,   -90,   132,   -90,   -90,   104,   -12,   -90,
+     -90,   105,   -90,   -90,    86,   -90,    82
   };
 
   const unsigned char
   TParser::yydefact_[] =
   {
-       0,     0,     0,     0,     0,     0,    78,    79,    68,    74,
-      75,    76,    77,     0,     9,    66,    67,     2,     0,     8,
+       0,     0,     0,     0,     0,     0,    79,    80,    68,    75,
+      76,    77,    78,     0,     9,    66,    67,     2,     0,     8,
       33,    34,    36,    38,    40,    42,    46,    54,    58,     0,
-      70,    65,    73,     3,    18,     4,     7,     1,    41,     0,
+      70,    65,    74,     3,    18,     4,     7,     1,    41,     0,
        0,    63,     0,     0,    18,     0,     0,     0,     0,    49,
       50,    47,    48,    51,    52,     0,    55,    56,     0,    61,
-      59,    60,     0,     0,     0,    64,     0,     6,     0,    69,
-      72,     0,    12,    16,    20,    32,    35,    37,    39,    43,
-      58,    53,    57,     0,     0,    17,    71,    62,     0,    10,
-      13,     0,    22,     0,     0,     0,    81,    84,    87,     0,
-      11,     0,    19,     0,    24,    44,    83,     0,    80,    45,
-       0,     0,    21,     0,    29,    85,     0,    86,     0,     0,
-      68,    27,    31,     0,     5,    82,    14,     0,    26,    25,
-       0,    23,    28,     0,    30,    15
+      59,    60,     0,     0,     0,    64,     0,     6,    71,     0,
+      69,    73,     0,    12,    16,    20,    32,    35,    37,    39,
+      43,    58,    53,    57,     0,     0,    17,    72,    62,     0,
+      10,    13,     0,    22,     0,     0,     0,    82,    85,    88,
+       0,    11,     0,    19,     0,    24,    44,    84,     0,    81,
+      45,     0,     0,    21,     0,    29,    86,     0,    87,     0,
+       0,    68,    27,    31,     0,     5,    83,    14,     0,    26,
+      25,     0,    23,    28,     0,    30,    15
   };
 
   const short int
   TParser::yypgoto_[] =
   {
-    -101,  -101,  -101,  -101,  -101,   150,    52,  -101,  -101,   111,
-    -101,  -101,  -101,  -101,  -101,    38,    67,   114,     1,   -64,
-     107,   113,   152,  -101,   -54,  -101,   102,  -101,   123,   -55,
-     -75,  -100,   134,   -79,   -88,  -101,    55,  -101
+     -90,   -90,   -90,   -90,   -90,   134,    48,   -90,   -90,   124,
+     -90,   -90,   -90,   -90,   -90,    29,    75,   125,    -1,   -62,
+     122,   126,   166,   -90,   -54,   -90,   115,   -90,   133,   -55,
+     -76,   -87,   146,   -80,   -89,   -90,    65,   -90
   };
 
   const short int
   TParser::yydefgoto_[] =
   {
-      -1,     4,    17,    33,    35,    18,    73,    44,    90,    67,
-      92,   104,   114,   131,   124,   121,    19,    20,    21,    22,
+      -1,     4,    17,    33,    35,    18,    74,    44,    91,    67,
+      93,   105,   115,   132,   125,   122,    19,    20,    21,    22,
       23,    24,    25,    55,    26,    58,    27,    62,    42,    28,
-      29,    30,    31,    32,    97,   107,    98,    99
+      29,    30,    31,    32,    98,   108,    99,   100
   };
 
   const unsigned char
   TParser::yytable_[] =
   {
-      80,    79,    85,    80,    36,    96,   106,    82,    83,    95,
-      37,   128,   129,   122,    41,    96,   108,    88,   122,    95,
-      56,    59,    57,    56,    60,    57,    89,   133,   125,    61,
-     134,    96,   130,    63,    64,    95,    43,    96,   105,   112,
-      41,    95,     5,    45,    46,     6,     7,     8,     9,    10,
-      11,    12,    47,    13,    39,    14,    15,   118,    16,    70,
-      40,    48,    71,   119,    80,   127,    86,    66,    84,    71,
-       6,     7,    87,     9,    10,    11,    12,     5,    80,   135,
-       6,     7,     8,     9,    10,    11,    12,   109,    13,    69,
-     110,    15,    72,    16,     6,     7,     8,     9,    10,    11,
-      12,   115,    13,    76,   116,    15,    91,    16,     6,     7,
-      93,     9,    10,    11,    12,   100,    94,   101,   103,    15,
-     120,    16,     6,     7,   113,     9,    10,    11,    12,     1,
-       2,     3,   123,    15,    40,    16,     6,     7,     8,     9,
-      10,    11,    12,   132,    13,    49,    50,    51,    52,    53,
-      54,   130,    34,   111,    77,    74,   126,    38,   102,    75,
-      81,    78,    68,    65,     0,   117
+      81,    80,    36,    81,    86,    97,   107,    83,    84,    96,
+      37,    89,    41,   129,   130,    97,   109,    45,    59,    96,
+      90,    60,    43,    56,    46,    57,    61,   123,   126,    47,
+     134,    97,   123,    71,   131,    96,    72,    97,    41,   106,
+      48,    96,   113,     5,   135,    66,     6,     7,     8,     9,
+      10,    11,    12,    92,    13,    39,    14,    15,   119,    16,
+      87,    40,    70,    72,   120,    81,   128,    73,    77,     6,
+       7,    88,     9,    10,    11,    12,    63,    64,     5,    81,
+     136,     6,     7,     8,     9,    10,    11,    12,   110,    13,
+      68,   111,    15,     5,    16,    85,     6,     7,     8,     9,
+      10,    11,    12,   116,    13,   101,   117,    15,    94,    16,
+       6,     7,     8,     9,    10,    11,    12,    56,    13,    57,
+     102,    15,   104,    16,     6,     7,   114,     9,    10,    11,
+      12,   121,    95,   124,    40,    15,    34,    16,     6,     7,
+     131,     9,    10,    11,    12,     1,     2,     3,   127,    15,
+     112,    16,     6,     7,     8,     9,    10,    11,    12,   133,
+      13,    49,    50,    51,    52,    53,    54,   103,    75,    78,
+      76,    38,    69,    82,    79,    65,   118
   };
 
-  const short int
+  const unsigned char
   TParser::yycheck_[] =
   {
-      55,    55,    66,    58,     3,    84,    94,    62,    63,    84,
-       0,    15,    16,   113,    13,    94,    95,    17,   118,    94,
-      35,    31,    37,    35,    34,    37,    26,    42,   116,    39,
-     130,   110,    36,    22,    23,   110,     7,   116,    93,   103,
-      39,   116,    21,    36,    17,    24,    25,    26,    27,    28,
-      29,    30,    20,    32,    32,    34,    35,    12,    37,    33,
-      38,    19,    36,    18,   119,   119,    33,     8,    32,    36,
-      24,    25,    71,    27,    28,    29,    30,    21,   133,   133,
-      24,    25,    26,    27,    28,    29,    30,    33,    32,    26,
-      36,    35,    26,    37,    24,    25,    26,    27,    28,    29,
-      30,    33,    32,    26,    36,    35,    13,    37,    24,    25,
-      19,    27,    28,    29,    30,    26,    32,    11,     9,    35,
-      26,    37,    24,    25,    14,    27,    28,    29,    30,     4,
-       5,     6,    10,    35,    38,    37,    24,    25,    26,    27,
-      28,    29,    30,    27,    32,    40,    41,    42,    43,    44,
-      45,    36,     2,   101,    47,    44,   118,     5,    91,    45,
-      58,    48,    39,    29,    -1,   110
+      55,    55,     3,    58,    66,    85,    95,    62,    63,    85,
+       0,    17,    13,    15,    16,    95,    96,    36,    31,    95,
+      26,    34,     7,    35,    17,    37,    39,   114,   117,    20,
+      42,   111,   119,    33,    36,   111,    36,   117,    39,    94,
+      19,   117,   104,    21,   131,     8,    24,    25,    26,    27,
+      28,    29,    30,    13,    32,    32,    34,    35,    12,    37,
+      33,    38,    26,    36,    18,   120,   120,    26,    26,    24,
+      25,    72,    27,    28,    29,    30,    22,    23,    21,   134,
+     134,    24,    25,    26,    27,    28,    29,    30,    33,    32,
+      33,    36,    35,    21,    37,    32,    24,    25,    26,    27,
+      28,    29,    30,    33,    32,    26,    36,    35,    19,    37,
+      24,    25,    26,    27,    28,    29,    30,    35,    32,    37,
+      11,    35,     9,    37,    24,    25,    14,    27,    28,    29,
+      30,    26,    32,    10,    38,    35,     2,    37,    24,    25,
+      36,    27,    28,    29,    30,     4,     5,     6,   119,    35,
+     102,    37,    24,    25,    26,    27,    28,    29,    30,    27,
+      32,    40,    41,    42,    43,    44,    45,    92,    44,    47,
+      45,     5,    39,    58,    48,    29,   111
   };
 
   const unsigned char
@@ -2374,14 +2382,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       77,    78,    79,    49,    51,    50,    64,     0,    68,    32,
       38,    64,    74,     7,    53,    36,    17,    20,    19,    40,
       41,    42,    43,    44,    45,    69,    35,    37,    71,    31,
-      34,    39,    73,    22,    23,    78,     8,    55,    74,    26,
-      33,    36,    26,    52,    55,    63,    26,    66,    67,    70,
-      75,    72,    75,    75,    32,    65,    33,    64,    17,    26,
-      54,    13,    56,    19,    32,    76,    79,    80,    82,    83,
-      26,    11,    62,     9,    57,    75,    80,    81,    79,    33,
-      36,    52,    65,    14,    58,    33,    36,    82,    12,    18,
-      26,    61,    77,    10,    60,    80,    61,    70,    15,    16,
-      36,    59,    27,    42,    77,    70
+      34,    39,    73,    22,    23,    78,     8,    55,    33,    74,
+      26,    33,    36,    26,    52,    55,    63,    26,    66,    67,
+      70,    75,    72,    75,    75,    32,    65,    33,    64,    17,
+      26,    54,    13,    56,    19,    32,    76,    79,    80,    82,
+      83,    26,    11,    62,     9,    57,    75,    80,    81,    79,
+      33,    36,    52,    65,    14,    58,    33,    36,    82,    12,
+      18,    26,    61,    77,    10,    60,    80,    61,    70,    15,
+      16,    36,    59,    27,    42,    77,    70
   };
 
   const unsigned char
@@ -2394,8 +2402,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       66,    67,    67,    68,    68,    68,    68,    69,    69,    69,
       69,    69,    69,    70,    70,    71,    71,    72,    72,    73,
       73,    73,    74,    74,    75,    75,    76,    76,    77,    77,
-      78,    78,    78,    78,    79,    79,    79,    79,    79,    79,
-      80,    80,    81,    81,    82,    82,    83,    83
+      78,    78,    78,    78,    78,    79,    79,    79,    79,    79,
+      79,    80,    80,    81,    81,    82,    82,    83,    83
   };
 
   const unsigned char
@@ -2408,8 +2416,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
        1,     2,     1,     3,     5,     5,     1,     1,     1,     1,
        1,     1,     1,     3,     1,     1,     1,     3,     1,     1,
        1,     1,     3,     1,     2,     1,     1,     1,     1,     3,
-       1,     4,     3,     1,     1,     1,     1,     1,     1,     1,
-       2,     1,     3,     1,     1,     3,     3,     1
+       1,     3,     4,     3,     1,     1,     1,     1,     1,     1,
+       1,     2,     1,     3,     1,     1,     3,     3,     1
   };
 
 
@@ -2455,8 +2463,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
      324,   329,   333,   338,   342,   349,   353,   358,   360,   362,
      364,   366,   368,   373,   377,   382,   384,   389,   393,   398,
      400,   402,   407,   411,   416,   420,   425,   427,   432,   436,
-     443,   447,   451,   455,   462,   464,   466,   468,   470,   472,
-     477,   500,   506,   511,   518,   522,   529,   534
+     443,   447,   451,   455,   459,   466,   468,   470,   472,   474,
+     476,   481,   504,   510,   515,   522,   526,   533,   538
   };
 
   // Print the state stack on the debug stream.

@@ -2222,6 +2222,12 @@ protected:
             EValueType::Int64,
             EValueType::Int64,
             testUdfImplementations);
+        SeventyFiveUdf_ = New<TUserDefinedFunction>(
+            "seventyfive",
+            std::vector<TType>{},
+            EValueType::Uint64,
+            testUdfImplementations,
+            ECallingConvention::Simple);
     }
 
     virtual void TearDown() override
@@ -2420,6 +2426,7 @@ protected:
     IFunctionDescriptorPtr TolowerUdf_;
     IFunctionDescriptorPtr IsNullUdf_;
     IFunctionDescriptorPtr SumUdf_;
+    IFunctionDescriptorPtr SeventyFiveUdf_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3787,6 +3794,38 @@ TEST_F(TQueryEvaluateTest, TestUdf)
     registry->WithFunction(AbsUdf_);
 
     Evaluate("abs_udf(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64},
+    });
+
+    std::vector<Stroka> source = {
+        "a=1u",
+        "a=2u",
+        "a=75u",
+        "a=10u",
+        "a=75u",
+        "a=10u",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "a=75u",
+        "a=75u"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(SeventyFiveUdf_);
+
+    Evaluate("a FROM [//t] where a = seventyfive()", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
 
     SUCCEED();
 }

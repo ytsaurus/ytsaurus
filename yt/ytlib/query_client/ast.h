@@ -109,6 +109,15 @@ struct TFunctionExpression
     TExpressionPtr Arguments;
 };
 
+struct TEmptyExpression
+    : public TExpression
+{
+    TEmptyExpression(
+        const TSourceLocation& sourceLocation)
+        : TExpression(sourceLocation)
+    { }
+};
+
 struct TUnaryOpExpression
     : public TExpression
 {
