@@ -81,8 +81,8 @@ void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consum
             .Item("memory_size").Value(statistics.MemorySize)
             .Item("disk_space").Value(statistics.DiskSpace)
             .Item("chunk_count").Value(statistics.ChunkCount)
-            .Item("partition_count").Value(statistics.ChunkCount)
-            .Item("store_count").Value(statistics.ChunkCount)
+            .Item("partition_count").Value(statistics.PartitionCount)
+            .Item("store_count").Value(statistics.StoreCount)
         .EndMap();
 }
 

@@ -78,24 +78,44 @@ public:
 
     //! Writes the row taking the needed locks.
     /*!
+     *  Only applies to atomic transactions.
+     *
      *  On lock failure, throws TErrorException explaining the cause.
      *  If a blocked row is encountered, throws TRowBlockedException.
      */
-    TDynamicRow WriteRow(
+    TDynamicRow WriteRowAtomic(
         TTransaction* transaction,
         NTableClient::TUnversionedRow row,
         bool prelock,
         ui32 lockMask);
 
+    //! Writes and immediately commits the row.
+    /*!
+     *  Only applies to non-atomic transactions. No locks are checked or taken.
+     */
+    TDynamicRow WriteRowNonAtomic(
+        NTableClient::TUnversionedRow row,
+        TTimestamp commitTimestamp);
+
     //! Deletes the row taking the needed locks.
     /*!
+     *  Only applies to atomic transactions.
+     *
      *  On lock failure, throws TErrorException explaining the cause.
      *  If a blocked row is encountered, throws TRowBlockedException.
      */
-    TDynamicRow DeleteRow(
+    TDynamicRow DeleteRowAtomic(
         TTransaction* transaction,
         TKey key,
         bool prelock);
+
+    //! Deletes and immediately commits the row.
+    /*!
+     *  Only applies to non-atomic transactions. No locks are checked or taken.
+     */
+    TDynamicRow DeleteRowNonAtomic(
+        TKey key,
+        TTimestamp commitTimestamp);
 
     TDynamicRow MigrateRow(
         TTransaction* transaction,
@@ -199,6 +219,7 @@ private:
 
     TValueList PrepareFixedValue(TDynamicRow row, int index);
     void AddRevision(TDynamicRow row, ui32 revision, ERevisionListKind kind);
+    void AddRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision, ERevisionListKind kind);
     void SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys);
     void SetKeys(TDynamicRow dstRow, TDynamicRow srcRow);
     void LoadRow(TVersionedRow row, yhash_map<TTimestamp, ui32>* timestampToRevision);
@@ -213,6 +234,7 @@ private:
     ui32 GetLatestRevision() const;
     ui32 RegisterRevision(TTimestamp timestamp);
     TTimestamp TimestampFromRevision(ui32 revision);
+    void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();
 

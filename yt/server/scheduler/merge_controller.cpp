@@ -1748,6 +1748,7 @@ private:
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         ToProto(reduceJobSpecExt->mutable_key_columns(), GetSortingKeyColumns());
+        reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }

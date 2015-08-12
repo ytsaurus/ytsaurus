@@ -375,6 +375,39 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
     }
 }
 
+void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+{
+    ValidateTableSchema(newSchema);
+
+    for (const auto& oldColumn : oldSchema.Columns()) {
+        const auto& newColumn = newSchema.GetColumnOrThrow(oldColumn.Name);
+
+        if (newColumn.Type != oldColumn.Type) {
+            THROW_ERROR_EXCEPTION("Type mismatch for column %Qv: expected %Qv but got %Qv",
+                oldColumn.Name,
+                oldColumn.Type,
+                newColumn.Type);
+        }
+
+        if (newColumn.Expression != oldColumn.Expression) {
+            THROW_ERROR_EXCEPTION("Expression mismatch for column %Qv: expected %Qv but got %Qv",
+                oldColumn.Name,
+                oldColumn.Expression,
+                newColumn.Expression);
+        }
+
+        //FIXME(savrus) enable when aggregates merged
+#if 0
+        if (oldColumn.Aggregate && oldColumn.Aggregate != newColumn.Aggregate) {
+            THROW_ERROR_EXCEPTION("Aggregate mismatch for column %Qv: expected %Qv but got %Qv",
+                oldColumn.Name,
+                oldColumn.Aggregate,
+                newColumn.Aggregate);
+        }
+#endif
+    }
+}
+
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount)
 {
     if (pivotKey.GetCount() > keyColumnCount) {

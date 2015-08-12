@@ -4,12 +4,15 @@
 
 #include <core/rpc/client.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 namespace NYT {
 namespace NTransactionClient {
 
 using namespace NRpc;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +45,51 @@ std::pair<TDuration, TDuration> TimestampDiffToDuration(TTimestamp loTimestamp, 
     return std::make_pair(
         hiInstant.first >= loInstant.second ? hiInstant.first - loInstant.second : TDuration::Zero(),
         hiInstant.second - loInstant.first);
+}
+
+TTransactionId MakeTabletTransactionId(
+    EAtomicity atomicity,
+    TCellTag cellTag,
+    TTimestamp startTimestamp,
+    ui32 hash)
+{
+    EObjectType type;
+    switch (atomicity) {
+        case EAtomicity::Full:
+            type = EObjectType::AtomicTabletTransaction;
+            break;
+        case EAtomicity::None:
+            type = EObjectType::NonAtomicTabletTransaction;
+            break;
+        default:
+            YUNREACHABLE();
+    }
+
+    return MakeId(
+        type,
+        cellTag,
+        static_cast<ui64>(startTimestamp),
+        hash);
+}
+
+TTimestamp TimestampFromTransactionId(const TTransactionId& id)
+{
+    return TTimestamp(CounterFromId(id));
+}
+
+EAtomicity AtomicityFromTransactionId(const TTransactionId& id)
+{
+    switch (TypeFromId(id)) {
+        case EObjectType::Transaction:
+        case EObjectType::AtomicTabletTransaction:
+            return EAtomicity::Full;
+
+        case EObjectType::NonAtomicTabletTransaction:
+            return EAtomicity::None;
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -230,6 +230,8 @@ struct TInsertRowsRequest
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     bool Update;
+    NTransactionClient::EAtomicity Atomicity;
+    NTransactionClient::EDurability Durability;
 
     TInsertRowsRequest()
     {
@@ -238,6 +240,10 @@ struct TInsertRowsRequest
         RegisterParameter("path", Path);
         RegisterParameter("update", Update)
             .Default(false);
+        RegisterParameter("atomicity", Atomicity)
+            .Default(NTransactionClient::EAtomicity::Full);
+        RegisterParameter("durability", Durability)
+            .Default(NTransactionClient::EDurability::Sync);
     }
 };
 

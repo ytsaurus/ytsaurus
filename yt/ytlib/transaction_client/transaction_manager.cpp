@@ -3,6 +3,8 @@
 #include "timestamp_provider.h"
 #include "config.h"
 #include "private.h"
+#include "helpers.h"
+#include "transaction_ypath_proxy.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/delayed_executor.h>
@@ -10,8 +12,6 @@
 #include <core/ytree/public.h>
 
 #include <core/rpc/helpers.h>
-
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
@@ -38,7 +38,7 @@ using namespace NTabletClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TransactionClientLogger;
-static std::atomic<ui32> TabletTransactionCounter; // used as a part of transaction id
+static std::atomic<ui32> TabletTransactionHashCounter; // used as a part of transaction id
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,16 +125,27 @@ public:
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         Timeout_ = options.Timeout;
+        Atomicity_ = options.Atomicity;
+        Durability_ = options.Durability;
 
-        return Owner_->TimestampProvider_->GenerateTimestamps()
-            .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
+        switch (Atomicity_) {
+            case EAtomicity::Full:
+                return Owner_->TimestampProvider_->GenerateTimestamps()
+                    .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
+
+            case EAtomicity::None:
+                return StartNonAtomicTabletTransaction();
+
+            default:
+                YUNREACHABLE();
+        }
     }
 
     void Attach(
         const TTransactionId& id,
         const TTransactionAttachOptions& options)
     {
-        YCHECK(TypeFromId(id) == EObjectType::Transaction);
+        ValidateAttachOptions(id, options);
 
         Type_ = ETransactionType::Master;
         Id_ = id;
@@ -146,7 +157,7 @@ public:
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
             Owner_->CellId_,
             MakePromise<void>(TError()))).second);
-    
+
         Register();
 
         LOG_INFO("Master transaction attached (TransactionId: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
@@ -172,15 +183,12 @@ public:
             switch (State_) {
                 case ETransactionState::Committing:
                     return MakeFuture(TError("Transaction is already being committed"));
-                    break;
 
                 case ETransactionState::Committed:
                     return MakeFuture(TError("Transaction is already committed"));
-                    break;
 
                 case ETransactionState::Aborted:
                     return MakeFuture(TError("Transaction is already aborted"));
-                    break;
 
                 case ETransactionState::Active:
                     State_ = ETransactionState::Committing;
@@ -191,48 +199,63 @@ public:
             }
         }
 
-        auto participantGuids = GetParticipantIds();
-        if (participantGuids.empty()) {
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                if (State_ != ETransactionState::Committing) {
-                    return MakeFuture(Error_);
+        switch (Atomicity_) {
+            case EAtomicity::Full: {
+                auto participantGuids = GetParticipantIds();
+                if (participantGuids.empty()) {
+                    {
+                        TGuard<TSpinLock> guard(SpinLock_);
+                        if (State_ != ETransactionState::Committing) {
+                            return MakeFuture(Error_);
+                        }
+                        State_ = ETransactionState::Committed;
+                    }
+
+                    LOG_INFO("Trivial transaction committed (TransactionId: %v)",
+                        Id_);
+                    return VoidFuture;
                 }
-                State_ = ETransactionState::Committed;
+
+                auto coordinatorCellId = Type_ == ETransactionType::Master
+                    ? Owner_->CellId_
+                    : participantGuids[RandomNumber(participantGuids.size())];
+
+                LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
+                    Id_,
+                    coordinatorCellId);
+
+                auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
+                TTransactionSupervisorServiceProxy proxy(channel);
+
+                auto req = proxy.CommitTransaction();
+                ToProto(req->mutable_transaction_id(), Id_);
+                for (const auto& cellId : participantGuids) {
+                    if (cellId != coordinatorCellId) {
+                        ToProto(req->add_participant_cell_ids(), cellId);
+                    }
+                }
+                SetOrGenerateMutationId(req, options.MutationId, options.Retry);
+
+                return req->Invoke().Apply(
+                    BIND(&TImpl::OnAtomicTransactionCommitted, MakeStrong(this), coordinatorCellId));
             }
 
-            LOG_INFO("Trivial transaction committed (TransactionId: %v)",
-                Id_);
-            return VoidFuture;
+            case EAtomicity::None:
+                SetTransactionCommitted();
+                return VoidFuture;
+
+            default:
+                YUNREACHABLE();
         }
-
-        auto coordinatorCellId = Type_ == ETransactionType::Master
-            ? Owner_->CellId_
-            : participantGuids[RandomNumber(participantGuids.size())];
-
-        LOG_INFO("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
-            Id_,
-            coordinatorCellId);
-
-        auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-        TTransactionSupervisorServiceProxy proxy(channel);
-
-        auto req = proxy.CommitTransaction();
-        ToProto(req->mutable_transaction_id(), Id_);
-        for (const auto& cellId : participantGuids) {
-            if (cellId != coordinatorCellId) {
-                ToProto(req->add_participant_cell_ids(), cellId);
-            }
-        }
-        SetOrGenerateMutationId(req, options.MutationId, options.Retry);
-
-        return req->Invoke().Apply(
-            BIND(&TImpl::OnTransactionCommitted, MakeStrong(this), coordinatorCellId));
     }
 
     TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        if (Atomicity_ != EAtomicity::Full) {
+            return VoidFuture;
+        }
 
         return SendAbort(options).Apply(BIND([=, this_ = MakeStrong(this)] () {
             DoAbort(TError("Transaction aborted by user request"));
@@ -243,12 +266,24 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (Atomicity_ != EAtomicity::Full) {
+            return MakeFuture(TError("Cannot ping a transaction with %Qlv atomicity",
+                Atomicity_));
+        }
+
         return SendPing();
     }
 
     void Detach()
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
+
+        if (Type_ != ETransactionType::Master) {
+            THROW_ERROR_EXCEPTION("Cannot detach a %Qlv transaction",
+                Type_);
+        }
+
+        YCHECK(Atomicity_ == EAtomicity::Full);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -305,20 +340,34 @@ public:
         return State_;
     }
 
+    EAtomicity GetAtomicity() const
+    {
+        return Atomicity_;
+    }
+
+    EDurability GetDurability() const
+    {
+        return Durability_;
+    }
+
 
     TFuture<void> AddTabletParticipant(const TCellId& cellId)
     {
         VERIFY_THREAD_AFFINITY(ClientThread);
         YCHECK(TypeFromId(cellId) == EObjectType::TabletCell);
 
+        if (Atomicity_ != EAtomicity::Full) {
+            return VoidFuture;
+        }
+
         TPromise<void> promise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            
+
             if (State_ != ETransactionState::Active) {
                 return MakeFuture(TError("Transaction is not active"));
             }
-            
+
             if (!Error_.IsOK()) {
                 THROW_ERROR Error_;
             }
@@ -379,6 +428,8 @@ private:
     bool Ping_;
     bool PingAncestors_;
     TNullable<TDuration> Timeout_;
+    EAtomicity Atomicity_ = EAtomicity::Full;
+    EDurability Durability_ = EDurability::Sync;
 
     TSpinLock SpinLock_;
     ETransactionState State_;
@@ -386,12 +437,12 @@ private:
     yhash_map<TCellId, TPromise<void>> CellIdToStartTransactionResult_;
     TError Error_;
 
-    TTimestamp StartTimestamp_;
+    TTimestamp StartTimestamp_ = NullTimestamp;
     TTransactionId Id_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ClientThread);
 
-    
+
 
     static void ValidateStartOptions(
         ETransactionType type,
@@ -412,7 +463,14 @@ private:
 
     static void ValidateMasterStartOptions(const TTransactionStartOptions& options)
     {
-        // Everything is valid.
+        if (options.Atomicity != EAtomicity::Full) {
+            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for master transactions",
+                EAtomicity::Full);
+        }
+        if (options.Durability != EDurability::Sync) {
+            THROW_ERROR_EXCEPTION("Durability must be %Qlv for master transactions",
+                EDurability::Sync);
+        }
     }
 
     static void ValidateTabletStartOptions(const TTransactionStartOptions& options)
@@ -423,6 +481,21 @@ private:
         if (!options.Ping) {
             THROW_ERROR_EXCEPTION("Cannot switch off pings for a tablet transaction");
         }
+        if (options.Atomicity == EAtomicity::Full && options.Durability != EDurability::Sync) {
+            THROW_ERROR_EXCEPTION("Durability must be %Qlv for tablet transactions with %Qlv atomicity",
+                EDurability::Sync,
+                EAtomicity::Full);
+        }
+    }
+
+    static void ValidateAttachOptions(
+        const TTransactionId& id,
+        const TTransactionAttachOptions& /*options*/)
+    {
+        if (TypeFromId(id) != EObjectType::Transaction) {
+            THROW_ERROR_EXCEPTION("Invalid transaction id %v", id);
+        }
+        // No option checks for now.
     }
 
 
@@ -431,7 +504,7 @@ private:
         if (AutoAbort_) {
             TGuard<TSpinLock> guard(Owner_->SpinLock_);
             YCHECK(Owner_->AliveTransactions_.insert(this).second);
-        }        
+        }
     }
 
     void Unregister()
@@ -464,7 +537,7 @@ private:
             case ETransactionType::Master:
                 return StartMasterTransaction(options);
             case ETransactionType::Tablet:
-                return StartTabletTransaction(options);
+                return StartAtomicTabletTransaction();
             default:
                 YUNREACHABLE();
         }
@@ -507,7 +580,7 @@ private:
         const auto& rsp = rspOrError.Value();
         YCHECK(rsp->object_ids_size() == 1);
         Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
-        
+
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
             Owner_->CellId_,
             MakePromise<void>(TError()))).second);
@@ -524,17 +597,20 @@ private:
         }
     }
 
-    TFuture<void> StartTabletTransaction(const TTransactionStartOptions& options)
+    TFuture<void> StartAtomicTabletTransaction()
     {
-        Id_ = MakeId(
-            EObjectType::TabletTransaction,
+        YCHECK(Atomicity_ == EAtomicity::Full);
+        YCHECK(Durability_ == EDurability::Sync);
+
+        Id_ = MakeTabletTransactionId(
+            Atomicity_,
             Owner_->CellTag_,
-            static_cast<ui64>(StartTimestamp_),
-            TabletTransactionCounter++);
+            StartTimestamp_,
+            TabletTransactionHashCounter++);
 
         State_ = ETransactionState::Active;
 
-        LOG_INFO("Tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
+        LOG_INFO("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_);
@@ -543,6 +619,27 @@ private:
         // Participants will be added into it upon arrival.
         YCHECK(Ping_);
         RunPeriodicPings();
+
+        return VoidFuture;
+    }
+
+    TFuture<void> StartNonAtomicTabletTransaction()
+    {
+        YCHECK(Atomicity_ == EAtomicity::None);
+
+        StartTimestamp_ = InstantToTimestamp(TInstant::Now()).first;
+
+        Id_ = MakeTabletTransactionId(
+            Atomicity_,
+            Owner_->CellTag_,
+            StartTimestamp_,
+            TabletTransactionHashCounter++);
+
+        State_ = ETransactionState::Active;
+
+        LOG_INFO("Non-atomic tablet transaction started (TransactionId: %v, Durability: %v)",
+            Id_,
+            Durability_);
 
         return VoidFuture;
     }
@@ -570,7 +667,21 @@ private:
         promise.Set(rspOrError);
     }
 
-    void OnTransactionCommitted(
+    void SetTransactionCommitted()
+    {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (State_ != ETransactionState::Committing) {
+                THROW_ERROR Error_;
+            }
+            State_ = ETransactionState::Committed;
+        }
+
+        LOG_INFO("Transaction committed (TransactionId: %v)",
+            Id_);
+    }
+
+    void OnAtomicTransactionCommitted(
         const TCellId& cellId,
         const TTransactionSupervisorServiceProxy::TErrorOrRspCommitTransactionPtr& rspOrError)
     {
@@ -582,16 +693,7 @@ private:
             THROW_ERROR error;
         }
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            if (State_ != ETransactionState::Committing) {
-                THROW_ERROR Error_;
-            }
-            State_ = ETransactionState::Committed;
-        }
-
-        LOG_INFO("Transaction committed (TransactionId: %v)",
-            Id_);
+        SetTransactionCommitted();
     }
 
 
@@ -745,7 +847,7 @@ private:
         switch (Type_) {
             case ETransactionType::Master:
                 return Owner_->CellId_;
-            
+
             case ETransactionType::Tablet: {
                 auto ids = GetParticipantIds();
                 if (ids.empty()) {
@@ -886,6 +988,16 @@ const TTransactionId& TTransaction::GetId() const
 TTimestamp TTransaction::GetStartTimestamp() const
 {
     return Impl_->GetStartTimestamp();
+}
+
+EAtomicity TTransaction::GetAtomicity() const
+{
+    return Impl_->GetAtomicity();
+}
+
+EDurability TTransaction::GetDurability() const
+{
+    return Impl_->GetDurability();
 }
 
 TFuture<void> TTransaction::AddTabletParticipant(const TCellId& cellId)

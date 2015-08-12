@@ -25,6 +25,7 @@ message TReqMountTablet
     required bytes next_pivot_key = 6;
     required string mount_config = 7;
     required string writer_options = 8;
+    required int32 atomicity = 10; // EAtomicity
 }
 
 message TReqUnmountTablet
@@ -52,6 +53,10 @@ message TReqExecuteWrite
     required NYT.NProto.TGuid tablet_id = 2;
     required int32 codec = 3;
     required bytes compressed_data = 4;
+    // For atomic transactions only.
+    optional uint64 signature = 5;
+    // For non-atomic transactions only.
+    optional int64 timestamp = 6;
 }
 
 message TReqRotateStore

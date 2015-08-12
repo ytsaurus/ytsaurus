@@ -10,7 +10,7 @@ namespace NTableClient {
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
     int keyColumnCount,
-    bool enableTableIndex = true);
+    bool enableControlAttributes = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
