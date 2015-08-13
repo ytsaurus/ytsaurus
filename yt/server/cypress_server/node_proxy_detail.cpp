@@ -795,6 +795,13 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
+void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
+{
+    if (TrunkNode->IsExternal()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed at an external node");
+    }
+}
+
 void TNontemplateCypressNodeProxyBase::SetModified()
 {
     if (TrunkNode->IsAlive() && !ModificationTrackingSuppressed) {

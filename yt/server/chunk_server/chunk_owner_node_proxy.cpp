@@ -843,15 +843,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     context->SetRequestInfo();
 
+    ValidateNotExternal();
     ValidatePermission(
         EPermissionCheckScope::This,
         EPermission::Read);
     ValidateFetch();
-
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-    if (node->IsExternal()) {
-        THROW_ERROR_EXCEPTION("Cannot handle Fetch at an external node");
-    }
 
     auto channel = request->has_channel()
         ? NYT::FromProto<TChannel>(request->channel())
@@ -861,6 +857,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     auto ranges = FromProto<TReadRange>(request->ranges());
     ValidateFetchParameters(channel, ranges);
 
+    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
 
     auto visitor = New<TFetchChunkVisitor>(
