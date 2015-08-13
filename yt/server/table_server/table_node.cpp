@@ -120,25 +120,6 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual void SetDefaultAttributes(
-        IAttributeDictionary* attributes,
-        TTransaction* transaction) override
-    {
-        TBase::SetDefaultAttributes(attributes, transaction);
-
-        if (!attributes->Contains("channels")) {
-            attributes->SetYson("channels", TYsonString("[]"));
-        }
-
-        if (!attributes->Contains("schema")) {
-            attributes->SetYson("schema", TYsonString("[]"));
-        }
-
-        if (!attributes->Contains("compression_codec")) {
-            attributes->Set("compression_codec", NCompression::ECodec::Lz4);
-        }
-    }
-
     virtual EObjectType GetObjectType() override
     {
         return EObjectType::Table;
@@ -159,6 +140,35 @@ protected:
             Bootstrap_,
             transaction,
             trunkNode);
+    }
+
+    virtual std::unique_ptr<TTableNode> DoCreate(
+        const TVersionedNodeId& id,
+        TCellTag cellTag,
+        TTransaction* transaction,
+        IAttributeDictionary* attributes,
+        TReqCreate* request,
+        TRspCreate* response) override
+    {
+        if (!attributes->Contains("channels")) {
+            attributes->SetYson("channels", TYsonString("[]"));
+        }
+
+        if (!attributes->Contains("schema")) {
+            attributes->SetYson("schema", TYsonString("[]"));
+        }
+
+        if (!attributes->Contains("compression_codec")) {
+            attributes->Set("compression_codec", NCompression::ECodec::Lz4);
+        }
+
+        return TChunkOwnerTypeHandler::DoCreate(
+            id,
+            cellTag,
+            transaction,
+            attributes,
+            request,
+            response);
     }
 
     virtual void DoDestroy(TTableNode* table) override
