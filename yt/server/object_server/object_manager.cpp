@@ -1294,11 +1294,15 @@ void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObj
 {
     auto objectId = FromProto<TObjectId>(request.object_id());
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v)",
-        objectId);
-
-    auto* object = GetObject(objectId);
-    YCHECK(UnrefObject(object) == 0);
+    auto* object = FindObject(objectId);
+    if (object) {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v)",
+            objectId);
+        YCHECK(UnrefObject(object) == 0);
+    } else {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
+            objectId);
+    }
 }
 
 const NProfiling::TProfiler& TObjectManager::GetProfiler()
