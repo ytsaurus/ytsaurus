@@ -183,6 +183,7 @@ private:
 
         LOG_INFO("Requesting chunk seeds from master");
 
+        // XXX(babenko): multicell
         auto req = ChunkServiceProxy_.LocateChunks();
         ToProto(req->add_chunk_ids(), ChunkId_);
         req->Invoke().Subscribe(
