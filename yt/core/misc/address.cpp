@@ -3,6 +3,7 @@
 #include "lazy_ptr.h"
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/logging/log.h>
 
@@ -36,9 +37,6 @@ static const NProfiling::TProfiler Profiler("/network");
 
 static const auto WarningDuration = TDuration::MilliSeconds(100);
 static const char* FailedLocalHostName = "<unknown>";
-
-// TOOD(babenko): get rid of this, write truly asynchronous address resolver.
-static TLazyIntrusivePtr<TActionQueue> AddressResolverQueue(TActionQueue::CreateFactory("AddressResolver"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,23 +263,61 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAddressResolver::TAddressResolver()
+//! Performs asynchronous host name resolution.
+class TAddressResolver::TImpl
+    : public TRefCounted
+{
+public:
+    TImpl();
+
+    void Shutdown();
+
+    TFuture<TNetworkAddress> Resolve(const Stroka& address);
+
+    Stroka GetLocalHostName();
+
+    void PurgeCache();
+
+    void Configure(TAddressResolverConfigPtr config);
+
+private:
+    TAddressResolverConfigPtr Config_;
+
+    TSpinLock CacheLock_;
+    yhash_map<Stroka, TNetworkAddress> Cache_;
+
+    TActionQueuePtr Queue_;
+    NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
+
+    bool GetLocalHostNameFailed_ = false;
+    TSpinLock CachedLocalHostNameLock_;
+    Stroka CachedLocalHostName_;
+
+
+    TNetworkAddress DoResolve(const Stroka& hostName);
+    Stroka DoGetLocalHostName();
+
+    void CheckLocalHostResolution();
+
+};
+
+TAddressResolver::TImpl::TImpl()
     : Config_(New<TAddressResolverConfig>())
+    , Queue_(New<TActionQueue>("AddressResolver"))
 { }
 
-TAddressResolver* TAddressResolver::Get()
+void TAddressResolver::TImpl::Shutdown()
 {
-    return Singleton<TAddressResolver>();
-}
+    if (LocalHostChecker_) {
+        LocalHostChecker_->Stop().Get();
+    }
 
-void TAddressResolver::Shutdown()
-{
-    if (AddressResolverQueue.HasValue()) {
-        AddressResolverQueue->Shutdown();
+    if (Queue_) {
+        Queue_->Shutdown();
     }
 }
 
-TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const Stroka& address)
 {
     // Check if |address| parses into a valid IPv4 or IPv6 address.
     {
@@ -306,12 +342,12 @@ TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
     }
 
     // Run async resolution.
-    return BIND(&TAddressResolver::DoResolve, this, address)
-        .AsyncVia(AddressResolverQueue->GetInvoker())
+    return BIND(&TAddressResolver::TImpl::DoResolve, MakeStrong(this), address)
+        .AsyncVia(Queue_->GetInvoker())
         .Run();
 }
 
-TNetworkAddress TAddressResolver::DoResolve(const Stroka& hostName)
+TNetworkAddress TAddressResolver::TImpl::DoResolve(const Stroka& hostName)
 {
     try {
         addrinfo hints;
@@ -379,7 +415,7 @@ TNetworkAddress TAddressResolver::DoResolve(const Stroka& hostName)
     }
 }
 
-Stroka TAddressResolver::GetLocalHostName()
+Stroka TAddressResolver::TImpl::GetLocalHostName()
 {
     static PER_THREAD int ReenteranceLock = 0;
 
@@ -416,8 +452,8 @@ Stroka TAddressResolver::GetLocalHostName()
         // To avoid this, we run periodic checks to see if localhost can still be resolved.
         if (!LocalHostChecker_) {
             LocalHostChecker_ = New<TPeriodicExecutor>(
-                AddressResolverQueue->GetInvoker(),
-                BIND(&TAddressResolver::CheckLocalHostResolution, this),
+                Queue_->GetInvoker(),
+                BIND(&TAddressResolver::TImpl::CheckLocalHostResolution, MakeWeak(this)),
                 TDuration::Minutes(1),
                 EPeriodicExecutorMode::Automatic,
                 TDuration::Minutes(1));
@@ -427,7 +463,7 @@ Stroka TAddressResolver::GetLocalHostName()
     return result;
 }
 
-Stroka TAddressResolver::DoGetLocalHostName()
+Stroka TAddressResolver::TImpl::DoGetLocalHostName()
 {
     char hostName[1024];
     memset(hostName, 0, sizeof (hostName));
@@ -481,7 +517,7 @@ Stroka TAddressResolver::DoGetLocalHostName()
     THROW_ERROR_EXCEPTION("No matching addrinfo entry found");
 }
 
-void TAddressResolver::CheckLocalHostResolution()
+void TAddressResolver::TImpl::CheckLocalHostResolution()
 {
     try {
         DoGetLocalHostName();
@@ -490,7 +526,7 @@ void TAddressResolver::CheckLocalHostResolution()
     }
 }
 
-void TAddressResolver::PurgeCache()
+void TAddressResolver::TImpl::PurgeCache()
 {
     {
         TGuard<TSpinLock> guard(CacheLock_);
@@ -499,15 +535,54 @@ void TAddressResolver::PurgeCache()
     LOG_INFO("Address cache purged");
 }
 
+void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
+{
+    Config_ = std::move(config);
+
+    if (Config_->LocalHostFqdn) {
+        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
+        CachedLocalHostName_ = *Config_->LocalHostFqdn;
+        LOG_INFO("Localhost FQDN configured: %v", CachedLocalHostName_);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAddressResolver::TAddressResolver()
+    : Impl_(New<TImpl>())
+{ }
+
+TAddressResolver::~TAddressResolver()
+{ }
+
+TAddressResolver* TAddressResolver::Get()
+{
+    return Singleton<TAddressResolver>();
+}
+
+void TAddressResolver::Shutdown()
+{
+    Impl_->Shutdown();
+}
+
+TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
+{
+    return Impl_->Resolve(address);
+}
+
+Stroka TAddressResolver::GetLocalHostName()
+{
+    return Impl_->GetLocalHostName();
+}
+
+void TAddressResolver::PurgeCache()
+{
+    return Impl_->PurgeCache();
+}
+
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
-    Config_ = config;
-
-    if (config->LocalHostFqdn) {
-        TGuard<TSpinLock> guard(CachedLocalHostNameLock_);
-        CachedLocalHostName_ = *config->LocalHostFqdn;
-        LOG_INFO("LocalHost FQDN configured: %v", CachedLocalHostName_);
-    }
+    return Impl_->Configure(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
