@@ -97,59 +97,6 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
-    {
-        if (key == "replication_factor") {
-            // Prevent changing replication factor after construction.
-            ValidateNoTransaction();
-            auto* node = GetThisTypedImpl();
-            YCHECK(node->IsTrunk());
-            if (node->GetReplicationFactor() != 0) {
-                ThrowCannotSetBuiltinAttribute("replication_factor");
-            } else {
-                return TCypressNodeProxyBase::SetBuiltinAttribute(key, value);
-            }
-        }
-
-        if (key == "read_quorum") {
-            int readQuorum = NYTree::ConvertTo<int>(value);
-            if (readQuorum < 1) {
-                THROW_ERROR_EXCEPTION("\"read_quorum\" must be positive");
-            }
-
-            ValidateNoTransaction();
-            auto* node = GetThisTypedImpl();
-            YCHECK(node->IsTrunk());
-
-            // Prevent changing read quorum after construction.
-            if (node->GetReadQuorum() != 0) {
-                ThrowCannotSetBuiltinAttribute("read_quorum");
-            }
-            node->SetReadQuorum(readQuorum);
-            return true;
-        }
-
-        if (key == "write_quorum") {
-            int writeQuorum = NYTree::ConvertTo<int>(value);
-            if (writeQuorum < 1) {
-                THROW_ERROR_EXCEPTION("\"write_quorum\" must be positive");
-            }
-
-            ValidateNoTransaction();
-            auto* node = GetThisTypedImpl();
-            YCHECK(node->IsTrunk());
-
-            // Prevent changing write quorum after construction.
-            if (node->GetWriteQuorum() != 0) {
-                ThrowCannotSetBuiltinAttribute("write_quorum");
-            }
-            node->SetWriteQuorum(writeQuorum);
-            return true;
-        }
-
-        return TBase::SetBuiltinAttribute(key, value);
-    }
-
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
         const auto* node = GetThisTypedImpl();

@@ -176,10 +176,16 @@ public:
                 type);
         }
 
+        std::unique_ptr<IAttributeDictionary> attributeHolder;
+        if (!attributes) {
+            attributeHolder = CreateEphemeralAttributes();
+            attributes = attributeHolder.get();
+        }
+
         auto externalizationMode = Config_->ExternalizationMode;
         bool isExternal = false;
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        if (attributes && attributes->Contains("external")) {
+        if (attributes->Contains("external")) {
             isExternal = attributes->Get<bool>("external");
             attributes->Remove("external");
         } else {
@@ -220,10 +226,10 @@ public:
             }
         }
 
-        // INodeTypeHandler::SetDefaultAttributes may modify the attributes.
-        std::unique_ptr<IAttributeDictionary> replicatedAttributes;
-        if (attributes && isExternal) {
-            replicatedAttributes = attributes->Clone();
+        // INodeTypeHandler::Create may modify the attributes.
+        std::unique_ptr<IAttributeDictionary> replicationAttributes;
+        if (isExternal) {
+            replicationAttributes = attributes->Clone();
         }
 
         auto* node = cypressManager->CreateNode(
@@ -238,14 +244,10 @@ public:
 
         RegisterCreatedNode(trunkNode);
 
-        if (attributes) {
-            handler->SetDefaultAttributes(attributes, Transaction_);
+        handler->SetDefaultAttributes(attributes, Transaction_);
 
-            auto objectManager = Bootstrap_->GetObjectManager();
-            objectManager->FillAttributes(trunkNode, *attributes);
-        }
-
-        handler->ValidateCreated(trunkNode);
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->FillAttributes(trunkNode, *attributes);
 
         cypressManager->LockNode(trunkNode, Transaction_, ELockMode::Exclusive);
 
@@ -256,9 +258,7 @@ public:
                 ToProto(replicationRequest.mutable_transaction_id(), Transaction_->GetId());
             }
             replicationRequest.set_type(static_cast<int>(type));
-            if (replicatedAttributes) {
-                ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
-            }
+            ToProto(replicationRequest.mutable_object_attributes(), *replicationAttributes);
             ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
             multicellManager->PostToSecondaryMaster(replicationRequest, externalCellTag);
         }
@@ -420,6 +420,8 @@ public:
         // NB: This is for external nodes only.
         YCHECK(Bootstrap_->IsSecondaryMaster());
         YCHECK(hintId != NullObjectId);
+        YCHECK(account);
+        YCHECK(attributes);
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->GetHandler(Type_);
@@ -697,8 +699,14 @@ public:
     {
         YCHECK(handler);
         YCHECK(account);
+        YCHECK(attributes);
 
-        auto nodeHolder = handler->Create(hintId, externalCellTag, request, response);
+        auto nodeHolder = handler->Create(
+            hintId,
+            externalCellTag,
+            attributes,
+            request,
+            response);
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set account.

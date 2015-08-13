@@ -102,25 +102,6 @@ public:
         return ENodeType::Entity;
     }
 
-    virtual void SetDefaultAttributes(
-        IAttributeDictionary* attributes,
-        TTransaction* transaction) override
-    {
-        TBase::SetDefaultAttributes(attributes, transaction);
-
-        if (!attributes->Contains("replication_factor")) {
-            attributes->Set("replication_factor", DefaultReplicationFactor);
-        }
-
-        if (!attributes->Contains("read_quorum")) {
-            attributes->Set("read_quorum", DefaultReadQuorum);
-        }
-
-        if (!attributes->Contains("write_quorum")) {
-            attributes->Set("write_quorum", DefaultWriteQuorum);
-        }
-    }
-
     virtual TClusterResources GetIncrementalResourceUsage(const TCypressNodeBase* node) override
     {
         const auto* journalNode = static_cast<const TJournalNode*>(node);
@@ -149,33 +130,21 @@ protected:
     virtual std::unique_ptr<TJournalNode> DoCreate(
         const TVersionedNodeId& id,
         TCellTag cellTag,
+        IAttributeDictionary* attributes,
         INodeTypeHandler::TReqCreate* request,
         INodeTypeHandler::TRspCreate* response) override
     {
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        auto nodeHolder = TBase::DoCreate(id, cellTag, request, response);
-        auto* node = nodeHolder.get();
+        int replicationFactor = attributes->Find<int>("replication_factor").Get(DefaultReplicationFactor);
+        attributes->Remove("replication_factor");
 
-        if (!node->IsExternal()) {
-            // Create an empty chunk list and reference it from the node.
-            auto* chunkList = chunkManager->CreateChunkList();
-            node->SetChunkList(chunkList);
-            YCHECK(chunkList->OwningNodes().insert(node).second);
-            objectManager->RefObject(chunkList);
-        }
+        int readQuorum = attributes->Find<int>("read_quorum").Get(DefaultReadQuorum);
+        attributes->Remove("read_quorum");
 
-        return nodeHolder;
-    }
-
-    virtual void DoValidateCreated(TJournalNode* node) override
-    {
-        TBase::DoValidateCreated(node);
-
-        int replicationFactor = node->GetReplicationFactor();
-        int readQuorum = node->GetReadQuorum();
-        int writeQuorum = node->GetWriteQuorum();
+        int writeQuorum = attributes->Find<int>("write_quorum").Get(DefaultWriteQuorum);
+        attributes->Remove("write_quorum");
 
         if (readQuorum > replicationFactor) {
             THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");
@@ -186,6 +155,23 @@ protected:
         if (readQuorum + writeQuorum < replicationFactor + 1) {
             THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum < replication_factor + 1");
         }
+
+        auto nodeHolder = TBase::DoCreate(id, cellTag, attributes, request, response);
+        auto* node = nodeHolder.get();
+
+        node->SetReplicationFactor(replicationFactor);
+        node->SetReadQuorum(readQuorum);
+        node->SetWriteQuorum(writeQuorum);
+
+        if (!node->IsExternal()) {
+            // Create an empty chunk list and reference it from the node.
+            auto* chunkList = chunkManager->CreateChunkList();
+            node->SetChunkList(chunkList);
+            YCHECK(chunkList->OwningNodes().insert(node).second);
+            objectManager->RefObject(chunkList);
+        }
+
+        return nodeHolder;
     }
 
     virtual void DoDestroy(TJournalNode* node) override

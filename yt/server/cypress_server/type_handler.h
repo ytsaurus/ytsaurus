@@ -47,12 +47,9 @@ struct INodeTypeHandler
     virtual std::unique_ptr<TCypressNodeBase> Create(
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
+        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) = 0;
-
-    //! Called for a just-created node to validate that its state is properly set.
-    //! Throws on failure.
-    virtual void ValidateCreated(TCypressNodeBase* node) = 0;
 
     //! Called during node creation to populate default attributes that are missing
     //! and possibly readjust existing attributes.

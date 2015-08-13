@@ -75,10 +75,6 @@ using namespace NConcurrency;
 static const auto& Logger = ObjectServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
 
-//! A sentinel instance of IAttributeDictionary for IObjectTypeHandler::CreateObject.
-//! Note that |EmptyAttributes()| cannot be used here due to const-ness.
-static const std::unique_ptr<IAttributeDictionary> MutableEmptyAttributes = CreateEphemeralAttributes();
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectManager::TRemoteProxy
@@ -913,6 +909,12 @@ TObjectBase* TObjectManager::CreateObject(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    std::unique_ptr<IAttributeDictionary> attributeHolder;
+    if (!attributes) {
+        attributeHolder = CreateEphemeralAttributes();
+        attributes = attributeHolder.get();
+    }
+
     auto handler = FindHandler(type);
     if (!handler) {
         THROW_ERROR_EXCEPTION("Unknown object type %v",
@@ -984,7 +986,7 @@ TObjectBase* TObjectManager::CreateObject(
 
     // ITypeHandler::CreateObject may modify the attributes.
     std::unique_ptr<IAttributeDictionary> replicatedAttributes;
-    if (replicate && attributes) {
+    if (replicate) {
         replicatedAttributes = attributes->Clone();
     }
 
@@ -992,12 +994,10 @@ TObjectBase* TObjectManager::CreateObject(
         hintId,
         transaction,
         account,
-        attributes ? attributes : MutableEmptyAttributes.get(),
+        attributes,
         extensions);
 
-    if (attributes) {
-        FillAttributes(object, *attributes);
-    }
+    FillAttributes(object, *attributes);
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
     if (stagingTransaction) {
@@ -1022,9 +1022,7 @@ TObjectBase* TObjectManager::CreateObject(
             ToProto(replicationRequest.mutable_transaction_id(), transaction->GetId());
         }
         replicationRequest.set_type(static_cast<int>(type));
-        if (replicatedAttributes) {
-            ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
-        }
+        ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
         if (account) {
             ToProto(replicationRequest.mutable_account_id(), account->GetId());
         }

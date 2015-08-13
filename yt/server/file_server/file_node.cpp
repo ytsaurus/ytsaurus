@@ -73,6 +73,7 @@ protected:
     virtual std::unique_ptr<TFileNode> DoCreate(
         const TVersionedNodeId& id,
         TCellTag cellTag,
+        IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -86,7 +87,7 @@ protected:
             chunk->ValidateConfirmed();
         }
 
-        auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(id, cellTag, request, response);
+        auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(id, cellTag, attributes, request, response);
 
         if (chunk) {
             auto* chunkList = nodeHolder->GetChunkList();
