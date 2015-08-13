@@ -81,6 +81,6 @@ class TestChunkServer(YTEnvSetup):
 
 ##################################################################
 
-class TestChunkServerMulticell(TestCypress):
+class TestChunkServerMulticell(TestChunkServer):
     NUM_SECONDARY_MASTER_CELLS = 2
 
