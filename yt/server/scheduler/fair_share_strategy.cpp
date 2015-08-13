@@ -29,6 +29,7 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 struct ISchedulerElement;
 typedef TIntrusivePtr<ISchedulerElement> ISchedulerElementPtr;
+typedef TWeakPtr<ISchedulerElement> ISchedulerElementWeakPtr;
 
 class TOperationElement;
 typedef TIntrusivePtr<TOperationElement> TOperationElementPtr;
@@ -63,8 +64,8 @@ struct TSchedulableAttributes
 struct TDynamicAttributes
 {
     double SatisfactionRatio = 0.0;
-    bool Active = true;
-    ISchedulerElementPtr BestLeafDescendant = nullptr;
+    bool Active = false;
+    ISchedulerElementWeakPtr BestLeafDescendant;
     TInstant MinSubtreeStartTime;
     TNodeResources ResourceUsageDiscount = ZeroNodeResources();
 };
@@ -97,15 +98,12 @@ struct ISchedulerElement
     virtual const TDynamicAttributes& DynamicAttributes() const = 0;
     virtual TDynamicAttributes& DynamicAttributes() = 0;
 
-    virtual TInstant GetMinSubtreeStartTime(const TDynamicAttributesMap& dynamicAttributesMap) const = 0;
-
     virtual Stroka GetId() const = 0;
 
     virtual double GetWeight() const = 0;
     virtual double GetMinShareRatio() const = 0;
     virtual double GetMaxShareRatio() const = 0;
 
-    virtual ISchedulerElement* GetBestLeafDescendant(const TDynamicAttributesMap& dynamicAttributesMap) = 0;
     virtual ESchedulableStatus GetStatus() const = 0;
 
     virtual bool GetStarving() const = 0;
@@ -140,14 +138,14 @@ namespace NScheduler {
 class TDynamicAttributesMap
 {
 public:
-    void Initialize(const ISchedulerElement* element)
+    void Initialize(const ISchedulerElement* element, TDynamicAttributes value = TDynamicAttributes())
     {
-        Impl_[element->GetId()] = TDynamicAttributes();
+        Impl_[element->GetId()] = value;
     }
 
-    void Initialize(const ISchedulerElementPtr& element)
+    void Initialize(const ISchedulerElementPtr& element, TDynamicAttributes value = TDynamicAttributes())
     {
-        Initialize(element.Get());
+        Initialize(element.Get(), value);
     }
 
     void Erase(const ISchedulerElement* element)
@@ -226,7 +224,6 @@ public:
     virtual void UpdateBottomUp() override
     {
         UpdateAttributes();
-        DynamicAttributesMap.Initialize(this);
         DynamicAttributesMap.At(this).Active = true;
         UpdateDynamicAttributes(DynamicAttributesMap);
     }
@@ -317,12 +314,6 @@ public:
     virtual TDynamicAttributes& DynamicAttributes() override
     {
         return DynamicAttributesMap.At(this);
-    }
-
-    virtual TInstant GetMinSubtreeStartTime(const TDynamicAttributesMap& dynamicAttributesMap) const override
-    {
-        YCHECK(dynamicAttributesMap.GetActive(this));
-        return dynamicAttributesMap.At(this).MinSubtreeStartTime;
     }
 
     ESchedulableStatus GetStatus(double defaultTolerance) const
@@ -512,22 +503,32 @@ public:
         // Adjust satisfaction ratio using children.
         // Declare the element passive if all children are passive.
         attributes.Active = false;
-        attributes.BestLeafDescendant = nullptr;
+        attributes.BestLeafDescendant.Reset();
 
-        auto bestChild = GetBestActiveChild(dynamicAttributesMap);
-        if (bestChild) {
+        while (auto bestChild = GetBestActiveChild(dynamicAttributesMap)) {
+            auto childBestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant.Lock();
+            if (!childBestLeafDescendant) {
+                bestChild->UpdateDynamicAttributes(dynamicAttributesMap);
+                if (!dynamicAttributesMap.GetActive(bestChild)) {
+                    continue;
+                }
+                childBestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant.Lock();
+                YCHECK(childBestLeafDescendant);
+            }
+
             // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
             // because parent can use different scheduling mode.
             attributes.MinSubtreeStartTime = std::min(
                 attributes.MinSubtreeStartTime,
-                bestChild->GetMinSubtreeStartTime(dynamicAttributesMap));
+                dynamicAttributesMap.At(bestChild).MinSubtreeStartTime);
 
             attributes.SatisfactionRatio = std::min(
                 attributes.SatisfactionRatio,
                 dynamicAttributesMap.At(bestChild).SatisfactionRatio);
 
-            attributes.BestLeafDescendant = bestChild->GetBestLeafDescendant(dynamicAttributesMap);
+            attributes.BestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant;
             attributes.Active = true;
+            break;
         }
     }
 
@@ -559,15 +560,25 @@ public:
     virtual bool ScheduleJob(TFairShareContext& context) override
     {
         auto& attributes = context.DynamicAttributesMap.At(this);
-
-        if (!attributes.BestLeafDescendant) {
+        if (!attributes.Active) {
             return false;
         }
-        YCHECK(attributes.Active);
+
+        auto bestLeafDescendant = attributes.BestLeafDescendant.Lock();
+        if (!bestLeafDescendant) {
+            // NB: This can only happen as a result of deletion of bestLeafDescendant node
+            // from scheduling tree in another fiber (e.x. operation abort),
+            // while this fiber was waiting for controller.
+            UpdateDynamicAttributes(context.DynamicAttributesMap);
+            if (!attributes.Active) {
+                return false;
+            }
+            bestLeafDescendant = attributes.BestLeafDescendant.Lock();
+            YCHECK(bestLeafDescendant);
+        }
 
         // NB: Ignore the child's result.
-        attributes.BestLeafDescendant->ScheduleJob(context);
-
+        bestLeafDescendant->ScheduleJob(context);
         return true;
     }
 
@@ -577,12 +588,6 @@ public:
         for (const auto& child : Children) {
             child->EndHeartbeat();
         }
-    }
-
-    virtual ISchedulerElement* GetBestLeafDescendant(const TDynamicAttributesMap& dynamicAttributesMap) override
-    {
-        YCHECK(dynamicAttributesMap.GetActive(this));
-        return dynamicAttributesMap.At(this).BestLeafDescendant.Get();
     }
 
     virtual bool IsRoot() const
@@ -793,7 +798,7 @@ protected:
             if (lhs->GetWeight() < rhs->GetWeight()) {
                 return false;
             }
-            return lhs->GetMinSubtreeStartTime(dynamicAttributesMap) < rhs->GetMinSubtreeStartTime(dynamicAttributesMap);
+            return dynamicAttributesMap.At(lhs).MinSubtreeStartTime < dynamicAttributesMap.At(rhs).MinSubtreeStartTime;
         };
 
         ISchedulerElementPtr bestChild;
@@ -818,15 +823,6 @@ protected:
             }
         }
         return bestChild;
-    }
-
-
-    void SetMode(ESchedulingMode mode)
-    {
-        if (Mode != mode) {
-            Mode = mode;
-            Update();
-        }
     }
 
 };
@@ -952,7 +948,7 @@ private:
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
         Config_ = newConfig;
-        SetMode(Config_->Mode);
+        Mode = Config_->Mode;
     }
 
     TNodeResources ComputeResourceLimits() const
@@ -990,7 +986,7 @@ public:
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
         const auto& node = context.SchedulingContext->GetNode();
-        context.DynamicAttributesMap.Initialize(this);
+        context.DynamicAttributesMap.Initialize(this, DynamicAttributesMap.At(this));
         auto& attributes = context.DynamicAttributesMap.At(this);
 
         attributes.Active = true;
@@ -1082,11 +1078,6 @@ public:
     virtual TNullable<Stroka> GetSchedulingTag() const override
     {
         return Spec_->SchedulingTag;
-    }
-
-    virtual ISchedulerElement* GetBestLeafDescendant(const TDynamicAttributesMap& /*dynamicAttributesMap*/) override
-    {
-        return this;
     }
 
     virtual const TNodeResources& ResourceDemand() const override
@@ -1330,7 +1321,7 @@ public:
     {
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
-        SetMode(ESchedulingMode::FairShare);
+        Mode = ESchedulingMode::FairShare;
     }
 
     virtual bool IsRoot() const override
@@ -1755,6 +1746,7 @@ private:
         YCHECK(OperationToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
         DynamicAttributesMap.Initialize(operationElement);
         DynamicAttributesMap.At(operationElement).MinSubtreeStartTime = operation->GetStartTime();
+        DynamicAttributesMap.At(operationElement).BestLeafDescendant = operationElement;
 
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
