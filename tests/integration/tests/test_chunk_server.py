@@ -78,3 +78,9 @@ class TestChunkServer(YTEnvSetup):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", [{"data" : "payload" + str(i)} for i in xrange(0, 10)])
         self._test_decommission("//tmp/j", 3)
+
+##################################################################
+
+class TestChunkServerMulticell(TestCypress):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
