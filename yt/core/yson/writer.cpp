@@ -124,9 +124,9 @@ TYsonWriter::TYsonWriter(
     , EnableRaw_(enableRaw)
     , BooleanAsString_(booleanAsString)
     , IndentSize_(indent)
-    , NodeExpected_(Type_ == EYsonType::Node)
 {
-    YASSERT(stream);
+    YASSERT(Stream_);
+    Reset();
 }
 
 void TYsonWriter::WriteIndent()
@@ -322,6 +322,13 @@ void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
     } else {
         TYsonConsumerBase::OnRaw(yson, type);
     }
+}
+
+void TYsonWriter::Reset()
+{
+    Depth_ = 0;
+    EmptyCollection_ = true;
+    NodeExpected_ = (Type_ == EYsonType::Node);
 }
 
 bool TYsonWriter::IsNodeExpected() const
