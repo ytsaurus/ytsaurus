@@ -599,10 +599,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // NB: Transaction must exist.
-        auto* transaction = GetTransaction(transactionId);
-        CommitTransaction(transaction, commitTimestamp);
-
         if (Bootstrap_->IsPrimaryMaster()) {
             NProto::TReqCommitTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
@@ -610,6 +606,10 @@ public:
             auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(request);
         }
+
+        // NB: Transaction must exist.
+        auto* transaction = GetTransaction(transactionId);
+        CommitTransaction(transaction, commitTimestamp);
     }
 
     void AbortTransaction(
@@ -618,10 +618,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
-
-        AbortTransaction(transaction, force);
-
         if (Bootstrap_->IsPrimaryMaster()) {
             NProto::TReqAbortTransaction request;
             ToProto(request.mutable_transaction_id(), transactionId);
@@ -629,6 +625,9 @@ public:
             auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(request);
         }
+
+        auto* transaction = GetTransactionOrThrow(transactionId);
+        AbortTransaction(transaction, force);
     }
 
     void PingTransaction(
