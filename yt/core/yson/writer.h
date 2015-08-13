@@ -50,6 +50,7 @@ public:
     using IYsonConsumer::OnRaw;
     virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
+    void Reset();
     bool IsNodeExpected() const;
 
 protected:
