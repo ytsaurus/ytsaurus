@@ -1,6 +1,7 @@
 package NYT.NCypressServer.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/ytree/attributes.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,6 +19,17 @@ message TReqUpdateAccessStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqCreateForeignNode
+{
+    required NYT.NProto.TGuid node_id = 1;
+    optional NYT.NProto.TGuid transaction_id = 2;
+    required int32 type = 3;
+    optional NYT.NYTree.NProto.TAttributes node_attributes = 4;
+    optional NYT.NProto.TGuid account_id = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCloneForeignNode
 {
     required NYT.NProto.TGuid source_node_id = 1;
@@ -29,4 +41,5 @@ message TReqCloneForeignNode
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 

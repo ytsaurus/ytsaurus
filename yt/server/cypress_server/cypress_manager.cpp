@@ -232,7 +232,7 @@ public:
             replicationAttributes = attributes->Clone();
         }
 
-        auto* node = cypressManager->CreateNode(
+        auto* trunkNode = cypressManager->CreateNode(
             NullObjectId,
             externalCellTag,
             handler,
@@ -241,7 +241,6 @@ public:
             attributes,
             request,
             response);
-        auto* trunkNode = node->GetTrunkNode();
 
         RegisterCreatedNode(trunkNode);
 
@@ -251,13 +250,13 @@ public:
         cypressManager->LockNode(trunkNode, Transaction_, ELockMode::Exclusive);
 
         if (isExternal) {
-            NObjectServer::NProto::TReqCreateForeignObject replicationRequest;
-            ToProto(replicationRequest.mutable_object_id(), trunkNode->GetId());
+            NProto::TReqCreateForeignNode replicationRequest;
+            ToProto(replicationRequest.mutable_node_id(), trunkNode->GetId());
             if (Transaction_) {
                 ToProto(replicationRequest.mutable_transaction_id(), Transaction_->GetId());
             }
             replicationRequest.set_type(static_cast<int>(type));
-            ToProto(replicationRequest.mutable_object_attributes(), *replicationAttributes);
+            ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
             ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
             multicellManager->PostToSecondaryMaster(replicationRequest, externalCellTag);
         }
@@ -385,41 +384,6 @@ public:
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         return cypressManager->FindNode(TVersionedNodeId(id));
-    }
-
-    virtual TObjectBase* CreateObject(
-        const TObjectId& hintId,
-        TTransaction* transaction,
-        TAccount* account,
-        IAttributeDictionary* attributes,
-        const TObjectCreationExtensions& /*extensions*/) override
-    {
-        // NB: This is for external nodes only.
-        YCHECK(Bootstrap_->IsSecondaryMaster());
-        YCHECK(hintId != NullObjectId);
-        YCHECK(account);
-        YCHECK(attributes);
-
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto handler = cypressManager->GetHandler(Type_);
-
-        auto* node = cypressManager->CreateNode(
-            hintId,
-            NotReplicatedCellTag,
-            handler,
-            account,
-            transaction,
-            attributes,
-            nullptr,
-            nullptr);
-        auto* trunkNode = node->GetTrunkNode();
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(node);
-
-        cypressManager->LockNode(trunkNode, transaction, ELockMode::Exclusive);
-
-        return trunkNode;
     }
 
     virtual void DestroyObject(TObjectBase* object) throw();
@@ -593,6 +557,7 @@ public:
             BIND(&TImpl::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraUpdateAccessStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraCreateForeignNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraCloneForeignNode, Unretained(this)));
     }
 
@@ -1973,8 +1938,65 @@ private:
         }
     }
 
+    void HydraCreateForeignNode(const NProto::TReqCreateForeignNode& request) throw()
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
+        auto nodeId = FromProto<TObjectId>(request.node_id());
+        auto transactionId = request.has_transaction_id()
+            ? FromProto<TTransactionId>(request.transaction_id())
+            : NullTransactionId;
+        auto accountId = request.has_account_id()
+            ? FromProto<TAccountId>(request.account_id())
+            : NullObjectId;
+        auto type = EObjectType(request.type());
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction =  transactionId == NullTransactionId
+            ? nullptr
+            : transactionManager->GetTransaction(transactionId);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = accountId == NullObjectId
+            ? nullptr
+            : securityManager->GetAccount(accountId);
+
+        auto attributes = request.has_node_attributes()
+            ? FromProto(request.node_attributes())
+            : std::unique_ptr<IAttributeDictionary>();
+
+        auto versionedNodeId = TVersionedNodeId(nodeId, transactionId);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign node (NodeId: %v, Type: %v, Account: %v)",
+            versionedNodeId,
+            transactionId,
+            type,
+            account ? MakeNullable(account->GetName()) : Null);
+
+        auto handler = GetHandler(type);
+
+        auto* trunkNode = CreateNode(
+            nodeId,
+            NotReplicatedCellTag,
+            handler,
+            account,
+            transaction,
+            attributes.get(),
+            nullptr,
+            nullptr);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->FillAttributes(trunkNode, *attributes);
+
+        LockNode(trunkNode, transaction, ELockMode::Exclusive);
+
+        objectManager->RefObject(trunkNode);
+    }
+
     void HydraCloneForeignNode(const NProto::TReqCloneForeignNode& request) throw()
     {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+
         auto sourceNodeId = FromProto<TNodeId>(request.source_node_id());
         auto sourceTransactionId = request.has_source_transaction_id()
             ? FromProto<TTransactionId>(request.source_transaction_id())
