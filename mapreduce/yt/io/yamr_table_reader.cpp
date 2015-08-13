@@ -10,13 +10,14 @@ class TRetryException
     : public yexception
 { };
 
+const i32 CONTROL_ATTR_TABLE_INDEX = -1;
+const i32 CONTROL_ATTR_KEY_SWITCH = -2;
+const i32 CONTROL_ATTR_ROW_INDEX = -4;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYaMRTableReader::TYaMRTableReader(THolder<TProxyInput> input)
     : Input_(MoveArg(input))
-    , Valid_(true)
-    , Finished_(false)
-    , TableIndex_(0)
 {
     Next();
 }
@@ -55,15 +56,16 @@ size_t TYaMRTableReader::Load(void *buf, size_t len)
     return count;
 }
 
-bool TYaMRTableReader::ReadInteger(i32* result, bool acceptEndOfStream)
+template <class T>
+bool TYaMRTableReader::ReadInteger(T* result, bool acceptEndOfStream)
 {
-    size_t count = Load(result, sizeof(i32));
+    size_t count = Load(result, sizeof(T));
     if (acceptEndOfStream && count == 0) {
         Finished_ = true;
         Valid_ = false;
         return false;
     }
-    if (count != sizeof(i32)) {
+    if (count != sizeof(T)) {
         ythrow yexception() << "Premature end of YaMR stream";
     }
     return true;
@@ -93,6 +95,10 @@ void TYaMRTableReader::Next()
 {
     CheckValidity();
 
+    if (RowIndex_) {
+        ++*RowIndex_;
+    }
+
     while (true) {
         try {
             i32 value = 0;
@@ -102,16 +108,23 @@ void TYaMRTableReader::Next()
 
             while (value < 0) {
                 switch (value) {
-                    case -2:
-                        Valid_ = false;
-                        return;
-
-                    case -1:
+                    case CONTROL_ATTR_TABLE_INDEX:
                         ReadInteger(&value);
-                        TableIndex_ = static_cast<size_t>(value);
+                        TableIndex_ = static_cast<ui32>(value);
                         ReadInteger(&value);
                         break;
 
+                    case CONTROL_ATTR_KEY_SWITCH:
+                        Valid_ = false;
+                        return;
+
+                    case CONTROL_ATTR_ROW_INDEX: {
+                        ui64 rowIndex = 0;
+                        ReadInteger(&rowIndex);
+                        RowIndex_ = rowIndex;
+                        ReadInteger(&value);
+                        break;
+                    }
                     default:
                         ythrow yexception() <<
                             Sprintf("Invalid control integer %d in YaMR stream", value);
@@ -147,10 +160,16 @@ void TYaMRTableReader::NextKey()
     Next();
 }
 
-size_t TYaMRTableReader::GetTableIndex() const
+ui32 TYaMRTableReader::GetTableIndex() const
 {
     CheckValidity();
     return TableIndex_;
+}
+
+ui64 TYaMRTableReader::GetRowIndex() const
+{
+    CheckValidity();
+    return RowIndex_.GetOrElse(0UL);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -237,9 +237,6 @@ void TRowBuilder::Finalize()
 
 TNodeTableReader::TNodeTableReader(THolder<TProxyInput> input)
     : Input_(MoveArg(input))
-    , Valid_(true)
-    , Finished_(false)
-    , TableIndex_(0)
 {
     PrepareParsing();
 
@@ -275,6 +272,7 @@ void TNodeTableReader::Next()
 {
     CheckValidity();
 
+    bool isRowIndexSet = false;
     while (true) {
         Row_ = RowQueue_.Dequeue();
         if (Row_->Type == TRowElement::ROW) {
@@ -283,14 +281,24 @@ void TNodeTableReader::Next()
                 auto tableIndexIt = attributes.find("table_index");
                 if (tableIndexIt != attributes.end()) {
                     i64 index = tableIndexIt->second.AsInt64();
-                    TableIndex_ = static_cast<size_t>(index);
+                    TableIndex_ = static_cast<ui32>(index);
                 }
                 auto keySwitchIt = attributes.find("key_switch");
                 if (keySwitchIt != attributes.end()) {
                     Valid_ = false;
                     break;
                 }
+                auto rowIndexIt = attributes.find("row_index");
+                if (rowIndexIt != attributes.end()) {
+                    i64 index = rowIndexIt->second.AsInt64();
+                    RowIndex_ = static_cast<ui64>(index);
+                    isRowIndexSet = true;
+                }
+
             } else {
+                if (!isRowIndexSet && RowIndex_) {
+                    ++*RowIndex_;
+                }
                 Input_->OnRowFetched();
                 break;
             }
@@ -308,10 +316,16 @@ void TNodeTableReader::Next()
     }
 }
 
-size_t TNodeTableReader::GetTableIndex() const
+ui32 TNodeTableReader::GetTableIndex() const
 {
     CheckValidity();
     return TableIndex_;
+}
+
+ui64 TNodeTableReader::GetRowIndex() const
+{
+    CheckValidity();
+    return RowIndex_.GetOrElse(0UL);
 }
 
 void TNodeTableReader::NextKey()

@@ -97,6 +97,7 @@ void TClientReader::CreateRequest(bool initial)
 
             THttpHeader header("GET", GetReadTableCommand());
             header.AddTransactionId(ReadTransaction_->GetId());
+            header.AddParam("control_attributes[enable_row_index]", true);
             header.SetDataStreamFormat(Format_);
 
             // for now assume we always use only the first range

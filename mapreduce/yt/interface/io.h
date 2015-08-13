@@ -51,7 +51,8 @@ class TTableReader
 public:
     const T& GetRow() const; // may be a template function
     bool IsValid() const;
-    size_t GetTableIndex() const;
+    ui32 GetTableIndex() const;
+    ui64 GetRowIndex() const;
     void Next();
 };
 

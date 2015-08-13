@@ -11,6 +11,8 @@
 
 #include <util/stream/file.h>
 
+#include <util/generic/bt_exception.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,6 +206,11 @@ int RunMapJob(size_t outputTableCount, bool hasState)
         mapper->Finish(writer.Get());
         writer->Finish();
 
+    } catch (const TWithBackTrace<yexception>& e) {
+        Cerr << "Exception caught: " << e.what() << Endl;
+        e.BackTrace()->PrintTo(Cerr);
+        return 1;
+
     } catch (NStl::exception& e) {
         Cerr << "Exception caught: " << e.what() << Endl;
         return 1;
@@ -235,6 +242,11 @@ int RunReduceJob(size_t outputTableCount, bool hasState)
         }
         reducer->Finish(writer.Get());
         writer->Finish();
+
+    } catch (const TWithBackTrace<yexception>& e) {
+        Cerr << "Exception caught: " << e.what() << Endl;
+        e.BackTrace()->PrintTo(Cerr);
+        return 1;
 
     } catch (NStl::exception& e) {
         Cerr << "Exception caught: " << e.what() << Endl;
@@ -441,6 +453,38 @@ TOperationId IOperationClient::MapReduce(
         mapper,
         reducer,
         outputMapperDesc,
+        inputReducerDesc,
+        options);
+}
+
+template <class TReducer>
+TOperationId IOperationClient::MapReduce(
+    const TMapReduceOperationSpec& spec,
+    nullptr_t,
+    TReducer* reducer,
+    const TOperationOptions& options)
+{
+    using TInputRow = typename TReducer::TReader::TRowType;
+    using TOutputRow = typename TReducer::TWriter::TRowType;
+
+    if (TFormatDescTraits<TInputRow>::Format != spec.InputDesc_.Format) {
+        ythrow yexception() << "cannot match reducer type and input descriptor";
+    }
+
+    if (TFormatDescTraits<TOutputRow>::Format != spec.OutputDesc_.Format) {
+        ythrow yexception() << "cannot match reducer type and output descriptor";
+    }
+
+    TMultiFormatDesc dummy, inputReducerDesc;
+    inputReducerDesc.Format = TFormatDescTraits<TInputRow>::Format;
+
+    TIntrusivePtr<TReducer> reducerPtr(reducer);
+
+    return DoMapReduce(
+        spec,
+        nullptr,
+        reducer,
+        dummy,
         inputReducerDesc,
         options);
 }

@@ -73,9 +73,9 @@ TTransactionId StartTransaction(
         header.SetParameters(AttributesToJsonString(*attributes));
     }
 
-    auto txId = RetryRequest(serverName, header);
-    LOG_INFO("Transaction %s started", ~txId);
-    return ParseGuid(txId);
+    auto txId = ParseGuid(RetryRequest(serverName, header));
+    LOG_INFO("Transaction %s started", ~GetGuidAsString(txId));
+    return txId;
 }
 
 void TransactionRequest(

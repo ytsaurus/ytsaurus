@@ -98,9 +98,14 @@ void TProtoTableReader::Next()
     NodeReader_->Next();
 }
 
-size_t TProtoTableReader::GetTableIndex() const
+ui32 TProtoTableReader::GetTableIndex() const
 {
     return NodeReader_->GetTableIndex();
+}
+
+ui64 TProtoTableReader::GetRowIndex() const
+{
+    return NodeReader_->GetRowIndex();
 }
 
 void TProtoTableReader::NextKey()
