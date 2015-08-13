@@ -1173,9 +1173,7 @@ void TOperationControllerBase::InitializeTransactions()
 void TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
     auto operationId = Operation->GetId();
-
-    LOG_INFO("Starting async scheduler transaction (OperationId: %v)",
-        operationId);
+    LOG_INFO("Starting async scheduler transaction");
 
     auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
@@ -1215,17 +1213,15 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
 
-    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v, OperationId: %v)",
-        Operation->GetAsyncSchedulerTransaction()->GetId(),
-        operationId);
+    LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
+        Operation->GetAsyncSchedulerTransaction()->GetId());
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
     auto operationId = Operation->GetId();
 
-    LOG_INFO("Starting sync scheduler transaction (OperationId: %v)",
-        operationId);
+    LOG_INFO("Starting sync scheduler transaction");
 
     auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
@@ -1266,16 +1262,15 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         Operation->SetSyncSchedulerTransaction(transactionManager->Attach(transactionId));
     }
 
-    LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v, OperationId: %v)",
-        Operation->GetSyncSchedulerTransaction()->GetId(),
-        operationId);
+    LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
+        Operation->GetSyncSchedulerTransaction()->GetId());
 }
 
 void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
 {
     auto operationId = Operation->GetId();
 
-    LOG_INFO("Starting input transaction (OperationId: %v)", operationId);
+    LOG_INFO("Starting input transaction");
 
     auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
@@ -1320,7 +1315,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
 {
     auto operationId = Operation->GetId();
 
-    LOG_INFO("Starting output transaction (OperationId: %v)", operationId);
+    LOG_INFO("Starting output transaction");
 
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
