@@ -57,9 +57,8 @@ protected:
     template <class TNode>
     void DoSetSelf(TNode* node, const TYsonString& value)
     {
-        ValidatePermission(
-            EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
-            EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
 
         auto factory = CreateFactory();
         auto builder = CreateBuilderFromFactory(factory);
