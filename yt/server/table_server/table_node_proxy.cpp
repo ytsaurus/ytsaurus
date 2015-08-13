@@ -331,14 +331,11 @@ private:
         context->SetRequestInfo("KeyColumns: %v",
             ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
 
+        ValidateNotExternal();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
         ValidateKeyColumns(keyColumns);
 
         const auto* table = GetThisTypedImpl();
-        if (table->IsExternal()) {
-            THROW_ERROR_EXCEPTION("Cannot handle SetSorted at an external node");
-        }
         if (table->GetUpdateMode() == EUpdateMode::None) {
             THROW_ERROR_EXCEPTION("Table must not be in \"none\" mode");
         }
@@ -369,14 +366,15 @@ private:
             lastTabletIndex,
             cellId);
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->MountTable(
-            impl,
+            table,
             firstTabletIndex,
             lastTabletIndex,
             cellId,
@@ -398,14 +396,15 @@ private:
             lastTabletIndex,
             force);
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->UnmountTable(
-            impl,
+            table,
             force,
             firstTabletIndex,
             lastTabletIndex);
@@ -423,14 +422,15 @@ private:
             firstTabletIndex,
             lastTabletIndex);
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->RemountTable(
-            impl,
+            table,
             firstTabletIndex,
             lastTabletIndex);
 
@@ -449,14 +449,15 @@ private:
             lastTabletIndex,
             pivotKeys.size());
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->ReshardTable(
-            impl,
+            table,
             firstTabletIndex,
             lastTabletIndex,
             pivotKeys);
@@ -470,6 +471,7 @@ private:
 
         context->SetRequestInfo();
 
+        ValidateNotExternal();
         ValidateNoTransaction();
 
         auto* table = GetThisTypedImpl();

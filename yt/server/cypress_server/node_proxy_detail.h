@@ -170,6 +170,8 @@ protected:
     // Inject other overloads into the scope.
     using TObjectProxyBase::ValidatePermission;
 
+    void ValidateNotExternal();
+
     void SetModified();
     void SuppressModificationTracking();
 
