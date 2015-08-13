@@ -18,14 +18,16 @@ public:
     virtual const TYaMRRow& GetRow() const override;
     virtual bool IsValid() const override;
     virtual void Next() override;
-    virtual size_t GetTableIndex() const override;
+    virtual ui32 GetTableIndex() const override;
+    virtual ui64 GetRowIndex() const override;
     virtual void NextKey() override;
 
 private:
     THolder<TProxyInput> Input_;
-    bool Valid_;
-    bool Finished_;
-    size_t TableIndex_;
+    bool Valid_ = true;
+    bool Finished_ = false;
+    ui32 TableIndex_ = 0;
+    TMaybe<ui64> RowIndex_;
     TYaMRRow Row_;
 
 private:
@@ -33,7 +35,8 @@ private:
 
     size_t Load(void* buf, size_t len);
 
-    bool ReadInteger(i32* result, bool acceptEndOfStream = false);
+    template <class T>
+    bool ReadInteger(T* result, bool acceptEndOfStream = false);
     void ReadField(Stroka* result, i32 length);
 };
 

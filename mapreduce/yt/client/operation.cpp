@@ -308,6 +308,11 @@ TOperationId ExecuteMap(
             spec.OutputDesc_))
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
+        .Item("job_io").BeginMap()
+            .Item("control_attributes").BeginMap()
+                .Item("enable_row_index").Value(true)
+            .EndMap()
+        .EndMap()
         .Do(BuildCommonOperationPart)
     .EndMap().EndMap();
 
@@ -348,6 +353,7 @@ TOperationId ExecuteReduce(
         .Item("job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)
+                .Item("enable_row_index").Value(true)
             .EndMap()
         .EndMap()
         .Do(BuildCommonOperationPart)
@@ -372,14 +378,19 @@ TOperationId ExecuteMapReduce(
     const TOperationOptions& options)
 {
     TFileUploader mapUploader(serverName);
-    mapUploader.UploadFiles(spec.MapperSpec_, mapper);
+    if (mapper) {
+        mapUploader.UploadFiles(spec.MapperSpec_, mapper);
+    }
 
     TFileUploader reduceUploader(serverName);
     reduceUploader.UploadFiles(spec.ReducerSpec_, reducer);
 
-    Stroka mapCommand = Sprintf("./cppbinary --yt-map \"%s\" 1 %d",
-        ~TJobFactory::Get()->GetJobName(mapper),
-        mapUploader.HasState());
+    Stroka mapCommand;
+    if (mapper) {
+        mapCommand = Sprintf("./cppbinary --yt-map \"%s\" 1 %d",
+            ~TJobFactory::Get()->GetJobName(mapper),
+            mapUploader.HasState());
+    }
 
     Stroka reduceCommand = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
         ~TJobFactory::Get()->GetJobName(reducer),
@@ -388,12 +399,14 @@ TOperationId ExecuteMapReduce(
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("mapper").DoMap(BindFirst(
-            BuildUserJobFluently,
-            mapCommand,
-            mapUploader.GetFiles(),
-            spec.InputDesc_,
-            outputMapperDesc))
+        .DoIf(mapper, [&] (TFluentMap fluent) {
+            fluent.Item("mapper").DoMap(BindFirst(
+                BuildUserJobFluently,
+                mapCommand,
+                mapUploader.GetFiles(),
+                spec.InputDesc_,
+                outputMapperDesc));
+        })
         .Item("reducer").DoMap(BindFirst(
             BuildUserJobFluently,
             reduceCommand,
@@ -404,6 +417,11 @@ TOperationId ExecuteMapReduce(
         .Item("reduce_by").Value(spec.ReduceBy_)
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
+        .Item("map_job_io").BeginMap()
+            .Item("control_attributes").BeginMap()
+                .Item("enable_row_index").Value(true)
+            .EndMap()
+        .EndMap()
         .Item("reduce_job_io").BeginMap()
             .Item("control_attributes").BeginMap()
                 .Item("enable_key_switch").Value(true)

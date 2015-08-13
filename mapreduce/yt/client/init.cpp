@@ -14,19 +14,24 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void WriteVersionToLog()
+{
+    LOG_INFO("Wrapper version: %s", ~TProcessProperties::Get()->ClientVersion);
+}
+
 void Initialize(int argc, const char* argv[])
 {
     SetLogger(CreateStdErrLogger(ILogger::DEBUG));
-    LOG_INFO("Wrapper version: %s", ~TProcessProperties::Get()->ClientVersion);
-
     TProcessProperties::Get()->SetCommandLine(argc, argv);
 
     if (argc != 5) {
+        WriteVersionToLog();
         return;
     }
 
     Stroka jobType(argv[1]);
     if (jobType != "--yt-map" && jobType != "--yt-reduce") {
+        WriteVersionToLog();
         return;
     }
 

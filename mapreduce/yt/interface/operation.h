@@ -168,6 +168,7 @@ public:
     }
 };
 
+
 template <class TR, class TW>
 class IReducer
     : public IJob
@@ -217,6 +218,14 @@ struct IOperationClient
     TOperationId MapReduce(
         const TMapReduceOperationSpec& spec,
         TMapper* mapper,
+        TReducer* reducer,
+        const TOperationOptions& options = TOperationOptions());
+
+    // identity mapper overload
+    template <class TReducer>
+    TOperationId MapReduce(
+        const TMapReduceOperationSpec& spec,
+        nullptr_t,
         TReducer* reducer,
         const TOperationOptions& options = TOperationOptions());
 

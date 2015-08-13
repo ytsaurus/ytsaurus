@@ -20,7 +20,8 @@ public:
     virtual void SkipRow() override;
     virtual bool IsValid() const override;
     virtual void Next() override;
-    virtual size_t GetTableIndex() const override;
+    virtual ui32 GetTableIndex() const override;
+    virtual ui64 GetRowIndex() const override;
     virtual void NextKey() override;
 
 private:

@@ -405,7 +405,7 @@ public:
         const TLockOptions& options) override
     {
         THttpHeader header("POST", "lock");
-        header.AddPath(path);
+        header.AddPath(AddPathPrefix(path));
         header.AddParam("mode", ToString(mode));
         header.AddTransactionId(TransactionId_);
         header.AddMutationId();

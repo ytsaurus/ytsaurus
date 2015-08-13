@@ -66,14 +66,16 @@ public:
     virtual const TNode& GetRow() const override;
     virtual bool IsValid() const override;
     virtual void Next() override;
-    virtual size_t GetTableIndex() const override;
+    virtual ui32 GetTableIndex() const override;
+    virtual ui64 GetRowIndex() const override;
     virtual void NextKey() override;
 
 private:
     THolder<TProxyInput> Input_;
-    bool Valid_;
-    bool Finished_;
-    size_t TableIndex_;
+    bool Valid_ = true;
+    bool Finished_ = false;
+    ui32 TableIndex_ = 0;
+    TMaybe<ui64> RowIndex_;
 
     TRowElementPtr Row_;
     TRowQueue RowQueue_;

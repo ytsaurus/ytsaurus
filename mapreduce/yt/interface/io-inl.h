@@ -54,8 +54,8 @@ struct IReaderImplBase
 {
     virtual bool IsValid() const = 0;
     virtual void Next() = 0;
-    virtual size_t GetTableIndex() const = 0;
-
+    virtual ui32 GetTableIndex() const = 0;
+    virtual ui64 GetRowIndex() const = 0;
     virtual void NextKey() = 0;
 };
 
@@ -107,9 +107,14 @@ public:
         Reader_->Next();
     }
 
-    size_t GetTableIndex() const
+    ui32 GetTableIndex() const
     {
         return Reader_->GetTableIndex();
+    }
+
+    ui64 GetRowIndex() const
+    {
+        return Reader_->GetRowIndex();
     }
 
 private:
@@ -170,9 +175,14 @@ public:
         CachedRow_.Reset(nullptr);
     }
 
-    size_t GetTableIndex() const
+    ui32 GetTableIndex() const
     {
         return Reader_->GetTableIndex();
+    }
+
+    ui64 GetRowIndex() const
+    {
+        return Reader_->GetRowIndex();
     }
 
 private:
