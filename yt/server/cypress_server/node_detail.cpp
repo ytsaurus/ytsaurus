@@ -516,12 +516,25 @@ ENodeType TLinkNodeTypeHandler::GetNodeType()
     return ENodeType::Entity;
 }
 
-void TLinkNodeTypeHandler::SetDefaultAttributes(
-    IAttributeDictionary* attributes,
+ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
+    TLinkNode* trunkNode,
     TTransaction* transaction)
 {
-    TBase::SetDefaultAttributes(attributes, transaction);
+    return New<TLinkNodeProxy>(
+        this,
+        Bootstrap_,
+        transaction,
+        trunkNode);
+}
 
+std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
+    const TVersionedNodeId& id,
+    TCellTag cellTag,
+    TTransaction* transaction,
+    IAttributeDictionary* attributes,
+    TReqCreate* request,
+    TRspCreate* response)
+{
     // Resolve target_path using the appropriate transaction.
     auto targetPath = attributes->Find<Stroka>("target_path");
     if (targetPath) {
@@ -533,17 +546,14 @@ void TLinkNodeTypeHandler::SetDefaultAttributes(
         auto targetProxy = resolver->ResolvePath(*targetPath, transaction);
         attributes->Set("target_id", targetProxy->GetId());
     }
-}
 
-ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
-    TLinkNode* trunkNode,
-    TTransaction* transaction)
-{
-    return New<TLinkNodeProxy>(
-        this,
-        Bootstrap_,
+    return TBase::DoCreate(
+        id,
+        cellTag,
         transaction,
-        trunkNode);
+        attributes,
+        request,
+        response);
 }
 
 void TLinkNodeTypeHandler::DoBranch(

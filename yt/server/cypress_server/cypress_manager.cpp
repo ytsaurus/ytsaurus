@@ -237,14 +237,13 @@ public:
             externalCellTag,
             handler,
             account,
+            Transaction_,
             attributes,
             request,
             response);
         auto* trunkNode = node->GetTrunkNode();
 
         RegisterCreatedNode(trunkNode);
-
-        handler->SetDefaultAttributes(attributes, Transaction_);
 
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->FillAttributes(trunkNode, *attributes);
@@ -431,6 +430,7 @@ public:
             NotReplicatedCellTag,
             handler,
             account,
+            transaction,
             attributes,
             nullptr,
             nullptr);
@@ -693,6 +693,7 @@ public:
         TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         TAccount* account,
+        TTransaction* transaction,
         IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response)
@@ -704,6 +705,7 @@ public:
         auto nodeHolder = handler->Create(
             hintId,
             externalCellTag,
+            transaction,
             attributes,
             request,
             response);
@@ -2130,6 +2132,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     TCellTag externalCellTag,
     INodeTypeHandlerPtr handler,
     TAccount* account,
+    TTransaction* transaction,
     IAttributeDictionary* attributes,
     TReqCreate* request,
     TRspCreate* response)
@@ -2139,6 +2142,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
         externalCellTag,
         std::move(handler),
         account,
+        transaction,
         attributes,
         request,
         response);

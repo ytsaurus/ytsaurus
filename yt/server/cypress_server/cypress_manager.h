@@ -53,6 +53,7 @@ public:
         NObjectClient::TCellTag externalCellTag,
         INodeTypeHandlerPtr handler,
         NSecurityServer::TAccount* account,
+        NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response);

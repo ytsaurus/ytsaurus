@@ -25,10 +25,6 @@ public:
 
     explicit TChunkOwnerTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual void SetDefaultAttributes(
-        NYTree::IAttributeDictionary* attributes,
-        NTransactionServer::TTransaction* transaction) override;
-
     virtual NYTree::ENodeType GetNodeType() override;
 
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
@@ -43,6 +39,7 @@ protected:
     virtual std::unique_ptr<TChunkOwner> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
         NCypressServer::INodeTypeHandler::TReqCreate* request,
         NCypressServer::INodeTypeHandler::TRspCreate* response) override;

@@ -47,17 +47,6 @@ public:
         return true;
     }
 
-    virtual void SetDefaultAttributes(
-        IAttributeDictionary* attributes,
-        TTransaction* transaction) override
-    {
-        TChunkOwnerTypeHandler::SetDefaultAttributes(attributes, transaction);
-
-        if (!attributes->Contains("compression_codec")) {
-            attributes->Set("compression_codec", NCompression::ECodec::None);
-        }
-    }
-
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TFileNode* trunkNode,
@@ -73,6 +62,7 @@ protected:
     virtual std::unique_ptr<TFileNode> DoCreate(
         const TVersionedNodeId& id,
         TCellTag cellTag,
+        TTransaction* transaction,
         IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
@@ -87,7 +77,17 @@ protected:
             chunk->ValidateConfirmed();
         }
 
-        auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(id, cellTag, attributes, request, response);
+        auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(
+            id,
+            cellTag,
+            transaction,
+            attributes,
+            request,
+            response);
+
+        if (!attributes->Contains("compression_codec")) {
+            attributes->Set("compression_codec", NCompression::ECodec::None);
+        }
 
         if (chunk) {
             auto* chunkList = nodeHolder->GetChunkList();

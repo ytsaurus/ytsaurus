@@ -47,15 +47,10 @@ struct INodeTypeHandler
     virtual std::unique_ptr<TCypressNodeBase> Create(
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) = 0;
-
-    //! Called during node creation to populate default attributes that are missing
-    //! and possibly readjust existing attributes.
-    virtual void SetDefaultAttributes(
-        NYTree::IAttributeDictionary* attributes,
-        NTransactionServer::TTransaction* transaction) = 0;
 
     //! Performs cleanup on node destruction.
     /*!

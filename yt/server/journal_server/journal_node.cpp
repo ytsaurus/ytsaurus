@@ -130,6 +130,7 @@ protected:
     virtual std::unique_ptr<TJournalNode> DoCreate(
         const TVersionedNodeId& id,
         TCellTag cellTag,
+        TTransaction* transaction,
         IAttributeDictionary* attributes,
         INodeTypeHandler::TReqCreate* request,
         INodeTypeHandler::TRspCreate* response) override
@@ -156,7 +157,13 @@ protected:
             THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum < replication_factor + 1");
         }
 
-        auto nodeHolder = TBase::DoCreate(id, cellTag, attributes, request, response);
+        auto nodeHolder = TBase::DoCreate(
+            id,
+            cellTag,
+            transaction,
+            attributes,
+            request,
+            response);
         auto* node = nodeHolder.get();
 
         node->SetReplicationFactor(replicationFactor);

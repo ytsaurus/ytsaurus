@@ -28,22 +28,6 @@ TChunkOwnerTypeHandler<TChunkOwner>::TChunkOwnerTypeHandler(NCellMaster::TBootst
 { }
 
 template <class TChunkOwner>
-void TChunkOwnerTypeHandler<TChunkOwner>::SetDefaultAttributes(
-    NYTree::IAttributeDictionary* attributes,
-    NTransactionServer::TTransaction* transaction)
-{
-    TBase::SetDefaultAttributes(attributes, transaction);
-
-    if (!attributes->Contains("replication_factor")) {
-        attributes->Set("replication_factor", NChunkClient::DefaultReplicationFactor);
-    }
-
-    if (!attributes->Contains("erasure_codec")) {
-        attributes->Set("erasure_codec", NErasure::ECodec::None);
-    }
-}
-
-template <class TChunkOwner>
 NYTree::ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType()
 {
     return NYTree::ENodeType::Entity;
@@ -73,6 +57,7 @@ template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
+    NTransactionServer::TTransaction* transaction,
     NYTree::IAttributeDictionary* attributes,
     NCypressServer::INodeTypeHandler::TReqCreate* request,
     NCypressServer::INodeTypeHandler::TRspCreate* response)
@@ -80,7 +65,13 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     auto chunkManager = this->Bootstrap_->GetChunkManager();
     auto objectManager = this->Bootstrap_->GetObjectManager();
 
-    auto nodeHolder = TBase::DoCreate(id, externalCellTag, attributes, request, response);
+    auto nodeHolder = TBase::DoCreate(
+        id,
+        externalCellTag,
+        transaction,
+        attributes,
+        request,
+        response);
     auto* node = nodeHolder.get();
 
     if (!node->IsExternal()) {
@@ -89,6 +80,14 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
         node->SetChunkList(chunkList);
         YCHECK(chunkList->OwningNodes().insert(node).second);
         objectManager->RefObject(chunkList);
+    }
+
+    if (!attributes->Contains("replication_factor")) {
+        attributes->Set("replication_factor", NChunkClient::DefaultReplicationFactor);
+    }
+
+    if (!attributes->Contains("erasure_codec")) {
+        attributes->Set("erasure_codec", NErasure::ECodec::None);
     }
 
     return nodeHolder;

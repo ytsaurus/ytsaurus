@@ -99,6 +99,7 @@ public:
     virtual std::unique_ptr<TCypressNodeBase> Create(
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransaction* transaction,
         NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
@@ -108,15 +109,11 @@ public:
         return DoCreate(
             TVersionedNodeId(id),
             externalCellTag,
+            transaction,
             attributes,
             request,
             response);
     }
-
-    virtual void SetDefaultAttributes(
-        NYTree::IAttributeDictionary* /*attributes*/,
-        NTransactionServer::TTransaction* /*transaction*/) override
-    { }
 
     virtual void Destroy(TCypressNodeBase* node) override
     {
@@ -215,6 +212,7 @@ protected:
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransaction* /*transaction*/,
         NYTree::IAttributeDictionary* /*attributes*/,
         TReqCreate* /*request*/,
         TRspCreate* /*response*/)
@@ -533,16 +531,20 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() override;
     virtual NYTree::ENodeType GetNodeType() override;
 
-    virtual void SetDefaultAttributes(
-        NYTree::IAttributeDictionary* attributes,
-        NTransactionServer::TTransaction* tranasction) override;
-
 private:
     typedef TCypressNodeTypeHandlerBase<TLinkNode> TBase;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
         TLinkNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
+
+    virtual std::unique_ptr<TLinkNode> DoCreate(
+        const TVersionedNodeId& id,
+        NObjectClient::TCellTag cellTag,
+        NTransactionServer::TTransaction* transaction,
+        NYTree::IAttributeDictionary* attributes,
+        TReqCreate* request,
+        TRspCreate* response) override;
 
     virtual void DoBranch(
         const TLinkNode* originatingNode,
