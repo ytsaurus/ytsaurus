@@ -49,12 +49,6 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A sentinel instance of IAttributeDictionary for INodeTypeHandler::Create.
-//! Note that |EmptyAttributes()| cannot be used here due to const-ness.
-static const std::unique_ptr<IAttributeDictionary> MutableEmptyAttributes = CreateEphemeralAttributes();
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {
@@ -945,14 +939,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto factory = CreateCypressFactory(false);
 
-    std::unique_ptr<IAttributeDictionary> attributesHolder;
-    if (request->has_node_attributes()) {
-        attributesHolder = FromProto(request->node_attributes());
-    }
+    auto attributes = request->has_node_attributes()
+        ? FromProto(request->node_attributes())
+        : std::unique_ptr<IAttributeDictionary>();
 
     auto newProxy = factory->CreateNode(
         type,
-        attributesHolder ? attributesHolder.get() : MutableEmptyAttributes.get(),
+        attributes.get(),
         request,
         response);
 

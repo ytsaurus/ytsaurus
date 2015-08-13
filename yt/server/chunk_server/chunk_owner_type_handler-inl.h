@@ -73,13 +73,14 @@ template <class TChunkOwner>
 std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
+    NYTree::IAttributeDictionary* attributes,
     NCypressServer::INodeTypeHandler::TReqCreate* request,
     NCypressServer::INodeTypeHandler::TRspCreate* response)
 {
     auto chunkManager = this->Bootstrap_->GetChunkManager();
     auto objectManager = this->Bootstrap_->GetObjectManager();
 
-    auto nodeHolder = TBase::DoCreate(id, externalCellTag, request, response);
+    auto nodeHolder = TBase::DoCreate(id, externalCellTag, attributes, request, response);
     auto* node = nodeHolder.get();
 
     if (!node->IsExternal()) {

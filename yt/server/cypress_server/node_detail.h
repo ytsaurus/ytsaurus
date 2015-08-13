@@ -99,6 +99,7 @@ public:
     virtual std::unique_ptr<TCypressNodeBase> Create(
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
+        NYTree::IAttributeDictionary* attributes,
         TReqCreate* request,
         TRspCreate* response) override
     {
@@ -107,13 +108,9 @@ public:
         return DoCreate(
             TVersionedNodeId(id),
             externalCellTag,
+            attributes,
             request,
             response);
-    }
-
-    virtual void ValidateCreated(TCypressNodeBase* node) override
-    {
-        DoValidateCreated(dynamic_cast<TImpl*>(node));
     }
 
     virtual void SetDefaultAttributes(
@@ -218,6 +215,7 @@ protected:
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
+        NYTree::IAttributeDictionary* /*attributes*/,
         TReqCreate* /*request*/,
         TRspCreate* /*response*/)
     {
@@ -226,9 +224,6 @@ protected:
         nodeHolder->SetTrunkNode(nodeHolder.get());
         return nodeHolder;
     }
-
-    virtual void DoValidateCreated(TImpl* /*node*/)
-    { }
 
     virtual void DoDestroy(TImpl* /*node*/)
     { }
