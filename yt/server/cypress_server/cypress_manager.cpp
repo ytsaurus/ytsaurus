@@ -1986,11 +1986,10 @@ private:
             nullptr);
 
         auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(trunkNode);
         objectManager->FillAttributes(trunkNode, *attributes);
 
         LockNode(trunkNode, transaction, ELockMode::Exclusive);
-
-        objectManager->RefObject(trunkNode);
     }
 
     void HydraCloneForeignNode(const NProto::TReqCloneForeignNode& request) throw()
