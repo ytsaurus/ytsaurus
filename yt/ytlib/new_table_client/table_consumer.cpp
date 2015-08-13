@@ -68,6 +68,9 @@ void TBuildingValueConsumer::OnBeginRow()
 
 TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedValue& value)
 {
+    ValueBuffer_.Clear();
+    ValueWriter_.Reset();
+
     switch (value.Type) {
         case EValueType::Int64:
             ValueWriter_.OnInt64Scalar(value.Data.Int64);
@@ -100,7 +103,6 @@ void TBuildingValueConsumer::OnValue(const TUnversionedValue& value)
     auto schemaType = Schema_.Columns()[value.Id].Type;
     if (schemaType == EValueType::Any && value.Type != EValueType::Any) {
         Builder_.AddValue(MakeAnyFromScalar(value));
-        ValueBuffer_.Clear();
     } else {
         Builder_.AddValue(value);
     }
