@@ -294,7 +294,25 @@ public:
 
         auto* clonedNode = cypressManager->LockNode(clonedTrunkNode, Transaction_, ELockMode::Exclusive);
 
-        RegisterClonedNode(sourceNode, clonedNode, mode);
+        // NB: No need to call RegisterCreatedNode since
+        // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
+        // which calls RegisterCreatedNode.
+        if (sourceNode->IsExternal()) {
+            NProto::TReqCloneForeignNode protoRequest;
+            ToProto(protoRequest.mutable_source_node_id(), sourceNode->GetId());
+            if (sourceNode->GetTransaction()) {
+                ToProto(protoRequest.mutable_source_transaction_id(), sourceNode->GetTransaction()->GetId());
+            }
+            ToProto(protoRequest.mutable_cloned_node_id(), clonedNode->GetId());
+            if (clonedNode->GetTransaction()) {
+                ToProto(protoRequest.mutable_cloned_transaction_id(), clonedNode->GetTransaction()->GetId());
+            }
+            protoRequest.set_mode(static_cast<int>(mode));
+            ToProto(protoRequest.mutable_account_id(), clonedNode->GetAccount()->GetId());
+
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMaster(protoRequest, sourceNode->GetExternalCellTag());
+        }
 
         return clonedTrunkNode;
     }
@@ -307,22 +325,6 @@ public:
                 transactionManager->StageNode(Transaction_, node);
             }
         }
-
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        for (const auto& request : CloneRequests_) {
-            NProto::TReqCloneForeignNode protoRequest;
-            ToProto(protoRequest.mutable_source_node_id(), request.Source->GetId());
-            if (request.Source->GetTransaction()) {
-                ToProto(protoRequest.mutable_source_transaction_id(), request.Source->GetTransaction()->GetId());
-            }
-            ToProto(protoRequest.mutable_cloned_node_id(), request.ClonedTrunk->GetId());
-            if (request.ClonedTrunk->GetTransaction()) {
-                ToProto(protoRequest.mutable_cloned_transaction_id(), request.ClonedTrunk->GetTransaction()->GetId());
-            }
-            protoRequest.set_mode(static_cast<int>(request.Mode));
-            ToProto(protoRequest.mutable_account_id(), request.ClonedTrunk->GetAccount()->GetId());
-            multicellManager->PostToSecondaryMaster(protoRequest, request.Source->GetExternalCellTag());
-        }
     }
 
 private:
@@ -334,14 +336,6 @@ private:
 
     std::vector<TCypressNodeBase*> CreatedNodes_;
 
-    struct TCloneRequest
-    {
-        TCypressNodeBase* Source;
-        TCypressNodeBase* ClonedTrunk;
-        ENodeCloneMode Mode;
-    };
-    std::vector<TCloneRequest> CloneRequests_;
-
 
     void ValidateCreatedNodeType(EObjectType type)
     {
@@ -352,28 +346,12 @@ private:
         securityManager->ValidatePermission(schema, EPermission::Create);
     }
 
-    void RegisterCreatedNode(TCypressNodeBase* node)
+    void RegisterCreatedNode(TCypressNodeBase* trunkNode)
     {
+        YASSERT(trunkNode->IsTrunk());
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(node);
-        CreatedNodes_.push_back(node);
-    }
-
-    void RegisterClonedNode(
-        TCypressNodeBase* sourceNode,
-        TCypressNodeBase* clonedNode,
-        ENodeCloneMode mode)
-    {
-        // NB: No need to call RegisterCreatedNode since
-        // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
-        // which calls RegisterCreatedNode.
-        if (sourceNode->IsExternal()) {
-            CloneRequests_.push_back(TCloneRequest{
-                sourceNode,
-                clonedNode,
-                mode
-            });
-        }
+        objectManager->RefObject(trunkNode);
+        CreatedNodes_.push_back(trunkNode);
     }
 
 };
@@ -1975,7 +1953,7 @@ private:
     }
 
 
-    void HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request)
+    void HydraUpdateAccessStatistics(const NProto::TReqUpdateAccessStatistics& request) throw()
     {
         for (const auto& update : request.updates()) {
             auto nodeId = FromProto<TNodeId>(update.node_id());

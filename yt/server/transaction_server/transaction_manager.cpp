@@ -518,13 +518,14 @@ public:
         }
     }
 
-    void StageNode(TTransaction* transaction, TCypressNodeBase* node)
+    void StageNode(TTransaction* transaction, TCypressNodeBase* trunkNode)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YASSERT(trunkNode->IsTrunk());
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        transaction->StagedNodes().push_back(node);
-        objectManager->RefObject(node);
+        transaction->StagedNodes().push_back(trunkNode);
+        objectManager->RefObject(trunkNode);
     }
 
 
@@ -963,9 +964,9 @@ void TTransactionManager::UnstageObject(
 
 void TTransactionManager::StageNode(
     TTransaction* transaction,
-    TCypressNodeBase* node)
+    TCypressNodeBase* trunkNode)
 {
-    Impl_->StageNode(transaction, node);
+    Impl_->StageNode(transaction, trunkNode);
 }
 
 void TTransactionManager::PrepareTransactionCommit(

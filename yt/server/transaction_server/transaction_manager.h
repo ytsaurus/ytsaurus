@@ -66,7 +66,7 @@ public:
     void UnstageObject(NObjectServer::TObjectBase* object, bool recursive);
 
     //! Registers (and references) the node with the transaction.
-    void StageNode(TTransaction* transaction, NCypressServer::TCypressNodeBase* node);
+    void StageNode(TTransaction* transaction, NCypressServer::TCypressNodeBase* trunkNode);
 
 private:
     class TImpl;
