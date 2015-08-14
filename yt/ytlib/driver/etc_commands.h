@@ -63,6 +63,23 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGetVersionRequest
+    : public TRequest
+{
+    TGetVersionRequest()
+    { }
+};
+
+class TGetVersionCommand
+    : public TTypedCommand<TGetVersionRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCheckPermissionRequest
     : public TTransactionalRequest
     , public TReadOnlyRequest

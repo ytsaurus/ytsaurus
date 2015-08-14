@@ -152,16 +152,15 @@ int TChunkReaderBase::GetBlockIndexByKey(const TKey& pivotKey, const std::vector
     return beginBlockIndex + ((it != rend) ? std::distance(it, rend) : 0);
 }
 
-void TChunkReaderBase::CheckBlockUpperLimits(const TBlockMeta& blockMeta, int keyPadding)
+void TChunkReaderBase::CheckBlockUpperLimits(const TBlockMeta& blockMeta, TNullable<int> keyColumnCount)
 {
     if (UpperLimit_.HasRowIndex()) {
         CheckRowLimit_ = UpperLimit_.GetRowIndex() < blockMeta.chunk_row_count();
     }
 
     if (UpperLimit_.HasKey()) {
-        YCHECK(keyPadding >= 0);
         const auto key = FromProto<TOwningKey>(blockMeta.last_key());
-        auto wideKey = WidenKey(key, keyPadding);
+        auto wideKey = WidenKey(key, keyColumnCount ? keyColumnCount.Get() : key.GetCount());
 
         auto upperLimit = UpperLimit_.GetKey().Get();
         CheckKeyLimit_ = CompareRows(
@@ -297,10 +296,11 @@ TFuture<void> TChunkReaderBase::GetFetchingCompletedEvent()
     return SequentialReader_->GetFetchingCompletedEvent();
 }
 
-std::vector<TUnversionedValue> TChunkReaderBase::WidenKey(const TOwningKey &key, int keyPadding)
+std::vector<TUnversionedValue> TChunkReaderBase::WidenKey(const TOwningKey &key, int keyColumnCount)
 {
+    YCHECK(keyColumnCount >= key.GetCount());
     std::vector<TUnversionedValue> wideKey;
-    wideKey.resize(key.GetCount() + keyPadding, MakeUnversionedSentinelValue(EValueType::Null));
+    wideKey.resize(keyColumnCount, MakeUnversionedSentinelValue(EValueType::Null));
     std::copy(key.Begin(), key.End(), wideKey.data());
     return wideKey;
 }

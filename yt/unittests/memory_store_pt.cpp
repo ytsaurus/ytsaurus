@@ -57,7 +57,7 @@ public:
             builder.AddValue(MakeUnversionedStringValue("hello from YT", 3));
             auto row = builder.FinishRow();
 
-            auto dynamicRow = Store_->WriteRow(
+            auto dynamicRow = Store_->WriteRowAtomic(
                 transaction.get(),
                 row.Get(),
                 false,

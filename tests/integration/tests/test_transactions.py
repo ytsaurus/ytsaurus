@@ -246,10 +246,3 @@ class TestTransactions(YTEnvSetup):
         remove("//tmp/file")
         commit_transaction(tx)
 
-    def test_prerequisite_txs(self):
-        tx = start_transaction()
-        get("//tmp", prerequisite_transaction_ids=[tx])
-        commit_transaction(tx)
-        with pytest.raises(YtError):
-            get("//tmp", prerequisite_transaction_ids=[tx])
-

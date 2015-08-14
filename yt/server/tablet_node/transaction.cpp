@@ -10,6 +10,8 @@
 
 #include <ytlib/table_client/versioned_row.h>
 
+#include <ytlib/tablet_client/public.h>
+
 #include <ytlib/transaction_client/helpers.h>
 
 #include <server/hydra/composite_automaton.h>
@@ -17,6 +19,7 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NTableClient;
 

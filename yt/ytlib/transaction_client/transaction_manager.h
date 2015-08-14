@@ -93,9 +93,22 @@ public:
 
     //! Returns the transaction start timestamp.
     /*!
+     *  For non-atomic transactions this timestamp is client-generated (i.e. approximate).
      *  \note Thread affinity: any
      */
     TTimestamp GetStartTimestamp() const;
+
+    //! Returns the transaction atomicity mode.
+    /*!
+     *  \note Thread affinity: any
+     */
+    EAtomicity GetAtomicity() const;
+
+    //! Returns the transaction durability mode.
+    /*!
+     *  \note Thread affinity: any
+     */
+    EDurability GetDurability() const;
 
 
     //! Called to mark a given cell as a transaction participant.

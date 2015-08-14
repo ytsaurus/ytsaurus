@@ -106,6 +106,8 @@ public:
     ~TWireProtocolReader();
 
     bool IsFinished() const;
+    TIterator GetBegin() const;
+    TIterator GetEnd() const;
 
     TIterator GetCurrent() const;
     void SetCurrent(TIterator);
