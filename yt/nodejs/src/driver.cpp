@@ -25,6 +25,7 @@
 #include <ytlib/formats/format.h>
 
 #include <util/memory/tempbuf.h>
+#include <util/string/escape.h>
 
 #include <string>
 
@@ -456,6 +457,7 @@ void TDriverWrap::Initialize(Handle<Object> target)
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "Execute", TDriverWrap::Execute);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "FindCommandDescriptor", TDriverWrap::FindCommandDescriptor);
     NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "GetCommandDescriptors", TDriverWrap::GetCommandDescriptors);
+    NODE_SET_PROTOTYPE_METHOD(ConstructorTemplate, "EscapeC", TDriverWrap::EscapeC);
 
     target->Set(
         String::NewSymbol("TDriverWrap"),
@@ -567,6 +569,27 @@ Handle<Value> TDriverWrap::DoGetCommandDescriptors()
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Handle<Value> TDriverWrap::EscapeC(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Validate arguments.
+    YCHECK(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], String);
+
+    // Unwrap arguments.
+    String::Utf8Value value(args[0]);
+
+    Stroka unescaped(*value, value.length());
+    Stroka escaped = ::EscapeC(unescaped);
+
+    return scope.Close(String::New(escaped.c_str()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
