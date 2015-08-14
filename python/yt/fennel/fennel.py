@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import yt.wrapper.config
 from yt.wrapper import errors
 from yt.wrapper import client
 from yt.wrapper import table
@@ -39,6 +40,7 @@ import time
 import sys
 import collections
 
+yt.wrapper.config.RETRY_READ = True
 
 log = logging.getLogger("Fennel")
 
