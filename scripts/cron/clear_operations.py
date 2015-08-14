@@ -87,6 +87,22 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
             row = {"id": op}
             for key in fields:
                 row[key] = attributes[key]
+
+            filter_factors = ""
+            filter_factors += op
+            filter_factors += attributes.get("key", "")
+            filter_factors += attributes.get("authenticated_user", "")
+            filter_factors += attributes.get("state", "")
+            filter_factors += attributes.get("operation_type", "")
+            filter_factors += attributes.get("pool", "")
+
+            brief_spec = attributes.get("brief_spec", {})
+            filter_factors += brief_spec.get("title", "")
+            filter_factors += str(brief_spec.get('input_table_paths', [''])[0])
+            filter_factors += str(brief_spec.get('input_table_paths', [''])[0])
+
+            row["filter_factors"] = filter_factors.lower()
+
             yt.insert_rows("//sys/operations_archive/ordered_by_id", [row])
             yt.insert_rows("//sys/operations_archive/ordered_by_start_time", [row])
 
