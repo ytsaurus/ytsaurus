@@ -37,7 +37,8 @@ def main():
         {"name": "brief_spec", "type": "any"},
         {"name": "start_time", "type": "string"}, 
         {"name": "finish_time", "type": "string"},
-        {"name": "result", "type": "any"}]
+        {"name": "result", "type": "any"},
+        {"name": "filter_factors", "type": "string"}]
 
     ordered_by_id = "//sys/operations_archive/ordered_by_id"
     ordered_by_start_time = "//sys/operations_archive/ordered_by_start_time"
