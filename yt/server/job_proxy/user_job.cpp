@@ -40,6 +40,7 @@
 #include <core/tools/tools.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <util/folder/dirut.h>
 

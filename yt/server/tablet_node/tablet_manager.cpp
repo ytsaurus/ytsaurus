@@ -622,8 +622,8 @@ private:
             }
             if (!miscExt.eden()) {
                 auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
-                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
-                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumns.size());
+                auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
+                auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
                 chunkBoundaries.push_back(std::make_pair(minKey, -1));
                 chunkBoundaries.push_back(std::make_pair(maxKey, 1));
             }
@@ -865,8 +865,6 @@ private:
     void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransaction(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = GetTablet(tabletId);
@@ -882,6 +880,9 @@ private:
         auto atomicity = AtomicityFromTransactionId(transactionId);
         switch (atomicity) {
             case EAtomicity::Full: {
+                auto transactionManager = Slot_->GetTransactionManager();
+                auto* transaction = transactionManager->GetTransaction(transactionId);
+
                 auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
                 while (!reader.IsFinished()) {
@@ -1442,6 +1443,7 @@ private:
                 TReqWriteRow req;
                 reader->ReadMessage(&req);
                 auto row = reader->ReadUnversionedRow();
+                Magic(STRINGBUF("ExecuteSingleWrite:WriteAtomic"), row);
                 rowRef = storeManager->WriteRowAtomic(
                     transaction,
                     row,
@@ -1453,6 +1455,7 @@ private:
                 TReqDeleteRow req;
                 reader->ReadMessage(&req);
                 auto key = reader->ReadUnversionedRow();
+                Magic(STRINGBUF("ExecuteSingleWrite:DeleteAtomic"), key);
                 rowRef = storeManager->DeleteRowAtomic(
                     transaction,
                     key,
@@ -1488,6 +1491,7 @@ private:
                 TReqWriteRow req;
                 reader->ReadMessage(&req);
                 auto row = reader->ReadUnversionedRow();
+                Magic(STRINGBUF("ExecuteSingleWrite:WriteNonAtomic"), row);
                 storeManager->WriteRowNonAtomic(transactionId, adjustedCommitTimestamp, row);
                 break;
             }
@@ -1496,6 +1500,7 @@ private:
                 TReqDeleteRow req;
                 reader->ReadMessage(&req);
                 auto key = reader->ReadUnversionedRow();
+                Magic(STRINGBUF("ExecuteSingleWrite:DeleteNonAtomic"), key);
                 storeManager->DeleteRowNonAtomic(transactionId, adjustedCommitTimestamp, key);
                 break;
             }

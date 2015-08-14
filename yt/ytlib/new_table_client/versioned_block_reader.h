@@ -21,8 +21,8 @@ public:
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
         const TTableSchema& chunkSchema,
-        int chunkKeyColumnCount,
         int keyColumnCount,
+        int keyPadding, 
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp);
 
@@ -43,8 +43,8 @@ private:
     typedef TReadOnlyBitmap<ui64> TBitmap;
 
     TTimestamp Timestamp_;
-    const int ChunkKeyColumnCount_;
     const int KeyColumnCount_;
+    const int PaddedKeyColumnCount_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
     const TTableSchema& ChunkSchema_;

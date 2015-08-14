@@ -7,8 +7,6 @@
 
 #include <core/actions/future.h>
 
-#include <core/concurrency/periodic_executor.h>
-
 #ifdef _WIN32
     #include <ws2tcpip.h>
 #else
@@ -93,9 +91,12 @@ Stroka ToString(const TNetworkAddress& address, bool withPort = true);
 //! Performs asynchronous host name resolution.
 class TAddressResolver
 {
-public:
-    // TODO(babenko): move to private
+private:
+    DECLARE_SINGLETON_FRIEND(TAddressResolver);
     TAddressResolver();
+
+public:
+    ~TAddressResolver();
 
     //! Returns the singleton instance.
     static TAddressResolver* Get();
@@ -120,22 +121,8 @@ public:
     void Configure(TAddressResolverConfigPtr config);
 
 private:
-    TAddressResolverConfigPtr Config_;
-
-    TSpinLock CacheLock_;
-    yhash_map<Stroka, TNetworkAddress> Cache_;
-
-    NConcurrency::TPeriodicExecutorPtr LocalHostChecker_;
-
-    bool GetLocalHostNameFailed_ = false;
-    TSpinLock CachedLocalHostNameLock_;
-    Stroka CachedLocalHostName_;
-
-
-    TNetworkAddress DoResolve(const Stroka& hostName);
-    Stroka DoGetLocalHostName();
-    void CheckLocalHostResolution();
-
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

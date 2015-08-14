@@ -541,6 +541,8 @@ private:
                     if (!row)
                         break;
 
+                    Magic(STRINGBUF("TStoreCompactor:PartitionEden"), row);
+
                     // NB: pivot keys can be of arbitrary schema and length.
                     YCHECK(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
 
@@ -700,6 +702,10 @@ private:
             int writeRowCount = 0;
 
             while (reader->Read(&rows)) {
+                for (auto row : rows) {
+                    Magic(STRINGBUF("TStoreCompactor:CompactPartition"), row);
+                }
+
                 readRowCount += rows.size();
 
                 if (rows.empty()) {

@@ -168,7 +168,7 @@ protected:
     ui32 LockMask_;
 
 
-    TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
+    TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow, TTimestamp* outLatestDeleteTimestamp = nullptr, TTimestamp* outLatestWriteTimestamp = nullptr)
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
@@ -191,6 +191,14 @@ protected:
         // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
         // no "phantom" value is listed.
         auto latestWriteTimestamp = writeRevisionPtr ? Store_->TimestampFromRevision(*writeRevisionPtr) : NullTimestamp;
+
+        if (outLatestDeleteTimestamp) {
+            *outLatestDeleteTimestamp = latestDeleteTimestamp;
+        }
+
+        if (outLatestWriteTimestamp) {
+            *outLatestWriteTimestamp = latestWriteTimestamp;
+        }
 
         if (latestWriteTimestamp == NullTimestamp && latestDeleteTimestamp == NullTimestamp) {
             return TVersionedRow();
@@ -581,10 +589,15 @@ public:
             if (RowCount_ == Keys_.Size())
                 break;
 
+            auto magical = Magic("TDynamicMemoryStore:TLookupReader:Read -> Key", Keys_[RowCount_]);
             auto iterator = Store_->Rows_->FindEqualTo(TKeyWrapper{Keys_[RowCount_]});
             if (iterator.IsValid()) {
-                auto row = ProduceSingleRowVersion(iterator.GetCurrent());
+                TTimestamp dts, wts;
+                auto row = ProduceSingleRowVersion(iterator.GetCurrent(), &dts, &wts);
                 rows->push_back(row);
+                if (magical) {
+                    Magic(Format("TDynamicMemoryStore:TLookupReader:Read -> Value (DTS = %v ; WTS = %v)", dts, wts), row, false);
+                }
             } else {
                 rows->push_back(TVersionedRow());
             }

@@ -13,6 +13,8 @@
 #include <core/ytree/node.h>
 #include <core/ytree/attribute_helpers.h>
 
+#include <core/logging/log.h>
+
 #include <ytlib/new_table_client/row_buffer.h>
 #include <ytlib/new_table_client/name_table.h>
 #include <ytlib/new_table_client/schema.h>
@@ -1421,20 +1423,14 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount)
+TOwningKey WidenKey(const TOwningKey& key, int padding)
 {
-    YCHECK(keyColumnCount >= key.GetCount());
-
-    if (key.GetCount() == keyColumnCount) {
-        return key;
-    }
-
     TUnversionedOwningRowBuilder builder;
     for (const auto* value = key.Begin(); value != key.End(); ++value) {
         builder.AddValue(*value);
     }
 
-    for (int i = key.GetCount(); i < keyColumnCount; ++i) {
+    for (int i = 0; i < padding; ++i) {
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
     }
 
@@ -1511,6 +1507,17 @@ TUnversionedOwningRow BuildRow(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool Magic(const TStringBuf& what, TUnversionedRow row, bool checked)
+{
+    static NLogging::TLogger Logger("MAGIC");
+    if (!checked || (row && row.GetCount() >= 12 && row[1].Data.Int64 % 5 == 3)) {
+        LOG_DEBUG("%v %v", what, row);
+        return true;
+    } else {
+        return false;
+    }
+}
 
 } // namespace NVersionedTableClient
 } // namespace NYT
