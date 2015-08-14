@@ -177,6 +177,13 @@ public:
         return HasValue_;
     }
 
+    bool operator==(const TNullable& other)
+    {
+        return HasValue() && other.HasValue()
+            ? Get() == other.Get()
+            : HasValue() == other.HasValue();
+    }
+
     void Assign(TNull)
     {
         Reset();

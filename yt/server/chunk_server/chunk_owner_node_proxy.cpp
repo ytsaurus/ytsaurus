@@ -746,9 +746,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
         lockMode);
 
     ValidateTransaction();
-    ValidatePermission(
-        EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::This, NSecurityServer::EPermission::Write);
 
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(lockMode);
     ValidatePrepareForUpdate();
@@ -841,9 +839,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     context->SetRequestInfo();
 
-    ValidatePermission(
-        EPermissionCheckScope::This,
-        NSecurityServer::EPermission::Read);
+    ValidatePermission(EPermissionCheckScope::This, NSecurityServer::EPermission::Read);
     ValidateFetch();
 
     auto channel = request->has_channel()

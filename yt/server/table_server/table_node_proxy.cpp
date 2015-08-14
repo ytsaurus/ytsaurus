@@ -90,6 +90,7 @@ private:
         attributes->push_back(TAttributeInfo("tablets", table->IsDynamic(), true));
         attributes->push_back(TAttributeInfo("channels", true, false, true));
         attributes->push_back(TAttributeInfo("schema", true, false, true));
+        attributes->push_back("atomicity");
         TBase::ListSystemAttributes(attributes);
     }
 
@@ -157,6 +158,12 @@ private:
             return true;
         }
 
+        if (key == "atomicity") {
+            BuildYsonFluently(consumer)
+                .Value(table->GetAtomicity());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -188,6 +195,20 @@ private:
             return true;
         }
 
+        if (key == "atomicity") {
+            auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
+
+            ValidateNoTransaction();
+
+            auto* table = LockThisTypedImpl();
+            if (table->HasMountedTablets()) {
+                THROW_ERROR_EXCEPTION("Cannot atomicity mode of a dynamic table with mounted tablets");
+            }
+
+            table->SetAtomicity(atomicity);
+            return true;
+        }
+
         return TBase::SetBuiltinAttribute(key, value);
     }
     
@@ -196,7 +217,7 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
-        const auto* table = GetThisTypedImpl();
+        auto* table = GetThisTypedImpl();
 
         if (key == "channels") {
             if (!newValue) {
@@ -213,7 +234,13 @@ private:
                 ThrowCannotRemoveAttribute(key);
             }
 
-            ConvertTo<TTableSchema>(*newValue);
+            auto newSchema = ConvertTo<TTableSchema>(*newValue);
+
+            if (table->IsDynamic()) {
+                auto tabletManager = Bootstrap_->GetTabletManager();
+                auto schema = tabletManager->GetTableSchema(table);
+                ValidateTableSchemaUpdate(schema, newSchema);
+            }
 
             if (table->HasMountedTablets()) {
                 THROW_ERROR_EXCEPTION("Table has mounted tablets");
