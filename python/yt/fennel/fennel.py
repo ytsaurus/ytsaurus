@@ -87,13 +87,13 @@ class EventLog(object):
         self._archive_row_count_attr = "{0}/@row_count".format(self._archive_table_name)
 
     def get_row_count(self):
-        with self.yt.Transaction():
+        with self.yt.PingableTransaction():
             first_row = self.yt.get(self._number_of_first_row_attr)
             row_count = self.yt.get(self._row_count_attr)
             return row_count + first_row
 
     def get_archive_row_count(self):
-        with self.yt.Transaction():
+        with self.yt.PingableTransaction():
             first_row = self.yt.get(self._archive_number_of_first_row_attr)
             row_count = self.yt.get(self._archive_row_count_attr)
             return row_count + first_row
@@ -107,7 +107,7 @@ class EventLog(object):
             self.log.error("Failed to update processed row count. Unhandled exception", exc_info=True)
 
     def get_data(self, begin, count):
-        with self.yt.Transaction():
+        with self.yt.PingableTransaction():
 
             # NB: attributes processed_row_count added by ignat to fix fennel.
             # This attribute should never be changed manually and event_log should never be rotated.
@@ -223,7 +223,7 @@ class EventLog(object):
         backoff_time = 5
         while not finished:
             try:
-                with self.yt.Transaction():
+                with self.yt.PingableTransaction():
                     func()
                 finished = True
             except errors.YtError:
@@ -267,7 +267,7 @@ class EventLog(object):
         assert number_of_first_row == archive_row_count, "%d != %d" % (number_of_first_row, archive_row_count)
 
     def initialize(self):
-        with self.yt.Transaction():
+        with self.yt.PingableTransaction():
             if not self.yt.exists(self._number_of_first_row_attr):
                 self.yt.set(self._number_of_first_row_attr, 0)
             if not self.yt.exists(self._archive_number_of_first_row_attr):
