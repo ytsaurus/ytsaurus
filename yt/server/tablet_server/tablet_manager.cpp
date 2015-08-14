@@ -683,9 +683,10 @@ public:
 
         // Validate pivot keys against table schema.
         auto schema = GetTableSchema(table);
+        int keyColumnCount = table->KeyColumns().size();
         ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns());
         for (const auto& pivotKey : pivotKeys) {
-            ValidatePivotKey(pivotKey, schema, table->KeyColumns().size());
+            ValidatePivotKey(pivotKey, schema, keyColumnCount);
         }
 
         if (lastTabletIndex != tablets.size() - 1) {
@@ -769,8 +770,8 @@ public:
 
         for (auto* chunk : chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-            auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
-            auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
+            auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
+            auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
             auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* tablet = *it;
