@@ -96,10 +96,24 @@ class EventLog(object):
             row_count = self.yt.get(self._archive_row_count_attr)
             return row_count + first_row
 
+    def update_processed_row_count(self, value):
+        try:
+            attr_name = "//sys/scheduler/event_log/@processed_row_count"
+            row_count = self.yt.get(attr_name)
+            self.yt.set(attr_name, row_count + value)
+        except errors.YtError:
+            self.log.error("Failed to update processed row count. Unhandled exception", exc_info=True)
+
     def get_data(self, begin, count):
         with self.yt.Transaction():
-            rows_removed = self.yt.get(self._number_of_first_row_attr)
-            begin -= rows_removed
+
+            # NB: attributes processed_row_count added by ignat to fix fennel.
+            # This attribute should never be changed manually and event_log should never be rotated.
+            row_count = self.yt.get("//sys/scheduler/event_log/@processed_row_count")
+            begin = row_count
+
+            #rows_removed = self.yt.get(self._number_of_first_row_attr)
+            #begin -= rows_removed
 
             result = []
             if begin < 0:
@@ -732,10 +746,13 @@ class Application(object):
                         while not saved:
                             try:
                                 data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
+                                row_count = len(data)
+                                assert row_count == chunk_size
                                 data = misc._preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
                                 self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
 
                                 self._event_log.update_last_saved_ts(self._log_broker.get_chunk_data_ts())
+                                self._event_log.update_processed_row_count(row_count)
                             except EventLog.NotEnoughDataError:
                                 self.log.info("Not enough data in the event log", exc_info=True)
                                 yield sleep_future(30.0, self._io_loop)
@@ -793,7 +810,7 @@ class LastSeqnoGetter(object):
 
 def _get_logbroker_hostname(logbroker_url):
     log.info("Getting adviced logbroker endpoint hostname for %s...", logbroker_url)
-    response = requests.get("http://{0}/advice".format(logbroker_url), headers={"ClientHost": socket.getfqdn()})
+    response = requests.get("http://{0}/advice".format(logbroker_url), headers={"ClientHost": socket.getfqdn(), "Accept-Encoding": "identity"})
     if not response.ok:
         raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
     host = response.text.strip()
