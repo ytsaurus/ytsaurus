@@ -20,6 +20,18 @@ fi
 if ! [[ -v FAST ]]; then
     FAST=0
 fi
+if ! [[ -v USER_SESSIONS_FAST_PERIOD ]]; then
+    USER_SESSIONS_FAST_PERIOD=0
+fi
+if ! [[ -v SPY_LOG_FAST_PERIOD ]]; then
+    SPY_LOG_FAST_PERIOD=0
+fi
+if ! [[ -v TWITTER_FIREHOSE_FAST_PERIOD ]]; then
+    TWITTER_FIREHOSE_LOG_FAST_PERIOD=0
+fi
+if ! [[ -v FACEBOOK_FIREHOSE_FAST_PERIOD ]]; then
+    FACEBOOK_FIREHOSE_LOG_FAST_PERIOD=0
+fi
 set -u
 
 IMPORT_PATH="//userdata"
@@ -42,13 +54,18 @@ LOCK_PATH="//sys/cron/redwood_lock"
 /opt/cron/redwood_clicks_shows.py \
     --path $IMPORT_PATH \
     --import-queue $IMPORT_QUEUE \
-    --remove-queue $REMOVE_QUEUE
+    --remove-queue $REMOVE_QUEUE \
+    --mr-server redwood00.search.yandex.net
 
 if [ "$FAST" != 0 ]; then
     /opt/cron/redwood_fast.py \
         --path $IMPORT_PATH \
         --import-queue $IMPORT_QUEUE \
-        --remove-queue $REMOVE_QUEUE
+        --remove-queue $REMOVE_QUEUE \
+        --user-sessions-period $USER_SESSIONS_FAST_PERIOD \
+        --spy-log-period $SPY_LOG_FAST_PERIOD \
+        --twitter-firehose-period $TWITTER_FIREHOSE_FAST_PERIOD \
+        --facebook-firehose-period $FACEBOOK_FIREHOSE_FAST_PERIOD 
 fi
 
 /opt/cron/tools/remove.py $REMOVE_QUEUE
