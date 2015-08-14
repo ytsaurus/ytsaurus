@@ -219,14 +219,10 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
         binding.CreateV8Node(parameters), null, pause, function(){})
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
-        if (body.length) {
-            if (descriptor.output_type === "tabular") {
-                return parseJsonRows(body.toString());
-            } else {
-                return JSON.parse(body);
-            }
-        } else {
-            return [];
+        if (descriptor.output_type === "tabular") {
+            return parseJsonRows(body.toString());
+        } else if (body.length) {
+            return JSON.parse(body);
         }
     });
 };
@@ -240,11 +236,6 @@ YtDriver.prototype.find_command_descriptor = function(name)
 YtDriver.prototype.get_command_descriptors = function() {
     this.__DBG("get_command_descriptors");
     return this._binding.GetCommandDescriptors();
-};
-
-YtDriver.prototype.escape_c = function(string) {
-    this.__DBG("escape_c");
-    return this._binding.EscapeC(string);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

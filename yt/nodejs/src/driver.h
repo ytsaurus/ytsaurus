@@ -35,8 +35,6 @@ public:
     static v8::Handle<v8::Value> GetCommandDescriptors(const v8::Arguments& args);
     v8::Handle<v8::Value> DoGetCommandDescriptors();
 
-    static v8::Handle<v8::Value> EscapeC(const v8::Arguments& args);
-
     // Asynchronous JS API.
     static v8::Handle<v8::Value> Execute(const v8::Arguments& args);
     static void ExecuteWork(uv_work_t* workRequest);
