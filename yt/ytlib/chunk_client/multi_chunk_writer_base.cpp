@@ -169,7 +169,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         auto rspOrError = WaitFor(objectProxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError,
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            NChunkClient::EErrorCode::ChunkCreationFailed,
             "Error creating chunk");
         const auto& rsp = rspOrError.Value();
 

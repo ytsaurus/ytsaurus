@@ -138,6 +138,28 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert len(read_table("//tmp/t_out")) == 50
 
+    def test_with_intermediate_account(self):
+        v1 = {"key" : "aaa"}
+        v2 = {"key" : "bb"}
+        v3 = {"key" : "bbxx"}
+        v4 = {"key" : "zfoo"}
+        v5 = {"key" : "zzz"}
+
+        create("table", "//tmp/t_in")
+        for i in xrange(0, 10):
+            write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
+
+        create("table", "//tmp/t_out")
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/t_in",
+                 out="//tmp/t_out",
+                 sort_by="missing_key",
+                 spec={"partition_count": 5,
+                       "partition_job_count": 2,
+                       "data_size_per_sort_job": 1,
+                       "intermediate_data_account": "non_existing"})
+
     def test_composite_key(self):
         v1 = {"key": -7, "subkey": "bar", "value": "v1"}
         v2 = {"key": -7, "subkey": "foo", "value": "v2"}

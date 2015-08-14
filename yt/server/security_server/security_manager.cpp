@@ -300,7 +300,10 @@ public:
     {
         auto* account = FindAccountByName(name);
         if (!account) {
-            THROW_ERROR_EXCEPTION("No such account %Qv", name);
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::NoSuchAccount,
+                "No such account %Qv",
+                name);
         }
         return account;
     }
