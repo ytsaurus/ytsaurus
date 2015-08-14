@@ -47,7 +47,14 @@ def main():
     parser.add_argument('--path', required=True)
     parser.add_argument('--import-queue', required=True)
     parser.add_argument('--remove-queue', required=True)
-    parser.add_argument('--user-sessions-period', default=48, help='How many last hours of user sessions would be imported')
+    parser.add_argument('--user-sessions-period', default=48, type=int,
+                        help='How many last hours of user sessions would be imported')
+    parser.add_argument('--spy-log-period', default=48, type=int,
+                        help='How many last hours of spy log would be imported')
+    parser.add_argument('--twitter-firehose-period', default=48, type=int,
+                        help='How many last hours of twitter firehose logs would be imported')
+    parser.add_argument('--facebook-firehose-period', default=48, type=int,
+                        help='How many last hours of facebook firehose logs would be imported')
     args = parser.parse_args()
 
     tables_to_import = yt.get(args.import_queue)
@@ -57,6 +64,9 @@ def main():
         process_logs(tables_to_import, tables_to_remove, args.path, source, destination, days)
 
     process("fast_logs/user_sessions/{}", None, args.user_sessions_period)
+    process("fast_logs/twitter_firehose/{}", None, args.twitter_firehose_period)
+    process("fast_logs/spy_log/{}", None, args.spy_log_period)
+    process("fast_logs/facebook_firehose/{}", None, args.facebook_firehose_period)
 
     yt.set(args.import_queue, list(tables_to_import))
     yt.set(args.remove_queue, list(tables_to_remove))
