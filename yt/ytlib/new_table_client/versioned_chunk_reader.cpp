@@ -247,14 +247,14 @@ void TVersionedRangeChunkReader::InitFirstBlock()
 {
     CheckBlockUpperLimits(
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-        CachedChunkMeta_->GetKeyColumnCount());
+        CachedChunkMeta_->GetKeyPadding());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
         CachedChunkMeta_->ChunkSchema(),
-        CachedChunkMeta_->GetChunkKeyColumnCount(),
         CachedChunkMeta_->GetKeyColumnCount(),
+        CachedChunkMeta_->GetKeyPadding(),
         SchemaIdMapping_,
         Timestamp_));
 
@@ -276,14 +276,14 @@ void TVersionedRangeChunkReader::InitNextBlock()
 
     CheckBlockUpperLimits(
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-        CachedChunkMeta_->GetKeyColumnCount());
+        CachedChunkMeta_->GetKeyPadding());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
         CachedChunkMeta_->ChunkSchema(),
-        CachedChunkMeta_->GetChunkKeyColumnCount(),
         CachedChunkMeta_->GetKeyColumnCount(),
+        CachedChunkMeta_->GetKeyPadding(),
         SchemaIdMapping_,
         Timestamp_));
 }
@@ -432,8 +432,8 @@ void TVersionedLookupChunkReader::InitNextBlock()
         SequentialReader_->GetCurrentBlock(),
         CachedChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
         CachedChunkMeta_->ChunkSchema(),
-        CachedChunkMeta_->GetChunkKeyColumnCount(),
         CachedChunkMeta_->GetKeyColumnCount(),
+        CachedChunkMeta_->GetKeyPadding(),
         SchemaIdMapping_,
         Timestamp_));
 }

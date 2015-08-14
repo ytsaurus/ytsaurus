@@ -31,14 +31,15 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TKeyColumns, KeyColumns);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
-    DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
+    // Chunk key column count.
+    DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
+    // Size of padded key column suffix, filled with null.
+    DEFINE_BYVAL_RO_PROPERTY(int, KeyPadding);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
         NChunkClient::IChunkReaderPtr chunkReader,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns);
-
-    int GetKeyColumnCount() const;
 
 private:
     TCachedVersionedChunkMetaPtr DoLoad(
