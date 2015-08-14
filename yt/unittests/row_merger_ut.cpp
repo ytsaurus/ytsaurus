@@ -48,9 +48,6 @@ protected:
         int keyId = 0;
         for (auto key : keys) {
             switch (key->GetType()) {
-                case ENodeType::Entity:
-                    builder.AddKey(MakeUnversionedSentinelValue(EValueType::Null, keyId));
-                    break;
                 case ENodeType::Int64:
                     builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), keyId));
                     break;
