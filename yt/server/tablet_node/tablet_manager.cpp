@@ -1443,7 +1443,6 @@ private:
                 TReqWriteRow req;
                 reader->ReadMessage(&req);
                 auto row = reader->ReadUnversionedRow();
-                Magic(STRINGBUF("ExecuteSingleWrite:WriteAtomic"), row);
                 rowRef = storeManager->WriteRowAtomic(
                     transaction,
                     row,
@@ -1455,7 +1454,6 @@ private:
                 TReqDeleteRow req;
                 reader->ReadMessage(&req);
                 auto key = reader->ReadUnversionedRow();
-                Magic(STRINGBUF("ExecuteSingleWrite:DeleteAtomic"), key);
                 rowRef = storeManager->DeleteRowAtomic(
                     transaction,
                     key,
@@ -1491,7 +1489,6 @@ private:
                 TReqWriteRow req;
                 reader->ReadMessage(&req);
                 auto row = reader->ReadUnversionedRow();
-                Magic(STRINGBUF("ExecuteSingleWrite:WriteNonAtomic"), row);
                 storeManager->WriteRowNonAtomic(transactionId, adjustedCommitTimestamp, row);
                 break;
             }
@@ -1500,7 +1497,6 @@ private:
                 TReqDeleteRow req;
                 reader->ReadMessage(&req);
                 auto key = reader->ReadUnversionedRow();
-                Magic(STRINGBUF("ExecuteSingleWrite:DeleteNonAtomic"), key);
                 storeManager->DeleteRowNonAtomic(transactionId, adjustedCommitTimestamp, key);
                 break;
             }

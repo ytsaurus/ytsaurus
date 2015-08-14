@@ -48,13 +48,8 @@ TSchemafulRowMerger::TSchemafulRowMerger(
 
 void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 {
-    if (!row) {
+    if (!row)
         return;
-    }
-
-    if (Magic(STRINGBUF("TSchemafulRowMerger:AddPartialRow"), row)) {
-        Magical_ = true;
-    }
 
     YASSERT(row.GetKeyCount() == KeyColumnCount_);
     YASSERT(row.GetWriteTimestampCount() <= 1);
@@ -134,10 +129,6 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
     auto mergedRow = MergedRow_;
     MergedRow_ = TUnversionedRow();
 
-    if (Magical_) {
-        Magic(STRINGBUF("TSchemafulRowMerger:BuildMergedRow"), mergedRow, false);
-    }
-
     Cleanup();
     return mergedRow;
 }
@@ -154,7 +145,6 @@ void TSchemafulRowMerger::Cleanup()
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
     Started_ = false;
-    Magical_ = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,8 +329,6 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         return;
     }
 
-    Magic(STRINGBUF("TVersionedRowMerger:AddPartialRow"), row);
-
     if (!Started_) {
         Started_ = true;
         YASSERT(row.GetKeyCount() == KeyColumnCount_);
@@ -516,7 +504,6 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     std::copy(DeleteTimestamps_.begin(), DeleteTimestamps_.end(), row.BeginDeleteTimestamps());
 
     Cleanup();
-    Magic(STRINGBUF("TVersionedRowMerger:BuildMergedRow"), row);
     return row;
 }
 
