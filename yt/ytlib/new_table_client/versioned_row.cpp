@@ -180,7 +180,7 @@ Stroka ToString(TVersionedRow row)
     builder.AppendChar('[');
     for (int index = 0; index < row.GetKeyCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(", "));
+            builder.AppendString(STRINGBUF(","));
         }
         const auto& value = row.BeginKeys()[index];
         builder.AppendString(ToString(value));
@@ -188,7 +188,7 @@ Stroka ToString(TVersionedRow row)
     builder.AppendChar('|');
     for (int index = 0; index < row.GetValueCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(", "));
+            builder.AppendString(STRINGBUF(","));
         }
         const auto& value = row.BeginValues()[index];
         builder.AppendFormat("%v#%v",
@@ -198,14 +198,14 @@ Stroka ToString(TVersionedRow row)
     builder.AppendChar('|');
     for (int index = 0; index < row.GetWriteTimestampCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(", "));
+            builder.AppendString(STRINGBUF(","));
         }
         builder.AppendFormat("%v", row.BeginWriteTimestamps()[index]);
     }
     builder.AppendChar('|');
     for (int index = 0; index < row.GetDeleteTimestampCount(); ++index) {
         if (index > 0) {
-            builder.AppendString(STRINGBUF(", "));
+            builder.AppendString(STRINGBUF(","));
         }
         builder.AppendFormat("%v", row.BeginDeleteTimestamps()[index]);
     }
