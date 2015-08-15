@@ -215,6 +215,10 @@ protected:
         auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
         auto lookupReader = store->CreateReader(sharedLookupKeys, timestamp, TColumnFilter());
 
+        lookupReader->Open()
+            .Get()
+            .ThrowOnError();
+
         std::vector<TVersionedRow> rows;
         rows.reserve(1);
 
