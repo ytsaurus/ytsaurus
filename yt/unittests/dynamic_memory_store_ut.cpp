@@ -108,12 +108,13 @@ protected:
 
     TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex = TDynamicRow::PrimaryLockIndex)
     {
-        return GetLock(row, lockIndex).LastCommitTimestamp;
+        return Store_->GetLastCommitTimestamp(row, lockIndex);
     }
 
     TTimestamp GetLastCommitTimestamp(const TOwningKey& key, int lockIndex = TDynamicRow::PrimaryLockIndex)
     {
         auto row = LookupDynamicRow(key);
+        EXPECT_TRUE(row);
         return GetLastCommitTimestamp(row, lockIndex);
     }
 
@@ -724,10 +725,10 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Update1)
 {
     auto key = BuildKey("1");
     
-    auto ts = WriteRow(BuildRow("key=1", false));
+    auto ts = WriteRow(BuildRow("key=1;a=1", false));
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), "key=1"));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), "key=1;a=1"));
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, Update2)
@@ -1490,6 +1491,63 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
     auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), true, LockMask2);
     EXPECT_EQ(row1, row2);
     EXPECT_FALSE(blocked);
+}
+
+TEST_F(TMultiLockDynamicMemoryStoreTest, OutOfOrderWrites)
+{
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), false, LockMask1);
+    auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), false, LockMask2);
+    EXPECT_EQ(row1, row2);
+    auto row = row1;
+
+    // Mind the order!
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row2);
+
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), row2);
+
+    auto ts2 = CommitTransaction(transaction2.get());
+    CommitRow(transaction2.get(), row2);
+
+    auto ts1 = CommitTransaction(transaction1.get());
+    CommitRow(transaction1.get(), row1);
+
+    EXPECT_LE(ts2, ts1);
+
+    auto key = BuildKey("1");
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1;b=3.14"));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;b=3.14"));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row));
+    EXPECT_EQ(ts1, GetLastCommitTimestamp(row, 1));
+    EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
+
+    {
+        auto reader = Store_->CreateReader(MinKey(), MaxKey(), AllCommittedTimestamp, TColumnFilter());
+        reader->Open()
+            .Get()
+            .ThrowOnError();
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(1);
+        EXPECT_TRUE(reader->Read(&rows));
+        EXPECT_EQ(1, rows.size());
+
+        auto row = rows[0];
+        EXPECT_EQ(1, row.GetKeyCount());
+        EXPECT_EQ(2, row.GetValueCount());
+        EXPECT_EQ(2, row.GetWriteTimestampCount());
+        EXPECT_EQ(ts1, row.BeginWriteTimestamps()[0]);
+        EXPECT_EQ(ts2, row.BeginWriteTimestamps()[1]);
+        EXPECT_EQ(0, row.GetDeleteTimestampCount());
+
+        EXPECT_FALSE(reader->Read(&rows));
+        EXPECT_TRUE(rows.empty());
+    }
 }
 
 TEST_F(TMultiLockDynamicMemoryStoreTest, SerializeSnapshot1)
