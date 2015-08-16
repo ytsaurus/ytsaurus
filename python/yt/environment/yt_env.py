@@ -575,7 +575,7 @@ class YTEnv(object):
                 current_driver_name = driver_name
                 master_config = self.configs[master_name][0]["primary_master"]
             else:
-                current_driver_name = driver_name + "_to_secondary_master_" + str(cell_index - 1)
+                current_driver_name = driver_name + "_secondary_" + str(cell_index - 1)
                 master_config = self.configs[master_name][0]["secondary_masters"][cell_index - 1]
             config = configs.get_driver_config()
             for key in ("addresses", "cell_id"):
