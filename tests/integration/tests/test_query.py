@@ -312,7 +312,7 @@ class TestQuery(YTEnvSetup):
         ])
 
         assert select_rows('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
-                '{"a"=10;"b"=%false;"c"="hello";"d"=32u};\n'
+                '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
 
     def test_tablets(self):
         self._sync_create_cells(3, 1)
