@@ -6,6 +6,7 @@ import contextlib
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+##################################################################
 
 def get_statistics(statistics, complex_key):
     result = statistics
@@ -24,8 +25,9 @@ def tempfolder(prefix):
     except:
         pass
 
+##################################################################
 
-class TestUserStatistics(YTEnvSetup):
+class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
