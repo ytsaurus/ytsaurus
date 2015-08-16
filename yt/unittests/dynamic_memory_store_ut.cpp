@@ -1616,7 +1616,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, OutOfOrderWrites)
 
     // Mind the order!
     PrepareTransaction(transaction1.get());
-    PrepareRow(transaction1.get(), row2);
+    PrepareRow(transaction1.get(), row1);
 
     PrepareTransaction(transaction2.get());
     PrepareRow(transaction2.get(), row2);
