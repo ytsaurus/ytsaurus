@@ -17,6 +17,9 @@
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
+
+#include <ytlib/hive/cell_directory.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/mutation.h>
@@ -34,6 +37,7 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/multicell_manager.h>
+#include <server/cell_master/config.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/user.h>
@@ -101,6 +105,7 @@ private:
         descriptors->push_back("locked_node_ids");
         descriptors->push_back("lock_ids");
         descriptors->push_back("resource_usage");
+        descriptors->push_back("multicell_resource_usage");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -191,17 +196,106 @@ private:
             return true;
         }
 
+        return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    {
         if (key == "resource_usage") {
-            BuildYsonFluently(consumer)
-                .DoMapFor(transaction->AccountResourceUsage(), [=] (TFluentMap fluent, const TTransaction::TAccountResourcesMap::value_type& pair) {
-                    const auto* account = pair.first;
-                    const auto& usage = pair.second;
-                    fluent.Item(account->GetName()).Value(usage);
-                });
-            return true;
+            return GetAggregatedResourceUsageMap().Apply(BIND([] (const TAccountResourcesMap& usageMap) {
+                return BuildYsonStringFluently()
+                    .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                        fluent
+                            .Item(nameAndUsage.first)
+                            .Value(nameAndUsage.second);
+                    });
+            }));
+        }
+        
+        if (key == "multicell_resource_usage") {
+            return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellUsageMap) {
+                return BuildYsonStringFluently()
+                    .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
+                        fluent
+                            .Item(ToString(cellTagAndUsageMap.first))
+                            .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                                fluent
+                                    .Item(nameAndUsage.first)
+                                    .Value(nameAndUsage.second);
+                            });
+                    });
+            }));
+        }
+        
+        return Null;
+    }
+
+    // account name -> cluster resources
+    using TAccountResourcesMap = yhash<Stroka, NSecurityServer::TClusterResources>;
+    // cell tag -> account name -> cluster resources
+    using TMulticellAccountResourcesMap = yhash_map<TCellTag, TAccountResourcesMap>;
+
+    TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
+    {
+        std::vector<TFuture<std::pair<TCellTag, TAccountResourcesMap>>> asyncResults;
+        asyncResults.push_back(GetLocalResourcesMap(Bootstrap_->GetCellTag()));
+        if (Bootstrap_->IsPrimaryMaster()) {
+            for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+                asyncResults.push_back(GetRemoteResourcesMap(cellTag));
+            }
         }
 
-        return TBase::GetBuiltinAttribute(key, consumer);
+        return Combine(asyncResults).Apply(BIND([] (const std::vector<std::pair<TCellTag, TAccountResourcesMap>>& results) {
+            TMulticellAccountResourcesMap multicellMap;
+            for (const auto& pair : results) {
+                YCHECK(multicellMap.insert(pair).second);
+            }
+            return multicellMap;
+        }));
+    }
+
+    TFuture<TAccountResourcesMap> GetAggregatedResourceUsageMap()
+    {
+        return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellMap) {
+            TAccountResourcesMap aggregatedMap;
+            for (const auto& cellTagAndUsageMap : multicellMap) {
+                for (const auto& nameAndUsage : cellTagAndUsageMap.second) {
+                    aggregatedMap[nameAndUsage.first] += nameAndUsage.second;
+                }
+            }
+            return aggregatedMap;
+        }));
+    }
+
+    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetLocalResourcesMap(TCellTag cellTag)
+    {
+        const auto* transaction = GetThisTypedImpl();
+        TAccountResourcesMap result;
+        for (const auto& pair : transaction->AccountResourceUsage()) {
+            YCHECK(result.insert(std::make_pair(pair.first->GetName(), pair.second)).second);
+        }
+        return MakeFuture(std::make_pair(cellTag, result));
+    }
+
+    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
+    {
+        auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
+        auto cellDirectory = Bootstrap_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannel(cellId);
+
+        TObjectServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+        auto id = GetId();
+        auto req = TYPathProxy::Get(FromObjectId(id) + "/@resource_usage");
+        return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching resource usage of transaction %v from cell %v",
+                id,
+                cellTag);
+            const auto& rsp = rspOrError.Value();
+            return std::make_pair(
+                cellTag,
+                ConvertTo<TAccountResourcesMap>(TYsonString(rsp->value())));
+        }));
     }
 
 };
