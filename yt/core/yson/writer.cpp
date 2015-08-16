@@ -237,14 +237,16 @@ void TYsonWriter::OnDoubleScalar(double value)
 void TYsonWriter::OnBooleanScalar(bool value)
 {
     YASSERT(NodeExpected_);
+
     if (BooleanAsString_) {
         OnStringScalar(FormatBool(value));
+        return;
+    }
+
+    if (Format_ == EYsonFormat::Binary) {
+        Stream_->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
     } else {
-        if (Format_ == EYsonFormat::Binary) {
-            Stream_->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
-        } else {
-            Stream_->Write(value ? STRINGBUF("%true") : STRINGBUF("%false"));
-        }
+        Stream_->Write(value ? STRINGBUF("%true") : STRINGBUF("%false"));
     }
     EndNode();
 }
