@@ -355,10 +355,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
 
         auto* node = LockThisImpl();
         if (node->GetAccount() != account) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            auto handler = cypressManager->GetHandler(node);
-            auto resourceUsage = handler->GetTotalResourceUsage(node);
-            account->ValidateResourceUsageIncrease(resourceUsage);
+            account->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
             securityManager->SetAccount(node, account);
         }
 
