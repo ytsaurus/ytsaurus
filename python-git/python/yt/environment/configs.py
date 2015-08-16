@@ -168,6 +168,10 @@ def get_node_config():
 {
     orchid_cache_expiration_time = 0;
 
+    cell_directory_synchronizer = {
+        sync_period = 1000;
+    };
+
     cluster_connection = {
         enable_read_from_followers = true;
 
