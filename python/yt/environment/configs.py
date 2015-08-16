@@ -85,11 +85,14 @@ def get_master_config():
     security_manager = {
         statistics_flush_period = 10;
         request_rate_smoothing_period = 60000;
+        user_statistics_gossip_period = 100;
+        account_statistics_gossip_period = 100;
     };
 
     node_tracker = {
         max_concurrent_node_registrations = 100;
         max_concurrent_node_unregistrations = 100;
+        node_states_gossip_period = 100;
     };
 
     object_manager = {
@@ -99,6 +102,10 @@ def get_master_config():
     hive_manager = {
         ping_period = 1000;
         rpc_timeout = 1000;
+    };
+
+    multicell_manager = {
+        cell_statistics_gossip_period = 100;
     };
 
     logging = { };
