@@ -23,7 +23,7 @@ class TestOrchid(YTEnvSetup):
 
     def test_at_masters(self):
         for i in range(10):
-            self._check_orchid("//sys/masters", self.NUM_MASTERS, "master")
+            self._check_orchid("//sys/primary_masters", self.NUM_MASTERS, "master")
 
     def test_at_nodes(self):
         for i in range(10):
