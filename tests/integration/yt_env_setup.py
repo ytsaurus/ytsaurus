@@ -46,6 +46,7 @@ class YTEnvSetup(YTEnv):
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
+            yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 
     @classmethod

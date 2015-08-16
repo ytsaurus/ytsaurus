@@ -16,6 +16,7 @@ from cStringIO import StringIO
 only_linux = pytest.mark.skipif('not sys.platform.startswith("linux")')
 
 driver = None
+is_multicell = None
 
 def get_driver():
     return driver
@@ -123,6 +124,10 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
         return output.getvalue()
 
 ###########################################################################
+
+def wait_for_gossip():
+    if is_multicell:
+        time.sleep(0.2)
 
 def dump_job_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
