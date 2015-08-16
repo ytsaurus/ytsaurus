@@ -708,6 +708,7 @@ class TRemoteCopyOperationSpec
 public:
     Stroka ClusterName;
     TNullable<Stroka> NetworkName;
+    TNullable<NApi::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     TNullable<int> JobCount;
@@ -732,6 +733,8 @@ public:
         RegisterParameter("job_io", JobIO)
             .DefaultNew();
         RegisterParameter("network_name", NetworkName)
+            .Default();
+        RegisterParameter("cluster_connection", ClusterConnection)
             .Default();
         RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
             .Default(100);
