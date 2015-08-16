@@ -120,11 +120,23 @@ private:
 
     void DoGCCollect(const TGCCollectOptions& /*options*/)
     {
-        TObjectServiceProxy proxy(LeaderChannel_);
-        proxy.SetDefaultTimeout(Null); // infinity
+        std::vector<TFuture<void>> asyncResults;
 
-        auto req = proxy.GCCollect();
-        WaitFor(req->Invoke())
+        auto collectAtCell = [&] (TCellTag cellTag) {
+            auto channel = Connection_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+            TObjectServiceProxy proxy(LeaderChannel_);
+            proxy.SetDefaultTimeout(Null); // infinity
+            auto req = proxy.GCCollect();
+            auto asyncResult = req->Invoke().As<void>();
+            asyncResults.push_back(asyncResult);
+        };
+
+        collectAtCell(Connection_->GetPrimaryMasterCellTag());
+        for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
+            collectAtCell(cellTag);
+        }
+
+        WaitFor(Combine(asyncResults))
             .ThrowOnError();
     }
 };
