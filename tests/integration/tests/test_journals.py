@@ -58,6 +58,7 @@ class TestJournals(YTEnvSetup):
         assert read_journal("//tmp/j[#200:]") == []
 
     def test_resource_usage(self):
+        wait_for_gossip()
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
 
@@ -80,13 +81,14 @@ class TestJournals(YTEnvSetup):
 
         get("//sys/accounts/tmp/@")
 
+        wait_for_gossip()
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == disk_space_delta
         assert get("//sys/accounts/tmp/@resource_usage/disk_space") == disk_space_delta
 
         remove("//tmp/j")
 
         gc_collect() # wait for account stats to be updated
-
+        wait_for_gossip()
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
         assert get("//sys/accounts/tmp/@resource_usage/disk_space") == 0
 
