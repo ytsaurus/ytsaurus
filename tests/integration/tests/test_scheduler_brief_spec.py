@@ -29,7 +29,7 @@ def check_attributes(op_id, options):
         assert get(spec_path + "/output_table_path") == get(brief_spec_path + "/output_table_paths/0")
 
 
-class TestBriefSpec(YTEnvSetup):
+class TestSchedulerBriefSpec(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
