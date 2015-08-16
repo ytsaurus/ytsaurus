@@ -1120,7 +1120,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
 
     auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
     auto cellDirectory = Bootstrap_->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(cellId, EPeerKind::Leader);
+    auto channel = cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 
     TObjectServiceProxy proxy(std::move(channel));
     proxy.SetDefaultTimeout(timeout.Get(Config_->ForwardingRpcTimeout));
