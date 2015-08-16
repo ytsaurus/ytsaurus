@@ -118,6 +118,13 @@ public:
         return channel;
     }
 
+    IChannelPtr GetChannel(const TCellId& cellId, EPeerKind peerKind)
+    {
+        auto channel = FindChannel(cellId, peerKind);
+        YCHECK(channel);
+        return channel;
+    }
+
     std::vector<TCellInfo> GetRegisteredCells()
     {
         TReaderGuard guard(SpinLock_);
@@ -317,6 +324,11 @@ IChannelPtr TCellDirectory::FindChannel(const TCellId& cellId, EPeerKind peerKin
 IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellId& cellId, EPeerKind peerKind)
 {
     return Impl_->GetChannelOrThrow(cellId, peerKind);
+}
+
+IChannelPtr TCellDirectory::GetChannel(const TCellId& cellId, EPeerKind peerKind)
+{
+    return Impl_->GetChannel(cellId, peerKind);
 }
 
 TNullable<TCellDescriptor> TCellDirectory::FindDescriptor(const TCellId& cellId)
