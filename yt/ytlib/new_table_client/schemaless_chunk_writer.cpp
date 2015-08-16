@@ -912,6 +912,7 @@ void TSchemalessTableWriter::DoOpen()
         LOG_INFO("Requesting basic table attributes");
 
         auto req = TTableYPathProxy::GetBasicAttributes(path);
+        req->set_permissions(static_cast<ui32>(EPermission::Write));
         SetTransactionId(req, Transaction_);
 
         auto rspOrError = WaitFor(proxy.Execute(req));

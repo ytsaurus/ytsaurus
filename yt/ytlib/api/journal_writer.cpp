@@ -360,6 +360,7 @@ private:
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
+                req->set_permissions(static_cast<ui32>(EPermission::Write));
                 SetTransactionId(req, Transaction_);
 
                 auto rspOrError = WaitFor(proxy.Execute(req));

@@ -113,6 +113,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::GetBasicAttributes(Path_);
+            req->set_permissions(static_cast<ui32>(EPermission::Read));
             SetTransactionId(req, Transaction_);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
 

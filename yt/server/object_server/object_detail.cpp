@@ -181,6 +181,13 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     context->SetRequestInfo();
 
+    auto permissions = EPermissionSet(request->permissions());
+    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+        if (Any(permissions & permission)) {
+            ValidatePermission(EPermissionCheckScope::This, permission);
+        }
+    }
+
     ToProto(response->mutable_object_id(), GetId());
 
     auto objectManager = Bootstrap_->GetObjectManager();
@@ -191,6 +198,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
         ? Bootstrap_->GetCellTag()
         : cellTag);
 
+    context->SetResponseInfo();
     context->Reply();
 }
 

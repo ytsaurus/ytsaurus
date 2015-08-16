@@ -28,6 +28,7 @@ namespace NApi {
 
 using namespace NConcurrency;
 using namespace NYPath;
+using namespace NYTree;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NJournalClient;
@@ -113,6 +114,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
+            req->set_permissions(static_cast<ui32>(EPermission::Read));
             SetTransactionId(req, Transaction_);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
