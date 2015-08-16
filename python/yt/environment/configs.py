@@ -52,7 +52,9 @@ def get_master_config():
         hard_backoff_time = 100;
     };
 
-    changelogs = { };
+    changelogs = {
+        flush_period = 10;
+    };
 
     snapshots = { };
 
@@ -207,6 +209,9 @@ def get_node_config():
             path = "";
         };
         store_locations = [];
+        split_changelog = {
+            flush_period = 10;
+        };
         incremental_heartbeat_period = 100;
     };
 
