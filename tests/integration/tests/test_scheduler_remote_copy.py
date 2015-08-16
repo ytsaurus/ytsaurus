@@ -29,19 +29,19 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                          secondary_master_cell_count=0,
                          schedulers_count=0,
                          has_proxy=False,
-                         instance_id="-remote",
+                         instance_id="_remote",
                          cell_tag=10)
 
     def setup(self):
         set("//sys/clusters/remote",
             {
-                "primary_master": self.Env.configs["master-remote"][0]["primary_master"],
-                "secondary_masters": self.Env.configs["master-remote"][0]["secondary_masters"],
-                "timestamp_provider": self.Env.configs["master-remote"][0]["timestamp_provider"],
-                "transaction_manager": self.Env.configs["master-remote"][0]["transaction_manager"],
+                "primary_master": self.Env.configs["master_remote"][0]["primary_master"],
+                "secondary_masters": self.Env.configs["master_remote"][0]["secondary_masters"],
+                "timestamp_provider": self.Env.configs["master_remote"][0]["timestamp_provider"],
+                "transaction_manager": self.Env.configs["master_remote"][0]["transaction_manager"],
                 "cell_tag": 10
             })
-        self.remote_driver = Driver(config=self.Env.configs["driver-remote"])
+        self.remote_driver = Driver(config=self.Env.configs["driver_remote"])
         time.sleep(1.0)
 
     def teardown(self):
