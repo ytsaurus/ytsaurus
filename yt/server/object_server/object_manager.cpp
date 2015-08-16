@@ -1296,9 +1296,10 @@ void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObj
 
     auto* object = FindObject(objectId);
     if (object) {
-        LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v)",
-            objectId);
-        YCHECK(UnrefObject(object) == 0);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v, RefCounter: %v)",
+            objectId,
+            object->GetObjectRefCounter());
+        UnrefObject(object);
     } else {
         LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
             objectId);
