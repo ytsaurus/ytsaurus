@@ -282,15 +282,11 @@ public:
     {
         ValidateCreatedNodeType(sourceNode->GetType());
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto sourceHandler = cypressManager->GetHandler(sourceNode);
-        auto sourceResourceUsage = sourceHandler->GetTotalResourceUsage(sourceNode);
-
         auto account = GetClonedNodeAccount(sourceNode);
-        account->ValidateResourceUsageIncrease(sourceResourceUsage);
+        account->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
 
+        auto cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
-
         auto* clonedNode = cypressManager->LockNode(clonedTrunkNode, Transaction_, ELockMode::Exclusive);
 
         // NB: No need to call RegisterCreatedNode since
