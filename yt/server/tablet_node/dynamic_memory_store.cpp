@@ -214,7 +214,7 @@ protected:
             auto* currentRowValue = versionedRow.BeginValues();
             auto fillValue = [&] (int index) {
                 auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-                // NB: Inserting a new item into value list and adding a new write timestamp cannot
+                // NB: Inserting a new item into value list and adding a new write revision cannot
                 // be done atomically. We always append values before revisions but in the middle of these
                 // two steps there might be "phantom" values present in the row.
                 // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
