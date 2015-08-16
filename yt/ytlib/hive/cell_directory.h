@@ -77,6 +77,11 @@ public:
         const TCellId& cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
+    //! Similar to #FindChannel but fails if no channel is known.
+    NRpc::IChannelPtr GetChannel(
+        const TCellId& cellId,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
+
 
     //! Returns the descriptor for a given cell id (|Null| if the cell is not known).
     TNullable<TCellDescriptor> FindDescriptor(const TCellId& cellId);
