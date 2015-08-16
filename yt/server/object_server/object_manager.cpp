@@ -586,7 +586,7 @@ int TObjectManager::RefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
@@ -599,7 +599,7 @@ int TObjectManager::UnrefObject(TObjectBase* object)
     YASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
