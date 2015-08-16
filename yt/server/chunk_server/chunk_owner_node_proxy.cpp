@@ -729,10 +729,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
         updateMode,
         lockMode);
 
+    // NB: No need for a permission check;
+    // the client must have invoked GetBasicAttributes.
+
     ValidateTransaction();
-    ValidatePermission(
-        EPermissionCheckScope::This,
-        EPermission::Write);
 
     auto* node = LockThisTypedImpl<TChunkOwnerBase>(lockMode);
     ValidatePrepareForUpdate();
@@ -843,10 +843,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     context->SetRequestInfo();
 
+    // NB: No need for a permission check;
+    // the client must have invoked GetBasicAttributes.
+
     ValidateNotExternal();
-    ValidatePermission(
-        EPermissionCheckScope::This,
-        EPermission::Read);
     ValidateFetch();
 
     auto channel = request->has_channel()

@@ -991,7 +991,7 @@ void TOperationControllerBase::Initialize()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     LOG_INFO("Initializing operation (Title: %v)",
-        Spec->Title ? ~(*Spec->Title) : "<Null>");
+        Spec->Title);
 
     NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
@@ -2462,6 +2462,7 @@ void TOperationControllerBase::GetInputObjectIds()
 
     for (const auto& table : InputTables) {
         auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
+        req->set_permissions(static_cast<ui32>(EPermission::Read));
         SetTransactionId(req, Operation->GetInputTransaction());
         batchReq->AddRequest(req, "get_in_id");
     }
@@ -2505,6 +2506,7 @@ void TOperationControllerBase::GetOutputObjectIds()
 
     for (const auto& table : OutputTables) {
         auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
+        req->set_permissions(static_cast<ui32>(EPermission::Write));
         SetTransactionId(req, Operation->GetOutputTransaction());
         batchReq->AddRequest(req, "get_out_id");
     }

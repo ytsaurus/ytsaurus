@@ -814,6 +814,7 @@ void TSchemalessTableReader::DoOpen()
         TObjectServiceProxy proxy(channel);
 
         auto req = TTableYPathProxy::GetBasicAttributes(path);
+        req->set_permissions(static_cast<ui32>(EPermission::Read));
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
 
