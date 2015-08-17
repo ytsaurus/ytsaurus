@@ -122,6 +122,8 @@ public:
     {
         LOG_DEBUG("Starting job process");
 
+        JobIO_->Init();
+
         Prepare();
 
         Prepared_ = true;
