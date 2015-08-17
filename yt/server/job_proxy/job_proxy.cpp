@@ -306,9 +306,11 @@ TJobResult TJobProxy::DoRun()
         if (schedulerJobSpecExt.has_user_job_spec()) {
             auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
-            auto jobIO = CreateUserJobIO();
-            jobIO->Init();
-            Job_ = CreateUserJob(this, userJobSpec, JobId_, std::move(jobIO));
+            Job_ = CreateUserJob(
+                this, 
+                userJobSpec, 
+                JobId_, 
+                CreateUserJobIO());
         } else {
             Job_ = CreateBuiltinJob();
         }

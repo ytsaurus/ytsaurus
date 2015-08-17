@@ -1376,14 +1376,20 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey WidenKey(const TOwningKey& key, int padding)
+TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount)
 {
+    YCHECK(keyColumnCount >= key.GetCount());
+
+    if (key.GetCount() == keyColumnCount) {
+        return key;
+    }
+
     TUnversionedOwningRowBuilder builder;
     for (const auto* value = key.Begin(); value != key.End(); ++value) {
         builder.AddValue(*value);
     }
 
-    for (int i = 0; i < padding; ++i) {
+    for (int i = key.GetCount(); i < keyColumnCount; ++i) {
         builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null));
     }
 

@@ -99,9 +99,11 @@ protected:
     virtual void SetChild(
         INodeFactoryPtr factory,
         const TYPath& path,
-        INodePtr value,
-        bool recursive,
-        TNullable<int> maxChildCount) = 0;
+        INodePtr child,
+        bool recursive) = 0;
+
+    virtual int GetMaxChildCount() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -124,9 +126,8 @@ protected:
     virtual void SetChild(
         INodeFactoryPtr factory,
         const TYPath& path,
-        INodePtr value,
-        bool recursive,
-        TNullable<int> maxChildCount) override;
+        INodePtr child,
+        bool recursive) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,9 +144,8 @@ protected:
     virtual void SetChild(
         INodeFactoryPtr factory,
         const TYPath& path,
-        INodePtr value,
-        bool recursive,
-        TNullable<int> maxChildCount) override;
+        INodePtr child,
+        bool recursive) override;
 
 };
 

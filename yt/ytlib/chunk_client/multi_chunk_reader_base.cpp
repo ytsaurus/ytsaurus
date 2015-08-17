@@ -321,6 +321,7 @@ TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
         chunkSpecs,
         throttler)
 {
+    LOG_DEBUG("Multi chunk reader is sequential");
     NextReaders_.reserve(Chunks_.size());
     for (int i = 0; i < Chunks_.size(); ++i) {
         NextReaders_.push_back(NewPromise<IChunkReaderBasePtr>());
@@ -423,7 +424,9 @@ TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
         nodeDirectory,
         chunkSpecs,
         throttler)
-{ }
+{ 
+    LOG_DEBUG("Multi chunk reader is parallel");
+}
 
 void TParallelMultiChunkReaderBase::DoOpen()
 {

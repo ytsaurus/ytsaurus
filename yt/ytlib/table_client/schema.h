@@ -86,6 +86,7 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateKeyColumnsUpdate(const TKeyColumns& oldKeyColumns, const TKeyColumns& newKeyColumns);
 void ValidateTableSchema(const TTableSchema& schema);
 void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColumns& keyColumns);
+void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema& newSchema);
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount);
 
 ////////////////////////////////////////////////////////////////////////////////

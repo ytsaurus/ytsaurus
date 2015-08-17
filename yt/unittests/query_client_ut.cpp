@@ -454,6 +454,23 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobQueryPrepareTest
+    : public ::testing::Test
+{
+};
+
+TEST_F(TJobQueryPrepareTest, TruePredicate)
+{
+    PrepareJobQueryAst("* where true");
+}
+
+TEST_F(TJobQueryPrepareTest, FalsePredicate)
+{
+    PrepareJobQueryAst("* where false");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryCoordinateTest
     : public ::testing::Test
 {
@@ -2541,16 +2558,16 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
 
     std::vector<Stroka> source = {
         "a=4;b=5", 
-        "a=10;b=11",
+        "a=-10;b=11",
         "a=15;b=11"
     };
 
     auto result = BuildRows({
         "a=4;b=5",
-        "a=10;b=11"
+        "a=-10;b=11"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a in (4, 10)", split, source, result);
+    Evaluate("a, b FROM [//t] where a in (4, -10)", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
@@ -3728,11 +3745,15 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
         result.push_back(BuildRow(row, split, false));
     }
 
+    std::vector<TOwningRow> limitedResult;
+
     std::sort(result.begin(), result.end());
+    limitedResult.assign(result.begin(), result.begin() + 100);
+    Evaluate("* FROM [//t] order by a limit 100", split, source, limitedResult);
 
-    result.resize(100);
-
-    Evaluate("* FROM [//t] order by a limit 100", split, source, result);
+    std::reverse(result.begin(), result.end());
+    limitedResult.assign(result.begin(), result.begin() + 100);
+    Evaluate("* FROM [//t] order by a desc limit 100", split, source, limitedResult);
 
     SUCCEED();
 }
@@ -4606,6 +4627,115 @@ TEST_F(TQueryEvaluateTest, TestGetSuffix)
 
     Evaluate("get_suffix(a, b) as r from [//t]", split, source, result);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TEvaluateAggregationParam = std::tuple<
+    const char*,
+    EValueType,
+    TUnversionedValue,
+    TUnversionedValue,
+    TUnversionedValue>;
+
+class TEvaluateAggregationTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TEvaluateAggregationParam>
+{ };
+
+TEST_P(TEvaluateAggregationTest, Basic)
+{
+    const auto& param = GetParam();
+    const auto& aggregateName = std::get<0>(param);
+    auto type = std::get<1>(param);
+    auto value1 = std::get<2>(param);
+    auto value2 = std::get<3>(param);
+    auto expected = std::get<4>(param);
+
+    auto registry = CreateBuiltinFunctionRegistry();
+    auto aggregate = registry->GetAggregateFunction(aggregateName);
+    auto callbacks = CodegenAggregate(aggregate->MakeCodegenAggregate(type, type, type, aggregateName));
+
+    auto permanentBuffer = New<TRowBuffer>();
+    auto outputBuffer = New<TRowBuffer>();
+    auto intermediateBuffer = New<TRowBuffer>();
+
+    auto buffer = New<TRowBuffer>();
+    TExecutionContext executionContext;
+    executionContext.PermanentBuffer = buffer;
+    executionContext.OutputBuffer = buffer;
+    executionContext.IntermediateBuffer = buffer;
+#ifndef NDEBUG
+    volatile int dummy;
+    executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
+#endif
+
+    TUnversionedValue tmp;
+    TUnversionedValue state1;
+    callbacks.Init(&executionContext, &state1);
+    EXPECT_EQ(state1.Type, EValueType::Null);
+
+    callbacks.Update(&executionContext, &tmp, &state1, &value1);
+    state1 = tmp;
+    EXPECT_EQ(value1, state1);
+
+    TUnversionedValue state2;
+    callbacks.Init(&executionContext, &state2);
+    EXPECT_EQ(state2.Type, EValueType::Null);
+
+    callbacks.Update(&executionContext, &tmp, &state2, &value2);
+    state2 = tmp;
+    EXPECT_EQ(value2, state2);
+
+    callbacks.Merge(&executionContext, &tmp, &state1, &state2);
+    EXPECT_EQ(expected, tmp);
+
+    TUnversionedValue result;
+    callbacks.Finalize(&executionContext, &result, &tmp);
+    EXPECT_EQ(expected, result);
+}
+
+INSTANTIATE_TEST_CASE_P(
+    EvaluateAggregationTest,
+    TEvaluateAggregationTest,
+    ::testing::Values(
+        TEvaluateAggregationParam{
+            "sum",
+            EValueType::Int64,
+            MakeUnversionedSentinelValue(EValueType::Null),
+            MakeUnversionedSentinelValue(EValueType::Null),
+            MakeUnversionedSentinelValue(EValueType::Null)},
+        TEvaluateAggregationParam{
+            "sum",
+            EValueType::Int64,
+            MakeUnversionedSentinelValue(EValueType::Null),
+            MakeInt64(1),
+            MakeInt64(1)},
+        TEvaluateAggregationParam{
+            "sum",
+            EValueType::Int64,
+            MakeInt64(1),
+            MakeInt64(2),
+            MakeInt64(3)},
+        TEvaluateAggregationParam{
+            "sum",
+            EValueType::Uint64,
+            MakeUint64(1),
+            MakeUint64(2),
+            MakeUint64(3)},
+        TEvaluateAggregationParam{
+            "max",
+            EValueType::Int64,
+            MakeInt64(10),
+            MakeInt64(20),
+            MakeInt64(20)},
+        TEvaluateAggregationParam{
+            "min",
+            EValueType::Int64,
+            MakeInt64(10),
+            MakeInt64(20),
+            MakeInt64(10)}
+));
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

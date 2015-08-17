@@ -81,11 +81,17 @@ function(UDF udf output type)
   if(${_extension} STREQUAL ".cpp") 
     set(_compiler ${CLANGPP_EXECUTABLE})
     set(_options -std=c++1y -Wglobal-constructors)
-    set(_depends ${_include_dir}/yt_udf_cpp.h)
+    set(_depends
+        ${_include_dir}/yt_udf_cpp.h
+        ${_include_dir}/yt_udf_types.h
+    )
     set(_lang "CXX")
   else()
     set(_compiler ${CLANG_EXECUTABLE})
-    set(_depends ${_include_dir}/yt_udf.h)
+    set(_depends
+        ${_include_dir}/yt_udf_cpp.h
+        ${_include_dir}/yt_udf_types.h
+    )
     set(_lang "C")
   endif()
 

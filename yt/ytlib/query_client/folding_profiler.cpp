@@ -197,7 +197,11 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             Fold(column.c_str());
         }
 
-        codegenSource = MakeCodegenOrderOp(orderClause->OrderColumns, schema, std::move(codegenSource));
+        codegenSource = MakeCodegenOrderOp(
+            orderClause->OrderColumns,
+            schema,
+            std::move(codegenSource),
+            orderClause->IsDesc);
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {

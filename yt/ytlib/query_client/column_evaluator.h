@@ -39,9 +39,9 @@ public:
     const std::vector<int>& GetReferenceIds(int index);
     TConstExpressionPtr GetExpression(int index);
 
-private:
-    void PrepareEvaluator(int index);
+    void PrepareEvaluator();
 
+private:
     const TTableSchema Schema_;
     const int KeySize_;
     const IFunctionRegistryPtr FunctionRegistry_;

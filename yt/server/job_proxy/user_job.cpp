@@ -47,6 +47,7 @@
 #include <core/tools/tools.h>
 
 #include <core/concurrency/action_queue.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/misc/public.h>
 
@@ -132,6 +133,8 @@ public:
     virtual TJobResult Run() override
     {
         LOG_DEBUG("Starting job process");
+
+        JobIO_->Init();
 
         Prepare();
 
@@ -566,7 +569,7 @@ private:
             asyncOutput,
             true,
             Config_->JobIO->ControlAttributes->EnableKeySwitch,
-            reader->GetKeyColumns().size());
+            JobIO_->GetReduceKeyColumnCount());
 
         FormatWriters_.push_back(writer);
 

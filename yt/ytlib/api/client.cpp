@@ -1598,6 +1598,7 @@ private:
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_recursive(options.Recursive);
+        req->set_force(options.Force);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -1623,6 +1624,7 @@ private:
         req->set_preserve_account(options.PreserveAccount);
         req->set_remove_source(true);
         req->set_recursive(options.Recursive);
+        req->set_force(options.Force);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -1854,7 +1856,6 @@ public:
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , RowBuffer_(New<TRowBuffer>())
         , Logger(Client_->Logger)
     {
         Logger.AddTag("TransactionId: %v", GetId());
@@ -1884,6 +1885,16 @@ public:
     virtual TTimestamp GetStartTimestamp() const override
     {
         return Transaction_->GetStartTimestamp();
+    }
+
+    virtual EAtomicity GetAtomicity() const override
+    {
+        return Transaction_->GetAtomicity();
+    }
+
+    virtual EDurability GetDurability() const override
+    {
+        return Transaction_->GetDurability();
     }
 
 
@@ -1989,7 +2000,7 @@ public:
         auto& originalOptions = options; \
         { \
             auto options = originalOptions; \
-            options.Timestamp = GetStartTimestamp(); \
+            options.Timestamp = GetReadTimestamp(); \
             return Client_->method args; \
         } \
     }
@@ -2109,7 +2120,8 @@ public:
 private:
     const TClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
-    TRowBufferPtr RowBuffer_;
+
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     NLogging::TLogger Logger;
 
@@ -2275,9 +2287,9 @@ private:
             : TransactionId_(owner->Transaction_->GetId())
             , TabletId_(tabletInfo->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
+            , Durability_(owner->Transaction_->GetDurability())
             , KeyColumnCount_(keyColumnCount)
             , SchemaColumnCount_(schemaColumnCount)
-            , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
         {
             Logger.AddTag("TabletId: %v", TabletId_);
@@ -2368,6 +2380,7 @@ private:
             }
 
             // Do all the heavy lifting here.
+            YCHECK(!Batches_.empty());
             for (auto& batch : Batches_) {
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     batch->Writer.Flush(),
@@ -2385,9 +2398,11 @@ private:
         const TTransactionId TransactionId_;
         const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
+        const EDurability Durability_;
         const int KeyColumnCount_;
         const int SchemaColumnCount_;
-        TRowBufferPtr RowBuffer_;
+
+        TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
         NLogging::TLogger Logger;
 
@@ -2453,7 +2468,8 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
-            LOG_DEBUG("Sending batch (RowCount: %v)",
+            LOG_DEBUG("Sending batch (BatchIndex: %v, BatchCount: %v, RowCount: %v)",
+                InvokeBatchIndex_,
                 batch->RowCount);
 
             TTabletServiceProxy proxy(InvokeChannel_);
@@ -2463,6 +2479,7 @@ private:
             auto req = proxy.Write();
             ToProto(req->mutable_transaction_id(), TransactionId_);
             ToProto(req->mutable_tablet_id(), TabletId_);
+            req->set_durability(static_cast<int>(Durability_));
             req->Attachments() = std::move(batch->RequestData);
 
             req->Invoke().Subscribe(
@@ -2548,6 +2565,19 @@ private:
 
         WaitFor(Transaction_->Commit(options))
             .ThrowOnError();
+    }
+
+    TTimestamp GetReadTimestamp() const
+    {
+        switch (Transaction_->GetAtomicity()) {
+            case EAtomicity::Full:
+                return GetStartTimestamp();
+            case EAtomicity::None:
+                // NB: Start timestamp is approximate.
+                return SyncLastCommittedTimestamp;
+            default:
+                YUNREACHABLE();
+        }
     }
 
 };

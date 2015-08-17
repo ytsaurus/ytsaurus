@@ -1865,7 +1865,9 @@ private:
                 lastPartition->Maniac = true;
                 YCHECK(skippedCount >= 1);
 
-                auto successorKey = GetKeySuccessor(sampleKey->Get());
+                // NB: in partitioner we compare keys with the whole rows,
+                // so key prefix successor in required here. 
+                auto successorKey = GetKeyPrefixSuccessor(sampleKey->Get(), Spec->SortBy.size());
                 AddPartition(successorKey);
             }
         }
@@ -2425,6 +2427,7 @@ private:
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+                reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
 
                 InitUserJobSpecTemplate(
                     schedulerJobSpecExt->mutable_user_job_spec(),
@@ -2447,6 +2450,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
 
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),

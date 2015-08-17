@@ -210,14 +210,14 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
 
 INodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateFactory() const
 {
-    return CreateCypressFactory(false);
+    auto* account = GetThisImpl()->GetAccount();
+    return CreateCypressFactory(account, false);
 }
 
 ICypressNodeFactoryPtr TNontemplateCypressNodeProxyBase::CreateCypressFactory(
+    TAccount* account,
     bool preserveAccount) const
 {
-    const auto* impl = GetThisImpl();
-    auto* account = impl->GetAccount();
     auto cypressManager = Bootstrap_->GetCypressManager();
     return cypressManager->CreateNodeFactory(
         Transaction,
@@ -583,12 +583,12 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase
     return cypressManager->GetNodeProxy(trunkNode, Transaction);
 }
 
-ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(INodePtr node)
+TIntrusivePtr<ICypressNodeProxy> TNontemplateCypressNodeProxyBase::ToProxy(INodePtr node)
 {
     return dynamic_cast<ICypressNodeProxy*>(node.Get());
 }
 
-const ICypressNodeProxy* TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr node)
+TIntrusivePtr<const ICypressNodeProxy> TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr node)
 {
     return dynamic_cast<const ICypressNodeProxy*>(node.Get());
 }
@@ -663,7 +663,7 @@ bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
 void TNontemplateCypressNodeProxyBase::SetChildNode(
     INodeFactoryPtr /*factory*/,
     const TYPath& /*path*/,
-    INodePtr /*value*/,
+    INodePtr /*child*/,
     bool /*recursive*/)
 {
     YUNREACHABLE();
@@ -771,7 +771,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* account = node->GetAccount();
     ValidatePermission(account, EPermission::Use);
 
-    auto factory = CreateCypressFactory(false);
+    auto factory = CreateCypressFactory(account, false);
 
     auto attributes = request->has_node_attributes()
         ? FromProto(request->node_attributes())
@@ -800,25 +800,34 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     bool preserveAccount = request->preserve_account();
     bool removeSource = request->remove_source();
     auto recursive = request->recursive();
+    auto force = request->force();
     auto targetPath = GetRequestYPath(context);
 
-    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v, Recursive: %v",
+    context->SetRequestInfo("SourcePath: %v, PreserveAccount: %v, RemoveSource: %v, Recursive: %v, Force: %v",
         sourcePath,
         preserveAccount,
         removeSource,
-        recursive);
+        recursive,
+        force);
 
-    auto ytreeSourceProxy = GetResolver()->ResolvePath(sourcePath);
-    auto* sourceProxy = dynamic_cast<ICypressNodeProxy*>(ytreeSourceProxy.Get());
-    YCHECK(sourceProxy);
-
-    if (targetPath.empty()) {
+    bool replace = targetPath.empty();
+    if (replace && !force) {
         ThrowAlreadyExists(this);
     }
 
-    if (!CanHaveChildren()) {
+    if (!replace && !CanHaveChildren()) {
         ThrowCannotHaveChildren(this);
     }
+
+    ICompositeNodePtr parent;
+    if (replace) {
+        parent = GetParent();
+        if (!parent) {
+            ThrowCannotReplaceRoot();
+        }
+    }
+
+    auto sourceProxy = ToProxy(GetResolver()->ResolvePath(sourcePath));
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource
@@ -829,7 +838,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    ValidatePermission(
+        replace ? EPermissionCheckScope::This | EPermissionCheckScope::Descendants : EPermissionCheckScope::This,
+        EPermission::Write);
 
     ValidatePermission(
         trunkSourceImpl,
@@ -848,7 +859,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         ValidatePermission(sourceImpl, EPermissionCheckScope::Parent, EPermission::Write);
     }
 
-    auto factory = CreateCypressFactory(preserveAccount);
+    auto* account = replace
+        ? ToProxy(INodePtr(parent))->GetTrunkNode()->GetAccount()
+        : GetThisImpl()->GetAccount();
+    auto factory = CreateCypressFactory(account, preserveAccount);
 
     auto* clonedImpl = factory->CloneNode(
         sourceImpl,
@@ -856,7 +870,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto* clonedTrunkImpl = clonedImpl->GetTrunkNode();
     auto clonedProxy = GetProxy(clonedTrunkImpl);
 
-    SetChildNode(factory, targetPath, clonedProxy, recursive);
+    if (replace) {
+        parent->ReplaceChild(this, clonedProxy);
+    } else {
+        SetChildNode(factory, targetPath, clonedProxy, request->recursive());
+    }
 
     factory->Commit();
 
@@ -1083,6 +1101,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
     DetachChild(Bootstrap_, TrunkNode, oldChildImpl, ownsOldChild);
 
     keyToChild[key] = newTrunkChildImpl;
+    childToKey.erase(oldTrunkChildImpl);
     YCHECK(childToKey.insert(std::make_pair(newTrunkChildImpl, key)).second);
     AttachChild(Bootstrap_, TrunkNode, newChildImpl);
 
@@ -1117,10 +1136,19 @@ bool TMapNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 void TMapNodeProxy::SetChildNode(
     INodeFactoryPtr factory,
     const TYPath& path,
-    INodePtr value,
+    INodePtr child,
     bool recursive)
 {
-    TMapNodeMixin::SetChild(factory, path, value, recursive, Config->MaxNodeChildCount);
+    TMapNodeMixin::SetChild(
+        factory,
+        path,
+        child,
+        recursive);
+}
+
+int TMapNodeProxy::GetMaxChildCount() const
+{
+    return Config->MaxNodeChildCount.Get(std::numeric_limits<int>::max());
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -1318,10 +1346,19 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
 void TListNodeProxy::SetChildNode(
     INodeFactoryPtr factory,
     const TYPath& path,
-    INodePtr value,
+    INodePtr child,
     bool recursive)
 {
-    TListNodeMixin::SetChild(factory, path, value, recursive, Config->MaxNodeChildCount);
+    TListNodeMixin::SetChild(
+        factory,
+        path,
+        child,
+        recursive);
+}
+
+int TListNodeProxy::GetMaxChildCount() const
+{
+    return Config->MaxNodeChildCount.Get(std::numeric_limits<int>::max());
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

@@ -57,6 +57,7 @@ void TReadTableCommand::DoExecute()
     options.TransactionId = Request_->TransactionId;
     options.Ping = true;
     options.PingAncestors = Request_->PingAncestors;
+    options.Unordered = Request_->Unordered;
 
     auto reader = Context_->GetClient()->CreateTableReader(
         Request_->Path,
@@ -309,7 +310,10 @@ void TInsertRowsCommand::DoExecute()
     auto rows = ParseRows(Context_, config, valueConsumer);
 
     // Run writes.
-    auto asyncTransaction = Context_->GetClient()->StartTransaction(ETransactionType::Tablet);
+    NApi::TTransactionStartOptions options;
+    options.Atomicity = Request_->Atomicity;
+    options.Durability = Request_->Durability;
+    auto asyncTransaction = Context_->GetClient()->StartTransaction(ETransactionType::Tablet, options);
     auto transaction = WaitFor(asyncTransaction)
         .ValueOrThrow();
 

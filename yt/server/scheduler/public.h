@@ -19,7 +19,7 @@ using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TSchedulerService);
+DECLARE_REFCOUNTED_CLASS(TSchedulerService)
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
 
@@ -37,8 +37,8 @@ DECLARE_REFCOUNTED_CLASS(TMapOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TOrderedMergeOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TSortedMergeOperationOptions)
-DECLARE_REFCOUNTED_CLASS(TReduceOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TEraseOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TReduceOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TSortOperationOptionsBase)
 DECLARE_REFCOUNTED_CLASS(TSortOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TMapReduceOperationOptions)

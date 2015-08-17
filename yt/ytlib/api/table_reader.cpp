@@ -63,7 +63,8 @@ public:
         IBlockCachePtr blockCache,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
-        IThroughputThrottlerPtr throttler);
+        IThroughputThrottlerPtr throttler,
+        bool unordered);
 
     virtual TFuture<void> Open() override;
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
@@ -94,6 +95,7 @@ private:
     const IThroughputThrottlerPtr Throttler_;
 
     const TTransactionId TransactionId_;
+    const bool Unordered_;
 
     ISchemalessMultiChunkReaderPtr UnderlyingReader_;
 
@@ -113,7 +115,8 @@ TSchemalessTableReader::TSchemalessTableReader(
     IBlockCachePtr blockCache,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    bool unordered)
     : Config_(config)
     , Options_(options)
     , MasterChannel_(masterChannel)
@@ -123,6 +126,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     , NameTable_(nameTable)
     , Throttler_(throttler)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
+    , Unordered_(unordered)
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);
@@ -214,7 +218,10 @@ void TSchemalessTableReader::DoOpen()
         auto options = New<TMultiChunkReaderOptions>();
         options->NetworkName = Options_->NetworkName;
 
-        UnderlyingReader_ = CreateSchemalessSequentialMultiChunkReader(
+        auto factory = Unordered_ 
+            ? CreateSchemalessParallelMultiChunkReader
+            : CreateSchemalessSequentialMultiChunkReader;
+        UnderlyingReader_ = factory(
             Config_,
             options,
             MasterChannel_,
@@ -342,7 +349,8 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         client->GetConnection()->GetBlockCache(),
         path,
         New<TNameTable>(),
-        NConcurrency::GetUnlimitedThrottler());
+        NConcurrency::GetUnlimitedThrottler(),
+        options.Unordered);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

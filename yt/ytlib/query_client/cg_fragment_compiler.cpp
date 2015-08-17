@@ -409,13 +409,18 @@ Function* CodegenGroupHasherFunction(
 
 Function* CodegenTupleComparerFunction(
     const std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>>& codegenArgs,
-    const TCGModule& module)
+    const TCGModule& module,
+    bool isDesc = false)
 {
     return MakeFunction<char(TRow, TRow)>(module.GetModule(), "RowComparer", [&] (
         TCGIRBuilder& builder,
         Value* lhsRow,
         Value* rhsRow
     ) {
+        if (isDesc) {
+            std::swap(lhsRow, rhsRow);
+        }
+
         auto returnIf = [&] (Value* condition, const TCodegenBlock& codegenInner) {
             auto* thenBB = builder.CreateBBHere("then");
             auto* elseBB = builder.CreateBBHere("else");
@@ -1549,9 +1554,11 @@ TCodegenSource MakeCodegenGroupOp(
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
     TTableSchema sourceSchema,
-    TCodegenSource codegenSource)
+    TCodegenSource codegenSource,
+    bool isDesc)
 {
     return [
+        isDesc,
         MOVE(orderColumns),
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
@@ -1607,7 +1614,7 @@ TCodegenSource MakeCodegenOrderOp(
             builder.Module->GetRoutine("OrderOpHelper"),
             {
                 builder.GetExecutionContextPtr(),
-                CodegenTupleComparerFunction(compareArgs, *builder.Module),
+                CodegenTupleComparerFunction(compareArgs, *builder.Module, isDesc),
 
                 collectRows.ClosurePtr,
                 collectRows.Function,
@@ -1682,6 +1689,99 @@ TCGExpressionCallback CodegenExpression(TCodegenExpression codegenExpression)
     builder.CreateRetVoid();
 
     return module->GetCompiledFunction<TCGExpressionSignature>(entryFunctionName);
+}
+
+TCGAggregateCallbacks CodegenAggregate(TCodegenAggregate codegenAggregate)
+{
+    auto module = TCGModule::Create(GetQueryRoutineRegistry());
+    auto& context = module->GetContext();
+
+    auto initName = Stroka("init");
+    {
+        Function* function = Function::Create(
+            TypeBuilder<TCGAggregateInitSignature, false>::get(context),
+            Function::ExternalLinkage,
+            initName.c_str(),
+            module->GetModule());
+
+        auto args = function->arg_begin();
+        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
+        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
+        YCHECK(++args == function->arg_end());
+
+        TCGContext builder(module, nullptr, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        auto result = codegenAggregate.Initialize(builder, nullptr);
+        result.StoreToValue(builder, resultPtr, 0, "writeResult");
+        builder.CreateRetVoid();
+    }
+
+    auto updateName = Stroka("update");
+    {
+        Function* function = Function::Create(
+            TypeBuilder<TCGAggregateUpdateSignature, false>::get(context),
+            Function::ExternalLinkage,
+            updateName.c_str(),
+            module->GetModule());
+
+        auto args = function->arg_begin();
+        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
+        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
+        Value* statePtr = ++args; resultPtr->setName("statePtr");
+        Value* newValuePtr = ++args; resultPtr->setName("newValuePtr");
+        YCHECK(++args == function->arg_end());
+
+        TCGContext builder(module, nullptr, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        auto result = codegenAggregate.Update(builder, statePtr, newValuePtr);
+        result.StoreToValue(builder, resultPtr, 0, "writeResult");
+        builder.CreateRetVoid();
+    }
+
+    auto mergeName = Stroka("merge");
+    {
+        Function* function = Function::Create(
+            TypeBuilder<TCGAggregateMergeSignature, false>::get(context),
+            Function::ExternalLinkage,
+            mergeName.c_str(),
+            module->GetModule());
+
+        auto args = function->arg_begin();
+        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
+        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
+        Value* dstStatePtr = ++args; resultPtr->setName("dstStatePtr");
+        Value* statePtr = ++args; resultPtr->setName("statePtr");
+        YCHECK(++args == function->arg_end());
+
+        TCGContext builder(module, nullptr, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        auto result = codegenAggregate.Merge(builder, dstStatePtr, statePtr);
+        result.StoreToValue(builder, resultPtr, 0, "writeResult");
+        builder.CreateRetVoid();
+    }
+
+    auto finalizeName = Stroka("finalize");
+    {
+        Function* function = Function::Create(
+            TypeBuilder<TCGAggregateFinalizeSignature, false>::get(context),
+            Function::ExternalLinkage,
+            finalizeName.c_str(),
+            module->GetModule());
+
+        auto args = function->arg_begin();
+        Value* executionContextPtr = args; executionContextPtr->setName("executionContextPtr");
+        Value* resultPtr = ++args; resultPtr->setName("resultPtr");
+        Value* statePtr = ++args; resultPtr->setName("statePtr");
+        YCHECK(++args == function->arg_end());
+
+        TCGContext builder(module, nullptr, executionContextPtr, BasicBlock::Create(context, "entry", function));
+        auto result = codegenAggregate.Finalize(builder, statePtr);
+        result.StoreToValue(builder, resultPtr, 0, "writeResult");
+        builder.CreateRetVoid();
+    }
+
+    return TCGAggregateCallbacks{
+        module->GetCompiledFunction<TCGAggregateInitSignature>(initName),
+        module->GetCompiledFunction<TCGAggregateUpdateSignature>(updateName),
+        module->GetCompiledFunction<TCGAggregateMergeSignature>(mergeName),
+        module->GetCompiledFunction<TCGAggregateFinalizeSignature>(finalizeName)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

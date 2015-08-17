@@ -1321,6 +1321,7 @@ void PrepareQuery(
 
     if (ast.OrderFields) {
         auto orderClause = New<TOrderClause>();
+        orderClause->IsDesc = ast.IsOrderDesc;
         for (const auto& reference : ast.OrderFields.Get()) {
             const auto* column = schemaProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
             if (!column) {
@@ -1844,6 +1845,7 @@ void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
 void ToProto(NProto::TOrderClause* proto, TConstOrderClausePtr original)
 {
     ToProto(proto->mutable_order_columns(), original->OrderColumns);
+    proto->set_is_desc(original->IsDesc);
 }
 
 void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
@@ -1975,6 +1977,8 @@ TProjectClausePtr FromProto(const NProto::TProjectClause& serialized)
 TOrderClausePtr FromProto(const NProto::TOrderClause& serialized)
 {
     auto result = New<TOrderClause>();
+
+    result->IsDesc = serialized.is_desc();
 
     result->OrderColumns.reserve(serialized.order_columns_size());
     for (int i = 0; i < serialized.order_columns_size(); ++i) {

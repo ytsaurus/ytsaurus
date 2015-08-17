@@ -115,7 +115,6 @@ public:
         , SchemaColumnCount_(Store_->SchemaColumnCount_)
         , ColumnLockCount_(Store_->ColumnLockCount_)
         , Pool_(TDynamicMemoryStoreReaderPoolTag(), TabletReaderPoolSize)
-        , FixedValueListSnapshots_(SchemaColumnCount_)
     {
         YCHECK(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.All);
 
@@ -142,55 +141,42 @@ protected:
 
     TChunkedMemoryPool Pool_;
 
-    template <class T>
-    struct TEditListSnapshot
-    {
-        TEditList<T> List;
-        int Size;
-
-        int GetFullSize() const
-        {
-            return List ? Size + List.GetSuccessorsSize() : 0;
-        }
-
-        const T& GetLatest() const
-        {
-            YASSERT(List);
-            return List[Size - 1];
-        }
-    };
-
-    using TRevisionListSnapshot = TEditListSnapshot<ui32>;
-    using TValueListSnapshot = TEditListSnapshot<TDynamicValue>;
-
-    std::vector<TValueListSnapshot> FixedValueListSnapshots_;
+    std::vector<TTimestamp> DeleteTimestamps_;
+    std::vector<TTimestamp> WriteTimestamps_;
+    std::vector<TVersionedValue> VersionedValues_;
 
     ui32 LockMask_;
+
+
+    TTimestamp GetLatestWriteTimestamp(TDynamicRow dynamicRow)
+    {
+        auto* lock = dynamicRow.BeginLocks(KeyColumnCount_);
+        auto maxTimestamp = NullTimestamp;
+        for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
+            auto list = TDynamicRow::GetWriteRevisionList(*lock);
+            const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
+            if (revisionPtr) {
+                auto timestamp = Store_->TimestampFromRevision(*revisionPtr);
+                maxTimestamp = std::max(maxTimestamp, timestamp);
+            }
+        }
+        return maxTimestamp;
+    }
+
+    TTimestamp GetLatestDeleteTimestamp(TDynamicRow dynamicRow)
+    {
+        auto list = dynamicRow.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
+        const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
+        return  revisionPtr ? Store_->TimestampFromRevision(*revisionPtr) : NullTimestamp;
+    }
 
 
     TVersionedRow ProduceSingleRowVersion(TDynamicRow dynamicRow)
     {
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
-        auto writeRevisionList = dynamicRow.GetRevisionList(
-            ERevisionListKind::Write,
-            KeyColumnCount_,
-            ColumnLockCount_);
-        const auto* writeRevisionPtr = SearchByTimestamp(writeRevisionList, Timestamp_);
-
-        auto deleteRevisionList = dynamicRow.GetRevisionList(
-            ERevisionListKind::Delete,
-            KeyColumnCount_,
-            ColumnLockCount_);
-        const auto* deleteRevisionPtr = SearchByTimestamp(deleteRevisionList, Timestamp_);
-        auto latestDeleteTimestamp = deleteRevisionPtr ? Store_->TimestampFromRevision(*deleteRevisionPtr) : NullTimestamp;
-
-        // NB: Inserting a new item into value list and adding a new write timestamp cannot
-        // be done atomically. We always append values before revisions but in the middle of these
-        // two steps there might be "phantom" values present in the row.
-        // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
-        // no "phantom" value is listed.
-        auto latestWriteTimestamp = writeRevisionPtr ? Store_->TimestampFromRevision(*writeRevisionPtr) : NullTimestamp;
+        auto latestWriteTimestamp = GetLatestWriteTimestamp(dynamicRow);
+        auto latestDeleteTimestamp = GetLatestDeleteTimestamp(dynamicRow);
 
         if (latestWriteTimestamp == NullTimestamp && latestDeleteTimestamp == NullTimestamp) {
             return TVersionedRow();
@@ -228,9 +214,12 @@ protected:
             auto* currentRowValue = versionedRow.BeginValues();
             auto fillValue = [&] (int index) {
                 auto list = dynamicRow.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
-                const auto* value = SearchByTimestamp(
-                    list,
-                    latestWriteTimestamp); // sic!
+                // NB: Inserting a new item into value list and adding a new write revision cannot
+                // be done atomically. We always append values before revisions but in the middle of these
+                // two steps there might be "phantom" values present in the row.
+                // To work this around, we cap the value lists by #latestWriteTimestamp to make sure that
+                // no "phantom" value is listed.
+                const auto* value = SearchByTimestamp(list, latestWriteTimestamp);
                 if (value && Store_->TimestampFromRevision(value->Revision) > latestDeleteTimestamp) {
                     ProduceVersionedValue(currentRowValue, index, *value);
                     ++currentRowValue;
@@ -255,100 +244,66 @@ protected:
 
     TVersionedRow ProduceAllRowVersions(TDynamicRow dynamicRow)
     {
-        // Take snapshots and count items.
-        auto writeRevisionList = dynamicRow.GetRevisionList(
-            ERevisionListKind::Write,
-            KeyColumnCount_,
-            ColumnLockCount_);
-        auto writeRevisionListSnapshot = SearchByRevision(writeRevisionList, Revision_);
-        int writeRevisionCount = writeRevisionListSnapshot.GetFullSize();
+        // Prepare values and write timestamps.
+        VersionedValues_.clear();
+        WriteTimestamps_.clear();
+        for (int columnIndex = KeyColumnCount_; columnIndex < SchemaColumnCount_; ++columnIndex) {
+            for (auto list = dynamicRow.GetFixedValueList(columnIndex, KeyColumnCount_, ColumnLockCount_);
+                 list;
+                 list = list.GetSuccessor())
+            {
+                for (int itemIndex = list.GetSize() - 1; itemIndex >= 0; --itemIndex) {
+                    const auto& value = list[itemIndex];
+                    ui32 revision = value.Revision;
+                    if (revision <= Revision_) {
+                        VersionedValues_.push_back(TVersionedValue());
+                        ProduceVersionedValue(&VersionedValues_.back(), columnIndex, value);
+                        WriteTimestamps_.push_back(Store_->TimestampFromRevision(revision));
+                    }
+                }
+            }
+        }
+        std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
+        WriteTimestamps_.erase(
+            std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
+            WriteTimestamps_.end());
 
-        auto deleteRevisionList = dynamicRow.GetRevisionList(
-            ERevisionListKind::Delete,
-            KeyColumnCount_,
-            ColumnLockCount_);
-        auto deleteRevisionListSnapshot = SearchByRevision(deleteRevisionList, Revision_);
-        int deleteRevisionCount = deleteRevisionListSnapshot.GetFullSize();
-
-        if (writeRevisionCount == 0 && deleteRevisionCount == 0) {
-            return TVersionedRow();
+        // Prepare delete timestamps.
+        DeleteTimestamps_.clear();
+        for (auto list = dynamicRow.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
+             list;
+             list = list.GetSuccessor())
+        {
+            for (int itemIndex = list.GetSize() - 1; itemIndex >= 0; --itemIndex) {
+                ui32 revision = list[itemIndex];
+                if (revision <= Revision_) {
+                    DeleteTimestamps_.push_back(Store_->TimestampFromRevision(revision));
+                    YASSERT(DeleteTimestamps_.size() == 1 ||
+                            DeleteTimestamps_[DeleteTimestamps_.size() - 1] < DeleteTimestamps_[DeleteTimestamps_.size() - 2]);
+                }
+            }
         }
 
-        // Like in ProduceSingleRowVersion, we must be prepared for value lists and revision lists to be inconsistent.
-        ui32 latestWriteRevision = writeRevisionCount == 0 ? UncommittedRevision : writeRevisionListSnapshot.GetLatest();
-        YASSERT(latestWriteRevision <= Revision_);
-
-        int valueCount = 0;
-        for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-            auto& snapshot = FixedValueListSnapshots_[index];
-            auto list = dynamicRow.GetFixedValueList(
-                index,
-                KeyColumnCount_,
-                ColumnLockCount_);
-            snapshot = SearchByRevision(list, latestWriteRevision);
-            valueCount += snapshot.GetFullSize();
+        if (WriteTimestamps_.empty() && DeleteTimestamps_.empty()) {
+            return TVersionedRow();
         }
 
         auto versionedRow = TVersionedRow::Allocate(
             &Pool_,
             KeyColumnCount_,
-            valueCount,
-            writeRevisionCount,
-            deleteRevisionCount);
+            VersionedValues_.size(),
+            WriteTimestamps_.size(),
+            DeleteTimestamps_.size());
 
         // Keys.
         ProduceKeys(dynamicRow, versionedRow.BeginKeys());
 
         // Timestamps (sorted in descending order).
-        auto copyTimestamps = [&] (
-            const TRevisionListSnapshot& snapshot,
-            TTimestamp* beginTimestamps,
-            TTimestamp* endTimestamps)
-        {
-            auto currentList = snapshot.List;
-            auto* currentTimestamp = beginTimestamps;
-            while (currentList) {
-                int currentSize = (currentList == snapshot.List ? snapshot.Size : currentList.GetSize());
-                for (const auto* revision = currentList.Begin() + currentSize - 1; revision >= currentList.Begin(); --revision) {
-                    *currentTimestamp++ = Store_->TimestampFromRevision(*revision);
-                }
-                currentList = currentList.GetSuccessor();
-            }
-            YCHECK(currentTimestamp == endTimestamps);
-        };
-        copyTimestamps(
-            writeRevisionListSnapshot,
-            versionedRow.BeginWriteTimestamps(),
-            versionedRow.EndWriteTimestamps());
-        copyTimestamps(
-            deleteRevisionListSnapshot,
-            versionedRow.BeginDeleteTimestamps(),
-            versionedRow.EndDeleteTimestamps());
+        ::memcpy(versionedRow.BeginWriteTimestamps(), WriteTimestamps_.data(), sizeof (TTimestamp) * WriteTimestamps_.size());
+        ::memcpy(versionedRow.BeginDeleteTimestamps(), DeleteTimestamps_.data(), sizeof (TTimestamp) * DeleteTimestamps_.size());
 
-        // Fixed values (sorted by |id| in ascending order and then by |timestamp| in descending order).
-        auto copyFixedValues = [&] (
-            const TValueListSnapshot& snapshot,
-            int index,
-            TVersionedValue* beginValues) -> TVersionedValue* {
-                auto currentList = snapshot.List;
-                auto* currentValue = beginValues;
-                while (currentList) {
-                    int currentSize = (currentList == snapshot.List ? snapshot.Size : currentList.GetSize());
-                    for (const auto* value = currentList.Begin() + currentSize - 1; value >= currentList.Begin(); --value) {
-                        ProduceVersionedValue(currentValue, index, *value);
-                        ++currentValue;
-                    }
-                    currentList = currentList.GetSuccessor();
-                }
-                return currentValue;
-            };
-        {
-            auto* currentValue = versionedRow.BeginValues();
-            for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-                currentValue = copyFixedValues(FixedValueListSnapshots_[index], index, currentValue);
-            }
-            YCHECK(currentValue == versionedRow.EndValues());
-        }
+        // Values.
+        ::memcpy(versionedRow.BeginValues(), VersionedValues_.data(), sizeof (TVersionedValue) * VersionedValues_.size());
 
         return versionedRow;
     }
@@ -403,7 +358,7 @@ protected:
             return nullptr;
         } else {
             while (list) {
-                if (list.GetSize() > 0 && Store_->TimestampFromRevision(ExtractRevision(list[0])) <= maxTimestamp) {
+                if (!list.IsEmpty() && Store_->TimestampFromRevision(ExtractRevision(list[0])) <= maxTimestamp) {
                     break;
                 }
                 list = list.GetSuccessor();
@@ -415,39 +370,23 @@ protected:
 
             auto* left = list.Begin();
             auto* right = list.End();
+            if (left == right) {
+                return nullptr;
+            }
+
             while (right - left > 1) {
                 auto* mid = left + (right - left) / 2;
                 if (Store_->TimestampFromRevision(ExtractRevision(*mid)) <= maxTimestamp) {
                     left = mid;
-                }
-                else {
+                } else {
                     right = mid;
                 }
             }
 
-            YASSERT(!left || Store_->TimestampFromRevision(ExtractRevision(*left)) <= maxTimestamp);
+            YASSERT(Store_->TimestampFromRevision(ExtractRevision(*left)) <= maxTimestamp);
             return left;
         }
     }
-
-    template <class T>
-    static TEditListSnapshot<T> SearchByRevision(TEditList<T> list, ui32 revision)
-    {
-        // TODO(babenko): could possibly do a binary search here as well.
-        while (list) {
-            int size = list.GetSize();
-            while (size > 0) {
-                const auto& value = list[size - 1];
-                if (ExtractRevision(value) <= revision) {
-                    return TEditListSnapshot<T>{list, size};
-                }
-                --size;
-            }
-            list = list.GetSuccessor();
-        }
-        return TEditListSnapshot<T>{TEditList<T>(), 0};
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -657,6 +596,8 @@ int TDynamicMemoryStore::GetLockCount() const
 
 int TDynamicMemoryStore::Lock()
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     int result = ++StoreLockCount_;
     LOG_TRACE("Store locked (Count: %v)",
         result);
@@ -665,7 +606,9 @@ int TDynamicMemoryStore::Lock()
 
 int TDynamicMemoryStore::Unlock()
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
     YASSERT(StoreLockCount_ > 0);
+
     int result = --StoreLockCount_;
     LOG_TRACE("Store unlocked (Count: %v)",
         result);
@@ -678,6 +621,8 @@ void TDynamicMemoryStore::WaitOnBlockedRow(
     TTimestamp timestamp)
 {
     if (timestamp == AsyncLastCommittedTimestamp)
+        return;
+    if (Tablet_->GetAtomicity() == EAtomicity::None)
         return;
 
     auto now = NProfiling::GetCpuInstant();
@@ -700,12 +645,13 @@ void TDynamicMemoryStore::WaitOnBlockedRow(
     }
 }
 
-TDynamicRow TDynamicMemoryStore::WriteRow(
+TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
     TTransaction* transaction,
     TUnversionedRow row,
     bool prelock,
     ui32 lockMask)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
     YASSERT(lockMask != 0);
 
     TDynamicRow result;
@@ -761,11 +707,67 @@ TDynamicRow TDynamicMemoryStore::WriteRow(
     return result;
 }
 
-TDynamicRow TDynamicMemoryStore::DeleteRow(
+TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
+    TUnversionedRow row,
+    TTimestamp commitTimestamp)
+{
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+
+    TDynamicRow result;
+
+    ui32 commitRevision = RegisterRevision(commitTimestamp);
+
+    auto addValues = [&] (TDynamicRow dynamicRow) {
+        for (int index = KeyColumnCount_; index < row.GetCount(); ++index) {
+            const auto& value = row[index];
+            auto list = PrepareFixedValue(dynamicRow, value.Id);
+            auto& uncommittedValue = list.GetUncommitted();
+            uncommittedValue.Revision = commitRevision;
+            CaptureUnversionedValue(&uncommittedValue, value);
+            list.Commit();
+        }
+    };
+
+    auto newKeyProvider = [&] () -> TDynamicRow {
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+
+        auto dynamicRow = AllocateRow();
+
+        // Copy keys.
+        SetKeys(dynamicRow, row.Begin());
+
+        // Copy values.
+        addValues(dynamicRow);
+
+        result = dynamicRow;
+        return dynamicRow;
+    };
+
+    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+        // Copy values.
+        addValues(dynamicRow);
+
+        result = dynamicRow;
+    };
+
+    Rows_->Insert(TRowWrapper{row}, newKeyProvider, existingKeyConsumer);
+
+    AddWriteRevisionNonAtomic(result, commitTimestamp, commitRevision);
+
+    OnMemoryUsageUpdated();
+
+    ++PerformanceCounters_->DynamicMemoryRowWriteCount;
+
+    return result;
+}
+
+TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
     TTransaction* transaction,
     NTableClient::TKey key,
     bool prelock)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     TDynamicRow result;
 
     auto newKeyProvider = [&] () -> TDynamicRow {
@@ -803,8 +805,49 @@ TDynamicRow TDynamicMemoryStore::DeleteRow(
     return result;
 }
 
+TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
+    NTableClient::TKey key,
+    TTimestamp commitTimestamp)
+{
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+
+    ui32 commitRevision = RegisterRevision(commitTimestamp);
+
+    TDynamicRow result;
+
+    auto newKeyProvider = [&] () -> TDynamicRow {
+        YASSERT(StoreState_ == EStoreState::ActiveDynamic);
+
+        auto dynamicRow = AllocateRow();
+
+        // Copy keys.
+        SetKeys(dynamicRow, key.Begin());
+
+        result = dynamicRow;
+        return dynamicRow;
+    };
+
+    auto existingKeyConsumer = [&] (TDynamicRow dynamicRow) {
+        result = dynamicRow;
+    };
+
+    Rows_->Insert(TRowWrapper{key}, newKeyProvider, existingKeyConsumer);
+
+    AddDeleteRevisionNonAtomic(result, commitTimestamp, commitRevision);
+
+    UpdateTimestampRange(commitTimestamp);
+
+    OnMemoryUsageUpdated();
+
+    ++PerformanceCounters_->DynamicMemoryRowDeleteCount;
+
+    return result;
+}
+
 TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
         auto* locks = row.BeginLocks(KeyColumnCount_);
         auto* migratedLocks = migratedRow.BeginLocks(KeyColumnCount_);
@@ -828,7 +871,6 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 
                     migratedLock->Transaction = lock->Transaction;
                     migratedLock->PrepareTimestamp = lock->PrepareTimestamp;
-                    migratedLock->LastCommitTimestamp = std::max(migratedLock->LastCommitTimestamp, lock->LastCommitTimestamp);
                     if (index == TDynamicRow::PrimaryLockIndex) {
                         YASSERT(!migratedRow.GetDeleteLockFlag());
                         migratedRow.SetDeleteLockFlag(row.GetDeleteLockFlag());
@@ -883,11 +925,15 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 
 void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
 }
 
 void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto prepareTimestamp = transaction->GetPrepareTimestamp();
     YASSERT(prepareTimestamp != NullTimestamp);
 
@@ -903,16 +949,18 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 
 void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto commitTimestamp = transaction->GetCommitTimestamp();
     ui32 commitRevision = RegisterRevision(commitTimestamp);
 
     auto* locks = row.BeginLocks(KeyColumnCount_);
 
     if (row.GetDeleteLockFlag()) {
-        AddRevision(row, commitRevision, ERevisionListKind::Delete);
+        AddDeleteRevision(row, commitRevision);
     } else {
         for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-            const auto& lock = locks[ColumnIndexToLockIndex_[index]];
+            auto& lock = locks[ColumnIndexToLockIndex_[index]];
             if (lock.Transaction == transaction) {
                 auto list = row.GetFixedValueList(index, KeyColumnCount_, ColumnLockCount_);
                 if (list.HasUncommitted()) {
@@ -921,19 +969,19 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
                 }
             }
         }
-        // NB: Add write timestamp _after_ the values are committed.
-        // See remarks in TReaderBase.
-        AddRevision(row, commitRevision, ERevisionListKind::Write);
     }
 
+    // NB: Add write timestamp _after_ the values are committed.
+    // See remarks in TReaderBase.
     {
         auto* lock = locks;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             if (lock->Transaction == transaction) {
                 lock->Transaction = nullptr;
                 lock->PrepareTimestamp = NotPreparedTimestamp;
-                YASSERT(lock->LastCommitTimestamp <= commitTimestamp);
-                lock->LastCommitTimestamp = commitTimestamp;
+                if (!row.GetDeleteLockFlag()) {
+                    AddWriteRevision(*lock, commitRevision);
+                }
             }
         }
     }
@@ -942,17 +990,13 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 
     Unlock();
 
-    // NB: Don't update min/max timestamps for passive stores since
-    // others are relying on its properties to remain constant.
-    // See, e.g., TStoreManager::MaxTimestampToStore_.
-    if (StoreState_ == EStoreState::ActiveDynamic) {
-        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
-        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
-    }
+    UpdateTimestampRange(commitTimestamp);
 }
 
 void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     auto* locks = row.BeginLocks(KeyColumnCount_);
 
     if (!row.GetDeleteLockFlag()) {
@@ -989,6 +1033,18 @@ TDynamicRow TDynamicMemoryStore::FindRow(TKey key)
     return it.IsValid() ? it.GetCurrent() : TDynamicRow();
 }
 
+std::vector<TDynamicRow> TDynamicMemoryStore::GetAllRows()
+{
+    std::vector<TDynamicRow> rows;
+    for (auto it = Rows_->FindGreaterThanOrEqualTo(TKeyWrapper{MinKey().Get()});
+         it.IsValid();
+         it.MoveNext())
+    {
+        rows.push_back(it.GetCurrent());
+    }
+    return rows;
+}
+
 TDynamicRow TDynamicMemoryStore::AllocateRow()
 {
     return TDynamicRow::Allocate(
@@ -1003,6 +1059,8 @@ int TDynamicMemoryStore::GetBlockingLockIndex(
     ui32 lockMask,
     TTimestamp timestamp)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
     for (int index = 0;
@@ -1027,11 +1085,38 @@ void TDynamicMemoryStore::ValidateRowNotBlocked(
     }
 }
 
+TTimestamp TDynamicMemoryStore::GetLastCommitTimestamp(
+    TDynamicRow row,
+    int lockIndex)
+{
+    auto timestamp = MinTimestamp;
+    auto& lock = row.BeginLocks(KeyColumnCount_)[lockIndex];
+    auto writeRevisionList = TDynamicRow::GetWriteRevisionList(lock);
+    if (writeRevisionList) {
+        int size = writeRevisionList.GetSize();
+        if (size > 0) {
+            timestamp = TimestampFromRevision(writeRevisionList[size - 1]);
+        }
+    }
+    if (lockIndex == TDynamicRow::PrimaryLockIndex) {
+        auto deleteRevisionList = row.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
+        if (deleteRevisionList) {
+            int size = deleteRevisionList.GetSize();
+            if (size > 0) {
+                timestamp = std::max(timestamp, TimestampFromRevision(deleteRevisionList[size - 1]));
+            }
+        }
+    }
+    return timestamp;
+}
+
 void TDynamicMemoryStore::CheckRowLocks(
     TDynamicRow row,
     TTransaction* transaction,
     ui32 lockMask)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     const auto* lock = row.BeginLocks(KeyColumnCount_);
     ui32 lockMaskBit = 1;
     for (int index = 0; index < ColumnLockCount_; ++index, ++lock, lockMaskBit <<= 1) {
@@ -1056,10 +1141,11 @@ void TDynamicMemoryStore::CheckRowLocks(
                     << TErrorAttribute("key", RowToKey(row))
                     << TErrorAttribute("lock", LockIndexToName_[index]);
             }
-            if (lock->LastCommitTimestamp > transaction->GetStartTimestamp()) {
+            auto lastCommitTimestamp = GetLastCommitTimestamp(row, index);
+            if (lastCommitTimestamp > transaction->GetStartTimestamp()) {
                 THROW_ERROR_EXCEPTION("Row lock conflict")
                     << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
-                    << TErrorAttribute("winner_transaction_commit_timestamp", lock->LastCommitTimestamp)
+                    << TErrorAttribute("winner_transaction_commit_timestamp", lastCommitTimestamp)
                     << TErrorAttribute("tablet_id", TabletId_)
                     << TErrorAttribute("key", RowToKey(row))
                     << TErrorAttribute("lock", LockIndexToName_[index]);
@@ -1075,6 +1161,8 @@ void TDynamicMemoryStore::AcquireRowLocks(
     ui32 lockMask,
     bool deleteFlag)
 {
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+
     if (!prelock) {
         transaction->LockedRows().push_back(TDynamicRowRef(this, row));
     }
@@ -1114,13 +1202,47 @@ TValueList TDynamicMemoryStore::PrepareFixedValue(TDynamicRow row, int index)
     return list;
 }
 
-void TDynamicMemoryStore::AddRevision(TDynamicRow row, ui32 revision, ERevisionListKind kind)
+void TDynamicMemoryStore::AddDeleteRevision(TDynamicRow row, ui32 revision)
 {
-    auto revisionList = row.GetRevisionList(kind, KeyColumnCount_, ColumnLockCount_);
-    if (AllocateListForPushIfNeeded(&revisionList, RowBuffer_->GetPool())) {
-        row.SetRevisionList(revisionList, kind, KeyColumnCount_, ColumnLockCount_);
+    auto list = row.GetDeleteRevisionList(KeyColumnCount_, ColumnLockCount_);
+    YASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
+    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
+        row.SetDeleteRevisionList(list, KeyColumnCount_, ColumnLockCount_);
     }
-    revisionList.Push(revision);
+    list.Push(revision);
+}
+
+void TDynamicMemoryStore::AddWriteRevision(TLockDescriptor& lock, ui32 revision)
+{
+    auto list = TDynamicRow::GetWriteRevisionList(lock);
+    YASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
+    if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
+        TDynamicRow::SetWriteRevisionList(lock, list);
+    }
+    list.Push(revision);
+}
+
+void TDynamicMemoryStore::AddDeleteRevisionNonAtomic(
+    TDynamicRow row,
+    TTimestamp commitTimestamp,
+    ui32 commitRevision)
+{
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+
+    AddDeleteRevision(row, commitRevision);
+    UpdateTimestampRange(commitTimestamp);
+}
+
+void TDynamicMemoryStore::AddWriteRevisionNonAtomic(
+    TDynamicRow row,
+    TTimestamp commitTimestamp,
+    ui32 commitRevision)
+{
+    YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+
+    auto& lock = row.BeginLocks(KeyColumnCount_)[TDynamicRow::PrimaryLockIndex];
+    AddWriteRevision(lock, commitRevision);
+    UpdateTimestampRange(commitTimestamp);
 }
 
 void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys)
@@ -1171,7 +1293,7 @@ void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, TDynamicRow srcRow)
 
 void TDynamicMemoryStore::LoadRow(
     TVersionedRow row,
-    yhash_map<TTimestamp, ui32>* timestampToRevision)
+    TLoadScratchData* scratchData)
 {
     YASSERT(row.GetKeyCount() == KeyColumnCount_);
 
@@ -1179,9 +1301,10 @@ void TDynamicMemoryStore::LoadRow(
 
     SetKeys(dynamicRow, row.BeginKeys());
 
-    auto* locks = dynamicRow.BeginLocks(KeyColumnCount_);
+    for (auto& revisions : scratchData->WriteRevisions) {
+        revisions.clear();
+    }
 
-    // Values are ordered by descending timestamps but we need ascending ones here.
     const auto* currentValue = row.BeginValues();
     while (currentValue != row.EndValues()) {
         const auto* beginValue = currentValue;
@@ -1191,37 +1314,85 @@ void TDynamicMemoryStore::LoadRow(
             ++endValue;
         }
 
+        int lockIndex = ColumnIndexToLockIndex_[index];
+        // Values are ordered by descending timestamps but we need ascending ones here.
         for (const auto* value = endValue - 1; value >= beginValue; --value) {
             auto list = PrepareFixedValue(dynamicRow, index);
-            CaptureVersionedValue(&list.GetUncommitted(), *value, timestampToRevision);
+            ui32 revision = CaptureVersionedValue(&list.GetUncommitted(), *value, scratchData);
             list.Commit();
+            scratchData->WriteRevisions[lockIndex].push_back(revision);
         }
-
-        auto& lock = locks[ColumnIndexToLockIndex_[index]];
-        lock.LastCommitTimestamp = std::max(lock.LastCommitTimestamp, beginValue->Timestamp);
 
         currentValue = endValue;
     }
 
-    // Timestamps are also in descending order.
-    auto addTimestamps = [&] (TTimestamp* beginTimestamps, TTimestamp* endTimestamps, ERevisionListKind kind) {
-        if (beginTimestamps == endTimestamps)
-            return;
-
-        for (const auto* currentTimestamp = endTimestamps - 1; currentTimestamp >= beginTimestamps; --currentTimestamp) {
-            ui32 revision = CaptureTimestamp(*currentTimestamp, timestampToRevision);
-            AddRevision(dynamicRow, revision, kind);
+    auto* locks = dynamicRow.BeginLocks(KeyColumnCount_);
+    const auto& primaryRevisions = scratchData->WriteRevisions[TDynamicRow::PrimaryLockIndex];
+    for (int lockIndex = 0; lockIndex < ColumnLockCount_; ++lockIndex) {
+        auto& lock = locks[lockIndex];
+        auto& revisions = scratchData->WriteRevisions[lockIndex];
+        // NB: Taking the primary lock implies taking all other locks.
+        if (lockIndex != TDynamicRow::PrimaryLockIndex) {
+            revisions.insert(
+                revisions.end(),
+                primaryRevisions.begin(),
+                primaryRevisions.end());
         }
-    };
-    addTimestamps(row.BeginWriteTimestamps(), row.EndWriteTimestamps(), ERevisionListKind::Write);
-    addTimestamps(row.BeginDeleteTimestamps(), row.EndDeleteTimestamps(), ERevisionListKind::Delete);
+        if (!revisions.empty()) {
+            std::sort(
+                revisions.begin(),
+                revisions.end(),
+                [&] (ui32 lhs, ui32 rhs) {
+                    return TimestampFromRevision(lhs) < TimestampFromRevision(rhs);
+                });
+            revisions.erase(
+                std::unique(revisions.begin(), revisions.end()),
+                revisions.end());
+            for (ui32 revision : revisions) {
+                AddWriteRevision(lock, revision);
+            }
+        }
+    }
 
+    // Delete timestamps are also in descending order.
     if (row.BeginDeleteTimestamps() != row.EndDeleteTimestamps()) {
-        auto& primaryLock = locks[TDynamicRow::PrimaryLockIndex];
-        primaryLock.LastCommitTimestamp = std::max(primaryLock.LastCommitTimestamp, row.BeginDeleteTimestamps()[0]);
+        for (const auto* currentTimestamp = row.EndDeleteTimestamps() - 1;
+             currentTimestamp >= row.BeginDeleteTimestamps();
+             --currentTimestamp)
+        {
+            ui32 revision = CaptureTimestamp(*currentTimestamp, scratchData);
+            AddDeleteRevision(dynamicRow, revision);
+        }
     }
 
     Rows_->Insert(dynamicRow);
+}
+
+ui32 TDynamicMemoryStore::CaptureTimestamp(
+    TTimestamp timestamp,
+    TLoadScratchData* scratchData)
+{
+    auto& timestampToRevision = scratchData->TimestampToRevision;
+    auto it = timestampToRevision.find(timestamp);
+    if (it == timestampToRevision.end()) {
+        ui32 revision = RegisterRevision(timestamp);
+        YCHECK(timestampToRevision.insert(std::make_pair(timestamp, revision)).second);
+        return revision;
+    } else {
+        return it->second;
+    }
+}
+
+ui32 TDynamicMemoryStore::CaptureVersionedValue(
+    TDynamicValue* dst,
+    const TVersionedValue& src,
+    TLoadScratchData* scratchData)
+{
+    YASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
+    ui32 revision = CaptureTimestamp(src.Timestamp, scratchData);
+    dst->Revision = revision;
+    CaptureUnversionedValue(dst, src);
+    return revision;
 }
 
 void TDynamicMemoryStore::CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index)
@@ -1233,30 +1404,6 @@ void TDynamicMemoryStore::CaptureUncommittedValue(TDynamicValue* dst, const TDyn
     if (!src.Null && IsStringLikeType(Schema_.Columns()[index].Type)) {
         dst->Data = CaptureStringValue(src.Data);
     }
-}
-
-ui32 TDynamicMemoryStore::CaptureTimestamp(
-    TTimestamp timestamp,
-    yhash_map<TTimestamp, ui32>* timestampToRevision)
-{
-    auto it = timestampToRevision->find(timestamp);
-    if (it == timestampToRevision->end()) {
-        ui32 revision = RegisterRevision(timestamp);
-        YCHECK(timestampToRevision->insert(std::make_pair(timestamp, revision)).second);
-        return revision;
-    } else {
-        return it->second;
-    }
-}
-
-void TDynamicMemoryStore::CaptureVersionedValue(
-    TDynamicValue* dst,
-    const TVersionedValue& src,
-    yhash_map<TTimestamp, ui32>* timestampToRevision)
-{
-    YASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].Type);
-    dst->Revision = CaptureTimestamp(src.Timestamp, timestampToRevision);
-    CaptureUnversionedValue(dst, src);
 }
 
 void TDynamicMemoryStore::CaptureUnversionedValue(
@@ -1510,7 +1657,8 @@ void TDynamicMemoryStore::AsyncLoad(TLoadContext& context)
         std::vector<TVersionedRow> rows;
         rows.reserve(SnapshotRowsPerRead);
 
-        yhash_map<TTimestamp, ui32> timestampToRevision;
+        TLoadScratchData scratchData;
+        scratchData.WriteRevisions.resize(ColumnLockCount_);
 
         while (tableReader->Read(&rows)) {
             if (rows.empty()) {
@@ -1520,7 +1668,7 @@ void TDynamicMemoryStore::AsyncLoad(TLoadContext& context)
             }
 
             for (auto row : rows) {
-                LoadRow(row, &timestampToRevision);
+                LoadRow(row, &scratchData);
             }
         }
     }
@@ -1543,6 +1691,7 @@ void TDynamicMemoryStore::BuildOrchidYson(IYsonConsumer* consumer)
 
 ui32 TDynamicMemoryStore::GetLatestRevision() const
 {
+    YASSERT(!RevisionToTimestamp_.Empty());
     return RevisionToTimestamp_.Size() - 1;
 }
 
@@ -1557,6 +1706,17 @@ ui32 TDynamicMemoryStore::RegisterRevision(TTimestamp timestamp)
 TTimestamp TDynamicMemoryStore::TimestampFromRevision(ui32 revision)
 {
     return RevisionToTimestamp_[revision];
+}
+
+void TDynamicMemoryStore::UpdateTimestampRange(TTimestamp commitTimestamp)
+{
+    // NB: Don't update min/max timestamps for passive stores since
+    // others are relying on these values to remain constant.
+    // See, e.g., TStoreManager::MaxTimestampToStore_.
+    if (StoreState_ == EStoreState::ActiveDynamic) {
+        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
+        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
+    }
 }
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()

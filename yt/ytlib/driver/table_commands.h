@@ -21,6 +21,7 @@ struct TReadTableRequest
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
     NTableClient::TControlAttributesConfigPtr ControlAttributes;
+    bool Unordered;
 
     TReadTableRequest()
     {
@@ -29,6 +30,8 @@ struct TReadTableRequest
             .Default(nullptr);
         RegisterParameter("control_attributes", ControlAttributes)
             .DefaultNew();
+        RegisterParameter("unordered", Unordered)
+            .Default(false);
     }
 
     virtual void OnLoaded() override
@@ -227,6 +230,8 @@ struct TInsertRowsRequest
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     bool Update;
+    NTransactionClient::EAtomicity Atomicity;
+    NTransactionClient::EDurability Durability;
 
     TInsertRowsRequest()
     {
@@ -235,6 +240,10 @@ struct TInsertRowsRequest
         RegisterParameter("path", Path);
         RegisterParameter("update", Update)
             .Default(false);
+        RegisterParameter("atomicity", Atomicity)
+            .Default(NTransactionClient::EAtomicity::Full);
+        RegisterParameter("durability", Durability)
+            .Default(NTransactionClient::EDurability::Sync);
     }
 };
 

@@ -56,7 +56,7 @@ struct TLockDescriptor
 {
     TTransaction* Transaction;
     TTimestamp PrepareTimestamp;
-    TTimestamp LastCommitTimestamp;
+    TEditListHeader* WriteRevisionList;
 };
 
 struct TDynamicRowHeader
@@ -160,6 +160,11 @@ public:
         return Header_->Size;
     }
 
+    bool IsEmpty() const
+    {
+        return GetSize() == 0;
+    }
+
     int GetSuccessorsSize() const
     {
         return Header_->SuccessorsSize;
@@ -195,6 +200,18 @@ public:
     T* End()
     {
         return reinterpret_cast<T*>(Header_ + 1) + Header_->Size;
+    }
+
+
+    const T& Front() const
+    {
+        return (*this)[0];
+    }
+
+    const T& Back() const
+    {
+        YASSERT(!IsEmpty());
+        return (*this)[GetSize() - 1];
     }
 
 
@@ -270,11 +287,6 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ERevisionListKind,
-    (Write)
-    (Delete)
-);
-
 //! A row within TDynamicMemoryStore.
 /*!
  *  A lightweight wrapper around |TDynamicRowHeader*|.
@@ -289,9 +301,8 @@ DEFINE_ENUM(ERevisionListKind,
  *  1) TDynamicRowHeader
  *  2) TDynamicValueData per each key column
  *  3) TLockDescriptor per each lock group
- *  4) TEditListHeader* for write timestamps
- *  5) TEditListHeader* for delete timestamps
- *  6) TEditListHeader* per each fixed non-key column
+ *  4) TEditListHeader* for delete timestamps
+ *  5) TEditListHeader* per each fixed non-key column
  */
 class TDynamicRow
 {
@@ -310,12 +321,8 @@ public:
         int columnLockCount,
         int schemaColumnCount)
     {
-        // One list per each non-key schema column
-        // plus write timestamps
-        // plus delete timestamp.
-        int listCount =
-            (schemaColumnCount - keyColumnCount) +
-            TEnumTraits<ERevisionListKind>::GetDomainSize();
+        // One list per each non-key schema column plus delete timestamp.
+        int listCount = (schemaColumnCount - keyColumnCount) + 1;
         size_t size =
             sizeof(TDynamicRowHeader) +
             keyColumnCount * sizeof(TDynamicValueData) +
@@ -334,7 +341,7 @@ public:
             auto* lock = row.BeginLocks(keyColumnCount);
             for (int index = 0; index < columnLockCount; ++index, ++lock) {
                 lock->PrepareTimestamp = NTableClient::NotPreparedTimestamp;
-                lock->LastCommitTimestamp = NTableClient::MinTimestamp;
+                lock->WriteRevisionList = nullptr;
             }
         }
 
@@ -398,30 +405,35 @@ public:
     TValueList GetFixedValueList(int columnIndex, int keyColumnCount, int columnLockCount) const
     {
         YASSERT(columnIndex >= keyColumnCount);
-        return TValueList(GetLists(keyColumnCount, columnLockCount)[
-            columnIndex -
-            keyColumnCount +
-            TEnumTraits<ERevisionListKind>::GetDomainSize()]);
+        return TValueList(GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1]);
     }
 
     void SetFixedValueList(int columnIndex, TValueList list, int keyColumnCount, int columnLockCount)
     {
         YASSERT(columnIndex >= keyColumnCount);
-        GetLists(keyColumnCount, columnLockCount)[
-            columnIndex -
-            keyColumnCount +
-            TEnumTraits<ERevisionListKind>::GetDomainSize()] = list.Header_;
+        GetLists(keyColumnCount, columnLockCount)[columnIndex - keyColumnCount + 1] = list.Header_;
     }
 
 
-    TRevisionList GetRevisionList(ERevisionListKind kind, int keyColumnCount, int columnLockCount) const
+    TRevisionList GetDeleteRevisionList(int keyColumnCount, int columnLockCount) const
     {
-        return TRevisionList(GetLists(keyColumnCount, columnLockCount)[static_cast<int>(kind)]);
+        return TRevisionList(GetLists(keyColumnCount, columnLockCount)[0]);
     }
 
-    void SetRevisionList(TRevisionList list, ERevisionListKind kind, int keyColumnCount, int columnLockCount)
+    void SetDeleteRevisionList(TRevisionList list, int keyColumnCount, int columnLockCount)
     {
-        GetLists(keyColumnCount, columnLockCount)[static_cast<int>(kind)] = list.Header_;
+        GetLists(keyColumnCount, columnLockCount)[0] = list.Header_;
+    }
+
+
+    static TRevisionList GetWriteRevisionList(TLockDescriptor& lock)
+    {
+        return TRevisionList(lock.WriteRevisionList);
+    }
+
+    static void SetWriteRevisionList(TLockDescriptor& lock, TRevisionList list)
+    {
+        lock.WriteRevisionList = list.Header_;
     }
 
 
