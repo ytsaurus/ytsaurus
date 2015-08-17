@@ -176,6 +176,10 @@ def aggregator(func):
     """Decorate function to consume *iterator of rows* instead of single row."""
     return _set_attribute(func, "is_aggregator", True)
 
+def reduce_aggregator(func):
+    """Decorate function to consume *iterator of pairs* where each pair consists of key and records with this key."""
+    return _set_attribute(func, "is_reduce_aggregator", True)
+
 def raw(func):
     """Decorate function to consume *raw data stream* instead of single row."""
     return _set_attribute(func, "is_raw", True)
