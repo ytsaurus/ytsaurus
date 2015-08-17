@@ -1,7 +1,9 @@
 #include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <yt/core/actions/invoker_util.h>
+#include <core/misc/string.h>
+
+#include <core/actions/invoker_util.h>
 
 #include <tuple>
 
@@ -108,12 +110,13 @@ protected:
 
     TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex = TDynamicRow::PrimaryLockIndex)
     {
-        return GetLock(row, lockIndex).LastCommitTimestamp;
+        return Store_->GetLastCommitTimestamp(row, lockIndex);
     }
 
     TTimestamp GetLastCommitTimestamp(const TOwningKey& key, int lockIndex = TDynamicRow::PrimaryLockIndex)
     {
         auto row = LookupDynamicRow(key);
+        EXPECT_TRUE(row);
         return GetLastCommitTimestamp(row, lockIndex);
     }
 
@@ -155,6 +158,69 @@ protected:
         EndReserializeStore(BeginReserializeStore());
     }
 
+    Stroka DumpStore()
+    {
+        TStringBuilder builder;
+        builder.AppendFormat("KeyCount=%v ValueCount=%v MinTimestamp=%v MaxTimestamp=%v\n",
+            Store_->GetKeyCount(),
+            Store_->GetValueCount(),
+            Store_->GetMinTimestamp(),
+            Store_->GetMaxTimestamp());
+
+        int keyColumnCount = Tablet_->GetKeyColumnCount();
+        int schemaColumnCount = Tablet_->GetSchemaColumnCount();
+        int columnLockCount = Tablet_->GetColumnLockCount();
+        for (auto row : Store_->GetAllRows()) {
+            builder.AppendChar('[');
+            for (int i = 0; i < keyColumnCount; ++i) {
+                builder.AppendFormat(" %v", ToUnversionedValue(row.BeginKeys()[i], i));
+            }
+            builder.AppendString(" ] -> [");
+            for (int i = keyColumnCount; i < schemaColumnCount; ++i) {
+                for (auto list = row.GetFixedValueList(i, keyColumnCount, columnLockCount);
+                     list;
+                     list = list.GetSuccessor())
+                {
+                    EXPECT_FALSE(list.HasUncommitted());
+                    for (int j = 0; j < list.GetSize(); ++j) {
+                        const auto& dynamicValue = list[j];
+                        TVersionedValue versionedValue;
+                        static_cast<TUnversionedValue&>(versionedValue) = ToUnversionedValue(dynamicValue.Data, i);
+                        versionedValue.Timestamp = Store_->TimestampFromRevision(dynamicValue.Revision);
+                        builder.AppendFormat(" %v#%v", i, versionedValue);
+                    }
+                }
+            }
+            builder.AppendString("]");
+
+            auto dumpTimestamps = [&] (TRevisionList list) {
+                builder.AppendChar('[');
+                while (list) {
+                    EXPECT_FALSE(list.HasUncommitted());
+                    for (int i = list.GetSize() - 1; i >= 0; --i) {
+                        auto timestamp = Store_->TimestampFromRevision(list[i]);
+                        builder.AppendFormat(" %v", timestamp);
+                    }
+                    list = list.GetSuccessor();
+                }
+                builder.AppendString(" ]");
+
+            };
+
+            for (int i = 0; i < columnLockCount; ++i) {
+                auto& lock = row.BeginLocks(keyColumnCount)[i];
+                builder.AppendFormat(" wts#%v: ", i);
+                dumpTimestamps(TDynamicRow::GetWriteRevisionList(lock));
+            }
+
+            builder.AppendString(" dts: ");
+            dumpTimestamps(row.GetDeleteRevisionList(keyColumnCount, columnLockCount));
+
+            builder.AppendChar('\n');
+        }
+        return builder.Flush();
+    }
+
 
     TDynamicMemoryStorePtr Store_;
 
@@ -169,6 +235,21 @@ private:
             TTabletId(),
             Tablet_.get());
     }
+
+    TUnversionedValue ToUnversionedValue(const TDynamicValueData& data, int index)
+    {
+        TUnversionedValue value;
+        value.Id = index;
+        value.Type = Tablet_->Schema().Columns()[index].Type;
+        if (IsStringLikeType(value.Type)) {
+            value.Length = data.String->Length;
+            value.Data.String = data.String->Data;
+        } else {
+            ::memcpy(&value.Data, &data, sizeof (data));
+        }
+        return value;
+    }
+
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -724,16 +805,16 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Update1)
 {
     auto key = BuildKey("1");
     
-    auto ts = WriteRow(BuildRow("key=1", false));
+    auto ts = WriteRow(BuildRow("key=1;a=1", false));
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), "key=1"));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts), "key=1;a=1"));
 }
 
 TEST_F(TSingleLockDynamicMemoryStoreTest, Update2)
 {
     auto key = BuildKey("1");
-    
+
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
     auto ts2 = WriteRow(BuildRow("key=1;b=3.0", false));
     auto ts3 = WriteRow(BuildRow("key=1;c=test", false));
@@ -747,7 +828,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Update2)
 TEST_F(TSingleLockDynamicMemoryStoreTest, Update3)
 {
     auto key = BuildKey("1");
-    
+
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
     auto ts2 = WriteRow(BuildRow("key=1;a=2", false));
     auto ts3 = WriteRow(BuildRow("key=1;a=3", false));
@@ -761,7 +842,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, Update3)
 TEST_F(TSingleLockDynamicMemoryStoreTest, UpdateDelete1)
 {
     auto key = BuildKey("1");
-    
+
     auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
     auto ts2 = DeleteRow(key);
     auto ts3 = WriteRow(BuildRow("key=1;b=2.0", false));
@@ -781,7 +862,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, UpdateDelete1)
 TEST_F(TSingleLockDynamicMemoryStoreTest, UpdateDelete2)
 {
     auto key = BuildKey("1");
-    
+
     auto ts1 = DeleteRow(key);
     auto ts2 = DeleteRow(key);
     auto ts3 = WriteRow(BuildRow("key=1;a=1", false));
@@ -879,7 +960,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadNotBlocked)
     auto transaction = StartTransaction();
 
     auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
-    
+
     PrepareTransaction(transaction.get());
     PrepareRow(transaction.get(), row);
 
@@ -900,9 +981,9 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedAbort)
     auto key = BuildKey("1");
 
     auto transaction = StartTransaction();
-    
+
     auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
-    
+
     PrepareTransaction(transaction.get());
     PrepareRow(transaction.get(), row);
 
@@ -925,9 +1006,9 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, ReadBlockedCommit)
     auto key = BuildKey("1");
 
     auto transaction = StartTransaction();
-    
+
     auto row = WriteRow(transaction.get(), BuildRow("key=1;a=1"), false);
-    
+
     PrepareTransaction(transaction.get());
     PrepareRow(transaction.get(), row);
 
@@ -1132,6 +1213,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot2)
     EXPECT_EQ(1, Store_->GetKeyCount());
 
     auto snapshot = BeginReserializeStore();
+    auto dump = DumpStore();
 
     WriteRow(BuildRow("key=2;a=2", false));
 
@@ -1139,6 +1221,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot2)
     EXPECT_EQ(2, Store_->GetValueCount());
 
     EndReserializeStore(snapshot);
+    EXPECT_EQ(dump, DumpStore());
 
     EXPECT_EQ(1, Store_->GetKeyCount());
     EXPECT_EQ(1, Store_->GetValueCount());
@@ -1162,6 +1245,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot3)
     EXPECT_EQ(1, Store_->GetKeyCount());
 
     auto snapshot = BeginReserializeStore();
+    auto dump = DumpStore();
 
     auto ts2 = WriteRow(BuildRow("key=1;a=2", false));
 
@@ -1169,6 +1253,7 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot3)
     EXPECT_EQ(2, Store_->GetValueCount());
 
     EndReserializeStore(snapshot);
+    EXPECT_EQ(dump, DumpStore());
 
     EXPECT_EQ(1, Store_->GetKeyCount());
     EXPECT_EQ(1, Store_->GetValueCount());
@@ -1188,28 +1273,30 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot4)
 {
     auto key = BuildKey("1");
 
-    auto ts1 = WriteRow(BuildRow("key=1;a=1", false));
+    auto ts1 = WriteRow(BuildRow("key=1;a=1;b=3.14", false));
 
     EXPECT_EQ(1, Store_->GetKeyCount());
 
     auto snapshot = BeginReserializeStore();
+    auto dump = DumpStore();
 
     auto ts2 = DeleteRow(key);
 
     EXPECT_EQ(1, Store_->GetKeyCount());
-    EXPECT_EQ(1, Store_->GetValueCount());
+    EXPECT_EQ(2, Store_->GetValueCount());
 
     EndReserializeStore(snapshot);
+    EXPECT_EQ(dump, DumpStore());
 
     EXPECT_EQ(1, Store_->GetKeyCount());
-    EXPECT_EQ(1, Store_->GetValueCount());
+    EXPECT_EQ(2, Store_->GetValueCount());
     EXPECT_EQ(ts1, Store_->GetMinTimestamp());
     EXPECT_EQ(ts1, Store_->GetMaxTimestamp());
 
     EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1 - 1), nullptr));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1"));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;a=1"));
-    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), "key=1;a=1"));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1;b=3.14"));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;a=1;b=3.14"));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), "key=1;a=1;b=3.14"));
 
     EXPECT_EQ(ts1, GetLastCommitTimestamp(key));
 }
@@ -1247,6 +1334,31 @@ TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot5)
     }
 
     EXPECT_EQ(timestamps[50], GetLastCommitTimestamp(key));
+}
+
+TEST_F(TSingleLockDynamicMemoryStoreTest, SerializeSnapshot_YT2591)
+{
+    auto transaction1 = StartTransaction();
+    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;b=2.7", false), false);
+    auto row2 = WriteRow(transaction1.get(), BuildRow("key=2;b=3.1", false), false);
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row1);
+    PrepareRow(transaction1.get(), row2);
+    CommitTransaction(transaction1.get());
+    CommitRow(transaction1.get(), row1);
+    CommitRow(transaction1.get(), row2);
+
+    auto transaction2 = StartTransaction();
+    auto row1_ = WriteRow(transaction2.get(), BuildRow("key=1;a=1", false), false);
+    EXPECT_EQ(row1, row1_);
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), row1);
+    CommitTransaction(transaction2.get());
+    CommitRow(transaction2.get(), row1);
+
+    auto dump = DumpStore();
+    ReserializeStore();
+    EXPECT_EQ(dump, DumpStore());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1492,33 +1604,94 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, WriteNotBlocked)
     EXPECT_FALSE(blocked);
 }
 
+TEST_F(TMultiLockDynamicMemoryStoreTest, OutOfOrderWrites)
+{
+    auto transaction1 = StartTransaction();
+    auto transaction2 = StartTransaction();
+
+    auto row1 = WriteRow(transaction1.get(), BuildRow("key=1;a=1", false), false, LockMask1);
+    auto row2 = WriteRow(transaction2.get(), BuildRow("key=1;b=3.14", false), false, LockMask2);
+    EXPECT_EQ(row1, row2);
+    auto row = row1;
+
+    // Mind the order!
+    PrepareTransaction(transaction1.get());
+    PrepareRow(transaction1.get(), row1);
+
+    PrepareTransaction(transaction2.get());
+    PrepareRow(transaction2.get(), row2);
+
+    auto ts2 = CommitTransaction(transaction2.get());
+    CommitRow(transaction2.get(), row2);
+
+    auto ts1 = CommitTransaction(transaction1.get());
+    CommitRow(transaction1.get(), row1);
+
+    EXPECT_LE(ts2, ts1);
+
+    auto key = BuildKey("1");
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, MinTimestamp), nullptr));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), "key=1;a=1;b=3.14"));
+    EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;b=3.14"));
+    EXPECT_EQ(MinTimestamp, GetLastCommitTimestamp(row));
+    EXPECT_EQ(ts1, GetLastCommitTimestamp(row, 1));
+    EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
+
+    {
+        auto reader = Store_->CreateReader(MinKey(), MaxKey(), AllCommittedTimestamp, TColumnFilter());
+        reader->Open()
+            .Get()
+            .ThrowOnError();
+
+        std::vector<TVersionedRow> rows;
+        rows.reserve(1);
+        EXPECT_TRUE(reader->Read(&rows));
+        EXPECT_EQ(1, rows.size());
+
+        auto row = rows[0];
+        EXPECT_EQ(1, row.GetKeyCount());
+        EXPECT_EQ(2, row.GetValueCount());
+        EXPECT_EQ(2, row.GetWriteTimestampCount());
+        EXPECT_EQ(ts1, row.BeginWriteTimestamps()[0]);
+        EXPECT_EQ(ts2, row.BeginWriteTimestamps()[1]);
+        EXPECT_EQ(0, row.GetDeleteTimestampCount());
+
+        EXPECT_FALSE(reader->Read(&rows));
+        EXPECT_TRUE(rows.empty());
+    }
+}
+
 TEST_F(TMultiLockDynamicMemoryStoreTest, SerializeSnapshot1)
 {
     auto key = BuildKey("1");
 
     auto ts1 = DeleteRow(key);
     auto ts2 = WriteRow(BuildRow("key=1;a=1", false), LockMask1);
-    auto ts3 = WriteRow(BuildRow("key=1;b=3.14", false), LockMask2);
+    auto ts3 = WriteRow(BuildRow("key=1;c=test", false), TDynamicRow::PrimaryLockMask);
+    auto ts4 = WriteRow(BuildRow("key=1;b=3.14", false), LockMask2);
 
     auto check = [&] () {
         EXPECT_EQ(1, Store_->GetKeyCount());
-        EXPECT_EQ(2, Store_->GetValueCount());
+        EXPECT_EQ(3, Store_->GetValueCount());
 
         auto row = LookupDynamicRow(key);
-        EXPECT_EQ(ts1, GetLastCommitTimestamp(row));
-        EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 1));
-        EXPECT_EQ(ts3, GetLastCommitTimestamp(row, 2));
+        EXPECT_EQ(ts3, GetLastCommitTimestamp(row));
+        EXPECT_EQ(ts3, GetLastCommitTimestamp(row, 1));
+        EXPECT_EQ(ts4, GetLastCommitTimestamp(row, 2));
 
         EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1 - 1), nullptr));
         EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts1), nullptr));
         EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts2), "key=1;a=1"));
-        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts3), "key=1;a=1;b=3.14"));
-        EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), "key=1;a=1;b=3.14"));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts3), "key=1;a=1;c=test"));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, ts4), "key=1;a=1;b=3.14;c=test"));
+        EXPECT_TRUE(AreRowsEqual(LookupRow(key, MaxTimestamp), "key=1;a=1;b=3.14;c=test"));
     };
 
     check();
 
+    auto dump = DumpStore();
     ReserializeStore();
+    EXPECT_EQ(dump, DumpStore());
 
     check();
 }
