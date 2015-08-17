@@ -428,22 +428,22 @@ class YamrFormat(Format):
                 chunk = stream.read(1024 * 1024)
                 if not chunk:
                     break
-                lines = chunk.split("\n")
+                lines = chunk.split(self.record_separator)
                 if len(lines) == 1:
                     prefix.append(lines[0])
                 else:
-                    yield "".join(prefix + [lines[0]]) + "\n"
+                    yield "".join(prefix + [lines[0]]) + self.record_separator
                     for line in lines[1:-1]:
-                        yield line + "\n"
+                        yield line + self.record_separator
                     if lines[-1]:
                         prefix = [lines[-1]]
                     else:
                         prefix = []
             if prefix:
                 if len(prefix) > 1:
-                    yield "".join(prefix) + "\n"
+                    yield "".join(prefix) + self.record_separator
                 else:
-                    yield prefix[0] + "\n"
+                    yield prefix[0] + self.record_separator
             return
 
         table_index = 0
