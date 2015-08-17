@@ -41,7 +41,7 @@ if [ -n "$REPOS" ]; then
         VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
         dupload "../${PACKAGE}_${VERSION}_amd64.changes" --force --to $REPO
     done
-    
+
     # Upload python wheel
     python setup.py bdist_wheel upload -r yandex
 fi
