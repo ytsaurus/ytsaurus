@@ -455,6 +455,24 @@ class TestOperations(object):
         yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
         check(["x=1\n", "x=\\n\n"], sorted(list(yt.read_table(table))))
 
+    @add_failed_operation_stderrs_to_error_message
+    def test_reduce_aggregator(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, ["x=1\ty=2\n", "x=0\ty=3\n", "x=1\ty=4\n"])
+
+        @yt.reduce_aggregator
+        def reducer(row_groups):
+            sum_y = 0
+            for k, rows in row_groups:
+                for row in rows:
+                    sum_y += int(row["y"])
+            yield {"sum_y": sum_y}
+
+        yt.run_sort(table, sort_by=["x"])
+        yt.run_reduce(reducer, table, other_table, reduce_by=["x"])
+        assert ["sum_y=9\n"] == list(yt.read_table(other_table))
+
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):
     #    records = ["x=1\n", "y=2\n", "z=3\n"]
