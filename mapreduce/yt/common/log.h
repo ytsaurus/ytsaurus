@@ -29,7 +29,7 @@ void SetLogger(ILoggerPtr logger);
 ILoggerPtr GetLogger();
 
 ILoggerPtr CreateStdErrLogger(ILogger::ELevel cutLevel);
-ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path);
+ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path, bool append = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,10 +41,10 @@ inline void LogMessage(ILogger::ELevel level, const char* format, ...)
     va_end(args);
 }
 
-#define LOG_DEBUG(...) { LogMessage(ILogger::DEBUG, __VA_ARGS__); }
-#define LOG_INFO(...)  { LogMessage(ILogger::INFO, __VA_ARGS__); }
-#define LOG_ERROR(...) { LogMessage(ILogger::ERROR, __VA_ARGS__); }
-#define LOG_FATAL(...) { LogMessage(ILogger::FATAL, __VA_ARGS__); exit(1); }
+#define LOG_DEBUG(...) { NYT::LogMessage(NYT::ILogger::DEBUG, __VA_ARGS__); }
+#define LOG_INFO(...)  { NYT::LogMessage(NYT::ILogger::INFO, __VA_ARGS__); }
+#define LOG_ERROR(...) { NYT::LogMessage(NYT::ILogger::ERROR, __VA_ARGS__); }
+#define LOG_FATAL(...) { NYT::LogMessage(NYT::ILogger::FATAL, __VA_ARGS__); exit(1); }
 
 ////////////////////////////////////////////////////////////////////////////////
 
