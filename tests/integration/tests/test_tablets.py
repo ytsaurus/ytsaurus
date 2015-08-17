@@ -162,12 +162,29 @@ class TestTablets(YTEnvSetup):
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
          
-    def test_read_write_table(self):
+    def test_read_table(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError): read_table("//tmp/t")
+        rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows1)
+        self.sync_unmount_table("//tmp/t")
+
+        assert read_table("//tmp/t") == rows1
+
+        self.sync_mount_table("//tmp/t")
+        rows2 = [{"key": i, "value": str(i)} for i in xrange(10, 20)]
+        insert_rows("//tmp/t", rows2)
+        self.sync_unmount_table("//tmp/t")
+
+        assert read_table("//tmp/t") == rows1 + rows2
+
+    def test_write_table(self):
+        self.sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')

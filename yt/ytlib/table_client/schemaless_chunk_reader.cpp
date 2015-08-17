@@ -9,12 +9,23 @@
 #include "row_sampler.h"
 #include "schema.h"
 #include "schemaless_block_reader.h"
+#include "row_merger.h"
+#include "cached_versioned_chunk_meta.h"
+#include "row_buffer.h"
+#include "versioned_row.h"
+#include "versioned_reader.h"
+#include "versioned_chunk_reader.h"
+#include "schemaful_reader.h"
+#include "schemaful_overlapping_chunk_reader.h"
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
 
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <ytlib/chunk_client/replication_reader.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -29,7 +40,6 @@ using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProto;
-using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NRpc;
@@ -692,6 +702,287 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
         keyColumns,
         throttler);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessMergingMultiChunkReader
+    : public ISchemalessMultiChunkReader
+{
+public:
+    static ISchemalessMultiChunkReaderPtr Create(
+        TTableReaderConfigPtr config,
+        TMultiChunkReaderOptionsPtr options,
+        IClientPtr client,
+        IBlockCachePtr blockCache,
+        TNodeDirectoryPtr nodeDirectory,
+        const std::vector<TChunkSpec>& chunkSpecs,
+        TNameTablePtr nameTable,
+        TColumnFilter columnFilter,
+        const TTableSchema& tableSchema,
+        const TKeyColumns& keyColumns,
+        IThroughputThrottlerPtr throttler);
+
+    virtual TFuture<void> Open() override;
+    virtual TFuture<void> GetReadyEvent() override;
+    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+    virtual TDataStatistics GetDataStatistics() const override;
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override;
+    virtual bool IsFetchingCompleted() const override;
+    virtual int GetTableIndex() const override;
+    virtual i64 GetSessionRowIndex() const override;
+    virtual i64 GetTotalRowCount() const override;
+    virtual TNameTablePtr GetNameTable() const override;
+    virtual TKeyColumns GetKeyColumns() const override;
+    virtual i64 GetTableRowIndex() const override;
+    virtual i32 GetRangeIndex() const override;
+
+private:
+    const ISchemafulReaderPtr UnderlyingReader_;
+    const TKeyColumns KeyColumns_;
+    const TNameTablePtr NameTable_;
+
+    i64 RowIndex_ = 0;
+    const i64 RowCount_;
+
+    TSchemalessMergingMultiChunkReader(
+        ISchemafulReaderPtr underlyingReader,
+        TKeyColumns keyColumns,
+        TNameTablePtr nameTable,
+        i64 rowCount);
+
+    DECLARE_NEW_FRIEND();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemalessMergingMultiChunkReader::TSchemalessMergingMultiChunkReader(
+    ISchemafulReaderPtr underlyingReader,
+    TKeyColumns keyColumns,
+    TNameTablePtr nameTable,
+    i64 rowCount)
+    : UnderlyingReader_(std::move(underlyingReader))
+    , KeyColumns_(keyColumns)
+    , NameTable_(nameTable)
+    , RowCount_(rowCount)
+{ }
+
+ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
+    TTableReaderConfigPtr config,
+    TMultiChunkReaderOptionsPtr options,
+    IClientPtr client,
+    IBlockCachePtr blockCache,
+    TNodeDirectoryPtr nodeDirectory,
+    const std::vector<TChunkSpec>& chunkSpecs,
+    TNameTablePtr nameTable,
+    TColumnFilter columnFilter,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    IThroughputThrottlerPtr throttler)
+{
+    for (const auto& column : tableSchema.Columns()) {
+        nameTable->RegisterName(column.Name);
+    }
+
+    std::vector<TOwningKey> boundaries;
+    boundaries.reserve(chunkSpecs.size());
+
+    for (const auto& chunkSpec : chunkSpecs) {
+        auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
+        auto minKey = WidenKey(NYT::FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
+        boundaries.push_back(minKey);
+    }
+
+    auto performanceCounters = New<TChunkReaderPerformanceCounters>();
+
+    auto createReader = [
+        config,
+        options,
+        client,
+        blockCache,
+        nodeDirectory,
+        chunkSpecs,
+        nameTable,
+        columnFilter,
+        tableSchema,
+        keyColumns,
+        performanceCounters
+    ] (int index) -> IVersionedReaderPtr {
+        const auto& chunkSpec = chunkSpecs[index];
+        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+
+        TReadLimit lowerLimit;
+        TReadLimit upperLimit;
+
+        if (chunkSpec.has_lower_limit()) {
+            lowerLimit = NYT::FromProto<TReadLimit>(chunkSpec.lower_limit());
+        } else {
+            lowerLimit.SetKey(MinKey());
+        }
+
+        if (chunkSpec.has_upper_limit()) {
+            upperLimit = NYT::FromProto<TReadLimit>(chunkSpec.upper_limit());
+        } else {
+            upperLimit.SetKey(MaxKey());
+        }
+
+        if (lowerLimit.HasRowIndex() || upperLimit.HasRowIndex()) {
+            THROW_ERROR_EXCEPTION("Row index limit is not supported");
+        }
+
+        auto chunkReader = CreateReplicationReader(
+            config,
+            options,
+            client,
+            nodeDirectory,
+            Null,
+            chunkId,
+            replicas,
+            blockCache);
+
+        auto chunkMeta = WaitFor(TCachedVersionedChunkMeta::Load(
+            chunkReader,
+            tableSchema,
+            keyColumns))
+            .ValueOrThrow();
+
+        return CreateVersionedChunkReader(
+            config,
+            std::move(chunkReader),
+            blockCache,
+            std::move(chunkMeta),
+            lowerLimit,
+            upperLimit,
+            columnFilter,
+            performanceCounters,
+            AsyncLastCommittedTimestamp);
+    };
+
+    auto rowMerger = New<TSchemafulRowMerger>(
+        New<TRowBuffer>(),
+        tableSchema.Columns().size(),
+        keyColumns.size(),
+        columnFilter);
+
+    auto reader = CreateSchemafulOverlappingRangeChunkReader(
+        std::move(boundaries),
+        std::move(rowMerger),
+        createReader,
+        [] (
+            const TUnversionedValue* lhsBegin,
+            const TUnversionedValue* lhsEnd,
+            const TUnversionedValue* rhsBegin,
+            const TUnversionedValue* rhsEnd)
+        {
+            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+        });
+
+    i64 rowCount = GetCumulativeRowCount(chunkSpecs);
+
+    return New<TSchemalessMergingMultiChunkReader>(
+        std::move(reader),
+        keyColumns,
+        nameTable,
+        rowCount);
+}
+
+TFuture<void> TSchemalessMergingMultiChunkReader::Open()
+{
+    return VoidFuture;
+}
+
+bool TSchemalessMergingMultiChunkReader::Read(std::vector<TUnversionedRow>* rows)
+{
+    bool result = UnderlyingReader_->Read(rows);
+    RowIndex_ += rows->size();
+    return result;
+}
+
+TFuture<void> TSchemalessMergingMultiChunkReader::GetReadyEvent()
+{
+    return UnderlyingReader_->GetReadyEvent();
+}
+
+TDataStatistics TSchemalessMergingMultiChunkReader::GetDataStatistics() const
+{
+    TDataStatistics dataStatistics;
+    return dataStatistics;
+}
+
+std::vector<TChunkId> TSchemalessMergingMultiChunkReader::GetFailedChunkIds() const
+{
+    return std::vector<TChunkId>();
+}
+
+bool TSchemalessMergingMultiChunkReader::IsFetchingCompleted() const
+{
+    return false;
+}
+
+i64 TSchemalessMergingMultiChunkReader::GetTotalRowCount() const
+{
+    return RowCount_;
+}
+
+i64 TSchemalessMergingMultiChunkReader::GetSessionRowIndex() const
+{
+    return RowIndex_;
+}
+
+i64 TSchemalessMergingMultiChunkReader::GetTableRowIndex() const
+{
+    return 0;
+}
+
+i32 TSchemalessMergingMultiChunkReader::GetRangeIndex() const
+{
+    return 0;
+}
+
+TNameTablePtr TSchemalessMergingMultiChunkReader::GetNameTable() const
+{
+    return NameTable_;
+}
+
+TKeyColumns TSchemalessMergingMultiChunkReader::GetKeyColumns() const
+{
+    return KeyColumns_;
+}
+
+int TSchemalessMergingMultiChunkReader::GetTableIndex() const
+{
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
+    TTableReaderConfigPtr config,
+    TMultiChunkReaderOptionsPtr options,
+    IClientPtr client,
+    IBlockCachePtr blockCache,
+    TNodeDirectoryPtr nodeDirectory,
+    const std::vector<TChunkSpec>& chunkSpecs,
+    TNameTablePtr nameTable,
+    TColumnFilter columnFilter,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
+    IThroughputThrottlerPtr throttler)
+{
+    return TSchemalessMergingMultiChunkReader::Create(
+        config,
+        options,
+        client,
+        blockCache,
+        nodeDirectory,
+        chunkSpecs,
+        nameTable,
+        columnFilter,
+        tableSchema,
+        keyColumns,
+        throttler);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

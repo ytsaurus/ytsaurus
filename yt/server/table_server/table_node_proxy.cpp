@@ -290,17 +290,6 @@ private:
         return TBase::DoInvoke(context);
     }
 
-
-    virtual void ValidateFetch() override
-    {
-        TBase::ValidateFetch();
-
-        const auto* table = GetThisTypedImpl();
-        if (table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Cannot fetch a dynamic table");
-        }
-    }
-
     virtual void ValidateBeginUpload() override
     {
         TBase::ValidateBeginUpload();
