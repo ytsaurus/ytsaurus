@@ -271,12 +271,12 @@ function provideWinstonTransport() {
         // XXX(sandello): We are forcing logging to use provided timestamps.
         config.logging.timestamp = false;
         return ensureFileExistsAndOwned(config.logging.filename, config.user, config.group).then(function() {
-            console.error("Setting up logging to file '%s'", config.logging.filename);
+            // console.error("Setting up logging to file '%s'", config.logging.filename);
             return new winston.transports.File(config.logging);
         });
     } else {
         return Q.try(function() {
-            console.error("Setting up logging to console");
+            // console.error("Setting up logging to console");
             return new winston.transports.Console({ timestamp : false, raw : false, colorize : true });
         });
     }

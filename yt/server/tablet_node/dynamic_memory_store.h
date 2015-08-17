@@ -126,11 +126,15 @@ public:
     void CommitRow(TTransaction* transaction, TDynamicRow row);
     void AbortRow(TTransaction* transaction, TDynamicRow row);
 
+    // The following functions are made public for unit-testing.
     TDynamicRow FindRow(NTableClient::TUnversionedRow key);
+    std::vector<TDynamicRow> GetAllRows();
+    TTimestamp TimestampFromRevision(ui32 revision);
+    TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex);
 
     int GetValueCount() const;
     int GetKeyCount() const;
-    
+
     i64 GetPoolSize() const;
     i64 GetPoolCapacity() const;
 
@@ -218,22 +222,30 @@ private:
         bool deleteFlag);
 
     TValueList PrepareFixedValue(TDynamicRow row, int index);
-    void AddRevision(TDynamicRow row, ui32 revision, ERevisionListKind kind);
-    void AddRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision, ERevisionListKind kind);
+    void AddDeleteRevision(TDynamicRow row, ui32 revision);
+    void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
+    void AddDeleteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
+    void AddWriteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
     void SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys);
     void SetKeys(TDynamicRow dstRow, TDynamicRow srcRow);
-    void LoadRow(TVersionedRow row, yhash_map<TTimestamp, ui32>* timestampToRevision);
+
+    struct TLoadScratchData
+    {
+        yhash_map<TTimestamp, ui32> TimestampToRevision;
+        std::vector<std::vector<ui32>> WriteRevisions;
+    };
+
+    void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
+    ui32 CaptureTimestamp(TTimestamp timestamp, TLoadScratchData* scratchData);
+    ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TLoadScratchData* scratchData);
 
     void CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index);
-    ui32 CaptureTimestamp(TTimestamp timestamp, yhash_map<TTimestamp, ui32>* timestampToRevision);
-    void CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, yhash_map<TTimestamp, ui32>* timestampToRevision);
     void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);
     TDynamicValueData CaptureStringValue(TDynamicValueData src);
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
     ui32 GetLatestRevision() const;
     ui32 RegisterRevision(TTimestamp timestamp);
-    TTimestamp TimestampFromRevision(ui32 revision);
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();

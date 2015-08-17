@@ -869,8 +869,6 @@ private:
     void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransaction(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = GetTablet(tabletId);
@@ -886,6 +884,9 @@ private:
         auto atomicity = AtomicityFromTransactionId(transactionId);
         switch (atomicity) {
             case EAtomicity::Full: {
+                auto transactionManager = Slot_->GetTransactionManager();
+                auto* transaction = transactionManager->GetTransaction(transactionId);
+
                 auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
                 while (!reader.IsFinished()) {
