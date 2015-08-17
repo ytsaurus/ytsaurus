@@ -76,10 +76,15 @@ IInvokerPtr GetNullInvoker()
 
 static TLazyIntrusivePtr<TActionQueue> FinalizerThread(
     TActionQueue::CreateFactory("Finalizer", false, false));
+static std::atomic<bool> FinalizerThreadIsDead = {false};
 
 IInvokerPtr GetFinalizerInvoker()
 {
-    if (FinalizerThread->IsRunning()) {
+    // When |FinalizedThread| is already destructed, we would like to avoid
+    // member variables to avoid crashes. Since we force end-users to shutdown
+    // finalizer thread explicitly (and in a single thread) we can rely on
+    // |FinalizerThreadIsDead| to be set by appropriate shutdown code.
+    if (!FinalizerThreadIsDead.load(std::memory_order_relaxed)) {
         return FinalizerThread->GetInvoker();
     } else {
         return GetSyncInvoker();
@@ -98,6 +103,9 @@ void ShutdownFinalizerThread()
         }
         // Now kill the thread.
         FinalizerThread->Shutdown();
+        // This code is (usually) run in a single-threaded context,
+        // so we simply raise the flag.
+        FinalizerThreadIsDead.store(true, std::memory_order_relaxed);
     }
 }
 
