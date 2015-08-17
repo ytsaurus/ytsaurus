@@ -1,9 +1,7 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, TOOLS_ROOTDIR
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
-
-import os
 
 from collections import defaultdict
 
@@ -314,7 +312,6 @@ print "x={0}\ty={1}".format(x, y)
             {"a": 7, "c": 8}]
         write_table("//tmp/t1", rows)
 
-        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={
                 "input_query": "* where a > 0 or b > 0",
@@ -328,3 +325,14 @@ print "x={0}\ty={1}".format(x, y)
                     {"name": "u", "type": "int64"}]})
 
         self.assertItemsEqual(read_table("//tmp/t2"), rows)
+
+    def test_bad_control_attributes(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        with pytest.raises(YtError):
+            map_reduce(mapper_command="cat", reducer_command="cat",
+                       in_="//tmp/t1", out="//tmp/t2",
+                       sort_by=["foo"], 
+                       spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})

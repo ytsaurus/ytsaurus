@@ -69,6 +69,8 @@
 %token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
 %token KwOrderBy "keyword `ORDER BY`"
+%token KwAsc "keyword `ASC`"
+%token KwDesc "keyword `DESC`"
 %token KwAs "keyword `AS`"
 %token KwOn "keyword `ON`"
 
@@ -110,6 +112,8 @@
 
 %type <TTableDescriptor> table-descriptor
 
+%type <bool> is-desc
+
 %type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
@@ -126,9 +130,10 @@
 %type <TExpressionPtr> atomic-expr
 %type <TExpressionPtr> comma-expr
 %type <TNullable<TLiteralValue>> literal-value
-%type <TLiteralValueList> literal-list
-%type <TLiteralValueList> literal-tuple
-%type <TLiteralValueTupleList> literal-tuple-list
+%type <TNullable<TLiteralValue>> const-value
+%type <TLiteralValueList> const-list
+%type <TLiteralValueList> const-tuple
+%type <TLiteralValueTupleList> const-tuple-list
 
 %type <EUnaryOp> unary-op
 
@@ -181,7 +186,6 @@ table-descriptor
         {
             $$ = TTableDescriptor(Stroka($path), Stroka($alias));
         }
-    |
     |   Identifier[path]
         {
             $$ = TTableDescriptor(Stroka($path), Stroka());
@@ -232,11 +236,27 @@ having-clause
 ;
 
 order-by-clause
-    : KwOrderBy identifier-list[fields]
+    : KwOrderBy identifier-list[fields] is-desc[isDesc]
         {
             head->As<TQuery>().OrderFields = $fields;
+            head->As<TQuery>().IsOrderDesc = $isDesc;
         }
     |
+;
+
+is-desc
+    : KwDesc
+        {
+            $$ = true;
+        }
+    | KwAsc
+        {
+            $$ = false;
+        }
+    |
+        {
+            $$ = false;
+        }
 ;
 
 limit-clause
@@ -326,7 +346,7 @@ relational-op-expr
                 New<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
         }
-    | unary-expr[expr] KwIn LeftParenthesis literal-tuple-list[args] RightParenthesis
+    | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
             $$ = New<TInExpression>(@$, $expr, $args);
         }
@@ -453,36 +473,65 @@ literal-value
         { $$ = true; }
 ;
 
-literal-list
-    : literal-list[as] Comma literal-value[a]
+const-value
+    : unary-op[op] literal-value[value]
+        {
+            switch ($op) {
+                case EUnaryOp::Minus: {
+                    if (auto data = $value->TryAs<i64>()) {
+                        $$ = i64(0) - *data;
+                    } else if (auto data = $value->TryAs<ui64>()) {
+                        $$ = ui64(0) - *data;
+                    } else if (auto data = $value->TryAs<double>()) {
+                        $$ = double(0) - *data;
+                    } else {
+                        THROW_ERROR_EXCEPTION("Negation of unsupported type");
+                    }
+                    break;
+                }
+                case EUnaryOp::Plus:
+                    $$ = $value;
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+
+        }
+    | literal-value[value]
+        { $$ = $value; }
+
+;
+
+const-list
+    : const-list[as] Comma const-value[a]
         {
             $$.swap($as);
             $$.push_back(*$a);
         }
-    | literal-value[a]
+    | const-value[a]
         {
             $$.push_back(*$a);
         }
 ;
 
-literal-tuple
-    : literal-value[a]
+const-tuple
+    : const-value[a]
         {
             $$.push_back(*$a);
         }
-    | LeftParenthesis literal-list[a] RightParenthesis
+    | LeftParenthesis const-list[a] RightParenthesis
         {
             $$ = $a;
         }
 ;
 
-literal-tuple-list
-    : literal-tuple-list[as] Comma literal-tuple[a]
+const-tuple-list
+    : const-tuple-list[as] Comma const-tuple[a]
         {
             $$.swap($as);
             $$.push_back($a);
         }
-    | literal-tuple[a]
+    | const-tuple[a]
         {
             $$.push_back($a);
         }

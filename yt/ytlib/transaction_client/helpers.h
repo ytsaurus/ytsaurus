@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "transaction_manager.h"
 
 #include <core/rpc/public.h>
 
@@ -23,6 +24,20 @@ std::pair<TTimestamp, TTimestamp> InstantToTimestamp(TInstant instant);
 
 //! Returns a range of durations between given timestamps.
 std::pair<TDuration, TDuration> TimestampDiffToDuration(TTimestamp loTimestamp, TTimestamp hiTimestamp);
+
+//! Constructs a tablet transaction id.
+TTransactionId MakeTabletTransactionId(
+    EAtomicity atomicity,
+    NObjectClient::TCellTag cellTag,
+    TTimestamp startTimestamp,
+    ui32 hash);
+
+//! Extracts the (start) timestamp from transaction id.
+//! #id represent a well-formed tablet transaction id.
+TTimestamp TimestampFromTransactionId(const TTransactionId& id);
+
+//! Computes atomicity level for a given transaction.
+EAtomicity AtomicityFromTransactionId(const TTransactionId& id);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -485,8 +485,13 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
         auto clusterDirectory = Host->GetClusterDirectory();
-        auto connection = clusterDirectory->GetConnectionOrThrow(Spec_->ClusterName);
-        auto connectionConfig = CloneYsonSerializable(connection->GetConfig());
+        TConnectionConfigPtr connectionConfig;
+        if (Spec_->ClusterConnection) {
+            connectionConfig = *Spec_->ClusterConnection;
+        } else {
+            auto connection = clusterDirectory->GetConnectionOrThrow(Spec_->ClusterName);
+            connectionConfig = CloneYsonSerializable(connection->GetConfig());
+        }
         if (Spec_->NetworkName) {
             connectionConfig->NetworkName = *Spec_->NetworkName;
         }

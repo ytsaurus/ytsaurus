@@ -43,6 +43,7 @@ private:
 
 struct TWriteJournalRequest
     : public TTransactionalRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr JournalWriter;

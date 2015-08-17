@@ -46,6 +46,7 @@ private:
 struct TSetRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
 
@@ -68,6 +69,7 @@ private:
 struct TRemoveRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     bool Recursive;
@@ -127,6 +129,7 @@ private:
 struct TCreateRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
@@ -161,6 +164,7 @@ private:
 struct TLockRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     NCypressClient::ELockMode Mode;
@@ -210,10 +214,12 @@ private:
 struct TCopyRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
     bool Recursive;
+    bool Force;
     bool PreserveAccount;
 
     TCopyRequest()
@@ -221,6 +227,8 @@ struct TCopyRequest
         RegisterParameter("source_path", SourcePath);
         RegisterParameter("destination_path", DestinationPath);
         RegisterParameter("recursive", Recursive)
+            .Default(false);
+        RegisterParameter("force", Force)
             .Default(false);
         RegisterParameter("preserve_account", PreserveAccount)
             .Default(false);
@@ -240,10 +248,12 @@ private:
 struct TMoveRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
     bool Recursive;
+    bool Force;
     bool PreserveAccount;
 
     TMoveRequest()
@@ -251,6 +261,8 @@ struct TMoveRequest
         RegisterParameter("source_path", SourcePath);
         RegisterParameter("destination_path", DestinationPath);
         RegisterParameter("recursive", Recursive)
+            .Default(false);
+        RegisterParameter("force", Force)
             .Default(false);
         RegisterParameter("preserve_account", PreserveAccount)
             .Default(true);
@@ -292,6 +304,7 @@ private:
 struct TLinkRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath LinkPath;
     NYPath::TRichYPath TargetPath;

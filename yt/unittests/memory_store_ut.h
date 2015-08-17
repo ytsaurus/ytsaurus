@@ -39,6 +39,7 @@ namespace {
 using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -66,7 +67,8 @@ protected:
             schema,
             keyColumns,
             MinKey(),
-            MaxKey()));
+            MaxKey(),
+            GetAtomicity()));
         Tablet_->StartEpoch(nullptr);
     }
 
@@ -86,6 +88,11 @@ protected:
         schema.Columns().push_back(TColumnSchema("b", EValueType::Double));
         schema.Columns().push_back(TColumnSchema("c", EValueType::String));
         return schema;
+    }
+
+    virtual EAtomicity GetAtomicity() const
+    {
+        return EAtomicity::Full;
     }
 
     TUnversionedOwningRow BuildRow(const Stroka& yson, bool treatMissingAsNull = true)
@@ -129,7 +136,12 @@ protected:
     }
 
 
-    bool AreRowsEqual(const TUnversionedOwningRow& row, const TNullable<Stroka>& yson)
+    bool AreRowsEqual(const TUnversionedOwningRow& row, const Stroka& yson)
+    {
+        return AreRowsEqual(row, yson.c_str());
+    }
+
+    bool AreRowsEqual(const TUnversionedOwningRow& row, const char* yson)
     {
         if (!row && !yson) {
             return true;
@@ -140,7 +152,7 @@ protected:
         }
 
         auto expectedRowParts = ConvertTo<yhash_map<Stroka, INodePtr>>(
-            TYsonString(*yson, EYsonType::MapFragment));
+            TYsonString(yson, EYsonType::MapFragment));
 
         for (int index = 0; index < row.GetCount(); ++index) {
             const auto& value = row[index];
@@ -203,6 +215,10 @@ protected:
         auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
         auto lookupReader = store->CreateReader(sharedLookupKeys, timestamp, TColumnFilter());
 
+        lookupReader->Open()
+            .Get()
+            .ThrowOnError();
+
         std::vector<TVersionedRow> rows;
         rows.reserve(1);
 
@@ -249,7 +265,7 @@ protected:
     }
 
 
-    TTimestamp CurrentTimestamp_ = MinTimestamp;
+    TTimestamp CurrentTimestamp_ = 10000; // some reasonable starting point
     TNameTablePtr NameTable_ = New<TNameTable>();
     std::unique_ptr<TTablet> Tablet_;
 

@@ -725,6 +725,28 @@ public:
 
             SortJobIO->TableReader->MaxBufferSize = (i64) 1024 * 1024 * 1024;
         });
+
+        RegisterValidator([&] () {
+            auto throwError = [] (NTableClient::EControlAttribute attribute, const Stroka& jobType) {
+                THROW_ERROR_EXCEPTION(
+                    "%Qlv contol attribute is not supported by %v jobs in map-reduce operation", 
+                    attribute, 
+                    jobType);
+            };
+            auto validateControlAttributes = [&] (const NTableClient::TControlAttributesConfigPtr& attributes, const Stroka& jobType) {
+                if (attributes->EnableTableIndex) {
+                    throwError(NTableClient::EControlAttribute::TableIndex, jobType);
+                }
+                if (attributes->EnableRowIndex) {
+                    throwError(NTableClient::EControlAttribute::RowIndex, jobType);
+                }
+                if (attributes->EnableRangeIndex) {
+                    throwError(NTableClient::EControlAttribute::RangeIndex, jobType);
+                }
+            };
+            validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
+            validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
+        });
     }
 
     virtual void OnLoaded() override
@@ -752,6 +774,7 @@ class TRemoteCopyOperationSpec
 public:
     Stroka ClusterName;
     TNullable<Stroka> NetworkName;
+    TNullable<NApi::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     TNullable<int> JobCount;
@@ -776,6 +799,8 @@ public:
         RegisterParameter("job_io", JobIO)
             .DefaultNew();
         RegisterParameter("network_name", NetworkName)
+            .Default();
+        RegisterParameter("cluster_connection", ClusterConnection)
             .Default();
         RegisterParameter("max_chunk_count_per_job", MaxChunkCountPerJob)
             .Default(100);

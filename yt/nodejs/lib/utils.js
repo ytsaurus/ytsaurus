@@ -481,3 +481,23 @@ exports.escapeHeader = function(x)
         .replace("\r", "\\r")
         .replace("\t", "\\t");
 };
+
+exports.lexicographicalCompare = function(a, b)
+{
+    for (var i = 0; i < a.length && i < b.length; ++i) {
+        if (a[i] === b[i]) {
+            continue;
+        } else {
+            return a[i] - b[i];
+        }
+    }
+    return a.length - b.length;
+}
+
+String.prototype.format = function() {
+    var i = 0, args = arguments;
+    return this.replace(/\{(\d*)\}/g, function(match, key) {
+        key = key === '' ? i++ : parseInt(key);
+        return typeof args[key] !== 'undefined' ? args[key] : '';
+    });
+};

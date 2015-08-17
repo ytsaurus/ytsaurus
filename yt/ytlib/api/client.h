@@ -128,6 +128,7 @@ struct TCheckPermissionOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
     , public TTransactionalOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCheckPermissionResult
@@ -151,6 +152,8 @@ struct TTransactionStartOptions
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+    NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
+    NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
 };
 
 struct TTransactionCommitOptions
@@ -200,6 +203,7 @@ struct TGetNodeOptions
     , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
+    , public TPrerequisiteOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
     std::shared_ptr<const NYTree::IAttributeDictionary> Options;
@@ -230,6 +234,7 @@ struct TListNodeOptions
     , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
+    , public TPrerequisiteOptions
 {
     NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
@@ -264,6 +269,7 @@ struct TCopyNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = false;
 };
 
@@ -274,6 +280,7 @@ struct TMoveNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = true;
 };
 
@@ -293,6 +300,7 @@ struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
     , public TTransactionalOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCreateObjectOptions
@@ -340,6 +348,7 @@ struct TJournalWriterOptions
 struct TTableReaderOptions
     : public TTransactionalOptions
 {
+    bool Unordered = false;
     NTableClient::TTableReaderConfigPtr Config;
     NChunkClient::TRemoteReaderOptionsPtr RemoteReaderOptions;
 };

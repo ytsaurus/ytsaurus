@@ -1841,7 +1841,9 @@ private:
                 auto operation = *it;
                 if (CanAddOperationToPool(GetOperationElement(operation->GetId())->GetPool())) {
                     ActivateOperation(operation);
-                    operation->SetState(EOperationState::Running);
+                    if (operation->GetState() == EOperationState::Pending) {
+                        operation->SetState(EOperationState::Running);
+                    }
                     operation->SetQueued(false);
 
                     auto toRemove = it++;

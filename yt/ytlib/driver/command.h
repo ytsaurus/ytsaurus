@@ -111,6 +111,20 @@ struct TSuppressableAccessTrackingRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPrerequisiteRequest
+    : public virtual TRequest
+{
+    std::vector<NObjectClient::TTransactionId> PrerequisiteTransactionIds;
+
+    TPrerequisiteRequest()
+    {
+        RegisterParameter("prerequisite_transaction_ids", PrerequisiteTransactionIds)
+            .Default();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ICommandContext
     : public virtual TRefCounted
 {
@@ -318,6 +332,26 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TRequest, class = void>
+class TPrerequisiteCommandBase
+{ };
+
+template <class TRequest>
+class TPrerequisiteCommandBase <
+    TRequest,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TPrerequisiteRequest&>>::TType
+>
+    : public virtual TTypedCommandBase<TRequest>
+{
+protected:
+    void SetPrerequisites(NApi::TPrerequisiteOptions* options)
+    {
+        options->PrerequisiteTransactionIds = this->Request_->PrerequisiteTransactionIds;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TRequest>
 class TTypedCommand
     : public virtual TTypedCommandBase<TRequest>
@@ -325,6 +359,7 @@ class TTypedCommand
     , public TMutatingCommandBase<TRequest>
     , public TReadOnlyCommandBase<TRequest>
     , public TSuppressableAccessTrackingCommmandBase<TRequest>
+    , public TPrerequisiteCommandBase<TRequest>
 { };
 
 ////////////////////////////////////////////////////////////////////////////////

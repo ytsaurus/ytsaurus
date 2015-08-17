@@ -222,7 +222,7 @@ public:
 
         auto isNull = builder.CreateICmpEQ(
             type,
-            builder.getInt16(static_cast<ui16>(EValueType::Null)),
+            ConstantInt::get(type->getType(), static_cast<int>(EValueType::Null)),
             name + ".isNull");
 
         return CreateFromValue(builder, isNull, length, castedData, staticType, name);
@@ -305,10 +305,11 @@ public:
 
     Value* GetType(TCGIRBuilder& builder)
     {
+        const auto& type = TypeBuilder<NTableClient::TUnversionedValue, false>::TType::get(builder.getContext());
         return builder.CreateSelect(
             IsNull(),
-            builder.getInt16(static_cast<ui16>(EValueType::Null)),
-            builder.getInt16(static_cast<ui16>(StaticType_)));
+            ConstantInt::get(type, static_cast<int>(EValueType::Null)),
+            ConstantInt::get(type, static_cast<int>(StaticType_)));
     }
 
     Value* GetLength()
@@ -481,7 +482,8 @@ TCodegenSource MakeCodegenGroupOp(
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
     TTableSchema sourceSchema,
-    TCodegenSource codegenSource);
+    TCodegenSource codegenSource,
+    bool isDesc);
 
 TCodegenSource MakeCodegenProjectOp(
     std::vector<TCodegenExpression> codegenArgs,
@@ -492,8 +494,11 @@ TCodegenSource MakeCodegenProjectOp(
 TCGQueryCallback CodegenEvaluate(
     TCodegenSource codegenSource);
 
-TCGExpressionCallback CodegenExpression(    
+TCGExpressionCallback CodegenExpression(
     TCodegenExpression codegenExpression);
+
+TCGAggregateCallbacks CodegenAggregate(
+    TCodegenAggregate codegenAggregate);
 
 ////////////////////////////////////////////////////////////////////////////////
 
