@@ -118,6 +118,9 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
+    //! Checks whether current operation state allows starting new jobs.
+    bool IsSchedulable() const;
+
     void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
 
     TOperation(

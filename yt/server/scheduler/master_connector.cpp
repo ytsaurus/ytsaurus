@@ -234,46 +234,14 @@ public:
         list->JobRequests.push_back(request);
     }
 
-    void AttachToLivePreview(
-        TOperationPtr operation,
-        const TChunkListId& chunkListId,
-        const TChunkTreeId& childId)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        LOG_DEBUG("Attaching live preview chunk tree (OperationId: %v, ChunkListId: %v, ChildId: %v)",
-            operation->GetId(),
-            chunkListId,
-            childId);
-
-        auto* list = GetUpdateList(operation->GetId());
-        TLivePreviewRequest request;
-        request.ChunkListId = chunkListId;
-        request.ChildId = childId;
-        list->LivePreviewRequests.push_back(request);
-    }
-
-    void AttachToLivePreview(
+    TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
         const TChunkListId& chunkListId,
         const std::vector<TChunkTreeId>& childrenIds)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(Connected);
-
-        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, ChunkListId: %v, ChildrenCount: %v)",
-            operation->GetId(),
-            chunkListId,
-            childrenIds.size());
-
-        auto* list = GetUpdateList(operation->GetId());
-        for (const auto& childId : childrenIds) {
-            TLivePreviewRequest request;
-            request.ChunkListId = chunkListId;
-            request.ChildId = childId;
-            list->LivePreviewRequests.push_back(request);
-        }
+        return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
+            .AsyncVia(CancelableControlInvoker)
+            .Run(operation, chunkListId, childrenIds);
     }
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
@@ -1347,7 +1315,12 @@ private:
                 auto req = TYPathProxy::Set(operationPath + "/@progress");
                 req->set_value(BuildYsonStringFluently()
                     .BeginMap()
-                        .Do(BIND(&IOperationController::BuildProgress, controller))
+                        .Do(BIND([=] (IYsonConsumer* consumer) {
+                            WaitFor(
+                                BIND(&IOperationController::BuildProgress, controller)
+                                    .AsyncVia(controller->GetInvoker())
+                                    .Run(consumer));
+                        }))
                     .EndMap().Data());
                 batchReq->AddRequest(req, "update_op_node");
 
@@ -1357,7 +1330,12 @@ private:
                 auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
                 req->set_value(BuildYsonStringFluently()
                     .BeginMap()
-                        .Do(BIND(&IOperationController::BuildBriefProgress, controller))
+                        .Do(BIND([=] (IYsonConsumer* consumer) {
+                            WaitFor(
+                                BIND(&IOperationController::BuildBriefProgress, controller)
+                                    .AsyncVia(controller->GetInvoker())
+                                    .Run(consumer));
+                        }))
                     .EndMap().Data());
                 batchReq->AddRequest(req, "update_op_node");
             }
@@ -1799,6 +1777,28 @@ private:
             LOG_ERROR(ex, "Error updating cluster directory");
         }
     }
+
+    void DoAttachToLivePreview(
+        TOperationPtr operation,
+        const TChunkListId& chunkListId,
+        const std::vector<TChunkTreeId>& childrenIds)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(Connected);
+
+        LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, ChunkListId: %v, ChildrenCount: %v)",
+                  operation->GetId(),
+                  chunkListId,
+                  childrenIds.size());
+
+        auto* list = GetUpdateList(operation->GetId());
+        for (const auto& childId : childrenIds) {
+            TLivePreviewRequest request;
+            request.ChunkListId = chunkListId;
+            request.ChildId = childId;
+            list->LivePreviewRequests.push_back(request);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1858,20 +1858,12 @@ void TMasterConnector::AttachJobContext(
     return Impl->AttachJobContext(path, chunkId, job);
 }
 
-void TMasterConnector::AttachToLivePreview(
-    TOperationPtr operation,
-    const TChunkListId& chunkListId,
-    const TChunkTreeId& childId)
-{
-    Impl->AttachToLivePreview(operation, chunkListId, childId);
-}
-
-void TMasterConnector::AttachToLivePreview(
+TFuture<void> TMasterConnector::AttachToLivePreview(
     TOperationPtr operation,
     const TChunkListId& chunkListId,
     const std::vector<TChunkTreeId>& childrenIds)
 {
-    Impl->AttachToLivePreview(operation, chunkListId, childrenIds);
+    return Impl->AttachToLivePreview(operation, chunkListId, childrenIds);
 }
 
 void TMasterConnector::AddGlobalWatcherRequester(TWatcherRequester requester)

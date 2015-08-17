@@ -12,8 +12,9 @@
 #include <core/misc/nullable.h>
 #include <core/misc/id_generator.h>
 
-#include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
+#include <core/concurrency/rw_spinlock.h>
+#include <core/concurrency/thread_affinity.h>
 
 #include <core/actions/cancelable_context.h>
 
@@ -80,10 +81,10 @@ public:
 
     virtual void Initialize() override;
     virtual void Essentiate() override;
-    virtual TFuture<void> Prepare() override;
+    virtual void Prepare() override;
     virtual void SaveSnapshot(TOutputStream* output) override;
-    virtual TFuture<void> Revive() override;
-    virtual TFuture<void> Commit() override;
+    virtual void Revive() override;
+    virtual void Commit() override;
 
     virtual void OnJobRunning(const TJobId& jobId, const NJobTrackerClient::NProto::TJobStatus& status) override;
     virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) override;
@@ -92,15 +93,14 @@ public:
 
     virtual void Abort() override;
 
-    virtual void CheckTimeLimit() override;
-
     virtual TJobId ScheduleJob(
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;
 
     virtual TCancelableContextPtr GetCancelableContext() const override;
     virtual IInvokerPtr GetCancelableControlInvoker() const override;
-    virtual IInvokerPtr GetCancelableBackgroundInvoker() const override;
+    virtual IInvokerPtr GetCancelableInvoker() const override;
+    virtual IInvokerPtr GetInvoker() const override;
 
     virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
@@ -142,7 +142,8 @@ protected:
 
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
-    IInvokerPtr CancelableBackgroundInvoker;
+    IInvokerPtr Invoker;
+    IInvokerPtr CancelableInvoker;
 
 
     //! Becomes |true| when the controller is prepared.
@@ -151,11 +152,13 @@ protected:
      *  The state must not be touched from the control thread
      *  while this flag is |false|.
      */
-    bool Prepared;
+    std::atomic<bool> Prepared;
 
     //! Remains |true| as long as the operation can schedule new jobs.
-    bool Running;
+    std::atomic<bool> Running;
 
+    //! Becomes |true| when operation completion event is scheduled to control invoker.
+    std::atomic<bool> Finished;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount;
@@ -416,7 +419,9 @@ protected:
 
         void CheckCompleted();
 
-        TJobId ScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+        TJobId ScheduleJob(
+            ISchedulingContext* context,
+            const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
 
         virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary);
         virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
@@ -576,6 +581,8 @@ protected:
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits,
         const NNodeTrackerClient::NProto::TNodeResources& nodeResourceLimits);
 
+    void CheckTimeLimit();
+
     TJobId DoScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
     TJobId DoScheduleLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
     TJobId DoScheduleNonLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
@@ -639,7 +646,6 @@ protected:
     virtual void CustomCommit();
 
     // Revival.
-    void DoRevive();
     void ReinstallLivePreview();
     void AbortAllJoblets();
 
@@ -717,11 +723,8 @@ protected:
     virtual bool IsOutputLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
 
-    void OnOperationCompleted();
-    virtual void DoOperationCompleted();
-
-    void OnOperationFailed(const TError& error);
-    virtual void DoOperationFailed(const TError& error);
+    virtual void OnOperationCompleted();
+    virtual void OnOperationFailed(const TError& error);
 
     virtual bool IsCompleted() const = 0;
 
@@ -843,9 +846,10 @@ private:
     TChunkListPoolPtr ChunkListPool;
     yhash<NObjectClient::TCellTag, int> CellTagToOutputTableCount;
 
-    int CachedPendingJobCount;
+    std::atomic<int> CachedPendingJobCount;
 
     NNodeTrackerClient::NProto::TNodeResources CachedNeededResources;
+    NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
 
     //! Maps an intermediate chunk id to its originating completed job.
     yhash_map<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
@@ -866,6 +870,9 @@ private:
     //! Aggregates job statistics.
     NJobTrackerClient::TStatistics JobStatistics;
 
+    //! Runs periodic time limit checks that fail operation on timeout.
+    NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;
+
 
     void UpdateJobStatistics(const TJobSummary& jobSummary);
 
@@ -875,6 +882,8 @@ private:
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
         const NObjectClient::TTransactionId& transactionId);
+
+    void IncreaseNeededResources(const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

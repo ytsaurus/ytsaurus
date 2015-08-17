@@ -6,6 +6,8 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
+#include <core/concurrency/thread_affinity.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -20,25 +22,27 @@ using namespace NApi;
 TChunkListPool::TChunkListPool(
     TSchedulerConfigPtr config,
     IClientPtr client,
-    IInvokerPtr controlInvoker,
+    IInvokerPtr controllerInvoker,
     const TOperationId& operationId,
     const TTransactionId& transactionId)
     : Config_(config)
     , Client_(client)
-    , ControlInvoker_(controlInvoker)
+    , ControllerInvoker_(controllerInvoker)
     , OperationId_(operationId)
     , TransactionId_(transactionId)
     , Logger(OperationLogger)
 {
     YCHECK(config);
     YCHECK(client);
-    YCHECK(controlInvoker);
+    YCHECK(controllerInvoker);
 
     Logger.AddTag("OperationId: %v", operationId);
 }
 
 bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
 {
+    VERIFY_INVOKER_AFFINITY(ControllerInvoker_);
+
     auto& data = CellMap_[cellTag];
     int currentSize = static_cast<int>(data.Ids.size());
     if (currentSize >= requestedCount + Config_->ChunkListWatermarkCount) {
@@ -53,6 +57,8 @@ bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
 
 TChunkListId TChunkListPool::Extract(TCellTag cellTag)
 {
+    VERIFY_INVOKER_AFFINITY(ControllerInvoker_);
+
     auto& data = CellMap_[cellTag];
 
     YCHECK(!data.Ids.empty());
@@ -69,6 +75,8 @@ TChunkListId TChunkListPool::Extract(TCellTag cellTag)
 
 void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
 {
+    VERIFY_INVOKER_AFFINITY(ControllerInvoker_);
+
     yhash<TCellTag, std::vector<TChunkListId>> cellTagToIds;
     for (const auto& id : ids) {
         cellTagToIds[CellTagFromId(id)].push_back(id);
@@ -92,7 +100,8 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
         // Fire-and-forget.
         // The subscriber is only needed to log the outcome.
         batchReq->Invoke().Subscribe(
-            BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this), cellTag));
+            BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this), cellTag)
+                .Via(ControllerInvoker_));
     }
 }
 
@@ -126,7 +135,7 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
 
     objectProxy.Execute(req).Subscribe(
         BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), cellTag)
-            .Via(ControlInvoker_));
+            .Via(ControllerInvoker_));
 
     data.RequestInProgress = true;
 }

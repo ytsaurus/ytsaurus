@@ -1025,6 +1025,49 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
+    def test_many_parallel_operations(self):
+        create("table", "//tmp/input")
+
+        testing_options = {"scheduling_delay": 100}
+
+        job_count = 10
+        original_data = [{"index": i} for i in xrange(job_count)]
+        write_table("//tmp/input", original_data)
+
+        operation_count = 20
+        op_ids = []
+        for index in range(operation_count):
+            output = "//tmp/output" + str(index)
+            create("table", output)
+            op_ids.append(
+                map(command="sleep 0.1; cat",
+                    in_="//tmp/input",
+                    out=[output],
+                    spec={"data_size_per_job": 1, "testing": testing_options},
+                    dont_track=True))
+
+        failed_op_ids = []
+        for index in range(operation_count):
+            output = "//tmp/failed_output" + str(index)
+            create("table", output)
+            failed_op_ids.append(
+                map(command="sleep 0.1; exit 1",
+                    in_="//tmp/input",
+                    out=[output],
+                    spec={"data_size_per_job": 1, "max_failed_job_count": 1, "testing": testing_options},
+                    dont_track=True))
+
+        for index, id in enumerate(failed_op_ids):
+            output = "//tmp/failed_output" + str(index)
+            with pytest.raises(YtError):
+                track_op(id)
+
+        for index, id in enumerate(op_ids):
+            output = "//tmp/output" + str(index)
+            track_op(id)
+            assert sorted(read_table(output)) == original_data
+
+
 @linux_only
 class TestJobQuery(YTEnvSetup):
     NUM_MASTERS = 3

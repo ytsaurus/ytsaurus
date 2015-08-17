@@ -72,6 +72,11 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
+bool TOperation::IsSchedulable() const
+{
+    return State_ == EOperationState::Running && !Suspended_;
+}
+
 void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
 {
     ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());

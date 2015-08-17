@@ -6,11 +6,13 @@
 #include "master_connector.h"
 #include "job_resources.h"
 
+#include <core/concurrency/async_rw_lock.h>
 #include <core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NScheduler {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
@@ -570,7 +572,7 @@ public:
         }
 
         auto bestLeafDescendant = attributes.BestLeafDescendant.Lock();
-        if (!bestLeafDescendant) {
+        if (!bestLeafDescendant || !DynamicAttributesMap.GetActive(bestLeafDescendant)) {
             // NB: This can only happen as a result of deletion of bestLeafDescendant node
             // from scheduling tree in another fiber (e.x. operation abort),
             // while this fiber was waiting for controller.
@@ -1021,8 +1023,10 @@ public:
         , ResourceUsage_(ZeroNodeResources())
         , NonpreemptableResourceUsage_(ZeroNodeResources())
         , Config(config)
+        , OperationId_(Operation_->GetId())
     {
         DynamicAttributesMap.Initialize(this);
+        DynamicAttributesMap.At(this).Active = true;
         DynamicAttributesMap.At(this).MinSubtreeStartTime = operation->GetStartTime();
         DynamicAttributesMap.At(this).BestLeafDescendant = MakeWeak(this);
     }
@@ -1046,7 +1050,7 @@ public:
             return;
         }
 
-        if (Operation_->GetState() != EOperationState::Running) {
+        if (!Operation_->IsSchedulable()) {
             attributes.Active = false;
             return;
         }
@@ -1056,53 +1060,65 @@ public:
 
     virtual bool ScheduleJob(TFairShareContext& context) override
     {
-        auto node = context.SchedulingContext->GetNode();
-        auto controller = Operation_->GetController();
+        YCHECK(DynamicAttributesMap.GetActive(this));
 
-        // Compute job limits from node limits and pool limits.
-        auto jobLimits =
-            node->ResourceLimits()
-            - node->ResourceUsage()
-            + context.SchedulingContext->ResourceUsageDiscount();
-        {
-            TCompositeSchedulerElement* pool = Pool_;
-            while (pool) {
-                auto poolLimits =
-                    pool->ResourceLimits()
-                    - pool->ResourceUsage()
-                    + context.DynamicAttributesMap.At(pool).ResourceUsageDiscount;
-
-                jobLimits = Min(jobLimits, poolLimits);
-                pool = pool->GetParent();
-            }
-        }
-        auto operationLimits = ResourceLimits() - ResourceUsage();
-        jobLimits = Min(jobLimits, operationLimits);
-
-        NProfiling::TScopedTimer timer;
-        auto jobId = controller->ScheduleJob(context.SchedulingContext, jobLimits);
-        auto scheduleJobDuration = timer.GetElapsed();
-
-        if (jobId) {
-            const auto& job = context.SchedulingContext->FindStartedJob(jobId);
-
-            node->ResourceUsage() += job->ResourceUsage();
-            OnJobStarted(jobId, job->ResourceUsage());
-            UpdateDynamicAttributes(context.DynamicAttributesMap);
-            Operation_->UpdateControllerTimeStatistics("/schedule_job/success", scheduleJobDuration);
-        } else {
-            context.DynamicAttributesMap.At(this).Active = false;
-            Operation_->UpdateControllerTimeStatistics("/schedule_job/fail", scheduleJobDuration);
-        }
-
-        {
+        auto updateAncestorsAttributes = [&] () {
             TCompositeSchedulerElement* pool = Pool_;
             while (pool) {
                 pool->UpdateDynamicAttributes(context.DynamicAttributesMap);
                 pool = pool->GetParent();
             }
+        };
+
+        if (!Operation_->IsSchedulable()) {
+            context.DynamicAttributesMap.At(this).Active = false;
+            updateAncestorsAttributes();
+            return false;
         }
-        return jobId != NJobTrackerClient::NullJobId;
+
+        auto controller = Operation_->GetController();
+        auto jobLimits = GetHierarchicalResourceLimits(context);
+
+        auto asyncResult = BIND(&IOperationController::ScheduleJob, controller)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run(context.SchedulingContext, jobLimits);
+
+        NProfiling::TScopedTimer timer;
+        auto jobIdOrError = WaitFor(asyncResult);
+        auto scheduleJobDuration = timer.GetElapsed();
+
+        // This can happen if operation is aborted from control thread during ScheduleJob call.
+        // In this case current operation element is removed from scheduling tree and we don't
+        // need to update parent attributes.
+        if (!jobIdOrError.IsOK()) {
+            YCHECK(!DynamicAttributesMap.GetActive(this));
+            return false;
+        }
+
+        // This can happen if operation controller was canceled after invocation
+        // of IOperationController::ScheduleJob. In this case cancel won't be applied
+        // to the last action in invoker but its result should be ignored.
+        if (!DynamicAttributesMap.GetActive(this)) {
+            return false;
+        }
+
+        auto jobId = jobIdOrError.Value();
+
+        if (!jobId) {
+            context.DynamicAttributesMap.At(this).Active = false;
+            updateAncestorsAttributes();
+            Operation_->UpdateControllerTimeStatistics("/schedule_job/fail", scheduleJobDuration);
+            return false;
+        }
+
+        const auto& job = context.SchedulingContext->FindStartedJob(jobId);
+        context.SchedulingContext->GetNode()->ResourceUsage() += job->ResourceUsage();
+        OnJobStarted(jobId, job->ResourceUsage());
+        UpdateDynamicAttributes(context.DynamicAttributesMap);
+        updateAncestorsAttributes();
+        Operation_->UpdateControllerTimeStatistics("/schedule_job/success", scheduleJobDuration);
+
+        return true;
     }
 
     virtual int GetPendingJobCount() const override
@@ -1113,7 +1129,7 @@ public:
 
     virtual Stroka GetId() const override
     {
-        return ToString(Operation_->GetId());
+        return ToString(OperationId_);
     }
 
     virtual double GetWeight() const override
@@ -1139,7 +1155,7 @@ public:
     virtual const TNodeResources& ResourceDemand() const override
     {
         ResourceDemand_ = ZeroNodeResources();
-        if (!Operation_->GetSuspended()) {
+        if (Operation_->IsSchedulable()) {
             auto controller = Operation_->GetController();
             ResourceDemand_ = ResourceUsage_ + controller->GetNeededResources();
         }
@@ -1164,7 +1180,7 @@ public:
 
     ESchedulableStatus GetStatus() const
     {
-        if (Operation_->GetState() != EOperationState::Running) {
+        if (!Operation_->IsSchedulable()) {
             return ESchedulableStatus::Normal;
         }
 
@@ -1196,7 +1212,7 @@ public:
         auto minSharePreemptionTimeout = Spec_->MinSharePreemptionTimeout.Get(Config->MinSharePreemptionTimeout);
         auto fairSharePreemptionTimeout = Spec_->FairSharePreemptionTimeout.Get(Config->FairSharePreemptionTimeout);
 
-        int jobCount = Operation_->GetController()->GetTotalJobCount();
+        int jobCount = Operation_->GetController()->GetPendingJobCount();
         double jobCountRatio = jobCount / Config->JobCountPreemptionTimeoutCoefficient;
 
         if (jobCountRatio < 1.0) {
@@ -1289,6 +1305,11 @@ public:
         }
     }
 
+    bool IsJobExisting(const TJobId& jobId) const
+    {
+        return JobPropertiesMap_.find(jobId) != JobPropertiesMap_.end();
+    }
+
     bool IsJobPreemptable(const TJobId& jobId) const
     {
         return JobPropertiesMap_.at(jobId).IsPreemptable;
@@ -1342,6 +1363,36 @@ private:
     mutable TNodeResources MaxPossibleResourceUsage_;
 
     TFairShareStrategyConfigPtr Config;
+
+    TOperationId OperationId_;
+
+    TNodeResources GetHierarchicalResourceLimits(const TFairShareContext& context) const
+    {
+        const auto& node = context.SchedulingContext->GetNode();
+
+        // Bound limits with node free resources.
+        auto limits =
+            node->ResourceLimits()
+            - node->ResourceUsage()
+            + context.SchedulingContext->ResourceUsageDiscount();
+
+        // Bound limits with pool free resources.
+        TCompositeSchedulerElement* pool = Pool_;
+        while (pool) {
+            auto poolLimits =
+                pool->ResourceLimits()
+                - pool->ResourceUsage()
+                + context.DynamicAttributesMap.At(pool).ResourceUsageDiscount;
+
+            limits = Min(limits, poolLimits);
+            pool = pool->GetParent();
+        }
+
+        // Bound limits with operation free resources.
+        limits = Min(limits, ResourceLimits() - ResourceUsage());
+
+        return limits;
+    }
 
     // Fair share strategy stuff.
     struct TJobProperties
@@ -1441,6 +1492,8 @@ public:
 
     virtual void ScheduleJobs(ISchedulingContext* schedulingContext) override
     {
+        auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&ScheduleJobsLock)).Value();
+
         auto now = schedulingContext->GetNow();
         auto node = schedulingContext->GetNode();
         TFairShareContext context(schedulingContext);
@@ -1499,8 +1552,10 @@ public:
         std::vector<TJobPtr> preemptableJobs;
         for (const auto& job : schedulingContext->RunningJobs()) {
             auto operationElement = FindOperationElement(job->GetOperationId());
-            if (!operationElement) {
-                LOG_INFO("Dangling running job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                LOG_INFO("Dangling running job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
                 continue;
             }
 
@@ -1580,8 +1635,11 @@ public:
         bool poolsLimitsViolated = true;
 
         for (const auto& job : preemptableJobs) {
-            if (!FindOperationElement(job->GetOperationId())) {
-                LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+            auto operationElement = FindOperationElement(job->GetOperationId());
+            if (!operationElement || !operationElement->IsJobExisting(job->GetId())) {
+                LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
                 continue;
             }
 
@@ -1717,6 +1775,8 @@ private:
     TNullable<TInstant> LastLogTime;
 
     TDynamicAttributesMap DynamicAttributesMap;
+
+    TAsyncReaderWriterLock ScheduleJobsLock;
 
     bool IsJobPreemptable(TJobPtr job)
     {
@@ -2018,6 +2078,8 @@ private:
 
     void OnPoolsUpdated(INodePtr poolsNode)
     {
+        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&ScheduleJobsLock)).Value();
+
         try {
             // Build the set of potential orphans.
             yhash_set<Stroka> orphanPoolIds;
