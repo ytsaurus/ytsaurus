@@ -87,7 +87,7 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
         try:
             meta = yson.load(f)
         except yson.YsonError:
-            logger.exception("Failed to load meta file for table {1}, skipping".format(local_filename))
+            logger.exception("Failed to load meta file for table {0}, skipping".format(local_filename))
             return
 
 
@@ -97,7 +97,7 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
             return
 
         if "format" not in meta:
-            logger.warning("Found table {0} with unspecified format")
+            logger.warning("Found table {0} with unspecified format".format(local_filename))
             return
 
         with open(local_filename) as table_file:
