@@ -39,7 +39,7 @@ esac
 if [ -n "$REPOS" ]; then
     for REPO in $REPOS; do
         VERSION=$(dpkg-parsechangelog | grep Version | awk '{print $2}')
-        dupload "../${PACKAGE}_${VERSION}_amd64.changes" --to $REPO
+        dupload "../${PACKAGE}_${VERSION}_amd64.changes" --force --to $REPO
     done
     
     # Upload python wheel
