@@ -38,6 +38,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationHost
+    // TODO(acid): This interface should be reconsidered.
     : public virtual IEventLogHost
 {
     virtual ~IOperationHost()
@@ -65,28 +66,20 @@ struct IOperationHost
      */
     virtual IInvokerPtr GetControlInvoker() = 0;
 
-    //! Returns the invoker for heavy background activities.
+    //! Returns invoker for operation controller.
     /*!
-     *  This invoker is typically used by controllers for preparing operations
-     *  (e.g. sorting samples keys, constructing partitions etc).
-     *  There are no affinity guarantees whatsoever.
-     *  This could easily be a thread pool.
-     *
      *  \note Thread affinity: any
      */
-    virtual IInvokerPtr GetBackgroundInvoker() = 0;
+    virtual IInvokerPtr CreateOperationControllerInvoker() = 0;
 
     //! Returns the manager of the throttlers to limit #LocateChunk requests from chunk scraper.
     virtual NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const = 0;
 
     //! Returns the list of currently online exec nodes.
     /*!
-     *  \note Thread affinity: ControlThread
+     *  \note Thread affinity: any
      */
     virtual std::vector<TExecNodePtr> GetExecNodes() const = 0;
-
-    //! Returns the number of currently active exec nodes.
-    virtual int GetExecNodeCount() const = 0;
 
     //! Called by a controller to notify the host that the operation has
     //! finished successfully.
@@ -110,29 +103,37 @@ struct IOperationHost
 };
 
 /*!
- *  \note Thread affinity: ControlThread
+ *  \note Invoker affinity: OperationControllerInvoker
  */
 struct IOperationController
     : public virtual TRefCounted
 {
-    //! Performs a fast synchronous initialization.
+    //! Performs first stage of fast synchronous initialization, skipped if operation restarts from snapshot.
     /*
      *  If an exception is thrown then the operation fails immediately.
      *  The diagnostics is returned to the client, no Cypress node is created.
+     *
+     *  \note Invoker affinity: Control invoker
      */
     virtual void Initialize() = 0;
-    
-    //! TODO(ignat): make reasonable comment
+
+    //! Performs second stage of initialization, executed even if operation restarts from snapshot.
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
     virtual void Essentiate() = 0;
 
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
     //! Performs a possibly lengthy initial preparation.
-    virtual TFuture<void> Prepare() = 0;
+    virtual void Prepare() = 0;
 
     //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
     /*!
      *  The controller must commit the transactions related to the operation.
      */
-    virtual TFuture<void> Commit() = 0;
+    virtual void Commit() = 0;
 
     //! Called from a forked copy of the scheduler to make a snapshot of operation's progress.
     virtual void SaveSnapshot(TOutputStream* stream) = 0;
@@ -143,7 +144,7 @@ struct IOperationController
      *  The controller may try to recover its state from the snapshot, if any
      *  (see TOperation::Snapshot).
      */
-    virtual TFuture<void> Revive() = 0;
+    virtual void Revive() = 0;
 
     //! Notifies the controller that the operation has been aborted.
     /*!
@@ -160,52 +161,92 @@ struct IOperationController
     //! Returns the control invoker wrapped by the context provided by #GetCancelableContext.
     virtual IInvokerPtr GetCancelableControlInvoker() const = 0;
 
-    //! Returns the background invoker wrapped by the context provided by #GetCancelableContext.
-    virtual IInvokerPtr GetCancelableBackgroundInvoker() const = 0;
+    /*!
+     *  Returns the operation controller invoker wrapped by the context provided by #GetCancelableContext.
+     *  Most of non-const controller methods are expected to be run in this invoker.
+     */
+    virtual IInvokerPtr GetCancelableInvoker() const = 0;
 
+    /*!
+     *  Returns the operation controller invoker.
+     *  Most of const controller methods are expected to be run in this invoker.
+     */
+    virtual IInvokerPtr GetInvoker() const = 0;
 
+    /*!
+     *  \note Thread affinity: any
+     */
     //! Returns the number of jobs the controller still needs to start right away.
     virtual int GetPendingJobCount() const = 0;
 
     //! Returns the total number of jobs to be run during the operation.
     virtual int GetTotalJobCount() const = 0;
 
+    /*!
+     *  \note Thread affinity: any
+     */
     //! Returns the total resources that are additionally needed.
     virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const = 0;
 
-
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called during heartbeat processing to notify the controller that a job is running.
     virtual void OnJobRunning(const TJobId& jobId, const NJobTrackerClient::NProto::TJobStatus& status) = 0;
 
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called during heartbeat processing to notify the controller that a job has completed.
     virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) = 0;
 
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called during heartbeat processing to notify the controller that a job has failed.
     virtual void OnJobFailed(const TFailedJobSummary& jobSummary) = 0;
 
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called during preemption to notify the controller that a job has been aborted.
     virtual void OnJobAborted(const TAbortedJobSummary& jobSummary) = 0;
 
-    //! Called during heartbeat to abort operation if it has reached it's time limit.
-    virtual void CheckTimeLimit() = 0;
-
+    /*!
+     *  \note Invoker affinity: Cancellable controller invoker
+     */
     //! Called during heartbeat processing to request actions the node must perform.
     virtual TJobId ScheduleJob(
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
 
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
     //! Called to construct a YSON representing the current progress.
     virtual void BuildProgress(NYson::IYsonConsumer* consumer) const = 0;
 
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
     //! Similar to #BuildProgress but constructs a reduced version to used by UI.
     virtual void BuildBriefProgress(NYson::IYsonConsumer* consumer) const = 0;
 
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
     //! Provides a string describing operation status and statistics.
     virtual Stroka GetLoggingProgress() const = 0;
 
+    /*!
+     *  \note Invoker affinity: Control invoker
+     */
     //! Called for finished operations to construct a YSON representing the result.
     virtual void BuildResult(NYson::IYsonConsumer* consumer) const = 0;
 
+    /*!
+     *  \note Thread affinity: any
+     */
     //! Called for a just initialized operation to construct its brief spec
     //! to be used by UI.
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const = 0;

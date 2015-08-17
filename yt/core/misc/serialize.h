@@ -620,6 +620,24 @@ struct TNullableSerializer
     }
 };
 
+template <class TUnderlyingSerializer = TDefaultSerializer>
+struct TAtomicSerializer
+{
+    template <class T, class C>
+    static void Save(C& context, const std::atomic<T>& value)
+    {
+        TUnderlyingSerializer::Save(context, value.load());
+    }
+
+    template <class T, class C>
+    static void Load(C& context, std::atomic<T>& value)
+    {
+        T temp;
+        TUnderlyingSerializer::Load(context, temp);
+        value.store(std::move(temp));
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 // Sorters
 
@@ -1239,6 +1257,12 @@ template <class T, class C>
 struct TSerializerTraits<TNullable<T>, C, void>
 {
     typedef TNullableSerializer<> TSerializer;
+};
+
+template <class T, class C>
+struct TSerializerTraits<std::atomic<T>, C, void>
+{
+    typedef TAtomicSerializer<> TSerializer;
 };
 
 template <class T, class A, class C>

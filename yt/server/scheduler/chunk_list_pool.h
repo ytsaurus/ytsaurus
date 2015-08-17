@@ -36,7 +36,7 @@ public:
 private:
     const TSchedulerConfigPtr Config_;
     const NApi::IClientPtr Client_;
-    const IInvokerPtr ControlInvoker_;
+    const IInvokerPtr ControllerInvoker_;
     const TOperationId OperationId_;
     const NTransactionClient::TTransactionId TransactionId_;
 

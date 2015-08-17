@@ -56,12 +56,7 @@ public:
         const NChunkClient::TChunkId& chunkId,
         TJobPtr job);
 
-    void AttachToLivePreview(
-        TOperationPtr operation,
-        const NChunkClient::TChunkListId& chunkListId,
-        const NChunkClient::TChunkTreeId& childId);
-
-    void AttachToLivePreview(
+    TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
         const NChunkClient::TChunkListId& chunkListId,
         const std::vector<NChunkClient::TChunkTreeId>& childrenIds);

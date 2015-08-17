@@ -37,7 +37,8 @@ class TestSchedulerOther(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "chunk_scratch_period" : 500
+            "chunk_scratch_period" : 500,
+            "operation_time_limit_check_period" : 100,
         }
     }
 
@@ -551,3 +552,45 @@ class TestSchedulerConfig(YTEnvSetup):
 
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
         assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
+
+
+class TestSchedulerPools(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100
+        }
+    }
+
+    def _prepare(self):
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@replication_factor", 1)
+
+    def test_pools_reconfiguration(self):
+        self._prepare();
+
+        testing_options = {"scheduling_delay": 1000}
+
+        create("map_node", "//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2")
+        time.sleep(0.2)
+
+        op_id = map(
+            dont_track=True,
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"pool": "test_pool_1", "testing": testing_options})
+        time.sleep(1)
+
+        remove("//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2/test_pool_1")
+
+        track_op(op_id)

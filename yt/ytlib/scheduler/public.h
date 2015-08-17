@@ -73,6 +73,9 @@ typedef TIntrusivePtr<TJobIOConfig> TJobIOConfigPtr;
 class TResourceLimitsConfig;
 typedef TIntrusivePtr<TResourceLimitsConfig> TResourceLimitsConfigPtr;
 
+class TTestingOperationOptions;
+typedef TIntrusivePtr<TTestingOperationOptions> TTestingOperationOptionsPtr;
+
 class TOperationSpecBase;
 typedef TIntrusivePtr<TOperationSpecBase> TOperationSpecBasePtr;
 

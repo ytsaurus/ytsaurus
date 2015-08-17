@@ -275,6 +275,9 @@ class TSchedulerConfig
     , public NChunkClient::TChunkScraperConfig
 {
 public:
+    //! Number of threads for running controllers invokers.
+    int ControllerThreadCount;
+
     TDuration ConnectRetryBackoffTime;
 
     //! Timeout for node expiration.
@@ -297,6 +300,8 @@ public:
     TDuration JobProberRpcTimeout;
 
     TDuration ClusterInfoLoggingPeriod;
+
+    TDuration OperationTimeLimitCheckPeriod;
 
     TNullable<TDuration> OperationTimeLimit;
 
@@ -404,6 +409,9 @@ public:
 
     TSchedulerConfig()
     {
+        RegisterParameter("controller_thread_count", ControllerThreadCount)
+            .Default(4)
+            .GreaterThan(0);
         RegisterParameter("connect_retry_backoff_time", ConnectRetryBackoffTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("node_heartbeat_timeout", NodeHeartbeatTimeout)
@@ -426,6 +434,8 @@ public:
             .Default(TDuration::Seconds(300));
 
         RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)

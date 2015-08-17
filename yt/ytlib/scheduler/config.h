@@ -72,6 +72,23 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingOperationOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration SchedulingDelay;
+
+    TTestingOperationOptions()
+    {
+        RegisterParameter("scheduling_delay", SchedulingDelay)
+            .Default(TDuration::Seconds(0));
+    };
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public virtual NYTree::TYsonSerializable
 {
@@ -108,6 +125,8 @@ public:
     TNullable<TDuration> TimeLimit;
 
     bool CheckMultichunkFiles;
+
+    TTestingOperationOptionsPtr TestingOperationOptions;
 
     TOperationSpecBase()
     {
@@ -161,6 +180,9 @@ public:
         SetKeepOptions(true);
 
         RegisterParameter("time_limit", TimeLimit)
+            .Default();
+
+        RegisterParameter("testing", TestingOperationOptions)
             .Default();
 
         RegisterValidator([&] () {

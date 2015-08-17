@@ -89,8 +89,8 @@ public:
         : Config_(config)
         , InitialConfig_(ConvertToNode(Config_))
         , Bootstrap_(bootstrap)
-        , BackgroundQueue_(New<TActionQueue>("Background"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
+        , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , MasterConnector_(new TMasterConnector(Config_, Bootstrap_))
         , TotalResourceLimitsProfiler_(Profiler.GetPathPrefix() + "/total_resource_limits")
         , TotalResourceUsageProfiler_(Profiler.GetPathPrefix() + "/total_resource_usage")
@@ -247,6 +247,30 @@ public:
     }
 
 
+    virtual int GetExecNodeCount() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return GetExecNodes().size();
+    }
+
+    virtual std::vector<TExecNodePtr> GetExecNodes() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(AddressToNodeLock_);
+
+        std::vector<TExecNodePtr> result;
+        for (const auto& pair : AddressToNode_) {
+            const auto& node = pair.second;
+            if (node->GetMasterState() == ENodeState::Online) {
+                result.push_back(node);
+            }
+        }
+        return result;
+    }
+
+
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         const TTransactionId& transactionId,
@@ -362,6 +386,8 @@ public:
 
     TFuture<void> ResumeOperation(TOperationPtr operation)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
                 EErrorCode::InvalidOperationState,
@@ -529,10 +555,6 @@ public:
                     }
                 }
 
-                for (auto operation : GetOperations()) {
-                    operation->GetController()->CheckTimeLimit();
-                }
-
                 auto schedulingContext = CreateSchedulingContext(
                     Config_,
                     node,
@@ -548,12 +570,20 @@ public:
                 }
 
                 for (auto job : schedulingContext->StartedJobs()) {
-                    // TODO(acid): Should we filter started jobs list in Strategy?
-                    if (!FindOperation(job->GetOperationId())) {
+                    auto operation = FindOperation(job->GetOperationId());
+                    if (!operation || operation->GetState() != EOperationState::Running) {
                         LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
                         continue;
                     }
+
                     RegisterJob(job);
+
+                    LogEventFluently(ELogEventType::JobStarted)
+                        .Item("job_id").Value(job->GetId())
+                        .Item("operation_id").Value(job->GetOperationId())
+                        .Item("resource_limits").Value(job->ResourceLimits())
+                        .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
+                        .Item("job_type").Value(job->GetType());
                 }
 
                 for (auto job : schedulingContext->PreemptedJobs()) {
@@ -569,7 +599,7 @@ public:
                 auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
                 for (auto job : schedulingContext->StartedJobs()) {
                     auto operation = FindOperation(job->GetOperationId());
-                    if (!operation) {
+                    if (!operation || operation->GetState() != EOperationState::Running) {
                         continue;
                     }
 
@@ -591,6 +621,10 @@ public:
             context->ReplyFrom(Combine(asyncResults));
 
             for (auto operation : operationsToLog) {
+                if (!FindOperation(operation->GetId())) {
+                    continue;
+                }
+
                 LogOperationProgress(operation);
             }
         } catch (const std::exception& ex) {
@@ -651,9 +685,9 @@ public:
         return Bootstrap_->GetControlInvoker();
     }
 
-    virtual IInvokerPtr GetBackgroundInvoker() override
+    virtual IInvokerPtr CreateOperationControllerInvoker() override
     {
-        return BackgroundQueue_->GetInvoker();
+        return CreateSerializedInvoker(ControllerThreadPool_->GetInvoker());
     }
 
     virtual TThrottlerManagerPtr GetChunkLocationThrottlerManager() const override
@@ -661,83 +695,40 @@ public:
         return Bootstrap_->GetChunkLocationThrottlerManager();
     }
 
-    virtual std::vector<TExecNodePtr> GetExecNodes() const override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        std::vector<TExecNodePtr> result;
-        for (const auto& pair : AddressToNode_) {
-            const auto& node = pair.second;
-            if (node->GetMasterState() == ENodeState::Online) {
-                result.push_back(node);
-            }
-        }
-        return result;
-    }
-
-    virtual int GetExecNodeCount() const override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return static_cast<int>(AddressToNode_.size());
-    }
-
     virtual IYsonConsumer* GetEventLogConsumer() override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         return EventLogConsumer_.get();
     }
 
     virtual void OnOperationCompleted(TOperationPtr operation) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& operationId = operation->GetId();
-
-        if (operation->IsFinishedState() || operation->IsFinishingState()) {
-            // Operation is probably being aborted.
-            return;
-        }
-
-        LOG_INFO("Committing operation (OperationId: %v)",
-            operationId);
-
-        // The operation may still have running jobs (e.g. those started speculatively).
-        AbortOperationJobs(operation);
-
-        operation->SetState(EOperationState::Completing);
-
-        auto controller = operation->GetController();
-        BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation)
-            .AsyncVia(controller->GetCancelableControlInvoker())
-            .Run();
+        GetControlInvoker()->Invoke(BIND(&TImpl::DoCompleteOperation, MakeStrong(this), operation));
     }
 
     virtual void OnOperationFailed(TOperationPtr operation, const TError& error) override
     {
-        LOG_INFO(error, "Operation failed (OperationId: %v)",
-            operation->GetId());
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        TerminateOperation(
-            operation,
-            EOperationState::Failing,
-            EOperationState::Failed,
-            ELogEventType::OperationFailed,
-            error);
+        GetControlInvoker()->Invoke(BIND(&TImpl::DoFailOperation, MakeStrong(this), operation, error));
     }
-
 
 private:
     const TSchedulerConfigPtr Config_;
     const INodePtr InitialConfig_;
     TBootstrap* const Bootstrap_;
 
-    TActionQueuePtr BackgroundQueue_;
     TActionQueuePtr SnapshotIOQueue_;
+    TThreadPoolPtr ControllerThreadPool_;
 
     std::unique_ptr<TMasterConnector> MasterConnector_;
 
     std::unique_ptr<ISchedulerStrategy> Strategy_;
 
+    NConcurrency::TReaderWriterSpinLock AddressToNodeLock_;
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
     TExecNodeMap AddressToNode_;
 
@@ -788,7 +779,7 @@ private:
 
         Profiler.Enqueue("/job_count/total", IdToJob_.size());
         Profiler.Enqueue("/operation_count", IdToOperation_.size());
-        Profiler.Enqueue("/node_count", AddressToNode_.size());
+        Profiler.Enqueue("/node_count", GetExecNodeCount());
 
         ProfileResources(TotalResourceLimitsProfiler_, TotalResourceLimits_);
         ProfileResources(TotalResourceUsageProfiler_, TotalResourceUsage_);
@@ -846,9 +837,12 @@ private:
         }
         YCHECK(IdToOperation_.empty());
 
-        for (const auto& pair : AddressToNode_) {
-            auto node = pair.second;
-            node->Jobs().clear();
+        {
+            TReaderGuard guard(AddressToNodeLock_);
+            for (const auto& pair : AddressToNode_) {
+                auto node = pair.second;
+                node->Jobs().clear();
+            }
         }
 
         IdToJob_.clear();
@@ -899,7 +893,6 @@ private:
             ELogEventType::OperationFailed,
             TError("Scheduler transaction has expired or was aborted"));
     }
-
 
     void RequestPools(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
@@ -953,6 +946,8 @@ private:
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
+
+                TReaderGuard guard(AddressToNodeLock_);
                 if (AddressToNode_.find(address) == AddressToNode_.end()) {
                     LOG_WARNING("Node %v is not registered in scheduler", address);
                     continue;
@@ -1109,10 +1104,10 @@ private:
         // NB: Once we've registered the operation in Cypress we're free to complete
         // StartOperation request. Preparation will happen in a separate fiber in a non-blocking
         // fashion.
-        operation->GetController()->GetCancelableControlInvoker()->Invoke(BIND(
-            &TImpl::DoPrepareOperation,
-            MakeStrong(this),
-            operation));
+        auto controller = operation->GetController();
+        BIND(&TImpl::DoPrepareOperation, MakeStrong(this), operation)
+            .AsyncVia(controller->GetCancelableControlInvoker())
+            .Run();
 
         operation->SetStarted(TError());
     }
@@ -1135,7 +1130,9 @@ private:
             operation->SetState(EOperationState::Preparing);
 
             auto controller = operation->GetController();
-            auto asyncResult = controller->Prepare();
+            auto asyncResult = BIND(&IOperationController::Prepare, controller)
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run();
 
             NProfiling::TScopedTimer timer;
             auto result = WaitFor(asyncResult);
@@ -1224,8 +1221,9 @@ private:
 
         RegisterOperation(operation);
 
+        auto controller = operation->GetController();
         BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation)
-            .AsyncVia(operation->GetController()->GetCancelableControlInvoker())
+            .AsyncVia(controller->GetCancelableControlInvoker())
             .Run();
     }
 
@@ -1253,9 +1251,17 @@ private:
             }
 
             {
-                auto error = WaitFor(operation->Snapshot()
-                    ? controller->Revive()
-                    : controller->Prepare());
+                auto asyncResult = VoidFuture;
+                if (operation->Snapshot()) {
+                    asyncResult = BIND(&IOperationController::Revive, controller)
+                        .AsyncVia(controller->GetCancelableInvoker())
+                        .Run();
+                } else {
+                    asyncResult = BIND(&IOperationController::Prepare, controller)
+                        .AsyncVia(controller->GetCancelableInvoker())
+                        .Run();
+                }
+                auto error = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
@@ -1285,8 +1291,13 @@ private:
 
     TExecNodePtr GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TReaderGuard guard(AddressToNodeLock_);
         auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
         if (it == AddressToNode_.end()) {
+            // NB: RegisterNode takes exclusive access on AddressToNodeLock_.
+            guard.Release();
             return RegisterNode(nodeId, descriptor);
         }
 
@@ -1310,7 +1321,10 @@ private:
 
         node->SetLease(lease);
 
-        YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
+        {
+            TWriterGuard guard(AddressToNodeLock_);
+            YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
+        }
 
         LOG_INFO("Node registered (Address: %v)", address);
 
@@ -1392,7 +1406,10 @@ private:
 
         AbortJobsAtNode(node);
 
-        YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
+        {
+            TWriterGuard guard(AddressToNodeLock_);
+            YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
+        }
     }
 
 
@@ -1417,7 +1434,7 @@ private:
     {
         auto jobs = operation->Jobs();
         for (auto job : jobs) {
-            AbortJob(job, TError("Operation aborted"));
+            AbortJob(job, TError("Operation has state %Qlv", operation->GetState()));
             UnregisterJob(job);
         }
 
@@ -1439,8 +1456,18 @@ private:
         if (operation->GetState() != EOperationState::Running)
             return;
 
+        auto controller = operation->GetController();
+        auto controllerLoggingProgress = WaitFor(
+            BIND(&IOperationController::GetLoggingProgress, controller)
+                .AsyncVia(controller->GetInvoker())
+                .Run());
+
+        if (!FindOperation(operation->GetId())) {
+            return;
+        }
+
         LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
-            operation->GetController()->GetLoggingProgress(),
+            controllerLoggingProgress,
             Strategy_->GetOperationLoggingProgress(operation->GetId()),
             operation->GetId());
     }
@@ -1584,7 +1611,10 @@ private:
         if (operation->GetState() == EOperationState::Running) {
             LogFinishedJobFluently(ELogEventType::JobAborted, job)
                 .Item("reason").Value(GetAbortReason(job->Result()));
-            operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
+            auto controller = operation->GetController();
+            BIND(&IOperationController::OnJobAborted, controller, TAbortedJobSummary(job))
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run();
         }
     }
 
@@ -1608,7 +1638,10 @@ private:
         YCHECK(operation);
 
         if (operation->GetState() == EOperationState::Running) {
-            operation->GetController()->OnJobRunning(job->GetId(), status);
+            auto controller = operation->GetController();
+            BIND(&IOperationController::OnJobRunning, controller, job->GetId(), status)
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run();
         }
     }
 
@@ -1632,7 +1665,10 @@ private:
 
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobCompleted, job);
-                operation->GetController()->OnJobCompleted(TCompletedJobSummary(job));
+                auto controller = operation->GetController();
+                BIND(&IOperationController::OnJobCompleted, controller, TCompletedJobSummary(job))
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
             }
 
             ProcessFinishedJobResult(job);
@@ -1671,7 +1707,10 @@ private:
                 auto error = FromProto<TError>(job->Result()->error());
                 LogFinishedJobFluently(ELogEventType::JobFailed, job)
                     .Item("error").Value(error);
-                operation->GetController()->OnJobFailed(TFailedJobSummary(job));
+                auto controller = operation->GetController();
+                BIND(&IOperationController::OnJobFailed, controller, TFailedJobSummary(job))
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
             }
 
             ProcessFinishedJobResult(job);
@@ -1700,7 +1739,10 @@ private:
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobAborted, job)
                     .Item("reason").Value(GetAbortReason(job->Result()));
-                operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
+                auto controller = operation->GetController();
+                BIND(&IOperationController::OnJobAborted, controller, TAbortedJobSummary(job))
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
             }
         }
 
@@ -1860,14 +1902,20 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (operation->IsFinishedState() || operation->IsFinishingState()) {
+            // Operation is probably being aborted.
+            return;
+        }
+
         const auto& operationId = operation->GetId();
 
         LOG_INFO("Completing operation (OperationId: %v)",
             operationId);
 
-        if (operation->GetState() != EOperationState::Completing) {
-            throw TFiberCanceledException();
-        }
+        operation->SetState(EOperationState::Completing);
+
+        // The operation may still have running jobs (e.g. those started speculatively).
+        AbortOperationJobs(operation);
 
         try {
             // First flush: ensure that all stderrs are attached and the
@@ -1882,7 +1930,9 @@ private:
 
             {
                 auto controller = operation->GetController();
-                auto asyncResult = controller->Commit();
+                auto asyncResult = BIND(&IOperationController::Commit, controller)
+                    .AsyncVia(controller->GetCancelableInvoker())
+                    .Run();
                 auto result = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(result);
                 if (operation->GetState() != EOperationState::Completing) {
@@ -1891,9 +1941,6 @@ private:
             }
 
             CommitSchedulerTransactions(operation);
-
-            LOG_INFO("Operation transactions committed (OperationId: %v)",
-                operationId);
 
             YCHECK(operation->GetState() == EOperationState::Completing);
             SetOperationFinalState(operation, EOperationState::Completed, TError());
@@ -1911,7 +1958,25 @@ private:
             return;
         }
 
+        LOG_INFO("Operation completed (OperationId: %v)",
+             operationId);
+
         LogOperationFinished(operation, ELogEventType::OperationCompleted, TError());
+    }
+
+    void DoFailOperation(TOperationPtr operation, const TError& error)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO(error, "Operation failed (OperationId: %v)",
+             operation->GetId());
+
+        TerminateOperation(
+            operation,
+            EOperationState::Failing,
+            EOperationState::Failed,
+            ELogEventType::OperationFailed,
+            error);
     }
 
     void TerminateOperation(
@@ -1932,9 +1997,9 @@ private:
             return;
         }
 
-        AbortOperationJobs(operation);
-
         operation->SetState(intermediateState);
+
+        AbortOperationJobs(operation);
 
         // First flush: ensure that all stderrs are attached and the
         // state is changed to its intermediate value.
@@ -1971,7 +2036,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Aborting operation (OperationId: %v)", operation->GetId());
+        LOG_INFO("Aborting operation (OperationId: %v)",
+             operation->GetId());
 
         YCHECK(operation->GetState() == EOperationState::Aborting);
 
@@ -1997,8 +2063,8 @@ private:
                 .Item("operations").DoMapFor(IdToOperation_, [=] (TFluentMap fluent, const TOperationIdMap::value_type& pair) {
                     BuildOperationYson(pair.second, fluent);
                 })
-                .Item("nodes").DoMapFor(AddressToNode_, [=] (TFluentMap fluent, const TExecNodeMap::value_type& pair) {
-                    BuildNodeYson(pair.second, fluent);
+                .Item("nodes").DoMapFor(GetExecNodes(), [=] (TFluentMap fluent, const TExecNodePtr& node) {
+                    BuildNodeYson(node, fluent);
                 })
                 .Item("clusters").DoMapFor(GetClusterDirectory()->GetClusterNames(), [=] (TFluentMap fluent, const Stroka& clusterName) {
                     BuildClusterYson(clusterName, fluent);
@@ -2017,6 +2083,7 @@ private:
 
     void BuildOperationYson(TOperationPtr operation, IYsonConsumer* consumer)
     {
+        auto controller = operation->GetController();
         auto state = operation->GetState();
         bool hasProgress = (state == EOperationState::Running) || IsOperationFinished(state);
         BuildYsonMapFluently(consumer)
@@ -2024,11 +2091,21 @@ private:
                 // Include the complete list of attributes.
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
-                    .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
+                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                        WaitFor(
+                            BIND(&IOperationController::BuildProgress, controller)
+                                .AsyncVia(controller->GetInvoker())
+                                .Run(consumer));
+                    }))
                     .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
-                    .DoIf(hasProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
+                    .DoIf(hasProgress, BIND([=] (IYsonConsumer* consumer) {
+                        WaitFor(
+                            BIND(&IOperationController::BuildBriefProgress, controller)
+                                .AsyncVia(controller->GetInvoker())
+                                .Run(consumer));
+                    }))
                     .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()

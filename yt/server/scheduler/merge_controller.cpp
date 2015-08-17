@@ -1058,7 +1058,7 @@ protected:
         if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
             scraperCallback = CreateScrapeChunksSessionCallback(
                 Config,
-                Host->GetBackgroundInvoker(),
+                GetCancelableInvoker(),
                 Host->GetChunkLocationThrottlerManager(),
                 AuthenticatedInputMasterClient,
                 InputNodeDirectory,
@@ -1071,7 +1071,7 @@ protected:
             KeyColumns,
             sliceByKeys,
             InputNodeDirectory,
-            Host->GetBackgroundInvoker(),
+            GetCancelableInvoker(),
             scraperCallback,
             Logger);
 

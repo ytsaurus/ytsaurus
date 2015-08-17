@@ -640,8 +640,8 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
         return;
     LastDemandSanityCheckTime = now;
 
-    // Schedule check in control thread.
-    Controller->GetCancelableControlInvoker()->Invoke(BIND(
+    // Schedule check in controller thread.
+    Controller->GetCancelableInvoker()->Invoke(BIND(
         &TTask::DoCheckResourceDemandSanity,
         MakeWeak(this),
         neededResources));
@@ -877,9 +877,11 @@ TOperationControllerBase::TOperationControllerBase(
     , Logger(OperationLogger)
     , CancelableContext(New<TCancelableContext>())
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
-    , CancelableBackgroundInvoker(CancelableContext->CreateInvoker(Host->GetBackgroundInvoker()))
+    , Invoker(Host->CreateOperationControllerInvoker())
+    , CancelableInvoker(CancelableContext->CreateInvoker(Invoker))
     , Prepared(false)
     , Running(false)
+    , Finished(false)
     , TotalEstimatedInputChunkCount(0)
     , TotalEstimatedInputDataSize(0)
     , TotalEstimatedInputRowCount(0)
@@ -894,6 +896,10 @@ TOperationControllerBase::TOperationControllerBase(
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
+    , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
+        GetCancelableInvoker(),
+        BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
+        Config->OperationTimeLimitCheckPeriod))
 {
     Logger.AddTag("OperationId: %v", operation->GetId());
 }
@@ -964,6 +970,8 @@ void TOperationControllerBase::Initialize()
 
 void TOperationControllerBase::Essentiate()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     Operation->SetMaxStderrCount(Spec->MaxStderrCount.Get(Config->MaxStderrCount));
     Operation->SetSchedulingTag(Spec->SchedulingTag);
 
@@ -973,22 +981,9 @@ void TOperationControllerBase::Essentiate()
 void TOperationControllerBase::DoInitialize()
 { }
 
-TFuture<void> TOperationControllerBase::Prepare()
+void TOperationControllerBase::Prepare()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return BIND(&TThis::DoPrepare, MakeStrong(this))
-        .AsyncVia(CancelableBackgroundInvoker)
-        .Run()
-        .Apply(BIND([=, this_ = MakeStrong(this)] () {
-            Prepared = true;
-            Running = true;
-        }).AsyncVia(CancelableControlInvoker));
-}
-
-void TOperationControllerBase::DoPrepare()
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     GetInputTablesBasicAttributes();
     GetOutputTablesBasicAttributes();
@@ -1031,6 +1026,11 @@ void TOperationControllerBase::DoPrepare()
     // Input chunk scraper initialization should be the last step to avoid races,
     // because input chunk scraper works in control thread.
     InitInputChunkScraper();
+
+    CheckTimeLimitExecutor->Start();
+
+    Prepared = true;
+    Running = true;
 }
 
 void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
@@ -1046,21 +1046,9 @@ void TOperationControllerBase::DoSaveSnapshot(TOutputStream* output)
     Save(context, this);
 }
 
-TFuture<void> TOperationControllerBase::Revive()
+void TOperationControllerBase::Revive()
 {
-    return BIND(&TOperationControllerBase::DoRevive, MakeStrong(this))
-        .AsyncVia(CancelableBackgroundInvoker)
-        .Run()
-        .Apply(BIND([=, this_ = MakeStrong(this)] () {
-            ReinstallLivePreview();
-            Prepared = true;
-            Running = true;
-        }).AsyncVia(CancelableControlInvoker));
-}
-
-void TOperationControllerBase::DoRevive()
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     InitChunkListPool();
 
@@ -1074,6 +1062,13 @@ void TOperationControllerBase::DoRevive()
 
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
+
+    ReinstallLivePreview();
+
+    CheckTimeLimitExecutor->Start();
+
+    Prepared = true;
+    Running = true;
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1280,8 +1275,8 @@ void TOperationControllerBase::InitChunkListPool()
     ChunkListPool = New<TChunkListPool>(
         Config,
         AuthenticatedOutputMasterClient,
-        CancelableControlInvoker,
-        Operation->GetId(),
+        CancelableInvoker,
+        OperationId,
         OutputTransactionId);
 
     for (const auto& table : OutputTables) {
@@ -1299,13 +1294,13 @@ void TOperationControllerBase::InitInputChunkScraper()
     YCHECK(!InputChunkScraper);
     InputChunkScraper = New<TChunkScraper>(
         Config,
-        CancelableBackgroundInvoker,
+        CancelableInvoker,
         Host->GetChunkLocationThrottlerManager(),
         AuthenticatedInputMasterClient,
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
-            .Via(CancelableBackgroundInvoker),
+            .Via(CancelableInvoker),
         Logger
     );
 
@@ -1392,18 +1387,9 @@ void TOperationControllerBase::DoLoadSnapshot()
     LOG_INFO("Finished loading snapshot");
 }
 
-TFuture<void> TOperationControllerBase::Commit()
+void TOperationControllerBase::Commit()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return BIND(&TThis::DoCommit, MakeStrong(this))
-        .AsyncVia(CancelableBackgroundInvoker)
-        .Run();
-}
-
-void TOperationControllerBase::DoCommit()
-{
-    VERIFY_THREAD_AFFINITY(BackgroundThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     TeleportOutputChunks();
     AttachOutputChunks();
@@ -1418,7 +1404,7 @@ void TOperationControllerBase::TeleportOutputChunks()
     auto teleporter = New<TChunkTeleporter>(
         Config,
         AuthenticatedOutputMasterClient,
-        CancelableControlInvoker,
+        CancelableInvoker,
         Operation->GetOutputTransaction()->GetId(),
         Logger);
 
@@ -1567,30 +1553,19 @@ void TOperationControllerBase::EndUploadOutputTables()
 
 void TOperationControllerBase::OnJobRunning(const TJobId& /* jobId */, const TJobStatus& /* status */)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 }
 
-void TOperationControllerBase::OnJobStarted(const TJobId& jobId)
+void TOperationControllerBase::OnJobStarted(const TJobId& /* jobId */)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto joblet = GetJoblet(jobId);
-    LogEventFluently(ELogEventType::JobStarted)
-        .Item("job_id").Value(joblet->JobId)
-        .Item("operation_id").Value(OperationId)
-        .Item("resource_limits").Value(joblet->ResourceLimits)
-        .Item("node_address").Value(joblet->Address)
-        .Item("job_type").Value(joblet->JobType)
-        .Item("total_data_size").Value(joblet->InputStripeList->TotalDataSize)
-        .Item("local_data_size").Value(joblet->InputStripeList->LocalDataSize)
-        .Item("scheduling_locality").Value(joblet->Task->GetLocality(joblet->NodeId));
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     JobCounter.Start(1);
 }
 
 void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSummary)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     const auto& jobId = jobSummary.Id;
     const auto& result = jobSummary.Result;
@@ -1618,7 +1593,7 @@ void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSum
 
 void TOperationControllerBase::OnJobFailed(const TFailedJobSummary& jobSummary)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     const auto& jobId = jobSummary.Id;
     const auto& result = jobSummary.Result;
@@ -1648,7 +1623,7 @@ void TOperationControllerBase::OnJobFailed(const TFailedJobSummary& jobSummary)
 
 void TOperationControllerBase::OnJobAborted(const TAbortedJobSummary& jobSummary)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     const auto& jobId = jobSummary.Id;
     auto abortReason = jobSummary.AbortReason;
@@ -1833,6 +1808,7 @@ void TOperationControllerBase::Abort()
     LOG_INFO("Aborting operation");
 
     Running = false;
+    Finished = true;
 
     CancelableContext->Cancel();
 
@@ -1841,6 +1817,8 @@ void TOperationControllerBase::Abort()
 
 void TOperationControllerBase::CheckTimeLimit()
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     auto timeLimit = Config->OperationTimeLimit;
     if (Spec->TimeLimit) {
         timeLimit = Spec->TimeLimit;
@@ -1858,12 +1836,13 @@ TJobId TOperationControllerBase::ScheduleJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    if (!Running ||
-        Operation->GetState() != EOperationState::Running ||
-        Operation->GetSuspended())
-    {
+    if (Spec->TestingOperationOptions) {
+        Sleep(Spec->TestingOperationOptions->SchedulingDelay);
+    }
+
+    if (!Running) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
         return NullJobId;
     }
@@ -1874,12 +1853,9 @@ TJobId TOperationControllerBase::ScheduleJob(
     }
 
     auto jobId = DoScheduleJob(context, jobLimits);
-    if (!jobId) {
-        return NullJobId;
+    if (jobId) {
+        OnJobStarted(jobId);
     }
-
-    OnJobStarted(jobId);
-
     return jobId;
 }
 
@@ -1909,7 +1885,7 @@ void TOperationControllerBase::UpdateTask(TTaskPtr task)
     JobCounter.Increment(task->GetTotalJobCountDelta());
     int newTotalJobCount = JobCounter.GetTotal();
 
-    CachedNeededResources += task->GetTotalNeededResourcesDelta();
+    IncreaseNeededResources(task->GetTotalNeededResourcesDelta());
 
     LOG_DEBUG_IF(
         newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
@@ -2026,6 +2002,8 @@ TJobId TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
+
     auto localJobId = DoScheduleLocalJob(context, jobLimits);
     if (localJobId) {
         return localJobId;
@@ -2247,16 +2225,23 @@ IInvokerPtr TOperationControllerBase::GetCancelableControlInvoker() const
     return CancelableControlInvoker;
 }
 
-IInvokerPtr TOperationControllerBase::GetCancelableBackgroundInvoker() const
+IInvokerPtr TOperationControllerBase::GetCancelableInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CancelableBackgroundInvoker;
+    return CancelableInvoker;
+}
+
+IInvokerPtr TOperationControllerBase::GetInvoker() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Invoker;
 }
 
 int TOperationControllerBase::GetPendingJobCount() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     // Avoid accessing the state while not prepared.
     if (!Prepared) {
@@ -2265,7 +2250,7 @@ int TOperationControllerBase::GetPendingJobCount() const
 
     // NB: For suspended operations we still report proper pending job count
     // but zero demand.
-    if (Operation->GetState() != EOperationState::Running) {
+    if (!Running) {
         return 0;
     }
 
@@ -2274,7 +2259,7 @@ int TOperationControllerBase::GetPendingJobCount() const
 
 int TOperationControllerBase::GetTotalJobCount() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     // Avoid accessing the state while not prepared.
     if (!Prepared) {
@@ -2284,47 +2269,52 @@ int TOperationControllerBase::GetTotalJobCount() const
     return JobCounter.GetTotal();
 }
 
+void TOperationControllerBase::IncreaseNeededResources(const TNodeResources& resourcesDelta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(CachedNeededResourcesLock);
+    CachedNeededResources += resourcesDelta;
+}
+
 TNodeResources TOperationControllerBase::GetNeededResources() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    if (Operation->GetState() != EOperationState::Running) {
-        return ZeroNodeResources();
-    }
-
+    TReaderGuard guard(CachedNeededResourcesLock);
     return CachedNeededResources;
 }
 
 void TOperationControllerBase::OnOperationCompleted()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationCompleted, MakeStrong(this)));
-}
-
-void TOperationControllerBase::DoOperationCompleted()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    // This can happen if operation failed during completion in derived class (e.x. SortController).
+    if (Finished) {
+        YCHECK(!Running);
+        return;
+    }
 
     LOG_INFO("Operation completed");
 
     Running = false;
+    Finished = true;
 
     Host->OnOperationCompleted(Operation);
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    CancelableControlInvoker->Invoke(BIND(&TThis::DoOperationFailed, MakeStrong(this), error));
-}
-
-void TOperationControllerBase::DoOperationFailed(const TError& error)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
+    if (Finished) {
+        YCHECK(!Running);
+        return;
+    }
 
     Running = false;
+    Finished = true;
 
     Host->OnOperationFailed(Operation, error);
 }
@@ -3372,7 +3362,7 @@ void TOperationControllerBase::RegisterOutput(
         masterConnector->AttachToLivePreview(
             Operation,
             table.LivePreviewChunkListId,
-            chunkTreeId);
+            {chunkTreeId});
     }
 
     LOG_DEBUG("Output chunk tree registered (Table: %v, ChunkTreeId: %v, Key: %v)",
@@ -3471,7 +3461,7 @@ void TOperationControllerBase::RegisterIntermediate(
             masterConnector->AttachToLivePreview(
                 Operation,
                 IntermediateTable.LivePreviewChunkListId,
-                chunkId);
+                {chunkId});
         }
     }
 }
@@ -3519,7 +3509,7 @@ void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
@@ -3540,7 +3530,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Invoker);
 
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter);
@@ -3548,6 +3538,7 @@ void TOperationControllerBase::BuildBriefProgress(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
 {
+    // TODO(acid): Think about correct affinity here.
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto error = FromProto<TError>(Operation->Result().error());
@@ -3569,6 +3560,8 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary
 
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     BuildYsonMapFluently(consumer)
         .DoIf(Spec->Title.HasValue(), [&] (TFluentMap fluent) {
             fluent
@@ -3740,12 +3733,6 @@ void TOperationControllerBase::ValidateKey(const TOwningKey& key)
 
 void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
 { }
-
-TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
-{
-    return Host->LogEventFluently(eventType)
-        .Item("operation_id").Value(OperationId);
-}
 
 IClientPtr TOperationControllerBase::CreateClient()
 {

@@ -1236,7 +1236,7 @@ protected:
         return CompletedPartitionCount == Partitions.size();
     }
 
-    virtual void DoOperationCompleted() override
+    virtual void OnOperationCompleted() override
     {
         if (IsRowCountPreserved()) {
             i64 totalInputRowCount = 0;
@@ -1252,7 +1252,7 @@ protected:
         }
 
         YCHECK(CompletedPartitionCount == Partitions.size());
-        TOperationControllerBase::DoOperationCompleted();
+        TOperationControllerBase::OnOperationCompleted();
     }
 
     void OnPartitionCompleted(TPartitionPtr partition)
@@ -1681,7 +1681,7 @@ private:
             if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
                 scraperCallback = CreateScrapeChunksSessionCallback(
                     Config,
-                    Host->GetBackgroundInvoker(),
+                    GetCancelableInvoker(),
                     Host->GetChunkLocationThrottlerManager(),
                     AuthenticatedInputMasterClient,
                     InputNodeDirectory,
@@ -1694,7 +1694,7 @@ private:
                 Spec->SortBy,
                 Options->MaxSampleSize,
                 InputNodeDirectory,
-                Host->GetBackgroundInvoker(),
+                GetCancelableInvoker(),
                 scraperCallback,
                 Logger);
 
