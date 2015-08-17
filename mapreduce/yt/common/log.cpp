@@ -81,9 +81,9 @@ class TFileLogger
     : public TLoggerBase
 {
 public:
-    TFileLogger(ELevel cutLevel, const Stroka& path)
+    TFileLogger(ELevel cutLevel, const Stroka& path, bool append)
         : TLoggerBase(cutLevel)
-        , Stream_(path)
+        , Stream_(TFile(path, OpenAlways | WrOnly | Seq | (append ? ForAppend : 0)))
     { }
 
     void OutputLine(const Stroka& line) override
@@ -95,9 +95,9 @@ private:
     TFileOutput Stream_;
 };
 
-ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path)
+ILoggerPtr CreateFileLogger(ILogger::ELevel cutLevel, const Stroka& path, bool append)
 {
-    return new TFileLogger(cutLevel, path);
+    return new TFileLogger(cutLevel, path, append);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
