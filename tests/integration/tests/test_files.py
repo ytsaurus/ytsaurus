@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, do_not_run_in_multicell
 from yt_commands import *
 from time import sleep
 
@@ -34,7 +34,7 @@ class TestFiles(YTEnvSetup):
         write_file("//tmp/file", "")
         assert read_file("//tmp/file") == ""
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
+        get("//tmp/file/@chunk_ids")
         assert get_chunks() == []
         assert get("//tmp/file/@uncompressed_data_size") == 0
 
