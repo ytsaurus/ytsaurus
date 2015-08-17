@@ -66,10 +66,13 @@ def main():
             if __operation_type == "mapper" or raw:
                 __result = itertools.chain.from_iterable(itertools.imap(__operation, __rows))
             else:
-                __result = \
-                    itertools.chain.from_iterable(
-                        itertools.starmap(__operation,
-                            itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
+                if __attributes.get("is_reduce_aggregator"):
+                    __result = __operation(itertools.groupby(__rows, lambda row: extract_key(row, __keys)))
+                else:
+                    __result = \
+                        itertools.chain.from_iterable(
+                            itertools.starmap(__operation,
+                                itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
 
         __output_format.dump_rows(__result, streams.get_original_stdout(), raw=raw)
 
