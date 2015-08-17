@@ -237,7 +237,6 @@ TEST(TYamrParserTest, CustomSeparators)
     auto config = New<TYamrFormatConfig>();
     config->RecordSeparator = 'Y';
     config->FieldSeparator = 'X';
-    config->HasSubkey = true;
 
     Stroka input = "keyXvalueYkey2Xvalue2Y";
     ParseYamr(input, &Mock, config);
