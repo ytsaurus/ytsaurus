@@ -168,11 +168,6 @@ private:
             return result;
         }
 
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return Controller->OutputTables.size();
-        }
-
         virtual EJobType GetJobType() const override
         {
             return EJobType(Controller->JobSpecTemplate.type());

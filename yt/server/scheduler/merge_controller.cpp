@@ -238,11 +238,6 @@ protected:
             return result;
         }
 
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return Controller->OutputTables.size();
-        }
-
         TChunkStripeStatisticsVector UpdateChunkStripeStatistics(
             const TChunkStripeStatisticsVector& statistics) const
         {
@@ -828,8 +823,8 @@ private:
         // If the input is sorted then the output chunk tree must also be marked as sorted.
         const auto& inputTable = InputTables[0];
         auto& outputTable = OutputTables[0];
-        if (inputTable.KeyColumns) {
-            outputTable.KeyColumns = inputTable.KeyColumns;
+        if (inputTable.SortedBy) {
+            outputTable.KeyColumns = inputTable.SortedBy;
         }
     }
 
@@ -846,8 +841,8 @@ private:
         // If the input is sorted then the output must also be sorted.
         // To produce sorted output a job needs key columns.
         const auto& table = InputTables[0];
-        if (table.KeyColumns) {
-            ToProto(jobSpecExt->mutable_key_columns(), *table.KeyColumns);
+        if (table.SortedBy) {
+            ToProto(jobSpecExt->mutable_key_columns(), *table.SortedBy);
         }
     }
 

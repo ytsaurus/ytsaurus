@@ -355,9 +355,9 @@ protected:
                 IsMemoryReserveEnabled());
         }
 
-        virtual int GetChunkListCountPerJob() const override
+        virtual bool IsIntermediateOutput() const override
         {
-            return 1;
+            return true;
         }
 
         virtual EJobType GetJobType() const override
@@ -599,11 +599,9 @@ protected:
             return GetNeededResourcesForChunkStripe(stat.front(), IsMemoryReserveEnabled());
         }
 
-        virtual int GetChunkListCountPerJob() const override
+        virtual bool IsIntermediateOutput() const override
         {
-            return Controller->IsSortedMergeNeeded(Partition)
-                ? 1
-                : Controller->OutputTables.size();
+            return Controller->IsSortedMergeNeeded(Partition);
         }
 
         virtual EJobType GetJobType() const override
@@ -940,11 +938,6 @@ protected:
             return ChunkPool.get();
         }
 
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return Controller->OutputTables.size();
-        }
-
         virtual EJobType GetJobType() const override
         {
             return EJobType(Controller->SortedMergeJobSpecTemplate.type());
@@ -1062,11 +1055,6 @@ protected:
         virtual bool HasInputLocality() const override
         {
             return false;
-        }
-
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return 1;
         }
 
         virtual EJobType GetJobType() const override
