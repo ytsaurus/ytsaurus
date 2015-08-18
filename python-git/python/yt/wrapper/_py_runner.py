@@ -33,18 +33,19 @@ def main():
     import _py_runner_helpers
     import yt.yson
     import yt.wrapper.config
-    from yt.wrapper.format import YsonFormat
+    from yt.wrapper.format import YsonFormat, extract_key
     from yt.wrapper.pickling import Unpickler
     yt.wrapper.config.config = \
         Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(__config_dump_filename))
 
     unpickler = Unpickler(yt.wrapper.config.config["pickling"]["framework"])
 
-    __operation, __attributes, __operation_type, __input_format, __output_format, __keys = \
+    __operation, __attributes, __operation_type, __input_format, __output_format, __keys, __python_version = \
         unpickler.load(open(__operation_dump))
 
-
-    from yt.wrapper.format import extract_key
+    if yt.wrapper.config["pickling"]["check_python_version"] and yt.wrapper.common.get_python_version() != __python_version:
+        sys.stderr.write("Python version on cluster differs from local python version")
+        sys.exit(1)
 
     if __attributes.get("is_raw_io", False):
         __operation()
