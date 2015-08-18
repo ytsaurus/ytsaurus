@@ -25,6 +25,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -45,6 +46,29 @@ EObjectType TTableNode::GetObjectType() const
 TTableNode* TTableNode::GetTrunkNode() const
 {
     return static_cast<TTableNode*>(TrunkNode_);
+}
+
+void TTableNode::BeginUpload(EUpdateMode mode)
+{
+    TChunkOwnerBase::BeginUpload(mode);
+    KeyColumns_.clear();
+    Sorted_ = false;
+}
+
+void TTableNode::EndUpload(
+    const TDataStatistics* statistics,
+    const std::vector<Stroka>& keyColumns)
+{
+    TChunkOwnerBase::EndUpload(statistics, keyColumns);
+    if (!keyColumns.empty()) {
+        KeyColumns_ = keyColumns;
+        Sorted_ = true;
+    }
+}
+
+bool TTableNode::IsSorted() const
+{
+    return GetSorted();
 }
 
 void TTableNode::Save(TSaveContext& context) const
@@ -108,6 +132,11 @@ bool TTableNode::IsDynamic() const
     return !GetTrunkNode()->Tablets().empty();
 }
 
+bool TTableNode::IsEmpty() const
+{
+    return ComputeTotalStatistics().chunk_count() == 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
@@ -161,6 +190,8 @@ protected:
         if (!attributes->Contains("compression_codec")) {
             attributes->Set("compression_codec", NCompression::ECodec::Lz4);
         }
+
+        TBase::InitializeAttributes(attributes);
 
         return TChunkOwnerTypeHandler::DoCreate(
             id,

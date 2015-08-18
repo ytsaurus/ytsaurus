@@ -35,20 +35,19 @@ protected:
     virtual void ValidateFetchParameters(
         const NChunkClient::TChannel& channel,
         const std::vector<NChunkClient::TReadRange>& ranges);
-    virtual void Clear();
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    virtual void ValidatePrepareForUpdate();
+    void ValidateInUpdate();
+    virtual void ValidateBeginUpload();
     virtual void ValidateFetch();
 
-    virtual bool IsSorted();
-    virtual void ResetSorted();
-
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
 
 };
 

@@ -416,6 +416,9 @@ void TNontemplateMultiChunkWriterBase::DoClose()
         return;
     }
 
+    const auto& rsp = rspOrError.Value();
+    DataStatistics_ = rsp->statistics();
+
     LOG_DEBUG("Chunks attached, chunk sequence writer closed");
     CompletionError_.TrySet(TError());
 }

@@ -429,7 +429,7 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         TNullable<TDuration> timeout,
-        const TObjectId& hintId)
+        const TTransactionId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1010,9 +1010,10 @@ void TTransactionManager::Initialize()
 
 TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
-    TNullable<TDuration> timeout)
+    TNullable<TDuration> timeout,
+    const TTransactionId& hintId)
 {
-    return Impl_->StartTransaction(parent, timeout, NullObjectId);
+    return Impl_->StartTransaction(parent, timeout, hintId);
 }
 
 void TTransactionManager::CommitTransaction(

@@ -227,8 +227,14 @@ protected:
             New<NVersionedTableClient::TTableWriterOptions>();
         TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
 
+        // Server-side upload transaction.
+        NTransactionClient::TTransactionId UploadTransactionId;
+
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
+
+        // Statistics returned by EndUpload call.
+        NChunkClient::NProto::TDataStatistics DataStatistics;
 
         //! Chunk trees comprising the output (the order matters).
         //! Keys are used when the output is sorted (e.g. in sort operations).

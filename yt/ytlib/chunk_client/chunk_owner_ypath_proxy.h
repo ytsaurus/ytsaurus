@@ -28,7 +28,9 @@ struct TChunkOwnerYPathProxy
     }
 
     DEFINE_YPATH_PROXY_METHOD(NProto, Fetch);
-    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, PrepareForUpdate);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, BeginUpload);
+    DEFINE_YPATH_PROXY_METHOD(NProto, GetUploadParams);
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, EndUpload);
 };
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -63,6 +63,8 @@ public:
 
     void AbortAll();
 
+    TTransactionManagerConfigPtr GetConfig();
+
 private:
     friend class TTransaction;
 
@@ -826,6 +828,11 @@ void TTransactionManager::TImpl::AbortAll()
     }
 }
 
+TTransactionManagerConfigPtr TTransactionManager::TImpl::GetConfig()
+{
+    return Config_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransaction::TTransaction(TIntrusivePtr<TImpl> impl)
@@ -918,6 +925,11 @@ TTransactionPtr TTransactionManager::Attach(
 void TTransactionManager::AbortAll()
 {
     Impl_->AbortAll();
+}
+
+TTransactionManagerConfigPtr TTransactionManager::GetConfig()
+{
+    return Impl_->GetConfig();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

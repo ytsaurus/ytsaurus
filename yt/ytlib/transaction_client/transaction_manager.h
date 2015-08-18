@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <core/actions/signal.h>
 
@@ -185,6 +186,9 @@ public:
 
     //! Asynchronously aborts all active transactions.
     void AbortAll();
+
+    //! Returns the configuration.
+    TTransactionManagerConfigPtr GetConfig();
 
 private:
     friend class TTransaction;

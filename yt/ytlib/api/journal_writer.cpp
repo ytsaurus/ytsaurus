@@ -209,6 +209,7 @@ private:
         int WriteQuorum_ = -1;
         Stroka Account_;
 
+        TObjectId ObjectId_;
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
@@ -328,30 +329,7 @@ private:
 
         void OpenJournal()
         {
-            LOG_INFO("Creating upload transaction");
-    
-            {
-                NTransactionClient::TTransactionStartOptions options;
-                options.ParentId = Transaction_ ? Transaction_->GetId() : NullTransactionId;
-                options.EnableUncommittedAccounting = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Journal upload to %v", Path_));
-                options.Attributes = std::move(attributes);
-
-                auto transactionManager = Client_->GetTransactionManager();
-                auto transactionOrError = WaitFor(transactionManager->Start(
-                    ETransactionType::Master,
-                    options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
-                UploadTransaction_ = transactionOrError.Value();
-            }
-
-            LOG_INFO("Upload transaction started (UploadTransactionId: %v)", UploadTransaction_->GetId());
-            
-            ListenTransaction(UploadTransaction_);
-
             auto cellTag = InvalidCellTag;
-            TObjectId objectId;
 
             {
                 LOG_INFO("Requesting basic journal attributes");
@@ -370,16 +348,16 @@ private:
                     Path_);
 
                 const auto& rsp = rspOrError.Value();
-                objectId = FromProto<TObjectId>(rsp->object_id());
+                ObjectId_ = FromProto<TObjectId>(rsp->object_id());
                 cellTag = rsp->cell_tag();
 
                 LOG_INFO("Basic journal attributes received (ObjectId: %v, CellTag: %v)",
-                    objectId,
+                    ObjectId_,
                     cellTag);
             }
 
             {
-                auto type = TypeFromId(objectId);
+                auto type = TypeFromId(ObjectId_);
                 if (type != EObjectType::Journal) {
                     THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                         Path_,
@@ -389,7 +367,7 @@ private:
             }
 
             UploadMasterChannel_ = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
-            auto objectIdPath = FromObjectId(objectId);
+            auto objectIdPath = FromObjectId(ObjectId_);
 
             {
                 LOG_INFO("Requesting extended journal attributes");
@@ -427,23 +405,8 @@ private:
                     Account_);
             }
 
-            auto makePrepareForUpdateRequest = [&] () -> TJournalYPathProxy::TReqPrepareForUpdatePtr {
-                auto req = TJournalYPathProxy::PrepareForUpdate(objectIdPath);
-                req->set_update_mode(static_cast<int>(EUpdateMode::Append));
-                req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
-                GenerateMutationId(req);
-                SetTransactionId(req, UploadTransaction_);
-                return req;
-            };
-
-            auto handlePrepareForUpdateResponse = [&] (TJournalYPathProxy::TRspPrepareForUpdatePtr rsp) {
-                ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
-                LOG_INFO("Journal prepared for update (ChunkListId: %v)",
-                    ChunkListId_);
-            };
-
             {
-                LOG_INFO("Preparing journal for update at primary master");
+                LOG_INFO("Starting journal upload");
 
                 auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
                 TObjectServiceProxy proxy(channel);
@@ -459,38 +422,62 @@ private:
                 }
 
                 {
-                    auto req = makePrepareForUpdateRequest();
-                    batchReq->AddRequest(req, "prepare_for_update");
+                    auto transactionManager = Client_->GetTransactionManager();
+
+                    auto req = TJournalYPathProxy::BeginUpload(objectIdPath);
+                    req->set_update_mode(static_cast<int>(EUpdateMode::Append));
+                    req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+                    req->set_upload_transaction_title(Format("Upload to %v", Path_));
+                    req->set_upload_transaction_timeout(transactionManager->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+                    GenerateMutationId(req);
+                    SetTransactionId(req, Transaction_);
+                    batchReq->AddRequest(req, "begin_upload");
                 }
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     GetCumulativeError(batchRspOrError),
-                    "Error preparing journal %v for update at primary master",
+                    "Error starting upload to journal %v",
                     Path_);
                 const auto& batchRsp = batchRspOrError.Value();
 
-                if (cellTag == Client_->GetConnection()->GetPrimaryMasterCellTag()) {
-                    auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspPrepareForUpdate>("prepare_for_update")
-                        .Value();
-                    handlePrepareForUpdateResponse(rsp);
+                {
+                    auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspBeginUpload>("begin_upload").Value();
+                    auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+
+                    NTransactionClient::TTransactionAttachOptions options;
+                    options.PingAncestors = Options_.PingAncestors;
+                    options.AutoAbort = true;
+
+                    auto transactionManager = Client_->GetTransactionManager();
+                    UploadTransaction_ = transactionManager->Attach(uploadTransactionId, options);
+                    ListenTransaction(UploadTransaction_);
+
+                    LOG_INFO("Journal upload started (UploadTransactionId: %v)",
+                        uploadTransactionId);
                 }
             }
 
-            if (cellTag != Client_->GetConnection()->GetPrimaryMasterCellTag()) {
-                LOG_INFO("Preparing journal for update at secondary master");
+            {
+                LOG_INFO("Requesting journal upload parameters");
 
-                TObjectServiceProxy proxy(UploadMasterChannel_);
-                auto req = makePrepareForUpdateRequest();
+                auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+                TObjectServiceProxy proxy(channel);
+
+                auto req = TJournalYPathProxy::GetUploadParams(objectIdPath);
+                SetTransactionId(req, UploadTransaction_);
 
                 auto rspOrError = WaitFor(proxy.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     rspOrError,
-                    "Error preparing journal %v for update at secondary master",
+                    "Error requesting upload parameters for journal %v",
                     Path_);
 
                 const auto& rsp = rspOrError.Value();
-                handlePrepareForUpdateResponse(rsp);
+                ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
+
+                LOG_INFO("Journal upload parameters received (ChunkListId: %v)",
+                    ChunkListId_);
             }
 
             LOG_INFO("Journal opened");
@@ -499,6 +486,39 @@ private:
 
         void CloseJournal()
         {
+            LOG_INFO("Closing journal");
+
+            auto objectIdPath = FromObjectId(ObjectId_);
+
+            auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto batchReq = proxy.ExecuteBatch();
+
+            {
+                auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+                for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                    auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                    ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+                }
+            }
+
+            {
+                auto req = TJournalYPathProxy::EndUpload(objectIdPath);
+                SetTransactionId(req, UploadTransaction_);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "end_upload");
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Error finishing upload to journal %v",
+                Path_);
+
+            UploadTransaction_->Detach();
+
+
             LOG_INFO("Journal closed");
             ClosedPromise_.TrySet(TError());
         }
@@ -608,8 +628,9 @@ private:
                 node->PingExecutor->Start();
             }
 
-            LOG_INFO("Attaching chunk");
             {
+                LOG_INFO("Attaching chunk");
+
                 TObjectServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
 
@@ -629,15 +650,17 @@ private:
                 {
                     auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
                     ToProto(req->add_children_ids(), CurrentSession_->ChunkId);
+                    req->set_request_statistics(false);
                     GenerateMutationId(req);
                     batchReq->AddRequest(req, "attach");
                 }
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunk");
+
+                LOG_INFO("Chunk attached");
             }
-            LOG_INFO("Chunk attached");
-        
+
             for (auto batch : PendingBatches_) {
                 EnqueueBatchToSession(batch);
             }

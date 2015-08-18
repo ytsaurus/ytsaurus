@@ -48,6 +48,8 @@ public:
     }
 
 protected:
+    using TBase = TChunkOwnerTypeHandler<TFileNode>;
+
     virtual ICypressNodeProxyPtr DoGetProxy(
         TFileNode* trunkNode,
         TTransaction* transaction) override
@@ -67,6 +69,12 @@ protected:
         TReqCreate* request,
         TRspCreate* response) override
     {
+        TBase::InitializeAttributes(attributes);
+
+        if (!attributes->Contains("compression_codec")) {
+            attributes->Set("compression_codec", NCompression::ECodec::None);
+        }
+
         // NB: Validate everything before calling TBase::DoCreate to ensure atomicity.
         TChunk* chunk = nullptr;
         auto chunkManager = Bootstrap_->GetChunkManager();
@@ -77,17 +85,13 @@ protected:
             chunk->ValidateConfirmed();
         }
 
-        auto nodeHolder = TChunkOwnerTypeHandler::DoCreate(
+        auto nodeHolder = TBase::DoCreate(
             id,
             cellTag,
             transaction,
             attributes,
             request,
             response);
-
-        if (!attributes->Contains("compression_codec")) {
-            attributes->Set("compression_codec", NCompression::ECodec::None);
-        }
 
         if (chunk) {
             auto* chunkList = nodeHolder->GetChunkList();

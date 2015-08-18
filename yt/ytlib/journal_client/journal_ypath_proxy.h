@@ -18,6 +18,8 @@ struct TJournalYPathProxy
     {
         return "Journal";
     }
+
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, Seal);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

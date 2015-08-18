@@ -519,6 +519,7 @@ private:
         YCHECK(info.sealed());
 
         auto* chunk = GetThisTypedImpl();
+
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->SealChunk(chunk, info);
 

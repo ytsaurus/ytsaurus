@@ -13,9 +13,12 @@
 
 #include <server/security_server/public.h>
 
+#include <server/journal_server/public.h>
+
 #include <server/hydra/entity_map.h>
 
 #include <server/cell_master/public.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
 namespace NYT {
 namespace NCypressServer {
@@ -136,6 +139,15 @@ public:
     TCypressNodeList GetNodeReverseOriginators(
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
+
+
+    //! Marks the journal as sealed and updates its snapshot statistics.
+    //! If #statistics is |nullptr| then computes one from chunk lists.
+    //! For secondary masters, this call also notifies the primary.
+    void SealJournal(
+        NJournalServer::TJournalNode* trunkNode,
+        const NChunkClient::NProto::TDataStatistics* statistics);
+
 
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);

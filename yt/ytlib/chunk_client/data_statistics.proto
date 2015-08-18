@@ -4,10 +4,13 @@ package NYT.NChunkClient.NProto;
 
 message TDataStatistics
 {
-    required int64 uncompressed_data_size = 1;
-    required int64 compressed_data_size = 2;
-    required int64 row_count = 3;
-    required int64 chunk_count = 4;
+    optional int64 uncompressed_data_size = 1 [default = 0];
+    optional int64 compressed_data_size = 2 [default = 0];
+    optional int64 row_count = 3 [default = 0];
+    optional int64 chunk_count = 4 [default = 0];
+    optional int64 data_weight = 5 [default = 0];
+    optional int64 regular_disk_space = 6 [default = 0];
+    optional int64 erasure_disk_space = 7 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

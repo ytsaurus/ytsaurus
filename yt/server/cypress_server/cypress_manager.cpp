@@ -28,6 +28,8 @@
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/journal_client/journal_ypath_proxy.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 
@@ -52,6 +54,12 @@
 
 #include <server/cypress_server/cypress_manager.pb.h>
 
+#include <server/journal_server/journal_node.h>
+
+// COMPAT(babenko)
+#include <server/chunk_server/chunk_owner_base.h>
+#include <server/chunk_server/chunk_list.h>
+
 namespace NYT {
 namespace NCypressServer {
 
@@ -67,6 +75,11 @@ using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NCypressClient::NProto;
+// COMPAT(babenko)
+using namespace NChunkServer;
+using namespace NJournalClient;
+using namespace NJournalServer;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1057,6 +1070,35 @@ public:
     }
 
 
+    void SealJournal(
+        TJournalNode* trunkNode,
+        const TDataStatistics* statistics)
+    {
+        YCHECK(trunkNode->IsTrunk());
+
+        trunkNode->SnapshotStatistics() = statistics
+            ? *statistics
+            :  trunkNode->SnapshotStatistics() = trunkNode->GetChunkList()->Statistics().ToDataStatistics();
+
+        trunkNode->SetSealed(true);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateAccountNodeUsage(trunkNode);
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
+            trunkNode->GetId());
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        if (objectManager->IsForeign(trunkNode)) {
+            auto req = TJournalYPathProxy::Seal(FromObjectId(trunkNode->GetId()));
+            *req->mutable_statistics() = trunkNode->SnapshotStatistics();
+
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToPrimaryMaster(req);
+        }
+    }
+
+
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
 
@@ -1088,6 +1130,9 @@ private:
     TNodeId RootNodeId_;
     TCypressNodeBase* RootNode_ = nullptr;
 
+    // COMPAT(babenko)
+    bool RecomputeChunkOwnerStatistics_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -1118,6 +1163,8 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
+        // COMPAT(babenko)
+        RecomputeChunkOwnerStatistics_ = (context.GetVersion() < 200);
     }
 
 
@@ -1173,6 +1220,15 @@ private:
             for (auto it = node->PendingLocks().begin(); it != node->PendingLocks().end(); ++it) {
                 auto* lock = *it;
                 lock->SetLockListIterator(it);
+            }
+
+            // COMPAT(babenko)
+            if (RecomputeChunkOwnerStatistics_ && (node->GetType() == EObjectType::Table || node->GetType() == EObjectType::Table)) {
+                auto* chunkOwnerNode = static_cast<TChunkOwnerBase*>(node);
+                const auto* chunkList = chunkOwnerNode->GetChunkList();
+                if (chunkList) {
+                    chunkOwnerNode->SnapshotStatistics() = chunkList->Statistics().ToDataStatistics();
+                }
             }
         }
 
@@ -1848,7 +1904,9 @@ private:
         transaction->BranchedNodes().clear();
     }
 
-    void RemoveBranchedNode(TCypressNodeBase* branchedNode)
+    void RemoveBranchedNode(
+        TTransaction* transaction,
+        TCypressNodeBase* branchedNode)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
 
@@ -1860,6 +1918,15 @@ private:
         // Drop the implicit reference to the originator.
         objectManager->UnrefObject(trunkNode);
 
+        if (branchedNode->GetLockMode() != ELockMode::Snapshot) {
+            // Cleanup the branched node.
+            auto branchedId = branchedNode->GetVersionedId();
+            auto* parentTransaction = transaction->GetParent();
+            auto originatingId = TVersionedNodeId(branchedId.ObjectId, GetObjectId(parentTransaction));
+            auto* originatingNode = NodeMap_.Get(originatingId);
+            handler->Unbranch(originatingNode, branchedNode);
+        }
+
         // Remove the node.
         handler->Destroy(branchedNode);
         NodeMap_.Remove(branchedNodeId);
@@ -1870,7 +1937,7 @@ private:
     void RemoveBranchedNodes(TTransaction* transaction)
     {
         for (auto* branchedNode : transaction->BranchedNodes()) {
-            RemoveBranchedNode(branchedNode);
+            RemoveBranchedNode(transaction, branchedNode);
         }
         transaction->BranchedNodes().clear();
     }
@@ -2268,6 +2335,13 @@ TCypressNodeList TCypressManager::GetNodeReverseOriginators(
     TCypressNodeBase* trunkNode)
 {
     return Impl_->GetNodeReverseOriginators(transaction, trunkNode);
+}
+
+void TCypressManager::SealJournal(
+    TJournalNode* trunkNode,
+    const TDataStatistics* statistics)
+{
+    Impl_->SealJournal(trunkNode, statistics);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, TVersionedNodeId, *Impl_);

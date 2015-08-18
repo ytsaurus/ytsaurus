@@ -151,6 +151,14 @@ public:
         return std::move(branchedNode);
     }
 
+    virtual void Unbranch(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) override
+    {
+        // Run custom stuff.
+        DoUnbranch(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
+    }
+
     virtual void Merge(
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode) override
@@ -195,12 +203,11 @@ public:
         return result;
     }
 
-    virtual NSecurityServer::TClusterResources GetIncrementalResourceUsage(
+    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
         const TCypressNodeBase* node) override
     {
         NSecurityServer::TClusterResources result;
-        auto objectManager = Bootstrap_->GetObjectManager();
-        result.NodeCount = objectManager->IsForeign(node) ? 0 : 1;
+        result.NodeCount = 1;
         return result;
     }
 
@@ -232,6 +239,11 @@ protected:
     { }
 
     virtual void DoMerge(
+        TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    { }
+
+    virtual void DoUnbranch(
         TImpl* /*originatingNode*/,
         TImpl* /*branchedNode*/)
     { }

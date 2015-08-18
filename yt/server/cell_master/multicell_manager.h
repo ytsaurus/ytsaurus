@@ -29,6 +29,12 @@ public:
     void PostToPrimaryMaster(
         const ::google::protobuf::MessageLite& requestMessage,
         bool reliable = true);
+    void PostToPrimaryMaster(
+        NRpc::IClientRequestPtr request,
+        bool reliable = true);
+    void PostToPrimaryMaster(
+        TSharedRefArray requestMessage,
+        bool reliable = true);
 
     void PostToSecondaryMaster(
         NRpc::IClientRequestPtr request,
