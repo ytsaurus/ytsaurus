@@ -111,13 +111,13 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        wait_for_gossip()
+        multicell_sleep()
         tmp_node_count = self._get_account_node_count("tmp")
         tmp_chunk_count = self._get_account_chunk_count("tmp")
         
         set("//tmp/t/@account", "max")
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_node_count("tmp") == tmp_node_count - 1
         assert self._get_account_node_count("max") == 1
         assert self._get_account_chunk_count("tmp") == tmp_chunk_count - 1
@@ -153,26 +153,26 @@ class TestAccounts(YTEnvSetup):
         create("file", "//tmp/f1")
         write_file("//tmp/f1", content)
 
-        wait_for_gossip()
+        multicell_sleep()
         space = self._get_account_disk_space("tmp")
         assert space > 0
 
         create("file", "//tmp/f2")
         write_file("//tmp/f2", content)
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") == 2 * space
 
         remove("//tmp/f1")
 
         gc_collect()
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") == space
 
         remove("//tmp/f2")
 
         gc_collect()
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") == 0
 
     def test_file2(self):
@@ -184,14 +184,14 @@ class TestAccounts(YTEnvSetup):
         create_account("max")
         set("//tmp/f/@account", "max")
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") == 0
         assert self._get_account_disk_space("max") == space
 
         remove("//tmp/f")
         
         gc_collect()
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("max") == 0
 
     def test_file3(self):
@@ -203,13 +203,13 @@ class TestAccounts(YTEnvSetup):
         create("file", "//tmp/f", attributes={"account": "max"})
         write_file("//tmp/f", content)
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("max") > 0
 
         remove("//tmp/f")
         
         gc_collect()
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("max") == 0
 
     def test_file4(self):
@@ -219,21 +219,21 @@ class TestAccounts(YTEnvSetup):
         create("file", "//tmp/f", attributes={"account": "max"})
         write_file("//tmp/f", content)
         
-        wait_for_gossip()
+        multicell_sleep()
         space = self._get_account_disk_space("max")
         assert space > 0
 
         rf  = get("//tmp/f/@replication_factor")
         set("//tmp/f/@replication_factor", rf * 2)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("max") == space * 2
 
     def test_table1(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") > 0
 
     def test_table2(self):
@@ -242,7 +242,7 @@ class TestAccounts(YTEnvSetup):
         tx = start_transaction()
         for i in xrange(0, 5):
             write_table("//tmp/t", {"a" : "b"}, tx=tx)
-            wait_for_gossip()
+            multicell_sleep()
             account_space = self._get_account_disk_space("tmp")
             tx_space = self._get_tx_disk_space(tx, "tmp")
             assert account_space > 0
@@ -253,21 +253,21 @@ class TestAccounts(YTEnvSetup):
 
         commit_transaction(tx)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_node_disk_space("//tmp/t") == last_space
 
     def test_table3(self):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        wait_for_gossip()
+        multicell_sleep()
         space1 = self._get_account_disk_space("tmp")
         assert space1 > 0
 
         tx = start_transaction()
         write_table("//tmp/t", {"xxxx" : "yyyy"}, tx=tx)
 
-        wait_for_gossip()
+        multicell_sleep()
         space2 = self._get_tx_disk_space(tx, "tmp")
         assert space1 != space2
         assert self._get_account_disk_space("tmp") == space1 + space2
@@ -276,7 +276,7 @@ class TestAccounts(YTEnvSetup):
 
         commit_transaction(tx)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") == space2
         assert self._get_node_disk_space("//tmp/t") == space2
 
@@ -285,12 +285,12 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t", tx=tx)
         write_table("//tmp/t", {"a" : "b"}, tx=tx)
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") > 0
         
         abort_transaction(tx)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("tmp") == 0
 
     def test_table5(self):
@@ -300,7 +300,7 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_node_count("tmp") == tmp_node_count + 1
         assert self._get_account_chunk_count("tmp") == tmp_chunk_count + 1
         space = self._get_account_disk_space("tmp")
@@ -310,7 +310,7 @@ class TestAccounts(YTEnvSetup):
 
         set("//tmp/t/@account", "max")
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_node_count("tmp") == tmp_node_count
         assert self._get_account_node_count("max") == 1
         assert self._get_account_chunk_count("max") == 1
@@ -319,7 +319,7 @@ class TestAccounts(YTEnvSetup):
 
         set("//tmp/t/@account", "tmp")
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_node_count("tmp") == tmp_node_count + 1
         assert self._get_account_chunk_count("tmp") == tmp_chunk_count + 1
         assert self._get_account_node_count("max") == 0
@@ -333,30 +333,30 @@ class TestAccounts(YTEnvSetup):
         tx = start_transaction()
         write_table("//tmp/t", {"a" : "b"}, tx=tx)
 
-        wait_for_gossip()
+        multicell_sleep()
         space = self._get_node_disk_space("//tmp/t", tx=tx)
         assert space > 0
         assert self._get_account_disk_space("tmp") == space
 
         tx2 = start_transaction(tx=tx)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_node_disk_space("//tmp/t", tx=tx2) == space
 
         write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx2)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_node_disk_space("//tmp/t", tx=tx2) == space * 2
         assert self._get_account_disk_space("tmp") == space * 2
 
         commit_transaction(tx2)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_node_disk_space("//tmp/t", tx=tx) == space * 2
         assert self._get_account_disk_space("tmp") == space * 2
         commit_transaction(tx)
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_node_disk_space("//tmp/t") == space * 2
         assert self._get_account_disk_space("tmp") == space * 2
 
@@ -376,7 +376,7 @@ class TestAccounts(YTEnvSetup):
         create("table", "//tmp/t")
         set("//tmp/t/@account", "max")
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_node_count("max") == 1
 
     def test_node_count_limits3(self):
@@ -385,7 +385,7 @@ class TestAccounts(YTEnvSetup):
         
         self._set_account_node_count_limit("max", 0)
         
-        wait_for_gossip()
+        multicell_sleep()
         with pytest.raises(YtError): set("//tmp/t/@account", "max")
 
     def test_node_count_limits4(self):
@@ -413,7 +413,7 @@ class TestAccounts(YTEnvSetup):
         write_table("//tmp/t", {"a" : "b"})
         set("//tmp/t/@account", "max")
 
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_chunk_count("max") == 1
 
     def test_disk_space_limits1(self):
@@ -434,21 +434,21 @@ class TestAccounts(YTEnvSetup):
 
         write_table("//tmp/t", {"a" : "b"})
         
-        wait_for_gossip()
+        multicell_sleep()
         assert not self._is_account_disk_space_limit_violated("max")
 
         self._set_account_disk_space_limit("max", 0)
-        wait_for_gossip()
+        multicell_sleep()
         assert self._is_account_disk_space_limit_violated("max")
         with pytest.raises(YtError): write_table("//tmp/t", {"a" : "b"})
 
         self._set_account_disk_space_limit("max", self._get_account_disk_space("max") + 1)
-        wait_for_gossip()
+        multicell_sleep()
         assert not self._is_account_disk_space_limit_violated("max")
         
         write_table("<append=true>//tmp/t", {"a" : "b"})
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._is_account_disk_space_limit_violated("max")
 
     def test_disk_space_limits3(self):
@@ -460,7 +460,7 @@ class TestAccounts(YTEnvSetup):
         create("file", "//tmp/f1", attributes={"account": "max"})
         write_file("//tmp/f1", content)
         
-        wait_for_gossip()
+        multicell_sleep()
         assert not self._is_account_disk_space_limit_violated("max")
 
         self._set_account_disk_space_limit("max", 0)
@@ -475,7 +475,7 @@ class TestAccounts(YTEnvSetup):
         create("file", "//tmp/f3", attributes={"account": "max"})
         write_file("//tmp/f3", content)
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._is_account_disk_space_limit_violated("max")
 
     def test_disk_space_limits4(self):
@@ -487,7 +487,7 @@ class TestAccounts(YTEnvSetup):
         create("file", "//tmp/a/f2")
         write_file("//tmp/a/f2", content)
 
-        wait_for_gossip()
+        multicell_sleep()
         disk_space = get("//tmp/a/f1/@resource_usage/disk_space")
         assert get("//tmp/a/f2/@resource_usage/disk_space") == disk_space
 
@@ -498,27 +498,27 @@ class TestAccounts(YTEnvSetup):
         self._set_account_disk_space_limit("max", disk_space * 2 + 1)
         copy("//tmp/a", "//tmp/b/a")
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("max") == disk_space * 2
         assert exists("//tmp/b/a")
 
         remove("//tmp/b/a")
         
         gc_collect()
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_disk_space("max") == 0
         assert self._get_account_node_count("max") == 1
         
         assert not exists("//tmp/b/a")
 
     def test_committed_usage(self):
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_committed_disk_space("tmp") == 0
 
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a" : "b"})
         
-        wait_for_gossip()
+        multicell_sleep()
         space = get("//tmp/t/@resource_usage/disk_space")
         assert space > 0
         assert self._get_account_committed_disk_space("tmp") == space
@@ -526,12 +526,12 @@ class TestAccounts(YTEnvSetup):
         tx = start_transaction()
         write_table("<append=true>//tmp/t", {"a" : "b"}, tx=tx)
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_committed_disk_space("tmp") == space
 
         commit_transaction(tx)
         
-        wait_for_gossip()
+        multicell_sleep()
         assert self._get_account_committed_disk_space("tmp") == space * 2
 
     def test_copy(self):
@@ -549,7 +549,7 @@ class TestAccounts(YTEnvSetup):
 
         write_table("//tmp/x1/t", {"a" : "b"})
 
-        wait_for_gossip()
+        multicell_sleep()
         space = self._get_account_disk_space("a1")
         assert space > 0
         assert space == self._get_account_committed_disk_space("a1")
@@ -557,7 +557,7 @@ class TestAccounts(YTEnvSetup):
         copy("//tmp/x1/t", "//tmp/x2/t")
         assert get("//tmp/x2/t/@account") == "a2"
 
-        wait_for_gossip()
+        multicell_sleep()
         assert space == self._get_account_disk_space("a2")
         assert space == self._get_account_committed_disk_space("a2")
 

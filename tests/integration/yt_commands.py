@@ -125,7 +125,7 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 ###########################################################################
 
-def wait_for_gossip():
+def multicell_sleep():
     if is_multicell:
         time.sleep(0.2)
 
