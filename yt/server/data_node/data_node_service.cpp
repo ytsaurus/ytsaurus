@@ -788,13 +788,12 @@ private:
             sampleRequest->sample_count());
         samples.erase(samples.begin() + count, samples.end());
 
-        int keyPadding = keyColumns.size() - prefixLength;
-        if (keyPadding > 0) {
+        if (keyColumns.size() > prefixLength) {
             // Requested key is wider than the keys stored in chunk.
             std::vector<TUnversionedValue> values(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null, 0));
             for (int i = 0; i < samples.size(); ++i) {
                 YCHECK(samples[i].GetCount() == chunkKeyColumns.size());
-                samples[i] = WidenKey(samples[i], keyPadding);
+                samples[i] = WidenKey(samples[i], keyColumns.size());
             }
         }
 
