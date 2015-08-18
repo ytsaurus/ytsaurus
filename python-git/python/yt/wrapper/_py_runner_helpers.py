@@ -1,5 +1,8 @@
 from yt.common import YtError
+from yt.wrapper.common import EMPTY_GENERATOR
+import inspect
 import sys
+import types
 
 class YtStandardStreamAccessError(YtError):
     pass
@@ -39,4 +42,29 @@ class WrappedStreams(object):
 
     def get_original_stdout(self):
         return self.stdout
+
+def _convert_callable_to_generator(func):
+    def generator(*args):
+        result = func(*args)
+        if isinstance(result, types.GeneratorType):
+            return result
+        elif result is not None:
+            raise YtError('Non-yielding operation function should return generator or None.'
+                          ' Did you mean "yield" instead of "return"?')
+        return EMPTY_GENERATOR
+
+    return generator
+
+def _extract_operation_methods(operation):
+    if hasattr(operation, "start") and inspect.ismethod(operation.start):
+        start = _convert_callable_to_generator(operation.start)
+    else:
+        start = lambda: EMPTY_GENERATOR
+
+    if hasattr(operation, "finish") and inspect.ismethod(operation.finish):
+        finish = _convert_callable_to_generator(operation.finish)
+    else:
+        finish = lambda: EMPTY_GENERATOR
+
+    return start, _convert_callable_to_generator(operation), finish
 
