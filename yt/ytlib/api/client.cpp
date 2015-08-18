@@ -111,7 +111,7 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
 {
     for (const auto& name : tableInfo->KeyColumns) {
         if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
-            THROW_ERROR_EXCEPTION("Missing key column %Qv in name table",
+            THROW_ERROR_EXCEPTION("No such key column %Qv",
                 name);
         }
     }
