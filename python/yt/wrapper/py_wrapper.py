@@ -1,6 +1,7 @@
 import config
 from config import get_config
 from pickling import Pickler
+from common import get_python_version
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -120,7 +121,7 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
 
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
-        pickler.dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
+        pickler.dump((function, attributes, operation_type, input_format, output_format, reduce_by, get_python_version()), fout)
 
     config_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                         prefix="config_dump")
