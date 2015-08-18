@@ -148,7 +148,9 @@ public:
         const TTransactionId& id,
         const TTransactionAttachOptions& options)
     {
-        YCHECK(TypeFromId(id) == EObjectType::Transaction);
+        if (TypeFromId(id) != EObjectType::Transaction) {
+            THROW_ERROR_EXCEPTION("Invalid transaction id %v", id);
+        }
 
         Type_ = ETransactionType::Master;
         Id_ = id;
