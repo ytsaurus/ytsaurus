@@ -60,12 +60,6 @@ public:
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
     {
-        if (Options_.TransactionId != NullTransactionId) {
-            auto transactionManager = Client_->GetTransactionManager();
-            Transaction_ = transactionManager->Attach(Options_.TransactionId);
-            ListenTransaction(Transaction_);
-        }
-
         Logger.AddTag("Path: %v, TransactionId: %v",
             Path_,
             Options_.TransactionId);
@@ -115,6 +109,12 @@ private:
 
     void DoOpen()
     {
+        if (Options_.TransactionId != NullTransactionId) {
+            auto transactionManager = Client_->GetTransactionManager();
+            Transaction_ = transactionManager->Attach(Options_.TransactionId);
+            ListenTransaction(Transaction_);
+        }
+
         auto writerOptions = New<TMultiChunkWriterOptions>();
 
         {
