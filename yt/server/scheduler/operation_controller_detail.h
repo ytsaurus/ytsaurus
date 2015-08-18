@@ -176,6 +176,7 @@ protected:
     {
         NYPath::TRichYPath Path;
         NObjectClient::TObjectId ObjectId;
+        NObjectClient::TCellTag CellTag;
 
         void Persist(TPersistenceContext& context);
     };
@@ -195,10 +196,10 @@ protected:
     struct TInputTable
         : public TUserTableBase
     {
-        // Number of chunks in the whole table (without range selectors).
+        //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
-        TNullable< std::vector<Stroka> > KeyColumns;
+        TNullable<std::vector<Stroka>> SortedBy;
 
         void Persist(TPersistenceContext& context);
     };
@@ -223,8 +224,7 @@ protected:
         bool AppendRequested = false;
         NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
-        NVersionedTableClient::TTableWriterOptionsPtr Options =
-            New<NVersionedTableClient::TTableWriterOptions>();
+        NVersionedTableClient::TTableWriterOptionsPtr Options = New<NVersionedTableClient::TTableWriterOptions>();
         TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
 
         // Server-side upload transaction.
@@ -398,7 +398,7 @@ protected:
         virtual NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResources() const;
         NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResourcesDelta();
 
-        virtual int GetChunkListCountPerJob() const = 0;
+        virtual bool IsIntermediateOutput() const;
 
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
@@ -593,12 +593,13 @@ protected:
 
     // Preparation.
     void DoPrepare();
-    void GetInputObjectIds();
-    void GetOutputObjectIds();
-    void ValidateFileTypes();
+    void GetInputTablesBasicAttributes();
+    void GetOutputTablesBasicAttributes();
+    void GetFilesBasicAttributes();
     void FetchInputTables();
-    void RequestInputObjects();
-    void RequestOutputObjects();
+    void LockInputTables();
+    void BeginUploadOutputTables();
+    void GetOutputTablesUploadParams();
     void FetchFileObjects();
     void RequestFileObjects();
     void CreateLivePreviewTables();
@@ -606,9 +607,18 @@ protected:
     void CollectTotals();
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();
-    void InitChunkListPool();
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
+
+
+    struct TCellData
+    {
+        TChunkListPoolPtr ChunkListPool;
+        int OutputTableCount = 0;
+    };
+
+    void InitCells();
+    const TCellData& GetCellData(NObjectClient::TCellTag cellTag);
 
     void ValidateKey(const NVersionedTableClient::TOwningKey& key);
 
@@ -621,18 +631,16 @@ protected:
 
     // Completion.
     void DoCommit();
-    void CommitResults();
-
+    void AttachOutputChunks();
+    void EndUploadOutputTables();
 
     // Revival.
     void DoRevive();
     void ReinstallLivePreview();
     void AbortAllJoblets();
 
-
     void DoSaveSnapshot(TOutputStream* output);
     void DoLoadSnapshot();
-
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
@@ -722,11 +730,11 @@ protected:
     //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const;
 
-    std::vector<Stroka> CheckInputTablesSorted(
-        const TNullable< std::vector<Stroka> >& keyColumns);
+    NVersionedTableClient::TKeyColumns CheckInputTablesSorted(
+        const TNullable<NVersionedTableClient::TKeyColumns>& keyColumns);
     static bool CheckKeyColumnsCompatible(
-        const std::vector<Stroka>& fullColumns,
-        const std::vector<Stroka>& prefixColumns);
+        const NVersionedTableClient::TKeyColumns& fullColumns,
+        const NVersionedTableClient::TKeyColumns& prefixColumns);
 
     static EAbortReason GetAbortReason(TJobPtr job);
     static EAbortReason GetAbortReason(TJobletPtr joblet);
@@ -763,8 +771,9 @@ protected:
         TCompletedJobPtr completedJob,
         TChunkStripePtr stripe);
 
-    bool HasEnoughChunkLists(int requestedCount);
-    NChunkClient::TChunkListId ExtractChunkList();
+    bool HasEnoughChunkLists(bool intermediate);
+    NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
+    void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
     //! Returns the list of all input chunks collected from all input tables.
     std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectInputChunks() const;
@@ -848,7 +857,11 @@ private:
     typedef TIntrusivePtr<TInputChunkScratcher> TInputChunkScratcherPtr;
 
     TOperationSpecBasePtr Spec;
-    TChunkListPoolPtr ChunkListPool;
+
+    // Multicell-related stuff.
+    NObjectClient::TCellTag IntermediateOutputCellTag;
+    TChunkListPoolPtr IntermediateOutputChunkListPool;
+    yhash_map<NObjectClient::TCellTag, TCellData> CellMap;
 
     int CachedPendingJobCount;
 

@@ -526,7 +526,7 @@ class YTEnv(object):
             master_name = scheduler_name.replace("scheduler", "master", 1)
             for key in ("addresses", "cell_id"):
                 config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
-            #config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
+            config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
             config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
             config['rpc_port'] = self._ports[scheduler_name][2 * i]

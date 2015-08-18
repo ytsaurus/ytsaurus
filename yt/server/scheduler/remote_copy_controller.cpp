@@ -89,7 +89,6 @@ private:
     public:
         //! For persistence only.
         TRemoteCopyTask()
-            : Controller_(nullptr)
         { }
 
         TRemoteCopyTask(TRemoteCopyController* controller, int index)
@@ -143,7 +142,7 @@ private:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0x83b0dfe3);
 
-        TRemoteCopyController* Controller_;
+        TRemoteCopyController* Controller_ = nullptr;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
 
@@ -189,11 +188,6 @@ private:
             result += GetFootprintMemorySize();
 
             return result;
-        }
-
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return 1;
         }
 
         virtual EJobType GetJobType() const override
@@ -357,7 +351,7 @@ private:
         TOperationControllerBase::CustomPrepare();
 
         if (InputTables.size() == 1) {
-            OutputTables[0].KeyColumns = InputTables[0].KeyColumns;
+            OutputTables[0].KeyColumns = InputTables[0].SortedBy;
         }
 
         LOG_INFO("Processing inputs");

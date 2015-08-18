@@ -9,12 +9,16 @@ from yt.wrapper import format
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+##################################################################
+
 def get_statistics(statistics, complex_key):
     result = statistics
     for part in complex_key.split("."):
         if part:
             result = result[part]
     return result
+
+##################################################################
 
 class TestCGroups(YTEnvSetup):
     NUM_MASTERS = 3
@@ -161,6 +165,7 @@ class TestJobProber(YTEnvSetup):
                 assert trace['trace'].startswith("Process {0} attached".format(pid))
         track_op(op_id)
 
+##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
@@ -1035,3 +1040,8 @@ print row + table_index
             spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+
+##################################################################
+
+class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2
