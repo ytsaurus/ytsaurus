@@ -3,6 +3,7 @@
 from yt.common import require, flatten, update, which, YtError, update_from_env
 import yt.yson as yson
 
+import sys
 import random
 from datetime import datetime
 from itertools import ifilter, chain
@@ -136,4 +137,8 @@ def get_version():
         return VERSION
     except:
         return "unknown"
+
+def get_python_version():
+    version = sys.version_info
+    return (version.major, version.minor, version.micro)
 

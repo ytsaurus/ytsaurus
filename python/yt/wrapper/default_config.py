@@ -79,7 +79,10 @@ default_config = {
         # Function to replace standard py_wrapper.create_modules_archive.
         "create_modules_archive_function": None,
         # Pickling framework used to save user modules.
-        "framework": "dill"
+        "framework": "dill",
+        # Check that python version on local machine is the same as on cluster nodes.
+        # Turn it off at your own risk.
+        "check_python_version": False
     },
 
     "yamr_mode": {
