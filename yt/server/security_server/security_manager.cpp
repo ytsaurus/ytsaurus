@@ -1022,9 +1022,12 @@ private:
 
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto handler = cypressManager->GetHandler(node);
-        node->CachedResourceUsage() = handler->GetIncrementalResourceUsage(node);
+        auto objectManager = Bootstrap_->GetObjectManager();
+        if (!objectManager->IsForeign(node)) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            auto handler = cypressManager->GetHandler(node);
+            node->CachedResourceUsage() = handler->GetAccountingResourceUsage(node);
+        }
     }
 
     static void UpdateAccountResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)

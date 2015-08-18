@@ -30,11 +30,13 @@ public:
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
         const NCypressServer::TCypressNodeBase* node) override;
 
-    virtual NSecurityServer::TClusterResources GetIncrementalResourceUsage(
+    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
         const NCypressServer::TCypressNodeBase* node) override;
 
 protected:
     NLogging::TLogger Logger;
+
+    void InitializeAttributes(NYTree::IAttributeDictionary* attributes);
 
     virtual std::unique_ptr<TChunkOwner> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
@@ -59,11 +61,6 @@ protected:
         TChunkOwner* clonedNode,
         NCypressServer::ICypressNodeFactoryPtr factory,
         NCypressServer::ENodeCloneMode mode) override;
-
-private:
-    void MergeChunkLists(
-        TChunkOwner* originatingNode,
-        TChunkOwner* branchedNode);
 
 };
 

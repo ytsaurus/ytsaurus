@@ -9,6 +9,7 @@
 #include <server/cypress_server/public.h>
 
 #include <server/security_server/cluster_resources.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -47,7 +48,7 @@ void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
 NSecurityServer::TClusterResources GetDiskUsage(
-    const TChunkList* chunkList,
+    const NChunkClient::NProto::TDataStatistics& statistics,
     int replicationFactor);
 
 std::vector<TChunkOwnerBase*> GetOwningNodes(

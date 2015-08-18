@@ -1425,39 +1425,40 @@ private:
             requests.clear();
         }
 
-        // Attach live preview chunks.
-        {
-            auto& requests = list->LivePreviewRequests;
-
-            // Sort by chunk list.
-            std::sort(
-                requests.begin(),
-                requests.end(),
-                [] (const TLivePreviewRequest& lhs, const TLivePreviewRequest& rhs) {
-                    return lhs.ChunkListId < rhs.ChunkListId;
-                });
-
-            // Group by chunk list.
-            int rangeBegin = 0;
-            while (rangeBegin < static_cast<int>(requests.size())) {
-                int rangeEnd = rangeBegin; // non-inclusive
-                while (rangeEnd < static_cast<int>(requests.size()) &&
-                       requests[rangeBegin].ChunkListId == requests[rangeEnd].ChunkListId)
-                {
-                    ++rangeEnd;
-                }
-
-                auto req = TChunkListYPathProxy::Attach(FromObjectId(requests[rangeBegin].ChunkListId));
-                GenerateMutationId(req);
-                for (int index = rangeBegin; index < rangeEnd; ++index) {
-                    ToProto(req->add_children_ids(), requests[index].ChildId);
-                }
-                batchReq->AddRequest(req, "update_live_preview");
-
-                rangeBegin = rangeEnd;
-            }
-            requests.clear();
-        }
+        // XXX(babenko): fixme
+        //// Attach live preview chunks.
+        //{
+        //    auto& requests = list->LivePreviewRequests;
+        //
+        //    // Sort by chunk list.
+        //    std::sort(
+        //        requests.begin(),
+        //        requests.end(),
+        //        [] (const TLivePreviewRequest& lhs, const TLivePreviewRequest& rhs) {
+        //            return lhs.ChunkListId < rhs.ChunkListId;
+        //        });
+        //
+        //    // Group by chunk list.
+        //    int rangeBegin = 0;
+        //    while (rangeBegin < static_cast<int>(requests.size())) {
+        //        int rangeEnd = rangeBegin; // non-inclusive
+        //        while (rangeEnd < static_cast<int>(requests.size()) &&
+        //               requests[rangeBegin].ChunkListId == requests[rangeEnd].ChunkListId)
+        //        {
+        //            ++rangeEnd;
+        //        }
+        //
+        //        auto req = TChunkListYPathProxy::Attach(FromObjectId(requests[rangeBegin].ChunkListId));
+        //        GenerateMutationId(req);
+        //        for (int index = rangeBegin; index < rangeEnd; ++index) {
+        //            ToProto(req->add_children_ids(), requests[index].ChildId);
+        //        }
+        //        batchReq->AddRequest(req, "update_live_preview");
+        //
+        //        rangeBegin = rangeEnd;
+        //    }
+        //    requests.clear();
+        //}
     }
 
     TError GetOperationNodeUpdateError(

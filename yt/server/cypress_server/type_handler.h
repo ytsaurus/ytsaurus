@@ -61,25 +61,26 @@ struct INodeTypeHandler
     virtual void Destroy(TCypressNodeBase* node) = 0;
 
     //! Branches a node into a given transaction.
-    /*!
-     *  \param node The originating node.
-     *  \param transaction Transaction that needs a copy of the node.
-     *  \param mode The lock mode for which the node is being branched.
-     *  \returns The branched node.
-     */
     virtual std::unique_ptr<TCypressNodeBase> Branch(
         TCypressNodeBase* originatingNode,
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) = 0;
 
-    //! Merges the changes made in the branched node back into the committed one.
+    //! Called on transaction commit to merge the changes made in the branched node back into the originating one.
     /*!
-     *  \param branchedNode The branched node.
-     *
      *  \note
      *  #branchedNode is non-const for performance reasons (i.e. to swap the data instead of copying).
      */
     virtual void Merge(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) = 0;
+
+    //! Called on transaction abort to perform any cleanup necessary.
+    /*!
+     *  \note
+     *  #Destroy is also called for #branchedNode.
+     */
+    virtual void Unbranch(
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode) = 0;
 
@@ -99,7 +100,7 @@ struct INodeTypeHandler
 
     //! Returns the incremental resource usage for accounting purposes.
     //! E.g. when a node is branched in append mode, its initial incremental usage is zero.
-    virtual NSecurityServer::TClusterResources GetIncrementalResourceUsage(const TCypressNodeBase* node) = 0;
+    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(const TCypressNodeBase* node) = 0;
 
 };
 

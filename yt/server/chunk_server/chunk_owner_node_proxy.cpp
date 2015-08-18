@@ -22,9 +22,16 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/cypress_client/rpc_helpers.h>
+
 #include <server/node_tracker_server/node_directory_builder.h>
 
 #include <server/object_server/object.h>
+#include <server/object_server/object_manager.h>
+
+#include <server/transaction_server/transaction_manager.h>
+
+#include <server/cell_master/multicell_manager.h>
 
 #include <server/cell_master/config.h>
 
@@ -32,15 +39,16 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NConcurrency;
-using namespace NChunkClient;
-using namespace NCypressServer;
-using namespace NNodeTrackerServer;
-using namespace NObjectClient;
-using namespace NObjectServer;
-using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NChunkClient;
 using namespace NVersionedTableClient;
+using namespace NCypressClient;
+using namespace NObjectClient;
+using namespace NCypressServer;
+using namespace NNodeTrackerServer;
+using namespace NObjectServer;
+using namespace NTransactionServer;
 using namespace NSecurityServer;
 
 using NChunkClient::NProto::TReqFetch;
@@ -454,8 +462,10 @@ TChunkOwnerNodeProxy::TChunkOwnerNodeProxy(
 
 bool TChunkOwnerNodeProxy::DoInvoke(NRpc::IServiceContextPtr context)
 {
-    DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
     DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch);
+    DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);
+    DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
+    DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
     return TNontemplateCypressNodeProxyBase::DoInvoke(context);
 }
 
@@ -477,14 +487,10 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor("erasure_statistics")
         .SetExternal(isExternal)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor("chunk_count")
-        .SetExternal(isExternal));
-    descriptors->push_back(TAttributeDescriptor("uncompressed_data_size")
-        .SetExternal(isExternal));
-    descriptors->push_back(TAttributeDescriptor("compressed_data_size")
-        .SetExternal(isExternal));
-    descriptors->push_back(TAttributeDescriptor("compression_ratio")
-        .SetExternal(isExternal));
+    descriptors->push_back("chunk_count");
+    descriptors->push_back("uncompressed_data_size");
+    descriptors->push_back("compressed_data_size");
+    descriptors->push_back("compression_ratio");
     descriptors->push_back(TAttributeDescriptor("compression_codec")
         .SetCustom(true));
     descriptors->push_back(TAttributeDescriptor("erasure_codec")
@@ -502,7 +508,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 {
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     const auto* chunkList = node->GetChunkList();
-    const auto& statistics = chunkList->Statistics();
+    auto statistics = node->ComputeTotalStatistics();
     auto isExternal = node->IsExternal();
 
     if (!isExternal) {
@@ -511,33 +517,33 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 .Value(chunkList->GetId());
             return true;
         }
+    }
 
-        if (key == "chunk_count") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.ChunkCount);
-            return true;
-        }
+    if (key == "chunk_count") {
+        BuildYsonFluently(consumer)
+            .Value(statistics.chunk_count());
+        return true;
+    }
 
-        if (key == "uncompressed_data_size") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.UncompressedDataSize);
-            return true;
-        }
+    if (key == "uncompressed_data_size") {
+        BuildYsonFluently(consumer)
+            .Value(statistics.uncompressed_data_size());
+        return true;
+    }
 
-        if (key == "compressed_data_size") {
-            BuildYsonFluently(consumer)
-                .Value(statistics.CompressedDataSize);
-            return true;
-        }
+    if (key == "compressed_data_size") {
+        BuildYsonFluently(consumer)
+            .Value(statistics.compressed_data_size());
+        return true;
+    }
 
-        if (key == "compression_ratio") {
-            double ratio = statistics.UncompressedDataSize > 0
-                ? static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize
-                : 0;
-            BuildYsonFluently(consumer)
-                .Value(ratio);
-            return true;
-        }
+    if (key == "compression_ratio") {
+        double ratio = statistics.uncompressed_data_size() > 0
+            ? static_cast<double>(statistics.compressed_data_size()) / statistics.uncompressed_data_size()
+            : 0;
+        BuildYsonFluently(consumer)
+            .Value(ratio);
+        return true;
     }
 
     if (key == "update_mode") {
@@ -690,152 +696,19 @@ void TChunkOwnerNodeProxy::ValidateFetchParameters(
     const std::vector<TReadRange>& /*ranges*/)
 { }
 
-void TChunkOwnerNodeProxy::Clear()
-{ }
-
-void TChunkOwnerNodeProxy::ValidatePrepareForUpdate()
+void TChunkOwnerNodeProxy::ValidateInUpdate()
 {
-    const auto* node = GetThisTypedImpl<TChunkOwnerBase>();
-    if (node->GetUpdateMode() != EUpdateMode::None) {
-        THROW_ERROR_EXCEPTION("Node is already in %Qlv mode",
-            node->GetUpdateMode());
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    if (node->GetUpdateMode() == EUpdateMode::None) {
+        THROW_ERROR_EXCEPTION("Node is not in an update mode");
     }
 }
+
+void TChunkOwnerNodeProxy::ValidateBeginUpload()
+{ }
 
 void TChunkOwnerNodeProxy::ValidateFetch()
 { }
-
-bool TChunkOwnerNodeProxy::IsSorted()
-{
-    return false;
-}
-
-void TChunkOwnerNodeProxy::ResetSorted()
-{ }
-
-DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, PrepareForUpdate)
-{
-    DeclareMutating();
-
-    auto updateMode = EUpdateMode(request->update_mode());
-    YCHECK(updateMode == EUpdateMode::Append ||
-           updateMode == EUpdateMode::Overwrite);
-
-    auto lockMode = ELockMode(request->lock_mode());
-    YCHECK(lockMode == ELockMode::Shared ||
-           lockMode == ELockMode::Exclusive);
-
-    context->SetRequestInfo("UpdateMode: %v, LockMode: %v",
-        updateMode,
-        lockMode);
-
-    // NB: No need for a permission check;
-    // the client must have invoked GetBasicAttributes.
-
-    ValidateTransaction();
-
-    auto* node = LockThisTypedImpl<TChunkOwnerBase>(lockMode);
-    ValidatePrepareForUpdate();
-
-    auto chunkManager = Bootstrap_->GetChunkManager();
-    auto objectManager = Bootstrap_->GetObjectManager();
-
-    TChunkList* resultChunkList = nullptr;
-    switch (updateMode) {
-        case EUpdateMode::Append: {
-            if (node->IsExternal()) {
-                LOG_DEBUG_UNLESS(
-                    IsRecovery(),
-                    "External node is switched to \"append\" mode (NodeId: %v)",
-                    node->GetId());
-
-            } else {
-                auto* snapshotChunkList = node->GetChunkList();
-
-                auto* newChunkList = chunkManager->CreateChunkList();
-                YCHECK(newChunkList->OwningNodes().insert(node).second);
-
-                YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
-                node->SetChunkList(newChunkList);
-                objectManager->RefObject(newChunkList);
-
-                chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
-
-                auto* deltaChunkList = chunkManager->CreateChunkList();
-                chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
-
-                objectManager->UnrefObject(snapshotChunkList);
-
-                resultChunkList = deltaChunkList;
-
-                if (request->fetch_last_key()) {
-                    TOwningKey lastKey;
-                    if (IsSorted() && !snapshotChunkList->Children().empty()) {
-                        lastKey = GetMaxKey(snapshotChunkList);
-                    }
-                    ToProto(response->mutable_last_key(), lastKey);
-                }
-
-                LOG_DEBUG_UNLESS(
-                    IsRecovery(),
-                    "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
-                    node->GetId(),
-                    newChunkList->GetId(),
-                    snapshotChunkList->GetId(),
-                    deltaChunkList->GetId());
-
-            }
-            break;
-        }
-
-        case EUpdateMode::Overwrite: {
-            if (node->IsExternal()) {
-                LOG_DEBUG_UNLESS(
-                    IsRecovery(),
-                    "External node is switched to \"overwrite\" mode (NodeId: %v)",
-                    node->GetId());
-            } else {
-                auto* oldChunkList = node->GetChunkList();
-                YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
-                objectManager->UnrefObject(oldChunkList);
-
-                auto* newChunkList = chunkManager->CreateChunkList();
-                YCHECK(newChunkList->OwningNodes().insert(node).second);
-                node->SetChunkList(newChunkList);
-                objectManager->RefObject(newChunkList);
-
-                resultChunkList = newChunkList;
-
-                LOG_DEBUG_UNLESS(
-                    IsRecovery(),
-                    "Node is switched to \"overwrite\" mode (NodeId: %v, NewChunkListId: %v)",
-                    node->GetId(),
-                    newChunkList->GetId());
-            }
-
-            Clear();
-
-            break;
-        }
-
-        default:
-            YUNREACHABLE();
-    }
-
-    node->SetUpdateMode(updateMode);
-
-    ResetSorted();
-
-    SetModified();
-
-    if (!node->IsExternal()) {
-        ToProto(response->mutable_chunk_list_id(), resultChunkList->GetId());
-        context->SetResponseInfo("ChunkListId: %v",
-            resultChunkList->GetId());
-    }
-
-    context->Reply();
-}
 
 DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
@@ -870,6 +743,213 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
         ranges);
 
     visitor->Run();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
+{
+    DeclareMutating();
+
+    auto updateMode = EUpdateMode(request->update_mode());
+    YCHECK(updateMode == EUpdateMode::Append ||
+           updateMode == EUpdateMode::Overwrite);
+
+    auto lockMode = ELockMode(request->lock_mode());
+    YCHECK(lockMode == ELockMode::Shared ||
+           lockMode == ELockMode::Exclusive);
+
+    auto uploadTransactionTitle = request->has_upload_transaction_title()
+        ? MakeNullable(request->upload_transaction_title())
+        : Null;
+
+    auto uploadTransactionTimeout = request->has_upload_transaction_timeout()
+        ? MakeNullable(TDuration(request->upload_transaction_timeout()))
+        : Null;
+
+    auto uploadTransactionIdHint = request->has_upload_transaction_id()
+        ? FromProto<TTransactionId>(request->upload_transaction_id())
+        : NullTransactionId;
+
+    context->SetRequestInfo(
+        "UpdateMode: %v, LockMode: %v, "
+        "UploadTransactionTitle: %v, UploadTransactionTimeout: %v",
+        updateMode,
+        lockMode,
+        uploadTransactionTitle,
+        uploadTransactionTimeout);
+
+    // NB: No need for a permission check;
+    // the client must have invoked GetBasicAttributes.
+
+    ValidateBeginUpload();
+
+    auto chunkManager = Bootstrap_->GetChunkManager();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto cypressManager = Bootstrap_->GetCypressManager();
+    auto transactionManager = Bootstrap_->GetTransactionManager();
+
+    auto* uploadTransaction = transactionManager->StartTransaction(
+        Transaction,
+        uploadTransactionTimeout,
+        uploadTransactionIdHint);
+    uploadTransaction->SetUncommittedAccountingEnabled(false);
+
+    auto attributes = CreateEphemeralAttributes();
+    if (uploadTransactionTitle) {
+        attributes->Set("title", *uploadTransactionTitle);
+    }
+
+    objectManager->FillAttributes(uploadTransaction, *attributes);
+
+    auto* node = static_cast<TChunkOwnerBase*>(cypressManager->LockNode(
+        TrunkNode,
+        uploadTransaction,
+        lockMode));
+
+    switch (updateMode) {
+        case EUpdateMode::Append: {
+            if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Node is switched to \"append\" mode (NodeId: %v)",
+                    node->GetId());
+
+            } else {
+                auto* snapshotChunkList = node->GetChunkList();
+
+                auto* newChunkList = chunkManager->CreateChunkList();
+                YCHECK(newChunkList->OwningNodes().insert(node).second);
+
+                YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
+                node->SetChunkList(newChunkList);
+                objectManager->RefObject(newChunkList);
+
+                chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
+
+                auto* deltaChunkList = chunkManager->CreateChunkList();
+                chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
+
+                objectManager->UnrefObject(snapshotChunkList);
+
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
+                    node->GetId(),
+                    newChunkList->GetId(),
+                    snapshotChunkList->GetId(),
+                    deltaChunkList->GetId());
+
+            }
+            break;
+        }
+
+        case EUpdateMode::Overwrite: {
+            if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Node is switched to \"overwrite\" mode (NodeId: %v)",
+                    node->GetId());
+            } else {
+                auto* oldChunkList = node->GetChunkList();
+                YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
+                objectManager->UnrefObject(oldChunkList);
+
+                auto* newChunkList = chunkManager->CreateChunkList();
+                YCHECK(newChunkList->OwningNodes().insert(node).second);
+                node->SetChunkList(newChunkList);
+                objectManager->RefObject(newChunkList);
+
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Node is switched to \"overwrite\" mode (NodeId: %v, NewChunkListId: %v)",
+                    node->GetId(),
+                    newChunkList->GetId());
+            }
+            break;
+        }
+
+        default:
+            YUNREACHABLE();
+    }
+
+    node->BeginUpload(updateMode);
+
+    const auto& uploadTransactionId = uploadTransaction->GetId();
+    ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);
+
+    context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
+
+    if (node->IsExternal()) {
+        auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
+        replicationRequest->CopyFrom(*request);
+        ToProto(replicationRequest->mutable_upload_transaction_id(), uploadTransactionId);
+        SetTransactionId(replicationRequest, GetObjectId(GetTransaction()));
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMaster(replicationRequest, node->GetExternalCellTag());
+    }
+
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
+{
+    DeclareNonMutating();
+
+    bool fetchLastKey = request->fetch_last_key();
+
+    context->SetRequestInfo("FetchLastKey: %v", fetchLastKey);
+
+    ValidateNotExternal();
+    ValidateInUpdate();
+
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    auto* snapshotChunkList = node->GetSnapshotChunkList();
+    auto* deltaChunkList = node->GetDeltaChunkList();
+
+    const auto& uploadChunkListId = deltaChunkList->GetId();
+    ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
+
+    if (fetchLastKey) {
+        TOwningKey lastKey;
+        if (!snapshotChunkList->Children().empty()) {
+            lastKey = GetMaxKey(snapshotChunkList);
+        }
+        ToProto(response->mutable_last_key(), lastKey);
+    }
+
+    context->SetResponseInfo("UploadChunkListId: %v, HasLastKey: %v",
+        uploadChunkListId,
+        response->has_last_key());
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
+{
+    DeclareMutating();
+    ValidateTransaction();
+    ValidateInUpdate();
+
+    const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
+    auto keyColumns = FromProto<Stroka>(request->key_columns());
+
+    context->SetRequestInfo("KeyColumns: [%v]",
+        JoinToString(keyColumns));
+
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    YCHECK(node->GetTransaction() == Transaction);
+
+    if (node->IsExternal()) {
+        PostToSecondaryMaster(context, node->GetExternalCellTag());
+    }
+
+    node->EndUpload(statistics, keyColumns);
+
+    SetModified();
+
+    auto transactionManager = Bootstrap_->GetTransactionManager();
+    transactionManager->CommitTransaction(Transaction, NullTimestamp);
+
+    context->Reply();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

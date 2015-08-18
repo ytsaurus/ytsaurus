@@ -24,6 +24,7 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/transaction_client/helpers.h>
+#include <ytlib/transaction_client/config.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -106,40 +107,14 @@ private:
 
     IFileMultiChunkWriterPtr Writer_;
 
+    TCellTag CellTag_ = InvalidCellTag;
+    TObjectId ObjectId_;
+
     NLogging::TLogger Logger = ApiLogger;
 
 
     void DoOpen()
     {
-        {
-            LOG_INFO("Creating upload transaction");
-
-            NTransactionClient::TTransactionStartOptions options;
-            options.ParentId = Transaction_ ? Transaction_->GetId() : NullTransactionId;
-            options.EnableUncommittedAccounting = false;
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("title", Format("Upload to %v", Path_));
-            options.Attributes = std::move(attributes);
-            options.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
-
-            auto transactionManager = Client_->GetTransactionManager();
-            auto transactionOrError = WaitFor(transactionManager->Start(
-                ETransactionType::Master,
-                options));
-
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                transactionOrError,
-                "Error creating upload transaction");
-
-            UploadTransaction_ = transactionOrError.Value();
-            ListenTransaction(UploadTransaction_);
-
-            LOG_INFO("Upload transaction started (UploadTransactionId: %v)",
-                UploadTransaction_->GetId());
-        }
-
-        auto cellTag = InvalidCellTag;
-        TObjectId objectId;
         auto writerOptions = New<TMultiChunkWriterOptions>();
 
         {
@@ -159,16 +134,16 @@ private:
                 Path_);
 
             const auto& rsp = rspOrError.Value();
-            objectId = FromProto<TObjectId>(rsp->object_id());
-            cellTag = rsp->cell_tag();
+            ObjectId_ = FromProto<TObjectId>(rsp->object_id());
+            CellTag_ = rsp->cell_tag();
 
             LOG_INFO("Basic file attributes received (ObjectId: %v, CellTag: %v)",
-                objectId,
-                cellTag);
+                ObjectId_,
+                CellTag_);
         }
 
         {
-            auto type = TypeFromId(objectId);
+            auto type = TypeFromId(ObjectId_);
             if (type != EObjectType::File) {
                 THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                     Path_,
@@ -177,8 +152,7 @@ private:
             }
         }
 
-        auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
-        auto objectIdPath = FromObjectId(objectId);
+        auto objectIdPath = FromObjectId(ObjectId_);
 
         {
             LOG_INFO("Requesting extended file attributes");
@@ -213,25 +187,8 @@ private:
                 writerOptions->Account);
         }
 
-        TChunkListId chunkListId;
-
-        auto makePrepareForUpdateRequest = [&] () -> TFileYPathProxy::TReqPrepareForUpdatePtr {
-            auto req = TFileYPathProxy::PrepareForUpdate(objectIdPath);
-            req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
-            req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
-            GenerateMutationId(req);
-            SetTransactionId(req, UploadTransaction_);
-            return req;
-        };
-
-        auto handlePrepareForUpdateResponse = [&] (TFileYPathProxy::TRspPrepareForUpdatePtr rsp) {
-            chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            LOG_INFO("File prepared for update (ChunkListId: %v)",
-                chunkListId);
-        };
-
         {
-            LOG_INFO("Preparing file for update at primary master");
+            LOG_INFO("Starting file upload");
 
             auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
@@ -247,44 +204,70 @@ private:
             }
 
             {
-                auto req = makePrepareForUpdateRequest();
-                batchReq->AddRequest(req, "prepare_for_update");
+                auto transactionManager = Client_->GetTransactionManager();
+
+                auto req = TFileYPathProxy::BeginUpload(objectIdPath);
+                req->set_update_mode(static_cast<int>(Options_.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+                req->set_lock_mode(static_cast<int>(Options_.Append ? ELockMode::Shared : ELockMode::Exclusive));
+                req->set_upload_transaction_title(Format("Upload to %v", Path_));
+                req->set_upload_transaction_timeout(transactionManager->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+                GenerateMutationId(req);
+                SetTransactionId(req, Transaction_);
+                batchReq->AddRequest(req, "begin_upload");
             }
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 GetCumulativeError(batchRspOrError),
-                "Error preparing file %v for update at primary master",
+                "Error starting upload to file %v",
                 Path_);
             const auto& batchRsp = batchRspOrError.Value();
 
-            if (cellTag == Client_->GetConnection()->GetPrimaryMasterCellTag()) {
-                auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspPrepareForUpdate>("prepare_for_update")
-                    .Value();
-                handlePrepareForUpdateResponse(rsp);
+            {
+                auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspBeginUpload>("begin_upload").Value();
+                auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+
+                NTransactionClient::TTransactionAttachOptions options;
+                options.PingAncestors = Options_.PingAncestors;
+                options.AutoAbort = true;
+
+                auto transactionManager = Client_->GetTransactionManager();
+                UploadTransaction_ = transactionManager->Attach(uploadTransactionId, options);
+                ListenTransaction(UploadTransaction_);
+
+                LOG_INFO("File upload started (UploadTransactionId: %v)",
+                    uploadTransactionId);
             }
         }
 
-        if (cellTag != Client_->GetConnection()->GetPrimaryMasterCellTag()) {
-            LOG_INFO("Preparing file for update at secondary master");
+        TChunkListId chunkListId;
 
-            TObjectServiceProxy proxy(uploadMasterChannel);
-            auto req = makePrepareForUpdateRequest();
+        {
+            LOG_INFO("Requesting file upload parameters");
+
+            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, CellTag_);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TFileYPathProxy::GetUploadParams(objectIdPath);
+            SetTransactionId(req, UploadTransaction_);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 rspOrError,
-                "Error preparing file %v for update at secondary master",
+                "Error requesting upload parameters for file %v",
                 Path_);
 
             const auto& rsp = rspOrError.Value();
-            handlePrepareForUpdateResponse(rsp);
+            chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+
+            LOG_INFO("File upload parameters received (ChunkListId: %v)",
+                chunkListId);
         }
 
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
-            uploadMasterChannel,
+            Client_->GetMasterChannel(EMasterChannelKind::Leader, CellTag_),
             UploadTransaction_->GetId(),
             chunkListId);
 
@@ -308,19 +291,45 @@ private:
     {
         ValidateAborted();
 
-        LOG_INFO("Closing file writer and committing upload transaction");
+        LOG_INFO("Closing file");
 
         {
             auto result = WaitFor(Writer_->Close());
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to close file writer");
         }
 
+        auto objectIdPath = FromObjectId(ObjectId_);
+
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchReq = proxy.ExecuteBatch();
+
         {
-            TTransactionCommitOptions options;
-            options.PrerequisiteTransactionIds = Options_.PrerequisiteTransactionIds;
-            auto result = WaitFor(UploadTransaction_->Commit(options));
-            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to commit upload transaction");
+            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+            for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+            }
         }
+
+        {
+            auto req = TFileYPathProxy::EndUpload(objectIdPath);
+            *req->mutable_statistics() = Writer_->GetDataStatistics();
+            SetTransactionId(req, UploadTransaction_);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req, "end_upload");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error finishing upload to file %v",
+            Path_);
+
+        UploadTransaction_->Detach();
+
+        LOG_INFO("File closed");
     }
 
 };

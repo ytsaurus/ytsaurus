@@ -60,6 +60,8 @@
 
 #include <server/object_server/object_manager.h>
 
+#include <server/journal_server/journal_node.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -80,6 +82,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJournalClient;
+using namespace NJournalServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -864,10 +867,27 @@ public:
                 current->Statistics().Accumulate(statisticsDelta);
             });
 
+        bool hasUpdates = false;
+        TJournalNode* trunkOwningNode = nullptr;
         auto owningNodes = GetOwningNodes(chunk);
-        auto securityManager = Bootstrap_->GetSecurityManager();
         for (auto* node : owningNodes) {
-            securityManager->UpdateAccountNodeUsage(node);
+            YCHECK(node->GetType() == EObjectType::Journal);
+            auto* journalNode = static_cast<TJournalNode*>(node);
+            if (journalNode->GetUpdateMode() != EUpdateMode::None) {
+                hasUpdates = true;
+            }
+            if (trunkOwningNode) {
+                YCHECK(journalNode->GetTrunkNode() == trunkOwningNode);
+            } else {
+                trunkOwningNode = journalNode->GetTrunkNode();
+            }
+        }
+
+        YCHECK(trunkOwningNode);
+
+        if (!hasUpdates) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SealJournal(trunkOwningNode, nullptr);
         }
 
         if (IsLeader()) {

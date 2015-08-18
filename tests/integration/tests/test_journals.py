@@ -13,6 +13,14 @@ class TestJournals(YTEnvSetup):
 
     DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
 
+    def _wait_until_sealed(self, path):
+        while not get(path + "/@sealed"):
+            sleep(0.1)
+
+    def _write_and_wait_until_sealed(self, path, data):
+        write_journal(path, data)
+        self._wait_until_sealed(path)
+
     def test_create_success(self):
         create("journal", "//tmp/j")
         assert get("//tmp/j/@replication_factor") == 3
@@ -31,7 +39,7 @@ class TestJournals(YTEnvSetup):
 
     def test_readwrite1(self):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@row_count") == 10
@@ -43,7 +51,7 @@ class TestJournals(YTEnvSetup):
     def test_readwrite2(self):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
-            write_journal("//tmp/j", self.DATA)
+            self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@row_count") == 100
@@ -63,7 +71,7 @@ class TestJournals(YTEnvSetup):
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
 
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -98,7 +106,7 @@ class TestJournals(YTEnvSetup):
 
     def test_move(self):
         create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j1", self.DATA)
 
         move('//tmp/j1', '//tmp/j2')
         assert read_journal("//tmp/j2") == self.DATA

@@ -24,10 +24,19 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
+    virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
+
     NChunkServer::TChunk* GetTrailingChunk() const;
-    bool IsSealed() const;
 
     TJournalNode* GetTrunkNode();
+    const TJournalNode* GetTrunkNode() const;
+
+    bool GetSealed() const;
+    void SetSealed(bool value);
+
+private:
+    // Only maintained at trunk nodes.
+    bool Sealed_ = true;
 
 };
 

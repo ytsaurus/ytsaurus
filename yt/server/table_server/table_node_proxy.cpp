@@ -83,28 +83,19 @@ private:
 
         const auto* table = GetThisTypedImpl();
         bool isDynamic = table->IsDynamic();
-        bool isExternal = table->IsExternal();
 
         descriptors->push_back(TAttributeDescriptor("row_count")
-            .SetPresent(!isDynamic)
-            .SetExternal(!isDynamic && isExternal));
+            .SetPresent(!isDynamic));
         descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
-            .SetPresent(isDynamic)
-            .SetExternal(isDynamic && isExternal));
-        descriptors->push_back(TAttributeDescriptor("sorted")
-            .SetExternal(isExternal));
+            .SetPresent(isDynamic));
+        descriptors->push_back("sorted");
         descriptors->push_back(TAttributeDescriptor("key_columns")
-            .SetReplicated(true)
-            .SetExternal(isExternal));
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("sorted_by")
-            .SetPresent(isExternal
-                ? EAttributePresenceMode::Async
-                : (table->GetSorted() ? EAttributePresenceMode::True : EAttributePresenceMode::False))
-            .SetExternal(isExternal));
+            .SetPresent(table->GetSorted()));
         descriptors->push_back("dynamic");
         descriptors->push_back(TAttributeDescriptor("tablets")
             .SetPresent(isDynamic)
-            .SetExternal(isDynamic && isExternal)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("channels")
             .SetCustom(true));
@@ -115,38 +106,35 @@ private:
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
-        bool isExternal = table->IsExternal();
+        auto statistics = table->ComputeTotalStatistics();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
 
-        const auto* chunkList = table->GetChunkList();
-        const auto& statistics = chunkList->Statistics();
-
-        if (key == "row_count" && !table->IsDynamic() && !isExternal) {
+        if (key == "row_count" && !table->IsDynamic()) {
             BuildYsonFluently(consumer)
-                .Value(statistics.RowCount);
+                .Value(statistics.row_count());
             return true;
         }
 
-        if (key == "unmerged_row_count" && table->IsDynamic() && !isExternal) {
+        if (key == "unmerged_row_count" && table->IsDynamic()) {
             BuildYsonFluently(consumer)
-                .Value(statistics.RowCount);
+                .Value(statistics.row_count());
             return true;
         }
 
-        if (key == "sorted" && !isExternal) {
+        if (key == "sorted") {
             BuildYsonFluently(consumer)
                 .Value(table->GetSorted());
             return true;
         }
 
-        if (key == "key_columns" && !isExternal) {
+        if (key == "key_columns") {
             BuildYsonFluently(consumer)
                 .Value(table->KeyColumns());
             return true;
         }
 
-        if (key == "sorted_by" && !isExternal && table->GetSorted()) {
+        if (key == "sorted_by" && table->GetSorted()) {
             BuildYsonFluently(consumer)
                 .Value(table->KeyColumns());
             return true;
@@ -183,31 +171,28 @@ private:
 
     bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        const auto* table = GetThisImpl();
-        bool isExternal = table->IsExternal();
-
-        if (key == "key_columns" && !isExternal) {
+        if (key == "key_columns") {
             auto keyColumns = ConvertTo<TKeyColumns>(value);
 
             ValidateNoTransaction();
 
-            auto* lockedTable = LockThisTypedImpl();
-            auto* chunkList = lockedTable->GetChunkList();
-            if (lockedTable->IsDynamic()) {
-                if (lockedTable->HasMountedTablets()) {
+            auto* table = LockThisTypedImpl();
+
+            if (table->IsDynamic()) {
+                if (table->HasMountedTablets()) {
                     THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
                 }
             } else {
-                if (!chunkList->Children().empty()) {
+                if (!table->IsEmpty()) {
                     THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
                 }
             }
 
-            ValidateKeyColumnsUpdate(lockedTable->KeyColumns(), keyColumns);
+            ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
 
-            lockedTable->KeyColumns() = keyColumns;
-            if (!lockedTable->IsDynamic() && !keyColumns.empty()) {
-                lockedTable->SetSorted(true);
+            table->KeyColumns() = keyColumns;
+            if (!table->IsDynamic() && !keyColumns.empty()) {
+                table->SetSorted(true);
             }
             return true;
         }
@@ -268,19 +253,8 @@ private:
     }
 
 
-    virtual void Clear() override
-    {
-        TChunkOwnerNodeProxy::Clear();
-
-        auto* table = GetThisTypedImpl();
-        table->KeyColumns().clear();
-        table->SetSorted(false);
-    }
-
-
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
         DISPATCH_YPATH_SERVICE_METHOD(Mount);
         DISPATCH_YPATH_SERVICE_METHOD(Unmount);
         DISPATCH_YPATH_SERVICE_METHOD(Remount);
@@ -300,55 +274,16 @@ private:
         }
     }
 
-    virtual void ValidatePrepareForUpdate() override
+    virtual void ValidateBeginUpload() override
     {
-        TBase::ValidatePrepareForUpdate();
+        TBase::ValidateBeginUpload();
 
         const auto* table = GetThisTypedImpl();
         if (table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Cannot write into a dynamic table");
+            THROW_ERROR_EXCEPTION("Cannot upload into a dynamic table");
         }
     }
 
-    virtual bool IsSorted() override
-    {
-        const auto* table = GetThisTypedImpl();
-        return table->GetSorted();
-    }
-
-    virtual void ResetSorted() override
-    {
-        auto* table = GetThisTypedImpl();
-        table->KeyColumns().clear();
-        table->SetSorted(false);
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, SetSorted)
-    {
-        DeclareMutating();
-
-        auto keyColumns = FromProto<Stroka>(request->key_columns());
-        context->SetRequestInfo("KeyColumns: %v",
-            ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
-
-        ValidateNotExternal();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        ValidateKeyColumns(keyColumns);
-
-        const auto* table = GetThisTypedImpl();
-        if (table->GetUpdateMode() == EUpdateMode::None) {
-            THROW_ERROR_EXCEPTION("Table must not be in \"none\" mode");
-        }
-
-        auto* lockedTable = LockThisTypedImpl();
-
-        lockedTable->KeyColumns() = keyColumns;
-        lockedTable->SetSorted(true);
-
-        SetModified();
-
-        context->Reply();
-    }
 
     DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Mount)
     {

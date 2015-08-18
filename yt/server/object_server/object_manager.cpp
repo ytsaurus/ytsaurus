@@ -1161,7 +1161,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
 }
 
 void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
-    TObjectBase * object,
+    TObjectBase* object,
     TCellTag cellTag)
 {
     auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");

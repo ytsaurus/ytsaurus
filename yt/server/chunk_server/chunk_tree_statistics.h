@@ -4,6 +4,8 @@
 
 #include <core/yson/public.h>
 
+#include <ytlib/chunk_client/data_statistics.pb.h>
+
 #include <server/cell_master/public.h>
 
 namespace NYT {
@@ -45,6 +47,8 @@ struct TChunkTreeStatistics
     bool Sealed = true;
 
     void Accumulate(const TChunkTreeStatistics& other);
+
+    NChunkClient::NProto::TDataStatistics ToDataStatistics() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

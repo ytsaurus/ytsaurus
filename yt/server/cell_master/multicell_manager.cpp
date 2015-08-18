@@ -82,6 +82,24 @@ public:
         DoPostMessage(requestMessage, PrimaryMasterCellTag, reliable);
     }
 
+    void PostToPrimaryMaster(
+        IClientRequestPtr request,
+        bool reliable = true)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+        PostToPrimaryMaster(request->Serialize(), reliable);
+    }
+
+    void PostToPrimaryMaster(
+        TSharedRefArray requestMessage,
+        bool reliable = true)
+    {
+        YCHECK(Bootstrap_->IsSecondaryMaster());
+        NObjectServer::NProto::TReqExecute wrappedRequest;
+        WrapRequest(&wrappedRequest, requestMessage);
+        DoPostMessage(wrappedRequest, PrimaryMasterCellTag, reliable);
+    }
+
 
     void PostToSecondaryMaster(
         IClientRequestPtr request,
@@ -503,6 +521,20 @@ void TMulticellManager::PostToPrimaryMaster(
     bool reliable)
 {
     Impl_->PostToPrimaryMaster(requestMessage, reliable);
+}
+
+void TMulticellManager::PostToPrimaryMaster(
+    IClientRequestPtr request,
+    bool reliable)
+{
+    Impl_->PostToPrimaryMaster(std::move(request), reliable);
+}
+
+void TMulticellManager::PostToPrimaryMaster(
+    TSharedRefArray requestMessage,
+    bool reliable)
+{
+    Impl_->PostToPrimaryMaster(std::move(requestMessage), reliable);
 }
 
 void TMulticellManager::PostToSecondaryMaster(

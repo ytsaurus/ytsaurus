@@ -8,6 +8,8 @@
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
 
+#include <ytlib/journal_client/journal_ypath_proxy.h>
+
 namespace NYT {
 namespace NJournalServer {
 
@@ -57,8 +59,7 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("write_quorum")
             .SetReplicated(true));
-        descriptors->push_back(TAttributeDescriptor("row_count")
-            .SetExternal(isExternal));
+        descriptors->push_back("row_count");
         descriptors->push_back(TAttributeDescriptor("quorum_row_count")
             .SetExternal(isExternal)
             .SetOpaque(true));
@@ -67,8 +68,8 @@ private:
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* node = GetThisTypedImpl();
-        auto isExternal = node->IsExternal();
+        auto* node = GetThisTypedImpl();
+        auto statistics = node->ComputeTotalStatistics();
 
         if (key == "read_quorum") {
             BuildYsonFluently(consumer)
@@ -82,15 +83,15 @@ private:
             return true;
         }
 
-        if (key == "row_count" && !isExternal) {
+        if (key == "row_count") {
             BuildYsonFluently(consumer)
-                .Value(node->GetChunkList()->Statistics().RowCount);
+                .Value(statistics.row_count());
             return true;
         }
 
         if (key == "sealed") {
             BuildYsonFluently(consumer)
-                .Value(node->IsSealed());
+                .Value(node->GetSealed());
             return true;
         }
 
@@ -122,56 +123,36 @@ private:
         return TBase::GetBuiltinAttributeAsync(key);
     }
 
+    virtual void ValidateBeginUpload() override
+    {
+        TBase::ValidateBeginUpload();
+
+        const auto* journal = GetThisTypedImpl();
+        if (!journal->GetSealed()) {
+            THROW_ERROR_EXCEPTION("Journal is not sealed");
+        }
+    }
+
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
+        DISPATCH_YPATH_SERVICE_METHOD(Seal);
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate)
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal)
     {
+        UNUSED(response);
+
         DeclareMutating();
 
-        auto mode = EUpdateMode(request->update_mode());
-        if (mode != EUpdateMode::Append) {
-            THROW_ERROR_EXCEPTION("Journals only support %Qlv update mode",
-                EUpdateMode::Append);
-        }
+        context->SetRequestInfo();
 
-        ValidateTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        auto* journal = GetThisTypedImpl();
+        YCHECK(journal->IsTrunk());
 
-        auto* node = GetThisTypedImpl();
-        if (!node->IsSealed()) {
-            THROW_ERROR_EXCEPTION("Journal is not properly sealed");
-        }
-
-        ValidatePrepareForUpdate();
-
-        auto* lockedNode = LockThisTypedImpl();
-        auto* chunkList = node->GetChunkList();
-
-        lockedNode->SetUpdateMode(mode);
-
-        SetModified();
-
-        if (node->IsExternal()) {
-            LOG_DEBUG_UNLESS(
-                IsRecovery(),
-                "Node is switched to \"append\" mode (NodeId: %v)",
-                node->GetId());
-        } else {
-            LOG_DEBUG_UNLESS(
-                IsRecovery(),
-                "Node is switched to \"append\" mode (NodeId: %v, ChunkListId: %v)",
-                node->GetId(),
-                chunkList->GetId());
-
-            ToProto(response->mutable_chunk_list_id(), chunkList->GetId());
-            context->SetResponseInfo("ChunkListId: %v",
-                chunkList->GetId());
-        }
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SealJournal(journal->GetTrunkNode(), &request->statistics());
 
         context->Reply();
     }

@@ -129,19 +129,14 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 }
 
 TClusterResources GetDiskUsage(
-    const TChunkList* chunkList,
+    const NChunkClient::NProto::TDataStatistics& statistics,
     int replicationFactor)
 {
-    if (!chunkList) {
-        return TClusterResources();
-    }
-
     TClusterResources result;
-    const auto& statistics = chunkList->Statistics();
     result.DiskSpace =
-        statistics.RegularDiskSpace * replicationFactor +
-        statistics.ErasureDiskSpace;
-    result.ChunkCount = statistics.ChunkCount;
+        statistics.regular_disk_space() * replicationFactor +
+        statistics.erasure_disk_space();
+    result.ChunkCount = statistics.chunk_count();
     return result;
 }
 
