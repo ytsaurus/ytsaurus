@@ -107,14 +107,11 @@ class Yamr(object):
             shell=True)
         return json.loads(output)
 
-    def get_field_from_server(self, table, field, allow_cache, transaction_id):
+    def get_field_from_server(self, table, field, allow_cache):
         if not allow_cache or table not in self.cache:
-            shared_tx_str = ("-sharedtransactionid " + transaction_id) \
-                if (self.supports_shared_transactions and transaction_id) \
-                else ""
             output = _check_output(
-                "{0} -server {1} -list -prefix {2} {3} -jsonoutput"\
-                    .format(self.binary, self.server, table, shared_tx_str),
+                "{0} -server {1} -list -prefix {2} -jsonoutput"\
+                    .format(self.binary, self.server, table),
                 timeout=self._light_command_timeout,
                 shell=True)
             table_info = filter(lambda obj: obj["name"] == table, json.loads(output))
@@ -128,17 +125,17 @@ class Yamr(object):
 
         return self.cache[table].get(field, None)
 
-    def records_count(self, table, allow_cache=False, transaction_id=None):
+    def records_count(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return int(self.get_field_from_page(table, "Records"))
         else:
-            return self._as_int(self.get_field_from_server(table, "records", allow_cache=allow_cache, transaction_id=transaction_id))
+            return self._as_int(self.get_field_from_server(table, "records", allow_cache=allow_cache))
 
-    def data_size(self, table, allow_cache=False, transaction_id=None):
+    def data_size(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return int(self.get_field_from_page(table, "Size"))
         else:
-            return self._as_int(self.get_field_from_server(table, "size", allow_cache=allow_cache, transaction_id=transaction_id))
+            return self._as_int(self.get_field_from_server(table, "size", allow_cache=allow_cache))
 
     def is_directory(self, path):
         if path.endswith("/"):
@@ -153,15 +150,15 @@ class Yamr(object):
                 return True
         return False
 
-    def is_sorted(self, table, allow_cache=False, transaction_id=None):
+    def is_sorted(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return self.get_field_from_page(table, "Sorted").lower() == "yes"
         else:
-            return self.get_field_from_server(table, "sorted", allow_cache=allow_cache, transaction_id=transaction_id) == 1
+            return self.get_field_from_server(table, "sorted", allow_cache=allow_cache) == 1
 
-    def is_empty(self, table, allow_cache=False, transaction_id=None):
+    def is_empty(self, table, allow_cache=False):
         if not self.fetch_info_from_http:
-            count = self.get_field_from_server(table, "records", allow_cache=allow_cache, transaction_id=transaction_id)
+            count = self.get_field_from_server(table, "records", allow_cache=allow_cache)
             return count is None or count == 0
         """ Parse whether table is empty from html """
         http_content = sh.curl("{0}/debug?info=table&table={1}".format(self.http_server, table)).stdout
