@@ -45,7 +45,7 @@ def init_logging(node, path, name):
 
 def write_config(config, filename):
     with open(filename, 'wt') as f:
-        f.write(yson.dumps(config, yson_format="pretty"))
+        f.write(yson.dumps(config, yson_format="pretty", boolean_as_string=False))
 
 def write_with_flush(data):
     sys.stdout.write(data)
