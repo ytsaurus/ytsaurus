@@ -26,11 +26,14 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -475,7 +478,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto partConfig = NYTree::CloneYsonSerializable(config);
     partConfig->UploadReplicationFactor = 1;
 
-    TChunkServiceProxy proxy(client->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower));
+    auto channel = client->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower, CellTagFromId(chunkId));
+    TChunkServiceProxy proxy(channel);
 
     auto req = proxy.AllocateWriteTargets();
     req->set_desired_target_count(codec->GetTotalPartCount());

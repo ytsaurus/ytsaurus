@@ -301,6 +301,7 @@ private:
         chunkStatistics.set_chunk_count(1);
         DataStatistics_ += chunkStatistics;
 
+        // XXX(babenko): multicell
         auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
         TObjectServiceProxy objectProxy(channel);
 

@@ -93,7 +93,8 @@ protected:
             request,
             response);
 
-        if (chunk) {
+        // XXX(babenko): this will die
+        if (chunk && !nodeHolder->IsExternal()) {
             auto* chunkList = nodeHolder->GetChunkList();
             chunkManager->AttachToChunkList(chunkList, chunk);
         }
