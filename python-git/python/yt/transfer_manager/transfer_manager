@@ -577,7 +577,7 @@ class Application(object):
 
     @staticmethod
     def _get_yandex_yt_python_tools_version():
-        if os.path.exists("/etc/yandex_yt_python_tools/version"):
+        if os.path.isfile("/etc/yandex_yt_python_tools/version"):
             return open("/etc/yandex_yt_python_tools/version").read().strip()
         return None
 
