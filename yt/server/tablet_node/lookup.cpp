@@ -5,7 +5,6 @@
 #include "tablet_slot.h"
 #include "private.h"
 
-#include <core/misc/object_pool.h>
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/concurrency/scheduler.h>
