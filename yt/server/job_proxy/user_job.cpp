@@ -15,6 +15,8 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_writer.h>
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/schemaless_chunk_reader.h>
 #include <ytlib/table_client/schemaless_chunk_writer.h>
@@ -603,26 +605,29 @@ private:
             THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
         }
 
-        auto writerFactory = [=] (TNameTablePtr nameTable) {
-            auto writer = CreateSchemalessWriterForFormat(
-                format,
-                nameTable,
-                asyncOutput,
-                true,
-                false,
-                0);
-
-            FormatWriters_.push_back(writer);
-
-            return writer;
-        };
-
         auto readerFactory = JobIO_->GetReaderFactory();
 
         InputActions_.push_back(BIND([=] () {
             try {
-                auto writer = CreateSchemafulWriterAdapter(writerFactory);
                 auto query = FromProto(spec.query());
+
+                auto resultSchema = query->GetTableSchema();
+                auto resultNameTable = TNameTable::FromSchema(resultSchema);
+                auto schemalessWriter = CreateSchemalessWriterForFormat(
+                    format,
+                    resultNameTable,
+                    asyncOutput,
+                    true,
+                    false,
+                    0);
+
+                FormatWriters_.push_back(schemalessWriter);
+
+                WaitFor(schemalessWriter->Open())
+                    .ThrowOnError();
+
+                auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
+
                 std::vector<TUdfDescriptorPtr> descriptors;
                 for (const auto& descriptor : FromProto<Stroka>(spec.udf_descriptors())) {
                     descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));

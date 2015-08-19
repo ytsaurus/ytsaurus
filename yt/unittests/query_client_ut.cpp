@@ -2081,7 +2081,6 @@ class TWriterMock
     : public ISchemafulWriter
 {
 public:
-    MOCK_METHOD2(Open, TFuture<void>(const TTableSchema&, const TNullable<TKeyColumns>&));
     MOCK_METHOD0(Close, TFuture<void>());
     MOCK_METHOD1(Write, bool(const std::vector<TUnversionedRow>&));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
@@ -2350,12 +2349,6 @@ protected:
 
         {
             testing::InSequence s;
-
-            ON_CALL(*WriterMock_, Open(_, _))
-                .WillByDefault(Return(WrapVoidInFuture()));
-            if (failureLocation != EFailureLocation::Codegen) {
-                EXPECT_CALL(*WriterMock_, Open(_, _));
-            }
 
             for (auto& result : results) {
                 EXPECT_CALL(*WriterMock_, Write(result))

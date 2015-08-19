@@ -42,7 +42,7 @@ public:
 
     virtual TFuture<void> Open(
         const TTableSchema& schema,
-        const TNullable<TKeyColumns>& keyColumns) final override;
+        const TNullable<TKeyColumns>& keyColumns);
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) final override;
 

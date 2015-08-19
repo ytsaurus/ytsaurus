@@ -379,6 +379,8 @@ struct TStraceJobOptions
     : public TTimeoutOptions
 { };
 
+typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -413,12 +415,7 @@ struct IClientBase
         const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<NQueryClient::TQueryStatistics> SelectRows(
-        const Stroka& query,
-        NTableClient::ISchemafulWriterPtr writer,
-        const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
-
-    virtual TFuture<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>> SelectRows(
+    virtual TFuture<TSelectRowsResult> SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 

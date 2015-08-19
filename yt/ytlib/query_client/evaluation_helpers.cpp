@@ -211,7 +211,7 @@ TJoinEvaluator GetJoinEvaluator(
         {
             ISchemafulWriterPtr writer;
             TFuture<NApi::IRowsetPtr> rowsetFuture;
-            std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter();
+            std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(subquery->GetTableSchema());
             NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
 
             auto statistics = context->ExecuteCallback(subquery, foreignDataId,  writer);
