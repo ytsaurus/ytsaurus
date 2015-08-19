@@ -54,7 +54,7 @@ public:
             Reader_ = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
                 New<TMultiChunkReaderOptions>(),
-                host->GetMasterChannel(),
+                host->GetClient(),
                 host->GetBlockCache(),
                 host->GetNodeDirectory(),
                 std::move(chunkSpecs),
@@ -79,7 +79,7 @@ public:
                 options,
                 nameTable,
                 keyColumns,
-                host->GetMasterChannel(),
+                host->GetClient(),
                 transactionId,
                 chunkListId,
                 GetPartitioner());

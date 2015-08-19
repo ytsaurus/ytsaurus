@@ -47,14 +47,11 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto options = New<TRemoteReaderOptions>();
-    options->NetworkName = Context_->GetConfig()->NetworkName;
-
     auto nameTable = New<TNameTable>();
 
     auto reader = CreateSchemalessTableReader(
         config,
-        options,
+        New<TRemoteReaderOptions>(),
         Context_->GetClient(),
         AttachTransaction(false),
         Request_->Path,
@@ -98,16 +95,12 @@ void TWriteTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto options = New<TTableWriterOptions>();
-    // NB: Other options are ignored.
-    options->NetworkName = Context_->GetConfig()->NetworkName;
-
     auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto writer = CreateSchemalessTableWriter(
         config,
-        options,
+        New<TTableWriterOptions>(),
         Request_->Path,
         nameTable,
         keyColumns,

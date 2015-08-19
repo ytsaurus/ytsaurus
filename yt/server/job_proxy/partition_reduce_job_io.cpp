@@ -48,7 +48,7 @@ public:
 
         return CreateSchemalessPartitionSortReader(
             JobIOConfig_->TableReader,
-            Host_->GetMasterChannel(),
+            Host_->GetClient(),
             Host_->GetBlockCache(),
             Host_->GetNodeDirectory(),
             keyColumns,

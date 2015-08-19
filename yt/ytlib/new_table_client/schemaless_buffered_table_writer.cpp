@@ -34,6 +34,7 @@ namespace NVersionedTableClient {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NRpc;
+using namespace NApi;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NApi;

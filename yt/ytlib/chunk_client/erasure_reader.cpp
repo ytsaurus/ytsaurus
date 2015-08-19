@@ -8,18 +8,24 @@
 #include "dispatcher.h"
 #include "replication_reader.h"
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+#include <ytlib/api/config.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
+#include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
 #include <core/erasure/codec.h>
 #include <core/erasure/helpers.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
 
 #include <numeric>
 
 namespace NYT {
 namespace NChunkClient {
 
+using namespace NApi;
 using namespace NErasure;
 using namespace NConcurrency;
 using namespace NChunkClient::NProto;
@@ -749,7 +755,7 @@ namespace {
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas_,
@@ -759,7 +765,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     IThroughputThrottlerPtr throttler)
 {
     YCHECK(IsErasureChunkId(chunkId));
-    
+
     TChunkReplicaList replicas = replicas_;
     std::sort(
         replicas.begin(),
@@ -784,7 +790,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
             auto reader = CreateReplicationReader(
                 config,
                 options,
-                masterChannel,
+                client,
                 nodeDirectory,
                 Null,
                 partId,
@@ -806,7 +812,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
@@ -818,7 +824,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
     return CreateErasurePartsReaders(
         config,
         options,
-        masterChannel,
+        client,
         nodeDirectory,
         chunkId,
         seedReplicas,
@@ -831,7 +837,7 @@ std::vector<IChunkReaderPtr> CreateErasureDataPartsReaders(
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
     const TChunkReplicaList& seedReplicas,
@@ -842,7 +848,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     return CreateErasurePartsReaders(
         config,
         options,
-        masterChannel,
+        client,
         nodeDirectory,
         chunkId,
         seedReplicas,

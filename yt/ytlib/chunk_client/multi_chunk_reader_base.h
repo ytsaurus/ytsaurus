@@ -5,6 +5,8 @@
 #include "data_statistics.h"
 #include "multi_chunk_reader.h"
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <ytlib/node_tracker_client/public.h>
@@ -28,7 +30,7 @@ public:
     TMultiChunkReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NProto::TChunkSpec>& chunkSpecs,
@@ -100,7 +102,7 @@ protected:
 
 protected:
     const IBlockCachePtr BlockCache_;
-    const NRpc::IChannelPtr MasterChannel_;
+    const NApi::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
     TSpinLock PrefetchLock_;
@@ -142,7 +144,7 @@ public:
     TSequentialMultiChunkReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NProto::TChunkSpec>& chunkSpecs,
@@ -178,7 +180,7 @@ public:
     TParallelMultiChunkReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NProto::TChunkSpec>& chunkSpecs,
