@@ -82,7 +82,7 @@ public:
     }
 
 private:
-    TUnversionedValue Value_ = {0, EValueType::TheBottom, false, 0, {0}};
+    TUnversionedValue Value_ = {0, EValueType::TheBottom, 0, {0}};
 
     void Assign(const TUnversionedValue& other)
     {
