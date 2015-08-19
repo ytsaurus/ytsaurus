@@ -781,9 +781,9 @@ print '{hello=world}'
 """
 import sys
 input = sys.stdin.readline().strip('\\n')
-assert input == '<"table_index"=0>#;'
+assert input == '<"table_index"=0;>#;'
 input = sys.stdin.readline().strip('\\n')
-assert input == '{"foo"="bar"};'
+assert input == '{"foo"="bar";};'
 print "tskv" + "\\t" + "hello=world"
 """
         create("file", "//tmp/mapper.sh")
@@ -811,7 +811,7 @@ print "tskv" + "\\t" + "hello=world"
 """
 import sys
 input = sys.stdin.readline().strip('\\n')
-assert input == '{"foo"="bar"};'
+assert input == '{"foo"="bar";};'
 print "key\\tsubkey\\tvalue"
 
 """
