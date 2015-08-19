@@ -1515,6 +1515,7 @@ void TOperationControllerBase::DoCommit()
 
     AttachOutputChunks();
     EndUploadOutputTables();
+    CustomCommit();
 
     LOG_INFO("Results committed");
 }
