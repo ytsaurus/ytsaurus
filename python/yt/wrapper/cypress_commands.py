@@ -55,7 +55,7 @@ def set(path, value, client=None):
         data=yson.dumps(value),
         client=client)
 
-def copy(source_path, destination_path, preserve_account=None, client=None):
+def copy(source_path, destination_path, preserve_account=None, force=None, client=None):
     """Copy Cypress node.
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
@@ -67,9 +67,11 @@ def copy(source_path, destination_path, preserve_account=None, client=None):
               "destination_path": prepare_path(destination_path, client=client)}
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
+    if force is not None:
+        params["force"] = bool_to_string(force)
     return _make_transactional_request("copy", params, client=client)
 
-def move(source_path, destination_path, preserve_account=None, client=None):
+def move(source_path, destination_path, preserve_account=None, force=None, client=None):
     """Move (rename) Cypress node.
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
@@ -80,6 +82,8 @@ def move(source_path, destination_path, preserve_account=None, client=None):
               "destination_path": prepare_path(destination_path, client=client)}
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
+    if force is not None:
+        params["force"] = bool_to_string(force)
     _make_transactional_request("move", params, client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
