@@ -240,7 +240,7 @@ template <class TValue>
 void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& format, const TStringBuf& genericSpec)
 {
     const int MaxFormatSize = 64;
-    const int MaxResultSize = 64;
+    const int SmallResultSize = 64;
 
     auto copyFormat = [] (char* destination, const char* source, int lenght) {
         int position = 0;
@@ -266,8 +266,12 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
         *formatEnd = '\0';
     }
 
-    char* result = builder->Preallocate(MaxResultSize);
-    size_t resultSize = snprintf(result, MaxResultSize, formatBuf, value);
+    char* result = builder->Preallocate(SmallResultSize);
+    size_t resultSize = snprintf(result, SmallResultSize, formatBuf, value);
+    if (resultSize >= SmallResultSize) {
+        result = builder->Preallocate(resultSize + 1);
+        YCHECK(snprintf(result, resultSize + 1, formatBuf, value) == resultSize);
+    }
     builder->Advance(resultSize);
 }
 
