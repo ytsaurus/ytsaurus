@@ -50,7 +50,7 @@ private:
         descriptors->push_back("primary_cell_tag");
         descriptors->push_back("cell_id");
         descriptors->push_back("primary_cell_id");
-        descriptors->push_back("last_committed_revision");
+        descriptors->push_back("current_commit_revision");
     }
 
     bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -81,7 +81,7 @@ private:
             return true;
         }
 
-        if (key == "last_committed_revision") {
+        if (key == "current_commit_revision") {
             auto hydraManager = hydraFacade->GetHydraManager();
             BuildYsonFluently(consumer)
                 .Value(hydraManager->GetCommittedVersion().ToRevision());
