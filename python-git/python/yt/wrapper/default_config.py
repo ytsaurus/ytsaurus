@@ -146,6 +146,9 @@ default_config = {
 
     "write_file_as_one_chunk": True,
 
+    # Default value of raw option in read, write, select, insert, lookup, delete.
+    "default_value_of_raw_option": True,
+
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": {
         "enable": False,
