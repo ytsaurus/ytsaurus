@@ -26,9 +26,9 @@ class TJobProxyConfig
     : public NCGroup::TCGroupConfig
 {
 public:
+    // Filled by exec agent.
     NApi::TConnectionConfigPtr ClusterConnection;
 
-    // Filled by exec agent.
     NBus::TTcpBusServerConfigPtr RpcServer;
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
