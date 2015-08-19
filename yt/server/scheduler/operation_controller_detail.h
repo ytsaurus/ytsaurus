@@ -617,6 +617,7 @@ protected:
         int OutputTableCount = 0;
     };
 
+    void PickIntermediateDataCell();
     void InitCells();
     const TCellData& GetCellData(NObjectClient::TCellTag cellTag);
 
