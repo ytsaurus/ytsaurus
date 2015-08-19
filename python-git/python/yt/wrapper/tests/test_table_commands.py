@@ -191,13 +191,13 @@ class TestTableCommands(object):
             while yt.get("{0}/@tablets/0/state".format(table)) != 'mounted':
                 time.sleep(0.1)
 
-            yt.insert_rows(table, [{"x": "a", "y": "b"}])
+            yt.insert_rows(table, [{"x": "a", "y": "b"}], raw=False)
             assert [{"x": "a", "y": "b"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
 
-            yt.insert_rows(table, [{"x": "c", "y": "d"}])
-            assert [{"x": "c", "y": "d"}] == list(yt.lookup_rows(table, [{"x": "c"}]))
+            yt.insert_rows(table, [{"x": "c", "y": "d"}], raw=False)
+            assert [{"x": "c", "y": "d"}] == list(yt.lookup_rows(table, [{"x": "c"}], raw=False))
 
-            yt.delete_rows(table, [{"x": "a"}])
+            yt.delete_rows(table, [{"x": "a"}], raw=False)
             assert [{"x": "c", "y": "d"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
         finally:
             yt.config["tabular_data_format"] = yt.format.DsvFormat()

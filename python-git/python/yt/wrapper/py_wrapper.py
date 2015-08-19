@@ -1,7 +1,7 @@
 import config
 from config import get_config
 from pickling import Pickler
-from common import get_python_version
+from common import get_python_version, YtError
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -58,10 +58,14 @@ def module_relpath(module_name, module_file, client):
     #        return relpath
 
 def find_file(path):
+    origin_path = path
     while path != "/":
         if os.path.isfile(path):
             return path
-        path = os.path.dirname(path)
+        dirname = os.path.dirname(path)
+        if dirname == path:
+            raise YtError("Incorrect module path " + origin_path)
+        path = dirname
 
 def create_modules_archive(tempfiles_manager, client):
     create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]

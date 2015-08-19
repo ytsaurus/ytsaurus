@@ -441,7 +441,7 @@ def create_temp_table(path=None, prefix=None, client=None):
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None,
-                replication_factor=None, compression_codec=None, client=None, raw=True):
+                replication_factor=None, compression_codec=None, client=None, raw=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
@@ -460,6 +460,9 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     Writing is executed under self-pinged transaction.
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
 
@@ -499,7 +502,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
-def read_table(table, format=None, table_reader=None, response_type=None, raw=True, response_parameters=None, read_transaction=None, client=None):
+def read_table(table, format=None, table_reader=None, response_type=None, raw=None, response_parameters=None, read_transaction=None, client=None):
     """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
@@ -513,6 +516,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     If :py:data:`yt.wrapper.config["read_retries"]["enable"]` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
     if response_type is not None:
         logger.info("Option response_type is deprecated and ignored")
 
@@ -769,7 +774,7 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
 
     make_request("reshard_table", params, client=client)
 
-def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, verbose_logging=None, enable_code_cache=None, format=None, raw=True, client=None):
+def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, verbose_logging=None, enable_code_cache=None, format=None, raw=None, client=None):
     """Execute a SQL-like query. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -780,6 +785,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     :param format: (string or descendant of `Format`) output format
     :param raw: (bool) don't parse response to rows
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
     format = _prepare_format(format, raw, client)
     params = {
         "query": query,
@@ -807,7 +814,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     else:
         return format.load_rows(response)
 
-def lookup_rows(table, input_stream, format=None, raw=False, client=None):
+def lookup_rows(table, input_stream, format=None, raw=None, client=None):
     """Lookup rows in dynamic table. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -815,6 +822,8 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     :param format: (string or descendant of `Format`) output format
     :param raw: (bool) don't parse response to rows
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
 
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
@@ -842,7 +851,7 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     else:
         return format.load_rows(response)
 
-def insert_rows(table, input_stream, format=None, raw=False, client=None):
+def insert_rows(table, input_stream, format=None, raw=None, client=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
@@ -852,6 +861,9 @@ def insert_rows(table, input_stream, format=None, raw=False, client=None):
                     `yt.wrapper.config["tabular_data_format"]` by default.
 
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
 
@@ -871,7 +883,7 @@ def insert_rows(table, input_stream, format=None, raw=False, client=None):
         use_heavy_proxy=True,
         client=client)
 
-def delete_rows(table, input_stream, format=None, raw=False, client=None):
+def delete_rows(table, input_stream, format=None, raw=None, client=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
@@ -881,6 +893,9 @@ def delete_rows(table, input_stream, format=None, raw=False, client=None):
                     `yt.wrapper.config["tabular_data_format"]` by default.
 
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
 
