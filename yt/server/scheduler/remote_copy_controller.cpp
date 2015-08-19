@@ -19,6 +19,8 @@
 
 #include <ytlib/transaction_client/helpers.h>
 
+#include <core/ytree/attribute_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -75,6 +77,7 @@ public:
         Persist(context, RemoteCopyTaskGroup_);
         Persist(context, JobIOConfig_);
         Persist(context, JobSpecTemplate_);
+        Persist<TAttributeDictionaryRefSerializer>(context, InputTableAttributes_);
     }
 
 private:
@@ -241,6 +244,9 @@ private:
     TJobIOConfigPtr JobIOConfig_;
     TJobSpec JobSpecTemplate_;
 
+    std::unique_ptr<IAttributeDictionary> InputTableAttributes_;
+
+
     // Custom bits of preparation pipeline.
     void InitializeTransactions() override
     {
@@ -290,51 +296,6 @@ private:
         return std::vector<TPathWithStage>();
     }
 
-    void CopyTableAttributes()
-    {
-        if (InputTables.size() > 1) {
-            THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
-        }
-
-        auto path = GetInputTablePaths()[0].GetPath();
-
-        std::unique_ptr<IAttributeDictionary> attributes;
-        {
-            auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
-            TObjectServiceProxy proxy(channel);
-
-            auto req = TObjectYPathProxy::Get(path + "/@");
-            SetTransactionId(req, Operation->GetInputTransaction());
-
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
-                path);
-
-            const auto& rsp = rspOrError.Value();
-            attributes = ConvertToAttributes(TYsonString(rsp->value()));
-        }
-
-        {
-            auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
-            TObjectServiceProxy proxy(channel);
-
-            auto userAttributeKeys = attributes->Get<std::vector<Stroka>>("user_attribute_keys");
-            auto attributeKeys = Spec_->AttributeKeys.Get(userAttributeKeys);
-
-            auto batchReq = proxy.ExecuteBatch();
-            for (auto key : attributeKeys) {
-                auto req = TYPathProxy::Set(path + "/@" + key);
-                req->set_value(attributes->GetYson(key).Data());
-                SetTransactionId(req, Operation->GetOutputTransaction());
-                batchReq->AddRequest(req);
-            }
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error setting attributes for output table %v",
-                path);
-        }
-    }
-
     virtual void CustomPrepare() override
     {
         TOperationControllerBase::CustomPrepare();
@@ -370,7 +331,24 @@ private:
         }
 
         if (Spec_->CopyAttributes) {
-            CopyTableAttributes();
+            if (InputTables.size() > 1) {
+                THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
+            }
+
+            const auto& path = Spec_->InputTablePaths[0].GetPath();
+
+            auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TObjectYPathProxy::Get(path + "/@");
+            SetTransactionId(req, Operation->GetInputTransaction());
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
+                path);
+
+            const auto& rsp = rspOrError.Value();
+            InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));
         }
 
         BuildTasks(stripes);
@@ -379,6 +357,33 @@ private:
 
         InitJobIOConfig();
         InitJobSpecTemplate();
+    }
+
+    virtual void CustomCommit() override
+    {
+        TOperationControllerBase::CustomCommit();
+
+        if (Spec_->CopyAttributes) {
+            const auto& path = Spec_->InputTablePaths[0].GetPath();
+
+            auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<Stroka>>("user_attribute_keys");
+            auto attributeKeys = Spec_->AttributeKeys.Get(userAttributeKeys);
+
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& key : attributeKeys) {
+                auto req = TYPathProxy::Set(path + "/@" + key);
+                req->set_value(InputTableAttributes_->GetYson(key).Data());
+                SetTransactionId(req, Operation->GetOutputTransaction());
+                batchReq->AddRequest(req);
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error setting attributes for output table %v",
+                path);
+        }
     }
 
     void BuildTasks(const std::vector<TChunkStripePtr>& stripes)

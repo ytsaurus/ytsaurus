@@ -1617,6 +1617,9 @@ void TOperationControllerBase::AttachOutputChunks()
     }
 }
 
+void TOperationControllerBase::CustomCommit()
+{ }
+
 void TOperationControllerBase::EndUploadOutputTables()
 {
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
