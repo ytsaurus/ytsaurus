@@ -234,16 +234,24 @@ void TSelectRowsCommand::DoExecute()
     options.EnableCodeCache = Request_->EnableCodeCache;
     options.MaxSubqueries = Request_->MaxSubqueries;
 
+    auto asyncResult = Context_->GetClient()->SelectRows(
+        Request_->Query,
+        options);
+
+    IRowsetPtr rowset;
+    TQueryStatistics statistics;
+
+    std::tie(rowset, statistics) = WaitFor(asyncResult)
+        .ValueOrThrow();
+
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, output);
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
 
-    auto asyncStatistics = Context_->GetClient()->SelectRows(
-        Request_->Query,
-        writer,
-        options);
-    auto statistics = WaitFor(asyncStatistics)
-        .ValueOrThrow();
+    writer->Write(rowset->GetRows());
+
+    WaitFor(writer->Close())
+        .ThrowOnError();
 
     LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
         "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
@@ -371,10 +379,7 @@ void TLookupRowsCommand::DoExecute()
 
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, output);
-
-    WaitFor(writer->Open(rowset->GetSchema()))
-        .ThrowOnError();
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
 
     writer->Write(rowset->GetRows());
 

@@ -31,7 +31,7 @@ IRowsetPtr CreateRowset(
     std::vector<NTableClient::TUnversionedRow> rows);
 
 std::tuple<NTableClient::ISchemafulWriterPtr, TFuture<IRowsetPtr>>
-    CreateSchemafulRowsetWriter();
+    CreateSchemafulRowsetWriter(const NTableClient::TTableSchema& schema);
 
 ///////////////////////////////////////////////////////////////////////////////
 

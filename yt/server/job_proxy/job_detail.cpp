@@ -7,6 +7,8 @@
 #include <server/exec_agent/public.h>
 
 #include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_writer.h>
 #include <ytlib/table_client/schemaless_chunk_reader.h>
 #include <ytlib/table_client/schemaless_chunk_writer.h>
 
@@ -75,9 +77,19 @@ TJobResult TSimpleJobBase::Run()
 
         auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query_spec()) {
-            auto writer = CreateSchemafulWriterAdapter(WriterFactory_);
+
+
             auto querySpec = jobSpec.input_query_spec();
             auto query = FromProto(querySpec.query());
+            auto resultSchema = query->GetTableSchema();
+            auto resultNameTable = TNameTable::FromSchema(resultSchema);
+            auto schemalessWriter = WriterFactory_(resultNameTable);
+
+            WaitFor(schemalessWriter->Open())
+                .ThrowOnError();
+
+            auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
+
             std::vector<TUdfDescriptorPtr> descriptors;
             for (const auto& descriptor : FromProto<Stroka>(querySpec.udf_descriptors())) {
                 descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));

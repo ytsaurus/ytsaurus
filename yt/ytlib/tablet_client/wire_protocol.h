@@ -80,7 +80,8 @@ public:
     void WriteUnversionedRowset(
         const TRange<NTableClient::TUnversionedRow>& rowset,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    NTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter();
+    NTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter(
+        const NTableClient::TTableSchema& schema);
 
     std::vector<TSharedRef> Flush();
 
