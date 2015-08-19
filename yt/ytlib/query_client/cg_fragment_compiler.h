@@ -222,7 +222,7 @@ public:
 
         auto isNull = builder.CreateICmpEQ(
             type,
-            ConstantInt::get(type->getType(), static_cast<int>(EValueType::Null)),
+            builder.getInt16(static_cast<ui16>(EValueType::Null)),
             name + ".isNull");
 
         return CreateFromValue(builder, isNull, length, castedData, staticType, name);
@@ -305,11 +305,10 @@ public:
 
     Value* GetType(TCGIRBuilder& builder)
     {
-        const auto& type = TypeBuilder<NTableClient::TUnversionedValue, false>::TType::get(builder.getContext());
         return builder.CreateSelect(
             IsNull(),
-            ConstantInt::get(type, static_cast<int>(EValueType::Null)),
-            ConstantInt::get(type, static_cast<int>(StaticType_)));
+            builder.getInt16(static_cast<ui16>(EValueType::Null)),
+            builder.getInt16(static_cast<ui16>(StaticType_)));
     }
 
     Value* GetLength()
