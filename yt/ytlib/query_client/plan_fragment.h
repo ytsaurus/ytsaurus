@@ -182,7 +182,9 @@ EValueType InferBinaryExprType(
     EBinaryOp opCode,
     EValueType lhsType,
     EValueType rhsType,
-    const TStringBuf& source);
+    const TStringBuf& source,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 

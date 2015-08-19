@@ -108,7 +108,7 @@ typedef SmallVector<int, TypicalColumnCount> TNameTableToSchemaIdMapping;
 
 union TUnversionedValueData;
 
-enum class EValueType : ui8;
+enum class EValueType : ui16;
 
 struct TColumnFilter;
 
