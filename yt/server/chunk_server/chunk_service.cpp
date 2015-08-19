@@ -26,6 +26,7 @@ using namespace NChunkServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +82,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
+        ValidatePeer(EPeerKind::EPeerKind::Leader);
+
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int desiredTargetCount = request->desired_target_count();
         int minTargetCount = request->min_target_count();
