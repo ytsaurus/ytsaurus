@@ -616,7 +616,6 @@ private:
     void DoPingTransaction(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(transaction->GetState() == ETransactionState::Active);
 
         auto timeout = transaction->GetTimeout();
         if (timeout) {
