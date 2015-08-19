@@ -63,7 +63,9 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , Config_(NYTree::CloneYsonSerializable(config))
     , Options_(options)
     , Client_(client)
-    , MasterChannel_(client->GetMasterChannel(EMasterChannelKind::Leader))
+    , MasterChannel_(client->GetMasterChannel(
+        EMasterChannelKind::Leader,
+        CellTagFromId(parentChunkListId)))
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
