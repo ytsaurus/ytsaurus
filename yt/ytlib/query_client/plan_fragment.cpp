@@ -184,12 +184,20 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
     }
 }
 
-EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType rhsType, const TStringBuf& source)
+EValueType InferBinaryExprType(
+    EBinaryOp opCode,
+    EValueType lhsType,
+    EValueType rhsType,
+    const TStringBuf& source,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource)
 {
     if (lhsType != rhsType) {
         THROW_ERROR_EXCEPTION(
             "Type mismatch in expression %Qv",
             source)
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource)
             << TErrorAttribute("lhs_type", lhsType)
             << TErrorAttribute("rhs_type", rhsType);
     }
@@ -205,6 +213,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
@@ -214,6 +224,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires integral operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
@@ -224,6 +236,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires boolean operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("operand_type", operandType);
             }
             return EValueType::Boolean;
@@ -238,6 +252,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral, floating-point or string operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("lhs_type", operandType);
             }
             return EValueType::Boolean;
@@ -473,7 +489,13 @@ protected:
             auto typedRhsExpr = DoBuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
 
             auto makeBinaryExpr = [&] (EBinaryOp op, TConstExpressionPtr lhs, TConstExpressionPtr rhs) -> TConstExpressionPtr {
-                auto type = InferBinaryExprType(op, lhs->Type, rhs->Type, binaryExpr->GetSource(source));
+                auto type = InferBinaryExprType(
+                    op,
+                    lhs->Type,
+                    rhs->Type,
+                    binaryExpr->GetSource(source),
+                    lhs->GetName(),
+                    rhs->GetName());
                 if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
                     return foldedExpr;
                 } else {

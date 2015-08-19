@@ -57,8 +57,8 @@ struct TSchemafulPipe::TData
             writerReadyEvent = WriterReadyEvent;
         }
 
-        readerReadyEvent.Set(error);
-        writerReadyEvent.Set(error);
+        readerReadyEvent.TrySet(error);
+        writerReadyEvent.TrySet(error);
     }
 
 };
@@ -154,7 +154,7 @@ public:
 
         readerReadyEvent.TrySet(TError());
         if (doClose) {
-            writerReadyEvent.Set(TError());
+            writerReadyEvent.TrySet(TError());
         }
 
         return writerReadyEvent;

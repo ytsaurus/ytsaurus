@@ -35,8 +35,6 @@ struct TUnversionedValue
     ui16 Id;
     //! Column type.
     EValueType Type;
-    //! Aggregate mode;
-    bool Aggregate;
     //! Length of a variable-sized value (only meaningful for |String| and |Any| types).
     ui32 Length;
 
