@@ -421,7 +421,7 @@ public:
 
         auto* currentTransaction = transaction;
         while (currentTransaction) {
-            if (currentTransaction->GetState() != ETransactionState::Active) {
+            if (currentTransaction->GetPersistentState() != ETransactionState::Active) {
                 currentTransaction->ThrowInvalidState();
             }
 
