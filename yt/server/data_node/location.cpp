@@ -156,20 +156,26 @@ bool TLocation::IsEnabled() const
 
 void TLocation::Disable(const TError& reason)
 {
+    if (!Enabled_.exchange(false)) {
+        // Save only once.
+        Sleep(TDuration::Max());
+    }
+
+    LOG_ERROR(reason);
+
     // Save the reason in a file and exit.
     // Location will be disabled during the scan in the restart process.
-    if (Enabled_.exchange(false)) {
-        auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
-        try {
-            auto errorData = ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).Data();
-            TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TFileOutput fileOutput(file);
-            fileOutput << errorData;
-        } catch (const std::exception& ex) {
-            // Exit anyway.
-        }
-        _exit(1);
+    auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
+    try {
+        auto errorData = ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).Data();
+        TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+        TFileOutput fileOutput(file);
+        fileOutput << errorData;
+    } catch (const std::exception& ex) {
+        // Exit anyway.
     }
+
+    _exit(1);
 }
 
 void TLocation::UpdateUsedSpace(i64 size)
@@ -208,20 +214,6 @@ i64 TLocation::GetAvailableSpace() const
     AvailableSpace_ = std::min(AvailableSpace_, remainingQuota);
 
     return AvailableSpace_;
-}
-
-i64 TLocation::GetTotalSpace() const
-{
-    auto path = GetPath();
-    try {
-        auto statistics = NFS::GetDiskSpaceStatistics(path);
-        return statistics.TotalSpace;
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to compute total space")
-            << ex;
-        const_cast<TLocation*>(this)->Disable(error);
-        YUNREACHABLE(); // Disable() exits the process.
-    }
 }
 
 double TLocation::GetLoadFactor() const
@@ -351,6 +343,7 @@ void TLocation::CheckLockFile()
 void TLocation::OnHealthCheckFailed(const TError& error)
 {
     Disable(error);
+    YUNREACHABLE(); // Disable() exits the process.
 }
 
 void TLocation::MakeDisabled()
@@ -361,6 +354,12 @@ void TLocation::MakeDisabled()
     UsedSpace_ = 0;
     SessionCount_ = 0;
     ChunkCount_ = 0;
+}
+
+i64 TLocation::GetTotalSpace() const
+{
+    auto statistics = NFS::GetDiskSpaceStatistics(GetPath());
+    return statistics.TotalSpace;
 }
 
 i64 TLocation::GetAdditionalSpace() const

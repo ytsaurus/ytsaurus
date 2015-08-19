@@ -936,7 +936,7 @@ private:
                     chunkId)
                     << ex;
                 Location_->Disable(error);
-                THROW_ERROR error;
+                YUNREACHABLE(); // Disable() exits the process.
             }
         });
     }

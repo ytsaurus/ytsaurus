@@ -567,6 +567,7 @@ void TBlobSession::SetFailed(const TError& error)
         BIND(&TBlobSession::MarkAllSlotsWritten, MakeStrong(this), error));
 
     Location_->Disable(Error_);
+    YUNREACHABLE(); // Disable() exits the process.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

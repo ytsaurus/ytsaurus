@@ -294,7 +294,7 @@ void TBlobChunkBase::DoReadBlockSet(
                     Id_)
                     << TError(blocksOrError);
                 Location_->Disable(error);
-                THROW_ERROR error;
+                YUNREACHABLE(); // Disable() exits the process.
             }
 
             const auto& blocks = blocksOrError.Value();
