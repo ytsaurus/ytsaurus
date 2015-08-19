@@ -364,7 +364,7 @@ private:
         TOperationControllerBase::CustomCommit();
 
         if (Spec_->CopyAttributes) {
-            const auto& path = Spec_->InputTablePaths[0].GetPath();
+            const auto& path = Spec_->OutputTablePath.GetPath();
 
             auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
