@@ -17,6 +17,7 @@ import getpass
 import yt.packages.simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
+from itertools import chain
 
 GEN_PORT_ATTEMPTS = 10
 
@@ -120,28 +121,21 @@ class YTEnv(object):
                       self.START_PROXY, self.USE_PROXY_FROM_PACKAGE, ports=ports)
 
     def _get_localhost_addresses(self, addresses):
-        return ["localhost:" + addr.rsplit(":", 1)[1] for addr in addresses.items()[0][1]]
+        return ["localhost:" + addr.rsplit(":", 1)[1] for addr in addresses]
 
     def get_master_addresses(self):
-        assert len(self._master_addresses) <= 1
-        if len(self._master_addresses) == 0:
-            return []
-        if len(self._master_addresses) == 1:
-            return self._get_localhost_addresses(self._master_addresses)
+        # XXX(asaitgalin): chain will be removed when different instances
+        # are managed by local YT, not by instance_id parameter in _run_all
+        addresses = list(chain.from_iterable(self._master_addresses.values()))
+        return self._get_localhost_addresses(addresses)
 
     def get_node_addresses(self):
-        assert len(self._node_addresses) <= 1
-        if len(self._node_addresses) == 0:
-            return []
-        if len(self._node_addresses) == 1:
-            return self._get_localhost_addresses(self._node_addresses)
+        addresses = list(chain.from_iterable(self._node_addresses.values()))
+        return self._get_localhost_addresses(addresses)
 
     def get_scheduler_addresses(self):
-        assert len(self._scheduler_addresses) <= 1
-        if len(self._scheduler_addresses) == 0:
-            return []
-        if len(self._scheduler_addresses) == 1:
-            return self._get_localhost_addresses(self._scheduler_addresses)
+        addresses = list(chain.from_iterable(self._scheduler_addresses.values()))
+        return self._get_localhost_addresses(addresses)
 
     def get_proxy_address(self):
         if not self.START_PROXY:
