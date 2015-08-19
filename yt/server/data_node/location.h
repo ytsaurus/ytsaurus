@@ -96,10 +96,6 @@ public:
     //! Never throws.
     i64 GetAvailableSpace() const;
 
-    //! Returns the total space on the disk drive where the location resides.
-    //! Never throws.
-    i64 GetTotalSpace() const;
-
     //! Returns the load factor.
     double GetLoadFactor() const;
 
@@ -163,6 +159,8 @@ private:
 
     void OnHealthCheckFailed(const TError& error);
     void MakeDisabled();
+
+    i64 GetTotalSpace() const;
 
     virtual i64 GetAdditionalSpace() const;
 
