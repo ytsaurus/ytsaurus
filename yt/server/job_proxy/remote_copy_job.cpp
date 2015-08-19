@@ -301,10 +301,8 @@ private:
         chunkStatistics.set_chunk_count(1);
         DataStatistics_ += chunkStatistics;
 
-        // XXX(babenko): multicell
-        auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
+        auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader, CellTagFromId(outputChunkId));
         TObjectServiceProxy objectProxy(channel);
-
 
         // Confirm chunk.
         LOG_INFO("Confirming output chunk");
