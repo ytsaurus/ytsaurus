@@ -82,7 +82,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
-        ValidatePeer(EPeerKind::EPeerKind::Leader);
+        ValidatePeer(EPeerKind::Leader);
 
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int desiredTargetCount = request->desired_target_count();
