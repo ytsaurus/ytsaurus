@@ -473,6 +473,29 @@ class TestOperations(object):
         yt.run_reduce(reducer, table, other_table, reduce_by=["x"])
         assert ["sum_y=9\n"] == list(yt.read_table(other_table))
 
+    def test_operation_receives_spec_from_config(self):
+        memory_limit = yt.config["memory_limit"]
+        yt.config["memory_limit"] = 123
+        check_input_fully_consumed = yt.config["yamr_mode"]["check_input_fully_consumed"]
+        yt.config["yamr_mode"]["check_input_fully_consumed"] = not check_input_fully_consumed
+        use_yamr_descriptors = yt.config["yamr_mode"]["use_yamr_style_destination_fds"]
+        yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = not use_yamr_descriptors
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, ["x=1\n"])
+        try:
+            op = yt.run_map("cat", table, table, sync=False)
+            spec = yt.get_attribute("//sys/operations/{0}".format(op.id), "spec")
+            assert spec["mapper"]["memory_limit"] == 123
+            assert parse_bool(spec["mapper"]["check_input_fully_consumed"]) != check_input_fully_consumed
+            assert parse_bool(spec["mapper"]["use_yamr_descriptors"]) != use_yamr_descriptors
+        finally:
+            if op.get_state() not in ["completed", "failed", "aborted"]:
+                op.abort()
+            yt.config["memory_limit"] = memory_limit
+            yt.config["yamr_mode"]["check_input_fully_consumed"] = check_input_fully_consumed
+            yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = use_yamr_descriptors
+
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):
     #    records = ["x=1\n", "y=2\n", "z=3\n"]
