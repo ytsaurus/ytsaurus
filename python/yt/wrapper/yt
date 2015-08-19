@@ -363,6 +363,7 @@ def add_copy_parser(add_parser):
     parser.add_argument("source_path", help="source address, path must exist")
     parser.add_argument("destination_path", help="destination address, path must not exist")
     parser.add_argument("--preserve-account", action="store_true", help="preserve account of copied nodes")
+    parser.add_argument("-f", "--force", action="store_true")
 
 def move(**args):
     if "no_preserve_account" in args:
@@ -375,6 +376,7 @@ def add_move_parser(add_parser):
     parser.add_argument("source_path", help="old node address, path must exist")
     parser.add_argument("destination_path", help="new node address, path must not exist")
     parser.add_argument("--no-preserve-account", action="store_true", help="do not preserve account of moved nodes")
+    parser.add_argument("-f", "--force", action="store_true")
     parser.set_defaults(func=move)
 
 def add_link_parser(add_parser):
