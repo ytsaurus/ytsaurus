@@ -348,7 +348,7 @@ void TLookupRowsCommand::DoExecute()
     if (Request_->ColumnNames) {
         options.ColumnFilter.All = false;
         for (const auto& name : *Request_->ColumnNames) {
-            int maybeIndex = nameTable->GetId(name);
+            int maybeIndex = nameTable->FindId(name);
             if (!maybeIndex) {
                 THROW_ERROR_EXCEPTION("No such column %Qv",
                     name);
