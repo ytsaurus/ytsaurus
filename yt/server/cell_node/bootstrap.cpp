@@ -179,7 +179,10 @@ void TBootstrap::DoRun()
     }
 
     MasterConnection = CreateConnection(Config->ClusterConnection);
-    MasterClient = MasterConnection->CreateClient(GetRootClientOptions());
+
+    TClientOptions clientOptions;
+    clientOptions.User = NSecurityClient::JobUserName;
+    MasterClient = MasterConnection->CreateClient(clientOptions);
 
     CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
         Config->CellDirectorySynchronizer,
