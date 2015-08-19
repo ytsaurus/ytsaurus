@@ -14,6 +14,7 @@
 #include <ytlib/api/connection.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
@@ -70,14 +71,13 @@ public:
         IThroughputThrottlerPtr throttler)
         : Config_(config)
         , Options_(options)
+        , Client_(client)
         , NodeDirectory_(nodeDirectory)
         , LocalDescriptor_(localDescriptor)
         , ChunkId_(chunkId)
         , BlockCache_(blockCache)
         , Throttler_(throttler)
         , NetworkName_(client->GetConnection()->GetConfig()->NetworkName)
-        , ObjectServiceProxy_(client->GetMasterChannel(EMasterChannelKind::LeaderOrFollower))
-        , ChunkServiceProxy_(client->GetMasterChannel(EMasterChannelKind::LeaderOrFollower))
         , InitialSeedReplicas_(seedReplicas)
         , SeedsTimestamp_(TInstant::Zero())
     {
@@ -128,17 +128,15 @@ private:
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
+    const IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const TNullable<TNodeDescriptor> LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IThroughputThrottlerPtr Throttler_;
+    const Stroka NetworkName_;
 
     NLogging::TLogger Logger = ChunkClientLogger;
-
-    Stroka NetworkName_;
-    TObjectServiceProxy ObjectServiceProxy_;
-    TChunkServiceProxy ChunkServiceProxy_;
 
     TSpinLock SpinLock_;
     TChunkReplicaList InitialSeedReplicas_;
@@ -191,8 +189,10 @@ private:
 
         LOG_INFO("Requesting chunk seeds from master");
 
-        // XXX(babenko): multicell
-        auto req = ChunkServiceProxy_.LocateChunks();
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, CellTagFromId(ChunkId_));
+        TChunkServiceProxy proxy(channel);
+
+        auto req = proxy.LocateChunks();
         ToProto(req->add_chunk_ids(), ChunkId_);
         req->Invoke().Subscribe(
             BIND(&TReplicationReader::OnLocateChunkResponse, MakeStrong(this))
