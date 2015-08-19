@@ -124,8 +124,8 @@ class YTEnv(object):
         self._run_all(self.NUM_MASTERS, self.NUM_SECONDARY_MASTER_CELLS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY,
                       start_secondary_master_cells=self.START_SECONDARY_MASTER_CELLS, ports=ports)
 
-    def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy,
-                 instance_id="", cell_tag=0, ports=None, start_secondary_master_cells=False):
+    def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy, start_secondary_master_cells=True,
+                 instance_id="", cell_tag=0, ports=None):
         get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
