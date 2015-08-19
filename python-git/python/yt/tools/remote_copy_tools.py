@@ -295,11 +295,6 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
     if not proxies:
         proxies = [yamr_client.server]
 
-    record_count = yamr_client.records_count(src, allow_cache=True)
-    sorted = yamr_client.is_sorted(src, allow_cache=True)
-
-    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
-
     yt_client.mkdir(os.path.dirname(dst), recursive=True)
     if compression_codec is not None:
         if not yt_client.exists(dst):
@@ -313,6 +308,11 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
         temp_yamr_table = "tmp/yt/" + generate_uuid()
         yamr_client.copy(src, temp_yamr_table)
         src = temp_yamr_table
+
+    record_count = yamr_client.records_count(src, allow_cache=True)
+    sorted = yamr_client.is_sorted(src, allow_cache=True)
+
+    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
 
     ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
     read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id)
