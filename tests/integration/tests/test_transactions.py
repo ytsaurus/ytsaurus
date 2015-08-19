@@ -227,12 +227,12 @@ class TestTransactions(YTEnvSetup):
         assert r4 > r3
 
     def test_revision4(self):
-        r1 = get("//sys/@last_committed_revision")
+        r1 = get("//sys/@current_commit_revision")
         set("//tmp/t", 1)
         r2 = get("//tmp/t/@revision")
-        assert r1 < r2
+        assert r1 <= r2
         remove("//tmp/t")
-        r3 = get("//sys/@last_committed_revision")
+        r3 = get("//sys/@current_commit_revision")
         assert r2 < r3
 
     def test_abort_snapshot_lock(self):
