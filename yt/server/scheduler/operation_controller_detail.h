@@ -634,6 +634,7 @@ protected:
     void DoCommit();
     void AttachOutputChunks();
     void EndUploadOutputTables();
+    virtual void CustomCommit();
 
     // Revival.
     void DoRevive();
