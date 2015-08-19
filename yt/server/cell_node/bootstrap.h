@@ -141,6 +141,7 @@ private:
     void DoRun();
     NNodeTrackerClient::TAddressMap GetLocalAddresses();
     void PopulateAlerts(std::vector<TError>* alerts);
+    NObjectClient::TCellId ToRedirectorCellId(const NObjectClient::TCellId& cellId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
