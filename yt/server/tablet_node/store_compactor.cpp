@@ -696,6 +696,7 @@ private:
                 .ThrowOnError();
 
             std::vector<TVersionedRow> rows;
+            rows.reserve(MaxRowsPerRead);
 
             int readRowCount = 0;
             int writeRowCount = 0;

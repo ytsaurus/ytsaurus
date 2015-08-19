@@ -655,3 +655,55 @@ class TestTablets(YTEnvSetup):
 
     def test_nonatomic_snapshots(self):
         self._test_snapshots("none")
+
+    def test_stress_tablet_readers(self):
+        self.sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        values = dict()
+
+        def verify():
+            expected = [{"key": key, "value": values[key]} for key in values.keys()]
+            actual = select_rows("* from [//tmp/t]")
+            assert_items_equal(actual, expected)
+
+            keys = list(values.keys())[::2]
+            expected = [{"key": key, "value": values[key]} for key in keys]
+
+            if len(keys) > 0:
+                actual = select_rows("* from [//tmp/t] where key in (%s)" % ",".join([str(key) for key in keys]))
+                assert_items_equal(actual, expected)
+
+            actual = lookup_rows("//tmp/t", [{"key": key} for key in keys])
+            assert actual == expected
+
+        verify()
+
+        rounds = 10
+        items = 100
+
+        for wave in xrange(1, rounds):
+            rows = [{"key": i, "value": str(i + wave * 100)} for i in xrange(0, items, wave)]
+            for row in rows:
+                values[row["key"]] = row["value"]
+            print "Write rows ", rows
+            insert_rows("//tmp/t", rows)
+
+            verify()
+
+            self.sync_unmount_table("//tmp/t")
+            pivots = ([[]] + [[x] for x in xrange(0, items, items / wave)]) if wave % 2 == 0 else [[]]
+            reshard_table("//tmp/t", pivots)
+            self.sync_mount_table("//tmp/t")
+
+            verify()
+
+            keys = sorted(list(values.keys()))[::(wave * 12345) % items]
+            print "Delete keys ", keys
+            rows = [{"key": key} for key in keys]
+            delete_rows("//tmp/t", rows)
+            for key in keys:
+                values.pop(key)
+
+            verify()

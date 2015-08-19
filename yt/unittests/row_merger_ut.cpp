@@ -13,6 +13,7 @@
 #include <ytlib/table_client/config.h>
 #include <ytlib/table_client/versioned_reader.h>
 #include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_overlapping_chunk_reader.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -677,6 +678,256 @@ TEST_F(TVersionedRowMergerTest, ManyDeletes)
             "",
             { 100, 200, 300 }),
         merger->BuildMergedRow());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TMockVersionedReader
+    : public IVersionedReader
+{
+public:
+    explicit TMockVersionedReader(std::vector<TVersionedRow> rows)
+        : Rows_(rows)
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return VoidFuture;
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        rows->clear();
+
+        if (Position_ == Rows_.size()) {
+            return false;
+        }
+
+        while (Position_ < Rows_.size() && rows->size() < rows->capacity()) {
+            rows->push_back(Rows_[Position_]);
+            ++Position_;
+        }
+
+        return true;
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return VoidFuture;
+    }
+
+private:
+    std::vector<TVersionedRow> Rows_;
+    int Position_ = 0;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TSchemafulMergingReaderTest
+    : public TRowMergerTestBase
+{
+public:
+    void ReadAll(ISchemafulReaderPtr reader, std::vector<TUnversionedRow>* result)
+    {
+        std::vector<TUnversionedRow> partial;
+        partial.reserve(1024);
+
+        bool wait;
+        do {
+            WaitFor(reader->GetReadyEvent());
+            wait = reader->Read(&partial);
+
+            for (const auto& row : partial) {
+                result->push_back(Buffer_->Capture(row));
+            }
+
+        } while (wait || partial.size() > 0);
+    }
+};
+
+TEST_F(TSchemafulMergingReaderTest, Merge1)
+{
+    auto readers = std::vector<IVersionedReaderPtr>{
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=200> 1")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=900> 2")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=600> 7")})};
+
+    auto boundaries = std::vector<TUnversionedOwningRow>{
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 0")),
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 0")),
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 0"))};
+
+    auto merger = New<TSchemafulRowMerger>(New<TRowBuffer>(), 4, 1, TColumnFilter());
+
+    auto reader = CreateSchemafulOverlappingChunkReader(
+        boundaries,
+        std::move(merger),
+        [readers] (int index) {
+            return readers[index];
+        },
+        [] (
+            const TUnversionedValue* lhsBegin,
+            const TUnversionedValue* lhsEnd,
+            const TUnversionedValue* rhsBegin,
+            const TUnversionedValue* rhsEnd)
+        {
+            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+        },
+        1);
+
+    std::vector<TUnversionedRow> result;
+    ReadAll(reader, &result);
+
+    EXPECT_EQ(1, result.size());
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> #; <id=3> #"), result[0]);
+}
+
+TEST_F(TSchemafulMergingReaderTest, Merge2)
+{
+    auto readers = std::vector<IVersionedReaderPtr>{
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("0", "<id=1;ts=200> 0"),
+            BuildVersionedRow("1", "<id=1;ts=200> 1")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("2", "<id=1;ts=100> 2"),
+            BuildVersionedRow("3", "<id=1;ts=300> 3")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("1", "<id=1;ts=300> 4"),
+            BuildVersionedRow("2", "<id=1;ts=600> 5")})};
+
+    auto boundaries = std::vector<TUnversionedOwningRow>{
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 0")),
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 2")),
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 1"))};
+
+    auto merger = New<TSchemafulRowMerger>(New<TRowBuffer>(), 4, 1, TColumnFilter());
+
+    auto reader = CreateSchemafulOverlappingChunkReader(
+        boundaries,
+        std::move(merger),
+        [readers] (int index) {
+            return readers[index];
+        },
+        [] (
+            const TUnversionedValue* lhsBegin,
+            const TUnversionedValue* lhsEnd,
+            const TUnversionedValue* rhsBegin,
+            const TUnversionedValue* rhsEnd)
+        {
+            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+        },
+        1);
+
+    std::vector<TUnversionedRow> result;
+    ReadAll(reader, &result);
+
+    EXPECT_EQ(4, result.size());
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 0; <id=1> 0; <id=2> #; <id=3> #"), result[0]);
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 1; <id=1> 4; <id=2> #; <id=3> #"), result[1]);
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 2; <id=1> 5; <id=2> #; <id=3> #"), result[2]);
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 3; <id=1> 3; <id=2> #; <id=3> #"), result[3]);
+}
+
+TEST_F(TSchemafulMergingReaderTest, Lookup)
+{
+    auto readers = std::vector<IVersionedReaderPtr>{
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("0", "<id=1;ts=200> 0"),
+            BuildVersionedRow("1", "<id=1;ts=400> 1")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("0", "<id=1;ts=300> 2"),
+            BuildVersionedRow("1", "<id=1;ts=300> 3")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{
+            BuildVersionedRow("0", "<id=1;ts=100> 4"),
+            BuildVersionedRow("1", "<id=1;ts=600> 5")})};
+
+    auto merger = New<TSchemafulRowMerger>(New<TRowBuffer>(), 4, 1, TColumnFilter());
+
+    auto reader = CreateSchemafulOverlappingChunkLookupReader(
+        std::move(merger),
+        [readers, index = 0] () mutable -> IVersionedReaderPtr {
+            if (index < readers.size()) {
+                return readers[index++];
+            } else {
+                return nullptr;
+            }
+        });
+
+    std::vector<TUnversionedRow> result;
+    ReadAll(reader, &result);
+
+    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> #; <id=3> #"), result[0]);
+    EXPECT_EQ(BuildUnversionedRow("<id=0> 1; <id=1> 5; <id=2> #; <id=3> #"), result[1]);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TVersionedMergingReaderTest
+    : public TRowMergerTestBase
+{
+public:
+    void ReadAll(IVersionedReaderPtr reader, std::vector<TVersionedRow>* result)
+    {
+        std::vector<TVersionedRow> partial;
+        partial.reserve(1024);
+
+        WaitFor(reader->Open());
+
+        bool wait;
+        do {
+            WaitFor(reader->GetReadyEvent());
+            wait = reader->Read(&partial);
+
+            for (const auto& row : partial) {
+                Result_.push_back(TVersionedOwningRow(row));
+                result->push_back(Result_.back().Get());
+            }
+
+        } while (wait || partial.size() > 0);
+    }
+
+private:
+    std::vector<TVersionedOwningRow> Result_;
+};
+
+TEST_F(TVersionedMergingReaderTest, Merge1)
+{
+    auto readers = std::vector<IVersionedReaderPtr>{
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=200> 1")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=900> 2")}),
+        New<TMockVersionedReader>(std::vector<TVersionedRow>{BuildVersionedRow("0", "<id=1;ts=600> 3")})};
+
+    auto boundaries = std::vector<TUnversionedOwningRow>{
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 0")),
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 0")),
+        TUnversionedOwningRow(BuildUnversionedRow("<id=0> 0"))};
+
+    auto config = New<TRetentionConfig>();
+    config->MinDataVersions = 2;
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000), 0);
+
+    auto reader = CreateVersionedOverlappingChunkReader(
+        boundaries,
+        std::move(merger),
+        [readers] (int index) {
+            return readers[index];
+        },
+        [] (
+            const TUnversionedValue* lhsBegin,
+            const TUnversionedValue* lhsEnd,
+            const TUnversionedValue* rhsBegin,
+            const TUnversionedValue* rhsEnd)
+        {
+            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
+        },
+        1);
+
+    std::vector<TVersionedRow> result;
+    ReadAll(reader, &result);
+
+    EXPECT_EQ(1, result.size());
+    EXPECT_EQ(BuildVersionedRow("0", "<id=1;ts=600> 3; <id=1;ts=900> 2"), result[0]);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

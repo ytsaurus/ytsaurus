@@ -24,6 +24,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaful_overlapping_chunk_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_reader_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_writer_adapter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_block_reader.cpp
@@ -76,6 +77,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_block_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_chunk_writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/schemaful_overlapping_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_reader_adapter.h
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_writer_adapter.h
