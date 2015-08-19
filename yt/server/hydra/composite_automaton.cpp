@@ -438,7 +438,7 @@ void TCompositeAutomaton::Clear()
     }
 }
 
-void TCompositeAutomaton::  DoSaveSnapshot(
+void TCompositeAutomaton::DoSaveSnapshot(
     NConcurrency::IAsyncOutputStreamPtr writer,
     ESyncStreamAdapterStrategy strategy,
     const std::function<void()>& callback)
