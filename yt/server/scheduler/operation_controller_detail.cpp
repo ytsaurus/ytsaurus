@@ -1093,6 +1093,7 @@ void TOperationControllerBase::DoPrepare()
     GetOutputTablesUploadParams();
     RequestFileObjects();
 
+    PickIntermediateDataCell();
     InitCells();
 
     CreateLivePreviewTables();
@@ -1367,6 +1368,15 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
     }
 }
 
+void TOperationControllerBase::PickIntermediateDataCell()
+{
+    auto connection = AuthenticatedOutputMasterClient->GetConnection();
+    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
+    IntermediateOutputCellTag = secondaryCellTags.empty()
+        ? connection->GetPrimaryMasterCellTag()
+        : secondaryCellTags[rand() % secondaryCellTags.size()];
+}
+
 void TOperationControllerBase::InitCells()
 {
     auto client = Host->GetMasterClient();
@@ -1395,7 +1405,6 @@ void TOperationControllerBase::InitCells()
     }
 
     // NB: The choice of cell must be deterministic.
-    IntermediateOutputCellTag = OutputTables[0].CellTag;
     IntermediateOutputChunkListPool = createPool(IntermediateOutputCellTag)->ChunkListPool;
 }
 
@@ -3909,6 +3918,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, InputTables);
 
     Persist(context, OutputTables);
+
+    Persist(context, IntermediateOutputCellTag);
 
     Persist(context, IntermediateTable);
 
