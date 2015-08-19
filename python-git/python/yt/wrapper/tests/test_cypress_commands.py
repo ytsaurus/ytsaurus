@@ -222,13 +222,20 @@ class TestCypressCommands(object):
 
         yt.mkdir(dir)
         yt.copy(table, other_table)
+        assert yt.exists(table)
+        assert yt.exists(other_table)
 
+        with pytest.raises(yt.YtError):
+            yt.copy(table, other_table)
+        yt.copy(table, other_table, force=True)
         assert yt.exists(table)
         assert yt.exists(other_table)
 
         # Remove it after fixes in move
-        yt.remove(other_table)
+        with pytest.raises(yt.YtError):
+            yt.move(table, other_table)
 
+        yt.remove(other_table)
         yt.move(table, other_table)
         assert not yt.exists(table)
         assert yt.exists(other_table)
