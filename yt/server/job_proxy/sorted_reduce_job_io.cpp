@@ -50,7 +50,7 @@ public:
             auto reader = CreateSchemalessSequentialMultiChunkReader(
                 JobIOConfig_->TableReader,
                 options,
-                Host_->GetMasterChannel(),
+                Host_->GetClient(),
                 Host_->GetBlockCache(),
                 Host_->GetNodeDirectory(),
                 chunks,

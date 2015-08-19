@@ -269,6 +269,8 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
+    
+    JobProxyConfig->ClusterConnection = Config->ClusterConnection;
 
     JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
     JobProxyConfig->BlockIOWatchdogPeriod = Config->ExecAgent->BlockIOWatchdogPeriod;

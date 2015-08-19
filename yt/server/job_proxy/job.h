@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/node_tracker_client/public.h>
 
 #include <ytlib/chunk_client/public.h>
@@ -32,7 +34,7 @@ struct IJobHost
 
     virtual void ReleaseNetwork() = 0;
 
-    virtual NRpc::IChannelPtr GetMasterChannel() const = 0;
+    virtual NApi::IClientPtr GetClient() const = 0;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
 

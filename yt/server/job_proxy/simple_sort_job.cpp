@@ -46,7 +46,7 @@ public:
         auto reader = CreateSchemalessParallelMultiChunkReader(
             config->JobIO->TableReader,
             New<TMultiChunkReaderOptions>(),
-            host->GetMasterChannel(),
+            host->GetClient(),
             host->GetBlockCache(),
             host->GetNodeDirectory(),
             chunkSpecs,
@@ -65,7 +65,7 @@ public:
             nameTable,
             keyColumns,
             TOwningKey(),
-            host->GetMasterChannel(),
+            host->GetClient(),
             transactionId,
             chunkListId);
     }

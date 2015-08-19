@@ -4,15 +4,17 @@
 #include "private.h"
 #include "job.h"
 
-#include <core/concurrency/public.h>
-
-#include <core/logging/log.h>
-
-#include <ytlib/job_tracker_client/public.h>
-
 #include <server/job_agent/public.h>
 
 #include <server/exec_agent/supervisor_service_proxy.h>
+
+#include <ytlib/api/public.h>
+
+#include <ytlib/job_tracker_client/public.h>
+
+#include <core/concurrency/public.h>
+
+#include <core/logging/log.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -44,8 +46,8 @@ private:
     NRpc::IServerPtr RpcServer;
 
     std::unique_ptr<NExecAgent::TSupervisorServiceProxy> SupervisorProxy_;
-
-    NRpc::IChannelPtr MasterChannel_;
+    
+    NApi::IClientPtr Client_;
 
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
@@ -83,7 +85,7 @@ private:
 
     virtual void ReleaseNetwork() override;
 
-    virtual NRpc::IChannelPtr GetMasterChannel() const override;
+    virtual NApi::IClientPtr GetClient() const override;
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
 

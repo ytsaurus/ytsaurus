@@ -267,7 +267,7 @@ private:
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
-            Client_->GetMasterChannel(EMasterChannelKind::Leader, CellTag_),
+            Client_,
             UploadTransaction_->GetId(),
             chunkListId);
 

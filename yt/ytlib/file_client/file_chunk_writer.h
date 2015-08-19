@@ -59,7 +59,7 @@ DEFINE_REFCOUNTED_TYPE(IFileMultiChunkWriter)
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NApi::TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),

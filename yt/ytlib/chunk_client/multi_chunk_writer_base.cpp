@@ -13,6 +13,10 @@
 #include "private.h"
 #include "replication_writer.h"
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+#include <ytlib/api/config.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/object_client/helpers.h>
@@ -39,6 +43,7 @@ using namespace NErasure;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NApi;
 using namespace NTransactionClient;
 
 using NYT::ToProto;
@@ -49,7 +54,7 @@ using NYT::FromProto;
 TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     IThroughputThrottlerPtr throttler,
@@ -57,7 +62,8 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     : Logger(ChunkClientLogger)
     , Config_(NYTree::CloneYsonSerializable(config))
     , Options_(options)
-    , MasterChannel_(masterChannel)
+    , Client_(client)
+    , MasterChannel_(client->GetMasterChannel(EMasterChannelKind::Leader))
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
@@ -187,7 +193,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 NextSession_.ChunkId, 
                 TChunkReplicaList(),
                 NodeDirectory_,
-                MasterChannel_,
+                Client_,
                 BlockCache_,
                 Throttler_);
         } else {
@@ -198,7 +204,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 NextSession_.ChunkId, 
                 erasureCodec, 
                 NodeDirectory_, 
-                MasterChannel_, 
+                Client_,
                 Throttler_,
                 BlockCache_);
             NextSession_.UnderlyingWriter = CreateErasureWriter(

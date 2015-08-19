@@ -176,12 +176,10 @@ private:
             nodeDirectory->MergeFrom(rsp->node_directory());
 
             auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            auto options = New<TMultiChunkReaderOptions>();
-            options->NetworkName = Client_->GetConnection()->GetConfig()->NetworkName;
             Reader_ = CreateFileMultiChunkReader(
                 Config_,
-                options,
-                channel,
+                New<TMultiChunkReaderOptions>(),
+                Client_,
                 Client_->GetConnection()->GetBlockCache(),
                 nodeDirectory,
                 std::move(chunks));

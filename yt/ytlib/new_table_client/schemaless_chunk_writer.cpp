@@ -11,6 +11,8 @@
 #include "schemaless_row_reorderer.h"
 #include "table_ypath_proxy.h"
 
+#include <ytlib/api/client.h>
+
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
@@ -45,6 +47,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NVersionedTableClient::NProto;
 using namespace NRpc;
+using namespace NApi;
 using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 using namespace NYPath;
@@ -601,7 +604,7 @@ public:
     TSchemalessMultiChunkWriter(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
@@ -612,7 +615,7 @@ public:
         : TBase(
             config,
             options,
-            masterChannel,
+            client,
             transactionId,
             parentChunkListId,
             createChunkWriter,
@@ -646,7 +649,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     TOwningKey lastKey,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     bool reorderValues,
@@ -673,7 +676,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     auto writer = New<TWriter>(
         config,
         options,
-        masterChannel,
+        client,
         transactionId,
         parentChunkListId,
         createChunkWriter,
@@ -700,7 +703,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     std::unique_ptr<IPartitioner> partitioner,
@@ -731,7 +734,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     auto writer = New<TWriter>(
         config,
         options,
-        masterChannel,
+        client,
         transactionId,
         parentChunkListId,
         createChunkWriter,
@@ -827,13 +830,11 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     , BlockCache_(blockCache)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
 {
-    Options_->NetworkName = options->NetworkName;
-
     if (Transaction_) {
         ListenTransaction(Transaction_);
     }
 
-    Logger.AddTag("Path: %v, TransactionId: %v",
+    Logger.AddTag("Path: %v, TransactihonId: %v",
         RichPath_.GetPath(),
         TransactionId_);
 }
@@ -1064,7 +1065,7 @@ void TSchemalessTableWriter::DoOpen()
         NameTable_,
         KeyColumns_,
         LastKey_,
-        uploadMasterChannel,
+        Client_,
         UploadTransaction_->GetId(),
         ChunkListId_,
         true,
