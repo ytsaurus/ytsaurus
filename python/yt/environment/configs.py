@@ -41,7 +41,7 @@ def get_master_config():
     return yson.loads(
 """
 {
-    enable_provision_lock = false;
+    enable_provision_lock = %false;
 
     primary_master = { };
 
@@ -70,7 +70,7 @@ def get_master_config():
     hydra_manager = {
         leader_lease_check_period = 100;
         leader_lease_timeout = 200;
-        disable_leader_lease_grace_delay = true;
+        disable_leader_lease_grace_delay = %true;
     };
 
     chunk_manager = {
@@ -121,7 +121,7 @@ def get_scheduler_config():
 """
 {
     cluster_connection = {
-        enable_read_from_followers = true;
+        enable_read_from_followers = %true;
 
         primary_master = {
             rpc_timeout = 5000;
@@ -150,7 +150,7 @@ def get_scheduler_config():
              PYTHONUSERBASE = "/tmp"
         };
 
-        enable_snapshot_loading = true;
+        enable_snapshot_loading = %true;
         snapshot_timeout = 1000;
     };
 
@@ -175,7 +175,7 @@ def get_node_config():
     };
 
     cluster_connection = {
-        enable_read_from_followers = true;
+        enable_read_from_followers = %true;
 
         primary_master = {
             rpc_timeout = 5000;
@@ -201,7 +201,7 @@ def get_node_config():
             retry_backoff_time = 100;
         };
 
-        enable_udf = true;
+        enable_udf = %true;
     };
 
     data_node = {
@@ -235,7 +235,7 @@ def get_node_config():
             };
         };
 
-        enable_cgroups = false;
+        enable_cgroups = %false;
 
         slot_manager = {
             path = "";
@@ -272,7 +272,7 @@ def get_node_config():
         hydra_manager = {
             leader_lease_check_period = 100;
             leader_lease_timeout = 200;
-            disable_leader_lease_grace_delay = true;
+            disable_leader_lease_grace_delay = %true;
         };
     };
 
@@ -309,7 +309,7 @@ def get_driver_config():
     return yson.loads(
 """
 {
-    enable_read_from_followers = true;
+    enable_read_from_followers = %true;
 
     primary_master = {
         rpc_timeout = 5000;
@@ -333,7 +333,7 @@ def get_driver_config():
         > yson
     };
 
-    enable_udf = true;
+    enable_udf = %true;
 }
 """)
 
