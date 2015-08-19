@@ -1621,11 +1621,14 @@ void TOperationControllerBase::EndUploadOutputTables()
 
         LOG_INFO("Finishing upload to output to table (Path: %v, KeyColumns: %v)",
             path,
-            table.KeyColumns ? MakeNullable(JoinToString(*table.KeyColumns)) : Null);
+            table.KeyColumns ? MakeNullable("[" + JoinToString(*table.KeyColumns) + "]") : Null);
 
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = table.DataStatistics;
+            if (table.KeyColumns) {
+                ToProto(req->mutable_key_columns(), *table.KeyColumns);
+            }
             SetTransactionId(req, table.UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
