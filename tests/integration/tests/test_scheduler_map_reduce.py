@@ -303,3 +303,8 @@ print "x={0}\ty={1}".format(x, y)
             spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+
+##################################################################
+
+class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2

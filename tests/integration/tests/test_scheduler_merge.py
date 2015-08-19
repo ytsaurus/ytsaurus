@@ -333,3 +333,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self.assertItemsEqual(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
 
+##################################################################
+
+class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2

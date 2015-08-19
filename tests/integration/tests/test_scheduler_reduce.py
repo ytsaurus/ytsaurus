@@ -364,3 +364,8 @@ echo {v = 2} >&7
             '<"key_switch"=%true>#;\n' \
             '{"key"="b";"value"=""};\n' \
             '{"key"="b";"value"=""};\n'
+
+##################################################################
+
+class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2
