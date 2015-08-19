@@ -21,12 +21,12 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @classmethod
-    def setup_class(cls):
+    def setup_class(cls, secondary_master_cell_count=0):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
         # Change cell tag of remote cluster
         cls.Env._run_all(masters_count=1,
                          nodes_count=9,
-                         secondary_master_cell_count=0,
+                         secondary_master_cell_count=secondary_master_cell_count,
                          schedulers_count=0,
                          has_proxy=False,
                          instance_id="_remote",
@@ -234,3 +234,12 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         with pytest.raises(YtError):
             remote_copy(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t2", spec={"cluster_name": "remote", "copy_attributes": True})
+
+
+class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    @classmethod
+    def setup_class(cls):
+        super(TestSchedulerRemoteCopyCommandsMulticell, cls).setup_class(2)
+
