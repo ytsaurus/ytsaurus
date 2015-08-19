@@ -33,6 +33,7 @@
 
 #include <core/profiling/profile_manager.h>
 
+#include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
@@ -96,6 +97,7 @@ namespace NYT {
 namespace NCellNode {
 
 using namespace NBus;
+using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
@@ -209,11 +211,12 @@ void TBootstrap::DoRun()
     auto masterRedirectorChannel = CreateThrottlingChannel(
         Config->MasterRedirectorService,
         directMasterChannel);
+    auto redirectorCellId = ToRedirectorCellId(GetCellId());
     RpcServer->RegisterService(CreateRedirectorService(
-        TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), NullCellId),
+        TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), redirectorCellId),
         masterRedirectorChannel));
     RpcServer->RegisterService(CreateRedirectorService(
-        TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), NullCellId),
+        TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), redirectorCellId),
         masterRedirectorChannel));
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
@@ -262,7 +265,9 @@ void TBootstrap::DoRun()
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
     
-    JobProxyConfig->ClusterConnection = Config->ClusterConnection;
+    JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
+    JobProxyConfig->ClusterConnection->Master->Addresses = {GetInterconnectAddress(localAddresses)};
+    JobProxyConfig->ClusterConnection->Master->CellId = redirectorCellId;
 
     JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
     JobProxyConfig->BlockIOWatchdogPeriod = Config->ExecAgent->BlockIOWatchdogPeriod;
@@ -562,7 +567,7 @@ NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
     return QueryExecutor;
 }
 
-const TGuid& TBootstrap::GetCellId() const
+const TCellId& TBootstrap::GetCellId() const
 {
     return Config->ClusterConnection->Master->CellId;
 }
@@ -680,6 +685,13 @@ void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
                 << TErrorAttribute("limit", limit));
         }
     }
+}
+
+TCellId TBootstrap::ToRedirectorCellId(const TCellId& cellId)
+{
+    return ReplaceCellTagInId(
+        TCellId(0xffffffffULL, 0xffffffffULL),
+        CellTagFromId(cellId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

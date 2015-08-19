@@ -79,6 +79,11 @@ TObjectId ReplaceTypeInId(
     const TObjectId& id,
     EObjectType type);
 
+//! Constructs a new object id by replacing cell tag component in a given one.
+TObjectId ReplaceCellTagInId(
+    const TObjectId& id,
+    TCellTag cellTag);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NObjectClient

@@ -269,43 +269,43 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
 TJobResult TJobProxy::DoRun()
 {
-    RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
-    RpcServer->RegisterService(CreateJobProberService(this));
-    RpcServer->Start();
-
-    auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-    auto supervisorChannel = CreateBusChannel(supervisorClient);
-
-    SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
-    SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
-
-    auto clusterConnection = CreateConnection(Config_->ClusterConnection);
-    
-    TClientOptions clientOptions;
-    clientOptions.User = NSecurityClient::JobUserName;
-    Client_ = clusterConnection->CreateClient(clientOptions);
-
-    RetrieveJobSpec();
-
-    const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
-
-    NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-    NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());
-
-    HeartbeatExecutor_ = New<TPeriodicExecutor>(
-        GetSyncInvoker(),
-        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
-        Config_->HeartbeatPeriod);
-
-    if (schedulerJobSpecExt.enable_job_proxy_memory_control()) {
-        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
-            GetSyncInvoker(),
-            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-            Config_->MemoryWatchdogPeriod);
-    }
-
     try {
+        RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
+        RpcServer->RegisterService(CreateJobProberService(this));
+        RpcServer->Start();
+
+        auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
+        auto supervisorChannel = CreateBusChannel(supervisorClient);
+
+        SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
+        SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
+
+        auto clusterConnection = CreateConnection(Config_->ClusterConnection);
+
+        TClientOptions clientOptions;
+        clientOptions.User = NSecurityClient::JobUserName;
+        Client_ = clusterConnection->CreateClient(clientOptions);
+
+        RetrieveJobSpec();
+
+        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
+
+        NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+        NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());
+
+        HeartbeatExecutor_ = New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
+            Config_->HeartbeatPeriod);
+
+        if (schedulerJobSpecExt.enable_job_proxy_memory_control()) {
+            MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
+                GetSyncInvoker(),
+                BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+                Config_->MemoryWatchdogPeriod);
+        }
+
         if (schedulerJobSpecExt.has_user_job_spec()) {
             auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
