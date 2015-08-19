@@ -16,7 +16,7 @@ def main():
         "yt/tools/binaries/yt_doctor.py",
         "yt/tools/binaries/yt_checksum.py"])
 
-    data_files.append(("/etc/yandex_yt_python_tools/version", ["yt/tools/version"]))
+    data_files.append(("/etc/yandex_yt_python_tools", ["yt/tools/version"]))
 
     setup(
         name = "yandex-yt-tools",
