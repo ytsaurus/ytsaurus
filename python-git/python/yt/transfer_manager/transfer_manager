@@ -1182,6 +1182,13 @@ class Application(object):
             description = task.dict(hide_token=True, fields=fields)
             if id in tasks_queue_indexes:
                 description["queue_index"] = tasks_queue_indexes[id]
+
+            try:
+                json.dumps(description)
+            except json.UnicodeDecodeError:
+                logger.warning("Cannot decode in JSON struct '%s'", repr(description))
+                continue
+
             tasks_descriptions.append(description)
 
         return Response(json.dumps(tasks_descriptions), mimetype='application/json')
