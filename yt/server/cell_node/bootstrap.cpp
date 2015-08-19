@@ -38,6 +38,8 @@
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
 
@@ -119,6 +121,7 @@ using namespace NQueryAgent;
 using namespace NApi;
 using namespace NTransactionServer;
 using namespace NHive;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,21 +211,29 @@ void TBootstrap::DoRun()
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    // NB: No retries, no user overriding.
-    auto directMasterChannel = CreatePeerChannel(
-        Config->ClusterConnection->PrimaryMaster,
-        GetBusChannelFactory(),
-        EPeerKind::Leader);
+    auto createMasterRedirectorService = [&] (TMasterConnectionConfigPtr config) {
+        // NB: No retries, no user overriding.
+        auto directMasterChannel = CreatePeerChannel(
+            config,
+            GetBusChannelFactory(),
+            EPeerKind::Leader);
+        auto masterRedirectorChannel = CreateThrottlingChannel(
+            Config->MasterRedirectorService,
+            directMasterChannel);
 
-    auto masterRedirectorChannel = CreateThrottlingChannel(
-        Config->MasterRedirectorService,
-        directMasterChannel);
-    RpcServer->RegisterService(CreateRedirectorService(
-        TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), NullCellId),
-        masterRedirectorChannel));
-    RpcServer->RegisterService(CreateRedirectorService(
-        TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), NullCellId),
-        masterRedirectorChannel));
+        auto redirectorCellId = ToRedirectorCellId(config->CellId);
+        RpcServer->RegisterService(CreateRedirectorService(
+            TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), redirectorCellId),
+            masterRedirectorChannel));
+        RpcServer->RegisterService(CreateRedirectorService(
+            TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), redirectorCellId),
+            masterRedirectorChannel));
+    };
+
+    createMasterRedirectorService(Config->ClusterConnection->PrimaryMaster);
+    for (const auto& config : Config->ClusterConnection->SecondaryMasters) {
+        createMasterRedirectorService(config);
+    }
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
@@ -268,9 +279,21 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
+    auto localInterconnectAddress = GetInterconnectAddress(localAddresses);
+
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
-    
-    JobProxyConfig->ClusterConnection = Config->ClusterConnection;
+
+    JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
+
+    auto patchMasterRedirectorConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
+        config->CellId = ToRedirectorCellId(config->CellId);
+        config->Addresses = {localInterconnectAddress};
+    };
+
+    patchMasterRedirectorConnectionConfig(JobProxyConfig->ClusterConnection->PrimaryMaster);
+    for (const auto& config : JobProxyConfig->ClusterConnection->SecondaryMasters) {
+        patchMasterRedirectorConnectionConfig(config);
+    }
 
     JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
     JobProxyConfig->BlockIOWatchdogPeriod = Config->ExecAgent->BlockIOWatchdogPeriod;
@@ -288,7 +311,7 @@ void TBootstrap::DoRun()
     JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = GetInterconnectAddress(localAddresses);
+    JobProxyConfig->SupervisorConnection->Address = localInterconnectAddress;
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
@@ -362,6 +385,11 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateTimestampProxyService(
         MasterConnection->GetTimestampProvider()));
+
+    auto directMasterChannel = CreatePeerChannel(
+        Config->ClusterConnection->PrimaryMaster,
+        GetBusChannelFactory(),
+        EPeerKind::Leader);
 
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
@@ -690,6 +718,13 @@ void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
                 << TErrorAttribute("limit", limit));
         }
     }
+}
+
+TCellId TBootstrap::ToRedirectorCellId(const TCellId& cellId)
+{
+    return ReplaceCellTagInId(
+        TCellId(0xffffffffULL, 0xffffffffULL),
+        CellTagFromId(cellId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
