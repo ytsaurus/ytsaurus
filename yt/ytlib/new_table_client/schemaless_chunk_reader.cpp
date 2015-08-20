@@ -178,7 +178,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
             Config_->SamplingSeed.Get(std::random_device()()));
     }
 
-    LOG_DEBUG("LowerLimit: %v, UpperLimit: %v",
+    LOG_DEBUG("Schemaful chunk reader created (LowerLimit: {%v}, UpperLimit: {%v})",
         LowerLimit_,
         UpperLimit_);
 }
