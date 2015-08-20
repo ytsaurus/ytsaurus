@@ -162,11 +162,18 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
-    auto result = BIND(&TJobProxy::DoRun, Unretained(this))
+    auto resultOrError = BIND(&TJobProxy::DoRun, Unretained(this))
         .AsyncVia(JobThread_->GetInvoker())
         .Run()
-        .Get()
-        .ValueOrThrow();
+        .Get();
+
+    TJobResult result;
+    if (!resultOrError.IsOK()) {
+        LOG_ERROR(resultOrError, "Job failed");
+        ToProto(result.mutable_error(), resultOrError);
+    } else {
+        result = resultOrError.Value();
+    }
 
     if (HeartbeatExecutor_) {
         HeartbeatExecutor_->Stop();
@@ -269,68 +276,60 @@ IJobPtr TJobProxy::CreateBuiltinJob()
 
 TJobResult TJobProxy::DoRun()
 {
-    try {
-        RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
-        RpcServer->RegisterService(CreateJobProberService(this));
-        RpcServer->Start();
+    RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
+    RpcServer->RegisterService(CreateJobProberService(this));
+    RpcServer->Start();
 
-        auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
-        auto supervisorChannel = CreateBusChannel(supervisorClient);
+    auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
+    auto supervisorChannel = CreateBusChannel(supervisorClient);
 
-        SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
-        SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
+    SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
+    SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-        auto clusterConnection = CreateConnection(Config_->ClusterConnection);
+    auto clusterConnection = CreateConnection(Config_->ClusterConnection);
 
-        TClientOptions clientOptions;
-        clientOptions.User = NSecurityClient::JobUserName;
-        Client_ = clusterConnection->CreateClient(clientOptions);
+    TClientOptions clientOptions;
+    clientOptions.User = NSecurityClient::JobUserName;
+    Client_ = clusterConnection->CreateClient(clientOptions);
 
-        RetrieveJobSpec();
+    RetrieveJobSpec();
 
-        const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-        SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
+    const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
-        NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-        NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());
+    NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+    NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());
 
-        HeartbeatExecutor_ = New<TPeriodicExecutor>(
+    HeartbeatExecutor_ = New<TPeriodicExecutor>(
+        GetSyncInvoker(),
+        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
+        Config_->HeartbeatPeriod);
+
+    if (schedulerJobSpecExt.enable_job_proxy_memory_control()) {
+        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
             GetSyncInvoker(),
-            BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
-            Config_->HeartbeatPeriod);
-
-        if (schedulerJobSpecExt.enable_job_proxy_memory_control()) {
-            MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
-                GetSyncInvoker(),
-                BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-                Config_->MemoryWatchdogPeriod);
-        }
-
-        if (schedulerJobSpecExt.has_user_job_spec()) {
-            auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
-            Job_ = CreateUserJob(
-                this,
-                userJobSpec,
-                JobId_,
-                CreateUserJobIO());
-        } else {
-            Job_ = CreateBuiltinJob();
-        }
-
-        if (MemoryWatchdogExecutor_) {
-            MemoryWatchdogExecutor_->Start();
-        }
-        HeartbeatExecutor_->Start();
-
-        return Job_->Run();
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Job failed");
-
-        TJobResult result;
-        ToProto(result.mutable_error(), TError(ex));
-        return result;
+            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+            Config_->MemoryWatchdogPeriod);
     }
+
+    if (schedulerJobSpecExt.has_user_job_spec()) {
+        auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
+        Job_ = CreateUserJob(
+            this,
+            userJobSpec,
+            JobId_,
+            CreateUserJobIO());
+    } else {
+        Job_ = CreateBuiltinJob();
+    }
+
+    if (MemoryWatchdogExecutor_) {
+        MemoryWatchdogExecutor_->Start();
+    }
+    HeartbeatExecutor_->Start();
+
+    return Job_->Run();
 }
 
 void TJobProxy::ReportResult(const TJobResult& result)

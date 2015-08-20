@@ -60,7 +60,7 @@ public:
         : Config_(config)
     { }
 
-    void Init(TCallback<bool(const TError&)> isRetriableError)
+    void Initialize(TCallback<bool(const TError&)> isRetriableError)
     {
         MasterChannels_[EMasterChannelKind::Leader] = CreatePeerChannel(
             Config_->Master,
@@ -238,7 +238,7 @@ IConnectionPtr CreateConnection(
     TCallback<bool(const TError&)> isRetriableError)
 {
     auto connection = New<TConnection>(config);
-    connection->Init(isRetriableError);
+    connection->Initialize(isRetriableError);
     return connection;
 }
 
