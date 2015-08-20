@@ -220,9 +220,10 @@ class TWindowReader
 public:
     TWindowReader(
         IChunkReaderPtr reader,
-        int blockCount)
+        const std::vector<i64>& blockSizes)
         : Reader_(reader)
-        , BlockCount_(blockCount)
+        , BlockSizes_(blockSizes)
+        , BlockCount_(blockSizes.size())
         , WindowSize_(-1)
         , BlockIndex_(0)
         , BlocksDataSize_(0)
@@ -244,6 +245,7 @@ public:
 
 private:
     IChunkReaderPtr Reader_;
+    std::vector<i64> BlockSizes_;
     int BlockCount_;
 
     //! Window size requested by the currently served #Read.
@@ -272,7 +274,16 @@ private:
             return;
         }
 
-        auto blockIndexes = std::vector<int>(1, BlockIndex_);
+        std::vector<int> blockIndexes;
+
+        int requestBlockCount = 0;
+        i64 requestedSize = 0;
+        while (BlockIndex_ + requestBlockCount < BlockCount_ &&  BlocksDataSize_ + requestedSize < BuildDataSize_ + WindowSize_) {
+            requestedSize += BlockSizes_[BlockIndex_ + requestBlockCount];
+            blockIndexes.push_back(BlockIndex_ + requestBlockCount);
+            requestBlockCount++;
+        }
+
         Reader_->ReadBlocks(blockIndexes).Subscribe(
             BIND(&TWindowReader::OnBlockRead, MakeStrong(this), promise)
                 .Via(TDispatcher::Get()->GetReaderInvoker()));
@@ -292,12 +303,11 @@ private:
         }
 
         const auto& blocks = blocksOrError.Value();
-        YCHECK(blocks.size() == 1);
-        const auto& block = blocks[0];
-
-        BlockIndex_ += 1;
-        Blocks_.push_back(block);
-        BlocksDataSize_ += block.Size();
+        for (auto block : blocks) {
+            BlockIndex_ += 1;
+            Blocks_.push_back(block);
+            BlocksDataSize_ += block.Size();
+        }
 
         Continue(promise);
     }
@@ -572,14 +582,19 @@ void TRepairReader::OnGotMeta(const TChunkMeta& meta)
 
     for (int i = 0; i < Readers_.size(); ++i) {
         int recoveryIndex = (*recoveryIndices)[i];
-        int blockCount =
-            recoveryIndex < Codec_->GetDataPartCount()
-            ? placementExt.part_infos().Get(recoveryIndex).block_sizes().size()
-            : placementExt.parity_block_count();
+
+        std::vector<i64> blockSizes;
+        if (recoveryIndex < Codec_->GetDataPartCount()) {
+            const auto& blockSizesProto = placementExt.part_infos().Get(recoveryIndex).block_sizes();
+            blockSizes = std::vector<i64>(blockSizesProto.begin(), blockSizesProto.end());
+        } else {
+            blockSizes = std::vector<i64>(placementExt.parity_block_count(), placementExt.parity_block_size());
+            blockSizes.back() = placementExt.parity_last_block_size();
+        }
 
         WindowReaders_.push_back(New<TWindowReader>(
             Readers_[i],
-            blockCount));
+            blockSizes));
     }
 
     for (int erasedIndex : ErasedIndices_) {
