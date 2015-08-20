@@ -72,7 +72,7 @@ class YtHttpResponseError(YtResponseError):
         self.url = url
         self.headers = deepcopy(headers)
         self.message = "Received response with error. Requested {0} with headers {1}"\
-            .format(url, json.dumps(hide_token(self.headers), indent=4, sort_keys=True))
+            .format(url, json.dumps(hide_token(dict(self.headers)), indent=4, sort_keys=True))
 
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
