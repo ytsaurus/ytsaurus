@@ -17,7 +17,7 @@ class TRoamingChannel
     : public IChannel
 {
 public:
-    explicit TRoamingChannel(
+    TRoamingChannel(
         IRoamingChannelProviderPtr provider,
         TCallback<bool(const TError&)> isChannelFailureError)
         : Provider_(std::move(provider))
