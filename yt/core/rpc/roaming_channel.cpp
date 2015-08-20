@@ -65,6 +65,8 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
+        auto actualTimeout = timeout ? timeout : DefaultTimeout_;
+
         TPromise<IChannelPtr> channelPromise;
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -94,7 +96,7 @@ public:
             MakeStrong(this),
             request,
             responseHandler,
-            timeout,
+            actualTimeout,
             requestAck,
             requestControlThunk));
 
