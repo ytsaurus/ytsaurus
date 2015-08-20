@@ -158,6 +158,11 @@ def get_node_config():
     data_node = {
         cache_locations = [];
         store_locations = [];
+
+        cache_location = {
+            path = "";
+        };
+
         multiplexed_changelog = {
             path = "";
         };
@@ -191,6 +196,7 @@ def get_node_config():
 
         slot_manager = {
             paths = [];
+            path = "";
         };
 
         job_proxy_logging = { };
