@@ -7,6 +7,7 @@ import gc
 import os
 import logging
 import uuid
+from pytest import mark
 
 from time import sleep
 
