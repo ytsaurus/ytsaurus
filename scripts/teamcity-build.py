@@ -272,7 +272,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
                 result.write(handle, encoding="utf-8")
 
-        except UnicodeDecodeError:
+        except UnicodeDecodeError, etree.ParseError:
             failed = True
             teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
