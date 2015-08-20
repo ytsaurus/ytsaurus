@@ -582,6 +582,9 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t/@schema", [
             {"name": "key", "type": "uint64"},
             {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t/@schema", [
+            {"name": "key", "type": "int64"},
+            {"name": "value1", "type": "string"}])
 
         self._create_table_with_computed_column("//tmp/t1")
         self._sync_mount_table("//tmp/t1")
@@ -597,6 +600,11 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t1/@schema", [
             {"name": "key1", "type": "int64"},
             {"name": "key2", "type": "int64", "expression": "key1 * 100"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t1/@schema", [
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
+            {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3"},
             {"name": "value", "type": "string"}])
 
     def test_update_key_columns_success(self):
