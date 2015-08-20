@@ -323,6 +323,7 @@ class TestSchedulingTags(YTEnvSetup):
         time.sleep(0.8)
         assert len(get_job_nodes(op_id)) <= 2
 
+##################################################################
 
 class TestSchedulerConfig(YTEnvSetup):
     NUM_MASTERS = 3

@@ -14,14 +14,14 @@ from time import sleep
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
 
-skipif_multicell = pytest.mark.skipif( \
+mark_multicell = pytest.mark.skipif( \
     os.environ.get("ENABLE_YT_MULTICELL_TESTS") != "1",
-    reason="Multicell tests require explicit ENABLE_YT_MULTICELL_TESTS=1")
+    reason = "Multicell tests require explicit ENABLE_YT_MULTICELL_TESTS=1")
 
-def do_not_run_in_multicell(func):
+def skip_if_multicell(func):
     def wrapped_func(self, *args, **kwargs):
         if hasattr(self, "NUM_SECONDARY_MASTER_CELLS") and self.NUM_SECONDARY_MASTER_CELLS > 0:
-            return
+            pytest.skip("This test does not support multicell mode")
         func(self, *args, **kwargs)
     return wrapped_func
 

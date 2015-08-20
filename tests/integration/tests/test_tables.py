@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 from yt.yson import to_yson_type
 
@@ -653,5 +653,6 @@ class TestTables(YTEnvSetup):
 
 ##################################################################
 
+@mark_multicell
 class TestTablesMulticell(TestTables):
     NUM_SECONDARY_MASTER_CELLS = 2

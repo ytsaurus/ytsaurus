@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, multicell
 from yt_commands import *
 
 import time
@@ -235,7 +235,9 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         with pytest.raises(YtError):
             remote_copy(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t2", spec={"cluster_name": "remote", "copy_attributes": True})
 
+##################################################################
 
+@mark_multicell
 class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
