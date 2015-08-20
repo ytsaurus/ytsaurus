@@ -4,6 +4,10 @@
 
 #include <util/generic/vector.h>
 
+#ifdef __clang__
+using std::nullptr_t;
+#endif
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
