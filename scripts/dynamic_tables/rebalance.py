@@ -107,7 +107,9 @@ def extract_unbalanced_spans(tablets, desired_size):
         for tablet in tablets:
             if tablet.size > desired_size / 2 and tablet.size < desired_size:
                 if first_index is not None:
-                    if accumulated_size > desired_size:
+                    # Accumulate slightly more data to achieve hysteresis
+                    # for further runs.
+                    if accumulated_size > 3 * desired_size / 2:
                         yield Span(
                             first_index=first_index,
                             last_index=tablet.index - 1,
