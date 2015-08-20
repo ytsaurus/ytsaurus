@@ -8,7 +8,6 @@ import argparse
 import time
 import logging
 import json
-import sys
 
 from collections import namedtuple
 
@@ -267,7 +266,7 @@ def rebalance_partitions_given_split_factor(partitions, split_factor):
         yield resulting_partition
 
 
-def suggest_pivot_keys(tablets_attributes, number_of_key_columns, desired_size):
+def suggest_reshards(tablets_attributes, number_of_key_columns, desired_size):
     # Load partition information.
     partitions = [
         Partition(
@@ -279,7 +278,9 @@ def suggest_pivot_keys(tablets_attributes, number_of_key_columns, desired_size):
     for tablet_attributes in tablets_attributes:
         eden_size = tablet_attributes["eden"]["uncompressed_data_size"]
         if eden_size > GB:
-            return [_EdenIsExtremelyLarge(tablet_id=tablet_attributes["tablet_id"], size=eden_size)], None
+            return [_EdenIsExtremelyLarge(tablet_id=tablet_attributes["tablet_id"], size=eden_size)], None, None
+    if sum(_.size for _ in partitions) < desired_size:
+        return [_ScarceInformation(tablet_ids=[_["tablet_id"] for _ in tablets_attributes])], None, None
     # Now, figure out what to do with this span,
     partitions = combine_partitions(partitions, number_of_key_columns)
     partitions = rebalance_partitions(partitions, desired_size)
@@ -367,10 +368,11 @@ def rebalance(table, number_of_key_columns, desired_tablet_size, requested_spans
                     span = span._replace(pivot_keys=[attributes["pivot_key"]])
                 else:
                     attributes = map(get_tablet_attributes, tablets[span.first_index:span.last_index+1])
-                    diagnostics, pivot_keys, sizes = suggest_pivot_keys(attributes, number_of_key_columns,
+                    diagnostics, pivot_keys, sizes = suggest_reshards(attributes, number_of_key_columns,
                                                                         desired_tablet_size)
-                    logging.info("Suggested splits are %s",
-                                 " + ".join("%.2f GBs" % (float(size) / GB) for size in sizes))
+                    if sizes is not None and len(sizes) > 0:
+                        logging.info("Suggested splits are %s",
+                                     " + ".join("%.2f GBs" % (float(size) / GB) for size in sizes))
                     for diagnostic in diagnostics:
                         diagnostic.tackle()
                         if isinstance(diagnostic, _OversizedPartition):
