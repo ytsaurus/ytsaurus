@@ -321,11 +321,6 @@ public:
         , VerboseLogging_(verboseLogging)
     {
         Evaluator_ = evaluatorCache->Find(Schema_, KeySize_);
-        yhash_set<Stroka> references;
-        if (predicate) {
-            Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
-        }
-
         // TODO(savrus): use enriched key columns here.
         KeyTrie_ = ExtractMultipleConstraints(
             predicate,
