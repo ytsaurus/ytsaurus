@@ -74,6 +74,11 @@ void THttpHeader::AddMutationId()
     AddParam("mutation_id", CreateGuidAsString());
 }
 
+void THttpHeader::SetToken(const Stroka& token)
+{
+    Token = token;
+}
+
 void THttpHeader::SetDataStreamFormat(EDataStreamFormat format)
 {
     DataStreamFormat = format;
@@ -147,7 +152,6 @@ Stroka THttpHeader::GetHeader(const Stroka& hostName, const Stroka& requestId) c
     header << "Host: " << hostName << "\r\n";
     header << "User-Agent: " << TProcessProperties::Get()->ClientVersion << "\r\n";
 
-    Stroka Token = TConfig::Get()->Token;
     if (!Token.Empty()) {
         header << "Authorization: OAuth " << Token << "\r\n";
     }

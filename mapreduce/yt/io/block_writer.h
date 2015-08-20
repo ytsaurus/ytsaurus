@@ -19,7 +19,7 @@ class TBlockWriter
 {
 public:
     TBlockWriter(
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& parentId,
         const Stroka& command,
         EDataStreamFormat format,
@@ -33,7 +33,7 @@ protected:
     virtual void DoFinish() override;
 
 private:
-    Stroka ServerName_;
+    TAuth Auth_;
     Stroka Command_;
     EDataStreamFormat Format_;
     TRichYPath Path_;

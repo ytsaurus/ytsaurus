@@ -57,6 +57,13 @@ struct TSelectRowsOptions
     FLUENT_FIELD_DEFAULT(bool, EnableCodeCache, true);
 };
 
+struct TCreateClientOptions
+{
+    using TSelf = TCreateClientOptions;
+
+    FLUENT_FIELD(Stroka, Token);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class ITransaction;
@@ -114,7 +121,9 @@ public:
 
 using IClientPtr = TIntrusivePtr<IClient>;
 
-IClientPtr CreateClient(const Stroka& serverName);
+IClientPtr CreateClient(
+    const Stroka& serverName,
+    const TCreateClientOptions& options = TCreateClientOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

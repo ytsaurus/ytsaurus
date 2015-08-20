@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/http/requests.h>
 
 class TInputStream;
 
@@ -16,7 +17,7 @@ class TFileReader
 public:
     TFileReader(
         const TRichYPath& path,
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& transactionId);
 
 protected:
@@ -24,7 +25,7 @@ protected:
 
 private:
     TRichYPath Path_;
-    Stroka ServerName_;
+    TAuth Auth_;
     TTransactionId TransactionId_;
 
     THolder<THttpRequest> Request_;

@@ -41,6 +41,8 @@ struct TConfig
     static TDuration GetDuration(const char* var, int defaultValueSeconds);
     static Stroka GetEncoding(const char* var);
 
+    static void ValidateToken(const Stroka& token);
+
     void LoadToken();
     void LoadSpec();
     void LoadTimings();

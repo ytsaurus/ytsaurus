@@ -9,18 +9,18 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TBlockWriter::TBlockWriter(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     const Stroka& command,
     EDataStreamFormat format,
     const TRichYPath& path,
     size_t bufferSize)
-    : ServerName_(serverName)
+    : Auth_(auth)
     , Command_(command)
     , Format_(format)
     , Path_(AddPathPrefix(path))
     , BufferSize_(bufferSize)
-    , WriteTransaction_(serverName, parentId)
+    , WriteTransaction_(auth, parentId)
     , Buffer_(BufferSize_ * 2)
     , BufferOutput_(Buffer_)
     , Thread_(SendThread, this)
@@ -87,7 +87,7 @@ void TBlockWriter::Send(const TBuffer& buffer)
     header.SetChunkedEncoding();
     header.SetDataStreamFormat(Format_);
 
-    RetryHeavyWriteRequest(ServerName_, WriteTransaction_.GetId(), header, buffer);
+    RetryHeavyWriteRequest(Auth_, WriteTransaction_.GetId(), header, buffer);
 
     Path_.Append_ = true; // all blocks except the first one are appended
 }

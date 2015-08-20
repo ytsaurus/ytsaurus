@@ -40,6 +40,8 @@ public:
     void AddOperationId(const TOperationId& operationId);
     void AddMutationId();
 
+    void SetToken(const Stroka& token);
+
     void SetChunkedEncoding();
 
     void SetDataStreamFormat(EDataStreamFormat format);
@@ -57,12 +59,15 @@ public:
     Stroka GetHeader(const Stroka& hostName, const Stroka& requestId) const;
 
 private:
-    Stroka Method;
-    Stroka Command;
-    bool IsApi;
+    const Stroka Method;
+    const Stroka Command;
+    const bool IsApi;
+
     bool ChunkedEncoding = false;
 
     yhash_map<Stroka, Stroka> Params;
+
+    Stroka Token;
 
     TNode Attributes;
 

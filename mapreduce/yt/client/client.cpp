@@ -60,7 +60,7 @@ Stroka ToString(ENodeType type)
 ////////////////////////////////////////////////////////////////////////////////
 
 ITransactionPtr CreateTransactionObject(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     const TStartTransactionOptions& options);
 
@@ -71,16 +71,16 @@ class TClientBase
 {
 public:
     explicit TClientBase(
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& transactionId = TTransactionId())
-        : ServerName_(serverName)
+        : Auth_(auth)
         , TransactionId_(transactionId)
     { }
 
     virtual ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options) override
     {
-        return CreateTransactionObject(ServerName_, TransactionId_, options);
+        return CreateTransactionObject(Auth_, TransactionId_, options);
     }
 
     // cypress
@@ -102,7 +102,7 @@ public:
             header.SetParameters(AttributesToJsonString(*options.Attributes_));
         }
 
-        return ParseGuid(RetryRequest(ServerName_, header));
+        return ParseGuid(RetryRequest(Auth_, header));
     }
 
     virtual void Remove(
@@ -116,7 +116,7 @@ public:
 
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("force", options.Force_);
-        RetryRequest(ServerName_, header);
+        RetryRequest(Auth_, header);
     }
 
     virtual bool Exists(
@@ -125,7 +125,7 @@ public:
         THttpHeader header("GET", "exists");
         header.AddPath(AddPathPrefix(path));
         header.AddTransactionId(TransactionId_);
-        return ParseBool(RetryRequest(ServerName_, header));
+        return ParseBool(RetryRequest(Auth_, header));
     }
 
     virtual TNode Get(
@@ -143,7 +143,7 @@ public:
             header.AddParam("max_size", *options.MaxSize_);
         }
         header.AddParam("ignore_opaque", options.IgnoreOpaque_);
-        return NodeFromYsonString(RetryRequest(ServerName_, header));
+        return NodeFromYsonString(RetryRequest(Auth_, header));
     }
 
     virtual void Set(
@@ -154,7 +154,7 @@ public:
         header.AddPath(AddPathPrefix(path));
         header.AddTransactionId(TransactionId_);
         header.AddMutationId();
-        RetryRequest(ServerName_, header, NodeToYsonString(value));
+        RetryRequest(Auth_, header, NodeToYsonString(value));
     }
 
     virtual TNode::TList List(
@@ -171,7 +171,7 @@ public:
         if (options.MaxSize_) {
             header.AddParam("max_size", *options.MaxSize_);
         }
-        return NodeFromYsonString(RetryRequest(ServerName_, header)).AsList();
+        return NodeFromYsonString(RetryRequest(Auth_, header)).AsList();
     }
 
     virtual TNodeId Copy(
@@ -187,7 +187,7 @@ public:
 
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("preserve_account", options.PreserveAccount_);
-        return ParseGuid(RetryRequest(ServerName_, header));
+        return ParseGuid(RetryRequest(Auth_, header));
     }
 
     virtual TNodeId Move(
@@ -203,7 +203,7 @@ public:
 
         header.AddParam("recursive", options.Recursive_);
         header.AddParam("preserve_account", options.PreserveAccount_);
-        return ParseGuid(RetryRequest(ServerName_, header));
+        return ParseGuid(RetryRequest(Auth_, header));
     }
 
     virtual TNodeId Link(
@@ -222,19 +222,19 @@ public:
         if (options.Attributes_) {
             header.SetParameters(AttributesToJsonString(*options.Attributes_));
         }
-        return ParseGuid(RetryRequest(ServerName_, header));
+        return ParseGuid(RetryRequest(Auth_, header));
     }
 
     // io
 
     virtual IFileReaderPtr CreateFileReader(const TRichYPath& path) override
     {
-        return new TFileReader(path, ServerName_, TransactionId_);
+        return new TFileReader(path, Auth_, TransactionId_);
     }
 
     virtual IFileWriterPtr CreateFileWriter(const TRichYPath& path) override
     {
-        return new TFileWriter(path, ServerName_, TransactionId_);
+        return new TFileWriter(path, Auth_, TransactionId_);
     }
 
     // operations
@@ -245,7 +245,7 @@ public:
         const TOperationOptions& options)
     {
         return ExecuteMap(
-            ServerName_,
+            Auth_,
             TransactionId_,
             spec,
             mapper,
@@ -258,7 +258,7 @@ public:
         const TOperationOptions& options)
     {
         return ExecuteReduce(
-            ServerName_,
+            Auth_,
             TransactionId_,
             spec,
             reducer,
@@ -274,7 +274,7 @@ public:
         const TOperationOptions& options)
     {
         return ExecuteMapReduce(
-            ServerName_,
+            Auth_,
             TransactionId_,
             spec,
             mapper,
@@ -289,7 +289,7 @@ public:
         const TOperationOptions& options)
     {
         return ExecuteSort(
-            ServerName_,
+            Auth_,
             TransactionId_,
             spec,
             options);
@@ -300,7 +300,7 @@ public:
         const TOperationOptions& options)
     {
         return ExecuteMerge(
-            ServerName_,
+            Auth_,
             TransactionId_,
             spec,
             options);
@@ -311,7 +311,7 @@ public:
         const TOperationOptions& options)
     {
         return ExecuteErase(
-            ServerName_,
+            Auth_,
             TransactionId_,
             spec,
             options);
@@ -319,22 +319,22 @@ public:
 
     virtual void AbortOperation(const TOperationId& operationId)
     {
-        NYT::AbortOperation(ServerName_, operationId);
+        NYT::AbortOperation(Auth_, operationId);
     }
 
     virtual void WaitForOperation(const TOperationId& operationId)
     {
-        NYT::WaitForOperation(ServerName_, operationId);
+        NYT::WaitForOperation(Auth_, operationId);
     }
 
 protected:
-    Stroka ServerName_;
+    TAuth Auth_;
     TTransactionId TransactionId_;
 
 private:
     THolder<TClientReader> CreateClientReader(const TRichYPath& path, EDataStreamFormat format)
     {
-        return MakeHolder<TClientReader>(path, ServerName_, TransactionId_, format);
+        return MakeHolder<TClientReader>(path, Auth_, TransactionId_, format);
     }
 
     virtual TIntrusivePtr<INodeReaderImpl> CreateNodeReader(const TRichYPath& path) override
@@ -345,31 +345,31 @@ private:
     virtual TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(const TRichYPath& path) override
     {
         return new TYaMRTableReader(
-            MakeHolder<TClientReader>(path, ServerName_, TransactionId_, DSF_YAMR_LENVAL));
+            MakeHolder<TClientReader>(path, Auth_, TransactionId_, DSF_YAMR_LENVAL));
     }
 
     virtual TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(const TRichYPath& path) override
     {
         return new TProtoTableReader(
-            MakeHolder<TClientReader>(path, ServerName_, TransactionId_, DSF_YSON_BINARY)); // later: DSF_PROTO
+            MakeHolder<TClientReader>(path, Auth_, TransactionId_, DSF_YSON_BINARY)); // later: DSF_PROTO
     }
 
     virtual TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(const TRichYPath& path) override
     {
         return new TNodeTableWriter(
-            MakeHolder<TClientWriter>(path, ServerName_, TransactionId_, DSF_YSON_BINARY));
+            MakeHolder<TClientWriter>(path, Auth_, TransactionId_, DSF_YSON_BINARY));
     }
 
     virtual TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(const TRichYPath& path) override
     {
         return new TYaMRTableWriter(
-            MakeHolder<TClientWriter>(path, ServerName_, TransactionId_, DSF_YAMR_LENVAL));
+            MakeHolder<TClientWriter>(path, Auth_, TransactionId_, DSF_YAMR_LENVAL));
     }
 
     virtual TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(const TRichYPath& path) override
     {
         return new TProtoTableWriter(
-            MakeHolder<TClientWriter>(path, ServerName_, TransactionId_, DSF_YSON_BINARY));
+            MakeHolder<TClientWriter>(path, Auth_, TransactionId_, DSF_YSON_BINARY));
     }
 
 };
@@ -380,12 +380,12 @@ class TTransaction
 {
 public:
     TTransaction(
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& parentId,
         const TStartTransactionOptions& options)
-        : TClientBase(serverName)
+        : TClientBase(auth)
         , PingableTx_(
-            serverName,
+            auth,
             parentId,
             options.Timeout_,
             options.PingAncestors_,
@@ -411,7 +411,7 @@ public:
         header.AddMutationId();
 
         header.AddParam("waitable", options.Waitable_);
-        return ParseGuid(RetryRequest(ServerName_, header));
+        return ParseGuid(RetryRequest(Auth_, header));
     }
 
     virtual void Commit() override
@@ -429,11 +429,11 @@ private:
 };
 
 ITransactionPtr CreateTransactionObject(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     const TStartTransactionOptions& options)
 {
-    return new TTransaction(serverName, parentId, options);
+    return new TTransaction(auth, parentId, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -443,8 +443,10 @@ class TClient
     , public TClientBase
 {
 public:
-    TClient(const Stroka& serverName, const TTransactionId& globalId)
-        : TClientBase(serverName, globalId)
+    TClient(
+        const TAuth& auth,
+        const TTransactionId& globalId)
+        : TClientBase(auth, globalId)
     { }
 
     virtual void InsertRows(
@@ -479,7 +481,7 @@ public:
         .EndMap());
 
         auto body = NodeListToYsonString(keys);
-        auto response = RetryRequest(ServerName_, header, body, true);
+        auto response = RetryRequest(Auth_, header, body, true);
         return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
     }
 
@@ -507,7 +509,7 @@ public:
             .Item("enable_code_cache").Value(options.EnableCodeCache_)
         .EndMap());
 
-        auto response = RetryRequest(ServerName_, header, "", true);
+        auto response = RetryRequest(Auth_, header, "", true);
         return NodeFromYsonString(response, YT_LIST_FRAGMENT).AsList();
     }
 
@@ -522,14 +524,25 @@ private:
         header.SetDataStreamFormat(DSF_YSON_BINARY);
 
         auto body = NodeListToYsonString(rows);
-        RetryRequest(ServerName_, header, body, true);
+        RetryRequest(Auth_, header, body, true);
     }
 };
 
-IClientPtr CreateClient(const Stroka& serverName)
+IClientPtr CreateClient(
+    const Stroka& serverName,
+    const TCreateClientOptions& options)
 {
     auto globalTxId = GetGuid(TConfig::Get()->GlobalTxId);
-    return new TClient(serverName, globalTxId);
+
+    TAuth auth;
+    auth.ServerName = serverName;
+    auth.Token = TConfig::Get()->Token;
+    if (!options.Token_.empty()) {
+        TConfig::ValidateToken(options.Token_);
+        auth.Token = options.Token_;
+    }
+
+    return new TClient(auth, globalTxId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
