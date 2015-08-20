@@ -738,6 +738,7 @@ class TestCypress(YTEnvSetup):
 
 ##################################################################
 
+@skipif_multicell
 class TestCypressMulticell(TestCypress):
     NUM_SECONDARY_MASTER_CELLS = 2
 
