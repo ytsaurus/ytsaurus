@@ -503,7 +503,8 @@ class TestTablets(YTEnvSetup):
         tablet_data = self._find_tablet_orchid(address, tablet_id)
         assert len(tablet_data["eden"]["stores"]) == 1
         assert len(tablet_data["partitions"]) == 1
-        assert len(tablet_data["partitions"][0]["stores"]) == 1
+        # Getting 2 stores is also possible since the rotation may happen while the rows were locked.
+        assert len(tablet_data["partitions"][0]["stores"]) >= 1
 
     def _test_in_memory(self, mode):
         self._sync_create_cells(1, 1)
