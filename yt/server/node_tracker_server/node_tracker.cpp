@@ -614,7 +614,7 @@ private:
         // Check lease transaction.
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
-        if (leaseTransaction->GetState() != ETransactionState::Active) {
+        if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
             leaseTransaction->ThrowInvalidState();
         }
 
