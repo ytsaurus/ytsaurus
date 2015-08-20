@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, multicell
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 
 import time
