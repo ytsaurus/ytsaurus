@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 from yt.yson import to_yson_type
 from time import sleep
@@ -81,6 +81,7 @@ class TestChunkServer(YTEnvSetup):
 
 ##################################################################
 
+@mark_multicell
 class TestChunkServerMulticell(TestChunkServer):
     NUM_SECONDARY_MASTER_CELLS = 2
 

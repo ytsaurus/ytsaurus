@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 
 
@@ -502,5 +502,6 @@ class TestAcls(YTEnvSetup):
 
 ##################################################################
 
+@mark_multicell
 class TestAclsMulticell(TestAcls):
     NUM_SECONDARY_MASTER_CELLS = 2

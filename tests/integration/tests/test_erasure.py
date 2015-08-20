@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 
 import time
@@ -134,5 +134,9 @@ class TestErasure(YTEnvSetup):
             part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])
             assert get("#" + part_id + "/@id") == chunk_id
             
+##################################################################
 
-        
+@mark_multicell
+class TestErasureMulticell(TestErasure):
+    NUM_SECONDARY_MASTER_CELLS = 2
+

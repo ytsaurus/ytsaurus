@@ -1,7 +1,7 @@
 import pytest
 import time
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 from yt.yson import to_yson_type
 
@@ -55,3 +55,8 @@ class TestRff(YTEnvSetup):
         time.sleep(1.0)
         assert get("//sys/users/u/@request_counter") == 100
 
+##################################################################
+
+@mark_multicell
+class TestRffMulticell(TestRff):
+    NUM_SECONDARY_MASTER_CELLS = 2

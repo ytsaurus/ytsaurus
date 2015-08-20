@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 
 ##################################################################
@@ -30,6 +30,9 @@ class TestOrchid(YTEnvSetup):
     def test_at_scheduler(self):
         self._check_service("//sys/scheduler/orchid", "scheduler")
 
+##################################################################
+
+@mark_multicell
 class TestOrchidMulticell(TestOrchid):
     NUM_SECONDARY_MASTER_CELLS = 2
 

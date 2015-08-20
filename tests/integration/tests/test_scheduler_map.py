@@ -6,7 +6,7 @@ import tempfile
 
 from yt.wrapper import format
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
 
 ##################################################################
@@ -1043,5 +1043,6 @@ print row + table_index
 
 ##################################################################
 
+@mark_multicell
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
