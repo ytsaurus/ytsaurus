@@ -2468,6 +2468,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
 
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
