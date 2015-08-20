@@ -1300,8 +1300,8 @@ public:
 
         RootElement->EndHeartbeat();
 
-        LOG_DEBUG("Heartbeat info: Started jobs: %v, Preempted jobs: %v, "
-            "Scheduled during preemption: %v, Preemptable jobs: %v, Preemptable resources: %v",
+        LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
+            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: {%v})",
             context->StartedJobs().size(),
             context->PreemptedJobs().size(),
             scheduledDuringPreemption,
