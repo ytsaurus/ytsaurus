@@ -53,7 +53,7 @@ void ParseJsonStringArray(const Stroka& response, yvector<Stroka>& result)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionId StartTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
     bool pingAncestors,
@@ -73,65 +73,65 @@ TTransactionId StartTransaction(
         header.SetParameters(AttributesToJsonString(*attributes));
     }
 
-    auto txId = ParseGuid(RetryRequest(serverName, header));
+    auto txId = ParseGuid(RetryRequest(auth, header));
     LOG_INFO("Transaction %s started", ~GetGuidAsString(txId));
     return txId;
 }
 
 void TransactionRequest(
+    const TAuth& auth,
     const Stroka& command,
-    const Stroka& serverName,
     const TTransactionId& transactionId)
 {
     THttpHeader header("POST", command);
     header.AddTransactionId(transactionId);
     header.AddMutationId();
-    RetryRequest(serverName, header);
+    RetryRequest(auth, header);
 }
 
 void PingTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId)
 {
-    TransactionRequest("ping_tx", serverName, transactionId);
+    TransactionRequest(auth, "ping_tx", transactionId);
 }
 
 void AbortTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId)
 {
-    TransactionRequest("abort_tx", serverName, transactionId);
+    TransactionRequest(auth, "abort_tx", transactionId);
     LOG_INFO("Transaction %s aborted", ~GetGuidAsString(transactionId));
 }
 
 void CommitTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId)
 {
-    TransactionRequest("commit_tx", serverName, transactionId);
+    TransactionRequest(auth, "commit_tx", transactionId);
     LOG_INFO("Transaction %s commited", ~GetGuidAsString(transactionId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka Get(const Stroka& serverName, const TYPath& path)
+Stroka Get(const TAuth& auth, const TYPath& path)
 {
     THttpHeader header("GET", "get");
     header.AddPath(path);
-    return RetryRequest(serverName, header);
+    return RetryRequest(auth, header);
 }
 
-bool Exists(const Stroka& serverName, const TYPath& path)
+bool Exists(const TAuth& auth, const TYPath& path)
 {
     THttpHeader header("GET", "exists");
     header.AddPath(path);
-    return ParseBool(RetryRequest(serverName, header));
+    return ParseBool(RetryRequest(auth, header));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationId StartOperation(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TGUID& transactionId,
     const Stroka& operationName,
     const Stroka& ysonSpec,
@@ -141,16 +141,16 @@ TOperationId StartOperation(
     header.AddTransactionId(transactionId);
     header.AddMutationId();
 
-    TOperationId operationId = ParseGuid(RetryRequest(serverName, header, ysonSpec));
+    TOperationId operationId = ParseGuid(RetryRequest(auth, header, ysonSpec));
     LOG_INFO("Operation %s started", ~GetGuidAsString(operationId));
 
     if (wait) {
-        WaitForOperation(serverName, operationId);
+        WaitForOperation(auth, operationId);
     }
     return operationId;
 }
 
-void WaitForOperation(const Stroka& serverName, const TOperationId& operationId)
+void WaitForOperation(const TAuth& auth, const TOperationId& operationId)
 {
     const TDuration checkOperationStateInterval = TDuration::Seconds(1);
 
@@ -159,11 +159,11 @@ void WaitForOperation(const Stroka& serverName, const TOperationId& operationId)
     Stroka statePath = opPath + "/@state";
 
     while (true) {
-       if (!Exists(serverName, opPath)) {
+       if (!Exists(auth, opPath)) {
             LOG_FATAL("Operation %s does not exist", ~opIdStr);
         }
 
-        Stroka state = NodeFromYsonString(Get(serverName, statePath)).AsString();
+        Stroka state = NodeFromYsonString(Get(auth, statePath)).AsString();
         if (state == "completed") {
             LOG_INFO("Operation %s completed", ~opIdStr);
             break;
@@ -173,7 +173,7 @@ void WaitForOperation(const Stroka& serverName, const TOperationId& operationId)
 
         } else if (state == "failed") {
             Stroka errorPath = opPath + "/@result/error";
-            Stroka jsonError = Get(serverName, errorPath);
+            Stroka jsonError = Get(auth, errorPath);
             TError error;
             error.ParseFrom(jsonError);
             LOG_FATAL("Operation %s failed", ~opIdStr);
@@ -183,22 +183,22 @@ void WaitForOperation(const Stroka& serverName, const TOperationId& operationId)
     }
 }
 
-void AbortOperation(const Stroka& serverName, const TOperationId& operationId)
+void AbortOperation(const TAuth& auth, const TOperationId& operationId)
 {
     THttpHeader header("POST", "abort_op");
     header.AddOperationId(operationId);
     header.AddMutationId();
-    RetryRequest(serverName, header);
+    RetryRequest(auth, header);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetProxyForHeavyRequest(const Stroka& serverName)
+Stroka GetProxyForHeavyRequest(const TAuth& auth)
 {
     yvector<Stroka> result;
     while (result.empty()) {
         THttpHeader header("GET", TConfig::Get()->Hosts, false);
-        Stroka response = RetryRequest(serverName, header);
+        Stroka response = RetryRequest(auth, header);
         ParseJsonStringArray(response, result);
         if (result.empty()) {
             Sleep(TConfig::Get()->RetryInterval);
@@ -208,20 +208,21 @@ Stroka GetProxyForHeavyRequest(const Stroka& serverName)
 }
 
 Stroka RetryRequest(
-    const Stroka& serverName,
+    const TAuth& auth,
     THttpHeader& header,
     const Stroka& body,
     bool isHeavy)
 {
     int retryCount = TConfig::Get()->RetryCount;
+    header.SetToken(auth.Token);
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         Stroka requestId;
         Stroka response;
         try {
-            Stroka hostName(serverName);
+            Stroka hostName(auth.ServerName);
             if (isHeavy) {
-                hostName = GetProxyForHeavyRequest(serverName);
+                hostName = GetProxyForHeavyRequest(auth);
             }
 
             THttpRequest request(hostName);
@@ -277,19 +278,20 @@ Stroka RetryRequest(
 }
 
 void RetryHeavyWriteRequest(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
     const TBuffer& buffer)
 {
     int retryCount = TConfig::Get()->RetryCount;
+    header.SetToken(auth.Token);
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         Stroka requestId;
         try {
-            TPingableTransaction attemptTx(serverName, parentId);
+            TPingableTransaction attemptTx(auth, parentId);
 
-            Stroka proxyName = GetProxyForHeavyRequest(serverName);
+            Stroka proxyName = GetProxyForHeavyRequest(auth);
             THttpRequest request(proxyName);
             requestId = request.GetRequestId();
 

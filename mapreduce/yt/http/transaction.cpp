@@ -11,17 +11,17 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TPingableTransaction::TPingableTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout,
     bool pingAncestors,
     const TMaybe<TNode>& attributes)
-    : ServerName_(serverName)
+    : Auth_(auth)
     , Running_(false)
     , Thread_(Pinger, (void*)this)
 {
     TransactionId_ = StartTransaction(
-        serverName,
+        auth,
         parentId,
         timeout,
         pingAncestors,
@@ -62,16 +62,16 @@ void TPingableTransaction::Stop(bool commit)
     Running_ = false;
     Thread_.Join();
     if (commit) {
-        CommitTransaction(ServerName_, TransactionId_);
+        CommitTransaction(Auth_, TransactionId_);
     } else {
-        AbortTransaction(ServerName_, TransactionId_);
+        AbortTransaction(Auth_, TransactionId_);
     }
 }
 
 void TPingableTransaction::Pinger()
 {
     while (Running_) {
-        PingTransaction(ServerName_, TransactionId_);
+        PingTransaction(Auth_, TransactionId_);
         TInstant t = Now();
         while (Running_ && Now() - t < TConfig::Get()->PingInterval) {
             Sleep(TDuration::MilliSeconds(100));

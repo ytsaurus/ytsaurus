@@ -50,14 +50,14 @@ int GetRowIndexFromHeaders(THttpInput* httpInput)
 
 TClientReader::TClientReader(
     const TRichYPath& path,
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     EDataStreamFormat format)
     : Path_(AddPathPrefix(path))
-    , ServerName_(serverName)
+    , Auth_(auth)
     , TransactionId_(transactionId)
     , Format_(format)
-    , ReadTransaction_(new TPingableTransaction(serverName, transactionId))
+    , ReadTransaction_(new TPingableTransaction(auth, transactionId))
     , RetriesLeft_(TConfig::Get()->RetryCount)
 {
     CreateRequest(true);
@@ -93,9 +93,10 @@ void TClientReader::CreateRequest(bool initial)
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         Stroka requestId;
         try {
-            Stroka proxyName = GetProxyForHeavyRequest(ServerName_);
+            Stroka proxyName = GetProxyForHeavyRequest(Auth_);
 
             THttpHeader header("GET", GetReadTableCommand());
+            header.SetToken(Auth_.Token);
             header.AddTransactionId(ReadTransaction_->GetId());
             header.AddParam("control_attributes[enable_row_index]", true);
             header.SetDataStreamFormat(Format_);

@@ -10,43 +10,55 @@ namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+struct TAuth
+{
+    Stroka ServerName;
+    Stroka Token;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+
 TTransactionId StartTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     const TMaybe<TDuration>& timeout = Nothing(),
     bool pingAncestors = false,
     const TMaybe<TNode>& attributes = Nothing());
 
 void PingTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId);
 
 void AbortTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId);
 
 void CommitTransaction(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka Get(const Stroka& serverName, const TYPath& path);
+Stroka Get(
+    const TAuth& auth,
+    const TYPath& path);
 
-bool Exists(const Stroka& serverName, const TYPath& path);
+bool Exists(
+    const TAuth& auth,
+    const TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationId StartOperation(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     const Stroka& operationName,
     const Stroka& ysonSpec,
     bool wait);
 
-void WaitForOperation(const Stroka& serverName, const TOperationId& operationId);
+void WaitForOperation(const TAuth& auth, const TOperationId& operationId);
 
-void AbortOperation(const Stroka& serverName, const TOperationId& operationId);
+void AbortOperation(const TAuth& auth, const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,16 +68,16 @@ TGUID ParseGuid(const Stroka& response);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka GetProxyForHeavyRequest(const Stroka& serverName);
+Stroka GetProxyForHeavyRequest(const TAuth& auth);
 
 Stroka RetryRequest(
-    const Stroka& serverName,
+    const TAuth& auth,
     THttpHeader& header,
     const Stroka& body = "",
     bool isHeavy = false);
 
 void RetryHeavyWriteRequest(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
     const TBuffer& buffer);

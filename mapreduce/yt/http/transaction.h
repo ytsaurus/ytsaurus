@@ -1,6 +1,6 @@
 #pragma once
 
-#include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/http/requests.h>
 
 #include <util/system/thread.h>
 #include <util/datetime/base.h>
@@ -13,7 +13,7 @@ class TPingableTransaction
 {
 public:
     TPingableTransaction(
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& parentId,
         const TMaybe<TDuration>& timeout = Nothing(),
         bool pingAncestors = false,
@@ -27,7 +27,7 @@ public:
     void Abort();
 
 private:
-    Stroka ServerName_;
+    TAuth Auth_;
     TTransactionId TransactionId_;
 
     volatile bool Running_;

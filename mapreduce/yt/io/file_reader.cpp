@@ -12,17 +12,18 @@ namespace NYT {
 
 TFileReader::TFileReader(
     const TRichYPath& path,
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId)
     : Path_(AddPathPrefix(path))
-    , ServerName_(serverName)
+    , Auth_(auth)
     , TransactionId_(transactionId)
 {
     Stroka requestId;
     try {
-        Stroka proxyName = GetProxyForHeavyRequest(ServerName_);
+        Stroka proxyName = GetProxyForHeavyRequest(Auth_);
 
         THttpHeader header("GET", GetReadFileCommand());
+        header.SetToken(auth.Token);
         header.AddTransactionId(TransactionId_);
         header.SetDataStreamFormat(DSF_BYTES);
         header.SetParameters(YPathToJsonString(Path_));

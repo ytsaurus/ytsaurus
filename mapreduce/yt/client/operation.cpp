@@ -49,9 +49,8 @@ class TFileUploader
     : private TNonCopyable
 {
 public:
-    TFileUploader(const Stroka& serverName)
-        : ServerName_(serverName)
-        , HasState_(false)
+    TFileUploader(const TAuth& auth)
+        : Auth_(auth)
     { }
 
     struct TFile
@@ -79,9 +78,9 @@ public:
     }
 
 private:
-    const Stroka& ServerName_;
+    TAuth Auth_;
     yvector<TFile> Files_;
-    bool HasState_;
+    bool HasState_ = false;
 
     static void CalculateMD5(const Stroka& localFileName, char* buf)
     {
@@ -115,7 +114,7 @@ private:
         Stroka cypressPath(YT_WRAPPER_FILE_CACHE);
         cypressPath += buf;
 
-        if (Exists(ServerName_, cypressPath)) {
+        if (Exists(Auth_, cypressPath)) {
             return cypressPath;
         }
 
@@ -124,12 +123,13 @@ private:
             header.AddPath(cypressPath);
             header.AddParam("type", "file");
             header.AddMutationId();
-            RetryRequest(ServerName_, header);
+            RetryRequest(Auth_, header);
         }
 
-        Stroka proxyName = GetProxyForHeavyRequest(ServerName_);
+        Stroka proxyName = GetProxyForHeavyRequest(Auth_);
 
         THttpHeader header("PUT", GetWriteFileCommand());
+        header.SetToken(Auth_.Token);
         header.AddPath(cypressPath);
         header.SetChunkedEncoding();
 
@@ -148,23 +148,15 @@ private:
     void UploadFilesFromSpec(const TUserJobSpec& spec)
     {
         for (const auto& localFile : spec.LocalFiles_) {
-            Stroka cachePath = UploadToCache(localFile);
-            TFile file;
-            file.SandboxName = TFsPath(localFile).Basename();
-            file.CypressPath = cachePath;
-            file.Executable = false;
-            Files_.push_back(file);
+            auto cachePath = UploadToCache(localFile);
+            Files_.push_back(TFile{TFsPath(localFile).Basename(), cachePath, false});
         }
     }
 
     void UploadBinary()
     {
-        Stroka cachePath = UploadToCache(GetExecPath());
-        TFile file;
-        file.SandboxName = "cppbinary";
-        file.CypressPath = cachePath;
-        file.Executable = true;
-        Files_.push_back(file);
+        auto cachePath = UploadToCache(GetExecPath());
+        Files_.push_back(TFile{"cppbinary", cachePath, true});
     }
 
     void UploadJobState(IJob* job)
@@ -173,11 +165,7 @@ private:
         job->Save(output);
         if (output.GetBuffer().Size()) {
             Stroka cachePath = UploadToCache(output.GetBuffer());
-            TFile file;
-            file.SandboxName = "jobstate";
-            file.CypressPath = cachePath;
-            file.Executable = false;
-            Files_.push_back(file);
+            Files_.push_back(TFile{"jobstate", cachePath, false});
             HasState_ = true;
         }
     }
@@ -284,13 +272,13 @@ Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationId ExecuteMap(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     const TMapOperationSpec& spec,
     IJob* mapper,
     const TOperationOptions& options)
 {
-    TFileUploader uploader(serverName);
+    TFileUploader uploader(auth);
     uploader.UploadFiles(spec.MapperSpec_, mapper);
 
     Stroka command = Sprintf("./cppbinary --yt-map \"%s\" %" PRISZT " %d",
@@ -317,7 +305,7 @@ TOperationId ExecuteMap(
     .EndMap().EndMap();
 
     return StartOperation(
-        serverName,
+        auth,
         transactionId,
         "map",
         MergeSpec(specNode, options),
@@ -325,13 +313,13 @@ TOperationId ExecuteMap(
 }
 
 TOperationId ExecuteReduce(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     const TReduceOperationSpec& spec,
     IJob* reducer,
     const TOperationOptions& options)
 {
-    TFileUploader uploader(serverName);
+    TFileUploader uploader(auth);
     uploader.UploadFiles(spec.ReducerSpec_, reducer);
 
     Stroka command = Sprintf("./cppbinary --yt-reduce \"%s\" %" PRISZT " %d",
@@ -360,7 +348,7 @@ TOperationId ExecuteReduce(
     .EndMap().EndMap();
 
     return StartOperation(
-        serverName,
+        auth,
         transactionId,
         "reduce",
         MergeSpec(specNode, options),
@@ -368,7 +356,7 @@ TOperationId ExecuteReduce(
 }
 
 TOperationId ExecuteMapReduce(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     const TMapReduceOperationSpec& spec,
     IJob* mapper,
@@ -377,12 +365,12 @@ TOperationId ExecuteMapReduce(
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options)
 {
-    TFileUploader mapUploader(serverName);
+    TFileUploader mapUploader(auth);
     if (mapper) {
         mapUploader.UploadFiles(spec.MapperSpec_, mapper);
     }
 
-    TFileUploader reduceUploader(serverName);
+    TFileUploader reduceUploader(auth);
     reduceUploader.UploadFiles(spec.ReducerSpec_, reducer);
 
     Stroka mapCommand;
@@ -431,7 +419,7 @@ TOperationId ExecuteMapReduce(
     .EndMap().EndMap();
 
     return StartOperation(
-        serverName,
+        auth,
         transactionId,
         "map_reduce",
         MergeSpec(specNode, options),
@@ -439,7 +427,7 @@ TOperationId ExecuteMapReduce(
 }
 
 TOperationId ExecuteSort(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     const TSortOperationSpec& spec,
     const TOperationOptions& options)
@@ -453,7 +441,7 @@ TOperationId ExecuteSort(
     .EndMap().EndMap();
 
     return StartOperation(
-        serverName,
+        auth,
         transactionId,
         "sort",
         MergeSpec(specNode, options),
@@ -461,7 +449,7 @@ TOperationId ExecuteSort(
 }
 
 TOperationId ExecuteMerge(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     const TMergeOperationSpec& spec,
     const TOperationOptions& options)
@@ -478,7 +466,7 @@ TOperationId ExecuteMerge(
     .EndMap().EndMap();
 
     return StartOperation(
-        serverName,
+        auth,
         transactionId,
         "merge",
         MergeSpec(specNode, options),
@@ -486,7 +474,7 @@ TOperationId ExecuteMerge(
 }
 
 TOperationId ExecuteErase(
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     const TEraseOperationSpec& spec,
     const TOperationOptions& options)
@@ -499,7 +487,7 @@ TOperationId ExecuteErase(
     .EndMap().EndMap();
 
     return StartOperation(
-        serverName,
+        auth,
         transactionId,
         "erase",
         MergeSpec(specNode, options),

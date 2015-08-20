@@ -2,7 +2,7 @@
 
 #include "proxy_input.h"
 
-#include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/http.h>
 
 namespace NYT {
@@ -17,7 +17,7 @@ class TClientReader
 public:
     TClientReader(
         const TRichYPath& path,
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& transactionId,
         EDataStreamFormat format);
 
@@ -29,7 +29,7 @@ protected:
 
 private:
     TRichYPath Path_;
-    Stroka ServerName_;
+    TAuth Auth_;
     TTransactionId TransactionId_;
     EDataStreamFormat Format_;
 

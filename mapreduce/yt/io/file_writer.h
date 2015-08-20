@@ -14,7 +14,7 @@ class TFileWriter
 public:
     TFileWriter(
         const TRichYPath& path,
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& transactionId);
 
 protected:
@@ -22,10 +22,6 @@ protected:
     virtual void DoFinish() override;
 
 private:
-    TRichYPath Path_;
-    Stroka ServerName_;
-    TTransactionId TransactionId_;
-
     TBlockWriter BlockWriter_;
 
     static const size_t BUFFER_SIZE = 64 << 20;

@@ -72,6 +72,19 @@ Stroka TConfig::GetEncoding(const char* var)
     return ""; // never gets here
 }
 
+void TConfig::ValidateToken(const Stroka& token)
+{
+    for (size_t i = 0; i < token.size(); ++i) {
+        char ch = token[i];
+        bool isDigit = '0' <= ch && ch <= '9';
+        bool isUpper = 'A' <= ch && ch <= 'Z';
+        bool isLower = 'a' <= ch && ch <= 'z';
+        if (!(isDigit || isUpper || isLower)) {
+            LOG_FATAL("Incorrect token character '%c' at position %" PRISZT, ch, i);
+        }
+    }
+}
+
 void TConfig::LoadToken()
 {
     TFsPath path(GetHomeDir() + "/.yt/token");
@@ -84,15 +97,7 @@ void TConfig::LoadToken()
         Token = envToken;
     }
 
-    for (size_t i = 0; i < Token.size(); ++i) {
-        char ch = Token[i];
-        bool isDigit = '0' <= ch && ch <= '9';
-        bool isUpper = 'A' <= ch && ch <= 'Z';
-        bool isLower = 'a' <= ch && ch <= 'z';
-        if (!(isDigit || isUpper || isLower)) {
-            LOG_FATAL("Incorrect token character '%c' at position %" PRISZT, ch, i);
-        }
-    }
+    ValidateToken(Token);
 }
 
 void TConfig::LoadSpec()

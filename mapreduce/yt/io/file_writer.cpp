@@ -8,13 +8,10 @@ namespace NYT {
 
 TFileWriter::TFileWriter(
     const TRichYPath& path,
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId)
-    : Path_(path)
-    , ServerName_(serverName)
-    , TransactionId_(transactionId)
-    , BlockWriter_(
-        serverName,
+    : BlockWriter_(
+        auth,
         transactionId,
         GetWriteFileCommand(),
         DSF_BYTES,

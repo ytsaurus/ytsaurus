@@ -10,15 +10,11 @@ namespace NYT {
 
 TClientWriter::TClientWriter(
     const TRichYPath& path,
-    const Stroka& serverName,
+    const TAuth& auth,
     const TTransactionId& transactionId,
     EDataStreamFormat format)
-    : Path_(path)
-    , ServerName_(serverName)
-    , TransactionId_(transactionId)
-    , Format_(format)
-    , BlockWriter_(new TBlockWriter(
-        serverName,
+    : BlockWriter_(new TBlockWriter(
+        auth,
         transactionId,
         GetWriteTableCommand(),
         format,

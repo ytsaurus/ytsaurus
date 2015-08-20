@@ -2,7 +2,7 @@
 
 #include "proxy_output.h"
 
-#include <mapreduce/yt/http/http.h>
+#include <mapreduce/yt/http/requests.h>
 
 namespace NYT {
 
@@ -16,7 +16,7 @@ class TClientWriter
 public:
     TClientWriter(
         const TRichYPath& path,
-        const Stroka& serverName,
+        const TAuth& auth,
         const TTransactionId& transactionId,
         EDataStreamFormat format);
 
@@ -25,11 +25,6 @@ public:
     virtual void OnRowFinished(size_t tableIndex) override;
 
 private:
-    TRichYPath Path_;
-    Stroka ServerName_;
-    TTransactionId TransactionId_;
-    EDataStreamFormat Format_;
-
     THolder<TBlockWriter> BlockWriter_;
 
     static const size_t BUFFER_SIZE = 64 << 20;
