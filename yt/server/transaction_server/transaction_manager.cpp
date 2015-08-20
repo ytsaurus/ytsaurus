@@ -421,7 +421,7 @@ public:
 
         auto* currentTransaction = transaction;
         while (currentTransaction) {
-            if (currentTransaction->GetState() != ETransactionState::Active) {
+            if (currentTransaction->GetPersistentState() != ETransactionState::Active) {
                 currentTransaction->ThrowInvalidState();
             }
 
@@ -616,7 +616,6 @@ private:
     void DoPingTransaction(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YCHECK(transaction->GetState() == ETransactionState::Active);
 
         auto timeout = transaction->GetTimeout();
         if (timeout) {
