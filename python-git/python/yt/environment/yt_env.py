@@ -148,8 +148,8 @@ class YTEnv(object):
         list_ports(node_name, 2 * nodes_count)
         list_ports(proxy_name, 2)
 
-        logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers.' %
-                     (masters_count, nodes_count, schedulers_count))
+        logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers, % secondary master cells' %
+                     (masters_count, nodes_count, schedulers_count, secondary_master_cell_count))
         logging.info('SANDBOX_DIR is %s', self.path_to_run)
 
         if masters_count == 0:
