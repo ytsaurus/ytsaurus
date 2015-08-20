@@ -2468,8 +2468,9 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
-            LOG_DEBUG("Sending batch (BatchIndex: %v, BatchCount: %v, RowCount: %v)",
+            LOG_DEBUG("Sending batch (BatchIndex: %v/%v, RowCount: %v)",
                 InvokeBatchIndex_,
+                Batches_.size(),
                 batch->RowCount);
 
             TTabletServiceProxy proxy(InvokeChannel_);
