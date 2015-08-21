@@ -401,9 +401,14 @@ void GetRangesFromTrieWithinRangeImpl(
 
     auto trieOffset = trie ? trie->Offset : std::numeric_limits<size_t>::max();
 
+    auto makeValue = [] (TUnversionedValue value, int id) {
+        value.Id = id;
+        return value;
+    };
+
     if (trieOffset > offset) {
         if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
-            prefix.emplace_back(keyRange.first[offset]);
+            prefix.emplace_back(makeValue(keyRange.first[offset], offset));
             GetRangesFromTrieWithinRangeImpl(
                 keyRange,
                 trie,
@@ -432,7 +437,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
             if (refineLower) {
                 for (size_t i = offset; i < lowerBoundSize; ++i) {
-                    builder.AddValue(keyRange.first[i]);
+                    builder.AddValue(makeValue(keyRange.first[i], i));
                 }
             }
             range.first = rowBuffer->Capture(builder.GetRow());
@@ -445,7 +450,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
             if (refineUpper) {
                 for (size_t i = offset; i < upperBoundSize; ++i) {
-                    builder.AddValue(keyRange.second[i]);
+                    builder.AddValue(makeValue(keyRange.second[i], i));
                 }
             } else {
                 builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
@@ -500,7 +505,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
         if (lowerBoundRefined) {
             for (size_t j = offset; j < lowerBoundSize; ++j) {
-                builder.AddValue(keyRange.first[j]);
+                builder.AddValue(makeValue(keyRange.first[j], j));
             }
         } else {
             builder.AddValue(lower.Value);
@@ -519,7 +524,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
         if (upperBoundRefined) {
             for (size_t j = offset; j < upperBoundSize; ++j) {
-                builder.AddValue(keyRange.second[j]);
+                builder.AddValue(makeValue(keyRange.second[j], j));
             }
         } else {
             builder.AddValue(upper.Value);
@@ -538,7 +543,7 @@ void GetRangesFromTrieWithinRangeImpl(
     prefix.emplace_back();
 
     for (const auto& next : trie->Next) {
-        auto value = next.first;
+        auto value = makeValue(next.first, offset);
 
         bool refineLowerNext = false;
         if (refineLower) {

@@ -4,6 +4,7 @@
 #include "store.h"
 #include "tablet_slot.h"
 #include "private.h"
+#include "tablet_reader.h"
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -13,10 +14,9 @@
 
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
-#include <ytlib/table_client/row_merger.h>
-#include <ytlib/table_client/row_buffer.h>
 
-#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/row_buffer.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +31,7 @@ using namespace NTabletClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
+static const int BufferCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,24 +52,26 @@ public:
     {
         Clean();
 
-        TabletSnapshot_ = std::move(tabletSnapshot);
-        Timestamp_ = timestamp;
-        KeyColumnCount_ = TabletSnapshot_->KeyColumns.size();
-        SchemaColumnCount_ = TabletSnapshot_->Schema.Columns().size();
-
         TReqLookupRows req;
         reader->ReadMessage(&req);
 
+        TColumnFilter columnFilter;
         if (req.has_column_filter()) {
-            ColumnFilter_.All = false;
-            ColumnFilter_.Indexes = FromProto<int, SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
-        } else {
-            ColumnFilter_.All = true;
+            columnFilter.All = false;
+            columnFilter.Indexes = FromProto<int, SmallVector<int, TypicalColumnCount>>(req.column_filter().indexes());
         }
 
-        ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
+        ValidateColumnFilter(columnFilter, tabletSnapshot->Schema.Columns().size());
 
         LookupKeys_ = reader->ReadUnversionedRowset();
+
+        Reader_ = CreateSchemafulTabletReader(
+            tabletSnapshot,
+            columnFilter,
+            LookupKeys_,
+            timestamp,
+            1,
+            RowBuffer_);
     }
 
     TFutureHolder<void> Run(
@@ -96,153 +99,31 @@ public:
     {
         RowBuffer_->Clear();
         LookupKeys_ = TSharedRange<TUnversionedRow>();
-        EdenSessions_.clear();
+        Reader_.Reset();
+        Rows_.clear();
+        Rows_.reserve(BufferCapacity);
     }
 
 private:
-    class TReadSession
+    TRowBufferPtr RowBuffer_;
+    TSharedRange<TUnversionedRow> LookupKeys_;
+    ISchemafulReaderPtr Reader_;
+    std::vector<TUnversionedRow> Rows_;
+
+    TCallback<void(TWireProtocolWriter* writer)> RunCallback_;
+
+    void DoRun(TWireProtocolWriter* writer)
     {
-    public:
-        explicit TReadSession(IVersionedReaderPtr reader)
-            : Reader_(std::move(reader))
-        {
-            Rows_.reserve(BufferCapacity);
-        }
+        while (Reader_->Read(&Rows_)) {
+            for (const auto& row : Rows_) {
+                writer->WriteUnversionedRow(row);
+            }
 
-        bool NextRow()
-        {
-            ++RowIndex_;
-            return RowIndex_ < Rows_.size();
-        }
-
-        TVersionedRow GetRow() const
-        {
-            return Rows_[RowIndex_];
-        }
-
-        void Refill() 
-        {
-            RowIndex_ = 0;
-            while (true) {
-                YCHECK(Reader_->Read(&Rows_));
-                if (!Rows_.empty()) {
-                    break;
-                }
-
+            if (Rows_.empty()) {
                 WaitFor(Reader_->GetReadyEvent())
                     .ThrowOnError();
             }
         }
-
-    private:
-        static const int BufferCapacity = 1000;
-        IVersionedReaderPtr Reader_;
-        std::vector<TVersionedRow> Rows_;
-        int RowIndex_ = -1;
-    };
-
-    TRowBufferPtr RowBuffer_;
-    TSharedRange<TUnversionedRow> LookupKeys_;
-    std::vector<TReadSession> EdenSessions_;
-
-    TTabletSnapshotPtr TabletSnapshot_;
-    TTimestamp Timestamp_;
-    int KeyColumnCount_;
-    int SchemaColumnCount_;
-    TColumnFilter ColumnFilter_;
-
-    TCallback<void(TWireProtocolWriter* writer)> RunCallback_;
-
-
-    void CreateReadSessions(
-        std::vector<TReadSession>* sessions,
-        const TPartitionSnapshotPtr partitionSnapshot,
-        const TSharedRange<TKey>& keys)
-    {
-        sessions->clear();
-        if (!partitionSnapshot) {
-            return;
-        }
-
-        std::vector<TFuture<void>> asyncFutures;
-        for (const auto& store : partitionSnapshot->Stores) {
-            auto reader = store->CreateReader(keys, Timestamp_, ColumnFilter_);
-            auto future = reader->Open();
-            auto maybeError = future.TryGet();
-            if (maybeError) {
-                maybeError->ThrowOnError();
-            } else {
-                asyncFutures.emplace_back(std::move(future));
-            }
-            sessions->emplace_back(std::move(reader));
-        }
-
-        if (!asyncFutures.empty()) {
-            WaitFor(Combine(asyncFutures)).ThrowOnError();
-        }
-    }
-
-    void LookupInPartition(
-        const TPartitionSnapshotPtr partitionSnapshot,
-        const TSharedRange<TKey>& keys,
-        TWireProtocolWriter* writer)
-    {
-        if (keys.Empty()) {
-            return;
-        }
-
-        auto merger = New<TSchemafulRowMerger>(
-            RowBuffer_,
-            SchemaColumnCount_,
-            KeyColumnCount_,
-            ColumnFilter_);
-
-        auto processSessions = [&] (std::vector<TReadSession>& sessions) {
-            for (auto& session : sessions) {
-                if (!session.NextRow()) {
-                    session.Refill();
-                }
-
-                merger->AddPartialRow(session.GetRow());
-            }
-        };
-
-        std::vector<TReadSession> sessions;
-        CreateReadSessions(&sessions, partitionSnapshot, keys);
-
-        for (int index = 0; index < keys.Size(); ++index) {
-            processSessions(sessions);
-            processSessions(EdenSessions_);
-
-            auto mergedRow = merger->BuildMergedRow();
-            writer->WriteUnversionedRow(mergedRow);
-        }
-    }
-
-    void DoRun(TWireProtocolWriter* writer)
-    {
-        CreateReadSessions(&EdenSessions_, TabletSnapshot_->Eden, LookupKeys_);
-
-        TPartitionSnapshotPtr currentPartitionSnapshot;
-        int currentPartitionStartOffset = 0;
-        for (int index = 0; index < LookupKeys_.Size(); ++index) {
-            auto key = LookupKeys_[index];
-            ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
-            auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);
-            if (partitionSnapshot != currentPartitionSnapshot) {
-                LookupInPartition(
-                    currentPartitionSnapshot,
-                    LookupKeys_.Slice(currentPartitionStartOffset, index),
-                    writer);
-                currentPartitionSnapshot = std::move(partitionSnapshot);
-                currentPartitionStartOffset = index;
-            }
-        }
-
-        LookupInPartition(
-            currentPartitionSnapshot,
-            LookupKeys_.Slice(currentPartitionStartOffset, LookupKeys_.Size()),
-            writer);
     }
 };
 

@@ -669,6 +669,11 @@ class TestTablets(YTEnvSetup):
             assert_items_equal(actual, expected)
 
             keys = list(values.keys())[::2]
+            for i in xrange(len(keys)):
+                if i % 3 == 0:
+                    j = (i * 34567) % len(keys)
+                    keys[i], keys[j] = keys[j], keys[i]
+
             expected = [{"key": key, "value": values[key]} for key in keys]
 
             if len(keys) > 0:

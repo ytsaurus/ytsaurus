@@ -17,16 +17,18 @@ namespace NTabletNode {
 //! returns a single version of each value.
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
-    const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp);
 
 NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
-    const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp);
+    TTimestamp timestamp,
+    int concurrency,
+    NTableClient::TRowBufferPtr rowBuffer = nullptr);
 
 //! Creates a reader that merges data from all given #stores and
 //! returns all versions of each value.

@@ -81,6 +81,31 @@ static const auto& Logger = QueryAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TColumnFilter GetColumnFilter(const TTableSchema& schema, const TTableSchema& tabletSchema)
+{
+    // Infer column filter.
+    TColumnFilter columnFilter;
+    columnFilter.All = false;
+    for (const auto& column : schema.Columns()) {
+        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
+        if (tabletColumn.Type != column.Type) {
+            THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
+                column.Name,
+                tabletColumn.Type,
+                column.Type);
+        }
+        columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
+    }
+
+    return columnFilter;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryExecutor
     : public IExecutor
 {
@@ -314,41 +339,22 @@ private:
             refiners.push_back([&] (TConstExpressionPtr expr, const TTableSchema& schema, const TKeyColumns& keyColumns) {
                 return RefinePredicate(keySource.second, expr, keyColumns);
             });
-            subreaderCreators.push_back([&] () {
-                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-                auto groupedKeys = GroupKeysByPartition(keySource.first, keySource.second);
-                for (const auto& keys : groupedKeys) {
-                    LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
-                        JoinToString(keys));
-                    bottomSplitReaders.push_back(GetReader(
-                        fragment->Query->TableSchema,
-                        keySource.first,
-                        keys,
-                        timestamp));
-                }
 
-                auto bottomSplitReaderGenerator = [
-                    fragment,
-                    groupedKeys,
-                    object = keySource.first,
-                    timestamp,
-                    index = 0,
-                    this_ = MakeStrong(this)
-                ] () mutable -> ISchemafulReaderPtr {
-                    if (index == groupedKeys.size()) {
-                        return nullptr;
-                    } else {
-                        return this_->GetReader(
-                            fragment->Query->TableSchema,
-                            object,
-                            groupedKeys[index++],
-                            timestamp);
-                    }
-                };
-
-                return CreateUnorderedSchemafulReader(
-                    bottomSplitReaderGenerator,
-                    Config_->MaxBottomReaderConcurrency);
+            subreaderCreators.push_back([
+                fragment,
+                keys = MakeSharedRange(std::move(keySource.second)),
+                object = keySource.first,
+                timestamp,
+                this_ = MakeStrong(this),
+                &Logger
+            ] () {
+                LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
+                    JoinToString(keys));
+                return this_->GetReader(
+                    fragment->Query->TableSchema,
+                    object,
+                    keys,
+                    timestamp);
             });
         }
 
@@ -517,47 +523,6 @@ private:
         }
 
         return allSplits;
-    }
-
-    std::vector<TSharedRange<TRow>> GroupKeysByPartition(
-        const TTabletId& tabletId,
-        std::vector<TRow> keys)
-    {
-        std::sort(keys.begin(), keys.end());
-
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-        const auto& partitions = tabletSnapshot->Partitions;
-
-        // Group keys by partitions.
-        std::vector<TSharedRange<TRow>> result;
-        auto addRange = [&] (std::vector<TRow>::iterator begin, std::vector<TRow>::iterator end) {
-            std::vector<TRow> selectedKeys(begin, end);
-            // TODO(babenko): fixme, data ownership?
-            result.emplace_back(MakeSharedRange(std::move(selectedKeys)));
-        };
-
-        auto currentIt = keys.begin();
-        while (currentIt != keys.end()) {
-            auto nextPartition = std::upper_bound(
-                partitions.begin(),
-                partitions.end(),
-                *currentIt,
-                [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                    return lhs < rhs->PivotKey.Get();
-                });
-
-            if (nextPartition == partitions.end()) {
-                addRange(currentIt, keys.end());
-                break;
-            }
-
-            auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get());
-            addRange(currentIt, nextIt);
-            currentIt = nextIt;
-        }
-
-        return result;
     }
 
     std::pair<int, int> GetBoundSampleKeys(
@@ -821,9 +786,11 @@ private:
         TOwningKey lowerBound(source.Range.first);
         TOwningKey upperBound(source.Range.second);
 
+        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
+
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
-            schema,
+            columnFilter,
             lowerBound,
             upperBound,
             timestamp);
@@ -841,11 +808,14 @@ private:
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
+        auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
+
         return CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
-            schema,
+            columnFilter,
             keys,
-            timestamp);
+            timestamp,
+            Config_->MaxBottomReaderConcurrency);
     }
 
 };
