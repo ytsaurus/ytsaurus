@@ -50,17 +50,17 @@ process.on("exit", binding.ShutdownSingletons);
             toYson([])
                 .should.eql('[]');
             toYson([[]])
-                .should.eql('[[]]');
+                .should.eql('[[];]');
             toYson([ 1, "hello", 2, "world" ])
-                .should.eql('[1;"hello";2;"world"]');
+                .should.eql('[1;"hello";2;"world";]');
             toYson([[1],[[2]],[[3],[4]],[]])
-                .should.eql('[[1];[[2]];[[3];[4]];[]]');
+                .should.eql('[[1;];[[2;];];[[3;];[4;];];[];]');
         });
 
         it("should properly translate maps", function() {
             expect([
-                '{"bar"="xyz";"foo"=1}',
-                '{"foo"=1;"bar"="xyz"}'
+                '{"bar"="xyz";"foo"=1;}',
+                '{"foo"=1;"bar"="xyz";}'
             ]).to.include(
                 toYson({ foo : 1, bar : "xyz" })
             );
@@ -70,7 +70,7 @@ process.on("exit", binding.ShutdownSingletons);
             toYson({
                 $value : "yson",
                 $attributes : { format : "pretty", enable_raw : "true" }
-            }).should.eql('<"enable_raw"="true";"format"="pretty">"yson"');
+            }).should.eql('<"enable_raw"="true";"format"="pretty";>"yson"');
 
             toYson({
                 $attributes : {
@@ -82,7 +82,7 @@ process.on("exit", binding.ShutdownSingletons);
                     }
                 },
                 $value : "some_string"
-            }).should.eql('<"foo"=<"another_foo"="another_bar">"bar">"some_string"');
+            }).should.eql('<"foo"=<"another_foo"="another_bar";>"bar";>"some_string"');
         });
     });
 });
