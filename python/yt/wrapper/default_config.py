@@ -153,6 +153,7 @@ default_config = {
     "read_retries": {
         "enable": False,
         "retry_count": 30,
+        "retry_timeout": 60000,
         "create_transaction_and_take_snapshot_lock": True
     },
 
@@ -160,7 +161,8 @@ default_config = {
     "write_retries": {
         "enable": True,
         # The size of data chunk that retried.
-        "chunk_size": 512 * common.MB
+        "chunk_size": 512 * common.MB,
+        "retry_timeout": 60000
     },
 
     "auto_merge_output": {
