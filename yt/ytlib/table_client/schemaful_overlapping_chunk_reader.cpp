@@ -129,16 +129,21 @@ bool TSchemafulOverlappingChunkLookupReader::Read(std::vector<TUnversionedRow>* 
 
 bool TSchemafulOverlappingChunkLookupReader::RefillSession(TSession* session)
 {
-    if (session->ReadyEvent && !session->ReadyEvent.IsSet()) {
+    YCHECK(session->ReadyEvent);
+
+    if (!session->ReadyEvent.IsSet()) {
         return false;
     }
 
     bool finished = !session->Reader->Read(&session->Rows);
 
-    if (session->Rows.size() > 0) {
+    if (!session->Rows.empty() > 0) {
         session->CurrentRow = session->Rows.begin();
     } else if (finished) {
         Exhausted_ = true;
+        session->ReadyEvent.Reset();
+    } else {
+        session->ReadyEvent = session->Reader->GetReadyEvent();
     }
 
     return finished || !session->Rows.empty();
@@ -155,7 +160,6 @@ void TSchemafulOverlappingChunkLookupReader::RefillSessions()
     for (auto* session : AwaitingSessions_) {
         if (!RefillSession(session)) {
             awaitingSessions.push_back(session);
-            session->ReadyEvent = session->Reader->GetReadyEvent();
         }
     }
 
@@ -410,20 +414,22 @@ void TSchemafulOverlappingChunkReaderBase<TRowMerger>::OpenSession(int index)
 template <class TRowMerger>
 bool TSchemafulOverlappingChunkReaderBase<TRowMerger>::RefillSession(TSession* session)
 {
-    if (session->ReadyEvent && !session->ReadyEvent.IsSet()) {
+    YCHECK(session->ReadyEvent);
+
+    if (!session->ReadyEvent.IsSet()) {
         return false;
     }
 
     bool finished = !session->Reader->Read(&session->Rows);
 
-    if (session->Rows.size() > 0) {
+    if (!session->Rows.empty() > 0) {
         session->CurrentRow = session->Rows.begin();
         ActiveSessions_.push_back(session);
         AdjustHeapBack(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
-    }
-
-    if (finished && session->Rows.empty()) {
+    } else if (finished) {
         session->Reader.Reset();
+    } else {
+        session->ReadyEvent = session->Reader->GetReadyEvent();
     }
 
     return finished || !session->Rows.empty();
@@ -441,7 +447,6 @@ void TSchemafulOverlappingChunkReaderBase<TRowMerger>::RefillSessions()
     for (auto* session : AwaitingSessions_) {
         if (!RefillSession(session)) {
             awaitingSessions.push_back(session);
-            session->ReadyEvent = session->Reader->GetReadyEvent();
         }
     }
 

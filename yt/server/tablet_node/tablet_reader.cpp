@@ -9,9 +9,11 @@
 
 #include <ytlib/table_client/row_merger.h>
 #include <ytlib/table_client/row_buffer.h>
+#include <ytlib/table_client/unordered_schemaful_reader.h>
 #include <ytlib/table_client/schemaful_overlapping_chunk_reader.h>
 
 #include <core/misc/error.h>
+#include <core/misc/range.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -26,34 +28,9 @@ static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TColumnFilter GetColumnFilter(const TTableSchema& schema, const TTableSchema& tabletSchema)
-{
-    // Infer column filter.
-    TColumnFilter columnFilter;
-    columnFilter.All = false;
-    for (const auto& column : schema.Columns()) {
-        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
-        if (tabletColumn.Type != column.Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
-                column.Name,
-                tabletColumn.Type,
-                column.Type);
-        }
-        columnFilter.Indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
-    }
-
-    return columnFilter;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
-    const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
     TOwningKey upperBound,
     TTimestamp timestamp)
@@ -93,8 +70,6 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             << TErrorAttribute("fan_in_limit", tabletSnapshot->Config->MaxReadFanIn);
     }
 
-    auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
-
     auto rowMerger = New<TSchemafulRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
         tabletSnapshot->Schema.Columns().size(),
@@ -132,75 +107,103 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
-    const TTableSchema& schema,
+    const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
-    TTimestamp timestamp)
+    TTimestamp timestamp,
+    int concurrency,
+    TRowBufferPtr rowBuffer)
 {
-    TKey minKey;
-    TKey maxKey;
-
-    for (const auto& key : keys) {
-        minKey = !minKey || key < minKey ? key : minKey;
-        maxKey = !maxKey || key > maxKey ? key : maxKey;
+    if (!rowBuffer) {
+        rowBuffer = New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>());
     }
-
-    std::vector<IStorePtr> stores;
-    auto takePartition = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        for (const auto& store : partitionSnapshot->Stores) {
-            if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
-                stores.push_back(store);
-            }
-        }
-    };
-
-    takePartition(tabletSnapshot->Eden);
-
-    std::vector<TPartitionSnapshotPtr> snapshots;
-
-    for (auto key : keys) {
-        snapshots.push_back(tabletSnapshot->FindContainingPartition(key));
-    }
-
-    std::sort(snapshots.begin(), snapshots.end());
-    snapshots.erase(std::unique(snapshots.begin(), snapshots.end()), snapshots.end());
-
-    for (const auto& snapshot : snapshots) {
-        takePartition(snapshot);
-    }
-
-    LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->Slot->GetCellId(),
-        timestamp,
-        JoinToString(stores, TStoreIdFormatter()));
-
-    if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
-        THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
-            << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
-            << TErrorAttribute("fan_in", stores.size())
-            << TErrorAttribute("fan_in_limit", tabletSnapshot->Config->MaxReadFanIn);
-    }
-
-    auto columnFilter = GetColumnFilter(schema, tabletSnapshot->Schema);
 
     auto rowMerger = New<TSchemafulRowMerger>(
-        New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        std::move(rowBuffer),
         tabletSnapshot->Schema.Columns().size(),
         tabletSnapshot->KeyColumns.size(),
         columnFilter);
 
-    return CreateSchemafulOverlappingChunkLookupReader(
-        std::move(rowMerger),
-        [=, stores = std::move(stores), index = 0] () mutable -> IVersionedReaderPtr {
-            if (index < stores.size()) {
-                return stores[index++]->CreateReader(
-                    keys,
-                    timestamp,
-                    columnFilter);
-            } else {
-                return nullptr;
+    auto takePartition = [&] (
+        const TPartitionSnapshotPtr& partitionSnapshot,
+        TKey minKey,
+        TKey maxKey,
+        std::vector<IStorePtr>* stores)
+    {
+        YASSERT(partitionSnapshot);
+        for (const auto& store : partitionSnapshot->Stores) {
+            if (store->GetMinKey() <= maxKey && store->GetMaxKey() >= minKey) {
+                stores->push_back(store);
             }
-        });
+        }
+    };
+
+    auto createPartitionReader = [=] (
+        TPartitionSnapshotPtr partition,
+        TSharedRange<TKey> keys) -> ISchemafulReaderPtr
+    {
+        TKey minKey = *keys.Begin();
+        TKey maxKey = *(keys.End() - 1);
+
+        std::vector<IStorePtr> stores;
+        takePartition(tabletSnapshot->Eden, minKey, maxKey, &stores);
+        takePartition(partition, minKey, maxKey, &stores);
+
+        LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, StoreIds: [%v])",
+            tabletSnapshot->TabletId,
+            tabletSnapshot->Slot->GetCellId(),
+            timestamp,
+            JoinToString(stores, TStoreIdFormatter()));
+
+        return CreateSchemafulOverlappingChunkLookupReader(
+            rowMerger,
+            [=, stores = std::move(stores), index = 0] () mutable -> IVersionedReaderPtr {
+                if (index < stores.size()) {
+                    return stores[index++]->CreateReader(
+                        keys,
+                        timestamp,
+                        columnFilter);
+                } else {
+                    return nullptr;
+                }
+            });
+    };
+
+    std::vector<TPartitionSnapshotPtr> partitions;
+    std::vector<TSharedRange<TKey>> partitionedKeys;
+    auto currentIt = keys.Begin();
+    while (currentIt != keys.End()) {
+        auto nextPartitionIt = std::upper_bound(
+            tabletSnapshot->Partitions.begin(),
+            tabletSnapshot->Partitions.end(),
+            *currentIt,
+            [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
+                return lhs < rhs->PivotKey.Get();
+            });
+        YCHECK(nextPartitionIt != tabletSnapshot->Partitions.begin());
+        auto nextIt = nextPartitionIt == tabletSnapshot->Partitions.end()
+            ? keys.End()
+            : std::lower_bound(currentIt, keys.End(), (*nextPartitionIt)->PivotKey.Get());
+        partitions.push_back(*(nextPartitionIt - 1));
+        partitionedKeys.push_back(keys.Slice(currentIt, nextIt));
+        currentIt = nextIt;
+    }
+
+    auto readerFactory = [
+        partitions = std::move(partitions),
+        partitionedKeys = std::move(partitionedKeys),
+        createPartitionReader = std::move(createPartitionReader),
+        index = 0
+    ] () mutable -> ISchemafulReaderPtr {
+        if (index < partitionedKeys.size()) {
+            auto reader = createPartitionReader(partitions[index], partitionedKeys[index]);
+            ++index;
+            return reader;
+        } else {
+            return nullptr;
+        }
+    };
+
+    return CreateUnorderedSchemafulReader(std::move(readerFactory), concurrency);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

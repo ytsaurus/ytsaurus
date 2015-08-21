@@ -69,6 +69,7 @@ protected:
             MinKey(),
             MaxKey(),
             GetAtomicity()));
+        Tablet_->CreateInitialPartition();
         Tablet_->StartEpoch(nullptr);
     }
 

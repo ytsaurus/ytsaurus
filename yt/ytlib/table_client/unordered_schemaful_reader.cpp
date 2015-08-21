@@ -5,8 +5,12 @@
 
 #include <core/actions/cancelable_context.h>
 
+#include <core/concurrency/rw_spinlock.h>
+
 namespace NYT {
 namespace NTableClient {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +32,7 @@ public:
         : GetNextReader_(std::move(getNextReader))
         , Sessions_(std::move(sessions))
         , Exhausted_(exhausted)
+        , ReadyEvent_(MakePromise<void>(TError()))
     { }
 
     ~TUnorderedSchemafulReader()
@@ -53,7 +58,6 @@ public:
 
                 const auto& error = session.ReadyEvent->Get();
                 if (!error.IsOK()) {
-                    ReadyEvent_ = MakePromise(error);
                     return true;
                 }
 
@@ -61,6 +65,8 @@ public:
             }
 
             if (!session.Reader->Read(rows)) {
+                YCHECK(rows->empty());
+
                 session.Exhausted = true;
                 if (RefillSession(session)) {
                     pending = true;
@@ -74,6 +80,7 @@ public:
 
             YASSERT(!session.ReadyEvent);
             session.ReadyEvent = session.Reader->GetReadyEvent();
+            session.ReadyEvent->Subscribe(BIND(&TUnorderedSchemafulReader::OnReady, MakeStrong(this)));
             CancelableContext_->PropagateTo(*session.ReadyEvent);
             pending = true;
         }
@@ -82,21 +89,27 @@ public:
             return false;
         }
 
-        auto readyEvent = NewPromise<void>();
+        {
+            TWriterGuard guard(SpinLock_);
+            ReadyEvent_ = NewPromise<void>();
+        }
+
         for (auto& session : Sessions_) {
             if (session.ReadyEvent) {
-                readyEvent.TrySetFrom(*session.ReadyEvent);
+                ReadyEvent_.TrySetFrom(*session.ReadyEvent);
             }
         }
-        readyEvent.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
-        ReadyEvent_ = readyEvent;
+
+        ReadyEvent_.OnCanceled(BIND(&TUnorderedSchemafulReader::OnCanceled, MakeWeak(this)));
 
         return true;
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return ReadyEvent_;
+        TReaderGuard guard(SpinLock_);
+        auto readyEvent = ReadyEvent_;
+        return readyEvent;
     }
 
 private:
@@ -106,6 +119,7 @@ private:
 
     TPromise<void> ReadyEvent_;
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
+    TReaderWriterSpinLock SpinLock_;
 
     bool RefillSession(TSession& session)
     {
@@ -122,14 +136,19 @@ private:
         }
 
         session.Reader = std::move(reader);
-        session.ReadyEvent = VoidFuture;
+        session.ReadyEvent->Reset();
         session.Exhausted = false;
         return true;
     }
 
+    void OnReady(const TError& value)
+    {
+        TWriterGuard guard(SpinLock_);
+        ReadyEvent_.TrySet(value);
+    }
+
     void OnCanceled()
     {
-        ReadyEvent_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader canceled"));
         CancelableContext_->Cancel();
     }
 
