@@ -87,7 +87,7 @@ class YTEnv(object):
     def modify_proxy_config(self, config):
         pass
 
-    def start(self, path_to_run, pids_filename, ports=None, supress_yt_output=False):
+    def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False):
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
@@ -118,29 +118,23 @@ class YTEnv(object):
         self._kill_previously_run_services()
 
         self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS,
-                      self.START_PROXY, self.USE_PROXY_FROM_PACKAGE, ports=ports)
-
-    def _get_localhost_addresses(self, addresses):
-        return ["localhost:" + addr.rsplit(":", 1)[1] for addr in addresses]
+                      self.START_PROXY, self.USE_PROXY_FROM_PACKAGE, proxy_port=proxy_port)
 
     def get_master_addresses(self):
         # XXX(asaitgalin): chain will be removed when different instances
         # are managed by local YT, not by instance_id parameter in _run_all
-        addresses = list(chain.from_iterable(self._master_addresses.values()))
-        return self._get_localhost_addresses(addresses)
+        return list(chain.from_iterable(self._master_addresses.values()))
 
     def get_node_addresses(self):
-        addresses = list(chain.from_iterable(self._node_addresses.values()))
-        return self._get_localhost_addresses(addresses)
+        return list(chain.from_iterable(self._node_addresses.values()))
 
     def get_scheduler_addresses(self):
-        addresses = list(chain.from_iterable(self._scheduler_addresses.values()))
-        return self._get_localhost_addresses(addresses)
+        return list(chain.from_iterable(self._scheduler_addresses.values()))
 
     def get_proxy_address(self):
         if not self.START_PROXY:
             raise YtError("Proxy is not started")
-        return "{0}:{1}".format("localhost", self._ports["proxy"][0])
+        return "{0}:{1}".format(self._hostname, self._ports["proxy"][0])
 
     def kill_service(self, name):
         logger.info("Killing %s", name)
@@ -182,15 +176,12 @@ class YTEnv(object):
                 break
 
     def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, use_proxy_from_package=False,
-                 instance_id="", cell_tag=0, ports=None):
+                 instance_id="", cell_tag=0, proxy_port=None):
 
         _get_open_port.busy_ports = set()
 
         def list_ports(service_name, count):
-            if ports is not None and service_name in ports:
-                self._ports[service_name] = range(ports[service_name], ports[service_name] + count)
-            else:
-                self._ports[service_name] = [_get_open_port() for _ in xrange(count)]
+            self._ports[service_name] = [_get_open_port() for _ in xrange(count)]
 
         master_name = "master" + instance_id
         scheduler_name = "scheduler" + instance_id
@@ -202,7 +193,10 @@ class YTEnv(object):
         list_ports(master_name, 2 * masters_count)
         list_ports(scheduler_name, 2 * schedulers_count)
         list_ports(node_name, 2 * nodes_count)
-        list_ports(proxy_name, 2)
+        if proxy_port is not None and isinstance(proxy_port, int):
+            self._ports[proxy_name] = [proxy_port, _get_open_port()]
+        else:
+            list_ports(proxy_name, 2)
 
         logger.info("Setting up configuration with %d masters, %d nodes, %d schedulers, %d proxy.",
                      masters_count, nodes_count, schedulers_count, int(has_proxy))
