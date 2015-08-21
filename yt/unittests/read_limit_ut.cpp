@@ -27,7 +27,7 @@ TEST(TReadLimitTest, Simple)
     EXPECT_TRUE(limit.IsTrivial());
 
     limit.SetRowIndex(0);
-    EXPECT_EQ("{\"row_index\"=0}", DumpToYson(limit));
+    EXPECT_EQ("{\"row_index\"=0;}", DumpToYson(limit));
     EXPECT_FALSE(limit.IsTrivial());
 }
 

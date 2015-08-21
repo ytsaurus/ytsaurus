@@ -316,7 +316,6 @@ TEST(TYsonFragmentWriterTest, NewLinesInList)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-
 TEST(TYsonFragmentWriterTest, NewLinesInMap)
 {
     TStringStream outputStream;
