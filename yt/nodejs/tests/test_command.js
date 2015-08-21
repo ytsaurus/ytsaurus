@@ -56,7 +56,7 @@ function stubDriver(echo)
         "high_watermark": 200,
         "proxy": {
             "driver": {
-                "master": {
+                "primary_master": {
                     "cell_id" : "ffffffff-ffffffff-259-ffffffff",
                     "addresses": [ ]
                 }
