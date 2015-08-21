@@ -357,8 +357,8 @@ def build_python_packages(options):
             return "0"
 
     # trusty build broken python packages, temporaly turn it off :(
-    if not options.package or options.codename == "trusty":
-        return
+    #if not options.package or options.codename == "trusty":
+    #    return
 
     run(["sudo", "apt-get", "update"])
 
