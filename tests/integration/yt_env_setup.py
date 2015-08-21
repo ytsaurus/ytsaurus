@@ -63,7 +63,7 @@ class YTEnvSetup(YTEnv):
 
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
-            self.transactions_at_start = set(yt_commands.get_transactions())
+            self._wait_nodes()
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
@@ -92,6 +92,14 @@ class YTEnvSetup(YTEnv):
             self._remove_racks()
 
             yt_commands.gc_collect()
+
+    def _wait_nodes(self):
+        for attempt in xrange(1, 100):
+            while True:
+                if yt_commands.get("//sys/nodes/@offline"):
+                    sleep(0.1)
+                else:
+                    break
 
     def _sync_create_cells(self, size, count):
         ids = []
