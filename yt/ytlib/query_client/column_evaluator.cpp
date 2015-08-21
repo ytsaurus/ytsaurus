@@ -57,7 +57,7 @@ void TColumnEvaluator::PrepareEvaluator()
     }
 }
 
-void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, int index)
+void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, int index) const
 {
     YCHECK(index < fullRow.GetCount());
 
@@ -77,13 +77,13 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, in
     Evaluators_[index](
         &fullRow[index],
         fullRow,
-        Variables_[index].ConstantsRowBuilder.GetRow(),
+        const_cast<TRowBuilder&>(Variables_[index].ConstantsRowBuilder).GetRow(),
         &executionContext);
 
     fullRow[index].Id = index;
 }
 
-void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer)
+void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer) const
 {
     for (int index = 0; index < KeySize_; ++index) {
         if (Schema_.Columns()[index].Expression) {
@@ -95,7 +95,7 @@ void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer)
 TRow TColumnEvaluator::EvaluateKeys(
     TRow partialRow,
     const TRowBufferPtr& buffer,
-    const TNameTableToSchemaIdMapping& idMapping)
+    const TNameTableToSchemaIdMapping& idMapping) const
 {
     bool keyColumnSeen[MaxKeyColumnCount] {};
     int columnCount = 0;
@@ -156,12 +156,12 @@ TRow TColumnEvaluator::EvaluateKeys(
     return fullRow;
 }
 
-const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index)
+const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index) const
 {
     return ReferenceIds_[index];
 }
 
-TConstExpressionPtr TColumnEvaluator::GetExpression(int index)
+TConstExpressionPtr TColumnEvaluator::GetExpression(int index) const
 {
     return Expressions_[index];
 }
