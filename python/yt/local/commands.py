@@ -175,7 +175,7 @@ def _safe_kill(pid):
 
 def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
-          id=None, local_cypress_dir=None, use_proxy_from_yt_source=False, path=None):
+          proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False, path=None):
 
     require(masters_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
 
@@ -211,7 +211,7 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
         else:
             raise YtError("Instance with id {0} is already running".format(sandbox_id))
 
-    environment.start(sandbox_path, pids_file_path, supress_yt_output=True)
+    environment.start(sandbox_path, pids_file_path, proxy_port=proxy_port, supress_yt_output=True)
     environment.id = sandbox_id
 
     if local_cypress_dir is not None:
