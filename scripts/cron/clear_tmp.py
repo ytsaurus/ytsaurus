@@ -101,6 +101,8 @@ def main():
                 except yt.YtResponseError as error:
                     if not error.is_concurrent_transaction_lock_conflict():
                         raise
+                except yt.YtError:
+                    logger.info("Failed to remove dir %s", dir)
 
 if __name__ == "__main__":
     main()
