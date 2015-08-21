@@ -5,6 +5,7 @@ import yt_driver_bindings
 
 import gc
 import os
+import sys
 import logging
 import uuid
 
@@ -67,9 +68,18 @@ class YTEnvSetup(YTEnv):
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
         if self.Env.NUM_MASTERS > 0:
-            current_txs = set(yt_commands.get_transactions())
-            txs_to_abort = current_txs.difference(self.transactions_at_start)
-            self._abort_transactions(list(txs_to_abort))
+            for tx in yt_commands.get_transactions():
+                print >>sys.stderr, yt_commands.get("#{0}/@".format(tx))
+                try:
+                    title = yt_commands.get("#{0}/@title".format(tx))
+                    if "Scheduler lock" in title or "Lease for node" in title:
+                        continue
+                except:
+                    pass
+                try:
+                    yt_commands.abort_transaction(tx)
+                except:
+                    pass
 
             yt_commands.set('//tmp', {})
             yt_commands.gc_collect()
@@ -106,13 +116,6 @@ class YTEnvSetup(YTEnv):
 
         print "Waiting for tablets to become unmounted..."
         _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
-
-    def _abort_transactions(self, txs):
-        for tx in txs:
-            try:
-                yt_commands.abort_transaction(tx)
-            except:
-                pass
 
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attr=['builtin'])
