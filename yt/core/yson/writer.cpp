@@ -158,7 +158,7 @@ void TYsonWriter::BeginCollection(ETokenType beginToken)
 void TYsonWriter::CollectionItem()
 {
     if (Format_ == EYsonFormat::Pretty) {
-        if (EmptyCollection_) {
+        if (EmptyCollection_ && Depth_ > 0) {
             Stream_->Write('\n');
         }
         WriteIndent();
