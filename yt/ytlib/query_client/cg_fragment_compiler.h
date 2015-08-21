@@ -100,7 +100,8 @@ private:
             StaticType_ == EValueType::Uint64 ||
             StaticType_ == EValueType::Double ||
             StaticType_ == EValueType::Boolean ||
-            StaticType_ == EValueType::String);
+            StaticType_ == EValueType::String ||
+            StaticType_ == EValueType::Any);
     }
 
 public:
