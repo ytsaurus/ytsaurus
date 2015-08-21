@@ -292,8 +292,6 @@ public:
         TTableReader<Message>* input,
         TTableWriter<Message>* output) override
     {
-        Cerr << "begin key" << Endl;
-
         // record with table index 0 is always the first
         i64 key = input->GetRow<TJoinInputLeft>().key();
 
@@ -318,8 +316,6 @@ public:
         product.set_key(key);
         product.set_product(left * right);
         output->AddRow<TJoinOutputProduct>(product, 1);
-
-        Cerr << "end key" << Endl;
     }
 };
 REGISTER_REDUCER(TJoinReducerProto)
@@ -357,11 +353,11 @@ void JoinReducerProto()
     }
     {
         auto path = TRichYPath(inputRight).SortedBy("key");
-        auto writer = client->CreateTableWriter<TJoinInputLeft>(path);
+        auto writer = client->CreateTableWriter<TJoinInputRight>(path);
         for (int i = 0; i < 16; ++i) {
-            TJoinInputLeft row;
+            TJoinInputRight row;
             row.set_key(i);
-            row.set_left(i * 2.71);
+            row.set_right(i * 2.71);
             writer->AddRow(row);
         }
         writer->Finish();
@@ -372,7 +368,8 @@ void JoinReducerProto()
             .AddInput<TJoinInputLeft>(inputLeft)
             .AddInput<TJoinInputRight>(inputRight)
             .AddOutput<TJoinOutputSum>(outputSum)
-            .AddOutput<TJoinOutputProduct>(outputProduct),
+            .AddOutput<TJoinOutputProduct>(outputProduct)
+            .ReduceBy(TKeyColumns("key")),
         new TJoinReducerProto);
 
     {
