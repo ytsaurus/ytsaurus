@@ -272,7 +272,6 @@ void TNodeTableReader::Next()
 {
     CheckValidity();
 
-    bool isRowIndexSet = false;
     while (true) {
         Row_ = RowQueue_.Dequeue();
         if (Row_->Type == TRowElement::ROW) {
@@ -292,13 +291,14 @@ void TNodeTableReader::Next()
                 if (rowIndexIt != attributes.end()) {
                     i64 index = rowIndexIt->second.AsInt64();
                     RowIndex_ = static_cast<ui64>(index);
-                    isRowIndexSet = true;
+                    HasRowIndex_ = true;
                 }
 
             } else {
-                if (!isRowIndexSet && RowIndex_) {
+                if (RowIndex_ && !HasRowIndex_) {
                     ++*RowIndex_;
                 }
+                HasRowIndex_ = false;
                 Input_->OnRowFetched();
                 break;
             }
