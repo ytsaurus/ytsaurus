@@ -46,7 +46,7 @@ struct TExpressionContext
 #endif
     const TTableSchema* Schema;
 
-    std::vector<TSharedRange<TRow>>* LiteralRows;
+    const std::vector<TSharedRange<TRow>>* LiteralRows;
     
     TRowBufferPtr IntermediateBuffer;
     
