@@ -69,7 +69,6 @@ class YTEnvSetup(YTEnv):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
         if self.Env.NUM_MASTERS > 0:
             for tx in yt_commands.get_transactions():
-                print >>sys.stderr, yt_commands.get("#{0}/@".format(tx))
                 try:
                     title = yt_commands.get("#{0}/@title".format(tx))
                     if "Scheduler lock" in title or "Lease for node" in title:
