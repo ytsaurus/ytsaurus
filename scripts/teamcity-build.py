@@ -356,10 +356,6 @@ def build_python_packages(options):
         else:
             return "0"
 
-    # trusty build broken python packages, temporaly turn it off :(
-    #if not options.package or options.codename == "trusty":
-    #    return
-
     run(["sudo", "apt-get", "update"])
 
     for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager", "yandex-yt-python-fennel"]:
