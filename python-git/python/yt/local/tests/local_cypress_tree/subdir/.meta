@@ -1,0 +1,6 @@
+{
+    "attributes" = {
+        "other_attr" = 42;
+    };
+    "type" = "map_node";
+}

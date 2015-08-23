@@ -26,9 +26,6 @@ cat "$EGG_FILEPATH" | $YT upload "$DEST/$EGG_FILE"
 make_link "$DEST/$EGG_FILE" "$DEST/yandex-yt.egg"
 
 # Upload self-contained binaries
-mv yt/wrapper/pickling.py pickling.py
-cp standard_pickling.py yt/wrapper/pickling.py
-
 for name in yt mapreduce-yt; do
     rm -rf build dist
     pyinstaller/pyinstaller.py --noconfirm --onefile yt/wrapper/$name
@@ -38,6 +35,4 @@ for name in yt mapreduce-yt; do
 done
 
 # Create ticket in coductor
-curl -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=testing"
-
-mv pickling.py yt/wrapper/pickling.py
+curl --verbose --show-error -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable"
