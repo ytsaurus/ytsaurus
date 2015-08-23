@@ -42,5 +42,31 @@ void IAttributeDictionary::Set(const Stroka& key, const T& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void TAttributeDictionaryRefSerializer::Save(TStreamSaveContext& context, const T& obj)
+{
+    using NYT::Save;
+    if (obj) {
+        Save(context, true);
+        Save(context, *obj);
+    } else {
+        Save(context, false);
+    }
+}
+
+template <class T>
+void TAttributeDictionaryRefSerializer::Load(TStreamLoadContext& context, T& obj)
+{
+    using NYT::Load;
+    if (Load<bool>(context)) {
+        obj = CreateEphemeralAttributes();
+        Load(context, *obj);
+    } else {
+        obj.reset();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYTree
 } // namespace NYT
