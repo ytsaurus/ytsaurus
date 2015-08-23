@@ -25,8 +25,8 @@
 
 #include <core/compression/codec.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/tablet_client/config.h>
 #include <ytlib/tablet_client/wire_protocol.h>
@@ -36,6 +36,9 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/object_client/helpers.h>
+
+#include <ytlib/transaction_client/helpers.h>
+#include <ytlib/transaction_client/timestamp_provider.h>
 
 #include <server/misc/memory_usage_tracker.h>
 
@@ -68,7 +71,7 @@ using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode::NProto;
 using namespace NTabletServer::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
@@ -183,7 +186,8 @@ public:
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
         const TTransactionId& transactionId,
-        TWireProtocolReader* reader)
+        TWireProtocolReader* reader,
+        TFuture<void>* commitResult)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -193,80 +197,26 @@ public:
         // NB: No yielding beyond this point.
         // May access tablet and transaction.
 
-        const auto& tabletId = tabletSnapshot->TabletId;
-        auto* tablet = GetTabletOrThrow(tabletId);
-
-        auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+        auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
 
         ValidateTabletMounted(tablet);
         ValidateStoreLimit(tablet);
-        ValidateTransactionActive(transaction);
         ValidateMemoryLimit();
 
-        int prelockedCountBefore = transaction->PrelockedRows().size();
-        auto readerBegin = reader->GetCurrent();
-
-        TError error;
-        TNullable<TRowBlockedException> rowBlockedEx;
-
-        while (!reader->IsFinished()) {
-            const char* readerCheckpoint = reader->GetCurrent();
-            auto rewindReader = [&] () {
-                reader->SetCurrent(readerCheckpoint);
-            };
-            try {
-                ExecuteSingleWrite(tablet, transaction, reader, true);
-            } catch (const TRowBlockedException& ex) {
-                rewindReader();
-                rowBlockedEx = ex;
+        auto atomicity = AtomicityFromTransactionId(transactionId);
+        switch (atomicity) {
+            case EAtomicity::Full:
+                WriteAtomic(tablet, transactionId, reader, commitResult);
                 break;
-            } catch (const std::exception& ex) {
-                rewindReader();
-                error = ex;
+
+            case EAtomicity::None:
+                ValidateClientTimestamp(transactionId);
+                WriteNonAtomic(tablet, transactionId, reader, commitResult);
                 break;
-            }
+
+            default:
+                YUNREACHABLE();
         }
-
-        int prelockedCountAfter = transaction->PrelockedRows().size();
-        int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
-        if (prelockedCountDelta > 0) {
-            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
-                transactionId,
-                tabletId,
-                prelockedCountDelta);
-
-            auto readerEnd = reader->GetCurrent();
-            auto recordData = reader->Slice(readerBegin, readerEnd);
-            auto compressedRecordData = ChangelogCodec_->Compress(recordData);
-            auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
-
-            TReqExecuteWrite hydraRequest;
-            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
-            hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
-            hydraRequest.set_compressed_data(ToString(compressedRecordData));
-            CreateMutation(Slot_->GetHydraManager(), hydraRequest)
-                ->SetAction(BIND(
-                    &TImpl::HydraLeaderExecuteWrite,
-                    MakeStrong(this),
-                    transactionId,
-                    prelockedCountDelta,
-                    writeRecord))
-                ->Commit();
-        }
-
-        // NB: Yielding is now possible.
-        // Cannot neither access tablet, nor transaction.
-
-        if (rowBlockedEx) {
-            rowBlockedEx->GetStore()->WaitOnBlockedRow(
-                rowBlockedEx->GetRow(),
-                rowBlockedEx->GetLockMask(),
-                rowBlockedEx->GetTimestamp());
-        }
-
-        error.ThrowOnError();
     }
 
 
@@ -425,6 +375,7 @@ private:
 
     };
 
+    TTimestamp LastCommittedTimestamp_ = MinTimestamp;
     TEntityMap<TTabletId, TTablet, TTabletMapTraits> TabletMap_;
     yhash_set<TTablet*> UnmountingTablets_;
 
@@ -440,6 +391,9 @@ private:
 
     void SaveValues(TSaveContext& context) const
     {
+        using NYT::Save;
+
+        Save(context, LastCommittedTimestamp_);
         TabletMap_.SaveValues(context);
     }
 
@@ -475,6 +429,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        Load(context, LastCommittedTimestamp_);
         TabletMap_.LoadValues(context);
     }
 
@@ -518,13 +473,17 @@ private:
                 auto* tablet = GetTablet(record.TabletId);
                 TWireProtocolReader reader(record.Data);
                 while (!reader.IsFinished()) {
-                    ExecuteSingleWrite(tablet, transaction, &reader, false);
+                    ExecuteSingleWriteAtomic(tablet, transaction, &reader, false);
                     ++rowCount;
                 }
             }
             LOG_DEBUG_IF(rowCount > 0, "Transaction write log applied (TransactionId: %v, RowCount: %v)",
                 transaction->GetId(),
                 rowCount);
+
+            if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
+                OnTransactionPrepared(transaction);
+            }
         }
     }
 
@@ -621,6 +580,7 @@ private:
         auto nextPivotKey = FromProto<TOwningKey>(request.next_pivot_key());
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
+        auto atomicity = EAtomicity(request.atomicity());
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
@@ -631,7 +591,8 @@ private:
             schema,
             keyColumns,
             pivotKey,
-            nextPivotKey);
+            nextPivotKey,
+            atomicity);
 
         tabletHolder->CreateInitialPartition();
         tabletHolder->SetState(ETabletState::Mounted);
@@ -645,12 +606,15 @@ private:
 
         for (const auto& descriptor : request.chunk_stores()) {
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(descriptor.chunk_meta().extensions());
+            if (miscExt.has_max_timestamp()) {
+                UpdateLastCommittedTimestamp(miscExt.max_timestamp());
+            }
             if (!miscExt.eden()) {
-                auto boundaryKeysExt = GetProtoExtension<NVersionedTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
-                auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
-                auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
-                chunkBoundaries.push_back(std::make_pair(minKey, 1));
-                chunkBoundaries.push_back(std::make_pair(maxKey, -1));
+                auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
+                auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
+                auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumns.size());
+                chunkBoundaries.push_back(std::make_pair(minKey, -1));
+                chunkBoundaries.push_back(std::make_pair(maxKey, 1));
             }
         }
 
@@ -659,10 +623,10 @@ private:
             std::vector<TOwningKey> pivots{pivotKey};
             int depth = 0;
             for (const auto& boundary : chunkBoundaries) {
-                if (boundary.second == 1 && depth == 0 && boundary.first > pivotKey) {
+                if (boundary.second == -1 && depth == 0 && boundary.first > pivotKey) {
                     pivots.push_back(boundary.first);
                 }
-                depth += boundary.second;
+                depth -= boundary.second;
             }
             YCHECK(tablet->Partitions().size() == 1);
             tablet->SplitPartition(0, pivots);
@@ -692,13 +656,15 @@ private:
             StartTabletEpoch(tablet);
         }
 
-        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, TableId: %v, Keys: %v .. %v, StoreCount: %v, PartitionCount: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Tablet mounted (TabletId: %v, TableId: %v, Keys: %v .. %v, StoreCount: %v, "
+            "PartitionCount: %v, Atomicity: %v)",
             tabletId,
             tableId,
             pivotKey,
             nextPivotKey,
             request.chunk_stores_size(),
-            tablet->Partitions().size());
+            tablet->Partitions().size(),
+            tablet->GetAtomicity());
     }
 
     void HydraUnmountTablet(const TReqUnmountTablet& request)
@@ -834,7 +800,7 @@ private:
         }
     }
 
-    void HydraLeaderExecuteWrite(
+    void HydraLeaderExecuteWriteAtomic(
         const TTransactionId& transactionId,
         int rowCount,
         const TTransactionWriteRecord& writeRecord)
@@ -854,17 +820,40 @@ private:
 
         transaction->WriteLog().Enqueue(writeRecord);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows confirmed (TabletId: %v, TransactionId: %v, RowCount: %v, WriteRecordSize: %v)",
             writeRecord.TabletId,
+            transactionId,
             rowCount,
             writeRecord.Data.Size());
+    }
+
+    void HydraLeaderExecuteWriteNonAtomic(
+        const TTabletId& tabletId,
+        const TTransactionId& transactionId,
+        const TSharedRef& recordData)
+    {
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet)
+            return;
+
+        TWireProtocolReader reader(recordData);
+        int rowCount = 0;
+        while (!reader.IsFinished()) {
+            ExecuteSingleWriteNonAtomic(tablet, transactionId, &reader);
+            ++rowCount;
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, "
+            "WriteRecordSize: %v)",
+            transactionId,
+            tabletId,
+            rowCount,
+            recordData.Size());
     }
 
     void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
-        auto transactionManager = Slot_->GetTransactionManager();
-        auto* transaction = transactionManager->GetTransaction(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = GetTablet(tabletId);
@@ -873,16 +862,37 @@ private:
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request.compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
-        auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
 
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
-        while (!reader.IsFinished()) {
-            ExecuteSingleWrite(tablet, transaction, &reader, false);
-            ++rowCount;
-        }
 
-        transaction->WriteLog().Enqueue(writeRecord);
+        auto atomicity = AtomicityFromTransactionId(transactionId);
+        switch (atomicity) {
+            case EAtomicity::Full: {
+                auto transactionManager = Slot_->GetTransactionManager();
+                auto* transaction = transactionManager->GetTransaction(transactionId);
+
+                auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
+
+                while (!reader.IsFinished()) {
+                    ExecuteSingleWriteAtomic(tablet, transaction, &reader, false);
+                    ++rowCount;
+                }
+
+                transaction->WriteLog().Enqueue(writeRecord);
+            }
+
+            case EAtomicity::None: {
+                while (!reader.IsFinished()) {
+                    ExecuteSingleWriteNonAtomic(tablet, transactionId, &reader);
+                    ++rowCount;
+                }
+                break;
+            }
+
+            default:
+                YUNREACHABLE();
+        }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Rows written (TransactionId: %v, TabletId: %v, RowCount: %v, WriteRecordSize: %v)",
             transactionId,
@@ -1191,6 +1201,8 @@ private:
         YCHECK(transaction->PrelockedRows().empty());
         transaction->LockedRows().clear();
 
+        UpdateLastCommittedTimestamp(transaction->GetCommitTimestamp());
+
         OnTransactionFinished(transaction);
     }
 
@@ -1293,7 +1305,118 @@ private:
         }
     }
 
-    void ExecuteSingleWrite(
+
+    void WriteAtomic(
+        TTablet* tablet,
+        const TTransactionId& transactionId,
+        TWireProtocolReader* reader,
+        TFuture<void>* commitResult)
+    {
+        const auto& tabletId = tablet->GetTabletId();
+
+        auto transactionManager = Slot_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+        ValidateTransactionActive(transaction);
+
+        int prelockedCountBefore = transaction->PrelockedRows().size();
+        auto readerBegin = reader->GetCurrent();
+
+        TError error;
+        TNullable<TRowBlockedException> rowBlockedEx;
+
+        while (!reader->IsFinished()) {
+            const char* readerCheckpoint = reader->GetCurrent();
+            auto rewindReader = [&] () {
+                reader->SetCurrent(readerCheckpoint);
+            };
+            try {
+                ExecuteSingleWriteAtomic(tablet, transaction, reader, true);
+            } catch (const TRowBlockedException& ex) {
+                rewindReader();
+                rowBlockedEx = ex;
+                break;
+            } catch (const std::exception& ex) {
+                rewindReader();
+                error = ex;
+                break;
+            }
+        }
+
+        int prelockedCountAfter = transaction->PrelockedRows().size();
+        int prelockedCountDelta = prelockedCountAfter - prelockedCountBefore;
+        if (prelockedCountDelta > 0) {
+            LOG_DEBUG("Rows prelocked (TransactionId: %v, TabletId: %v, RowCount: %v)",
+                transactionId,
+                tabletId,
+                prelockedCountDelta);
+
+            auto readerEnd = reader->GetCurrent();
+            auto recordData = reader->Slice(readerBegin, readerEnd);
+            auto compressedRecordData = ChangelogCodec_->Compress(recordData);
+            auto writeRecord = TTransactionWriteRecord{tabletId, recordData};
+
+            TReqExecuteWrite hydraRequest;
+            ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
+            hydraRequest.set_compressed_data(ToString(compressedRecordData));
+            *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
+                ->SetAction(
+                    BIND(
+                        &TImpl::HydraLeaderExecuteWriteAtomic,
+                        MakeStrong(this),
+                        transactionId,
+                        prelockedCountDelta,
+                        writeRecord))
+                ->Commit()
+                 .As<void>();
+        }
+
+        // NB: Yielding is now possible.
+        // Cannot neither access tablet, nor transaction.
+
+        if (rowBlockedEx) {
+            rowBlockedEx->GetStore()->WaitOnBlockedRow(
+                rowBlockedEx->GetRow(),
+                rowBlockedEx->GetLockMask(),
+                rowBlockedEx->GetTimestamp());
+        }
+
+        error.ThrowOnError();
+    }
+
+    void WriteNonAtomic(
+        TTablet* tablet,
+        const TTransactionId& transactionId,
+        TWireProtocolReader* reader,
+        TFuture<void>* commitResult)
+    {
+        // Get and skip the whole reader content.
+        auto begin = reader->GetBegin();
+        auto end = reader->GetEnd();
+        auto recordData = reader->Slice(begin, end);
+        reader->SetCurrent(end);
+
+        auto compressedRecordData = ChangelogCodec_->Compress(recordData);
+
+        TReqExecuteWrite hydraRequest;
+        ToProto(hydraRequest.mutable_transaction_id(), transactionId);
+        ToProto(hydraRequest.mutable_tablet_id(), tablet->GetTabletId());
+        hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
+        hydraRequest.set_compressed_data(ToString(compressedRecordData));
+        *commitResult = CreateMutation(Slot_->GetHydraManager(), hydraRequest)
+            ->SetAction(
+                BIND(
+                    &TImpl::HydraLeaderExecuteWriteNonAtomic,
+                    MakeStrong(this),
+                    tablet->GetTabletId(),
+                    transactionId,
+                    recordData))
+            ->Commit()
+             .As<void>();
+    }
+
+    void ExecuteSingleWriteAtomic(
         TTablet* tablet,
         TTransaction* transaction,
         TWireProtocolReader* reader,
@@ -1309,7 +1432,7 @@ private:
                 TReqWriteRow req;
                 reader->ReadMessage(&req);
                 auto row = reader->ReadUnversionedRow();
-                rowRef = storeManager->WriteRow(
+                rowRef = storeManager->WriteRowAtomic(
                     transaction,
                     row,
                     prelock);
@@ -1320,7 +1443,7 @@ private:
                 TReqDeleteRow req;
                 reader->ReadMessage(&req);
                 auto key = reader->ReadUnversionedRow();
-                rowRef = storeManager->DeleteRow(
+                rowRef = storeManager->DeleteRowAtomic(
                     transaction,
                     key,
                     prelock);
@@ -1336,6 +1459,40 @@ private:
             ValidateTabletMounted(tablet);
             ValidateTransactionActive(transaction);
             transaction->PrelockedRows().push(rowRef);
+        }
+    }
+
+    void ExecuteSingleWriteNonAtomic(
+        TTablet* tablet,
+        const TTransactionId& transactionId,
+        TWireProtocolReader* reader)
+    {
+        auto commitTimestamp = TimestampFromTransactionId(transactionId);
+        auto adjustedCommitTimestamp = AdjustCommitTimestamp(commitTimestamp);
+
+        const auto& storeManager = tablet->GetStoreManager();
+
+        auto command = reader->ReadCommand();
+        switch (command) {
+            case EWireProtocolCommand::WriteRow: {
+                TReqWriteRow req;
+                reader->ReadMessage(&req);
+                auto row = reader->ReadUnversionedRow();
+                storeManager->WriteRowNonAtomic(transactionId, adjustedCommitTimestamp, row);
+                break;
+            }
+
+            case EWireProtocolCommand::DeleteRow: {
+                TReqDeleteRow req;
+                reader->ReadMessage(&req);
+                auto key = reader->ReadUnversionedRow();
+                storeManager->DeleteRowNonAtomic(transactionId, adjustedCommitTimestamp, key);
+                break;
+            }
+
+            default:
+                THROW_ERROR_EXCEPTION("Unknown write command %v",
+                    command);
         }
     }
 
@@ -1582,6 +1739,22 @@ private:
         }
     }
 
+    void ValidateClientTimestamp(const TTransactionId& transactionId)
+    {
+        auto clientTimestamp = TimestampFromTransactionId(transactionId);
+        auto timestampProvider = Bootstrap_->GetMasterClient()->GetConnection()->GetTimestampProvider();
+        auto serverTimestamp = timestampProvider->GetLatestTimestamp();
+        auto clientInstant = TimestampToInstant(clientTimestamp).first;
+        auto serverInstant = TimestampToInstant(serverTimestamp).first;
+        if (clientInstant > serverInstant + Config_->ClientTimestampThreshold ||
+            clientInstant < serverInstant - Config_->ClientTimestampThreshold)
+        {
+            THROW_ERROR_EXCEPTION("Transaction timestamp is off limits; check the local clock readings")
+                << TErrorAttribute("client_timestamp", clientTimestamp)
+                << TErrorAttribute("server_timestamp", serverTimestamp);
+        }
+    }
+
     void ValidateStoreLimit(TTablet* tablet)
     {
         if (tablet->Stores().size() >= tablet->GetConfig()->MaxStoresPerTablet) {
@@ -1662,6 +1835,20 @@ private:
             return New<TTabletWriterOptions>();
         }
     }
+
+
+    void UpdateLastCommittedTimestamp(TTimestamp timestamp)
+    {
+        LastCommittedTimestamp_ = std::max(LastCommittedTimestamp_, timestamp);
+    }
+
+    TTimestamp AdjustCommitTimestamp(TTimestamp timestamp)
+    {
+        auto adjustedTimestamp = std::max(timestamp, LastCommittedTimestamp_ + 1);
+        UpdateLastCommittedTimestamp(adjustedTimestamp);
+        return adjustedTimestamp;
+    }
+
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTablet, TTabletId, TabletMap_)
@@ -1707,12 +1894,14 @@ void TTabletManager::Read(
 void TTabletManager::Write(
     TTabletSnapshotPtr tabletSnapshot,
     const TTransactionId& transactionId,
-    TWireProtocolReader* reader)
+    TWireProtocolReader* reader,
+    TFuture<void>* commitResult)
 {
-    Impl_->Write(
+    return Impl_->Write(
         std::move(tabletSnapshot),
         transactionId,
-        reader);
+        reader,
+        commitResult);
 }
 
 IStorePtr TTabletManager::CreateStore(TTablet* tablet, const TStoreId& storeId)

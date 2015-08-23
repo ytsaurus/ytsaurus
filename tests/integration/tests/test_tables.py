@@ -169,12 +169,23 @@ class TestTables(YTEnvSetup):
         write_table("<append=true>//tmp/table", [{"a": 0}])
         write_table("<append=true>//tmp/table", [{"b": 1}])
         write_table("<append=true>//tmp/table", [{"c": 2}])
+        write_table("<append=true>//tmp/table", [{"d": 3}])
+        write_table("<append=true>//tmp/table", [{"e": 4}])
+        write_table("<append=true>//tmp/table", [{"f": 5}])
+        write_table("<append=true>//tmp/table", [{"g": 6}])
+        write_table("<append=true>//tmp/table", [{"h": 7}])
 
-        assert len(get("//tmp/table/@chunk_ids")) == 3
+        assert len(get("//tmp/table/@chunk_ids")) == 8
 
         assert read_table("<upper_limit={chunk_index=1}>//tmp/table") == [{"a": 0}]
-        assert read_table("<lower_limit={chunk_index=2}>//tmp/table") == [{"c": 2}]
+        assert read_table("<lower_limit={chunk_index=2}>//tmp/table") == [{"c": 2}, {"d" : 3}, {"e" : 4}, {"f" : 5}, {"g" : 6}, {"h" : 7}]
         assert read_table("<lower_limit={chunk_index=1};upper_limit={chunk_index=2}>//tmp/table") == [{"b": 1}]
+        rows = read_table("//tmp/table", unordered=True)
+        d = dict()
+        for r in rows:
+            d.update(r)
+
+        assert d == {"a" : 0, "b" : 1, "c" : 2, "d" : 3, "e" : 4, "f" : 5, "g" : 6, "h" : 7}
 
     def test_row_key_selector(self):
         create("table", "//tmp/table")
@@ -249,6 +260,11 @@ class TestTables(YTEnvSetup):
         control_attributes = {"enable_range_index": True, "enable_row_index": True}
         result = read_table("//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes)
         assert result == [v1, v2, v3, v4, v5, v6, v7, v8, v9]
+
+        # Test row_index without range index.
+        control_attributes = {"enable_row_index": True}
+        result = read_table("//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes)
+        assert result == [v2, v3, v4, v5, v7, v8, v9]
 
     def test_range_and_row_index2(self):
         create("table", "//tmp/table")

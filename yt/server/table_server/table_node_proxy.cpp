@@ -16,8 +16,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/schema.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/schema.h>
 
 #include <ytlib/chunk_client/read_limit.h>
 
@@ -42,7 +42,7 @@ using namespace NCypressServer;
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionServer;
 using namespace NTabletServer;
 using namespace NNodeTrackerServer;
@@ -101,6 +101,7 @@ private:
             .SetCustom(true));
         descriptors->push_back(TAttributeDescriptor("schema")
             .SetCustom(true));
+        descriptors->push_back("atomicity");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -166,6 +167,12 @@ private:
             return true;
         }
 
+        if (key == "atomicity") {
+            BuildYsonFluently(consumer)
+                .Value(table->GetAtomicity());
+            return true;
+        }
+
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
@@ -197,6 +204,20 @@ private:
             return true;
         }
 
+        if (key == "atomicity") {
+            auto atomicity = ConvertTo<NTransactionClient::EAtomicity>(value);
+
+            ValidateNoTransaction();
+
+            auto* table = LockThisTypedImpl();
+            if (table->HasMountedTablets()) {
+                THROW_ERROR_EXCEPTION("Cannot atomicity mode of a dynamic table with mounted tablets");
+            }
+
+            table->SetAtomicity(atomicity);
+            return true;
+        }
+
         return TBase::SetBuiltinAttribute(key, value);
     }
     
@@ -205,7 +226,7 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
-        const auto* table = GetThisTypedImpl();
+        auto* table = GetThisTypedImpl();
 
         if (key == "channels") {
             if (!newValue) {
@@ -222,7 +243,13 @@ private:
                 ThrowCannotRemoveAttribute(key);
             }
 
-            ConvertTo<TTableSchema>(*newValue);
+            auto newSchema = ConvertTo<TTableSchema>(*newValue);
+
+            if (table->IsDynamic()) {
+                auto tabletManager = Bootstrap_->GetTabletManager();
+                auto schema = tabletManager->GetTableSchema(table);
+                ValidateTableSchemaUpdate(schema, newSchema);
+            }
 
             if (table->HasMountedTablets()) {
                 THROW_ERROR_EXCEPTION("Table has mounted tablets");
@@ -285,7 +312,7 @@ private:
     }
 
 
-    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Mount)
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount)
     {
         DeclareMutating();
 
@@ -319,7 +346,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Unmount)
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Unmount)
     {
         DeclareMutating();
 
@@ -347,7 +374,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Remount)
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Remount)
     {
         DeclareMutating();
 
@@ -372,13 +399,13 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, Reshard)
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Reshard)
     {
         DeclareMutating();
 
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
-        auto pivotKeys = FromProto<NVersionedTableClient::TOwningKey>(request->pivot_keys());
+        auto pivotKeys = FromProto< NTableClient::TOwningKey>(request->pivot_keys());
         context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, PivotKeyCount: %v",
             firstTabletIndex,
             lastTabletIndex,
@@ -400,7 +427,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NVersionedTableClient::NProto, GetMountInfo)
+    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, GetMountInfo)
     {
         DeclareNonMutating();
 

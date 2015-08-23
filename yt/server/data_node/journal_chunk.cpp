@@ -38,12 +38,13 @@ static NProfiling::TSimpleCounter DiskJournalReadByteCounter("/disk_journal_read
 
 TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
-    TLocationPtr location,
+    TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
     : TChunkBase(
         bootstrap,
         location,
         descriptor.Id)
+    , StoreLocation_(location)
 {
     CachedRowCount_ = descriptor.RowCount;
     CachedDataSize_ = descriptor.DiskSpace;
@@ -51,6 +52,11 @@ TJournalChunk::TJournalChunk(
 
     Meta_->set_type(static_cast<int>(EChunkType::Journal));
     Meta_->set_version(0);
+}
+
+TStoreLocationPtr TJournalChunk::GetStoreLocation() const
+{
+    return StoreLocation_;
 }
 
 void TJournalChunk::SetActive(bool value)
@@ -98,10 +104,37 @@ TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(const TNullable<std::vector<in
     return FilterMeta(Meta_, extensionTags);
 }
 
-TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
+TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockSet(
+    const std::vector<int>& blockIndexes,
+    i64 priority,
+    bool populateCache,
+    IBlockCachePtr blockCache)
+{
+    // Extract the initial contiguous segment of blocks.
+    if (blockIndexes.empty()) {
+        return MakeFuture(std::vector<TSharedRef>());
+    }
+
+    int firstBlockIndex = blockIndexes.front();
+    int blockCount = 0;
+    while (blockCount < blockIndexes.size() && blockIndexes[blockCount + 1] == blockIndexes[blockCount] + 1) {
+        ++blockCount;
+    }
+
+    return ReadBlockRange(
+        firstBlockIndex,
+        blockCount,
+        priority,
+        populateCache,
+        blockCache);
+}
+
+TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    i64 priority)
+    i64 priority,
+    bool /*populateCache*/,
+    IBlockCachePtr /*blockCache*/)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YCHECK(firstBlockIndex >= 0);
@@ -110,7 +143,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     auto promise = NewPromise<std::vector<TSharedRef>>();
 
     auto callback = BIND(
-        &TJournalChunk::DoReadBlocks,
+        &TJournalChunk::DoReadBlockRange,
         MakeStrong(this),
         firstBlockIndex,
         blockCount,
@@ -123,7 +156,7 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlocks(
     return promise;
 }
 
-void TJournalChunk::DoReadBlocks(
+void TJournalChunk::DoReadBlockRange(
     int firstBlockIndex,
     int blockCount,
     TPromise<std::vector<TSharedRef>> promise)
@@ -132,7 +165,7 @@ void TJournalChunk::DoReadBlocks(
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
-        auto changelog = WaitFor(dispatcher->OpenChangelog(Location_, Id_))
+        auto changelog = WaitFor(dispatcher->OpenChangelog(StoreLocation_, Id_))
             .ValueOrThrow();
 
         LOG_DEBUG("Started reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
@@ -155,7 +188,7 @@ void TJournalChunk::DoReadBlocks(
                 Id_)
                 << blocksOrError;
             Location_->Disable(error);
-            THROW_ERROR error;
+            YUNREACHABLE(); // Disable() exits the process.
         }
 
         auto readTime = timer.GetElapsed();
@@ -203,15 +236,11 @@ void TJournalChunk::SyncRemove(bool force)
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             Location_->Disable(error);
-            return;
+            YUNREACHABLE(); // Disable() exits the process.
         }
     }
 
-    if (force) {
-        Location_->RemoveChunkFiles(Id_);
-    } else {
-        Location_->MoveChunkFilesToTrash(Id_);
-    }
+    Location_->RemoveChunkFiles(Id_, force);
 }
 
 TFuture<void> TJournalChunk::AsyncRemove()

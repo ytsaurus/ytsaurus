@@ -11,7 +11,7 @@
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/read_limit.h>
@@ -24,7 +24,7 @@ namespace NYPath {
 using namespace NYTree;
 using namespace NYson;
 using namespace NChunkClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

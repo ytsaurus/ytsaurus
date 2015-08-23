@@ -203,7 +203,12 @@ void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
 void TFileLogWriter::Write(const TLogEvent& event)
 {
     if (Stream_ && !Disabled_.load()) {
-        TStreamLogWriter::Write(event);
+        try {
+            TStreamLogWriter::Write(event);
+        } catch (const std::exception& ex) {
+            Disabled_.store(true);
+            LOG_ERROR(ex, "Failed to write into log file %v", FileName_);
+        }
     }
 }
 
@@ -213,6 +218,7 @@ void TFileLogWriter::Flush()
         try {
             FileOutput_->Flush();
         } catch (const std::exception& ex) {
+            Disabled_.store(true);
             LOG_ERROR(ex, "Failed to flush log file %v", FileName_);
         }
     }

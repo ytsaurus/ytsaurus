@@ -111,10 +111,10 @@ class Holder(WinNode, Server):
             },
             'data_node' : {
                 'incremental_heartbeat_period' : 500,
-                'store_locations' : [
-                    { 'path' : r'%(work_dir)s\chunk_store.0' }
-                ],
-                'cache_location' : {
+                'store_locations' : [{
+                    'path' : r'%(work_dir)s\chunk_store.0'
+                }],
+                'cache_locations' : [{
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
                 },
@@ -124,7 +124,7 @@ class Holder(WinNode, Server):
                 'job_controller': {
                 },
                 'slot_manager': {
-                    'path' : r'%(work_dir)s\slots'
+                    'paths' : [r'%(work_dir)s\slots']
                 },
                 'environment_manager' : {
                     'environments' : {
@@ -148,6 +148,7 @@ class Holder(WinNode, Server):
                 print >>fd, 'del %s' % cls.debug_log_path
                 for location in cls.config['data_node']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
-                print >>fd, 'rmdir /S /Q   %s' % cls.config['data_node']['cache_location']['path']
+                for location in cls.config['data_node']['cache_locations']:
+                        print >>fd, 'rmdir /S /Q   %s' % location['path']
 
 configure(Base)

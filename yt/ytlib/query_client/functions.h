@@ -24,7 +24,7 @@ struct IFunctionDescriptor
         const Stroka& name) const = 0;
 
     virtual TKeyTriePtr ExtractKeyRange(
-        const TIntrusivePtr<const TFunctionExpression>& expr,
+        const TConstFunctionExpressionPtr& expr,
         const TKeyColumns& keyColumns,
         const TRowBufferPtr& rowBuffer) const = 0;
 };

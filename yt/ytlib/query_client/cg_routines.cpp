@@ -7,11 +7,11 @@
 #include "query_statistics.h"
 #include "evaluation_helpers.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/unordered_schemaful_reader.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/unordered_schemaful_reader.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_spec.h>
 
@@ -28,7 +28,7 @@ namespace NQueryClient {
 namespace NRoutines {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
@@ -89,19 +89,10 @@ void WriteRow(TRow row, TExecutionContext* context)
 
 void ScanOpHelper(
     TExecutionContext* context,
-    int dataSplitsIndex,
     void** consumeRowsClosure,
     void (*consumeRows)(void** closure, TRow* rows, int size, char* stopFlag))
 {
     auto& reader = context->Reader;
-
-    {
-        LOG_DEBUG("Started opening reader");
-        NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
-        WaitFor(reader->Open(*context->Schema))
-            .ThrowOnError();
-        LOG_DEBUG("Finished opening reader");
-    }
 
     std::vector<TRow> rows;
     rows.reserve(MaxRowsPerRead);
@@ -271,12 +262,11 @@ const TRow* InsertGroupRow(
     TExecutionContext* context,
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
-    TRow* rowPtr,
-    int valueCount)
+    TRow row,
+    int keySize)
 {
     CHECK_STACK();
 
-    TRow row = *rowPtr;
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
@@ -286,10 +276,9 @@ const TRow* InsertGroupRow(
         }
 
         groupedRows->push_back(row);
-        for (int index = 0; index < valueCount; ++index) {
+        for (int index = 0; index < keySize; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
         }
-        AllocatePermanentRow(context, valueCount, rowPtr);
     }
 
     return &*inserted.first;
@@ -492,6 +481,11 @@ ui64 FarmHashUint64(ui64 value)
     return FarmFingerprint(value);
 }
 
+void ThrowException(const char* error)
+{
+    THROW_ERROR_EXCEPTION("Error while executing UDF: %s", error);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -526,6 +520,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(FarmHashUint64);
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(OrderOpHelper);
+    REGISTER_ROUTINE(ThrowException);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);

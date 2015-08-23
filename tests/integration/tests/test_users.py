@@ -192,6 +192,19 @@ class TestUsers(YTEnvSetup):
                 found = True
         assert found
 
+    def test_remove_group(self):
+        create_user("u")
+        create_group("g")
+        add_member("u", "g")
+
+        self.assertItemsEqual(get("//sys/users/u/@member_of"), ["g", "users"])
+        self.assertItemsEqual(get("//sys/users/u/@member_of_closure"), ["g", "users", "everyone"])
+        
+        remove_group("g")
+        
+        self.assertItemsEqual(get("//sys/users/u/@member_of"), ["users"])
+        self.assertItemsEqual(get("//sys/users/u/@member_of_closure"), ["users", "everyone"])
+
 ##################################################################
 
 @mark_multicell

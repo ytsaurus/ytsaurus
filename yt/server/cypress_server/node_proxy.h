@@ -12,6 +12,7 @@
 
 #include <server/object_server/object_proxy.h>
 
+#include <server/security_server/public.h>
 #include <server/security_server/cluster_resources.h>
 
 #include <server/transaction_server/public.h>
@@ -68,6 +69,7 @@ struct ICypressNodeProxy
 
     //! "Covariant" extension of NYTree::INode::CreateFactory.
     virtual ICypressNodeFactoryPtr CreateCypressFactory(
+        NSecurityServer::TAccount* account,
         bool preserveAccount) const = 0;
 
 };

@@ -8,6 +8,7 @@ import sh
 import ctypes
 import signal
 import subprocess32 as subprocess
+from datetime import datetime, timedelta
 from urllib import quote_plus
 
 
@@ -44,7 +45,7 @@ def _check_call(command, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=5.0):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
         self.server = self._make_address(server, server_port)
@@ -66,6 +67,10 @@ class Yamr(object):
         if max_failed_jobs is None:
             max_failed_jobs = 100
         self.max_failed_jobs = max_failed_jobs
+
+        self.scheduler_info_update_period = scheduler_info_update_period
+        self._last_update_time_of_scheduler_info = None
+        self.scheduler_info = {}
 
         # Check that binary exists and supports help
         _check_output("{0} --help".format(self.binary), shell=True)
@@ -132,6 +137,19 @@ class Yamr(object):
         else:
             return self._as_int(self.get_field_from_server(table, "size", allow_cache=allow_cache))
 
+    def is_directory(self, path):
+        if path.endswith("/"):
+            path = path[:-1]
+        output = _check_output(
+            "{0} -server {1} -list -prefix {2} -jsonoutput".format(self.binary, self.server, path),
+            timeout=self._light_command_timeout,
+            shell=True)
+        listing = json.loads(output)
+        for entry in listing:
+            if entry["name"].startswith(path + "/"):
+                return True
+        return False
+
     def is_sorted(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return self.get_field_from_page(table, "Sorted").lower() == "yes"
@@ -187,6 +205,11 @@ class Yamr(object):
         return "{0} USER=yt MR_USER={1} ./{2} -server {3} {4} -append -lenval -subkey -write {5}"\
                 .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table)
 
+    def run_sort(self, src, dst, opts=""):
+        shell_command = "MR_USER={0} {1} -server {2} -sort -src {3} -dst {4} -maxjobfails {5} {6}"\
+            .format(self.mr_user, self.binary, self.server, src, dst, self.max_failed_jobs, opts)
+        _check_call(shell_command, shell=True)
+
     def run_map(self, command, src, dst, files=None, opts=""):
         if files is None:
             files = []
@@ -205,3 +228,22 @@ class Yamr(object):
         shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
             .format(self.mr_user, self.binary, remote_server, self.server, src, dst, self._make_fastbone(fastbone))
         _check_call(shell_command, shell=True)
+
+    def get_scheduler_info(self):
+        if self._last_update_time_of_scheduler_info is None or \
+                datetime.now() - self._last_update_time_of_scheduler_info > timedelta(seconds=self.scheduler_info_update_period):
+            self._last_update_time_of_scheduler_info = datetime.now()
+            try:
+                scheduler_info = sh.curl("{0}/json?info=scheduler".format(self.http_server), "--max-time", 1, insecure=True, location=True).stdout
+                try:
+                    self.scheduler_info = json.loads(scheduler_info)
+                except ValueError:
+                    self.scheduler_info = {}
+            #except sh.ErrorReturnCode_28:
+            #    logger.warning("Timeout occured while requesting scheduler info from %s", self.http_server)
+            except Exception as err:
+                logger.warning("Error occured (%s: %s) while requesting scheduler info from %s", str(type(err)), str(err), self.http_server)
+        return self.scheduler_info
+
+    def get_operations(self):
+        return self.get_scheduler_info().get("scheduler", {}).get("operationList", [])

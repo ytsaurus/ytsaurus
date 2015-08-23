@@ -83,7 +83,6 @@ TEST(TYamrParserTest, ValueWithTabs)
     ParseYamr(input, &Mock);
 }
 
-
 TEST(TYamrParserTest, SimpleWithSubkey)
 {
     StrictMock<TMockYsonConsumer> Mock;
@@ -192,7 +191,6 @@ TEST(TYamrParserTest, TabsInValue)
     ParseYamr(input, &Mock, config);
 }
 
-
 TEST(TYamrParserTest, Escaping)
 {
     StrictMock<TMockYsonConsumer> Mock;
@@ -216,6 +214,33 @@ TEST(TYamrParserTest, Escaping)
     ParseYamr(input, &Mock, config);
 }
 
+TEST(TYamrParserTest, CustomSeparators)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar("value"));
+    EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key2"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar("value2"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    auto config = New<TYamrFormatConfig>();
+    config->RecordSeparator = 'Y';
+    config->FieldSeparator = 'X';
+
+    Stroka input = "keyXvalueYkey2Xvalue2Y";
+    ParseYamr(input, &Mock, config);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,7 +288,6 @@ TEST(TYamrLenvalParserTest, Simple)
 
     ParseYamr(input, &Mock, config);
 }
-
 
 TEST(TYamrLenvalParserTest, SimpleWithSubkey)
 {
@@ -354,7 +378,6 @@ TEST(TYamrLenvalParserTest, HugeLength)
 
     EXPECT_THROW(ParseYamr(input, Null, config), std::exception);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,9 +2,11 @@
 
 #include "schemaless_writer_adapter.h"
 
-#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/table_client/name_table.h>
 
 #include <core/actions/future.h>
+
+#include <core/concurrency/async_stream.h>
 
 #include <core/misc/error.h>
 
@@ -15,7 +17,8 @@
 namespace NYT {
 namespace NFormats {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
+using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 
@@ -28,22 +31,21 @@ static const size_t BufferSize = 1024 * 1024;
 TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     const TFormat& format,
     TNameTablePtr nameTable,
-    std::unique_ptr<TOutputStream> outputStream,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
     : NameTable_(nameTable)
-    , OutputStream_(std::move(outputStream))
+    , Output_(CreateSyncAdapter(std::move(output)))
     , EnableContextSaving_(enableContextSaving)
     , EnableKeySwitch_(enableKeySwitch)
     , KeyColumnCount_(keyColumnCount)
 {
+    CurrentBuffer_.Reserve(BufferSize);
+    Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
+
     if (EnableContextSaving_) {
-        CurrentBuffer_.Reserve(BufferSize);
         PreviousBuffer_.Reserve(BufferSize);
-        Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
-    } else {
-        Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, OutputStream_.get());
     }
 }
 
@@ -57,10 +59,15 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
     try {
         for (const auto& row : rows) {
             if (EnableKeySwitch_) {
-                if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                    WriteControlAttribute(EControlAttribute::KeySwitch, true);
+                try {
+                    if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
+                        WriteControlAttribute(EControlAttribute::KeySwitch, true);
+                    }
+                    CurrentKey_ = row;
+                } catch (const std::exception& ex) {
+                    // COMPAT(psushin): composite values are not comparable anymore.
+                    THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
                 }
-                CurrentKey_ = row;
             }
 
             ConsumeRow(row);
@@ -68,6 +75,11 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
             if (CurrentBuffer_.Size() >= BufferSize) {
                 FlushBuffer();
             }
+        }
+
+        if (!EnableContextSaving_ && CurrentBuffer_.Size() > 0) {
+            // If context saving is not enabled, flush buffer asap.
+            FlushBuffer();
         }
 
         if (EnableKeySwitch_ && CurrentKey_) {
@@ -91,7 +103,7 @@ TFuture<void> TSchemalessWriterAdapter::Close()
 {
     try {
         FlushBuffer();
-        OutputStream_->Finish();
+        Output_->Finish();
     } catch (const std::exception& ex) {
         Error_ = TError(ex);
     }
@@ -186,11 +198,13 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
 
 void TSchemalessWriterAdapter::FlushBuffer()
 {
+    const auto& buffer = CurrentBuffer_.Blob();
+    Output_->Write(buffer.Begin(), buffer.Size());
+
     if (EnableContextSaving_) {
-        OutputStream_->Write(CurrentBuffer_.Begin(), CurrentBuffer_.Size());
-        swap(CurrentBuffer_, PreviousBuffer_);
-        CurrentBuffer_.Clear();
+        std::swap(PreviousBuffer_, CurrentBuffer_);
     }
+    CurrentBuffer_.Clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

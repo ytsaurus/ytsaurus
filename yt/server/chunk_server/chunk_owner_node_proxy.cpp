@@ -42,14 +42,15 @@ using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkClient;
-using namespace NVersionedTableClient;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NTransactionServer;
-using namespace NSecurityServer;
+using namespace NYson;
+using namespace NYTree;
+using namespace NTableClient;
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;

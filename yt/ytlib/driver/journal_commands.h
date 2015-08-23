@@ -6,7 +6,7 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NDriver {
@@ -43,6 +43,7 @@ private:
 
 struct TWriteJournalRequest
     : public TTransactionalRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr JournalWriter;

@@ -337,7 +337,7 @@ YtCommand.prototype._getUser = function() {
         throw new YtError("Failed to identify user credentials");
     }
 
-    if (this.name === "ping_tx") {
+    if (this.name === "ping_tx" || this.name === "parse_ypath") {
         // Do not check stickness for `ping_tx` command.
         return;
     }
@@ -624,7 +624,7 @@ YtCommand.prototype._getOutputCompression = function() {
     var result_compression, result_mime, header;
 
     header = this.req.headers["accept-encoding"];
-    if (typeof(header) === "string") {
+    if (typeof(header) === "string" && this.descriptor.compression !== false) {
         result_mime = utils.bestAcceptedEncoding(
             _ENCODING_ALL,
             header);

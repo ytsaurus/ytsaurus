@@ -6,9 +6,9 @@
 
 #include <ytlib/formats/format.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 namespace NYT {
 namespace NDriver {
@@ -20,7 +20,8 @@ struct TReadTableRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr TableReader;
-    NVersionedTableClient::TControlAttributesConfigPtr ControlAttributes;
+    NTableClient::TControlAttributesConfigPtr ControlAttributes;
+    bool Unordered;
 
     TReadTableRequest()
     {
@@ -29,6 +30,8 @@ struct TReadTableRequest
             .Default(nullptr);
         RegisterParameter("control_attributes", ControlAttributes)
             .DefaultNew();
+        RegisterParameter("unordered", Unordered)
+            .Default(false);
     }
 
     virtual void OnLoaded() override
@@ -158,7 +161,7 @@ private:
 struct TReshardTableRequest
     : public TTabletRequest
 {
-    std::vector<NVersionedTableClient::TOwningKey> PivotKeys;
+    std::vector<NTableClient::TOwningKey> PivotKeys;
 
     TReshardTableRequest()
     {
@@ -180,26 +183,32 @@ struct TSelectRowsRequest
     : public TRequest
 {
     Stroka Query;
-    NVersionedTableClient::TTimestamp Timestamp;
+    NTableClient::TTimestamp Timestamp;
     TNullable<i64> InputRowLimit;
     TNullable<i64> OutputRowLimit;
     ui64 RangeExpansionLimit;
+    bool FailOnIncompleteResult;
     bool VerboseLogging;
+    bool EnableCodeCache;
     ui64 MaxSubqueries;
 
     TSelectRowsRequest()
     {
         RegisterParameter("query", Query);
         RegisterParameter("timestamp", Timestamp)
-            .Default(NVersionedTableClient::SyncLastCommittedTimestamp);
+            .Default(NTableClient::SyncLastCommittedTimestamp);
         RegisterParameter("input_row_limit", InputRowLimit)
             .Default();
         RegisterParameter("output_row_limit", OutputRowLimit)
             .Default();
         RegisterParameter("range_expansion_limit", RangeExpansionLimit)
             .Default(1000);
+        RegisterParameter("fail_on_incomplete_result", FailOnIncompleteResult)
+            .Default(true);
         RegisterParameter("verbose_logging", VerboseLogging)
             .Default(false);
+        RegisterParameter("enable_code_cache", EnableCodeCache)
+            .Default(true);
         RegisterParameter("max_subqueries", MaxSubqueries)
             .Default(0);
     }
@@ -221,6 +230,8 @@ struct TInsertRowsRequest
     NYTree::INodePtr TableWriter;
     NYPath::TRichYPath Path;
     bool Update;
+    NTransactionClient::EAtomicity Atomicity;
+    NTransactionClient::EDurability Durability;
 
     TInsertRowsRequest()
     {
@@ -229,6 +240,10 @@ struct TInsertRowsRequest
         RegisterParameter("path", Path);
         RegisterParameter("update", Update)
             .Default(false);
+        RegisterParameter("atomicity", Atomicity)
+            .Default(NTransactionClient::EAtomicity::Full);
+        RegisterParameter("durability", Durability)
+            .Default(NTransactionClient::EDurability::Sync);
     }
 };
 

@@ -2,12 +2,12 @@
 #include "table_commands.h"
 #include "config.h"
 
-#include <ytlib/new_table_client/helpers.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/table_consumer.h>
+#include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/table_consumer.h>
 
 #include <ytlib/tablet_client/table_mount_cache.h>
 
@@ -27,7 +27,7 @@ using namespace NQueryClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
 using namespace NHive;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,31 +47,33 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto nameTable = New<TNameTable>();
+    auto options = TTableReaderOptions();
+    options.Config = config;
+    options.TransactionId = Request_->TransactionId;
+    options.Ping = true;
+    options.PingAncestors = Request_->PingAncestors;
+    options.Unordered = Request_->Unordered;
 
-    auto reader = CreateSchemalessTableReader(
-        config,
-        New<TRemoteReaderOptions>(),
-        Context_->GetClient(),
-        AttachTransaction(false),
+    auto reader = Context_->GetClient()->CreateTableReader(
         Request_->Path,
-        nameTable);
+        options);
 
     WaitFor(reader->Open())
         .ThrowOnError();
 
-    BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
-        .Item("start_row_index").Value(reader->GetTableRowIndex())
-        .Item("approximate_row_count").Value(reader->GetTotalRowCount());
-
-    auto output = CreateSyncAdapter(Context_->Request().OutputStream);
-    auto bufferedOutput = std::make_unique<TBufferedOutput>(output.get());
-    auto format = Context_->GetOutputFormat();
+    if (reader->GetTotalRowCount() > 0) {
+        BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+            .Item("start_row_index").Value(reader->GetTableRowIndex())
+            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+    } else {
+        BuildYsonMapFluently(Context_->Request().ResponseParametersConsumer)
+            .Item("approximate_row_count").Value(reader->GetTotalRowCount());
+    }
 
     auto writer = CreateSchemalessWriterForFormat(
-        format,
-        nameTable,
-        std::move(bufferedOutput),
+        Context_->GetOutputFormat(),
+        reader->GetNameTable(),
+        Context_->Request().OutputStream,
         false,
         false,
         0);
@@ -217,7 +219,9 @@ void TSelectRowsCommand::DoExecute()
     options.InputRowLimit = Request_->InputRowLimit;
     options.OutputRowLimit = Request_->OutputRowLimit;
     options.RangeExpansionLimit = Request_->RangeExpansionLimit;
+    options.FailOnIncompleteResult = Request_->FailOnIncompleteResult;
     options.VerboseLogging = Request_->VerboseLogging;
+    options.EnableCodeCache = Request_->EnableCodeCache;
     options.MaxSubqueries = Request_->MaxSubqueries;
 
     auto format = Context_->GetOutputFormat();
@@ -251,6 +255,7 @@ void TSelectRowsCommand::DoExecute()
         .Item("execute_time").Value(statistics.ExecuteTime)
         .Item("read_time").Value(statistics.ReadTime)
         .Item("write_time").Value(statistics.WriteTime)
+        .Item("codegen_time").Value(statistics.CodegenTime)
         .Item("incomplete_input").Value(statistics.IncompleteInput)
         .Item("incomplete_output").Value(statistics.IncompleteOutput);
 }
@@ -295,7 +300,10 @@ void TInsertRowsCommand::DoExecute()
     auto rows = ParseRows(Context_, config, valueConsumer);
 
     // Run writes.
-    auto asyncTransaction = Context_->GetClient()->StartTransaction(ETransactionType::Tablet);
+    NApi::TTransactionStartOptions options;
+    options.Atomicity = Request_->Atomicity;
+    options.Durability = Request_->Durability;
+    auto asyncTransaction = Context_->GetClient()->StartTransaction(ETransactionType::Tablet, options);
     auto transaction = WaitFor(asyncTransaction)
         .ValueOrThrow();
 

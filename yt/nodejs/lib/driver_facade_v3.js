@@ -1,5 +1,8 @@
 var binding = require("./ytnode");
 
+var Q = require("bluebird");
+
+var YtError = require("./error").that;
 var YtApplicationVersions = require("./application_versions").that;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,8 +33,13 @@ function YtDriverFacadeV3(driver)
             input_type: "null", 
             output_type: "structured", 
             is_volatile: false, 
-            is_heavy: false 
-        }; 
+            is_heavy: false
+        };
+        Object.defineProperty( 
+            custom_commands[name], 
+            "compression",
+            { enumerable: false, value: false });
+
         Object.defineProperty( 
             custom_commands[name], 
             "input_type_as_integer", 
@@ -40,7 +48,7 @@ function YtDriverFacadeV3(driver)
         Object.defineProperty( 
             custom_commands[name], 
             "output_type_as_integer", 
-            { enumerable: false, value: binding.EDataType_Null }); 
+            { enumerable: false, value: binding.EDataType_Structured }); 
  
         Object.defineProperty( 
             custom_commands[name], 
@@ -52,7 +60,7 @@ function YtDriverFacadeV3(driver)
  
     defineCustomCommand("_discover_versions", function(output_stream) { 
         return application_versions.get_versions().then(function(result) { 
-            output_stream.write(JSON.stringify(result)); 
+            output_stream.write(JSON.stringify(result));
         }); 
     }); 
  
@@ -66,7 +74,12 @@ YtDriverFacadeV3.prototype.execute = function(name, user,
     parameters, request_id, pause, response_parameters_consumer)
 {
     if (typeof(this.custom_commands[name]) !== "undefined") {
-        return this.custom_commands[name].execute(output_stream);
+        return this.custom_commands[name].execute(output_stream, parameters.Get())
+        .then(function () {
+            return [new YtError(), 0, 0];
+        }, function (error) {
+            return [error, 0, 0];
+        });
     }
 
     return this.driver.execute(

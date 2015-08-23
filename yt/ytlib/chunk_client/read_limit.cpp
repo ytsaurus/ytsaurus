@@ -11,7 +11,7 @@ namespace NChunkClient {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,6 +26,16 @@ TReadLimit::TReadLimit(const NProto::TReadLimit& protoLimit)
 TReadLimit::TReadLimit(NProto::TReadLimit&& protoLimit)
 {
     InitMove(std::move(protoLimit));
+}
+
+TReadLimit::TReadLimit(const TOwningKey& key)
+{
+    SetKey(key);
+}
+
+TReadLimit::TReadLimit(TOwningKey&& key)
+{
+    SetKey(std::move(key));
 }
 
 TReadLimit& TReadLimit::operator= (const NProto::TReadLimit& protoLimit)

@@ -48,6 +48,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/builtin_functions.cpp
     ${BASE}/user_defined_functions.cpp
     ${BASE}/function_registry.cpp
+    ${BASE}/udf_descriptor.cpp
   )
 
   set( HDRS
@@ -62,6 +63,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/builtin_functions.h
     ${BASE}/user_defined_functions.h
     ${BASE}/function_registry.h
+    ${BASE}/udf_descriptor.h
   )
 endif()
 
@@ -86,14 +88,14 @@ udf_bc(
     cardinality_merge
     cardinality_finalize
   FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client/unversioned_value.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
     ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
 )
 udf_bc(
   ${BASE}/udf/farm_hash.cpp
   YT_SOURCE_FILES
   FILES
-    ${CMAKE_SOURCE_DIR}/yt/ytlib/new_table_client/unversioned_value.cpp
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
     ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
 )
 udf_bc( ${BASE}/udf/double_cast.c YT_SOURCE_FILES )
@@ -108,3 +110,9 @@ udf_bc( ${BASE}/udf/min.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/max.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/sum.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/avg.c YT_SOURCE_FILES )
+
+udf_bc( ${BASE}/udf/regex_match.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/regex_get_group.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/unixtime.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/strtoint.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/get_suffix.c YT_SOURCE_FILES )

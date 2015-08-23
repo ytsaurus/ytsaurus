@@ -361,7 +361,7 @@ private:
             ToProto(header.mutable_request_id(), requestId);
             header.set_service(request->GetService());
             header.set_method(request->GetMethod());
-            if (request->GetRealmId() != NullRealmId) {
+            if (request->GetRealmId()) {
                 ToProto(header.mutable_realm_id(), request->GetRealmId());
             }
 

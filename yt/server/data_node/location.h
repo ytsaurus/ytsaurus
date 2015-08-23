@@ -28,7 +28,6 @@ DEFINE_ENUM(ELocationType,
     (Cache)
 );
 
-//! Describes a physical location of chunks.
 class TLocation
     : public TRefCounted
 {
@@ -36,10 +35,8 @@ public:
     TLocation(
         ELocationType type,
         const Stroka& id,
-        TLocationConfigPtr config,
+        TLocationConfigBasePtr config,
         NCellNode::TBootstrap* bootstrap);
-
-    ~TLocation();
 
     //! Returns the type.
     ELocationType GetType() const;
@@ -47,14 +44,24 @@ public:
     //! Returns string id.
     const Stroka& GetId() const;
 
-    //! Returns the location's configuration.
-    TLocationConfigPtr GetConfig() const;
-
-    //! Returns |true| if the location accepts new chunks of a given type.
-    bool IsChunkTypeAccepted(NObjectClient::EObjectType chunkType);
-
     //! Returns the profiler tagged with location id.
-    const NProfiling::TProfiler& GetProfiler();
+    const NProfiling::TProfiler& GetProfiler() const;
+
+    //! Returns the root path of the location.
+    Stroka GetPath() const;
+
+    //! Returns the maximum number of bytes the chunks assigned to this location
+    //! are allowed to use.
+    i64 GetQuota() const;
+
+    //! Returns an invoker for reading chunk data.
+    IPrioritizedInvokerPtr GetDataReadInvoker();
+
+    //! Returns an invoker for reading chunk meta.
+    IPrioritizedInvokerPtr GetMetaReadInvoker();
+
+    //! Returns an invoker for writing chunks.
+    IInvokerPtr GetWritePoolInvoker();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     /*!
@@ -64,26 +71,19 @@ public:
 
     //! Prepares the location to accept new writes.
     /*!
-     *  Replays multiplexed journals.
      *  Must be called when all locations are scanned and all existing chunks are registered.
      *  On failure, acts similarly to Scan.
      */
     void Start();
 
-    //! Updates #UsedSpace and #AvailalbleSpace
+    //! Returns |true| iff the location is enabled.
+    bool IsEnabled() const;
+
+    //! Marks the location as disabled.
+    void Disable(const TError& reason);
+
+    //! Updates #UsedSpace and #AvailableSpace
     void UpdateUsedSpace(i64 size);
-
-    //! Updates #AvailalbleSpace with a system call and returns the result.
-    //! Never throws.
-    i64 GetAvailableSpace() const;
-
-    //! Returns the total space on the disk drive where the location resides.
-    //! Never throws.
-    i64 GetTotalSpace() const;
-
-    //! Returns the space reserved for low watermark.
-    //! Never throws.
-    i64 GetLowWatermarkSpace() const;
 
     //! Returns the number of bytes used at the location.
     /*!
@@ -92,15 +92,9 @@ public:
      */
     i64 GetUsedSpace() const;
 
-    //! Returns the maximum number of bytes the chunks assigned to this location
-    //! are allowed to use.
-    i64 GetQuota() const;
-
-    //! Returns the root path of the location.
-    Stroka GetPath() const;
-
-    //! Returns the root trash path of the location.
-    Stroka GetTrashPath() const;
+    //! Updates #AvailableSpace with a system call and returns the result.
+    //! Never throws.
+    i64 GetAvailableSpace() const;
 
     //! Returns the load factor.
     double GetLoadFactor() const;
@@ -120,51 +114,27 @@ public:
     //! Returns a full path for a primary chunk file.
     Stroka GetChunkPath(const TChunkId& chunkId) const;
 
-    //! Returns a full path for a removed primary chunk file.
-    Stroka GetTrashChunkPath(const TChunkId& chunkId) const;
-
-    //! Checks whether the location is full.
-    bool IsFull() const;
-
-    //! Checks whether to location has enough space to contain file of size #size
-    bool HasEnoughSpace(i64 size) const;
-
-    //! Returns an invoker for reading chunk data.
-    IPrioritizedInvokerPtr GetDataReadInvoker();
-
-    //! Returns an invoker for reading chunk meta.
-    IPrioritizedInvokerPtr GetMetaReadInvoker();
-
-    //! Returns an invoker for writing chunks.
-    IInvokerPtr GetWritePoolInvoker();
-
-    //! Returns Journal Manager accociated with this location.
-    TJournalManagerPtr GetJournalManager();
-
-    //! Returns |true| iff the location is enabled.
-    bool IsEnabled() const;
-
-    //! Marks the location as disabled.
-    void Disable(const TError& reason);
-
     //! Permanently removes the files comprising a given chunk.
-    void RemoveChunkFiles(const TChunkId& chunkId);
+    void RemoveChunkFilesPermanently(const TChunkId& chunkId);
 
-    //! Moves the files comprising a given chunk into trash directory.
-    void MoveChunkFilesToTrash(const TChunkId& chunkId);
+    //! Removes a chunk permanently or moves it to the trash (if available).
+    virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force);
 
-    //! Raised when the location gets disabled.
-    /*!
-     *  Raised at most once in Control thread.
-     */
-    DEFINE_SIGNAL(void(const TError&), Disabled);
+protected:
+    mutable NLogging::TLogger Logger;
+    NCellNode::TBootstrap* const Bootstrap_;
+
+
+    static Stroka GetRelativeChunkPath(const TChunkId& chunkId);
+
+    virtual bool ShouldSkipFileName(const Stroka& fileName) const;
+
+    virtual void DoStart();
 
 private:
     const ELocationType Type_;
     const Stroka Id_;
-    const TLocationConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
-
+    const TLocationConfigBasePtr Config_;
     NProfiling::TProfiler Profiler_;
 
     std::atomic<bool> Enabled_ = {false};
@@ -181,9 +151,63 @@ private:
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
     const IInvokerPtr WritePoolInvoker_;
 
-    const TJournalManagerPtr JournalManager_;
-
     const TDiskHealthCheckerPtr HealthChecker_;
+
+
+    void CheckMinimumSpace();
+    void CheckLockFile();
+
+    void OnHealthCheckFailed(const TError& error);
+    void MakeDisabled();
+
+    i64 GetTotalSpace() const;
+
+    virtual i64 GetAdditionalSpace() const;
+
+    virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) = 0;
+
+    virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const = 0;
+    virtual void DoAdditionalScan();
+
+    std::vector<TChunkDescriptor> DoScan();
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStoreLocation
+    : public TLocation
+{
+public:
+    TStoreLocation(
+        const Stroka& id,
+        TStoreLocationConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
+
+    //! Returns Journal Manager accociated with this location.
+    TJournalManagerPtr GetJournalManager();
+
+    //! Returns the space reserved for low watermark.
+    //! Never throws.
+    i64 GetLowWatermarkSpace() const;
+
+    //! Checks whether the location is full.
+    bool IsFull() const;
+
+    //! Checks whether to location has enough space to contain file of size #size
+    bool HasEnoughSpace(i64 size) const;
+
+    //! Returns |true| if the location accepts new chunks of a given type.
+    bool IsChunkTypeAccepted(NObjectClient::EObjectType chunkType);
+
+    //! Removes a chunk permanently or moves it to the trash.
+    virtual void RemoveChunkFiles(const TChunkId& chunkId, bool force) override;
+
+private:
+    const TStoreLocationConfigPtr Config_;
+
+    const TJournalManagerPtr JournalManager_;
 
     struct TTrashChunkEntry
     {
@@ -196,31 +220,52 @@ private:
     i64 TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
-    mutable NLogging::TLogger Logger;
 
-
-    std::vector<TChunkDescriptor> DoScan();
-    TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
-    TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
-
-    void DoStart();
-
-    void OnHealthCheckFailed(const TError& error);
-    void ScheduleDisable(const TError& reason);
-    void DoDisable(const TError& reason);
-
-    static Stroka GetRelativeChunkPath(const TChunkId& chunkId);
-    std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const;
-
+    Stroka GetTrashPath() const;
+    Stroka GetTrashChunkPath(const TChunkId& chunkId) const;
     void RegisterTrashChunk(const TChunkId& chunkId);
     void OnCheckTrash();
     void CheckTrashTtl();
     void CheckTrashWatermark();
     void RemoveTrashFiles(const TTrashChunkEntry& entry);
+    void MoveChunkFilesToTrash(const TChunkId& chunkId);
 
+    virtual i64 GetAdditionalSpace() const override;
+
+    TNullable<TChunkDescriptor> RepairBlobChunk(const TChunkId& chunkId);
+    TNullable<TChunkDescriptor> RepairJournalChunk(const TChunkId& chunkId);
+    virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
+
+    virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const override;
+    virtual bool ShouldSkipFileName(const Stroka& fileName) const override;
+    virtual void DoAdditionalScan() override;
+
+    virtual void DoStart() override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocation)
+DEFINE_REFCOUNTED_TYPE(TStoreLocation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCacheLocation
+    : public TLocation
+{
+public:
+    TCacheLocation(
+        const Stroka& id,
+        TCacheLocationConfigPtr config,
+        NCellNode::TBootstrap* bootstrap);
+
+private:
+    const TCacheLocationConfigPtr Config_;
+
+    TNullable<TChunkDescriptor> Repair(const TChunkId& chunkId, const Stroka& metaSuffix);
+    virtual TNullable<TChunkDescriptor> RepairChunk(const TChunkId& chunkId) override;
+
+    virtual std::vector<Stroka> GetChunkPartNames(const TChunkId& chunkId) const override;
+};
+
+DEFINE_REFCOUNTED_TYPE(TCacheLocation);
 
 ////////////////////////////////////////////////////////////////////////////////
 

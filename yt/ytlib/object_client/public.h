@@ -80,7 +80,8 @@ DEFINE_ENUM(EObjectType,
     ((Transaction)                (  1))
     ((TransactionMap)             (407))
     ((TopmostTransactionMap)      (418))
-    ((TabletTransaction)          (  2))
+    ((AtomicTabletTransaction)    (  2))
+    ((NonAtomicTabletTransaction) (  3))
     ((LockMap)                    (422))
         
     // Chunk Manager stuff
@@ -103,6 +104,7 @@ DEFINE_ENUM(EObjectType,
     ((ErasureChunkPart_14)        (117))
     ((ErasureChunkPart_15)        (118))
     ((JournalChunk)               (119))
+    ((Artifact)                   (121))
     ((ChunkMap)                   (402))
     ((LostChunkMap)               (403))
     ((LostVitalChunkMap)          (413))

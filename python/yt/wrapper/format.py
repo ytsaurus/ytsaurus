@@ -18,9 +18,9 @@ import itertools
 from cStringIO import StringIO
 
 try:
-    import cjson
+    import ujson
 except ImportError:
-    cjson = None
+    ujson = None
 
 try:
     import statbox_bindings.tskv
@@ -116,7 +116,7 @@ class Format(object):
         """Serialize row and write to the stream.
         """
         if self._is_raw(raw):
-            stream.write(raw)
+            stream.write(row)
             return
         self._dump_row(row, stream)
 
@@ -428,22 +428,22 @@ class YamrFormat(Format):
                 chunk = stream.read(1024 * 1024)
                 if not chunk:
                     break
-                lines = chunk.split("\n")
+                lines = chunk.split(self.record_separator)
                 if len(lines) == 1:
                     prefix.append(lines[0])
                 else:
-                    yield "".join(prefix + [lines[0]]) + "\n"
+                    yield "".join(prefix + [lines[0]]) + self.record_separator
                     for line in lines[1:-1]:
-                        yield line + "\n"
+                        yield line + self.record_separator
                     if lines[-1]:
                         prefix = [lines[-1]]
                     else:
                         prefix = []
             if prefix:
                 if len(prefix) > 1:
-                    yield "".join(prefix) + "\n"
+                    yield "".join(prefix) + self.record_separator
                 else:
-                    yield prefix[0] + "\n"
+                    yield prefix[0] + self.record_separator
             return
 
         table_index = 0
@@ -548,18 +548,18 @@ class JsonFormat(Format):
         if raw:
             return string
         string = string.rstrip("\n")
-        if cjson is not None:
-            return cjson.decode(string)
+        if ujson is not None:
+            return ujson.loads(string)
         return json.loads(string)
 
     def _dump(self, obj, stream):
-        if cjson is not None:
-            return stream.write(cjson.encode(obj))
+        if ujson is not None:
+            return ujson.dump(obj, stream)
         return json.dump(obj, stream)
 
     def _dumps(self, obj):
-        if cjson is not None:
-            return cjson.encode(obj)
+        if ujson is not None:
+            return ujson.dumps(obj)
         return json.dumps(obj)
 
     def load_row(self, stream, raw=None):
@@ -655,7 +655,7 @@ class SchemafulDsvFormat(Format):
     Schemaful dsv format. It accepts column names and outputs values of these columns.
 
     .. seealso:: `SchemafulDsvFormat on wiki \
-    <https://wiki.yandex-team.ru/yt/userdoc/formats#schemafuldsvschemeddsv>`_
+    <https://wiki.yandex-team.ru//yt/userdoc/formats#schemafuldsv>`_
     """
 
     def __init__(self, columns=None, enable_escaping=None,
@@ -788,7 +788,7 @@ def set_yamr_mode(client=None):
     """Configure global config to be yamr compatible"""
     config = get_config(client)
     for option in config["yamr_mode"]:
-        if option == "abort_transactions_with_remove":
+        if option in ["abort_transactions_with_remove", "use_yamr_style_prefix"]:
             continue
         config["yamr_mode"][option] = True
     config["tabular_data_format"] = YamrFormat(has_subkey=True, lenval=False)

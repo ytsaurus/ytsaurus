@@ -53,5 +53,5 @@ DEFINE_REFCOUNTED_TYPE(TEncodingChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

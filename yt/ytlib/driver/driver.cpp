@@ -115,8 +115,6 @@ public:
         REGISTER(TReadTableCommand,            "read_table",              Null,       Tabular,    false, true );
         REGISTER(TInsertRowsCommand,           "insert_rows",             Tabular,    Null,       true,  true );
         REGISTER(TDeleteRowsCommand,           "delete_rows",             Tabular,    Null,       true,  true);
-        // COMPAT(sandello): Remove when releasing 0.17. See YT-1658.
-        REGISTER(TSelectRowsCommand,           "select",                  Null,       Tabular,    false, true );
         REGISTER(TSelectRowsCommand,           "select_rows",             Null,       Tabular,    false, true );
         REGISTER(TLookupRowsCommand,           "lookup_rows",             Tabular,    Tabular,    false, true );
 
@@ -147,6 +145,7 @@ public:
 
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
+        REGISTER(TGetVersionCommand,           "get_version",             Null,       Structured, false, false);
 
 #undef REGISTER
     }

@@ -9,16 +9,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+struct TNull
+{
+    struct TNullInitializer
+    { };
+    constexpr TNull(TNullInitializer)
+    { };
+};
 
-struct TNullHelper
-{ };
-
-} // namespace NDetail
-
-typedef int NDetail::TNullHelper::* TNull;
-
-const TNull Null = static_cast<TNull>(nullptr);
+constexpr TNull Null{TNull::TNullInitializer{}};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,6 +175,13 @@ public:
     explicit operator bool() const
     {
         return HasValue_;
+    }
+
+    bool operator==(const TNullable& other)
+    {
+        return HasValue() && other.HasValue()
+            ? Get() == other.Get()
+            : HasValue() == other.HasValue();
     }
 
     void Assign(TNull)

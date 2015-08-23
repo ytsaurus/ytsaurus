@@ -2,12 +2,13 @@
 
 #include "cg_fragment_compiler.h"
 #include "plan_helpers.h"
+#include "plan_fragment.h"
 #include "private.h"
 
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -198,7 +199,7 @@ EValueType TTypedFunction::InferResultType(
 ////////////////////////////////////////////////////////////////////////////////
 
 TKeyTriePtr TUniversalRangeFunction::ExtractKeyRange(
-    const TIntrusivePtr<const TFunctionExpression>& expr,
+    const TConstFunctionExpressionPtr& expr,
     const TKeyColumns& keyColumns,
     const TRowBufferPtr& rowBuffer) const
 {
@@ -293,7 +294,7 @@ TCGValue TIsPrefixFunction::CodegenValue(
 }
 
 TKeyTriePtr TIsPrefixFunction::ExtractKeyRange(
-    const TIntrusivePtr<const TFunctionExpression>& expr,
+    const TConstFunctionExpressionPtr& expr,
     const TKeyColumns& keyColumns,
     const TRowBufferPtr& rowBuffer) const
 {

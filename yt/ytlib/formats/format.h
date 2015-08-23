@@ -11,8 +11,8 @@
 
 #include <core/concurrency/public.h>
 
-#include <ytlib/new_table_client/public.h>
-#include <ytlib/new_table_client/schemaless_writer.h>
+#include <ytlib/table_client/public.h>
+#include <ytlib/table_client/schemaless_writer.h>
 
 namespace NYT {
 namespace NFormats {
@@ -36,8 +36,6 @@ DEFINE_ENUM(EFormatType,
     (Dsv)
     (Yamr)
     (YamredDsv)
-    // COMPAT(babenko): schemed -> schemaful
-    (SchemedDsv)
     (SchemafulDsv)
 );
 
@@ -65,7 +63,7 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessFormatWriter
-    : public NVersionedTableClient::ISchemalessWriter
+    : public NTableClient::ISchemalessWriter
 {
     virtual void WriteTableIndex(int tableIndex) = 0;
 
@@ -85,14 +83,14 @@ std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
     EDataType dataType,
     TOutputStream* output);
 
-NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
+NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
     NConcurrency::IAsyncOutputStreamPtr output);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
-    NVersionedTableClient::TNameTablePtr nameTable,
-    std::unique_ptr<TOutputStream> outputStream,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount);

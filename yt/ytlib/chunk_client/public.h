@@ -86,6 +86,8 @@ DEFINE_ENUM(EErrorCode,
     ((MasterCommunicationFailed)(712))
     ((NoSuchChunkTree)          (713))
     ((MasterNotConnected)       (714))
+    ((ChunkCreationFailed)      (715))
+    ((ChunkUnavailable)         (716))
 );
 
 //! Values must be contiguous.
@@ -139,7 +141,8 @@ DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
-DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
+using TRefCountedChunkSpec = TRefCountedProto<NProto::TChunkSpec>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)
 
 class TReadLimit;

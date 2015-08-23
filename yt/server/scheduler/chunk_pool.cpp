@@ -4,7 +4,7 @@
 
 #include <ytlib/chunk_client/chunk_slice.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -14,7 +14,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
-using NVersionedTableClient::NProto::TPartitionsExt;
+using NTableClient::NProto::TPartitionsExt;
 
 ////////////////////////////////////////////////////////////////////
 

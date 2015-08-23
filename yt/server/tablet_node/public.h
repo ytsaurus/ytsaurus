@@ -6,7 +6,7 @@
 
 #include <ytlib/tablet_client/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -47,19 +47,19 @@ using NTransactionClient::SyncLastCommittedTimestamp;
 using NTransactionClient::AsyncLastCommittedTimestamp;
 using NTransactionClient::AllCommittedTimestamp;
 
-using NVersionedTableClient::EValueType;
-using NVersionedTableClient::TKey;
-using NVersionedTableClient::TOwningKey;
-using NVersionedTableClient::TUnversionedValue;
-using NVersionedTableClient::TVersionedValue;
-using NVersionedTableClient::TUnversionedRow;
-using NVersionedTableClient::TUnversionedOwningRow;
-using NVersionedTableClient::TVersionedRow;
-using NVersionedTableClient::TVersionedOwningRow;
-using NVersionedTableClient::TColumnFilter;
-using NVersionedTableClient::TTableSchema;
-using NVersionedTableClient::TColumnSchema;
-using NVersionedTableClient::TChunkReaderPerformanceCounters;
+using NTableClient::EValueType;
+using NTableClient::TKey;
+using NTableClient::TOwningKey;
+using NTableClient::TUnversionedValue;
+using NTableClient::TVersionedValue;
+using NTableClient::TUnversionedRow;
+using NTableClient::TUnversionedOwningRow;
+using NTableClient::TVersionedRow;
+using NTableClient::TVersionedOwningRow;
+using NTableClient::TColumnFilter;
+using NTableClient::TTableSchema;
+using NTableClient::TColumnSchema;
+using NTableClient::TChunkReaderPerformanceCounters;
 
 using NHive::ETransactionState;
 
@@ -198,8 +198,8 @@ class TEditList;
 using TValueList = TEditList<TDynamicValue>;
 using TRevisionList = TEditList<ui32>;
 
-using TTabletWriterOptions = NVersionedTableClient::TTableWriterOptions;
-using TTabletWriterOptionsPtr = NVersionedTableClient::TTableWriterOptionsPtr;
+using TTabletWriterOptions = NTableClient::TTableWriterOptions;
+using TTabletWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
 
 //! This is the hard limit.
 //! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.

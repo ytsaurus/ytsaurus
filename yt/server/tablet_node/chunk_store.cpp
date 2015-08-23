@@ -16,10 +16,10 @@
 
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/versioned_chunk_reader.h>
-#include <ytlib/new_table_client/cached_versioned_chunk_meta.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/versioned_chunk_reader.h>
+#include <ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/api/client.h>
 
@@ -50,8 +50,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
 using namespace NObjectClient;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
@@ -622,8 +622,8 @@ void TChunkStore::PrecacheProperties()
     MaxTimestamp_ = miscExt.max_timestamp();
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
-    MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
-    MaxKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
+    MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), KeyColumnCount_);
+    MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), KeyColumnCount_);
 }
 
 void TChunkStore::OnLocalReaderFailed()

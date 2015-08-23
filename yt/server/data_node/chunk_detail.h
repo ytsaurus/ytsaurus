@@ -42,6 +42,9 @@ public:
     virtual int GetVersion() const override;
     virtual void IncrementVersion() override;
 
+    virtual bool IsAlive() const override;
+    virtual void SetDead() override;
+
     virtual bool TryAcquireReadLock() override;
     virtual void ReleaseReadLock() override;
     virtual bool IsReadLockAcquired() const override;
@@ -55,6 +58,8 @@ protected:
     const TChunkId Id_;
 
     int Version_ = 0;
+
+    std::atomic<bool> Alive_ = {true};
 
     TSpinLock SpinLock_;
     TFuture<void> RemovedFuture_;  // if not null then remove is scheduled

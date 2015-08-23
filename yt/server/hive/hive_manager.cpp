@@ -69,8 +69,7 @@ public:
         IHydraManagerPtr hydraManager,
         TCompositeAutomatonPtr automaton)
         : THydraServiceBase(
-            hydraManager,
-            automatonInvoker,
+            hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             TServiceId(THiveServiceProxy::GetServiceName(), selfCellId),
             HiveLogger,
             THiveServiceProxy::GetProtocolVersion())
@@ -81,6 +80,7 @@ public:
         , SelfCellId_(selfCellId)
         , Config_(config)
         , CellDirectory_(cellDirectory)
+        , HydraManager_(hydraManager)
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
@@ -227,6 +227,7 @@ private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const TCellDirectoryPtr CellDirectory_;
+    const IHydraManagerPtr HydraManager_;
 
     TEntityMap<TCellId, TMailbox> MailboxMap_;
     
@@ -1094,6 +1095,13 @@ private:
     void LoadValues(TLoadContext& context)
     {
         MailboxMap_.LoadValues(context);
+    }
+
+
+    // THydraServiceBase overrides.
+    virtual IHydraManagerPtr GetHydraManager() override
+    {
+        return HydraManager_;
     }
 
 };

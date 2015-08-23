@@ -1,5 +1,7 @@
-from pickling import dump
+import config
 from config import get_config
+from pickling import Pickler
+from common import get_python_version, YtError
 
 from yt.zip import ZipFile
 import yt.logger as logger
@@ -56,10 +58,14 @@ def module_relpath(module_name, module_file, client):
     #        return relpath
 
 def find_file(path):
+    origin_path = path
     while path != "/":
         if os.path.isfile(path):
             return path
-        path = os.path.dirname(path)
+        dirname = os.path.dirname(path)
+        if dirname == path:
+            raise YtError("Incorrect module path " + origin_path)
+        path = dirname
 
 def create_modules_archive(tempfiles_manager, client):
     create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
@@ -114,21 +120,25 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
     local_temp_directory = get_config(client)["local_temp_directory"]
     function_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                           prefix=get_function_name(function) + ".")
+
+    pickler = Pickler(get_config(client)["pickling"]["framework"])
+
     with open(function_filename, "w") as fout:
         attributes = function.attributes if hasattr(function, "attributes") else {}
-        dump((function, attributes, operation_type, input_format, output_format, reduce_by), fout)
+        pickler.dump((function, attributes, operation_type, input_format, output_format, reduce_by, get_python_version()), fout)
 
     config_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
                                                         prefix="config_dump")
     with open(config_filename, "w") as fout:
-        dump(get_config(client), fout)
+        Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
     if attributes.get('is_simple', False):
-        return ("python _py_runner.py " + " ".join([
+        files = [function_filename, config_filename] + [os.path.join(LOCATION, module + ".py")
+                                                        for module in OPERATION_REQUIRED_MODULES]
+        return ("PYTHONPATH=. python _py_runner.py " + " ".join([
                     os.path.basename(function_filename),
                     os.path.basename(config_filename)]),
-                os.path.join(LOCATION, "_py_runner.py"),
-                [function_filename, config_filename])
+                os.path.join(LOCATION, "_py_runner.py"), files)
 
     zip_filename = create_modules_archive(tempfiles_manager, client)
     main_filename = tempfiles_manager.create_tempfile(dir=local_temp_directory,
@@ -170,6 +180,10 @@ def _set_attribute(func, key, value):
 def aggregator(func):
     """Decorate function to consume *iterator of rows* instead of single row."""
     return _set_attribute(func, "is_aggregator", True)
+
+def reduce_aggregator(func):
+    """Decorate function to consume *iterator of pairs* where each pair consists of key and records with this key."""
+    return _set_attribute(func, "is_reduce_aggregator", True)
 
 def raw(func):
     """Decorate function to consume *raw data stream* instead of single row."""

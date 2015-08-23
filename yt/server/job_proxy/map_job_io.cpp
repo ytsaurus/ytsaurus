@@ -8,7 +8,7 @@
 namespace NYT {
 namespace NJobProxy {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 
@@ -18,11 +18,14 @@ class TMapJobIO
     : public TUserJobIOBase
 {
 public:
-    TMapJobIO(IJobHost* host)
+    TMapJobIO(IJobHost* host, bool isParallel)
         : TUserJobIOBase(host)
+        , IsParallel_(isParallel)
     { }
 
 private:
+    bool IsParallel_;
+
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
@@ -36,14 +39,19 @@ private:
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        return CreateRegularReader(true, std::move(nameTable), columnFilter);
+        return CreateRegularReader(IsParallel_, std::move(nameTable), columnFilter);
     }
 
 };
 
 std::unique_ptr<IUserJobIO> CreateMapJobIO(IJobHost* host)
 {
-    return std::unique_ptr<IUserJobIO>(new TMapJobIO(host));
+    return std::unique_ptr<IUserJobIO>(new TMapJobIO(host, true));
+}
+
+std::unique_ptr<IUserJobIO> CreateOrderedMapJobIO(IJobHost* host)
+{
+    return std::unique_ptr<IUserJobIO>(new TMapJobIO(host, false));
 }
 
 ////////////////////////////////////////////////////////////////////

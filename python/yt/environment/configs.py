@@ -71,6 +71,10 @@ def get_master_config():
         leader_lease_check_period = 100;
         leader_lease_timeout = 200;
         disable_leader_lease_grace_delay = %true;
+        response_keeper = {
+            expiration_time = 25000;
+            warmup_time = 30000;
+        };
     };
 
     chunk_manager = {
@@ -116,6 +120,7 @@ def get_master_config():
 }
 """)
 
+
 def get_scheduler_config():
     return yson.loads(
 """
@@ -135,6 +140,11 @@ def get_scheduler_config():
         transaction_manager = {
             default_ping_period = 500;
         };
+    };
+
+    response_keeper = {
+        expiration_time = 25000;
+        warmup_time = 30000;
     };
 
     scheduler = {
@@ -161,6 +171,7 @@ def get_scheduler_config():
     logging = { };
 
     tracing = { };
+
 }
 """)
 
@@ -205,9 +216,7 @@ def get_node_config():
     };
 
     data_node = {
-        cache_location = {
-            path = "";
-        };
+        cache_locations = [];
         store_locations = [];
         split_changelog = {
             flush_period = 10;
@@ -238,7 +247,7 @@ def get_node_config():
         enable_cgroups = %false;
 
         slot_manager = {
-            path = "";
+            paths = [];
         };
 
         job_proxy_logging = {

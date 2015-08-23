@@ -33,9 +33,33 @@ TLogConfigPtr TLogConfig::CreateDefault()
     auto rule = New<TRuleConfig>();
     rule->MinLevel = DefaultStderrMinLevel;
     rule->Writers.push_back(DefaultStderrWriterName);
-    
+
+    auto stderrWriterConfig = New<TWriterConfig>();
+    stderrWriterConfig->Type = EWriterType::Stderr;
+
     auto config = New<TLogConfig>();
     config->Rules.push_back(rule);
+    config->WriterConfigs.insert(std::make_pair(DefaultStderrWriterName, stderrWriterConfig));
+
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = 0;
+    config->LowBacklogWatermark = 0;
+
+    return config;
+}
+
+TLogConfigPtr TLogConfig::CreateQuiet()
+{
+    auto rule = New<TRuleConfig>();
+    rule->MinLevel = DefaultStderrQuietLevel;
+    rule->Writers.push_back(DefaultStderrWriterName);
+
+    auto stderrWriterConfig = New<TWriterConfig>();
+    stderrWriterConfig->Type = EWriterType::Stderr;
+
+    auto config = New<TLogConfig>();
+    config->Rules.push_back(rule);
+    config->WriterConfigs.insert(std::make_pair(DefaultStderrWriterName, stderrWriterConfig));
 
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 0;

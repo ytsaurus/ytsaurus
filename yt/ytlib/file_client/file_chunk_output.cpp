@@ -72,7 +72,7 @@ void TFileChunkOutput::Open()
         .Get();
     if (!rspOrError.IsOK()) {
         THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            NChunkClient::EErrorCode::ChunkCreationFailed,
             "Error creating chunk")
             << rspOrError;
     }
@@ -108,7 +108,7 @@ void TFileChunkOutput::Open()
 
 TFileChunkOutput::~TFileChunkOutput() throw()
 {
-    LOG_DEBUG_IF(IsOpen, "Writer cancelled");
+    LOG_DEBUG_IF(IsOpen, "Writer canceled");
 }
 
 void TFileChunkOutput::DoWrite(const void* buf, size_t len)
@@ -147,7 +147,10 @@ void TFileChunkOutput::DoFinish()
         GenerateMutationId(req);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error confirming chunk");
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError, 
+            NChunkClient::EErrorCode::MasterCommunicationFailed, 
+            "Error confirming chunk");
     }
     LOG_INFO("Chunk confirmed");
 

@@ -34,7 +34,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetBlockRange);
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession);
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);
-    DEFINE_RPC_PROXY_METHOD(NProto, PrecacheChunk);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdatePeer);
     DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
     DEFINE_RPC_PROXY_METHOD(NChunkClient::NProto, GetChunkSplits);

@@ -27,7 +27,7 @@ class TSlot
 public:
     TSlot(
         TSlotManagerConfigPtr config,
-        const Stroka& path,
+        std::vector<Stroka> paths,
         const Stroka& nodeId,
         IInvokerPtr invoker,
         int slotIndex,
@@ -39,11 +39,12 @@ public:
     TNullable<int> GetUserId() const;
     const NCGroup::TNonOwningCGroup& GetProcessGroup() const;
     std::vector<Stroka> GetCGroupPaths() const;
+    int GetPathIndex() const;
 
     NBus::TTcpBusServerConfigPtr GetRpcServerConfig() const;
     NBus::TTcpBusClientConfigPtr GetRpcClientConfig() const;
 
-    void Acquire();
+    void Acquire(int pathIndex);
     void InitSandbox();
     void Clean();
     void Release();
@@ -52,31 +53,26 @@ public:
 
     //! Creates a symbolic link #linkName for #targetPath in the sandbox.
     void MakeLink(
+        ESandboxIndex sandboxIndex,
         const Stroka& targetPath,
         const Stroka& linkName,
         bool isExecutable) noexcept;
 
-    //! Writes to a file #fileName in the sandbox; #dataProducer provides the data.
-    void MakeFile(
-        const Stroka& fileName,
-        std::function<void (TOutputStream*)> dataProducer,
-        bool isExecutable = false);
-
     const Stroka& GetWorkingDirectory() const;
 
 private:
-    volatile bool IsFree_;
-    bool IsClean_;
+    std::atomic<bool> IsFree_ = {true};
+    bool IsClean_ = true;
+    int PathIndex_ = 0;
 
-    Stroka Path_;
-    Stroka NodeId_;
-    int SlotIndex_;
-    TNullable<int> UserId_;
+    const std::vector<Stroka> Paths_;
+    const Stroka NodeId_;
+    const int SlotIndex_;
+    const TNullable<int> UserId_;
+    const IInvokerPtr Invoker_;
 
-    Stroka SandboxPath_;
+    std::vector<TEnumIndexedVector<Stroka, ESandboxIndex>> SandboxPaths_;
 
-    IInvokerPtr Invoker_;
-    
     NCGroup::TNonOwningCGroup ProcessGroup_;
     NCGroup::TNonOwningCGroup NullCGroup_;
 
@@ -84,7 +80,7 @@ private:
     TSlotManagerConfigPtr Config_;
 
 
-    void DoCleanSandbox();
+    void DoCleanSandbox(int pathIndex);
     void DoCleanProcessGroups();
     void DoResetProcessGroup();
 

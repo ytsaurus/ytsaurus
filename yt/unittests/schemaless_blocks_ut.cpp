@@ -3,13 +3,13 @@
 
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/new_table_client/schemaless_block_writer.h>
-#include <ytlib/new_table_client/schemaless_block_reader.h>
+#include <ytlib/table_client/schemaless_block_writer.h>
+#include <ytlib/table_client/schemaless_block_reader.h>
 
 #include <core/compression/codec.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 
 using namespace NCompression;
 
@@ -172,5 +172,5 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

@@ -30,14 +30,12 @@ Stroka GetSlotProcessGroup(int slotId)
 
 TSlot::TSlot(
     TSlotManagerConfigPtr config,
-    const Stroka& path,
+    std::vector<Stroka> paths,
     const Stroka& nodeId,
     IInvokerPtr invoker,
     int slotIndex,
     TNullable<int> userId)
-    : IsFree_(true)
-    , IsClean_(true)
-    , Path_(path)
+    : Paths_(std::move(paths))
     , NodeId_(nodeId)
     , SlotIndex_(slotIndex)
     , UserId_(userId)
@@ -69,17 +67,27 @@ void TSlot::Initialize()
                 ProcessGroup_.GetFullPath());
         }
 #endif
+
+        ProcessGroup_.Unlock();
     }
 
-    DoResetProcessGroup();
-
+    Stroka currentPath;
     try {
-        NFS::ForcePath(Path_, 0755);
-        SandboxPath_ = NFS::CombinePaths(Path_, "sandbox");
-        DoCleanSandbox();
+        for (int pathIndex = 0; pathIndex < Paths_.size(); ++pathIndex) {
+            const auto& path = Paths_[pathIndex];
+            currentPath = path;
+            NFS::ForcePath(path, 0755);
+            SandboxPaths_.emplace_back();
+            for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
+                const auto& sandboxName = SandboxDirectoryNames[sandboxIndex];
+                YASSERT(sandboxName);
+                SandboxPaths_[pathIndex][sandboxIndex] = NFS::CombinePaths(path, sandboxName);
+            }
+            DoCleanSandbox(pathIndex);
+        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create slot directory %v",
-            Path_) << ex;
+            currentPath) << ex;
     }
 
     try {
@@ -90,14 +98,17 @@ void TSlot::Initialize()
     }
 }
 
-void TSlot::Acquire()
+void TSlot::Acquire(int pathIndex)
 {
-    IsFree_ = false;
+    YCHECK(pathIndex >= 0 && pathIndex < Paths_.size());
+
+    PathIndex_ = pathIndex;
+    IsFree_.store(false);
 }
 
 bool TSlot::IsFree() const
 {
-    return IsFree_;
+    return IsFree_.load();
 }
 
 TNullable<int> TSlot::GetUserId() const
@@ -125,6 +136,11 @@ std::vector<Stroka> TSlot::GetCGroupPaths() const
     return result;
 }
 
+int TSlot::GetPathIndex() const
+{
+    return PathIndex_;
+}
+
 TTcpBusServerConfigPtr TSlot::GetRpcServerConfig() const
 {
     auto unixDomainName = Format("%v-job-proxy-%v", NodeId_, SlotIndex_);
@@ -137,34 +153,41 @@ TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
     return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
 }
 
-void TSlot::DoCleanSandbox()
+void TSlot::DoCleanSandbox(int pathIndex)
 {
-    try {
-        if (NFS::Exists(SandboxPath_)) {
-            if (UserId_) {
-                LOG_DEBUG("Clean sandbox %v", SandboxPath_);
-                RunTool<TRemoveDirAsRootTool>(SandboxPath_);
-            } else {
-                NFS::RemoveRecursive(SandboxPath_);
+    for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
+        const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxIndex];
+        try {
+            if (NFS::Exists(sandboxPath)) {
+                if (UserId_) {
+                    LOG_DEBUG("Clean sandbox %v", sandboxPath);
+                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                } else {
+                    NFS::RemoveRecursive(sandboxPath);
+                }
             }
+        } catch (const std::exception& ex) {
+            auto wrappedError = TError("Failed to clean sandbox directory %v",
+                sandboxPath)
+                << ex;
+            LOG_ERROR(wrappedError);
+            THROW_ERROR wrappedError;
         }
-        IsClean_ = true;
-    } catch (const std::exception& ex) {
-        auto wrappedError = TError("Failed to clean sandbox directory %v",
-            SandboxPath_)
-            << ex;
-        LOG_ERROR(wrappedError);
-        THROW_ERROR wrappedError;
     }
 }
 
 void TSlot::DoCleanProcessGroups()
 {
+    if (!Config_->EnableCGroups) {
+        return;
+    }
+
     try {
         for (const auto& path : GetCGroupPaths()) {
             NCGroup::TNonOwningCGroup group(path);
-            group.RemoveAllSubcgroups();
+            group.RemoveRecursive();
         }
+        ProcessGroup_.EnsureExistance();
     } catch (const std::exception& ex) {
         auto wrappedError = TError("Failed to clean slot subcgroups for slot %v",
             SlotIndex_) << ex;
@@ -173,19 +196,14 @@ void TSlot::DoCleanProcessGroups()
     }
 }
 
-void TSlot::DoResetProcessGroup()
-{
-    if (Config_->EnableCGroups) {
-        ProcessGroup_.Unlock();
-    }
-}
-
 void TSlot::Clean()
 {
+    YCHECK(!IsFree());
     try {
         LOG_INFO("Cleaning slot");
         DoCleanProcessGroups();
-        DoCleanSandbox();
+        DoCleanSandbox(PathIndex_);
+        IsClean_ = true;
     } catch (const std::exception& ex) {
         LOG_FATAL("%v", ex.what());
     }
@@ -195,32 +213,43 @@ void TSlot::Release()
 {
     YCHECK(IsClean_);
 
-    DoResetProcessGroup();
+    if (Config_->EnableCGroups) {
+        ProcessGroup_.Unlock();
+    }
 
-    IsFree_ = true;
+    IsFree_.store(true);
+    PathIndex_ = -1;
 }
 
 void TSlot::InitSandbox()
 {
-    YCHECK(!IsFree_);
+    YCHECK(!IsFree());
 
-    try {
-        NFS::ForcePath(SandboxPath_, 0777);
-    } catch (const std::exception& ex) {
-        LogErrorAndExit(TError("Failed to create sandbox directory %Qv", SandboxPath_) << ex);
+    for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
+        const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxIndex];
+        try {
+            NFS::ForcePath(sandboxPath, 0777);
+        } catch (const std::exception& ex) {
+            LogErrorAndExit(TError("Failed to create sandbox directory %Qv",
+                sandboxPath)
+                << ex);
+        }
+        LOG_INFO("Created slot sandbox directory %Qv", sandboxPath);
     }
-
-    LOG_INFO("Created slot sandbox directory %Qv", SandboxPath_);
 
     IsClean_ = false;
 }
 
 void TSlot::MakeLink(
+    ESandboxIndex sandboxIndex,
     const Stroka& targetPath,
     const Stroka& linkName,
     bool isExecutable) noexcept
 {
-    auto linkPath = NFS::CombinePaths(SandboxPath_, linkName);
+    YCHECK(!IsFree());
+
+    const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxIndex];
+    auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
     try {
         {
             // Take exclusive lock in blocking fashion to ensure that no
@@ -235,7 +264,7 @@ void TSlot::MakeLink(
         // Occured IO error in the slot, restart node immediately.
         LogErrorAndExit(TError(
             "Failed to create a symlink in the slot %Qv (LinkPath: %Qv, TargetPath: %Qv, IsExecutable: %lv)",
-            SandboxPath_,
+            sandboxPath,
             linkPath,
             targetPath,
             isExecutable)
@@ -250,45 +279,10 @@ void TSlot::LogErrorAndExit(const TError& error)
     _exit(1);
 }
 
-void TSlot::MakeFile(
-    const Stroka& fileName,
-    std::function<void (TOutputStream*)> dataProducer,
-    bool isExecutable)
-{
-    auto path = NFS::CombinePaths(SandboxPath_, fileName);
-
-    auto error = TError("Failed to create a file in the slot %Qv (FileName: %Qv, IsExecutable: %lv)",
-        path,
-        fileName,
-        isExecutable);
-
-    try {
-        // NB! Races are possible between file creation and call to flock.
-        // Unfortunately in Linux we cannot make it atomically.
-        TFile file(path, CreateAlways | CloseOnExec);
-        file.Flock(LOCK_EX | LOCK_NB);
-        TFileOutput fileOutput(file);
-
-        // Producer may throw non IO-related exceptions, that we do not handle.
-        dataProducer(&fileOutput);
-        NFS::SetExecutableMode(path, isExecutable);
-    } catch (const TFileError& ex) {
-        LogErrorAndExit(error << TError(ex.what()));
-    }
-
-    try {
-        // Take exclusive lock in blocking fashion to ensure that no
-        // forked process is holding an open descriptor.
-        TFile file(path, RdOnly | CloseOnExec);
-        file.Flock(LOCK_EX);
-    } catch (const std::exception& ex) {
-        LogErrorAndExit(error << ex);
-    }
-}
-
 const Stroka& TSlot::GetWorkingDirectory() const
 {
-    return Path_;
+    YCHECK(!IsFree());
+    return Paths_[PathIndex_];
 }
 
 IInvokerPtr TSlot::GetInvoker()

@@ -1,0 +1,82 @@
+package NYT.NTableClient.NProto;
+
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TColumnSchema
+{
+    required string name = 1;
+    required int32 type = 2;
+    optional string lock = 3;
+    optional string expression = 4;
+}
+
+message TTableSchemaExt
+{
+    repeated TColumnSchema columns = 1;
+}
+
+message TNameTableExt
+{
+    repeated string names = 1;
+}
+
+message TBlockMeta
+{
+    required int32 row_count = 1;
+    required int32 uncompressed_size = 2;
+    required int64 chunk_row_count = 3;
+
+    // ToDo: move to extension
+    repeated int32 fixed_column_sizes = 4;
+    optional int32 variable_buffer_offset = 5;
+    optional int32 end_of_key_flags_offset = 6;
+
+    required int32 block_index = 7;
+
+    optional int32 partition_index = 8 [default = -1];
+    optional bytes last_key = 9;
+
+    extensions 100 to max;
+}
+
+message TSimpleVersionedBlockMeta
+{
+    extend TBlockMeta
+    {
+        optional TSimpleVersionedBlockMeta block_meta_ext = 100;
+    }
+
+    required int32 value_count = 1;
+    required int32 timestamp_count = 2;
+}
+
+message TBlockMetaExt
+{
+    repeated TBlockMeta blocks = 1;
+}
+
+// Chunk meta extension.
+message TBoundaryKeysExt
+{
+    required bytes min = 1;
+    required bytes max = 2;
+}
+
+message TSamplesExt
+{
+    repeated bytes entries = 1;
+}
+
+message TPartitionsExt
+{
+    repeated NChunkClient.NProto.TSizeOverrideExt partitions = 1;
+}
+
+message TKeyColumnsExt
+{
+    repeated string names = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

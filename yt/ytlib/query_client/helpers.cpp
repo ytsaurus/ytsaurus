@@ -8,19 +8,19 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
 namespace NQueryClient {
 
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient::NProto;
 
 using NChunkClient::TReadLimit;
-using NVersionedTableClient::MinKey;
-using NVersionedTableClient::MaxKey;
+using NTableClient::MinKey;
+using NTableClient::MaxKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 

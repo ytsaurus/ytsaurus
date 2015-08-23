@@ -19,7 +19,8 @@
 #include "schemaless_writer_adapter.h"
 
 #include "yson_parser.h"
-#include "yson_writer.h"
+#include "json_writer.h"
+#include "schemaful_writer.h"
 
 #include <core/misc/error.h>
 
@@ -34,7 +35,7 @@ namespace NFormats {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,8 +211,6 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
             return CreateConsumerForYamr(dataType, format.Attributes(), output);
         case EFormatType::YamredDsv:
             return CreateConsumerForYamredDsv(dataType, format.Attributes(), output);
-        // COMPAT(babenko): schemed -> schemaful
-        case EFormatType::SchemedDsv:
         case EFormatType::SchemafulDsv:
             return CreateConsumerForSchemafulDsv(dataType, format.Attributes(), output);
         default:
@@ -227,7 +226,21 @@ ISchemafulWriterPtr CreateSchemafulWriterForYson(
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
-    return New<TSchemafulYsonWriter>(output, config);
+
+    return New<TSchemafulWriter>(output, [&] (TOutputStream* buffer) {
+        return std::make_unique<NYson::TYsonWriter>(buffer, config->Format, EYsonType::ListFragment);
+    });
+}
+
+ISchemafulWriterPtr CreateSchemafulWriterForJson(
+    const IAttributeDictionary& attributes,
+    IAsyncOutputStreamPtr output)
+{
+    auto config = ConvertTo<TJsonFormatConfigPtr>(&attributes);
+
+    return New<TSchemafulWriter>(output, [&] (TOutputStream* buffer) {
+        return CreateJsonConsumer(buffer, EYsonType::ListFragment, config);
+    });
 }
 
 ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
@@ -243,10 +256,10 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     IAsyncOutputStreamPtr output)
 {
     switch (format.GetType()) {
-        // TODO(babenko): schemaful
         case EFormatType::Yson:
             return CreateSchemafulWriterForYson(format.Attributes(), output);
-        // TODO(babenko): schemaful
+        case EFormatType::Json:
+            return CreateSchemafulWriterForJson(format.Attributes(), output);
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), output);
         default:
@@ -260,7 +273,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
-    std::unique_ptr<TOutputStream> outputStream,
+    NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
@@ -268,7 +281,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     return New<TSchemalessWriterAdapter>(
         format,
         nameTable,
-        std::move(outputStream),
+        std::move(output),
         enableContextSaving,
         enableKeySwitch,
         keyColumnCount);
@@ -394,7 +407,6 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
             auto config = ConvertTo<TYamredDsvFormatConfigPtr>(&format.Attributes());
             return CreateParserForYamredDsv(consumer, config);
         }
-        case EFormatType::SchemedDsv:
         case EFormatType::SchemafulDsv: {
             auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&format.Attributes());
             return CreateParserForSchemafulDsv(consumer, config);

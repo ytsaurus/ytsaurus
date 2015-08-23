@@ -3,8 +3,6 @@ import pytest
 from yt_env_setup import YTEnvSetup, mark_multicell, TOOLS_ROOTDIR
 from yt_commands import *
 
-import os
-
 from collections import defaultdict
 
 ##################################################################
@@ -278,7 +276,7 @@ print "x={0}\ty={1}".format(x, y)
         write_table("//tmp/t1", {"a": "b"})
 
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
-            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
@@ -289,7 +287,7 @@ print "x={0}\ty={1}".format(x, y)
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
-            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
@@ -300,9 +298,44 @@ print "x={0}\ty={1}".format(x, y)
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
-            spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
+            spec={"input_query": "a where a > 0", "input_schema": [{"name": "a", "type": "int64"}]})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+
+    @only_linux
+    def test_query_asterisk(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        rows = [
+            {"a": 1, "b": 2, "c": 3},
+            {"b": 5, "c": 6},
+            {"a": 7, "c": 8}]
+        write_table("//tmp/t1", rows)
+
+        map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
+            spec={
+                "input_query": "* where a > 0 or b > 0",
+                "input_schema": [
+                    {"name": "z", "type": "int64"},
+                    {"name": "a", "type": "int64"},
+                    {"name": "y", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                    {"name": "x", "type": "int64"},
+                    {"name": "c", "type": "int64"},
+                    {"name": "u", "type": "int64"}]})
+
+        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+
+    def test_bad_control_attributes(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
+        with pytest.raises(YtError):
+            map_reduce(mapper_command="cat", reducer_command="cat",
+                       in_="//tmp/t1", out="//tmp/t2",
+                       sort_by=["foo"], 
+                       spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})
 
 ##################################################################
 

@@ -107,6 +107,7 @@ udf_bc(
     is_null_udf
     abs_udf
     sum_udf
+    throw_if_negative_udf
     avg_udaf_init
     avg_udaf_update
     avg_udaf_merge

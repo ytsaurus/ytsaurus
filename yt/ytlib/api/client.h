@@ -25,7 +25,8 @@
 
 #include <ytlib/cypress_client/public.h>
 
-#include <ytlib/new_table_client/row_base.h>
+#include <ytlib/table_client/row_base.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -34,6 +35,8 @@
 #include <ytlib/scheduler/public.h>
 
 #include <ytlib/job_tracker_client/public.h>
+
+#include <ytlib/chunk_client/config.h>
 
 namespace NYT {
 namespace NApi {
@@ -55,6 +58,7 @@ struct TTransactionalOptions
 {
     //! Ignored when queried via transaction.
     NObjectClient::TTransactionId TransactionId;
+    bool Ping = false;
     bool PingAncestors = false;
 };
 
@@ -125,6 +129,7 @@ struct TCheckPermissionOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
     , public TTransactionalOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCheckPermissionResult
@@ -149,6 +154,8 @@ struct TTransactionStartOptions
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+    NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
+    NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
 };
 
 struct TTransactionCommitOptions
@@ -166,7 +173,7 @@ struct TTransactionAbortOptions
 struct TLookupRowsOptions
     : public TTimeoutOptions
 {
-    NVersionedTableClient::TColumnFilter ColumnFilter;
+    NTableClient::TColumnFilter ColumnFilter;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
     bool KeepMissingRows = false;
@@ -189,6 +196,8 @@ struct TSelectRowsOptions
     bool VerboseLogging = false;
     //! Limits maximum parallel subqueries.
     ui64 MaxSubqueries = 0;
+    //! Enables generated code caching.
+    bool EnableCodeCache = true;
 };
 
 struct TGetNodeOptions
@@ -196,6 +205,7 @@ struct TGetNodeOptions
     , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
+    , public TPrerequisiteOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
     std::shared_ptr<const NYTree::IAttributeDictionary> Options;
@@ -226,6 +236,7 @@ struct TListNodeOptions
     , public TTransactionalOptions
     , public TReadOnlyOptions
     , public TSuppressableAccessTrackingOptions
+    , public TPrerequisiteOptions
 {
     NYTree::TAttributeFilter AttributeFilter;
     TNullable<i64> MaxSize;
@@ -260,6 +271,7 @@ struct TCopyNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = false;
 };
 
@@ -270,6 +282,7 @@ struct TMoveNodeOptions
     , public TPrerequisiteOptions
 {
     bool Recursive = false;
+    bool Force = false;
     bool PreserveAccount = true;
 };
 
@@ -289,6 +302,7 @@ struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
     , public TTransactionalOptions
+    , public TPrerequisiteOptions
 { };
 
 struct TCreateObjectOptions
@@ -331,6 +345,14 @@ struct TJournalWriterOptions
     , public TPrerequisiteOptions
 {
     TJournalWriterConfigPtr Config;
+};
+
+struct TTableReaderOptions
+    : public TTransactionalOptions
+{
+    bool Unordered = false;
+    NTableClient::TTableReaderConfigPtr Config;
+    NChunkClient::TRemoteReaderOptionsPtr RemoteReaderOptions;
 };
 
 struct TStartOperationOptions
@@ -383,19 +405,19 @@ struct IClientBase
     // Tables
     virtual TFuture<IRowsetPtr> LookupRow(
         const NYPath::TYPath& path,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TNameTablePtr nameTable,
+        NTableClient::TKey key,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
     virtual TFuture<IRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
+        NTableClient::TNameTablePtr nameTable,
+        const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
     virtual TFuture<NQueryClient::TQueryStatistics> SelectRows(
         const Stroka& query,
-        NVersionedTableClient::ISchemafulWriterPtr writer,
+        NTableClient::ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
     virtual TFuture<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>> SelectRows(
@@ -477,6 +499,11 @@ struct IClientBase
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options = TJournalWriterOptions()) = 0;
 
+
+    // Tables
+    virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const TTableReaderOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)
@@ -527,7 +554,7 @@ struct IClient
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
-        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options = TReshardTableOptions()) = 0;
 
 

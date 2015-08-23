@@ -63,6 +63,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class ECategory>
+class TMemoryUsageTrackerGuard
+    : private TNonCopyable
+{
+public:
+    TMemoryUsageTrackerGuard();
+    TMemoryUsageTrackerGuard(TMemoryUsageTrackerGuard&& other);
+    ~TMemoryUsageTrackerGuard();
+
+    TMemoryUsageTrackerGuard& operator=(TMemoryUsageTrackerGuard&& other);
+
+    static TMemoryUsageTrackerGuard Acquire(TMemoryUsageTracker<ECategory>* tracker, ECategory category, i64 size);
+    static TErrorOr<TMemoryUsageTrackerGuard> TryAcquire(TMemoryUsageTracker<ECategory>* tracker, ECategory category, i64 size);
+
+    friend void swap(TMemoryUsageTrackerGuard<ECategory>& lhs, TMemoryUsageTrackerGuard<ECategory>& rhs);
+
+    void Release();
+
+    explicit operator bool() const;
+
+private:
+    TMemoryUsageTracker<ECategory>* Tracker_;
+    ECategory Category_;
+    i64 Size_;
+
+    void MoveFrom(TMemoryUsageTrackerGuard&& other);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define MEMORY_USAGE_TRACKER_INL_H_

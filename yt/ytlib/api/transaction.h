@@ -3,7 +3,7 @@
 #include "public.h"
 #include "client.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <ytlib/tablet_client/public.h>
 
@@ -38,6 +38,8 @@ struct ITransaction
     virtual NTransactionClient::ETransactionType GetType() const = 0;
     virtual const NTransactionClient::TTransactionId& GetId() const = 0;
     virtual NTransactionClient::TTimestamp GetStartTimestamp() const = 0;
+    virtual NTransactionClient::EAtomicity GetAtomicity() const = 0;
+    virtual NTransactionClient::EDurability GetDurability() const = 0;
 
     virtual TFuture<void> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
@@ -45,26 +47,26 @@ struct ITransaction
     // Tables
     virtual void WriteRow(
         const NYPath::TYPath& path,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        NVersionedTableClient::TUnversionedRow row,
+        NTableClient::TNameTablePtr nameTable,
+        NTableClient::TUnversionedRow row,
         const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
 
     virtual void WriteRows(
         const NYPath::TYPath& path,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::TUnversionedRow> rows,
+        NTableClient::TNameTablePtr nameTable,
+        std::vector<NTableClient::TUnversionedRow> rows,
         const TWriteRowsOptions& options = TWriteRowsOptions()) = 0;
     
     virtual void DeleteRow(
         const NYPath::TYPath& path,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TNameTablePtr nameTable,
+        NTableClient::TKey key,
         const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 
     virtual void DeleteRows(
         const NYPath::TYPath& path,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::TKey> keys,
+        NTableClient::TNameTablePtr nameTable,
+        std::vector<NTableClient::TKey> keys,
         const TDeleteRowsOptions& options = TDeleteRowsOptions()) = 0;
 
 };

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "public.h"
+// TODO(babenko): remove after switching to refcounted macros
+#include "slot.h"
 
 #include <server/cell_node/public.h>
 
@@ -20,25 +22,27 @@ public:
         TSlotManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    ~TSlotManager();
-
     //! Initializes slots etc.
     void Initialize(int slotCount);
 
     //! Acquires and returns a free slot. Fails if there's none.
     TSlotPtr AcquireSlot();
 
+    //! Releases the slot.
+    void ReleaseSlot(TSlotPtr slot);
+
     int GetSlotCount() const;
 
 private:
-    TSlotManagerConfigPtr Config;
-    NCellNode::TBootstrap* Bootstrap;
+    const TSlotManagerConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
-    std::vector<TSlotPtr> Slots;
+    std::vector<TSlotPtr> Slots_;
+    std::vector<int> SlotPathCounters_;
 
-    NConcurrency::TActionQueuePtr ActionQueue;
+    NConcurrency::TActionQueuePtr ActionQueue_ = New<NConcurrency::TActionQueue>("ExecSlots");
 
-    bool IsEnabled;
+    bool IsEnabled_ = true;
 
 };
 

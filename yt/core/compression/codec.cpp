@@ -25,7 +25,7 @@ class TCodecBase
     : public ICodec
 {
 protected:
-    static int ZeroSizeEstimator(const std::vector<int>&)
+    static size_t ZeroSizeEstimator(const std::vector<int>&)
     {
         return 0;
     }
@@ -58,7 +58,7 @@ protected:
         TConverter converter,
         bool compress,
         const std::vector<TSharedRef>& refs,
-        std::function<int(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
+        std::function<size_t(const std::vector<int>&)> outputSizeEstimator = ZeroSizeEstimator)
     {
         // XXX(sandello): Disable tracing to due excessive output.
         // auto guard = CreateTraceContextGuard(compress);
@@ -71,7 +71,7 @@ protected:
         }
 
         std::vector<int> inputSizes;
-        i64 totalInputSize = 0;
+        size_t totalInputSize = 0;
         for (const auto& ref : refs) {
             inputSizes.push_back(ref.Size());
             totalInputSize += ref.Size();
@@ -121,6 +121,11 @@ public:
         return block;
     }
 
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return MergeRefs(blocks);
+    }
+
     virtual ECodec GetId() const override
     {
         return ECodec::None;
@@ -146,6 +151,11 @@ public:
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
         return Run<TSnappyCodec>(NCompression::SnappyDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TSnappyCodec>(NCompression::SnappyDecompress, false, blocks);
     }
 
     virtual ECodec GetId() const override
@@ -178,6 +188,11 @@ public:
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
         return Run<TGzipCodec>(NCompression::ZlibDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TGzipCodec>(NCompression::ZlibDecompress, false, blocks);
     }
 
     virtual ECodec GetId() const override
@@ -223,6 +238,11 @@ public:
         return Run<TLz4Codec>(NCompression::Lz4Decompress, false, block);
     }
 
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TLz4Codec>(NCompression::Lz4Decompress, false, blocks);
+    }
+
     virtual ECodec GetId() const override
     {
         return CodecId_;
@@ -258,6 +278,11 @@ public:
         return Run<TQuickLzCodec>(NCompression::QuickLzDecompress, false, block);
     }
 
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TQuickLzCodec>(NCompression::QuickLzDecompress, false, blocks);
+    }
+
     virtual ECodec GetId() const override
     {
         return ECodec::QuickLz;
@@ -265,6 +290,38 @@ public:
 
 private:
     const NCompression::TConverter Compressor_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TZstdCodec
+    : public TCodecBase
+{
+public:
+    virtual TSharedRef Compress(const TSharedRef& block) override
+    {
+        return Run<TZstdCodec>(NCompression::ZstdCompress, true, block);
+    }
+
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TZstdCodec>(NCompression::ZstdCompress, true, blocks);
+    }
+
+    virtual TSharedRef Decompress(const TSharedRef& block) override
+    {
+        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TZstdCodec>(NCompression::ZstdDecompress, false, blocks);
+    }
+
+    virtual ECodec GetId() const override
+    {
+        return ECodec::Zstd;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -304,6 +361,11 @@ ICodec* GetCodec(ECodec id)
 
         case ECodec::QuickLz: {
             static TQuickLzCodec result;
+            return &result;
+        }
+
+        case ECodec::Zstd: {
+            static TZstdCodec result;
             return &result;
         }
 

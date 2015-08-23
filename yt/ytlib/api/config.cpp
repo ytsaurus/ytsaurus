@@ -9,7 +9,7 @@
 
 #include <ytlib/tablet_client/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/node_tracker_client/public.h>
 

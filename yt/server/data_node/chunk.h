@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <core/misc/protobuf_helpers.h>
 #include <core/misc/ref.h>
 
 #include <core/actions/future.h>
@@ -13,20 +14,6 @@ namespace NYT {
 namespace NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TRefCountedChunkMeta
-    : public TIntrinsicRefCounted
-    , public NChunkClient::NProto::TChunkMeta
-{
-public:
-    TRefCountedChunkMeta();
-    TRefCountedChunkMeta(const TRefCountedChunkMeta& other);
-    TRefCountedChunkMeta(TRefCountedChunkMeta&& other);
-
-    explicit TRefCountedChunkMeta(const NChunkClient::NProto::TChunkMeta& other);
-    explicit TRefCountedChunkMeta(NChunkClient::NProto::TChunkMeta&& other);
-
-};
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
@@ -50,6 +37,16 @@ struct IChunk
     //! Returns |true| iff there is an active session for this chunk.
     virtual bool IsActive() const = 0;
 
+    //! Marks the chunk as dead, e.g. removed.
+    virtual void SetDead() = 0;
+
+    //! Returns |true| if the chunk is still registered.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    virtual bool IsAlive() const = 0;
+
     //! Returns the full path to the chunk data file.
     virtual Stroka GetFileName() const = 0;
 
@@ -67,15 +64,28 @@ struct IChunk
         i64 priority,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
+    //! Asynchronously reads a set of blocks.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
+        const std::vector<int>& blockIndexes,
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) = 0;
+
     //! Asynchronously reads a range of blocks.
     /*!
      *  \note
      *  Thread affinity: any
      */
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        i64 priority) = 0;
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) = 0;
 
     //! Tries to acquire a read lock and increments the lock counter.
     /*!

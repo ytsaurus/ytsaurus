@@ -6,6 +6,7 @@
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
+#include "table_reader.h"
 #include "rowset.h"
 #include "config.h"
 #include "box.h"
@@ -23,6 +24,7 @@
 
 #include <core/compression/helpers.h>
 
+#include <ytlib/transaction_client/public.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/timestamp_provider.h>
 
@@ -46,8 +48,8 @@
 #include <ytlib/hive/config.h>
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/name_table.h>
 
 #include <ytlib/query_client/plan_fragment.h>
 #include <ytlib/query_client/plan_helpers.h>
@@ -68,11 +70,11 @@
 
 // TODO(babenko): refactor this
 #include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/row_merger.h>
-#include <ytlib/new_table_client/row_base.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/row_merger.h>
+#include <ytlib/table_client/row_base.h>
 
 namespace NYT {
 namespace NApi {
@@ -86,8 +88,8 @@ using namespace NObjectClient::NProto;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NRpc;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
@@ -153,10 +155,10 @@ TError TCheckPermissionResult::ToError(const Stroka& user, NYTree::EPermission p
             }
             error.Attributes().Set("user", user);
             error.Attributes().Set("permission", permission);
-            if (ObjectId != NullObjectId) {
+            if (ObjectId) {
                 error.Attributes().Set("denied_by", ObjectId);
             }
-            if (SubjectId != NullObjectId) {
+            if (SubjectId) {
                 error.Attributes().Set("denied_for", SubjectId);
             }
             return error;
@@ -173,78 +175,49 @@ class TQueryResponseReader
     : public ISchemafulReader
 {
 public:
-    explicit TQueryResponseReader(TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse)
-        : AsyncResponse_(std::move(asyncResponse))
+    TQueryResponseReader(
+        TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
+        const TTableSchema& schema)
+        : Schema_(schema)
     {
-        QueryResult_.OnCanceled(BIND([this, this_ = MakeStrong(this)] () {
-            AsyncResponse_.Cancel();
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                QueryResult_.Reset();
-            }
-        }));
-    }
-
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        return AsyncResponse_.Apply(BIND(
+        QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
-            MakeStrong(this),
-            schema));
+            MakeStrong(this)));
     }
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return RowsetReader_->Read(rows);
+        return !RowsetReader_ || RowsetReader_->Read(rows);
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        return RowsetReader_->GetReadyEvent();
+        if (!RowsetReader_) {
+            return QueryResult_.As<void>();
+        } else {
+            return RowsetReader_->GetReadyEvent();
+        }
     }
 
     TFuture<TQueryStatistics> GetQueryResult() const
     {
-        return QueryResult_.ToFuture();
+        return QueryResult_;
     }
 
 private:
-    TFuture<TQueryServiceProxy::TRspExecutePtr> AsyncResponse_;
-
-    std::unique_ptr<TWireProtocolReader> ProtocolReader_;
+    TTableSchema Schema_;
     ISchemafulReaderPtr RowsetReader_;
 
-    TSpinLock SpinLock_;
-    TPromise<TQueryStatistics> QueryResult_ = NewPromise<TQueryStatistics>();
+    TFuture<TQueryStatistics> QueryResult_;
 
-
-    void OnResponse(
-        const TTableSchema& schema,
-        const TQueryServiceProxy::TErrorOrRspExecutePtr& responseOrError)
+    TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
-        if (!responseOrError.IsOK()) {
-            QueryResult_.Set(responseOrError);
-            THROW_ERROR responseOrError;
-        }
-        const auto& response = responseOrError.Value();
-
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            QueryResult_.Set(FromProto(response->query_statistics()));
-        }
-
-        YCHECK(!ProtocolReader_);
         auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
-        ProtocolReader_ = std::make_unique<TWireProtocolReader>(data);
 
         YCHECK(!RowsetReader_);
-        RowsetReader_ = ProtocolReader_->CreateSchemafulRowsetReader();
+        RowsetReader_ = TWireProtocolReader(data).CreateSchemafulRowsetReader(Schema_);
 
-        auto openResult = RowsetReader_->Open(schema);
-        YCHECK(openResult.IsSet()); // this reader is sync
-        openResult
-            .Get()
-            .ThrowOnError();
+        return FromProto(response->query_statistics());
     }
 };
 
@@ -514,6 +487,7 @@ private:
                 subfragment->Query = subquery;
                 subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;
+                subfragment->EnableCodeCache = fragment->EnableCodeCache;
                 subfragment->Ordered = fragment->Ordered;
 
                 Stroka address;
@@ -528,7 +502,7 @@ private:
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
+                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_, fragment->EnableCodeCache);
             },
             FunctionRegistry_);
     }
@@ -551,7 +525,7 @@ private:
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
-        LOG_DEBUG("Splitting pruned splits");
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
         std::vector<std::pair<TDataSource, Stroka>> allSplits;
         for (int index = 0; index < dataSources.size(); ++index) {
@@ -602,7 +576,7 @@ private:
             fragment->RangeExpansionLimit,
             fragment->VerboseLogging);
 
-        LOG_DEBUG("Splitting pruned splits");
+        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
         std::vector<std::pair<TDataSource, Stroka>> allSplits;
 
@@ -658,7 +632,7 @@ private:
             TRACE_ANNOTATION("serialization_time", serializationTime);
             TRACE_ANNOTATION("request_size", req->ByteSize());
 
-            auto resultReader = New<TQueryResponseReader>(req->Invoke());
+            auto resultReader = New<TQueryResponseReader>(req->Invoke(), fragment->Query->GetTableSchema());
             return std::make_pair(resultReader, resultReader->GetQueryResult());
         }
     }
@@ -808,20 +782,20 @@ public:
     IMPLEMENT_METHOD(IRowsetPtr, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
 
     virtual TFuture<IRowsetPtr> LookupRow(
         const TYPath& path,
         TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TKey key,
         const TLookupRowsOptions& options) override
     {
         return LookupRows(
             path,
             std::move(nameTable),
-            std::vector<NVersionedTableClient::TKey>(1, key),
+            std::vector<NTableClient::TKey>(1, key),
             options);
     }
 
@@ -868,7 +842,7 @@ public:
         (path, options))
     IMPLEMENT_METHOD(void, ReshardTable, (
         const TYPath& path,
-        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options),
         (path, pivotKeys, options))
 
@@ -956,6 +930,12 @@ public:
         return NApi::CreateJournalWriter(this, path, options);
     }
 
+    virtual ISchemalessMultiChunkReaderPtr CreateTableReader(
+        const NYPath::TRichYPath& path,
+        const TTableReaderOptions& options) override
+    {
+        return NApi::CreateTableReader(this, path, options);
+    }
 
     IMPLEMENT_METHOD(void, AddMember, (
         const Stroka& group,
@@ -1067,7 +1047,7 @@ private:
 
     static TTabletInfoPtr SyncGetTabletInfo(
         TTableMountInfoPtr tableInfo,
-        NVersionedTableClient::TKey key)
+        NTableClient::TKey key)
     {
         auto tabletInfo = tableInfo->GetTablet(key);
         if (tabletInfo->State != ETabletState::Mounted) {
@@ -1082,7 +1062,7 @@ private:
 
     static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& options)
     {
-        if (options.MutationId == NullMutationId) {
+        if (!options.MutationId) {
             options.MutationId = NRpc::GenerateMutationId();
         }
         SetMutationId(request, options.MutationId, options.Retry);
@@ -1101,7 +1081,7 @@ private:
         bool allowNullTransaction,
         bool pingTransaction)
     {
-        if (options.TransactionId == NullTransactionId) {
+        if (!options.TransactionId) {
             if (!allowNullTransaction) {
                 THROW_ERROR_EXCEPTION("A valid master transaction is required");
             }
@@ -1182,7 +1162,7 @@ private:
             , IdMapping_(idMapping)
         { }
 
-        void AddKey(int index, NVersionedTableClient::TKey key)
+        void AddKey(int index, NTableClient::TKey key)
         {
             if (Batches_.empty() || Batches_.back()->Indexes.size() >= Config_->MaxRowsPerReadRequest) {
                 Batches_.emplace_back(new TBatch());
@@ -1241,7 +1221,7 @@ private:
         struct TBatch
         {
             std::vector<int> Indexes;
-            std::vector<NVersionedTableClient::TKey> Keys;
+            std::vector<NTableClient::TKey> Keys;
             std::vector<TSharedRef> RequestData;
             TTabletServiceProxy::TRspReadPtr Response;
         };
@@ -1294,7 +1274,7 @@ private:
     IRowsetPtr DoLookupRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options)
     {
         auto tableInfo = SyncGetTableInfo(path);
@@ -1309,7 +1289,7 @@ private:
 
         // Server-side is specifically optimized for handling long runs of keys
         // from the same partition. Let's sort the keys to facilitate this.
-        std::vector<std::pair<NVersionedTableClient::TKey, int>> sortedKeys;
+        std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
         sortedKeys.reserve(keys.size());
 
         auto rowBuffer = New<TRowBuffer>();
@@ -1395,12 +1375,13 @@ private:
         auto fragment = PreparePlanFragment(
             QueryHelper_.Get(),
             query,
-            FunctionRegistry_.Get(),
+            FunctionRegistry_,
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
         fragment->RangeExpansionLimit = options.RangeExpansionLimit;
         fragment->VerboseLogging = options.VerboseLogging;
+        fragment->EnableCodeCache = options.EnableCodeCache;
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
             .ValueOrThrow();
         if (options.FailOnIncompleteResult) {
@@ -1428,7 +1409,7 @@ private:
         if (options.LastTabletIndex) {
             req->set_last_tablet_index(*options.LastTabletIndex);
         }
-        if (options.CellId != NullTabletCellId) {
+        if (options.CellId) {
             ToProto(req->mutable_cell_id(), options.CellId);
         }
         req->set_estimated_uncompressed_size(options.EstimatedUncompressedSize);
@@ -1476,7 +1457,7 @@ private:
 
     void DoReshardTable(
         const TYPath& path,
-        const std::vector<NVersionedTableClient::TKey>& pivotKeys,
+        const std::vector<NTableClient::TKey>& pivotKeys,
         const TReshardTableOptions& options)
     {
         auto req = TTableYPathProxy::Reshard(path);
@@ -1650,6 +1631,7 @@ private:
         req->set_source_path(srcPath);
         req->set_preserve_account(options.PreserveAccount);
         req->set_recursive(options.Recursive);
+        req->set_force(options.Force);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -1675,6 +1657,7 @@ private:
         req->set_preserve_account(options.PreserveAccount);
         req->set_remove_source(true);
         req->set_recursive(options.Recursive);
+        req->set_force(options.Force);
         batchReq->AddRequest(req);
 
         auto batchRsp = WaitFor(batchReq->Invoke())
@@ -1735,7 +1718,7 @@ private:
 
         auto req = TMasterYPathProxy::CreateObject();
         GenerateMutationId(req, options);
-        if (options.TransactionId != NullTransactionId) {
+        if (options.TransactionId) {
             ToProto(req->mutable_transaction_id(), options.TransactionId);
         }
         req->set_type(static_cast<int>(type));
@@ -1901,7 +1884,6 @@ public:
         NTransactionClient::TTransactionPtr transaction)
         : Client_(std::move(client))
         , Transaction_(std::move(transaction))
-        , RowBuffer_(New<TRowBuffer>())
         , Logger(Client_->Logger)
     {
         Logger.AddTag("TransactionId: %v", GetId());
@@ -1931,6 +1913,16 @@ public:
     virtual TTimestamp GetStartTimestamp() const override
     {
         return Transaction_->GetStartTimestamp();
+    }
+
+    virtual EAtomicity GetAtomicity() const override
+    {
+        return Transaction_->GetAtomicity();
+    }
+
+    virtual EDurability GetDurability() const override
+    {
+        return Transaction_->GetDurability();
     }
 
 
@@ -1992,20 +1984,20 @@ public:
     virtual void DeleteRow(
         const TYPath& path,
         TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TKey key,
         const TDeleteRowsOptions& options) override
     {
         DeleteRows(
             path,
             std::move(nameTable),
-            std::vector<NVersionedTableClient::TKey>(1, key),
+            std::vector<NTableClient::TKey>(1, key),
             options);
     }
 
     virtual void DeleteRows(
         const TYPath& path,
         TNameTablePtr nameTable,
-        std::vector<NVersionedTableClient::TKey> keys,
+        std::vector<NTableClient::TKey> keys,
         const TDeleteRowsOptions& options) override
     {
         Requests_.push_back(std::unique_ptr<TRequestBase>(new TDeleteRequest(
@@ -2036,7 +2028,7 @@ public:
         auto& originalOptions = options; \
         { \
             auto options = originalOptions; \
-            options.Timestamp = GetStartTimestamp(); \
+            options.Timestamp = GetReadTimestamp(); \
             return Client_->method args; \
         } \
     }
@@ -2044,13 +2036,13 @@ public:
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRow, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        NVersionedTableClient::TKey key,
+        NTableClient::TKey key,
         const TLookupRowsOptions& options),
         (path, nameTable, key, options))
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IRowsetPtr>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const std::vector<NVersionedTableClient::TKey>& keys,
+        const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
 
@@ -2140,6 +2132,11 @@ public:
         const TJournalWriterOptions& options),
         (path, options))
 
+    DELEGATE_TRANSACTIONAL_METHOD(ISchemalessMultiChunkReaderPtr, CreateTableReader, (
+        const TRichYPath& path,
+        const TTableReaderOptions& options),
+        (path, options))
+
 #undef DELEGATE_TRANSACTIONAL_METHOD
 #undef DELEGATE_TIMESTAMPED_METHOD
 
@@ -2151,7 +2148,8 @@ public:
 private:
     const TClientPtr Client_;
     const NTransactionClient::TTransactionPtr Transaction_;
-    TRowBufferPtr RowBuffer_;
+
+    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     NLogging::TLogger Logger;
 
@@ -2276,7 +2274,7 @@ private:
             TTransaction* transaction,
             const TYPath& path,
             TNameTablePtr nameTable,
-            std::vector<NVersionedTableClient::TKey> keys,
+            std::vector<NTableClient::TKey> keys,
             const TDeleteRowsOptions& options)
             : TModifyRequest(transaction, path, std::move(nameTable))
             , Keys_(std::move(keys))
@@ -2317,9 +2315,9 @@ private:
             : TransactionId_(owner->Transaction_->GetId())
             , TabletId_(tabletInfo->TabletId)
             , Config_(owner->Client_->Connection_->GetConfig())
+            , Durability_(owner->Transaction_->GetDurability())
             , KeyColumnCount_(keyColumnCount)
             , SchemaColumnCount_(schemaColumnCount)
-            , RowBuffer_(New<TRowBuffer>())
             , Logger(owner->Logger)
         {
             Logger.AddTag("TabletId: %v", TabletId_);
@@ -2349,13 +2347,18 @@ private:
 
         TFuture<void> Invoke(IChannelPtr channel)
         {
-            std::sort(
-                SubmittedRows_.begin(),
-                SubmittedRows_.end(),
-                [=] (const TSubmittedRow& lhs, const TSubmittedRow& rhs) {
-                    int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
-                    return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
-                });
+            try {
+                std::sort(
+                    SubmittedRows_.begin(),
+                    SubmittedRows_.end(),
+                    [=] (const TSubmittedRow& lhs, const TSubmittedRow& rhs) {
+                        int res = CompareRows(lhs.Row, rhs.Row, KeyColumnCount_);
+                        return res != 0 ? res < 0 : lhs.SequentialId < rhs.SequentialId;
+                    });
+            } catch (const std::exception& ex) {
+                // NB: CompareRows may throw on composite values.
+                return MakeFuture(TError(ex));
+            }
 
             std::vector<TSubmittedRow> mergedRows;
             mergedRows.reserve(SubmittedRows_.size());
@@ -2363,7 +2366,7 @@ private:
                 RowBuffer_->GetPool(),
                 SchemaColumnCount_,
                 KeyColumnCount_,
-                NVersionedTableClient::TColumnFilter());
+                NTableClient::TColumnFilter());
 
             auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
                 switch (submittedRow.Command) {
@@ -2405,6 +2408,7 @@ private:
             }
 
             // Do all the heavy lifting here.
+            YCHECK(!Batches_.empty());
             for (auto& batch : Batches_) {
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     batch->Writer.Flush(),
@@ -2422,9 +2426,11 @@ private:
         const TTransactionId TransactionId_;
         const TTabletId TabletId_;
         const TConnectionConfigPtr Config_;
+        const EDurability Durability_;
         const int KeyColumnCount_;
         const int SchemaColumnCount_;
-        TRowBufferPtr RowBuffer_;
+
+        TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
         NLogging::TLogger Logger;
 
@@ -2490,7 +2496,8 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
-            LOG_DEBUG("Sending batch (RowCount: %v)",
+            LOG_DEBUG("Sending batch (BatchIndex: %v, BatchCount: %v, RowCount: %v)",
+                InvokeBatchIndex_,
                 batch->RowCount);
 
             TTabletServiceProxy proxy(InvokeChannel_);
@@ -2500,6 +2507,7 @@ private:
             auto req = proxy.Write();
             ToProto(req->mutable_transaction_id(), TransactionId_);
             ToProto(req->mutable_tablet_id(), TabletId_);
+            req->set_durability(static_cast<int>(Durability_));
             req->Attachments() = std::move(batch->RequestData);
 
             req->Invoke().Subscribe(
@@ -2585,6 +2593,19 @@ private:
 
         WaitFor(Transaction_->Commit(options))
             .ThrowOnError();
+    }
+
+    TTimestamp GetReadTimestamp() const
+    {
+        switch (Transaction_->GetAtomicity()) {
+            case EAtomicity::Full:
+                return GetStartTimestamp();
+            case EAtomicity::None:
+                // NB: Start timestamp is approximate.
+                return SyncLastCommittedTimestamp;
+            default:
+                YUNREACHABLE();
+        }
     }
 
 };

@@ -55,7 +55,7 @@ def set(path, value, client=None):
         data=yson.dumps(value),
         client=client)
 
-def copy(source_path, destination_path, preserve_account=None, client=None):
+def copy(source_path, destination_path, preserve_account=None, force=None, client=None):
     """Copy Cypress node.
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
@@ -67,9 +67,11 @@ def copy(source_path, destination_path, preserve_account=None, client=None):
               "destination_path": prepare_path(destination_path, client=client)}
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
+    if force is not None:
+        params["force"] = bool_to_string(force)
     return _make_transactional_request("copy", params, client=client)
 
-def move(source_path, destination_path, preserve_account=None, client=None):
+def move(source_path, destination_path, preserve_account=None, force=None, client=None):
     """Move (rename) Cypress node.
 
     :param source_path: (string or `yt.wrapper.table.TablePath`)
@@ -80,6 +82,8 @@ def move(source_path, destination_path, preserve_account=None, client=None):
               "destination_path": prepare_path(destination_path, client=client)}
     if preserve_account is not None:
         params["preserve_account"] = bool_to_string(preserve_account)
+    if force is not None:
+        params["force"] = bool_to_string(force)
     _make_transactional_request("move", params, client=client)
 
 def link(target_path, link_path, recursive=False, ignore_existing=False, client=None):
@@ -167,7 +171,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
 
     :param type: (one of "table", "file", "map_node", "list_node"...) TODO(veronikaiv): list all types
     :param path: (string or `TablePath`)
-    :param recursive: (bool) `config.CREATE_RECURSIVE` by default
+    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     :param attributes: (dict)
     .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#create>`_
     """
@@ -185,7 +189,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, attributes=N
 def mkdir(path, recursive=None, client=None):
     """Make directory (Cypress node of map_node type).
     :param path: (string or `TablePath`)
-    :param recursive: (bool) `config.CREATE_RECURSIVE` by default
+    :param recursive: (bool) `config["yamr_mode"]["create_recursive"]` by default
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     return create("map_node", path, recursive=recursive, ignore_existing=recursive, client=client)
@@ -348,6 +352,6 @@ def remove_with_empty_dirs(path, force=True, client=None):
             else:
                 raise
         path = os.path.dirname(path)
-        if path == "//" or not exists(path) or list(path) or get(path + "/@acl"):
+        if path == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
             break
 

@@ -111,7 +111,11 @@ class TestQuery(YTEnvSetup):
         expected = [
             {"k": 0, "aa": 49.0, "mb": 0, "ab": 490.0},
             {"k": 1, "aa": 50.0, "mb": 10, "ab": 500.0}]
-        actual = select_rows("k, avg(a) as aa, min(b) as mb, avg(b) as ab from [//tmp/t] group by a % 2 as k order by k limit 2")
+        actual = select_rows("""
+            k, avg(a) as aa, min(b) as mb, avg(b) as ab
+            from [//tmp/t]
+            group by a % 2 as k
+            order by k limit 2""")
         assert expected == actual
 
     def test_merging_group_by2(self):
@@ -171,7 +175,10 @@ class TestQuery(YTEnvSetup):
             for i in xrange(0, 100)]
         insert_rows("//tmp/t", data)
 
-        expected = [{col: v for col, v in row.iteritems() if col in ['k', 'v']} for row in data if row['u'] > 500]
+        def pick_items(row, items):
+            return dict((col, v) for col, v in row.iteritems() if col in items)
+
+        expected = [pick_items(row, ['k', 'v']) for row in data if row['u'] > 500]
         expected = sorted(expected, cmp=lambda x, y: x['v'] - y['v'])[0:10]
 
         actual = select_rows("k, v from [//tmp/t] where u > 500 order by v limit 10")
@@ -233,6 +240,15 @@ class TestQuery(YTEnvSetup):
             {"a": 2, "b": 1, "c": 53, "d": 2, "e": 1}]
 
         actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where (a, b) IN ((2, 1))")
+        assert expected == actual
+
+        expected = [
+            {"l.a": 2, "l.b": 1, "l.c": 53, "r.c": 53, "r.d": 2, "r.e": 1}]
+
+        actual = select_rows("""
+            * from [//tmp/jl] as l
+            join [//tmp/jr] as r on l.c + 1 = r.c + 1
+             where (l.a, l.b) in ((2, 1))""")
         assert expected == actual
 
     def test_join_many(self):
@@ -578,4 +594,20 @@ class TestQuery(YTEnvSetup):
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
         actual = select_rows("abs_udf(-2 * a) as s from [//tmp/sou]")
         self.assertItemsEqual(actual, expected)
+
+    def test_YT_2375(self):
+        self._sync_create_cells(3, 3)
+        create(
+            "table", "//tmp/t",
+            attributes={
+                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "int64"}],
+                "key_columns": ["key"],
+            })
+        reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
+        mount_table("//tmp/t")
+        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+
+        insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
+        # should not raise
+        select_rows("sleep(value) from [//tmp/t]", output_row_limit=1, fail_on_incomplete_result=False)
 

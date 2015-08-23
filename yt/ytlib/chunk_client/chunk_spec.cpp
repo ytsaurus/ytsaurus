@@ -2,6 +2,7 @@
 #include "chunk_spec.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_replica.h"
+#include "read_limit.h"
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -11,31 +12,6 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NChunkClient::NProto;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TRefCountedChunkSpec::TRefCountedChunkSpec()
-{ }
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(const TRefCountedChunkSpec& other)
-{
-    CopyFrom(other);
-}
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(TRefCountedChunkSpec&& other)
-{
-    Swap(&other);
-}
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(const TChunkSpec& other)
-{
-    CopyFrom(other);
-}
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(TChunkSpec&& other)
-{
-    Swap(&other);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +120,27 @@ TChunkId EncodeChunkId(
         NYT::FromProto<TChunkId>(chunkSpec.chunk_id()),
         replicaIt->GetIndex());
     return EncodeChunkId(chunkIdWithIndex);
+}
+
+//! Returns |false| iff the chunk has nontrivial limits.
+bool IsCompleteChunk(const NProto::TChunkSpec& chunkSpec)
+{
+    return (!chunkSpec.has_lower_limit() || IsTrivial(chunkSpec.lower_limit()))
+        && (!chunkSpec.has_upper_limit() || IsTrivial(chunkSpec.upper_limit()));
+}
+
+//! Returns |true| iff the chunk is complete and is large enough.
+bool IsLargeCompleteChunk(const NProto::TChunkSpec& chunkSpec, i64 desiredChunkSize)
+{
+    if (!IsCompleteChunk(chunkSpec)) {
+        return false;
+    }
+
+    auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
+
+    // ChunkSequenceWriter may actually produce a chunk a bit smaller than desiredChunkSize,
+    // so we have to be more flexible here.
+    return 0.9 * miscExt.compressed_data_size() >= desiredChunkSize;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,7 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
@@ -20,7 +20,7 @@ namespace NChunkServer {
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NChunkClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

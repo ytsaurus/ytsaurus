@@ -16,13 +16,13 @@
 
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/schemaful_chunk_reader.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/unordered_schemaful_reader.h>
-#include <ytlib/new_table_client/pipe.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/config.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_chunk_reader.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/unordered_schemaful_reader.h>
+#include <ytlib/table_client/pipe.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/evaluator.h>
@@ -68,8 +68,8 @@ using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NTabletClient;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode;
 using namespace NDataNode;
@@ -78,54 +78,6 @@ using namespace NCellNode;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = QueryAgentLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLazySchemafulReader
-    : public ISchemafulReader
-{
-public:
-    explicit TLazySchemafulReader(TFuture<ISchemafulReaderPtr> futureUnderlyingReader)
-        : FutureUnderlyingReader_(std::move(futureUnderlyingReader))
-    { }
-
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        return FutureUnderlyingReader_.Apply(
-            BIND(&TLazySchemafulReader::DoOpen, MakeStrong(this), schema));
-    }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        YASSERT(UnderlyingReader_);
-        return UnderlyingReader_->Read(rows);
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        YASSERT(UnderlyingReader_);
-        return UnderlyingReader_->GetReadyEvent();
-    }
-
-private:
-    TFuture<ISchemafulReaderPtr> FutureUnderlyingReader_;
-
-    ISchemafulReaderPtr UnderlyingReader_;
-
-
-    TFuture<void> DoOpen(const TTableSchema& schema, const TErrorOr<ISchemafulReaderPtr>& readerOrError)
-    {
-        if (!readerOrError.IsOK()) {
-            return MakeFuture(TError(readerOrError));
-        }
-
-        YCHECK(!UnderlyingReader_);
-        UnderlyingReader_ = readerOrError.Value();
-
-        return UnderlyingReader_->Open(schema);
-    }
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,7 +185,8 @@ private:
                         mergingReader,
                         pipe->GetWriter(),
                         foreignExecuteCallback,
-                        FunctionRegistry_);
+                        FunctionRegistry_,
+                        fragment->EnableCodeCache);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
@@ -245,15 +198,10 @@ private:
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
-                LOG_DEBUG("Evaluating topQuery (TopQueryId: %v)", topQuery->Id);
-
-                auto asyncQueryStatisticsOrError = BIND(&TEvaluator::Run, Evaluator_)
-                    .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
-                    .Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_);
-
-                auto result = WaitFor(asyncQueryStatisticsOrError);
-                LOG_DEBUG(result, "Finished evaluating topQuery (TopQueryId: %v)", topQuery->Id);
-                return result.ValueOrThrow();
+                LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
+                auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_, fragment->EnableCodeCache);
+                LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
+                return result;
             },
             FunctionRegistry_);
     }
@@ -278,7 +226,7 @@ private:
             auto lowerBound = source.Range.first;
             auto upperBound = source.Range.second;
 
-            auto keySize = fragment->Query->KeyColumns.size();
+            auto keySize = fragment->Query->KeyColumnsCount;
 
             if (keySize == lowerBound.GetCount()  &&
                 keySize + 1 == upperBound.GetCount() &&
@@ -324,7 +272,7 @@ private:
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
-            fragment->Query->KeyColumns.size());
+            fragment->Query->KeyColumnsCount);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -334,17 +282,31 @@ private:
                 return RefinePredicate(GetRange(groupedSplit), expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                std::vector<ISchemafulReaderPtr> bottomSplitReaders;
-
                 LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v",
                     JoinToString(groupedSplit, [] (const TDataSource& source) {
                         return Format("[%v .. %v]", source.Range.first, source.Range.second);
                     }));
 
-                for (const auto& dataSplit : groupedSplit) {
-                    bottomSplitReaders.push_back(GetReader(dataSplit, timestamp));
-                }
-                return CreateUnorderedSchemafulReader(bottomSplitReaders);
+                auto bottomSplitReaderGenerator = [
+                    fragment,
+                    groupedSplit,
+                    timestamp,
+                    index = 0,
+                    this_ = MakeStrong(this)
+                ] () mutable -> ISchemafulReaderPtr {
+                    if (index == groupedSplit.size()) {
+                        return nullptr;
+                    } else {
+                        return this_->GetReader(
+                            fragment->Query->TableSchema,
+                            groupedSplit[index++],
+                      	    timestamp);
+                    }
+                };
+
+                return CreateUnorderedSchemafulReader(
+                    bottomSplitReaderGenerator,
+                    Config_->MaxBottomReaderConcurrency);
             });
         }
 
@@ -358,9 +320,35 @@ private:
                 for (const auto& keys : groupedKeys) {
                     LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
                         JoinToString(keys));
-                    bottomSplitReaders.push_back(GetReader(keySource.first, keys, timestamp));
+                    bottomSplitReaders.push_back(GetReader(
+                        fragment->Query->TableSchema,
+                        keySource.first,
+                        keys,
+                        timestamp));
                 }
-                return CreateUnorderedSchemafulReader(bottomSplitReaders);
+
+                auto bottomSplitReaderGenerator = [
+                    fragment,
+                    groupedKeys,
+                    object = keySource.first,
+                    timestamp,
+                    index = 0,
+                    this_ = MakeStrong(this)
+                ] () mutable -> ISchemafulReaderPtr {
+                    if (index == groupedKeys.size()) {
+                        return nullptr;
+                    } else {
+                        return this_->GetReader(
+                            fragment->Query->TableSchema,
+                            object,
+                            groupedKeys[index++],
+                            timestamp);
+                    }
+                };
+
+                return CreateUnorderedSchemafulReader(
+                    bottomSplitReaderGenerator,
+                    Config_->MaxBottomReaderConcurrency);
             });
         }
 
@@ -400,7 +388,7 @@ private:
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
-            fragment->Query->KeyColumns.size());
+            fragment->Query->KeyColumnsCount);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -410,7 +398,7 @@ private:
                 return RefinePredicate(dataSplit.Range, expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                return GetReader(dataSplit, timestamp);
+                return GetReader(fragment->Query->TableSchema, dataSplit, timestamp);
             });
         }
 
@@ -478,8 +466,9 @@ private:
 
                     int totalSampleCount, partitionCount;
                     std::tie(totalSampleCount, partitionCount) = GetBoundSampleKeys(tabletSnapshot, upperBound, lowerBound);
+                    YCHECK(partitionCount > 0);
 
-                    if (totalSampleCount != 0 || partitionCount != 0) {
+                    if (totalSampleCount != 0 || partitionCount != 1) {
                         addRange(index - lastIndex, keyRanges[lastIndex].first, upperBound);
                         lastIndex = index;
                     }
@@ -576,6 +565,8 @@ private:
         const TRow& lowerBound,
         const TRow& upperBound)
     {
+        YCHECK(lowerBound <= upperBound);
+
         auto findStartSample = [&] (const std::vector<TOwningKey>& sampleKeys) {
             return std::upper_bound(
                 sampleKeys.begin(),
@@ -607,7 +598,7 @@ private:
             [] (const TPartitionSnapshotPtr& lhs, const TRow& rhs) {
                 return lhs->PivotKey.Get() < rhs;
             });
-        int partitionCount = std::distance(startPartitionIt, endPartitionIt) - 1;
+        int partitionCount = std::distance(startPartitionIt, endPartitionIt);
 
         int totalSampleCount = 0;
         for (auto partitionIt = startPartitionIt; partitionIt != endPartitionIt; ++partitionIt) {
@@ -707,6 +698,7 @@ private:
     }
 
     ISchemafulReaderPtr GetReader(
+        const TTableSchema& schema,
         const TDataSource& source,
         TTimestamp timestamp)
     {
@@ -716,10 +708,10 @@ private:
         switch (TypeFromId(objectId)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetChunkReader(source, timestamp);
+                return GetChunkReader(schema, source, timestamp);
 
             case EObjectType::Tablet:
-                return GetTabletReader(source, timestamp);
+                return GetTabletReader(schema, source, timestamp);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -728,6 +720,7 @@ private:
     }
 
     ISchemafulReaderPtr GetReader(
+        const TTableSchema& schema,
         const NObjectClient::TObjectId& objectId,
         const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
@@ -737,7 +730,7 @@ private:
         // TODO(babenko): add support for chunks
         switch (TypeFromId(objectId)) {
             case EObjectType::Tablet:
-                return GetTabletReader(objectId, keys, timestamp);
+                return GetTabletReader(schema, objectId, keys, timestamp);
 
             default:
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
@@ -746,16 +739,7 @@ private:
     }
 
     ISchemafulReaderPtr GetChunkReader(
-        const TDataSource& source,
-        TTimestamp timestamp)
-    {
-        auto futureReader = BIND(&TQueryExecutor::DoGetChunkReader, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
-            .Run(source, timestamp);
-        return New<TLazySchemafulReader>(std::move(futureReader));
-    }
-
-    ISchemafulReaderPtr DoGetChunkReader(
+        const TTableSchema& schema,
         const TDataSource& source,
         TTimestamp timestamp)
     {
@@ -809,65 +793,59 @@ private:
         TReadLimit upperReadLimit;
         upperReadLimit.SetKey(TOwningKey(upperBound));
 
-        return CreateSchemafulChunkReader(
+        return WaitFor(CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
+            schema,
             chunkMeta,
             lowerReadLimit,
             upperReadLimit,
+            timestamp))
+            .ValueOrThrow();
+    }
+
+    ISchemafulReaderPtr GetTabletReader(
+        const TTableSchema& schema,
+        const TDataSource& source,
+        TTimestamp timestamp)
+    {
+        const auto& tabletId = source.Id;
+
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
+
+        TOwningKey lowerBound(source.Range.first);
+        TOwningKey upperBound(source.Range.second);
+
+        return CreateSchemafulTabletReader(
+            std::move(tabletSnapshot),
+            schema,
+            lowerBound,
+            upperBound,
             timestamp);
     }
 
     ISchemafulReaderPtr GetTabletReader(
-        const TDataSource& source,
-        TTimestamp timestamp)
-    {
-        try {
-            const auto& tabletId = source.Id;
-
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-            auto securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
-
-            TOwningKey lowerBound(source.Range.first);
-            TOwningKey upperBound(source.Range.second);
-
-            return CreateSchemafulTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
-                std::move(tabletSnapshot),
-                lowerBound,
-                upperBound,
-                timestamp);
-        } catch (const std::exception& ex) {
-            auto futureReader = MakeFuture(TErrorOr<ISchemafulReaderPtr>(ex));
-            return New<TLazySchemafulReader>(futureReader);
-        }
-    }
-
-    ISchemafulReaderPtr GetTabletReader(
+        const TTableSchema& schema,
         const NObjectClient::TObjectId& tabletId,
         const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
     {
-        try {
-            auto slotManager = Bootstrap_->GetTabletSlotManager();
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-            auto securityManager = Bootstrap_->GetSecurityManager();
-            securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(tabletSnapshot, NYTree::EPermission::Read);
 
-            return CreateSchemafulTabletReader(
-                Bootstrap_->GetQueryPoolInvoker(),
-                std::move(tabletSnapshot),
-                keys,
-                timestamp);
-        } catch (const std::exception& ex) {
-            auto futureReader = MakeFuture(TErrorOr<ISchemafulReaderPtr>(ex));
-            return New<TLazySchemafulReader>(futureReader);
-        }
+        return CreateSchemafulTabletReader(
+            std::move(tabletSnapshot),
+            schema,
+            keys,
+            timestamp);
     }
 
 };

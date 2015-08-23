@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "dsv_table.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <core/misc/blob_output.h>
 #include <core/misc/small_set.h>
@@ -72,7 +72,7 @@ private:
     EState State;
 
     TStringBuf ColumnName;
-    NVersionedTableClient::EControlAttribute ControlAttribute;
+    NTableClient::EControlAttribute ControlAttribute;
 
     TDictionary KeyFields;
     i32 KeyCount;

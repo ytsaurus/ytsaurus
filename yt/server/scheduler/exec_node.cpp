@@ -24,13 +24,13 @@ TExecNode::TExecNode(const TAddressMap& addresses)
 bool TExecNode::HasEnoughResources(const TNodeResources& neededResources) const
 {
     return Dominates(
-        ResourceLimits_ + ResourceUsageDiscount_,
+        ResourceLimits_,
         ResourceUsage_ + neededResources);
 }
 
-bool TExecNode::HasSpareResources() const
+bool TExecNode::HasSpareResources(const TNodeResources& resourceDiscount) const
 {
-    return HasEnoughResources(MinSpareNodeResources());
+    return HasEnoughResources(MinSpareNodeResources() - resourceDiscount);
 }
 
 Stroka TExecNode::GetDefaultAddress()

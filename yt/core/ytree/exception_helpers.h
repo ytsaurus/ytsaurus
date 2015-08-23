@@ -21,6 +21,7 @@ void ThrowMethodNotSupported(const Stroka& method, const TNullable<Stroka>& reso
 void ThrowCannotHaveChildren(IConstNodePtr node);
 void ThrowAlreadyExists(IConstNodePtr node);
 void ThrowCannotRemoveRoot();
+void ThrowCannotReplaceRoot();
 void ThrowCannotRemoveAttribute(const Stroka& key);
 void ThrowCannotSetBuiltinAttribute(const Stroka& key);
 

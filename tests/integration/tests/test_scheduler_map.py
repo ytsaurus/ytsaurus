@@ -8,6 +8,7 @@ from yt.wrapper import format
 
 from yt_env_setup import YTEnvSetup, mark_multicell
 from yt_commands import *
+from distutils.spawn import find_executable
 
 ##################################################################
 
@@ -478,8 +479,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        set("//tmp/input_contexts", {})
-
         tmpdir = tempfile.mkdtemp(prefix="dump_job_context_semaphore")
 
         command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
@@ -505,14 +504,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
             jobs = ls(jobs_path)
             assert jobs
             for job_id in jobs:
-                dump_job_context(job_id, "//tmp/input_contexts")
+                dump_job_context(job_id, "//tmp/input_context")
 
         finally:
             os.unlink(pin_filename)
 
         track_op(op_id)
 
-        context = read_file("//tmp/input_contexts/0")
+        context = read_file("//tmp/input_context")
+        assert get("//tmp/input_context/@description/type") == "input_context"
         assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
     @only_linux
@@ -1008,38 +1008,139 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
-    @only_linux
+@only_linux
+class TestJobQuery(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "udf_registry_path" : "//tmp/udfs"
+        }
+    }
+
+    def _init_udf_registry(self):
+        registry_path =  "//tmp/udfs"
+        create("map_node", registry_path)
+
+        abs_path = os.path.join(registry_path, "abs_udf")
+        create("file", abs_path,
+            attributes = { "function_descriptor": {
+                "name": "abs_udf",
+                "argument_types": [{
+                    "tag": "concrete_type",
+                    "value": "int64"}],
+                "result_type": {
+                    "tag": "concrete_type",
+                    "value": "int64"},
+                "calling_convention": "simple"}})
+
+        local_bitcode_path = find_executable("test_udfs.bc")
+        write_local_file(abs_path, local_bitcode_path)
+
     def test_query_simple(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a", "input_schema": [{"name":"a", "type": "string"}]})
+            spec={"input_query": "a", "input_schema": [{"name": "a", "type": "string"}]})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
-            spec={"input_query": "a where a > 0", "input_schema": [{"name":"a", "type": "int64"}]})
+            spec={"input_query": "a where a > 0", "input_schema": [{"name": "a", "type": "int64"}]})
 
         assert read_table("//tmp/t2") == [{"a": 1}]
+
+    def test_query_asterisk(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        rows = [
+            {"a": 1, "b": 2, "c": 3},
+            {"b": 5, "c": 6},
+            {"a": 7, "c": 8}]
+        write_table("//tmp/t1", rows)
+
+        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={
+                "input_query": "* where a > 0 or b > 0",
+                "input_schema": [
+                    {"name": "z", "type": "int64"},
+                    {"name": "a", "type": "int64"},
+                    {"name": "y", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                    {"name": "x", "type": "int64"},
+                    {"name": "c", "type": "int64"},
+                    {"name": "u", "type": "int64"}]})
+
+        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+
+    def test_query_udf(self):
+        self._init_udf_registry()
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(-1,1)])
+
+        map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+            spec={"input_query": "a where abs_udf(a) > 0", "input_schema": [{"name": "a", "type": "int64"}]})
+
+        assert read_table("//tmp/t2") == [{"a": -1}]
+
+    def test_ordered_map_many_jobs(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        original_data = [{"index": i} for i in xrange(10)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row)
+
+        command = "cat; echo stderr 1>&2"
+        op_id = map(dont_track=True, in_="//tmp/t_input", out="//tmp/t_output", command=command,
+                spec={"ordered": True, "data_size_per_job": 1})
+
+        track_op(op_id)
+        jobs = get("//sys/operations/" + op_id + "/jobs/@count")
+
+        assert get("//sys/operations/" + op_id + "/jobs/@count") == 10
+        assert read_table("//tmp/t_output") == original_data
+
+    def test_ordered_map_remains_sorted(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        original_data = [{"key": i} for i in xrange(1000)]
+        for i in xrange(10):
+            write_table("<append=true>//tmp/t_input", original_data[100*i:100*(i+1)])
+
+        command = "cat; echo stderr 1>&2"
+        sorted_out = "<sorted_by=[key]>//tmp/t_output"
+        op_id = map(dont_track=True, in_="//tmp/t_input", out=sorted_out, command=command,
+                spec={"ordered": True, "job_count": 5})
+
+        track_op(op_id)
+        jobs = get("//sys/operations/" + op_id + "/jobs/@count")
+
+        assert jobs == 5
+        assert get("//tmp/t_output/@sorted")
+        assert get("//tmp/t_output/@sorted_by") == ["key"]
+        assert read_table("//tmp/t_output") == original_data
 
 ##################################################################
 

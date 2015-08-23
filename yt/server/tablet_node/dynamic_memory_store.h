@@ -13,10 +13,10 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/new_table_client/versioned_row.h>
+#include <ytlib/table_client/versioned_row.h>
 
 namespace NYT {
 namespace NTabletNode {
@@ -78,24 +78,44 @@ public:
 
     //! Writes the row taking the needed locks.
     /*!
+     *  Only applies to atomic transactions.
+     *
      *  On lock failure, throws TErrorException explaining the cause.
      *  If a blocked row is encountered, throws TRowBlockedException.
      */
-    TDynamicRow WriteRow(
+    TDynamicRow WriteRowAtomic(
         TTransaction* transaction,
-        NVersionedTableClient::TUnversionedRow row,
+        NTableClient::TUnversionedRow row,
         bool prelock,
         ui32 lockMask);
 
+    //! Writes and immediately commits the row.
+    /*!
+     *  Only applies to non-atomic transactions. No locks are checked or taken.
+     */
+    TDynamicRow WriteRowNonAtomic(
+        NTableClient::TUnversionedRow row,
+        TTimestamp commitTimestamp);
+
     //! Deletes the row taking the needed locks.
     /*!
+     *  Only applies to atomic transactions.
+     *
      *  On lock failure, throws TErrorException explaining the cause.
      *  If a blocked row is encountered, throws TRowBlockedException.
      */
-    TDynamicRow DeleteRow(
+    TDynamicRow DeleteRowAtomic(
         TTransaction* transaction,
         TKey key,
         bool prelock);
+
+    //! Deletes and immediately commits the row.
+    /*!
+     *  Only applies to non-atomic transactions. No locks are checked or taken.
+     */
+    TDynamicRow DeleteRowNonAtomic(
+        TKey key,
+        TTimestamp commitTimestamp);
 
     TDynamicRow MigrateRow(
         TTransaction* transaction,
@@ -106,11 +126,15 @@ public:
     void CommitRow(TTransaction* transaction, TDynamicRow row);
     void AbortRow(TTransaction* transaction, TDynamicRow row);
 
-    TDynamicRow FindRow(NVersionedTableClient::TUnversionedRow key);
+    // The following functions are made public for unit-testing.
+    TDynamicRow FindRow(NTableClient::TUnversionedRow key);
+    std::vector<TDynamicRow> GetAllRows();
+    TTimestamp TimestampFromRevision(ui32 revision);
+    TTimestamp GetLastCommitTimestamp(TDynamicRow row, int lockIndex);
 
     int GetValueCount() const;
     int GetKeyCount() const;
-    
+
     i64 GetPoolSize() const;
     i64 GetPoolCapacity() const;
 
@@ -126,13 +150,13 @@ public:
     virtual TTimestamp GetMinTimestamp() const override;
     virtual TTimestamp GetMaxTimestamp() const override;
 
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
 
-    virtual NVersionedTableClient::IVersionedReaderPtr CreateReader(
+    virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override;
@@ -164,7 +188,7 @@ private:
 
     TDynamicRowKeyComparer RowKeyComparer_;
 
-    NVersionedTableClient::TRowBufferPtr RowBuffer_;
+    NTableClient::TRowBufferPtr RowBuffer_;
     std::unique_ptr<TSkipList<TDynamicRow, TDynamicRowKeyComparer>> Rows_;
 
     TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
@@ -198,21 +222,31 @@ private:
         bool deleteFlag);
 
     TValueList PrepareFixedValue(TDynamicRow row, int index);
-    void AddRevision(TDynamicRow row, ui32 revision, ERevisionListKind kind);
+    void AddDeleteRevision(TDynamicRow row, ui32 revision);
+    void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
+    void AddDeleteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
+    void AddWriteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
     void SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys);
     void SetKeys(TDynamicRow dstRow, TDynamicRow srcRow);
-    void LoadRow(TVersionedRow row, yhash_map<TTimestamp, ui32>* timestampToRevision);
+
+    struct TLoadScratchData
+    {
+        yhash_map<TTimestamp, ui32> TimestampToRevision;
+        std::vector<std::vector<ui32>> WriteRevisions;
+    };
+
+    void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
+    ui32 CaptureTimestamp(TTimestamp timestamp, TLoadScratchData* scratchData);
+    ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TLoadScratchData* scratchData);
 
     void CaptureUncommittedValue(TDynamicValue* dst, const TDynamicValue& src, int index);
-    ui32 CaptureTimestamp(TTimestamp timestamp, yhash_map<TTimestamp, ui32>* timestampToRevision);
-    void CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, yhash_map<TTimestamp, ui32>* timestampToRevision);
     void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);
     TDynamicValueData CaptureStringValue(TDynamicValueData src);
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
     ui32 GetLatestRevision() const;
     ui32 RegisterRevision(TTimestamp timestamp);
-    TTimestamp TimestampFromRevision(ui32 revision);
+    void UpdateTimestampRange(TTimestamp commitTimestamp);
 
     void OnMemoryUsageUpdated();
 

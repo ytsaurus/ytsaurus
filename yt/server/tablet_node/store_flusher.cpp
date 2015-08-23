@@ -31,11 +31,11 @@
 #include <ytlib/chunk_client/replication_writer.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/versioned_writer.h>
-#include <ytlib/new_table_client/versioned_chunk_writer.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/versioned_writer.h>
+#include <ytlib/table_client/versioned_chunk_writer.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -61,8 +61,8 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NApi;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NChunkClient;

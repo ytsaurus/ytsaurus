@@ -16,15 +16,16 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/schemaful_reader.h>
 
 #include <ytlib/tablet_client/config.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
+#include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/chunk_client/block_cache.h>
 
@@ -36,13 +37,13 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NObjectClient;
 
-using NVersionedTableClient::TKey;
+using NTableClient::TKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,7 +141,7 @@ void TStoreManager::StopEpoch()
     }
 }
 
-TDynamicRowRef TStoreManager::WriteRow(
+TDynamicRowRef TStoreManager::WriteRowAtomic(
     TTransaction* transaction,
     TUnversionedRow row,
     bool prelock)
@@ -165,7 +166,7 @@ TDynamicRowRef TStoreManager::WriteRow(
     }
 
     const auto& store = Tablet_->GetActiveStore();
-    auto dynamicRow = store->WriteRow(
+    auto dynamicRow = store->WriteRowAtomic(
         transaction,
         row,
         prelock,
@@ -173,9 +174,28 @@ TDynamicRowRef TStoreManager::WriteRow(
     return TDynamicRowRef(store.Get(), dynamicRow);
 }
 
-TDynamicRowRef TStoreManager::DeleteRow(
+void TStoreManager::WriteRowNonAtomic(
+    const TTransactionId& transactionId,
+    TTimestamp commitTimestamp,
+    TUnversionedRow row)
+{
+    ValidateServerDataRow(row, KeyColumnCount_, Tablet_->Schema());
+
+    YASSERT(row.GetCount() >= KeyColumnCount_);
+    if (row.GetCount() == KeyColumnCount_) {
+        THROW_ERROR_EXCEPTION("Empty writes are not allowed")
+            << TErrorAttribute("transaction_id", transactionId)
+            << TErrorAttribute("tablet_id", Tablet_->GetTabletId())
+            << TErrorAttribute("key", row);
+    }
+
+    const auto& store = Tablet_->GetActiveStore();
+    store->WriteRowNonAtomic(row, commitTimestamp);
+}
+
+TDynamicRowRef TStoreManager::DeleteRowAtomic(
     TTransaction* transaction,
-    NVersionedTableClient::TKey key,
+    NTableClient::TKey key,
     bool prelock)
 {
     ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
@@ -188,11 +208,22 @@ TDynamicRowRef TStoreManager::DeleteRow(
     }
 
     const auto& store = Tablet_->GetActiveStore();
-    auto dynamicRow = store->DeleteRow(
+    auto dynamicRow = store->DeleteRowAtomic(
         transaction,
         key,
         prelock);
     return TDynamicRowRef(store.Get(), dynamicRow);
+}
+
+void TStoreManager::DeleteRowNonAtomic(
+    const TTransactionId& transactionId,
+    TTimestamp commitTimestamp,
+    NTableClient::TKey key)
+{
+    ValidateServerKey(key, KeyColumnCount_, Tablet_->Schema());
+
+    const auto& store = Tablet_->GetActiveStore();
+    store->DeleteRowNonAtomic(key, commitTimestamp);
 }
 
 void TStoreManager::ConfirmRow(TTransaction* transaction, const TDynamicRowRef& rowRef)

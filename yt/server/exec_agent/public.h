@@ -20,6 +20,13 @@ DEFINE_ENUM(EErrorCode,
     ((ResourceOverdraft)     (1102))
 );
 
+DEFINE_ENUM(ESandboxIndex,
+    (User)
+    (Udf)
+);
+
+extern const TEnumIndexedVector<Stroka, ESandboxIndex> SandboxDirectoryNames;
+
 extern const Stroka ProxyConfigFileName;
 
 DECLARE_REFCOUNTED_CLASS(TSlotManager)

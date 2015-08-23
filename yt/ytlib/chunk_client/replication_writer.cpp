@@ -483,7 +483,7 @@ TReplicationWriter::~TReplicationWriter()
         return;
 
     LOG_INFO("Writer canceled");
-    State_.Cancel(TError("Writer canceled"));
+    State_.Fail(TError("Writer canceled"));
 
     CancelWriter(true);
 }

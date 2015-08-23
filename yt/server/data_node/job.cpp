@@ -630,7 +630,7 @@ private:
         }
 
         auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-        auto location = journalChunk->GetLocation();
+        auto location = journalChunk->GetStoreLocation();
         auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, ChunkId_))
             .ValueOrThrow();
 
@@ -697,13 +697,14 @@ private:
                 currentRowCount += blockCount;
             }
 
+            WaitFor(changelog->Flush())
+                .ThrowOnError();
+        
             LOG_INFO("Finished downloading missing journal chunk rows");
         }
 
-        LOG_INFO("Started sealing journal chunk");
-
-        WaitFor(changelog->Truncate(sealRowCount))
-            .ThrowOnError();
+        LOG_INFO("Started sealing journal chunk (RowCount: %v)",
+            sealRowCount);
 
         WaitFor(journalChunk->Seal())
             .ThrowOnError();

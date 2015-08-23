@@ -77,7 +77,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     bool needToDrain = Touch(item);
     auto value = item->Value;
 
-    auto weight = GetWeight(item->Value.Get());
+    auto weight = GetWeight(item->Value);
     Profiler.Increment(HitWeightCounter_, weight);
 
     readerGuard.Release();
@@ -125,7 +125,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
     YCHECK(ItemMap_.insert(std::make_pair(key, item)).second);
     ++ItemMapSize_;
 
-    auto weight = GetWeight(value.Get());
+    auto weight = GetWeight(value);
     Profiler.Increment(MissedWeightCounter_, weight);
 
     PushToYounger(item);
@@ -133,7 +133,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(TValuePtr value, TValueP
     // NB: Releases the lock.
     Trim(guard);
 
-    OnAdded(value.Get());
+    OnAdded(value);
 
     return true;
 }
@@ -170,7 +170,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& g
     guard.Release();
 
     for (const auto& value : evictedValues) {
-        OnRemoved(value.Get());
+        OnRemoved(value);
     }
 }
 
@@ -198,7 +198,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 
     guard.Release();
 
-    OnRemoved(value.Get());
+    OnRemoved(value);
 
     return true;
 }
@@ -229,7 +229,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
 
     guard.Release();
 
-    OnRemoved(value.Get());
+    OnRemoved(value);
 
     return true;
 }
@@ -263,17 +263,17 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::DrainTouchBuffer()
 }
 
 template <class TKey, class TValue, class THash>
-i64 TSyncSlruCacheBase<TKey, TValue, THash>::GetWeight(TValue* /*value*/) const
+i64 TSyncSlruCacheBase<TKey, TValue, THash>::GetWeight(const TValuePtr& /*value*/) const
 {
     return 1;
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::OnAdded(TValue* /*value*/)
+void TSyncSlruCacheBase<TKey, TValue, THash>::OnAdded(const TValuePtr& /*value*/)
 { }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(TValue* /*value*/)
+void TSyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& /*value*/)
 { }
 
 template <class TKey, class TValue, class THash>
@@ -287,7 +287,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TItem* item)
 {
     YASSERT(item->Empty());
     YoungerLruList_.PushFront(item);
-    auto weight = GetWeight(item->Value.Get());
+    auto weight = GetWeight(item->Value);
     Profiler.Increment(YoungerWeightCounter_, +weight);
     item->Younger = true;
 }
@@ -299,7 +299,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TItem* item)
     item->Unlink();
     YoungerLruList_.PushFront(item);
     if (!item->Younger) {
-        auto weight = GetWeight(item->Value.Get());
+        auto weight = GetWeight(item->Value);
         Profiler.Increment(OlderWeightCounter_, -weight);
         Profiler.Increment(YoungerWeightCounter_, +weight);
         item->Younger = true;
@@ -313,7 +313,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TItem* item)
     item->Unlink();
     OlderLruList_.PushFront(item);
     if (item->Younger) {
-        auto weight = GetWeight(item->Value.Get());
+        auto weight = GetWeight(item->Value);
         Profiler.Increment(YoungerWeightCounter_, -weight);
         Profiler.Increment(OlderWeightCounter_, +weight);
         item->Younger = false;
@@ -325,7 +325,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 {
     if (item->Empty())
         return;
-    auto weight = GetWeight(item->Value.Get());
+    auto weight = GetWeight(item->Value);
     if (item->Younger) {
         Profiler.Increment(YoungerWeightCounter_, -weight);
     } else {

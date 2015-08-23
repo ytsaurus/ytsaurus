@@ -4,6 +4,7 @@
 #include "chunk_cache.h"
 #include "chunk.h"
 #include "location.h"
+#include "artifact.h"
 
 #include <core/ytree/virtual.h>
 #include <core/ytree/fluent.h>
@@ -13,6 +14,7 @@ namespace NDataNode {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +61,7 @@ private:
                 .BeginMap()
                     .Item("disk_space").Value(chunk->GetInfo().disk_space())
                     .Item("location").Value(chunk->GetLocation()->GetPath())
+                    .Item("artifact").Value(IsArtifactChunkId(chunk->GetId()))
                 .EndMap();
         }));
     }

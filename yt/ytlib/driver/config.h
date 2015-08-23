@@ -10,7 +10,7 @@
 
 #include <ytlib/transaction_client/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/scheduler/config.h>
 
@@ -29,8 +29,8 @@ class TDriverConfig
 public:
     NApi::TFileReaderConfigPtr FileReader;
     NApi::TFileWriterConfigPtr FileWriter;
-    NVersionedTableClient::TTableReaderConfigPtr TableReader;
-    NVersionedTableClient::TTableWriterConfigPtr TableWriter;
+    NTableClient::TTableReaderConfigPtr TableReader;
+    NTableClient::TTableWriterConfigPtr TableWriter;
     NApi::TJournalReaderConfigPtr JournalReader;
     NApi::TJournalWriterConfigPtr JournalWriter;
     i64 ReadBufferRowCount;

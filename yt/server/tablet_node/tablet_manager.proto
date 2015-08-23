@@ -2,7 +2,7 @@ package NYT.NTabletNode.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
-import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/server/tablet_server/tablet_manager.proto";
 
@@ -18,13 +18,14 @@ message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
     required NYT.NProto.TGuid table_id = 9;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt schema = 2;
-    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 3;
+    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+    required NYT.NTableClient.NProto.TKeyColumnsExt key_columns = 3;
     repeated TChunkStoreDescriptor chunk_stores = 4;
     required bytes pivot_key = 5;
     required bytes next_pivot_key = 6;
     required string mount_config = 7;
     required string writer_options = 8;
+    required int32 atomicity = 10; // EAtomicity
 }
 
 message TReqUnmountTablet
@@ -52,6 +53,10 @@ message TReqExecuteWrite
     required NYT.NProto.TGuid tablet_id = 2;
     required int32 codec = 3;
     required bytes compressed_data = 4;
+    // For atomic transactions only.
+    optional uint64 signature = 5;
+    // For non-atomic transactions only.
+    optional int64 timestamp = 6;
 }
 
 message TReqRotateStore

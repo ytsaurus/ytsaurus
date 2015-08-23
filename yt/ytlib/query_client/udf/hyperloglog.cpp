@@ -1,11 +1,11 @@
-#include <yt/ytlib/new_table_client/unversioned_value.h>
+#include <yt/ytlib/table_client/unversioned_value.h>
 #include <core/misc/hyperloglog.h>
 #include <yt_udf_cpp.h>
 
 static uint64_t Hash(TUnversionedValue* v)
 {
-    auto value = (NYT::NVersionedTableClient::TUnversionedValue*)v;
-    return NYT::NVersionedTableClient::GetFarmFingerprint(*value);
+    auto value = (NYT::NTableClient::TUnversionedValue*)v;
+    return NYT::NTableClient::GetFarmFingerprint(*value);
 }
 
 typedef NYT::THyperLogLog<14> THLL;

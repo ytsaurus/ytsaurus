@@ -13,21 +13,6 @@ TAsyncStreamState::TAsyncStreamState()
     , StaticError(MakePromise(TError()))
 { }
 
-void TAsyncStreamState::Cancel(const TError& error)
-{
-    {
-        TGuard<TSpinLock> guard(SpinLock);
-
-        if (!IsActive_) {
-            return;
-        }
-
-        DoFail();
-    }
-
-    StaticError.Set(error);
-}
-
 void TAsyncStreamState::Fail(const TError& error)
 {
     {
@@ -35,7 +20,6 @@ void TAsyncStreamState::Fail(const TError& error)
         if (!IsActive_) {
             return;
         }
-
         DoFail();
     }
 

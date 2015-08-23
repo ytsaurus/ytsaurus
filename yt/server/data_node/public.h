@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/enum.h>
+#include <core/misc/public.h>
 
 #include <ytlib/chunk_client/public.h>
 
@@ -26,6 +27,8 @@ struct TSessionOptions;
 class TPendingReadSizeGuard;
 class TChunkReadGuard;
 
+struct TArtifactKey;
+
 DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TChunkStore)
@@ -37,6 +40,8 @@ DECLARE_REFCOUNTED_CLASS(TBlobReaderCache)
 DECLARE_REFCOUNTED_CLASS(TJournalDispatcher)
 
 DECLARE_REFCOUNTED_CLASS(TLocation)
+DECLARE_REFCOUNTED_CLASS(TStoreLocation)
+DECLARE_REFCOUNTED_CLASS(TCacheLocation)
 DECLARE_REFCOUNTED_CLASS(TJournalManager)
 
 DECLARE_REFCOUNTED_STRUCT(IChunk)
@@ -45,7 +50,8 @@ DECLARE_REFCOUNTED_CLASS(TStoredBlobChunk)
 DECLARE_REFCOUNTED_CLASS(TCachedBlobChunk)
 DECLARE_REFCOUNTED_CLASS(TJournalChunk)
 
-DECLARE_REFCOUNTED_CLASS(TRefCountedChunkMeta)
+using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(ISession)
 DECLARE_REFCOUNTED_CLASS(TBlobSession)
@@ -57,7 +63,9 @@ DECLARE_REFCOUNTED_CLASS(TPeerBlockUpdater)
 DECLARE_REFCOUNTED_CLASS(TDiskHealthChecker)
 
 DECLARE_REFCOUNTED_CLASS(TPeerBlockTableConfig)
-DECLARE_REFCOUNTED_CLASS(TLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TLocationConfigBase)
+DECLARE_REFCOUNTED_CLASS(TStoreLocationConfig)
+DECLARE_REFCOUNTED_CLASS(TCacheLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiplexedChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TDiskHealthCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TDataNodeConfig)

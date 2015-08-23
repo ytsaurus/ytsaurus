@@ -122,10 +122,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
                 .ValueOrThrow();
 
-            TVersion newLoggedVersion(changelogId, 0);
-            // NB: Equality is only possible when segmentId == 0.
-            YCHECK(DecoratedAutomaton_->GetLoggedVersion() <= newLoggedVersion);
-            DecoratedAutomaton_->SetLoggedVersion(newLoggedVersion);
+            DecoratedAutomaton_->SetLoggedVersion(std::max(
+                DecoratedAutomaton_->GetLoggedVersion(),
+                TVersion(changelogId, 0)));
         }
 
         DecoratedAutomaton_->SetChangelog(changelog);
@@ -178,9 +177,9 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
         WaitFor(changelog->Truncate(remoteRecordCount))
             .ThrowOnError();
 
-        TVersion sealedVersion(changelogId, remoteRecordCount);
-        if (DecoratedAutomaton_->GetLoggedVersion().SegmentId == sealedVersion.SegmentId) {
-            DecoratedAutomaton_->SetLoggedVersion(sealedVersion);
+        if (DecoratedAutomaton_->GetLoggedVersion().SegmentId == changelogId) {
+            YCHECK(DecoratedAutomaton_->GetLoggedVersion().RecordId >= remoteRecordCount);
+            DecoratedAutomaton_->SetLoggedVersion(TVersion(changelogId, remoteRecordCount));
         }
     } else if (localRecordCount < syncRecordCount) {
         auto asyncResult = DownloadChangelog(
@@ -191,8 +190,9 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
             syncRecordCount);
         auto result = WaitFor(asyncResult);
 
-        TVersion downloadedVersion(changelogId, changelog->GetRecordCount());
-        DecoratedAutomaton_->SetLoggedVersion(std::max(DecoratedAutomaton_->GetLoggedVersion(), downloadedVersion));
+        DecoratedAutomaton_->SetLoggedVersion(std::max(
+            DecoratedAutomaton_->GetLoggedVersion(),
+            TVersion(changelogId, syncRecordCount)));
 
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error downloading changelog records");
     }

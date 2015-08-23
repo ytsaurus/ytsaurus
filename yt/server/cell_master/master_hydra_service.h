@@ -26,6 +26,7 @@ protected:
 
 private:
     virtual void BeforeInvoke() override;
+    virtual NHydra::IHydraManagerPtr GetHydraManager() override;
 
 };
 

@@ -13,6 +13,7 @@
 #include <core/profiling/profiler.h>
 
 #include <server/cell_node/public.h>
+#include <server/misc/memory_usage_tracker.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -34,7 +35,7 @@ public:
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         const TSessionOptions& options,
-        TLocationPtr location,
+        TStoreLocationPtr location,
         TLease lease);
 
     NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
@@ -47,6 +48,7 @@ private:
         ESlotState State = ESlotState::Empty;
         TSharedRef Block;
         TPromise<void> WrittenPromise = NewPromise<void>();
+        NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
     };
 
     // Thread affinity: WriterThread

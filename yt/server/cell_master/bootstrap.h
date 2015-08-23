@@ -81,7 +81,7 @@ public:
 
     void Initialize();
     void Run();
-    void DumpSnapshot(const Stroka& fileName);
+    void TryLoadSnapshot(const Stroka& fileName, bool dump);
 
 private:
     const Stroka ConfigFileName_;
@@ -126,7 +126,7 @@ private:
 
     void DoInitialize();
     void DoRun();
-    void DoDumpSnapshot(const Stroka& fileName);
+    void DoLoadSnapshot(const Stroka& fileName, bool dump);
 
 };
 

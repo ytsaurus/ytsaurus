@@ -4,16 +4,16 @@
 #include "user_job_io_detail.h"
 #include "job.h"
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_sorted_merging_reader.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_sorted_merging_reader.h>
 
 namespace NYT {
 namespace NJobProxy {
 
 using namespace NScheduler;
 using namespace NScheduler::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NTransactionClient;
 using namespace NChunkClient::NProto;
@@ -27,7 +27,15 @@ class TSortedReduceJobIO
 public:
     explicit TSortedReduceJobIO(IJobHost* host)
         : TUserJobIOBase(host)
-    { }
+    {
+        const auto& reduceJobSpecExt = Host_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        ReduceKeyColumnCount_ = reduceJobSpecExt.reduce_key_column_count();
+    }
+
+    virtual int GetReduceKeyColumnCount() const override
+    {
+        return ReduceKeyColumnCount_;
+    }
 
     virtual ISchemalessMultiChunkReaderPtr DoCreateReader(
         TNameTablePtr nameTable,
@@ -61,7 +69,7 @@ public:
             readers.push_back(reader);
         }
 
-        return CreateSchemalessSortedMergingReader(readers);
+        return CreateSchemalessSortedMergingReader(readers, keyColumns.size());
     }
 
     virtual ISchemalessMultiChunkWriterPtr DoCreateWriter(
@@ -72,6 +80,9 @@ public:
     {
         return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
     }
+
+private:
+    int ReduceKeyColumnCount_;
 };
 
 std::unique_ptr<IUserJobIO> CreateSortedReduceJobIO(IJobHost* host)
