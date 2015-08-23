@@ -81,11 +81,17 @@ function(UDF udf output type)
   if(${_extension} STREQUAL ".cpp") 
     set(_compiler ${CLANGPP_EXECUTABLE})
     set(_options -std=c++1y -Wglobal-constructors)
-    set(_depends ${_include_dir}/yt_udf_cpp.h)
+    set(_depends
+        ${_include_dir}/yt_udf_cpp.h
+        ${_include_dir}/yt_udf_types.h
+    )
     set(_lang "CXX")
   else()
     set(_compiler ${CLANG_EXECUTABLE})
-    set(_depends ${_include_dir}/yt_udf.h)
+    set(_depends
+        ${_include_dir}/yt_udf_cpp.h
+        ${_include_dir}/yt_udf_types.h
+    )
     set(_lang "C")
   endif()
 
@@ -161,7 +167,7 @@ function(PROTOC proto output)
     ${CMAKE_BINARY_DIR}${_relative_path}/${_proto_basename}.pb.cc
     PARENT_SCOPE)
 
-  get_property(protoc_location TARGET protoc PROPERTY LOCATION)
+  set(protoc_location $<TARGET_FILE:protoc>)
 
   # Specify custom command how to generate .pb.h and .pb.cc.
   add_custom_command(

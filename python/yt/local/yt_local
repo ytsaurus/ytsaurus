@@ -1,0 +1,152 @@
+#!/usr/bin/env python
+
+from yt.local import start, stop, delete, get_proxy
+from yt.local.helpers import YTCheckingThread
+
+from yt.wrapper.cli_helpers import run_main
+from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
+
+import argparse
+import logging
+import os
+import time
+
+DESCRIPTION = """Command-line utility to work with local YT instances."""
+
+logger = logging.getLogger("Yt.local")
+
+def fix_parser(parser):
+    old_add_argument = parser.add_argument
+
+    def add_argument(*args, **kwargs):
+        help = [kwargs.get("help", "")]
+        if "default" in kwargs:
+            default = str(kwargs["default"])
+            help.append(" (default: {0})".format(default))
+        kwargs["help"] = "".join(help)
+        old_add_argument(*args, **kwargs)
+
+    parser.add_argument = add_argument
+    return parser
+
+def patch_add_parser(subparsers):
+    old_add_parser = subparsers.add_parser
+
+    def add_parser(*args, **kwargs):
+        func = kwargs.get("func", None)
+        if func is not None:
+            kwargs.pop("func")
+        parser = fix_parser(old_add_parser(*args, **kwargs))
+        if func is not None:
+            parser.set_defaults(func=func)
+        return parser
+
+    subparsers.add_parser = add_parser
+
+def start_func(**kwargs):
+    sync = kwargs.get("sync", False)
+    kwargs.pop("sync")
+    quiet = kwargs.get("quiet", False)
+    kwargs.pop("quiet")
+
+    if quiet:
+        logger.setLevel(logging.WARNING)
+    else:
+        logger.setLevel(logging.INFO)
+
+    environment = start(**kwargs)
+
+    if sync:
+        if quiet:
+            print environment.id
+
+        checking_thread = YTCheckingThread(environment, delay=2)
+        checking_thread.start()
+
+        def interrupt_action():
+            logger.info("Stopping environment...")
+            checking_thread.stop()
+            environment.clear_environment(safe=False)
+            try:
+                os.remove(environment.pids_filename)
+            except OSError:
+                pass
+
+        with KeyboardInterruptsCatcher(interrupt_action):
+            while True:
+                time.sleep(2.5)
+    else:
+        print environment.id
+
+def add_start_subparser(subparsers):
+    parser = subparsers.add_parser("start", help="Start local YT environment with specified options",
+                                   func=start_func)
+    parser.add_argument("--masters-count", type=int, default=1, help="masters count")
+    parser.add_argument("--nodes-count", type=int, default=3, help="nodes count")
+    parser.add_argument("--schedulers-count", type=int, default=1, help="schedulers count")
+
+    for service in ["master", "node", "scheduler", "proxy"]:
+        parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
+
+    parser.add_argument("--no-proxy", action="store_false", default=True, help="do not start proxy",
+                        dest="start_proxy")
+
+    parser.add_argument("--sync", action="store_true", default=False,
+                        help="start in synchronized mode (hangs up console and prints info there)")
+    parser.add_argument("--id", help="local YT id (guid will be generated if not specified)")
+    parser.add_argument("--local-cypress-dir", help="local Cypress directory (map_nodes and tables will be created in "
+                                                    "Cypress according to this directory layout)")
+
+    parser.add_argument("-q", "--quiet", action="store_true", default=False,
+                        help="decrease verbosity (leave only warnings and errors)")
+    parser.add_argument("--use-proxy-from-yt-source", action="store_true", default=False,
+                        help="Do not start proxy from package, start from YT source tree using run_proxy.sh. "
+                             "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
+
+def add_stop_subparser(subparsers):
+    parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)
+    parser.add_argument("--id", required=True, help="local YT id")
+    parser.add_argument("--delete", help="remove working directory after stopping", action="store_true",
+                        dest="remove_working_dir")
+
+def add_delete_subparser(subparsers):
+    parser = subparsers.add_parser("delete", help="Stop local YT with given id and remove its folder",
+                                   func=delete)
+    parser.add_argument("--id", required=True, help="local YT id")
+
+def get_proxy_func(**kwargs):
+    print get_proxy(**kwargs)
+
+def add_get_proxy_subparser(subparsers):
+    parser = subparsers.add_parser("get_proxy", help="Get proxy address for local YT with given id",
+                                   func=get_proxy_func)
+    parser.add_argument("--id", required=True, help="local YT id")
+
+def main():
+    options_parser = argparse.ArgumentParser(add_help=False)
+    options_parser.add_argument("--path", help="local YTs root path, can be specified "
+                                               "with YT_LOCAL_ROOT_PATH variable")
+
+    parser = argparse.ArgumentParser(parents=[options_parser],
+                                     description=DESCRIPTION)
+
+    subparsers = parser.add_subparsers(metavar="command")
+    patch_add_parser(subparsers)
+
+    add_start_subparser(subparsers)
+    add_stop_subparser(subparsers)
+    add_delete_subparser(subparsers)
+    add_get_proxy_subparser(subparsers)
+
+    options, remaining_args = options_parser.parse_known_args()
+    args = parser.parse_args(remaining_args)
+
+    func_args = dict(vars(args))
+    func_args.update(vars(options))
+
+    func_args.pop("func")
+    args.func(**func_args)
+
+if __name__ == "__main__":
+    run_main(main)
+

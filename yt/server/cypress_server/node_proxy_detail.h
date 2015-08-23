@@ -34,6 +34,7 @@ public:
 
     virtual NYTree::INodeFactoryPtr CreateFactory() const override;
     virtual ICypressNodeFactoryPtr CreateCypressFactory(
+        NSecurityServer::TAccount* account,
         bool preserveAccount) const override;
 
     virtual NYTree::INodeResolverPtr GetResolver() const override;
@@ -151,8 +152,8 @@ protected:
 
 
     ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
-    static ICypressNodeProxy* ToProxy(NYTree::INodePtr node);
-    static const ICypressNodeProxy* ToProxy(NYTree::IConstNodePtr node);
+    static TIntrusivePtr<ICypressNodeProxy>ToProxy(NYTree::INodePtr node);
+    static TIntrusivePtr<const ICypressNodeProxy> ToProxy(NYTree::IConstNodePtr node);
 
     virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes() override;
     
@@ -183,7 +184,7 @@ protected:
     virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr value,
+        NYTree::INodePtr child,
         bool recursive);
 
 
@@ -367,9 +368,11 @@ private:
     virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr value,
+        NYTree::INodePtr child,
         bool recursive) override;
-    
+
+    virtual int GetMaxChildCount() const override;
+
     virtual TResolveResult ResolveRecursive(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
 
     void DoRemoveChild(TMapNode* impl, const Stroka& key, TCypressNodeBase* childImpl);
@@ -407,8 +410,10 @@ private:
     virtual void SetChildNode(
         NYTree::INodeFactoryPtr factory,
         const NYPath::TYPath& path,
-        NYTree::INodePtr value,
+        NYTree::INodePtr child,
         bool recursive) override;
+
+    virtual int GetMaxChildCount() const override;
 
     virtual TResolveResult ResolveRecursive(
         const NYPath::TYPath& path,

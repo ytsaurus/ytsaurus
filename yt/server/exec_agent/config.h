@@ -68,7 +68,7 @@ class TSlotManagerConfig
 {
 public:
     //! Root path for slot directories.
-    Stroka Path;
+    std::vector<Stroka> Paths;
 
     //! When set to |true|, job proxies are run under per-slot pseudousers.
     //! This option requires node server process to have root privileges.
@@ -91,7 +91,7 @@ public:
 
     TSlotManagerConfig()
     {
-        RegisterParameter("path", Path)
+        RegisterParameter("paths", Paths)
             .NonEmpty();
         RegisterParameter("enforce_job_control", EnforceJobControl)
             .Default(false);
@@ -151,7 +151,7 @@ public:
     TDuration MemoryWatchdogPeriod;
     TDuration BlockIOWatchdogPeriod;
 
-    TNullable<int> IopsThreshold;
+    bool EnableIopsThrottling;
 
     double MemoryLimitMultiplier;
 
@@ -183,8 +183,8 @@ public:
         RegisterParameter("memory_limit_multiplier", MemoryLimitMultiplier)
             .Default(2.0);
 
-        RegisterParameter("iops_threshold", IopsThreshold)
-            .Default();
+        RegisterParameter("enable_iops_throttling", EnableIopsThrottling)
+            .Default(false);
     }
 };
 

@@ -440,7 +440,7 @@ TCodegenSource MakeCodegenFilterOp(
 
 TCodegenSource MakeCodegenJoinOp(
     int index,
-    std::vector<Stroka> joinColumns,
+    std::vector<TCodegenExpression> equations,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource);
 
@@ -475,14 +475,14 @@ TCodegenSource MakeCodegenGroupOp(
     std::function<void(TCGContext&, Value*, Value*)> codegenUpdate,
     std::function<void(TCGContext&, Value*)> codegenFinalize,
     TCodegenSource codegenSource,
-    int keySize,
-    int groupRowSize,
-    TTableSchema inputSchema);
+    std::vector<EValueType> keyTypes,
+    int groupRowSize);
 
 TCodegenSource MakeCodegenOrderOp(
     std::vector<Stroka> orderColumns,
     TTableSchema sourceSchema,
-    TCodegenSource codegenSource);
+    TCodegenSource codegenSource,
+    bool isDesc);
 
 TCodegenSource MakeCodegenProjectOp(
     std::vector<TCodegenExpression> codegenArgs,
@@ -493,8 +493,11 @@ TCodegenSource MakeCodegenProjectOp(
 TCGQueryCallback CodegenEvaluate(
     TCodegenSource codegenSource);
 
-TCGExpressionCallback CodegenExpression(    
+TCGExpressionCallback CodegenExpression(
     TCodegenExpression codegenExpression);
+
+TCGAggregateCallbacks CodegenAggregate(
+    TCodegenAggregate codegenAggregate);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -526,6 +529,121 @@ TCGValue MakeBinaryFunctionCall(
     Stroka name,
     TCGContext& builder,
     Value* row);
+
+struct TLlvmClosure
+{
+    Value* ClosurePtr;
+    llvm::Function* Function;
+};
+
+template <class TSignature>
+struct TClosureFunctionDeclarer;
+
+template <class TResult, class... TArgs>
+struct TClosureFunctionDeclarer<TResult(TArgs...)>
+{
+    typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
+
+    static Function* Do(llvm::Module* module, llvm::Twine name)
+    {
+        return Function::Create(
+            TypeBuilder<TResult(void**, TArgs...), false>::get(module->getContext()),
+            Function::ExternalLinkage,
+            name,
+            module);
+    }
+};
+
+template <class TSequence>
+struct TClosureFunctionDefiner;
+
+template <unsigned... Indexes>
+struct TClosureFunctionDefiner<NMpl::TSequence<Indexes...>>
+{
+    template <class TBody>
+    static TLlvmClosure Do(TCGContext& builder, Function* function, TBody&& body)
+    {
+        auto args = function->arg_begin();
+        Value* closurePtr = args++; closurePtr->setName("closure");
+
+        Value* argsArray[sizeof...(Indexes)];
+        size_t index = 0;
+        while (args != function->arg_end()) {
+            argsArray[index++] = args++;
+        }
+        YCHECK(index == sizeof...(Indexes));
+
+        TCGContext innerBuilder(function, &builder, closurePtr);
+        body(innerBuilder, argsArray[Indexes]...);
+
+        return TLlvmClosure{innerBuilder.GetClosure(), function};
+    }
+};
+
+template <class TSignature, class TBody>
+TLlvmClosure MakeClosure(TCGContext& builder, llvm::Twine name, TBody&& body)
+{
+    typedef TClosureFunctionDeclarer<TSignature> TFunctionBuilder;
+    return TClosureFunctionDefiner<typename TFunctionBuilder::TIndexesPack>::Do(
+        builder,
+        TFunctionBuilder::Do(builder.Module->GetModule(), name),
+        std::forward<TBody>(body));
+}
+
+template <class TSignature>
+struct TFunctionDeclarer;
+
+template <class TResult, class... TArgs>
+struct TFunctionDeclarer<TResult(TArgs...)>
+{
+    typedef typename NMpl::TGenerateSequence<sizeof...(TArgs)>::TType TIndexesPack;
+
+    static Function* Do(llvm::Module* module, llvm::Twine name)
+    {
+        return Function::Create(
+            TypeBuilder<TResult(TArgs...), false>::get(module->getContext()),
+            Function::ExternalLinkage,
+            name,
+            module);
+    }
+};
+
+template <class TSequence>
+struct TFunctionDefiner;
+
+template <unsigned... Indexes>
+struct TFunctionDefiner<NMpl::TSequence<Indexes...>>
+{
+    template <class TBody>
+    static void Do(llvm::Module* module, Function* function, TBody&& body)
+    {
+        auto args = function->arg_begin();
+        Value* argsArray[sizeof...(Indexes)];
+        size_t index = 0;
+        while (args != function->arg_end()) {
+            argsArray[index++] = args++;
+        }
+        YCHECK(index == sizeof...(Indexes));
+
+        TCGIRBuilder builder(BasicBlock::Create(module->getContext(), "entry", function));
+        body(builder, argsArray[Indexes]...);
+    }
+};
+
+template <class TSignature, class TBody>
+Function* MakeFunction(llvm::Module* module, llvm::Twine name, TBody&& body)
+{
+    typedef TFunctionDeclarer<TSignature> TFunctionBuilder;
+
+    auto function = TFunctionBuilder::Do(module, name);
+
+    TFunctionDefiner<typename TFunctionBuilder::TIndexesPack>::Do(
+        module,
+        function,
+        std::forward<TBody>(body));
+
+    return function;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

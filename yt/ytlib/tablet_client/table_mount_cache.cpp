@@ -21,8 +21,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #ifdef YT_USE_LLVM
 #include <ytlib/query_client/folding_profiler.h>
@@ -42,7 +42,7 @@ using namespace NRpc;
 using namespace NElection;
 using namespace NObjectClient;
 using namespace NCypressClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NHive;
 using namespace NNodeTrackerClient;
 #ifdef YT_USE_LLVM

@@ -77,7 +77,7 @@ public:
     typedef TIntrusivePtr<TCtxHeartbeat> TCtxHeartbeatPtr;
     void ProcessHeartbeat(
         TExecNodePtr node,
-        TCtxHeartbeatPtr context) noexcept;
+        TCtxHeartbeatPtr context);
 
 private:
     class TImpl;
@@ -86,6 +86,8 @@ private:
     class TSchedulingContext;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TScheduler)
 
 ////////////////////////////////////////////////////////////////////
 

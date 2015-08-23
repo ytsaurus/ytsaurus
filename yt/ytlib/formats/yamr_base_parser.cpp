@@ -1,6 +1,6 @@
 #include "yamr_base_parser.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <core/misc/error.h>
 #include <core/misc/string.h>
@@ -10,12 +10,14 @@
 
 #include <core/ytree/attribute_helpers.h>
 
+#include <util/string/escape.h>
+
 
 namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,8 +120,12 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
     try {
          value = FromString<i64>(tableIndex);
     } catch (const std::exception& ex) {
+        Stroka tableIndexString(tableIndex);
+        if (tableIndex.Size() > ContextBufferSize) {
+            tableIndexString = Stroka(tableIndex.SubStr(0, ContextBufferSize)) + "...truncated...";
+        }
         THROW_ERROR_EXCEPTION("YAMR line %Qv cannot be parsed as a table switch; did you forget a record separator?",
-            tableIndex)
+            tableIndexString)
             << GetDebugInfo();
     }
     Consumer->SwitchTable(value);
@@ -253,8 +259,8 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
 void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
 {
     THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %Qv, found %Qv",
-        FieldSeparator,
-        RecordSeparator)
+        EscapeC(FieldSeparator),
+        EscapeC(RecordSeparator))
         << GetDebugInfo();
 }
 

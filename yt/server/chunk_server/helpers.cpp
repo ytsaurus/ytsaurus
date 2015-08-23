@@ -6,8 +6,8 @@
 
 #include <ytlib/object_client/public.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <server/cypress_server/cypress_manager.h>
 #include <server/cypress_server/node_proxy.h>
@@ -21,9 +21,9 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
 using namespace NCypressServer;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NSecurityServer;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 

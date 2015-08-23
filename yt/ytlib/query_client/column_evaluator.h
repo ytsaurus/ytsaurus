@@ -4,7 +4,7 @@
 
 #include "evaluation_helpers.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/query_client/function_registry.h>
 
@@ -34,14 +34,14 @@ public:
     TRow EvaluateKeys(
         TRow partialRow,
         const TRowBufferPtr& buffer,
-        const NVersionedTableClient::TNameTableToSchemaIdMapping& idMapping);
+        const NTableClient::TNameTableToSchemaIdMapping& idMapping);
 
     const std::vector<int>& GetReferenceIds(int index);
     TConstExpressionPtr GetExpression(int index);
 
-private:
-    void PrepareEvaluator(int index);
+    void PrepareEvaluator();
 
+private:
     const TTableSchema Schema_;
     const int KeySize_;
     const IFunctionRegistryPtr FunctionRegistry_;

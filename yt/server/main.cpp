@@ -35,6 +35,7 @@
 
 #include <core/tracing/trace_manager.h>
 
+#include <core/logging/config.h>
 #include <core/logging/log_manager.h>
 
 #include <util/system/sigset.h>
@@ -80,6 +81,7 @@ public:
         , Node("", "node", "start cell node")
         , Master("", "master", "start cell master")
         , DumpMasterSnapshot("", "dump-master-snapshot", "load a given master snapshot and dump its content to stderr", false, "", "FILE")
+        , ValidateMasterSnapshot("", "validate-master-snapshot", "validate a given master snapshot", false, "", "FILE")
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
@@ -101,6 +103,7 @@ public:
         CmdLine.add(Node);
         CmdLine.add(Master);
         CmdLine.add(DumpMasterSnapshot);
+        CmdLine.add(ValidateMasterSnapshot);
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
@@ -125,6 +128,7 @@ public:
     TCLAP::SwitchArg Node;
     TCLAP::SwitchArg Master;
     TCLAP::ValueArg<Stroka> DumpMasterSnapshot;
+    TCLAP::ValueArg<Stroka> ValidateMasterSnapshot;
     TCLAP::SwitchArg Scheduler;
     TCLAP::SwitchArg JobProxy;
     TCLAP::ValueArg<Stroka> JobId;
@@ -157,7 +161,8 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Figure out the mode: cell master, cell node, scheduler or job proxy.
     bool isMaster = parser.Master.getValue();
-    bool isMasterSnapshotDump =  parser.DumpMasterSnapshot.isSet();
+    bool isMasterSnapshotDump = parser.DumpMasterSnapshot.isSet();
+    bool isMasterSnapshotValidate = parser.ValidateMasterSnapshot.isSet();
     bool isNode = parser.Node.getValue();
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
@@ -182,6 +187,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
     if (isMasterSnapshotDump) {
+        ++modeCount;
+    }
+    if (isMasterSnapshotValidate) {
         ++modeCount;
     }
     if (isScheduler) {
@@ -247,7 +255,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
         config->Load(configNode);
 
         // Configure singletons.
-        NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
+        if (!isMasterSnapshotDump && !isMasterSnapshotValidate) {
+            NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
+        } else {
+            NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
+        }
         TAddressResolver::Get()->Configure(config->AddressResolver);
         NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
         NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");
@@ -345,7 +357,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         bootstrap->Run();
     }
 
-    if (isMaster || isMasterSnapshotDump) {
+    if (isMaster || isMasterSnapshotDump || isMasterSnapshotValidate) {
         NConcurrency::SetCurrentThreadName("MasterMain");
 
         auto config = New<NCellMaster::TCellMasterConfig>();
@@ -370,7 +382,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
         if (isMaster) {
             bootstrap->Run();
         } else if (isMasterSnapshotDump) {
-            bootstrap->DumpSnapshot(parser.DumpMasterSnapshot.getValue());
+            bootstrap->TryLoadSnapshot(parser.DumpMasterSnapshot.getValue(), true);
+        } else if (isMasterSnapshotValidate) {
+            bootstrap->TryLoadSnapshot(parser.ValidateMasterSnapshot.getValue(), false);
         } else {
             YUNREACHABLE();
         }

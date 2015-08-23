@@ -501,7 +501,7 @@ public:
 
         UpdateLogHeader();
 
-        LOG_DEBUG("Changelog truncated to (RecordCount: %v)",
+        LOG_DEBUG("Changelog truncated (RecordCount: %v)",
             recordCount);
     }
 

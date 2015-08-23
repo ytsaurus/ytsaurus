@@ -13,7 +13,7 @@
 
 #include <ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/new_table_client/schema.h>
+#include <ytlib/table_client/schema.h>
 
 #include <server/job_proxy/config.h>
 
@@ -27,7 +27,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 //////////////////////////////////////////////////////////////////////////////////
 

@@ -14,9 +14,9 @@
 
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
-#include <ytlib/new_table_client/row_merger.h>
+#include <ytlib/table_client/row_merger.h>
 
-#include <ytlib/new_table_client/versioned_reader.h>
+#include <ytlib/table_client/versioned_reader.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +24,7 @@ namespace NYT {
 namespace NTabletNode {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 

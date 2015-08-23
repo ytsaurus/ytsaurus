@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include "yamr_table.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <core/misc/blob_output.h>
 #include <core/misc/nullable.h>
@@ -74,7 +74,7 @@ private:
 
     EState State;
     EValueType ValueType;
-    NVersionedTableClient::EControlAttribute ControlAttribute;
+    NTableClient::EControlAttribute ControlAttribute;
 
     // To store Int64 and Double values converted to strings.
     std::vector<Stroka> StringStorage_;

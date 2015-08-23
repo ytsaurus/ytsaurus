@@ -138,6 +138,21 @@ class TestSchedulerOther(YTEnvSetup):
 
         track_op(op1)
 
+    def test_pool_resource_limits(self):
+        resource_limits = {"cpu": 1, "memory": 100, "network": 10}
+        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
+
+        while True:
+            pools = get("//sys/scheduler/orchid/scheduler/pools")
+            if "test_pool" in pools:
+                break
+            time.sleep(0.1)
+
+        stats = get("//sys/scheduler/orchid/scheduler")
+        pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
+        for resource, limit in resource_limits.iteritems():
+            assert pool_resource_limits[resource] == limit
+
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     NUM_MASTERS = 3
@@ -181,23 +196,48 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
     }
 
     def test_operations_pool_limit(self):
+        create("map_node", "//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2")
+
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
+        create("table", "//tmp/out3")
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
-        op1 = map(dont_track=True, command="sleep 1.7; cat >/dev/null", in_=["//tmp/in"], out="//tmp/out1")
-        op2 = map(dont_track=True, command="cat >/dev/null", in_=["//tmp/in"], out="//tmp/out2")
+        op1 = map(
+            dont_track=True,
+            command="sleep 1.7; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out1",
+            spec={"pool": "test_pool_1"})
+
+        op2 = map(
+            dont_track=True,
+            command="cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out2",
+            spec={"pool": "test_pool_1"})
+
+        op3 = map(
+            dont_track=True,
+            command="sleep 1.7; cat >/dev/null",
+            in_=["//tmp/in"],
+            out="//tmp/out3",
+            spec={"pool": "test_pool_2"})
 
         time.sleep(1.5)
         assert get("//sys/operations/{0}/@state".format(op1)) == "running"
         assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
+        assert get("//sys/operations/{0}/@state".format(op3)) == "running"
 
         track_op(op1)
         track_op(op2)
+        track_op(op3)
 
         assert read_table("//tmp/out1") == []
         assert read_table("//tmp/out2") == []
+        assert read_table("//tmp/out3") == []
 
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
@@ -294,8 +334,7 @@ class TestSchedulingTags(YTEnvSetup):
     def test_pools(self):
         self._prepare()
 
-        create("map_node", "//sys/pools/test_pool")
-        set("//sys/pools/test_pool/@scheduling_tag", "tagA")
+        create("map_node", "//sys/pools/test_pool", attributes={"scheduling_tag": "tagA"})
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 

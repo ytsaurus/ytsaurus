@@ -104,6 +104,11 @@ public:
         }
     }
 
+    TCachedBlockCookie BeginInsertCachedBlock(const TBlockId& blockId)
+    {
+        return BeginInsert(blockId);
+    }
+
     TFuture<std::vector<TSharedRef>> ReadBlockRange(
         const TChunkId& chunkId,
         int firstBlockIndex,
@@ -112,23 +117,23 @@ public:
         IBlockCachePtr blockCache,
         bool populateCache)
     {
-        if (IsJournalChunk(chunkId)) {
-            // Journal chunk: shortcut.
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        try {
             auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+            // NB: At the moment, range read requests are only possible for the whole chunks.
             auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
-            return chunk->ReadBlocks(firstBlockIndex, blockCount, priority);
-        } else {
-            // Blob chunk: reduce to block set read.
-            std::vector<int> blockIndexes;
-            for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
-                blockIndexes.push_back(blockIndex);
-            }
-            return ReadBlockSet(
-                chunkId,
-                blockIndexes,
+            auto readGuard = AcquireReadGuard(chunk);
+            auto asyncBlocks = chunk->ReadBlockRange(
+                firstBlockIndex,
+                blockCount,
                 priority,
-                blockCache,
-                populateCache);
+                populateCache,
+                blockCache);
+            // Hold the read guard.
+            return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
+        } catch (const std::exception& ex) {
+            return MakeFuture<std::vector<TSharedRef>>(TError(ex));
         }
     }
 
@@ -141,98 +146,36 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        populateCache &= !IsJournalChunk(chunkId);
-
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-        auto chunk = chunkRegistry->FindChunk(chunkId);
-        if (!chunk) {
-            // During block peering, data nodes exchange individual blocks.
-            // Thus the cache may contain a block not bound to any chunk in the registry.
-            // We must look for these blocks.
-            std::vector<TSharedRef> blocks;
-            if (!IsJournalChunk(chunkId)) {
-                for (int blockIndex : blockIndexes) {
-                    auto blockId = TBlockId(chunkId, blockIndex);
-                    auto block = blockCache->Find(blockId, EBlockType::CompressedData);
-                    blocks.push_back(block);
-                }
-            }
-            return MakeFuture(blocks);
-        }
-
-        auto session = New<TReadSession>();
-        session->ChunkId = chunkId;
-        for (int blockIndex : blockIndexes) {
-            TReadSession::TBlockEntry entry;
-            entry.BlockIndex = blockIndex;
-            session->Blocks.emplace_back(std::move(entry));
-        }
-        
-        session->ReadGuard = TChunkReadGuard::TryAcquire(chunk);
-        if (!session->ReadGuard) {
-            return MakeFuture<std::vector<TSharedRef>>(TError(
-                NChunkClient::EErrorCode::NoSuchChunk,
-                "Cannot read chunk %v since it is scheduled for removal",
-                chunkId));
-        }
-
-        // Results to wait for, including cache and read requests.
-        std::vector<TFuture<void>> asyncResults;
-
-        // Fetch blocks from cache, if appropriate.
-        if (!IsJournalChunk(chunkId)) {
-            for (auto& entry : session->Blocks) {
-                auto blockId = TBlockId(chunkId, entry.BlockIndex);
-                auto block = blockCache->Find(blockId, EBlockType::CompressedData);
-                if (block) {
-                    entry.Data = block;
-                    entry.Cached = true;
-                } else if (populateCache) {
-                    entry.Cookie = BeginInsert(blockId);
-                    if (!entry.Cookie.IsActive()) {
-                        entry.Cached = true;
-                        auto asyncResult = entry.Cookie.GetValue().Apply(
-                            BIND([session, &entry] (const TCachedBlockPtr& cachedBlock) {
-                                entry.Data = cachedBlock->GetData();
-                            }));
-                        asyncResults.emplace_back(std::move(asyncResult));
+        try {
+            auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+            auto chunk = chunkRegistry->FindChunk(chunkId);
+            if (!chunk) {
+                std::vector<TSharedRef> blocks;
+                // During block peering, data nodes exchange individual blocks.
+                // Thus the cache may contain a block not bound to any chunk in the registry.
+                // We must look for these blocks.
+                auto type = TypeFromId(DecodeChunkId(chunkId).Id);
+                if (type == EObjectType::Chunk || type == EObjectType::ErasureChunk) {
+                    for (int blockIndex : blockIndexes) {
+                        auto blockId = TBlockId(chunkId, blockIndex);
+                        auto block = blockCache->Find(blockId, EBlockType::CompressedData);
+                        blocks.push_back(block);
                     }
                 }
+                return MakeFuture(blocks);
             }
+
+            auto readGuard = AcquireReadGuard(chunk);
+            auto asyncBlocks = chunk->ReadBlockSet(
+                blockIndexes,
+                priority,
+                populateCache,
+                blockCache);
+            // Hold the read guard.
+            return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
+        } catch (const std::exception& ex) {
+            return MakeFuture<std::vector<TSharedRef>>(TError(ex));
         }
-
-        // Extract maximum contiguous ranges of uncached blocks.
-        {
-            int localIndex = 0;
-            while (localIndex < blockIndexes.size()) {
-                if (session->Blocks[localIndex].Cached) {
-                    ++localIndex;
-                    continue;                    
-                }
-
-                int startLocalIndex = localIndex;
-                int startBlockIndex = session->Blocks[startLocalIndex].BlockIndex;
-                int endLocalIndex = startLocalIndex;
-                while (endLocalIndex < blockIndexes.size() &&
-                       !session->Blocks[endLocalIndex].Cached &&
-                       session->Blocks[endLocalIndex].BlockIndex == startBlockIndex + (endLocalIndex - startLocalIndex))
-                {
-                    ++endLocalIndex;
-                }
-
-                int blockCount = endLocalIndex - startLocalIndex;
-                auto asyncResult = chunk->ReadBlocks(startBlockIndex, blockCount, priority).Apply(BIND(
-                    &TImpl::OnBlocksRead,
-                    session,
-                    startLocalIndex,
-                    blockCount));
-                asyncResults.emplace_back(std::move(asyncResult));
-
-                localIndex = endLocalIndex;
-            }
-        }
-
-        return Combine(asyncResults).Apply(BIND(&TImpl::OnAllBlocksRead, session));
     }
 
     i64 GetPendingReadSize() const
@@ -265,27 +208,11 @@ private:
     std::atomic<i64> PendingReadSize_ = {0};
 
 
-    struct TReadSession
-        : public TIntrinsicRefCounted
+
+    virtual i64 GetWeight(const TCachedBlockPtr& block) const override
     {
-        struct TBlockEntry
-        {
-            int BlockIndex = -1;
-            TSharedRef Data;
-            TInsertCookie Cookie;
-            bool Cached = false;
-        };
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        TChunkId ChunkId;
-        TChunkReadGuard ReadGuard;
-        std::vector<TBlockEntry> Blocks;
-    };
-
-    using TReadSessionPtr = TIntrusivePtr<TReadSession>;
-
-
-    virtual i64 GetWeight(TCachedBlock* block) const override
-    {
         return block->GetData().Size();
     }
 
@@ -298,48 +225,24 @@ private:
             delta);
     }
 
+    TChunkReadGuard AcquireReadGuard(IChunkPtr chunk)
+    {
+        auto guard = TChunkReadGuard::TryAcquire(chunk);
+        if (!guard) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchChunk,
+                "Cannot read chunk %v since it is scheduled for removal",
+                chunk->GetId());
+        }
+        return guard;
+    }
 
-    static void OnBlocksRead(
-        TReadSessionPtr session,
-        int startLocalIndex,
-        int blockCount,
+    static std::vector<TSharedRef> OnBlocksRead(
+        TChunkReadGuard /*guard*/,
         const std::vector<TSharedRef>& blocks)
     {
-        for (int localIndex = startLocalIndex; localIndex < startLocalIndex + blockCount; ++localIndex) {
-            int blockIndex = session->Blocks[localIndex].BlockIndex;
-            auto blockId = TBlockId(session->ChunkId, blockIndex);
-            auto& entry = session->Blocks[localIndex];
-            auto block = localIndex - startLocalIndex < blocks.size()
-                ? blocks[localIndex - startLocalIndex]
-                : TSharedRef();
-            entry.Data = block;
-            if (entry.Cookie.IsActive()) {
-                YCHECK(block);
-                auto cachedBlock = New<TCachedBlock>(blockId, block, Null);
-                entry.Cookie.EndInsert(cachedBlock);
-            }
-        }
-    }
-
-    static std::vector<TSharedRef> OnAllBlocksRead(TReadSessionPtr session)
-    {
-        std::vector<TSharedRef> blocks;
-
-        // Move data from session.
-        blocks.reserve(session->Blocks.size());
-        for (auto& entry : session->Blocks) {
-            blocks.emplace_back(std::move(entry.Data));
-        }
-
         return blocks;
     }
-
-
-    static bool IsJournalChunk(const TChunkId& chunkId)
-    {
-        return TypeFromId(DecodeChunkId(chunkId).Id) == EObjectType::JournalChunk;
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,6 +267,11 @@ void TBlockStore::PutCachedBlock(
     const TNullable<TNodeDescriptor>& source)
 {
     Impl_->PutCachedBlock(blockId, data, source);
+}
+
+TCachedBlockCookie TBlockStore::BeginInsertCachedBlock(const TBlockId& blockId)
+{
+    return Impl_->BeginInsertCachedBlock(blockId);
 }
 
 TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(

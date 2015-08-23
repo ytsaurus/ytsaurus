@@ -174,7 +174,6 @@ private:
     bool Completed_ = false;
     TSingleShotCallbackList<void()> Canceled_;
     bool Finalized_ = false;
-    TClosure Canceler_;
     NProfiling::TCpuInstant ArrivalTime_;
     NProfiling::TCpuInstant StartTime_ = -1;
 
@@ -372,11 +371,11 @@ private:
     {
         TStringBuilder builder;
 
-        if (RequestId_ != NullRequestId) {
+        if (RequestId_) {
             AppendInfo(&builder, "RequestId: %v", GetRequestId());
         }
 
-        if (RealmId_ != NullRealmId) {
+        if (RealmId_) {
             AppendInfo(&builder, "RealmId: %v", GetRealmId());
         }
 
@@ -385,7 +384,7 @@ private:
         }
 
         auto mutationId = GetMutationId(*RequestHeader_);
-        if (mutationId != NullMutationId) {
+        if (mutationId) {
             AppendInfo(&builder, "MutationId: %v", mutationId);
         }
 
@@ -408,7 +407,7 @@ private:
     {
         TStringBuilder builder;
 
-        if (RequestId_ != NullRequestId) {
+        if (RequestId_) {
             AppendInfo(&builder, "RequestId: %v", RequestId_);
         }
 
@@ -754,7 +753,7 @@ TServiceBase::TServiceContextPtr TServiceBase::FindCancelableRequest(const TRequ
 {
     TGuard<TSpinLock> guard(CancelableRequestLock_);
     auto it = IdToContext_.find(requestId);
-    return it == IdToContext_.end()  ? nullptr : TServiceContext::DangerousGetPtr(it->second);
+    return it == IdToContext_.end() ? nullptr : TServiceContext::DangerousGetPtr(it->second);
 }
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
@@ -876,14 +875,14 @@ IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
 void TServiceBase::BeforeInvoke()
 { }
 
-bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/) const
+bool TServiceBase::IsUp(TCtxDiscoverPtr /*context*/)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return true;
 }
 
-std::vector<Stroka> TServiceBase::SuggestAddresses() const
+std::vector<Stroka> TServiceBase::SuggestAddresses()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

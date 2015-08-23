@@ -52,16 +52,11 @@ void TChunkStore::Initialize()
     for (int i = 0; i < Config_->StoreLocations.size(); ++i) {
         auto locationConfig = Config_->StoreLocations[i];
 
-        auto location = New<TLocation>(
-            ELocationType::Store,
+        auto location = New<TStoreLocation>(
             "store" + ToString(i),
             locationConfig,
             Bootstrap_);
 
-        location->SubscribeDisabled(
-            BIND(&TChunkStore::OnLocationDisabled, Unretained(this), location)
-                .Via(Bootstrap_->GetControlInvoker()));
-            
         auto descriptors = location->Scan();
         for (const auto& descriptor : descriptors) {
             auto chunk = CreateFromDescriptor(location, descriptor);
@@ -275,6 +270,7 @@ void TChunkStore::UnregisterChunk(IChunkPtr chunk)
 
     {
         TWriterGuard guard(ChunkMapLock_);
+        chunk->SetDead();
         ChunkMap_.erase(it);
     }
 
@@ -346,11 +342,11 @@ TFuture<void> TChunkStore::RemoveChunk(IChunkPtr chunk)
             .Via(Bootstrap_->GetControlInvoker()));
 }
 
-TLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
+TStoreLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    std::vector<TLocationPtr> candidates;
+    std::vector<TStoreLocationPtr> candidates;
     int minCount = std::numeric_limits<int>::max();
     for (const auto& location : Locations_) {
         if (location->IsFull() || !location->IsEnabled() || !location->IsChunkTypeAccepted(chunkType)) {
@@ -375,54 +371,8 @@ TLocationPtr TChunkStore::GetNewChunkLocation(EObjectType chunkType)
     return candidates[RandomNumber(candidates.size())];
 }
 
-void TChunkStore::OnLocationDisabled(TLocationPtr location, const TError& reason)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    // Scan through all chunks and remove those residing on this dead location.
-    {
-        int count = 0;
-        auto it = ChunkMap_.begin();
-        while (it != ChunkMap_.end()) {
-            auto jt = it++;
-            auto chunk = jt->second.Chunk;
-            if (chunk->GetLocation() == location) {
-                ChunkMap_.erase(jt);
-                ++count;
-            }
-        }
-        LOG_INFO("%v chunks discarded at disabled location (LocationId: %v)",
-            count,
-            location->GetId());
-    }
-
-    // Scan through all sessions and cancel those opened for discarded chunks.
-    {
-        int count = 0;
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        auto sessions = sessionManager->GetSessions();
-        for (auto session : sessions) {
-            if (session->GetLocation() == location) {
-                session->Cancel(TError("Location disabled"));
-                ++count;
-            }
-        }
-        LOG_INFO("%v sessions canceled at disabled location (LocationId: %v)",
-            count,
-            location->GetId());
-    }
-
-    // Register an alert and
-    // schedule an out-of-order heartbeat to notify the master about the disaster.
-    auto masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->RegisterAlert(TError("Chunk store at %v is disabled",
-        location->GetPath())
-        << reason);
-    masterConnector->ForceRegisterAtMaster();
-}
-
 IChunkPtr TChunkStore::CreateFromDescriptor(
-    TLocationPtr location,
+    TStoreLocationPtr location,
     const TChunkDescriptor& descriptor)
 {
     auto chunkType = TypeFromId(DecodeChunkId(descriptor.Id).Id);

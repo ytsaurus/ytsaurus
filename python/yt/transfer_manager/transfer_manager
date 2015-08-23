@@ -8,21 +8,10 @@ from yt.transfer_manager.pattern_matching import match_copy_pattern
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
 from yt.tools.hadoop import Hive
-from yt.tools.remote_copy_tools import \
-    copy_yamr_to_yt_pull, \
-    copy_yt_to_yamr_pull, \
-    copy_yt_to_yamr_push, \
-    copy_yt_to_kiwi, \
-    copy_yt_to_yt, \
-    copy_yt_to_yt_through_proxy, \
-    copy_hive_to_yt, \
-    Kiwi
-
-import yt.packages.requests as requests
-import yt.wrapper.http as yt_http
+from yt.tools.remote_copy_tools import Kiwi
 
 from yt.wrapper.client import Yt
-from yt.wrapper.common import generate_uuid, get_value
+from yt.wrapper.common import generate_uuid, get_value, update
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -40,6 +29,7 @@ import logging.handlers
 import thread
 import argparse
 import traceback
+import pwd
 from copy import deepcopy
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -47,7 +37,7 @@ from subprocess32 import TimeoutExpired
 from threading import RLock, Thread
 from multiprocessing import Process, Queue
 
-yt.config.RETRY_READ = True
+yt.config["read_retries"]["enable"] = True
 
 class RequestFailed(yt.YtError):
     pass
@@ -83,6 +73,28 @@ class SafeThread(Thread):
                 os.kill(self._parent_pid, signal.SIGTERM)
 
         super(SafeThread, self).__init__(group=group, target=safe_run, name=name, args=args, kwargs=kwargs)
+
+SIGTERM_SENT = False
+def sigterm_handler(signum, frame):
+    global SIGTERM_SENT
+    if not SIGTERM_SENT:
+        SIGTERM_SENT = True
+        os.killpg(0, signal.SIGINT)
+        time.sleep(0.5)
+        os.killpg(0, signal.SIGTERM)
+
+    os._exit(1)
+
+def log_yt_exception(logger, message=None):
+    # Python2.7 has a bug in unpickling exception with non-trivial constructor.
+    # To overcome it we convert exception to string before logging through socket handler.
+    # https://bugs.python.org/issue1692335
+    exc_type, exc_value, exc_traceback = sys.exc_info()
+    exception_string = "\n".join(traceback.format_exception(exc_type, str(exc_value), exc_traceback))
+    if message is not None:
+        logger.error(message + "\n" + exception_string)
+    else:
+        logger.error(exception_string)
 
 def filter_out_keys(dict, keys):
     result = deepcopy(dict)
@@ -207,11 +219,13 @@ class Application(object):
 
         self._config = config
         self._mutex = RLock()
-        self._yt = Yt(config["proxy"], config["token"])
+        self._yt = Yt(**config["yt_backend_options"])
 
         self._load_config(config)
         self._path = config["path"]
         self._logging_port = self._config["port"] + 1
+
+        self._yandex_yt_python_tools_version = self._get_yandex_yt_python_tools_version()
 
         # Run logging process. It inherits current logging configuration.
         self._logging_process = Process(target=self._run_logging_server, name="LoggingThread")
@@ -303,10 +317,10 @@ class Application(object):
             try:
                 return func(*args, **kwargs)
             except RequestFailed as error:
-                logger.exception(str(error))
+                log_yt_exception(logger)
                 return json.dumps(error.simplify()), 400
             except Exception as error:
-                logger.exception(error)
+                logger.exception("Unknown error:")
                 return json.dumps({"code": 1, "message": "Unknown error: " + str(error)}), 502
 
         return decorator
@@ -323,7 +337,7 @@ class Application(object):
                         logger.info("Failed to take lock")
                         time.sleep(self._lock_timeout)
                         continue
-                    logger.exception(str(err))
+                    log_yt_exception(logger)
                     return
 
             logger.info("Lock acquired")
@@ -352,6 +366,9 @@ class Application(object):
             options = cluster_description["options"]
 
             if type == "yt":
+                if "config" not in options:
+                    options["config"] = {}
+                options["config"] = update(config["yt_client_config"], options["config"])
                 self._clusters[name] = Yt(**options)
                 self._clusters[name]._pools = cluster_description.get("pools", {})
                 self._clusters[name]._version = cluster_description.get("version", 0)
@@ -461,6 +478,9 @@ class Application(object):
 
         self._pending_tasks.sort(key=lambda id: self._tasks[id].creation_time)
 
+        # Abort tasks operations (TM can fail but operations will go on)
+        self._abort_failed_transfer_manager_operations()
+
         logger.info("Tasks load")
 
     def _append_pending_task(self, task):
@@ -531,19 +551,38 @@ class Application(object):
             return None
         return words[1]
 
-    def _get_token_and_user(self, authorization_header):
-        token = self._get_token(request.headers.get("Authorization", ""))
-        if token is None or token == "undefined":
+    def _get_token_and_user(self, headers_):
+        headers = {}
+        for key, value in headers_.iteritems():
+            headers[key] = value
+        # Passing Host header causes infinite redirect on locke
+        if "Host" in headers:
+            del headers["Host"]
+
+        token = self._get_token(headers.get("Authorization", ""))
+        if "X-Forwarded-For" in headers:
+            #headers["X-Forwarded-For"] += ", " + request.remote_addr
+            # NB: it is not yet supported by proxy.
+            pass
+        else:
+            headers["X-Forwarded-For"] = request.remote_addr
+        if token == "undefined":
             user = "guest"
             token = ""
         else:
-            user = self._yt.get_user_name(token)
+            user = self._yt.get_user_name(token, headers=headers)
             if not user:
                 raise IncorrectTokenError("Authorization token is incorrect: " + token)
         return token, user
 
-    def _check_permission(self, id, authorization_header, action_name):
-        _, user = self._get_token_and_user(authorization_header)
+    @staticmethod
+    def _get_yandex_yt_python_tools_version():
+        if os.path.isfile("/etc/yandex_yt_python_tools/version"):
+            return open("/etc/yandex_yt_python_tools/version").read().strip()
+        return None
+
+    def _check_permission(self, id, headers, action_name):
+        _, user = self._get_token_and_user(headers)
         if self._tasks[id].user != user and \
            self._yt.check_permission(user, "administer", self._auth_path)["action"] != "allow":
             raise RequestFailed("{0} task is not permitted.".format(action_name))
@@ -557,6 +596,8 @@ class Application(object):
             task.kiwi_user = self._config.get("default_kiwi_user")
         if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yamr":
             task.copy_method = "pull"
+        if task.copy_method is None and source_client._type == "yt" and destination_client._type == "yt":
+            task.copy_method = "proxy" if source_client._version != destination_client._version else "native"
 
     def _precheck(self, task, ignore_timeout=False, yamr_timeout=None, custom_logger=None):
         if custom_logger is None:
@@ -567,7 +608,7 @@ class Application(object):
         source_client = task.get_source_client(self._clusters)
         destination_client = task.get_destination_client(self._clusters)
 
-        if task.copy_method not in [None, "pull", "push"]:
+        if task.copy_method not in [None, "pull", "push", "proxy", "native"]:
             raise yt.YtError("Incorrect copy method: " + str(task.copy_method))
 
         if task.source_cluster not in self._availability_graph or \
@@ -588,15 +629,23 @@ class Application(object):
                 raise yt.YtError("Source table {} is empty".format(task.source_table))
 
             if source_client._type == "yt" and destination_client._type == "yamr":
-                path = yt.TablePath(task.source_table, end_index=1, simplify=False)
+                path = yt.TablePath(task.source_table, end_index=1, simplify=False, client=source_client)
                 keys = list(source_client.read_table(path, format=yt.JsonFormat(), raw=False).next())
                 if set(keys + ["subkey"]) != set(["key", "subkey", "value"]):
                     raise yt.YtError("Keys in the source table must be a subset of ('key', 'subkey', 'value')")
 
+            if source_client._type == "yt" and destination_client._type == "yt":
+                if task.copy_method not in ["proxy", "native"]:
+                    raise yt.YtError("Incorrect copy method {0} for YT to YT copy task".format(task.copy_method))
+                if task.copy_method == "native" and source_client._version != destination_client._version:
+                    raise yt.YtError("Native copy method should not be specified for clusters with "
+                                     "different YT versions")
+
             if destination_client._type == "yt":
                 destination_dir = os.path.dirname(task.destination_table)
-                if not destination_client.exists(destination_dir):
-                    raise yt.YtError("Destination directory {} should exist".format(destination_dir))
+                # NB: copy operations usually create directories if it do not exits.
+                #if not destination_client.exists(destination_dir):
+                #    raise yt.YtError("Destination directory {} should exist".format(destination_dir))
                 destination_user = destination_client.get_user_name(task.destination_cluster_token)
                 if destination_user is None or destination_client.check_permission(destination_user, "write", destination_dir)["action"] != "allow":
                     raise yt.YtError("There is no permission to write to {}. Please log in.".format(task.destination_table))
@@ -629,8 +678,8 @@ class Application(object):
             pool_path = "//sys/scheduler/orchid/scheduler/pools/" + task.pool
 
             try:
-                if not client.exists(pool_path):
-                    raise SchedulingError("Pool %s does not exist" % task.pool)
+                #if not client.exists(pool_path):
+                #    raise SchedulingError("Pool %s does not exist" % task.pool)
 
                 # TODO(ignat): uncomment after fix of resource_limits in 0.17 (YT-2222).
                 #pool_info = client.get("//sys/scheduler/orchid/scheduler/pools/" + task.pool)
@@ -655,6 +704,16 @@ class Application(object):
                 new_error.inner_errors = [error]
                 raise new_error
 
+        if client._type == "yamr":
+            def is_transfer_manager_copy_operation(op):
+                return "read_from_yt" in op.get("additionalInfo", {}).get("application", "") \
+                    and op.get("systemUser") == pwd.getpwuid(os.getuid())[0]
+            transfer_manager_operations = filter(is_transfer_manager_copy_operation, client.get_operations())
+            job_count = sum(op.get("jobsInfo", {}).get("States", {}).get("Jobs", {}).get("inProgress", 0)
+                            for op in transfer_manager_operations)
+            if job_count > self._config["running_jobs_limit_per_direction"]:
+                return False
+
         return True
 
     def _execute_tasks(self):
@@ -675,6 +734,9 @@ class Application(object):
                     logger.info("Task %s running", id)
                     error = None
                     completed = False
+
+                    process_is_alive = process.is_alive()
+
                     while not message_queue.empty():
                         message = None
                         try:
@@ -693,20 +755,22 @@ class Application(object):
                             assert False, "Incorrect message type: " + message["type"]
 
 
-                    if not process.is_alive() and not (process.aborted or error is not None or completed):
+                    if not process_is_alive and not (process.aborted or error is not None or completed):
                         message = "Process died silently"
                         logger.warning(message)
                         error = {"message": message, "code": 1}
 
                     if process.aborted or error is not None or completed:
                         self._tasks[id].finish_time = now()
-                        if completed:
-                            if process.is_alive():
-                                logger.warning("Task completed, but process still alive!")
-                            self._change_task_state(id, "completed")
-                        if error is not None:
+                        if process.aborted:
+                            pass
+                        elif error is not None:
                             self._tasks[id].error = error
                             self._change_task_state(id, "failed")
+                        elif completed:
+                            if process_is_alive:
+                                logger.warning("Task completed, but process still alive!")
+                            self._change_task_state(id, "completed")
 
                         self._dump_task(id)
                         self._running_tasks_queues[self._tasks[id].get_queue_id()].remove(id)
@@ -745,10 +809,25 @@ class Application(object):
             time.sleep(self._sleep_step)
 
     def _execute_task(self, task, message_queue):
+        signal.signal(signal.SIGTERM, signal.SIG_DFL)
+
         prctl.set_pdeathsig(signal.SIGINT)
         logger.LOGGER = TaskIdLogger(task.id)
 
-        yt_http.session_ = requests.Session()
+        import yt.tools.remote_copy_tools
+        if self._yandex_yt_python_tools_version and self._get_yandex_yt_python_tools_version() == self._yandex_yt_python_tools_version:
+            reload(yt.tools.remote_copy_tools)
+        import yt.wrapper as yt
+        from yt.tools.remote_copy_tools import \
+            copy_yamr_to_yt_pull, \
+            copy_yt_to_yamr_pull, \
+            copy_yt_to_yamr_push, \
+            copy_yt_to_kiwi, \
+            copy_yt_to_yt, \
+            copy_yt_to_yt_through_proxy, \
+            copy_hive_to_yt
+
+        yt._cleanup_http_session()
 
         logger.info("Start executing task")
         try:
@@ -774,7 +853,7 @@ class Application(object):
 
             if source_client._type == "yt" and destination_client._type == "yt":
                 logger.info("Running YT -> YT remote copy operation")
-                if source_client._version != destination_client._version:
+                if task.copy_method == "proxy":
                     copy_yt_to_yt_through_proxy(
                         source_client,
                         destination_client,
@@ -783,7 +862,7 @@ class Application(object):
                         fastbone=fastbone,
                         spec_template=task_spec,
                         message_queue=message_queue)
-                else:
+                else:  # native
                     network_name = "fastbone" if fastbone else "default"
                     network_name = parameters.get("network_name", network_name)
                     copy_yt_to_yt(
@@ -812,6 +891,7 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
+                        force_sort=task.destination_force_sort,
                         message_queue=message_queue)
             elif source_client._type == "yamr" and destination_client._type == "yt":
                 logger.info("Running YAMR -> YT remote copy")
@@ -869,7 +949,7 @@ class Application(object):
             except Exception:
                 logger.exception("Task failed with error:")
                 raise
-            logger.exception("Task {} failed with error {}".format(task.id, str(error)))
+            log_yt_exception(logger, "Task {} failed with error:".format(task.id))
             message_queue.put({
                 "type": "error",
                 "error": error.simplify()
@@ -882,7 +962,7 @@ class Application(object):
                     "message": str(error),
                     "code": 1,
                     "attributes": {
-                        "details": traceback_helpers.format_exc()
+                        "details": (traceback_helpers.format_exc() if self._config["enable_detailed_traceback"] else traceback.format_exc())
                     }
                 }
             })
@@ -897,6 +977,25 @@ class Application(object):
                 if self._tasks[id].get_queue_id() == task.get_queue_id():
                     queue_index += 1
         return task_description
+
+    def _abort_failed_transfer_manager_operations(self):
+        for task_id, task in self._tasks.iteritems():
+            if not task.progress or "operations" not in task.progress:
+                continue
+            for operation in task.progress["operations"]:
+                cluster_name, operation_id = operation["cluster_name"], operation["id"]
+                if self._clusters[cluster_name]._type != "yt":
+                    logger.warning("Transfer manager does not support progress for non-YT cluster, "
+                                   "but it unexpectedly found for %s cluster." % self._clusters[cluster_name]._type)
+                    continue
+                try:
+                    if not self._yt.exists("//sys/operations/%s" % operation_id) or \
+                           self._yt.get_operation_state(operation_id).is_finished():
+                        continue
+                    self._clusters[cluster_name].abort_operation(operation_id)
+                    logger.info("Aborted outdated operation {} of task {}".format(operation_id, task_id))
+                except yt.YtError:
+                    log_yt_exception(logger, "Failed abort operation {} of task {}".format(operation_id, task_id))
 
     # Public interface
     def run(self, *args, **kwargs):
@@ -954,7 +1053,7 @@ class Application(object):
         except ValueError as error:
             raise RequestFailed("Cannot parse JSON from body '{}'".format(request.data), inner_errors=[yt.YtError(error.message)])
 
-        token, user = self._get_token_and_user(request.headers.get("Authorization", ""))
+        token, user = self._get_token_and_user(request.headers)
         dry_run = request.args.get("dry_run", False)
 
         if isinstance(params, list):
@@ -972,16 +1071,22 @@ class Application(object):
         logger.info("Aboring task %s", id)
 
         with self._mutex:
-            self._check_permission(id, request.headers.get("Authorization", ""), "Aborting")
+            self._check_permission(id, request.headers, "Aborting")
 
             if id in self._task_processes:
                 process, _ = self._task_processes[id]
                 process.aborted = True
 
-                os.kill(process.pid, signal.SIGINT)
+                try:
+                    os.kill(process.pid, signal.SIGINT)
+                except OSError:
+                    pass
                 time.sleep(0.5)
                 if process.is_alive():
-                    process.terminate()
+                    try:
+                        os.kill(process.pid, signal.SIGTERM)
+                    except OSError:
+                        pass
 
             if id in self._pending_tasks:
                 self._pending_tasks_per_user[self._tasks[id].user] -= 1
@@ -999,7 +1104,7 @@ class Application(object):
         logger.info("Restarting task %s", id)
 
         with self._mutex:
-            self._check_permission(id, request.headers.get("Authorization", ""), "Restarting")
+            self._check_permission(id, request.headers, "Restarting")
             if self._tasks[id].state not in ["completed", "aborted", "failed"]:
                 raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
@@ -1041,7 +1146,7 @@ class Application(object):
         if id not in self._tasks:
             return "Unknown task " + id, 400
 
-        self._check_permission(id, request.headers.get("Authorization", ""), "Deleting")
+        self._check_permission(id, request.headers, "Deleting")
 
         with self._mutex:
             if self._tasks[id].state not in ["completed", "aborted", "failed"]:
@@ -1077,6 +1182,13 @@ class Application(object):
             description = task.dict(hide_token=True, fields=fields)
             if id in tasks_queue_indexes:
                 description["queue_index"] = tasks_queue_indexes[id]
+
+            try:
+                json.dumps(description)
+            except json.UnicodeDecodeError:
+                logger.warning("Cannot decode in JSON struct '%s'", repr(description))
+                continue
+
             tasks_descriptions.append(description)
 
         return Response(json.dumps(tasks_descriptions), mimetype='application/json')
@@ -1185,14 +1297,28 @@ DEFAULT_CONFIG = {
     "pending_tasks_limit": 5000,
     "pending_tasks_limit_per_user": 500,
     "running_tasks_limit_per_direction": 10,
+    "running_jobs_limit_per_direction": 200,
+    "enable_detailed_traceback": False,
 
+    # Common config for all yt clients.
+    "yt_client_config": {
+        "operation_tracker": {
+            "ignore_stderr_if_download_failed": True
+        }
+    },
+
+    "yt_backend_options": {
+        "proxy": "plato.yt.yandex.net",
+        "token": "93b4cacc08aa4538a79a76c21e99c0fb"
+    },
     "path": "//home/ignat/transfer_manager_test",
-    "proxy": "plato.yt.yandex.net",
-    "token": "93b4cacc08aa4538a79a76c21e99c0fb",
+
     "port": 5010
 }
 
 def main():
+    signal.signal(signal.SIGTERM, sigterm_handler)
+
     parser = argparse.ArgumentParser(description="Transfer manager.")
     parser.add_argument("--config")
     args = parser.parse_args()

@@ -6,7 +6,7 @@
 #include <core/misc/ref.h>
 #include <core/misc/range.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <ytlib/api/public.h>
 
@@ -67,20 +67,20 @@ public:
 
     void WriteCommand(EWireProtocolCommand command);
 
-    void WriteTableSchema(const NVersionedTableClient::TTableSchema& schema);
+    void WriteTableSchema(const NTableClient::TTableSchema& schema);
 
     void WriteMessage(const ::google::protobuf::MessageLite& message);
 
     void WriteUnversionedRow(
-        NVersionedTableClient::TUnversionedRow row,
-        const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+        NTableClient::TUnversionedRow row,
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteUnversionedRow(
-        const TRange<NVersionedTableClient::TUnversionedValue>& row,
-        const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+        const TRange<NTableClient::TUnversionedValue>& row,
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     void WriteUnversionedRowset(
-        const TRange<NVersionedTableClient::TUnversionedRow>& rowset,
-        const NVersionedTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
-    NVersionedTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter();
+        const TRange<NTableClient::TUnversionedRow>& rowset,
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+    NTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter();
 
     std::vector<TSharedRef> Flush();
 
@@ -106,6 +106,8 @@ public:
     ~TWireProtocolReader();
 
     bool IsFinished() const;
+    TIterator GetBegin() const;
+    TIterator GetEnd() const;
 
     TIterator GetCurrent() const;
     void SetCurrent(TIterator);
@@ -114,13 +116,15 @@ public:
 
     EWireProtocolCommand ReadCommand();
 
-    NVersionedTableClient::TTableSchema ReadTableSchema();
+    NTableClient::TTableSchema ReadTableSchema();
 
     void ReadMessage(::google::protobuf::MessageLite* message);
 
-    NVersionedTableClient::TUnversionedRow ReadUnversionedRow();
-    TSharedRange<NVersionedTableClient::TUnversionedRow> ReadUnversionedRowset();
-    NVersionedTableClient::ISchemafulReaderPtr CreateSchemafulRowsetReader();
+    NTableClient::TUnversionedRow ReadUnversionedRow();
+    TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset();
+
+    NTableClient::ISchemafulReaderPtr CreateSchemafulRowsetReader(
+        const NTableClient::TTableSchema& schema);
 
 private:
     class TImpl;

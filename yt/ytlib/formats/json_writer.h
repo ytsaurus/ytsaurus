@@ -43,7 +43,8 @@ namespace NFormats {
  *
  *  Explicit #Flush calls should be made when finished writing via the adapter.
  */
-std::unique_ptr<NYson::IYsonConsumer> CreateJsonConsumer(
+
+std::unique_ptr<NYson::TYsonConsumerBase> CreateJsonConsumer(
     TOutputStream* output,
     NYson::EYsonType type = NYson::EYsonType::Node,
     TJsonFormatConfigPtr config = New<TJsonFormatConfig>());

@@ -161,6 +161,7 @@ private:
         descriptors->push_back("used_space");
         descriptors->push_back("chunk_count");
         descriptors->push_back("online_node_count");
+        descriptors->push_back("full_node_count");
         descriptors->push_back("chunk_replicator_enabled");
     }
 
@@ -192,6 +193,7 @@ private:
         }
 
         auto statistics = nodeTracker->GetTotalNodeStatistics();
+
         if (key == "available_space") {
             BuildYsonFluently(consumer)
                 .Value(statistics.AvailableSpace);
@@ -213,6 +215,12 @@ private:
         if (key == "online_node_count") {
             BuildYsonFluently(consumer)
                 .Value(statistics.OnlineNodeCount);
+            return true;
+        }
+
+        if (key == "full_node_count") {
+            BuildYsonFluently(consumer)
+                .Value(statistics.FullNodeCount);
             return true;
         }
 

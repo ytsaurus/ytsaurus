@@ -20,7 +20,7 @@
     #include "ast.h"
 
     namespace NYT { namespace NQueryClient { namespace NAst {
-        using namespace NVersionedTableClient;
+        using namespace NTableClient;
 
         class TLexer;
         class TParser;
@@ -69,7 +69,10 @@
 %token KwUsing "keyword `USING`"
 %token KwGroupBy "keyword `GROUP BY`"
 %token KwOrderBy "keyword `ORDER BY`"
+%token KwAsc "keyword `ASC`"
+%token KwDesc "keyword `DESC`"
 %token KwAs "keyword `AS`"
+%token KwOn "keyword `ON`"
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
@@ -87,6 +90,7 @@
 %token <double> DoubleLiteral "double literal"
 %token <Stroka> StringLiteral "string literal"
 
+
 %token OpModulo 37 "`%`"
 
 %token LeftParenthesis 40 "`(`"
@@ -96,6 +100,7 @@
 %token OpPlus 43 "`+`"
 %token Comma 44 "`,`"
 %token OpMinus 45 "`-`"
+%token Dot 46 "`.`"
 %token OpDivide 47 "`/`"
 
 %token OpLess 60 "`<`"
@@ -107,6 +112,9 @@
 
 %type <TTableDescriptor> table-descriptor
 
+%type <bool> is-desc
+
+%type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
 %type <TNamedExpressionList> named-expression-list
 %type <TNamedExpression> named-expression
@@ -122,9 +130,10 @@
 %type <TExpressionPtr> atomic-expr
 %type <TExpressionPtr> comma-expr
 %type <TNullable<TLiteralValue>> literal-value
-%type <TLiteralValueList> literal-list
-%type <TLiteralValueList> literal-tuple
-%type <TLiteralValueTupleList> literal-tuple-list
+%type <TNullable<TLiteralValue>> const-value
+%type <TLiteralValueList> const-list
+%type <TLiteralValueList> const-tuple
+%type <TLiteralValueTupleList> const-tuple-list
 
 %type <EUnaryOp> unary-op
 
@@ -173,6 +182,10 @@ table-descriptor
         {
             $$ = TTableDescriptor(Stroka($path), Stroka($alias));
         }
+    | Identifier[path] KwAs Identifier[alias]
+        {
+            $$ = TTableDescriptor(Stroka($path), Stroka($alias));
+        }
     |   Identifier[path]
         {
             $$ = TTableDescriptor(Stroka($path), Stroka());
@@ -190,6 +203,10 @@ join-clause
     : join-clause KwJoin table-descriptor[table] KwUsing identifier-list[fields]
         {
             head->As<TQuery>().Joins.emplace_back($table, $fields);
+        }
+    | join-clause KwJoin table-descriptor[table] KwOn additive-op-expr[lhs] OpEqual additive-op-expr[rhs]
+        {
+            head->As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
         }
     |
 ;
@@ -219,11 +236,27 @@ having-clause
 ;
 
 order-by-clause
-    : KwOrderBy identifier-list[fields]
+    : KwOrderBy identifier-list[fields] is-desc[isDesc]
         {
             head->As<TQuery>().OrderFields = $fields;
+            head->As<TQuery>().IsOrderDesc = $isDesc;
         }
     |
+;
+
+is-desc
+    : KwDesc
+        {
+            $$ = true;
+        }
+    | KwAsc
+        {
+            $$ = false;
+        }
+    |
+        {
+            $$ = false;
+        }
 ;
 
 limit-clause
@@ -235,14 +268,14 @@ limit-clause
 ;
 
 identifier-list
-    : identifier-list[list] Comma Identifier[value]
+    : identifier-list[list] Comma qualified-identifier[value]
         {
             $$.swap($list);
-            $$.push_back(Stroka($value));
+            $$.push_back($value);
         }
-    | Identifier[value]
+    | qualified-identifier[value]
         {
-            $$.push_back(Stroka($value));
+            $$.push_back($value);
         }
 ;
 
@@ -313,7 +346,7 @@ relational-op-expr
                 New<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
         }
-    | unary-expr[expr] KwIn LeftParenthesis literal-tuple-list[args] RightParenthesis
+    | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
             $$ = New<TInExpression>(@$, $expr, $args);
         }
@@ -395,10 +428,21 @@ unary-op
         { $$ = EUnaryOp::Minus; }
 ;
 
-atomic-expr
+qualified-identifier
     : Identifier[name]
         {
             $$ = New<TReferenceExpression>(@$, $name);
+        }
+    | Identifier[table] Dot Identifier[name]
+        {
+            $$ = New<TReferenceExpression>(@$, $name, $table);
+        }
+;
+
+atomic-expr
+    : qualified-identifier[identifier]
+        {
+            $$ = $identifier;
         }
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
@@ -429,36 +473,65 @@ literal-value
         { $$ = true; }
 ;
 
-literal-list
-    : literal-list[as] Comma literal-value[a]
+const-value
+    : unary-op[op] literal-value[value]
+        {
+            switch ($op) {
+                case EUnaryOp::Minus: {
+                    if (auto data = $value->TryAs<i64>()) {
+                        $$ = i64(0) - *data;
+                    } else if (auto data = $value->TryAs<ui64>()) {
+                        $$ = ui64(0) - *data;
+                    } else if (auto data = $value->TryAs<double>()) {
+                        $$ = double(0) - *data;
+                    } else {
+                        THROW_ERROR_EXCEPTION("Negation of unsupported type");
+                    }
+                    break;
+                }
+                case EUnaryOp::Plus:
+                    $$ = $value;
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+
+        }
+    | literal-value[value]
+        { $$ = $value; }
+
+;
+
+const-list
+    : const-list[as] Comma const-value[a]
         {
             $$.swap($as);
             $$.push_back(*$a);
         }
-    | literal-value[a]
+    | const-value[a]
         {
             $$.push_back(*$a);
         }
 ;
 
-literal-tuple
-    : literal-value[a]
+const-tuple
+    : const-value[a]
         {
             $$.push_back(*$a);
         }
-    | LeftParenthesis literal-list[a] RightParenthesis
+    | LeftParenthesis const-list[a] RightParenthesis
         {
             $$ = $a;
         }
 ;
 
-literal-tuple-list
-    : literal-tuple-list[as] Comma literal-tuple[a]
+const-tuple-list
+    : const-tuple-list[as] Comma const-tuple[a]
         {
             $$.swap($as);
             $$.push_back($a);
         }
-    | literal-tuple[a]
+    | const-tuple[a]
         {
             $$.push_back($a);
         }

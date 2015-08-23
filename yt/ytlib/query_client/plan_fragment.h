@@ -3,10 +3,11 @@
 #include "public.h"
 #include "function_registry.h"
 #include "plan_fragment_common.h"
+#include "ast.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/row_buffer.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <core/misc/property.h>
 #include <core/misc/guid.h>
@@ -113,6 +114,8 @@ struct TFunctionExpression
     std::vector<TConstExpressionPtr> Arguments;
 };
 
+DEFINE_REFCOUNTED_TYPE(TFunctionExpression)
+
 struct TUnaryOpExpression
     : public TExpression
 {
@@ -179,7 +182,9 @@ EValueType InferBinaryExprType(
     EBinaryOp opCode,
     EValueType lhsType,
     EValueType rhsType,
-    const TStringBuf& source);
+    const TStringBuf& source,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -237,8 +242,11 @@ struct TJoinClause
     : public TIntrinsicRefCounted
 {
     TTableSchema ForeignTableSchema;
-    TKeyColumns ForeignKeyColumns;
-    std::vector<Stroka> JoinColumns;
+    i64 ForeignKeyColumnsCount;
+
+    TTableSchema RenamedTableSchema;
+
+    std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> Equations;
 
     TGuid ForeignDataId;
 
@@ -276,6 +284,7 @@ struct TOrderClause
     : public TIntrinsicRefCounted
 {
     std::vector<Stroka> OrderColumns;
+    bool IsDesc = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderClause)
@@ -324,7 +333,8 @@ struct TQuery
         , OutputRowLimit(other.OutputRowLimit)
         , Id(TGuid::Create())
         , TableSchema(other.TableSchema)
-        , KeyColumns(other.KeyColumns)
+        , KeyColumnsCount(other.KeyColumnsCount)
+        , RenamedTableSchema(other.RenamedTableSchema)
         , JoinClauses(other.JoinClauses)
         , WhereClause(other.WhereClause)
         , GroupClause(other.GroupClause)
@@ -340,8 +350,9 @@ struct TQuery
 
     // TODO: Move out TableSchema and KeyColumns 
     TTableSchema TableSchema;
-    TKeyColumns KeyColumns;
+    i64 KeyColumnsCount;
 
+    TTableSchema RenamedTableSchema;
     std::vector<TConstJoinClausePtr> JoinClauses;
     TConstExpressionPtr WhereClause;
     TConstGroupClausePtr GroupClause;
@@ -365,11 +376,14 @@ struct TQuery
             return JoinClauses.back()->GetTableSchema();
         }
 
-        return TableSchema;
+        return RenamedTableSchema;
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
+
+void ToProto(NProto::TQuery* proto, TConstQueryPtr original);
+TQueryPtr FromProto(const NProto::TQuery& serialized);
 
 struct TDataSource
 {
@@ -399,6 +413,7 @@ struct TPlanFragment
     bool VerboseLogging = false;
     ui64 MaxSubqueries = 0;
     ui64 RangeExpansionLimit = 0;
+    bool EnableCodeCache = true;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)
@@ -409,20 +424,27 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    IFunctionRegistry* functionRegistry,
+    IFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit = std::numeric_limits<i64>::max(),
     i64 outputRowLimit = std::numeric_limits<i64>::max(),
     TTimestamp timestamp = NullTimestamp);
 
+NAst::TQuery PrepareJobQueryAst(const Stroka& source);
+
+std::vector<Stroka> GetExternalFunctions(
+    const NAst::TQuery& ast,
+    IFunctionRegistryPtr builtinRegistry);
+
 TQueryPtr PrepareJobQuery(
     const Stroka& source,
-    const TTableSchema& initialTableSchema,
-    IFunctionRegistry* functionRegistry);
+    NAst::TQuery ast,
+    const TTableSchema& tableSchema,
+    IFunctionRegistryPtr functionRegistry);
 
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema initialTableSchema,
-    IFunctionRegistry* functionRegistry = CreateBuiltinFunctionRegistry().Get());
+    IFunctionRegistryPtr functionRegistry = CreateBuiltinFunctionRegistry());
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);

@@ -16,8 +16,8 @@
 
 #include <ytlib/tablet_client/wire_protocol.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/query_client/plan_fragment.pb.h>
 
@@ -30,7 +30,7 @@
 namespace NYT {
 namespace NQueryClient {
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -184,12 +184,20 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
     }
 }
 
-EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType rhsType, const TStringBuf& source)
+EValueType InferBinaryExprType(
+    EBinaryOp opCode,
+    EValueType lhsType,
+    EValueType rhsType,
+    const TStringBuf& source,
+    const TStringBuf& lhsSource,
+    const TStringBuf& rhsSource)
 {
     if (lhsType != rhsType) {
         THROW_ERROR_EXCEPTION(
             "Type mismatch in expression %Qv",
             source)
+            << TErrorAttribute("lhs_source", lhsSource)
+            << TErrorAttribute("rhs_source", rhsSource)
             << TErrorAttribute("lhs_type", lhsType)
             << TErrorAttribute("rhs_type", rhsType);
     }
@@ -205,6 +213,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
@@ -214,6 +224,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires integral operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
@@ -224,6 +236,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires boolean operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("operand_type", operandType);
             }
             return EValueType::Boolean;
@@ -238,6 +252,8 @@ EValueType InferBinaryExprType(EBinaryOp opCode, EValueType lhsType, EValueType 
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral, floating-point or string operands",
                     source)
+                    << TErrorAttribute("lhs_source", lhsSource)
+                    << TErrorAttribute("rhs_source", rhsSource)
                     << TErrorAttribute("lhs_type", operandType);
             }
             return EValueType::Boolean;
@@ -287,6 +303,13 @@ void CheckExpressionDepth(TConstExpressionPtr op, int depth = 0)
     YUNREACHABLE();
 };
 
+Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName = TStringBuf())
+{
+    return tableName.empty()
+        ? Stroka(name)
+        : Format("%v.%v", tableName, name);
+}
+
 DECLARE_REFCOUNTED_CLASS(TSchemaProxy)
 
 class TSchemaProxy
@@ -295,22 +318,68 @@ class TSchemaProxy
 public:
     explicit TSchemaProxy(TTableSchema* tableSchema)
         : TableSchema_(tableSchema)
-    { }
+    {
+        YCHECK(tableSchema);
+        const auto& columns = TableSchema_->Columns();
+        for (size_t index = 0; index < columns.size(); ++index) {
+            Lookup_.insert(MakePair(MakePair(Stroka(columns[index].Name), Stroka()), index));
+        }
+    }
 
     // NOTE: result must be used before next call
-    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) = 0;
+    const TColumnSchema* GetColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
+    {
+        auto& resultColumns = TableSchema_->Columns();
+        auto it = Lookup_.find(MakePair(Stroka(name), Stroka(tableName)));
+        if (it != Lookup_.end()) {
+            return &resultColumns[it->second];
+        } else if (auto original = AddColumnPtr(name, tableName)) {
+            auto index = resultColumns.size();
+            Lookup_.insert(MakePair(MakePair(Stroka(name), Stroka(tableName)), index));
+            resultColumns.push_back(*original);
+            resultColumns.back().Name = FormatColumn(name, tableName);
+            return &resultColumns.back();
+        }
+        return nullptr;
+    }
 
-    // NOTE: result must be used before next call
-    virtual const TColumnSchema* GetAggregateColumnPtr(
+    const TColumnSchema* GetColumnPtr(const TStringBuf& name)
+    {
+        if (auto column = TableSchema_->FindColumn(name)) {
+            return column;
+        } else if (auto original = AddColumnPtr(name)) {
+            auto& resultColumns = TableSchema_->Columns();
+            resultColumns.push_back(*original);
+            resultColumns.back().Name = name;
+            return &resultColumns.back();
+        }
+        return nullptr;
+    }
+
+    const TColumnSchema* GetAggregateColumnPtr(
         const Stroka& aggregateFunction,
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
         IFunctionRegistry* functionRegistry)
     {
-        THROW_ERROR_EXCEPTION(
-            "Misuse of aggregate function %v",
-            aggregateFunction);
+        auto& resultColumns = TableSchema_->Columns();
+        auto it = Lookup_.find(MakePair(Stroka(subexprName), Stroka()));
+        if (it != Lookup_.end()) {
+            return &resultColumns[it->second];
+        }
+
+        auto original = AddAggregateColumnPtr(
+            aggregateFunction,
+            arguments,
+            subexprName,
+            source,
+            functionRegistry);
+
+        auto index = resultColumns.size();
+        Lookup_.insert(MakePair(MakePair(Stroka(subexprName), Stroka()), index));
+        resultColumns.push_back(original);
+        return &resultColumns.back();
     }
 
     virtual void Finish()
@@ -352,14 +421,15 @@ protected:
                 GetType(literalValue),
                 GetValue(literalValue)));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
-            const auto* column = GetColumnPtr(referenceExpr->ColumnName);
+            const auto* column = GetColumnPtr(referenceExpr->ColumnName, referenceExpr->TableName);
             if (!column) {
-                THROW_ERROR_EXCEPTION("Undefined reference %Qv", referenceExpr->ColumnName);
+                THROW_ERROR_EXCEPTION("Undefined reference %Qv",
+                    FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
             }
 
             result.push_back(New<TReferenceExpression>(
                 column->Type,
-                referenceExpr->ColumnName));
+                column->Name));
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
             auto functionName = functionExpr->FunctionName;
             auto aggregateFunction = GetAggregate(functionName, functionRegistry);
@@ -419,7 +489,13 @@ protected:
             auto typedRhsExpr = DoBuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
 
             auto makeBinaryExpr = [&] (EBinaryOp op, TConstExpressionPtr lhs, TConstExpressionPtr rhs) -> TConstExpressionPtr {
-                auto type = InferBinaryExprType(op, lhs->Type, rhs->Type, binaryExpr->GetSource(source));
+                auto type = InferBinaryExprType(
+                    op,
+                    lhs->Type,
+                    rhs->Type,
+                    binaryExpr->GetSource(source),
+                    lhs->GetName(),
+                    rhs->GetName());
                 if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
                     return foldedExpr;
                 } else {
@@ -459,7 +535,7 @@ protected:
                     THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
                         typedLhsExpr.size(),
                         typedRhsExpr.size())
-                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(source));
+                        << TErrorAttribute("source", binaryExpr->GetSource(source));
                 }
 
                 int keySize = typedLhsExpr.size();
@@ -583,15 +659,35 @@ protected:
         YUNREACHABLE();
     }
 
+private:
+    yhash_map<TPair<Stroka, Stroka>, size_t> Lookup_;
+
 protected:
-    static const TColumnSchema* AddColumn(TTableSchema* tableSchema, const TColumnSchema& column)
+    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
     {
-        tableSchema->Columns().push_back(column);
-        return &tableSchema->Columns().back();
+        return nullptr;
+    }
+
+    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name)
+    {
+        return nullptr;
+    }
+
+    // NOTE: result must be used before next call
+    virtual TColumnSchema AddAggregateColumnPtr(
+        const Stroka& aggregateFunction,
+        const NAst::TExpression* arguments,
+        Stroka subexprName,
+        Stroka source,
+        IFunctionRegistry* functionRegistry)
+    {
+        THROW_ERROR_EXCEPTION(
+            "Misuse of aggregate function %v",
+            aggregateFunction);
     }
 
     static TNullable<Stroka> GetAggregate(
-        const TStringBuf functionName,
+        const TStringBuf& functionName,
         IFunctionRegistryPtr functionRegistry)
     {
         Stroka name(functionName);
@@ -925,55 +1021,50 @@ protected:
 
 DEFINE_REFCOUNTED_TYPE(TSchemaProxy)
 
-class TSimpleSchemaProxy
+class TScanSchemaProxy
     : public TSchemaProxy
 {
 public:
-    explicit TSimpleSchemaProxy(TTableSchema* tableSchema)
-        : TSchemaProxy(tableSchema)
-    { }
-    
-    TSimpleSchemaProxy(
+    TScanSchemaProxy(
         TTableSchema* tableSchema,
+        TTableSchema* refinedTableSchema,
         const TTableSchema& sourceTableSchema,
-        int keyColumnCount = 0)
+        int keyColumnCount = 0,
+        const TStringBuf& tableName = TStringBuf())
         : TSchemaProxy(tableSchema)
         , SourceTableSchema_(sourceTableSchema)
+        , RefinedTableSchema_(refinedTableSchema)
+        , TableName_(tableName)
     {
         const auto& columns = sourceTableSchema.Columns();
         int count = std::min(
-            sourceTableSchema.HasComputedColumns() ? keyColumnCount : 0,
+            keyColumnCount,
             static_cast<int>(columns.size()));
         for (int i = 0; i < count; ++i) {
-            AddColumn(GetTableSchema(), columns[i]);
+            GetColumnPtr(columns[i].Name, TableName_);
         }
     }
 
-    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
+    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
     {
-        const auto* column = GetTableSchema()->FindColumn(name);
-
-        !column
-            && SourceTableSchema_
-            && (column = SourceTableSchema_->FindColumn(name))
-            && (column = AddColumn(GetTableSchema(), *column));       
-
+        auto column = SourceTableSchema_.FindColumn(name);
+        if (column) {
+            RefinedTableSchema_->Columns().push_back(*column);
+        }
         return column;
     }
 
     virtual void Finish() override
     {
-        if (SourceTableSchema_) {
-            for (const auto& column : SourceTableSchema_->Columns()) {
-                if (!GetTableSchema()->FindColumn(column.Name)) {
-                    AddColumn(GetTableSchema(), column);
-                }
-            }
+        for (const auto& column : SourceTableSchema_.Columns()) {
+            GetColumnPtr(column.Name, TableName_);
         }
     }
 
 private:
-    const TNullable<TTableSchema> SourceTableSchema_;
+    const TTableSchema SourceTableSchema_;
+    TTableSchema* RefinedTableSchema_;
+    TStringBuf TableName_;
 
 };
 
@@ -990,21 +1081,32 @@ public:
         , Foreign_(foreign)
     { }
 
-    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
+    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
     {
-        auto tableSchema = GetTableSchema();
-        const TColumnSchema* column = tableSchema->FindColumn(name);
+        const TColumnSchema* column = nullptr;
 
-        if (!column) {
-            if (column = Self_->GetColumnPtr(name)) {
-                if (Foreign_->GetColumnPtr(name)) {
-                    THROW_ERROR_EXCEPTION("Column %Qv collision", name);
-                } else {
-                    column = AddColumn(tableSchema, *column);
-                }
-            } else if (column = Foreign_->GetColumnPtr(name)) {
-                column = AddColumn(tableSchema, *column);
+        if ((column = Self_->GetColumnPtr(name, tableName))) {
+            if (Foreign_->GetColumnPtr(name, tableName)) {
+                THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables",
+                    FormatColumn(name, tableName));
             }
+        } else {
+            column = Foreign_->GetColumnPtr(name, tableName);
+        }
+
+        return column;
+    }
+
+    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name) override
+    {
+        const TColumnSchema* column = nullptr;
+
+        if ((column = Self_->GetColumnPtr(name))) {
+            if (Foreign_->GetColumnPtr(name)) {
+                THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables", name);
+            }
+        } else {
+            column = Foreign_->GetColumnPtr(name);
         }
 
         return column;
@@ -1043,52 +1145,46 @@ public:
         , AggregateItems_(aggregateItems)
     { }
 
-    virtual const TColumnSchema* GetColumnPtr(const TStringBuf& name) override
+    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
     {
-        return GetTableSchema()->FindColumn(name);
+        return nullptr;
     }
 
-    virtual const TColumnSchema* GetAggregateColumnPtr(
+    virtual TColumnSchema AddAggregateColumnPtr(
         const Stroka& aggregateFunction,
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
         IFunctionRegistry* functionRegistry) override
     {
-        const TColumnSchema* aggregateColumn = GetTableSchema()->FindColumn(subexprName);
+        auto typedOperands = Base_->BuildTypedExpression(
+            arguments,
+            source,
+            functionRegistry);
 
-        if (!aggregateColumn) {
-            auto typedOperands = Base_->BuildTypedExpression(
-                arguments,
-                source,
-                functionRegistry);
-
-            if (typedOperands.size() != 1) {
-                THROW_ERROR_EXCEPTION(
-                    "Aggregate function %Qv must have exactly one argument",
-                    aggregateFunction);
-            }
-
-            auto descriptor = functionRegistry
-                ->GetAggregateFunction(aggregateFunction);
-            auto stateType = descriptor
-                ->GetStateType(typedOperands.front()->Type);
-            auto resultType = descriptor
-                ->InferResultType(typedOperands.front()->Type, source);
-
-            CheckExpressionDepth(typedOperands.front());
-
-            AggregateItems_->emplace_back(
-                typedOperands.front(),
-                aggregateFunction,
-                subexprName,
-                stateType,
-                resultType);
-
-            aggregateColumn = AddColumn(GetTableSchema(), TColumnSchema(subexprName, resultType));
+        if (typedOperands.size() != 1) {
+            THROW_ERROR_EXCEPTION(
+                "Aggregate function %Qv must have exactly one argument",
+                aggregateFunction);
         }
 
-        return aggregateColumn;
+        auto descriptor = functionRegistry
+            ->GetAggregateFunction(aggregateFunction);
+        auto stateType = descriptor
+            ->GetStateType(typedOperands.front()->Type);
+        auto resultType = descriptor
+            ->InferResultType(typedOperands.front()->Type, source);
+
+        CheckExpressionDepth(typedOperands.front());
+
+        AggregateItems_->emplace_back(
+            typedOperands.front(),
+            aggregateFunction,
+            subexprName,
+            stateType,
+            resultType);
+
+        return TColumnSchema(subexprName, resultType);
     }
 
 private:
@@ -1218,7 +1314,7 @@ TConstProjectClausePtr BuildProjectClause(
     }
 
     ValidateTableSchema(projectClause->ProjectTableSchema);
-    schemaProxy = New<TSimpleSchemaProxy>(&projectClause->ProjectTableSchema);
+    schemaProxy = New<TSchemaProxy>(&projectClause->ProjectTableSchema);
 
     return projectClause;
 }
@@ -1247,7 +1343,17 @@ void PrepareQuery(
 
     if (ast.OrderFields) {
         auto orderClause = New<TOrderClause>();
-        orderClause->OrderColumns = ast.OrderFields.Get();
+        orderClause->IsDesc = ast.IsOrderDesc;
+        for (const auto& reference : ast.OrderFields.Get()) {
+            const auto* column = schemaProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
+            if (!column) {
+                THROW_ERROR_EXCEPTION("Undefined reference %Qv",
+                    FormatColumn(reference->ColumnName, reference->TableName));
+            }
+
+            orderClause->OrderColumns.push_back(column->Name);
+        }
+
         query->OrderClause = std::move(orderClause);
     }
 
@@ -1277,7 +1383,7 @@ void ParseYqlString(
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const Stroka& source,
-    IFunctionRegistry* functionRegistry,
+    IFunctionRegistryPtr functionRegistry,
     i64 inputRowLimit,
     i64 outputRowLimit,
     TTimestamp timestamp)
@@ -1298,42 +1404,89 @@ TPlanFragmentPtr PreparePlanFragment(
     auto table = ast.Table;
     LOG_DEBUG("Getting initial data split for %v", table.Path);
 
-    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp)).ValueOrThrow();
+    selfDataSplit = WaitFor(callbacks->GetInitialSplit(table.Path, timestamp))
+        .ValueOrThrow();
     auto tableSchema = GetTableSchemaFromDataSplit(selfDataSplit);
     auto keyColumns = GetKeyColumnsFromDataSplit(selfDataSplit);
 
-    query->KeyColumns = keyColumns;
-    schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema, keyColumns.size());
+    std::vector<Stroka> refinedColumns;
+
+    query->KeyColumnsCount = keyColumns.size();
+    schemaProxy = New<TScanSchemaProxy>(
+        &query->RenamedTableSchema,
+        &query->TableSchema,
+        tableSchema,
+        keyColumns.size(),
+        table.Alias);
 
     for (const auto& join : ast.Joins) {
-        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp)).ValueOrThrow();
+        auto foreignDataSplit = WaitFor(callbacks->GetInitialSplit(join.Table.Path, timestamp))
+            .ValueOrThrow();
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
         auto foreignKeyColumns = GetKeyColumnsFromDataSplit(foreignDataSplit);
 
         auto joinClause = New<TJoinClause>();
-        joinClause->JoinColumns = join.Fields;
-        joinClause->ForeignKeyColumns = foreignKeyColumns;
+
+        joinClause->ForeignKeyColumnsCount = foreignKeyColumns.size();
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
 
-        auto foreignSourceProxy = New<TSimpleSchemaProxy>(&joinClause->ForeignTableSchema, foreignTableSchema, foreignKeyColumns.size());
+        auto foreignSourceProxy = New<TScanSchemaProxy>(
+            &joinClause->RenamedTableSchema,
+            &joinClause->ForeignTableSchema,
+            foreignTableSchema,
+            foreignKeyColumns.size(),
+            join.Table.Alias);
 
         // Merge columns.
-        for (const auto& name : join.Fields) {
-            const auto* selfColumn = schemaProxy->GetColumnPtr(name);
-            const auto* foreignColumn = foreignSourceProxy->GetColumnPtr(name);
+        for (const auto& reference : join.Fields) {
+            const auto* selfColumn = schemaProxy->GetColumnPtr(
+                reference->ColumnName,
+                reference->TableName);
+            const auto* foreignColumn = foreignSourceProxy->GetColumnPtr(
+                reference->ColumnName,
+                reference->TableName);
 
             if (!selfColumn || !foreignColumn) {
-                THROW_ERROR_EXCEPTION("Column %Qv not found", name);
+                THROW_ERROR_EXCEPTION("Column %Qv not found",
+                    FormatColumn(reference->ColumnName, reference->TableName));
             }
 
             if (selfColumn->Type != foreignColumn->Type) {
-                THROW_ERROR_EXCEPTION("Column type %Qv mismatch", name)
+                THROW_ERROR_EXCEPTION("Column type %Qv mismatch",
+                    FormatColumn(reference->ColumnName, reference->TableName))
                     << TErrorAttribute("self_type", selfColumn->Type)
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }
 
+            joinClause->Equations.emplace_back(
+                New<TReferenceExpression>(selfColumn->Type, selfColumn->Name),
+                New<TReferenceExpression>(foreignColumn->Type, foreignColumn->Name));
+
             joinClause->JoinedTableSchema.Columns().push_back(*selfColumn);
+        }
+
+        auto leftEquations = schemaProxy->BuildTypedExpression(join.Left.Get(), source, functionRegistry.Get());
+        auto rightEquations = foreignSourceProxy->BuildTypedExpression(join.Right.Get(), source, functionRegistry.Get());
+
+        if (leftEquations.size() != rightEquations.size()) {
+            THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
+                leftEquations.size(),
+                rightEquations.size())
+                << TErrorAttribute("lhs_source", join.Left->GetSource(source))
+                << TErrorAttribute("rhs_source", join.Right->GetSource(source));
+        }
+
+        for (size_t index = 0; index < leftEquations.size(); ++index) {
+            if (leftEquations[index]->Type != rightEquations[index]->Type) {
+                THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
+                    InferName(leftEquations[index]),
+                    InferName(rightEquations[index]))
+                    << TErrorAttribute("self_type", leftEquations[index]->Type)
+                    << TErrorAttribute("foreign_type", rightEquations[index]->Type);
+            }
+
+            joinClause->Equations.emplace_back(leftEquations[index], rightEquations[index]);
         }
 
         schemaProxy = New<TJoinSchemaProxy>(
@@ -1344,7 +1497,7 @@ TPlanFragmentPtr PreparePlanFragment(
         query->JoinClauses.push_back(std::move(joinClause));
     }
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
+    PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get());
 
     auto planFragment = New<TPlanFragment>(source);
 
@@ -1373,10 +1526,7 @@ TPlanFragmentPtr PreparePlanFragment(
     return planFragment;
 }
 
-TQueryPtr PrepareJobQuery(
-    const Stroka& source,
-    const TTableSchema& tableSchema,
-    IFunctionRegistry* functionRegistry)
+NAst::TQuery PrepareJobQueryAst(const Stroka& source)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
     ParseYqlString(
@@ -1394,13 +1544,79 @@ TQueryPtr PrepareJobQuery(
         THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
     }
 
+    return ast;
+}
+
+std::vector<Stroka> GetExternalFunctions(
+    const NAst::TQuery& ast,
+    IFunctionRegistryPtr builtinRegistry)
+{
+    std::vector<Stroka> externalFunctions;
+
+    std::function<void(const NAst::TExpressionPtr&)> getExternalFunctions = [&] (const NAst::TExpressionPtr& expr) {
+        if (!expr) {
+            return;
+        } else if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
+            getExternalFunctions(commaExpr->Lhs);
+            getExternalFunctions(commaExpr->Rhs);
+        } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
+            const auto& name = functionExpr->FunctionName;
+            if (!builtinRegistry->FindFunction(name) &&
+                !builtinRegistry->FindAggregateFunction(name))
+            {
+                externalFunctions.push_back(name);
+            }
+            getExternalFunctions(functionExpr->Arguments);
+        } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
+            getExternalFunctions(unaryExpr->Operand);
+        } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
+            getExternalFunctions(binaryExpr->Lhs);
+            getExternalFunctions(binaryExpr->Rhs);
+        } else if (expr->As<NAst::TInExpression>()) {
+        } else if (expr->As<NAst::TLiteralExpression>()) {
+        } else if (expr->As<NAst::TReferenceExpression>()) {
+        } else {
+            YUNREACHABLE();
+        }
+    };
+
+    std::function<void(const NAst::TNullableNamedExpressionList&)> getExternalFunctionsFromList = [&] (const NAst::TNullableNamedExpressionList& exprList) {
+        if (exprList) {
+            for (const auto& expr: exprList.Get()) {
+                getExternalFunctions(expr.first);
+            }
+        }
+    };
+
+    getExternalFunctions(ast.WherePredicate);
+    getExternalFunctions(ast.HavingPredicate);
+    getExternalFunctionsFromList(ast.SelectExprs);
+    getExternalFunctionsFromList(ast.GroupExprs);
+
+    std::sort(externalFunctions.begin(), externalFunctions.end());
+    externalFunctions.erase(
+        std::unique(externalFunctions.begin(), externalFunctions.end()),
+        externalFunctions.end());
+
+    return externalFunctions;
+}
+
+TQueryPtr PrepareJobQuery(
+    const Stroka& source,
+    NAst::TQuery ast,
+    const TTableSchema& tableSchema,
+    IFunctionRegistryPtr functionRegistry)
+{
     auto planFragment = New<TPlanFragment>(source);
     auto unlimited = std::numeric_limits<i64>::max();
 
     auto query = New<TQuery>(unlimited, unlimited, TGuid::Create());
-    TSchemaProxyPtr schemaProxy = New<TSimpleSchemaProxy>(&query->TableSchema, tableSchema);
+    TSchemaProxyPtr schemaProxy = New<TScanSchemaProxy>(
+        &query->RenamedTableSchema,
+        &query->TableSchema,
+        tableSchema);
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry);
+    PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get());
 
     return query;
 }
@@ -1408,7 +1624,7 @@ TQueryPtr PrepareJobQuery(
 TConstExpressionPtr PrepareExpression(
     const Stroka& source,
     TTableSchema tableSchema,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistryPtr functionRegistry)
 {
     NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>()};
     ParseYqlString(
@@ -1418,9 +1634,9 @@ TConstExpressionPtr PrepareExpression(
 
     auto& expr = astHead.As<NAst::TExpressionPtr>();
 
-    auto schemaProxy = New<TSimpleSchemaProxy>(&tableSchema);
+    auto schemaProxy = New<TSchemaProxy>(&tableSchema);
 
-    auto typedExprs = schemaProxy->BuildTypedExpression(expr.Get(), source, functionRegistry);
+    auto typedExprs = schemaProxy->BuildTypedExpression(expr.Get(), source, functionRegistry.Get());
 
     if (typedExprs.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
@@ -1618,12 +1834,19 @@ void ToProto(NProto::TAggregateItem* serialized, const TAggregateItem& original)
     ToProto(serialized->mutable_name(), original.Name);
 }
 
+void ToProto(NProto::TEquation* proto, std::pair<TConstExpressionPtr, TConstExpressionPtr> original)
+{
+    ToProto(proto->mutable_left(), original.first);
+    ToProto(proto->mutable_right(), original.second);
+}
+
 void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
 {
-    ToProto(proto->mutable_join_columns(), original->JoinColumns);
+    ToProto(proto->mutable_equations(), original->Equations);
     ToProto(proto->mutable_joined_table_schema(), original->JoinedTableSchema);
     ToProto(proto->mutable_foreign_table_schema(), original->ForeignTableSchema);
-    ToProto(proto->mutable_foreign_key_columns(), original->ForeignKeyColumns);
+    ToProto(proto->mutable_renamed_table_schema(), original->RenamedTableSchema);
+    proto->set_foreign_key_columns_count(original->ForeignKeyColumnsCount);
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
 }
 
@@ -1644,6 +1867,7 @@ void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
 void ToProto(NProto::TOrderClause* proto, TConstOrderClausePtr original)
 {
     ToProto(proto->mutable_order_columns(), original->OrderColumns);
+    proto->set_is_desc(original->IsDesc);
 }
 
 void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
@@ -1655,7 +1879,8 @@ void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
 
     proto->set_limit(original->Limit);
     ToProto(proto->mutable_table_schema(), original->TableSchema);
-    ToProto(proto->mutable_key_columns(), original->KeyColumns);
+    ToProto(proto->mutable_renamed_table_schema(), original->RenamedTableSchema);
+    proto->set_key_columns_count(original->KeyColumnsCount);
 
     ToProto(proto->mutable_join_clauses(), original->JoinClauses);
 
@@ -1724,14 +1949,17 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
 {
     auto result = New<TJoinClause>();
 
-    result->JoinColumns.reserve(serialized.join_columns_size());
-    for (int i = 0; i < serialized.join_columns_size(); ++i) {
-        result->JoinColumns.push_back(serialized.join_columns(i));
+    result->Equations.reserve(serialized.equations_size());
+    for (int i = 0; i < serialized.equations_size(); ++i) {
+        result->Equations.emplace_back(
+            FromProto(serialized.equations(i).left()),
+            FromProto(serialized.equations(i).right()));
     }
 
     FromProto(&result->JoinedTableSchema, serialized.joined_table_schema());
     FromProto(&result->ForeignTableSchema, serialized.foreign_table_schema());
-    FromProto(&result->ForeignKeyColumns, serialized.foreign_key_columns());
+    FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
+    FromProto(&result->ForeignKeyColumnsCount, serialized.foreign_key_columns_count());
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
 
     return result;
@@ -1772,6 +2000,8 @@ TOrderClausePtr FromProto(const NProto::TOrderClause& serialized)
 {
     auto result = New<TOrderClause>();
 
+    result->IsDesc = serialized.is_desc();
+
     result->OrderColumns.reserve(serialized.order_columns_size());
     for (int i = 0; i < serialized.order_columns_size(); ++i) {
         result->OrderColumns.push_back(serialized.order_columns(i));
@@ -1790,7 +2020,8 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
     query->Limit = serialized.limit();
 
     FromProto(&query->TableSchema, serialized.table_schema());
-    FromProto(&query->KeyColumns, serialized.key_columns());
+    FromProto(&query->RenamedTableSchema, serialized.renamed_table_schema());
+    FromProto(&query->KeyColumnsCount, serialized.key_columns_count());
 
     query->JoinClauses.reserve(serialized.join_clauses_size());
     for (int i = 0; i < serialized.join_clauses_size(); ++i) {
@@ -1839,6 +2070,7 @@ void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
     proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
     proto->set_max_subqueries(fragment->MaxSubqueries);
+    proto->set_enable_code_cache(fragment->EnableCodeCache);
     
     proto->set_source(fragment->Source);
     proto->set_timestamp(fragment->Timestamp);
@@ -1852,6 +2084,7 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     result->Ordered = serialized.ordered();
     result->VerboseLogging = serialized.verbose_logging();
     result->MaxSubqueries = serialized.max_subqueries();
+    result->EnableCodeCache = serialized.enable_code_cache();
     result->Timestamp = serialized.timestamp();
 
     NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));

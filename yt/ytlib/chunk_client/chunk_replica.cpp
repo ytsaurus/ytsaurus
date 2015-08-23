@@ -98,6 +98,11 @@ Stroka ToString(const TChunkIdWithIndex& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsArtifactChunkId(const TChunkId& id)
+{
+    return TypeFromId(id) == EObjectType::Artifact;
+}
+
 bool IsErasureChunkId(const TChunkId& id)
 {
     return TypeFromId(id) == EObjectType::ErasureChunk;

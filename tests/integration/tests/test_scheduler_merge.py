@@ -54,6 +54,25 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self.assertItemsEqual(read_table("//tmp/t_out"), self.v1 + self.v2)
         assert get("//tmp/t_out/@chunk_count") == 1
 
+    def test_unordered_with_mixed_chunks(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        write_table("//tmp/t1", [{"a": 4}, {"a": 5}, {"a": 6}])
+        write_table("//tmp/t2", [{"a": 7}, {"a": 8}, {"a": 9}])
+        write_table("//tmp/t3", [{"a": 1}, {"a": 2}, {"a": 3}])
+
+        create("table", "//tmp/t_out")
+        merge(mode="unordered",
+              in_=["//tmp/t1", "//tmp/t2[:#2]", "//tmp/t3[#1:]"],
+              out="//tmp/t_out",
+              spec={"data_size_per_job": 1000})
+
+        assert get("//tmp/t_out/@chunk_count") == 2
+        assert get("//tmp/t_out/@row_count") == 7
+        assert sorted(read_table("//tmp/t_out")) == [{"a": i} for i in range(2, 9)]
+
     def test_ordered(self):
         self._prepare_tables()
 
@@ -332,6 +351,22 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         self.assertItemsEqual(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
+
+    @only_linux
+    def test_query_filtering(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
+
+        merge(mode="unordered",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "force_transform": "true",
+                "input_query": "a where a > 0",
+                "input_schema": [{"name": "a", "type": "int64"}]})
+
+        assert read_table("//tmp/t2") == [{"a": 1}]
 
 ##################################################################
 

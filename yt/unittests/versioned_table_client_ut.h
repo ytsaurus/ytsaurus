@@ -6,12 +6,12 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
 
-#include <yt/ytlib/new_table_client/public.h>
-#include <yt/ytlib/new_table_client/unversioned_row.h>
-#include <yt/ytlib/new_table_client/versioned_row.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +113,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT
 

@@ -101,6 +101,44 @@ TEST_F(TCodecTest, LargeTest)
     }
 }
 
+TEST_F(TCodecTest, VectorDecompression)
+{
+    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
+        auto codec = GetCodec(codecId);
+
+        {
+            Stroka data = "hello world";
+            auto dataRef = TSharedRef::FromString(data).Split(2);
+            EXPECT_TRUE(dataRef.size() > 1);
+            auto compressed = codec->Compress(dataRef).Split(2);
+            EXPECT_TRUE(compressed.size() > 1);
+            auto decompressed = codec->Decompress(compressed);
+            EXPECT_EQ(data, Stroka(decompressed.Begin(), decompressed.End()));
+        }
+
+        {
+            std::vector<Stroka> data(10000, "a");
+            auto refs = ConvertToSharedRefs(data);
+            auto compressed = codec->Compress(refs).Split(4);
+            EXPECT_TRUE(compressed.size() > 1);
+            auto decompressed = codec->Decompress(compressed);
+            EXPECT_EQ(Join(data), Stroka(decompressed.Begin(), decompressed.End()));
+        }
+
+        {
+            std::vector<Stroka> data;
+            for (int i = 0; i < 20; ++i) {
+                data.push_back(Stroka(1 << i, i));
+            }
+            auto refs = ConvertToSharedRefs(data);
+            auto compressed = codec->Compress(refs).Split(5);
+            EXPECT_TRUE(compressed.size() > 1);
+            auto decompressed = codec->Decompress(compressed);
+            EXPECT_EQ(Join(data), Stroka(decompressed.Begin(), decompressed.End()));
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

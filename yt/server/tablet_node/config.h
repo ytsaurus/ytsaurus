@@ -10,7 +10,7 @@
 
 #include <core/rpc/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
 
@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletHydraManageConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableMountConfig
-    : public NVersionedTableClient::TRetentionConfig
+    : public NTableClient::TRetentionConfig
 {
 public:
     int MaxMemoryStoreKeyCount;
@@ -217,6 +217,12 @@ public:
 
     NCompression::ECodec ChangelogCodec;
 
+    //! When committing a non-atomic transaction, clients provide timestamps based
+    //! on wall clock readings. These timestamps are checked for sanity using the server-side
+    //! timestamp estimates.
+    TDuration ClientTimestampThreshold;
+
+
     TTabletManagerConfig()
     {
         RegisterParameter("pool_chunk_size", PoolChunkSize)
@@ -234,6 +240,9 @@ public:
 
         RegisterParameter("changelog_codec", ChangelogCodec)
             .Default(NCompression::ECodec::Lz4);
+
+        RegisterParameter("client_timestamp_threshold", ClientTimestampThreshold)
+            .Default(TDuration::Minutes(1));
     }
 };
 
@@ -355,7 +364,7 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletChunkReaderConfig
-    : public NVersionedTableClient::TChunkReaderConfig
+    : public NTableClient::TChunkReaderConfig
     , public NChunkClient::TReplicationReaderConfig
 { };
 
@@ -443,7 +452,7 @@ public:
     TSecurityManagerConfigPtr SecurityManager;
 
     TTabletChunkReaderConfigPtr ChunkReader;
-    NVersionedTableClient::TTableWriterConfigPtr ChunkWriter;
+    NTableClient::TTableWriterConfigPtr ChunkWriter;
 
     //! Controls outcoming bandwidth used by store flushes.
     NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;

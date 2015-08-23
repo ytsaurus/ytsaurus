@@ -2,9 +2,8 @@
 
 #include "public.h"
 #include "callbacks.h"
-#include "plan_fragment.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/api/rowset.h>
 
@@ -195,8 +194,25 @@ struct TCGVariables
 
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
 typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*);
+typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
+typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, TValue*, TValue*);
+typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, TValue*, TValue*);
+typedef void (TCGAggregateFinalizeSignature)(TExecutionContext*, TValue*, TValue*);
+
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
 using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;
+using TCGAggregateInitCallback = NCodegen::TCGFunction<TCGAggregateInitSignature>;
+using TCGAggregateUpdateCallback = NCodegen::TCGFunction<TCGAggregateUpdateSignature>;
+using TCGAggregateMergeCallback = NCodegen::TCGFunction<TCGAggregateMergeSignature>;
+using TCGAggregateFinalizeCallback = NCodegen::TCGFunction<TCGAggregateFinalizeSignature>;
+
+struct TCGAggregateCallbacks
+{
+    TCGAggregateInitCallback Init;
+    TCGAggregateUpdateCallback Update;
+    TCGAggregateMergeCallback Merge;
+    TCGAggregateFinalizeCallback Finalize;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

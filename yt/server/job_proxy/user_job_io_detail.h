@@ -4,7 +4,7 @@
 
 #include "user_job_io.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <core/logging/log.h>
 
@@ -21,14 +21,16 @@ public:
 
     virtual void Init() override;
 
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const override;
-    virtual const NVersionedTableClient::ISchemalessMultiChunkReaderPtr& GetReader() const override;
+    virtual const std::vector<NTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const override;
+    virtual const NTableClient::ISchemalessMultiChunkReaderPtr& GetReader() const override;
+
+    virtual int GetReduceKeyColumnCount() const override;
 
     virtual void PopulateResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt) override;
 
     virtual void CreateReader() override;
 
-    virtual NVersionedTableClient::TSchemalessReaderFactory GetReaderFactory() override;
+    virtual NTableClient::TSchemalessReaderFactory GetReaderFactory() override;
 
 protected:
     IJobHost* Host_;
@@ -36,48 +38,48 @@ protected:
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpec_;
     NScheduler::TJobIOConfigPtr JobIOConfig_;
 
-    NVersionedTableClient::ISchemalessMultiChunkReaderPtr Reader_;
-    std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
+    NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
+    std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
 
     NLogging::TLogger Logger;
 
 
-    virtual NVersionedTableClient::ISchemalessMultiChunkWriterPtr DoCreateWriter(
-        NVersionedTableClient::TTableWriterOptionsPtr options,
+    virtual NTableClient::ISchemalessMultiChunkWriterPtr DoCreateWriter(
+        NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
-        const NVersionedTableClient::TKeyColumns& keyColumns) = 0;
+        const NTableClient::TKeyColumns& keyColumns) = 0;
 
-    virtual NVersionedTableClient::ISchemalessMultiChunkReaderPtr DoCreateReader(
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const NVersionedTableClient::TColumnFilter& columnFilter) = 0;
+    virtual NTableClient::ISchemalessMultiChunkReaderPtr DoCreateReader(
+        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TColumnFilter& columnFilter) = 0;
 
 
-    NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateRegularReader(
+    NTableClient::ISchemalessMultiChunkReaderPtr CreateRegularReader(
         bool isParallel,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const NVersionedTableClient::TColumnFilter& columnFilter);
+        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TColumnFilter& columnFilter);
 
-    NVersionedTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
+    NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
         NChunkClient::TMultiChunkReaderOptionsPtr options,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const NVersionedTableClient::TColumnFilter& columnFilter,
+        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TColumnFilter& columnFilter,
         bool isParallel);
 
-    NVersionedTableClient::ISchemalessMultiChunkWriterPtr CreateTableWriter(
-        NVersionedTableClient::TTableWriterOptionsPtr options,
+    NTableClient::ISchemalessMultiChunkWriterPtr CreateTableWriter(
+        NTableClient::TTableWriterOptionsPtr options,
         const NChunkClient::TChunkListId& chunkListId,
         const NTransactionClient::TTransactionId& transactionId,
-        const NVersionedTableClient::TKeyColumns& keyColumns);
+        const NTableClient::TKeyColumns& keyColumns);
 
-    NVersionedTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
-        NVersionedTableClient::ISchemalessMultiChunkWriterPtr writer) const;
+    NTableClient::NProto::TBoundaryKeysExt GetBoundaryKeys(
+        NTableClient::ISchemalessMultiChunkWriterPtr writer) const;
 
 private:
     void InitReader(
-        NVersionedTableClient::TNameTablePtr nameTable,
-        const NVersionedTableClient::TColumnFilter& columnFilter);
+        NTableClient::TNameTablePtr nameTable,
+        const NTableClient::TColumnFilter& columnFilter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

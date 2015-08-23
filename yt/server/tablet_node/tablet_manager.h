@@ -8,7 +8,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
 
@@ -48,8 +48,9 @@ public:
 
     void Write(
         TTabletSnapshotPtr tabletSnapshot,
-        const TTransactionId& transctionId,
-        NTabletClient::TWireProtocolReader* reader);
+        const TTransactionId& transactionId,
+        NTabletClient::TWireProtocolReader* reader,
+        TFuture<void>* commitResult);
 
 
     IStorePtr CreateStore(TTablet* tablet, const TStoreId& storeId);

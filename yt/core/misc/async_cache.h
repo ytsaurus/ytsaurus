@@ -105,10 +105,10 @@ protected:
         TSlruCacheConfigPtr config,
         const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 
-    virtual i64 GetWeight(TValue* value) const;
+    virtual i64 GetWeight(const TValuePtr& value) const;
 
-    virtual void OnAdded(TValue* value);
-    virtual void OnRemoved(TValue* value);
+    virtual void OnAdded(const TValuePtr& value);
+    virtual void OnRemoved(const TValuePtr& value);
 
 private:
     friend class TAsyncCacheValueBase<TKey, TValue, THash>;

@@ -14,10 +14,10 @@
 
 #include <ytlib/hive/public.h>
 
-#include <ytlib/new_table_client/public.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/table_client/public.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/chunk_meta.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -45,7 +45,7 @@ struct TTabletInfo
 {
     NObjectClient::TObjectId TabletId;
     NTabletClient::ETabletState State;
-    NVersionedTableClient::TOwningKey PivotKey;
+    NTableClient::TOwningKey PivotKey;
     NTabletClient::TTabletCellId CellId;
 };
 
@@ -59,13 +59,13 @@ struct TTableMountInfo
     NYPath::TYPath Path;
     NObjectClient::TObjectId TableId;
 
-    NVersionedTableClient::TTableSchema Schema;
-    NVersionedTableClient::TKeyColumns KeyColumns;
+    NTableClient::TTableSchema Schema;
+    NTableClient::TKeyColumns KeyColumns;
     bool Sorted = false;
 
     std::vector<TTabletInfoPtr> Tablets;
 
-    TTabletInfoPtr GetTablet(NVersionedTableClient::TUnversionedRow row);
+    TTabletInfoPtr GetTablet(NTableClient::TUnversionedRow row);
 
     bool NeedKeyEvaluation = false;
 };

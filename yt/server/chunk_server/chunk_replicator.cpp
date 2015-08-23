@@ -411,7 +411,6 @@ void TChunkReplicator::OnNodeRegistered(TNode* node)
     node->ClearChunkRemovalQueue();
     node->ClearChunkReplicationQueues();
     node->ClearChunkSealQueue();
-    ScheduleNodeRefresh(node);
 }
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)

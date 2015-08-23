@@ -19,7 +19,6 @@ using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NSecurityServer;
-using namespace NFileClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,31 +74,13 @@ protected:
             attributes->Set("compression_codec", NCompression::ECodec::None);
         }
 
-        // NB: Validate everything before calling TBase::DoCreate to ensure atomicity.
-        TChunk* chunk = nullptr;
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        if (request && request->HasExtension(TReqCreateFileExt::create_file_ext)) {
-            const auto& requestExt = request->GetExtension(TReqCreateFileExt::create_file_ext);
-            auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
-            chunk = chunkManager->GetChunkOrThrow(chunkId);
-            chunk->ValidateConfirmed();
-        }
-
-        auto nodeHolder = TBase::DoCreate(
+        return TBase::DoCreate(
             id,
             cellTag,
             transaction,
             attributes,
             request,
             response);
-
-        // XXX(babenko): this will die
-        if (chunk && !nodeHolder->IsExternal()) {
-            auto* chunkList = nodeHolder->GetChunkList();
-            chunkManager->AttachToChunkList(chunkList, chunk);
-        }
-
-        return nodeHolder;
     }
 
 };

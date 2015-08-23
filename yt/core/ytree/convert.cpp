@@ -12,6 +12,7 @@ using namespace NYson;
 
 template TYsonString ConvertToYsonString<int>(const int&);
 template TYsonString ConvertToYsonString<long>(const long&);
+template TYsonString ConvertToYsonString<long long>(const long long&);
 template TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
 template TYsonString ConvertToYsonString<Stroka>(const Stroka&);
 

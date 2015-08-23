@@ -26,7 +26,7 @@ public:
     }
 
     explicit TTransactionSupervisorServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
+        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, CommitTransaction);

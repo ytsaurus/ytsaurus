@@ -9,18 +9,18 @@
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/schemaful_reader.h>
-#include <ytlib/new_table_client/schemaful_writer.h>
-#include <ytlib/new_table_client/row_buffer.h>
-#include <ytlib/new_table_client/chunk_meta.pb.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/schemaful_reader.h>
+#include <ytlib/table_client/schemaful_writer.h>
+#include <ytlib/table_client/row_buffer.h>
+#include <ytlib/table_client/chunk_meta.pb.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 
 namespace NYT {
 namespace NTabletClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +54,7 @@ public:
 
     void WriteTableSchema(const TTableSchema& schema)
     {
-        WriteMessage(ToProto<NVersionedTableClient::NProto::TTableSchemaExt>(schema));
+        WriteMessage(ToProto< NTableClient::NProto::TTableSchemaExt>(schema));
     }
 
     void WriteMessage(const ::google::protobuf::MessageLite& message)
@@ -344,6 +344,16 @@ public:
         return Current_ == Data_.End();
     }
 
+    TIterator GetBegin() const
+    {
+        return Data_.Begin();
+    }
+
+    TIterator GetEnd() const
+    {
+        return Data_.End();
+    }
+
     TIterator GetCurrent() const
     {
         return Current_;
@@ -366,7 +376,7 @@ public:
 
     TTableSchema ReadTableSchema()
     {
-        NVersionedTableClient::NProto::TTableSchemaExt protoSchema;
+        NTableClient::NProto::TTableSchemaExt protoSchema;
         ReadMessage(&protoSchema);
         return FromProto<TTableSchema>(protoSchema);
     }
@@ -499,15 +509,6 @@ public:
         : Reader_(std::move(reader))
     { }
 
-    virtual TFuture<void> Open(const TTableSchema& schema) override
-    {
-        auto actualSchema = Reader_->ReadTableSchema();
-        if (schema != actualSchema) {
-            return MakeFuture(TError("Schema mismatch while parsing wire protocol"));
-        }
-        return VoidFuture;
-    }
-
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         if (Finished_) {
@@ -556,6 +557,16 @@ bool TWireProtocolReader::IsFinished() const
     return Impl_->IsFinished();
 }
 
+auto TWireProtocolReader::GetBegin() const -> TIterator
+{
+    return Impl_->GetBegin();
+}
+
+auto TWireProtocolReader::GetEnd() const -> TIterator
+{
+    return Impl_->GetEnd();
+}
+
 auto TWireProtocolReader::GetCurrent() const -> TIterator
 {
     return Impl_->GetCurrent();
@@ -596,8 +607,12 @@ TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset()
     return Impl_->ReadUnversionedRowset();
 }
 
-ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader()
+ISchemafulReaderPtr TWireProtocolReader::CreateSchemafulRowsetReader(const TTableSchema& schema)
 {
+    auto actualSchema = Impl_->ReadTableSchema();
+    if (schema != actualSchema) {
+        THROW_ERROR_EXCEPTION("Schema mismatch while parsing wire protocol");
+    }
     return New<TSchemafulRowsetReader>(Impl_);
 }
 

@@ -26,9 +26,9 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/timestamp_provider.h>
 
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/versioned_reader.h>
-#include <ytlib/new_table_client/versioned_chunk_writer.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/versioned_chunk_writer.h>
 
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -50,7 +50,7 @@ namespace NTabletNode {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NHydra;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NObjectClient;
@@ -606,6 +606,7 @@ private:
         auto keyColumns = tablet->KeyColumns();
         auto schema = tablet->Schema();
         auto tabletConfig = tablet->GetConfig();
+        writerOptions->ChunksEden = partition->IsEden();
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("TabletId: %v, Eden: %v, PartitionRange: %v .. %v",

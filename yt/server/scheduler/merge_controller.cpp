@@ -3,6 +3,7 @@
 #include "private.h"
 #include "operation_controller.h"
 #include "operation_controller_detail.h"
+#include "map_controller.h"
 #include "chunk_pool.h"
 #include "chunk_list_pool.h"
 #include "job_resources.h"
@@ -11,8 +12,8 @@
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/chunk_splits_fetcher.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_splits_fetcher.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -29,7 +30,7 @@ using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
@@ -46,8 +47,8 @@ class TMergeControllerBase
 public:
     TMergeControllerBase(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecBasePtr spec,
-        TMergeOperationOptionsPtr options,
+        TSimpleOperationSpecBasePtr spec,
+        TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
         : TOperationControllerBase(config, spec, host, operation)
@@ -79,8 +80,8 @@ public:
     }
 
 protected:
-    TMergeOperationSpecBasePtr Spec;
-    TMergeOperationOptionsPtr Options;
+    TSimpleOperationSpecBasePtr Spec;
+    TSimpleOperationOptionsPtr Options;
 
     //! The total number of chunks for processing.
     int TotalChunkCount;
@@ -228,7 +229,7 @@ protected:
             TNodeResources result;
 
             result.set_user_slots(1);
-            result.set_cpu(1);
+            result.set_cpu(Controller->GetCpuLimit());
             result.set_memory(
                 Controller->GetFinalIOMemorySize(
                     Controller->Spec->JobIO,
@@ -264,16 +265,16 @@ protected:
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet);
+            TTask::OnJobCompleted(joblet, jobSummary);
 
-            RegisterOutput(joblet, PartitionIndex);
+            RegisterOutput(joblet, PartitionIndex, jobSummary);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet, jobSummary);
             Controller->UpdateAllTasksIfNeeded(Controller->JobCounter);
         }
 
@@ -424,8 +425,8 @@ protected:
             Spec->JobCount,
             Options->MaxJobCount);
 
-        MaxDataSizePerJob = 1 + TotalEstimatedInputDataSize / jobCount;
-        ChunkSliceSize = std::min(Options->JobMaxSliceDataSize, MaxDataSizePerJob);
+        MaxDataSizePerJob = (TotalEstimatedInputDataSize + jobCount - 1) / jobCount;
+        ChunkSliceSize = static_cast<int>(Clamp(MaxDataSizePerJob, 1, Options->JobMaxSliceDataSize));
     }
 
     void ProcessInputs()
@@ -481,12 +482,9 @@ protected:
 
 
     // Unsorted helpers.
-
-    //! Returns |true| iff the chunk has nontrivial limits.
-    //! Such chunks are always pooled.
-    static bool IsCompleteChunk(const TChunkSpec& chunkSpec)
+    virtual i32 GetCpuLimit() const
     {
-        return IsTrivial(chunkSpec.upper_limit()) && IsTrivial(chunkSpec.lower_limit());
+        return 1;
     }
 
     virtual bool IsSingleStripeInput() const
@@ -500,7 +498,7 @@ protected:
     }
 
     //! Returns True if the chunk can be included into the output as-is.
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) = 0;
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const = 0;
 
     virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const
     {
@@ -508,36 +506,12 @@ protected:
         return 0;
     }
 
-    //! Returns True iff the chunk is complete and is large enough.
-    bool IsLargeCompleteChunk(const TChunkSpec& chunkSpec)
+    //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
+    bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks) const
     {
-        if (!IsCompleteChunk(chunkSpec)) {
-            return false;
-        }
-
-        return IsLargeChunk(chunkSpec);
-    }
-
-    bool IsLargeChunk(const TChunkSpec& chunkSpec)
-    {
-        YCHECK(IsTrivial(chunkSpec.lower_limit()));
-        YCHECK(IsTrivial(chunkSpec.upper_limit()));
-
-        auto miscExt = GetProtoExtension<TMiscExt>(chunkSpec.chunk_meta().extensions());
-
-        // ChunkSequenceWriter may actually produce a chunk a bit smaller than DesiredChunkSize,
-        // so we have to be more flexible here.
-        if (0.9 * miscExt.compressed_data_size() >= Spec->JobIO->TableWriter->DesiredChunkSize) {
-            return true;
-        }
-
-        return false;
-    }
-
-    //! A typical implementation of #IsTelelportChunk that depends on whether chunks must be combined or not.
-    bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks)
-    {
-        return combineChunks ? IsLargeCompleteChunk(chunkSpec) : IsCompleteChunk(chunkSpec);
+        return combineChunks
+            ? IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize)
+            : IsCompleteChunk(chunkSpec);
     }
 
     //! Initializes #JobIOConfig.
@@ -556,82 +530,6 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
 
 ////////////////////////////////////////////////////////////////////
 
-//! Handles unordered merge operation.
-class TUnorderedMergeController
-    : public TMergeControllerBase
-{
-public:
-    TUnorderedMergeController(
-        TSchedulerConfigPtr config,
-        TUnorderedMergeOperationSpecPtr spec,
-        TUnorderedMergeOperationOptionsPtr options,
-        IOperationHost* host,
-        TOperation* operation)
-        : TMergeControllerBase(config, spec, options, host, operation)
-        , Spec(spec)
-    { }
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x6acdae46);
-
-    TUnorderedMergeOperationSpecPtr Spec;
-
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
-    {
-        if (Spec->ForceTransform)
-            return false;
-
-        return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
-    }
-
-    virtual std::vector<TRichYPath> GetInputTablePaths() const override
-    {
-        return Spec->InputTablePaths;
-    }
-
-    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
-    {
-        std::vector<TRichYPath> result;
-        result.push_back(Spec->OutputTablePath);
-        return result;
-    }
-
-    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
-    {
-        if (IsTelelportChunk(*chunkSpec)) {
-            // Chunks not requiring merge go directly to the output chunk list.
-            AddTeleportChunk(chunkSpec);
-            return;
-        }
-
-        // NB: During unordered merge all chunks go to a single chunk stripe.
-        for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
-            AddPendingChunk(slice);
-            EndTaskIfLarge();
-        }
-    }
-
-    virtual void InitJobSpecTemplate() override
-    {
-        JobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
-        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
-
-        if (Spec->InputQuery) {
-            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
-            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
-        }
-    }
-
-};
-
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
-
-////////////////////////////////////////////////////////////////////
-
 //! Handles ordered merge and (sic!) erase operations.
 class TOrderedMergeControllerBase
     : public TMergeControllerBase
@@ -639,8 +537,8 @@ class TOrderedMergeControllerBase
 public:
     TOrderedMergeControllerBase(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecBasePtr spec,
-        TOrderedMergeOperationOptionsPtr options,
+        TSimpleOperationSpecBasePtr spec,
+        TSimpleOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
         : TMergeControllerBase(config, spec, options, host, operation)
@@ -649,7 +547,7 @@ public:
 private:
     virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
     {
-        if (IsTelelportChunk(*chunkSpec)) {
+        if (IsTeleportChunk(*chunkSpec)) {
             // Merge is not needed. Copy the chunk directly to the output.
             if (HasActiveTask()) {
                 EndTask();
@@ -666,6 +564,164 @@ private:
     }
 
 };
+
+////////////////////////////////////////////////////////////////////
+
+class TOrderedMapController
+    : public TOrderedMergeControllerBase
+{
+public:
+    TOrderedMapController(
+        TSchedulerConfigPtr config,
+        TMapOperationSpecPtr spec,
+        TMapOperationOptionsPtr options,
+        IOperationHost* host,
+        TOperation* operation)
+        : TOrderedMergeControllerBase(config, spec, options, host, operation)
+        , Spec(spec)
+    { }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        TOrderedMergeControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("mapper").BeginMap()
+                .Item("command").Value(TrimCommandForBriefSpec(Spec->Mapper->Command))
+            .EndMap();
+    }
+
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TOrderedMergeControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, StartRowIndex);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController, 0x1e5a7e32);
+
+    TMapOperationSpecPtr Spec;
+
+    i64 StartRowIndex = 0;
+
+
+    virtual bool IsRowCountPreserved() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    {
+        return Spec->InputTablePaths;
+    }
+
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    {
+        return Spec->OutputTablePaths;
+    }
+
+    virtual TNullable<int> GetTeleportTableIndex() const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    {
+        std::vector<TPathWithStage> result;
+        for (const auto& path : Spec->Mapper->FilePaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Map));
+        }
+        return result;
+    }
+
+    virtual void DoInitialize() override
+    {
+        TOrderedMergeControllerBase::DoInitialize();
+
+        if (Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
+            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
+                Config->MaxUserFileCount,
+                Spec->Mapper->FilePaths.size());
+        }
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+
+
+    // Unsorted helpers.
+    virtual i32 GetCpuLimit() const override
+    {
+        return Spec->Mapper->CpuLimit;
+    }
+
+    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
+    {
+        return GetMemoryReserve(memoryReserveEnabled, Spec->Mapper);
+    }
+
+    virtual bool IsSortedOutputSupported() const override
+    {
+        return true;
+    }
+
+    virtual void InitJobSpecTemplate() override
+    {
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        InitUserJobSpecTemplate(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            Spec->Mapper,
+            Files);
+
+        if (Spec->InputQuery) {
+            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+        }
+    }
+
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    {
+        joblet->StartRowIndex = StartRowIndex;
+        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+    }
+
+    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    {
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        InitUserJobSpec(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            joblet,
+            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
+    }
+
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
+
+////////////////////////////////////////////////////////////////////
+
+IOperationControllerPtr CreateOrderedMapController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
+    return New<TOrderedMapController>(config, spec, config->MapOperationOptions, host, operation);
+}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -700,12 +756,17 @@ private:
         return result;
     }
 
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
         if (Spec->ForceTransform)
             return false;
 
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
+    }
+
+    virtual bool IsRowCountPreserved() const override
+    {
+        return Spec->InputQuery ? false : TMergeControllerBase::IsRowCountPreserved();
     }
 
     virtual void InitJobSpecTemplate() override
@@ -718,8 +779,7 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         if (Spec->InputQuery) {
-            ToProto(schedulerJobSpecExt->mutable_input_query(), Spec->InputQuery.Get());
-            ToProto(schedulerJobSpecExt->mutable_input_schema(), Spec->InputSchema.Get());
+            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
     }
 
@@ -775,7 +835,7 @@ private:
         return result;
     }
 
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
         return IsTeleportChunkImpl(chunkSpec, Spec->CombineChunks);
     }
@@ -873,7 +933,7 @@ class TSortedMergeControllerBase
 public:
     TSortedMergeControllerBase(
         TSchedulerConfigPtr config,
-        TMergeOperationSpecBasePtr spec,
+        TSimpleOperationSpecBasePtr spec,
         TSortedMergeOperationOptionsPtr options,
         IOperationHost* host,
         TOperation* operation)
@@ -973,7 +1033,7 @@ protected:
 
     virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
 
-    virtual bool IsTelelportChunk(const TChunkSpec& chunkSpec) override
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
         YUNREACHABLE();
     }
@@ -1096,13 +1156,12 @@ private:
         if (!Spec->CombineChunks)
             return true;
 
-        return IsLargeChunk(chunkSpec);
+        return IsLargeCompleteChunk(chunkSpec, Spec->JobIO->TableWriter->DesiredChunkSize);
     }
 
     virtual void SortEndpoints() override
     {
         int prefixLength = static_cast<int>(KeyColumns.size());
-
         std::sort(
             Endpoints.begin(),
             Endpoints.end(),
@@ -1394,12 +1453,7 @@ IOperationControllerPtr CreateMergeController(
     auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(spec);
     switch (baseSpec->Mode) {
         case EMergeMode::Unordered: {
-            return New<TUnorderedMergeController>(
-                config,
-                ParseOperationSpec<TUnorderedMergeOperationSpec>(spec),
-                config->UnorderedMergeOperationOptions,
-                host,
-                operation);
+            return CreateUnorderedMergeController(config, host, operation);
         }
         case EMergeMode::Ordered: {
             return New<TOrderedMergeController>(
@@ -1439,7 +1493,7 @@ public:
         , TeleportOutputTable(Null)
     { }
 
-    void BuildBriefSpec(IYsonConsumer* consumer) const override
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
     {
         TSortedMergeControllerBase::BuildBriefSpec(consumer);
         BuildYsonMapFluently(consumer)
@@ -1708,6 +1762,11 @@ private:
         return true;
     }
 
+    virtual i32 GetCpuLimit() const override
+    {
+        return Spec->Reducer->CpuLimit;
+    }
+
     virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
     {
         return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
@@ -1720,6 +1779,8 @@ private:
 
     virtual void InitJobSpecTemplate() override
     {
+        YCHECK(!KeyColumns.empty());
+
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -1730,11 +1791,11 @@ private:
         InitUserJobSpecTemplate(
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Reducer,
-            RegularFiles,
-            TableFiles);
+            Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ToProto(reduceJobSpecExt->mutable_key_columns(), KeyColumns);
+        ToProto(reduceJobSpecExt->mutable_key_columns(), GetSortingKeyColumns());
+        reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
     }
@@ -1764,6 +1825,25 @@ private:
         return true;
     }
 
+    TKeyColumns GetSortingKeyColumns()
+    {
+        auto sortBy = *InputTables[0].SortedBy;
+        for (const auto& table : InputTables) {
+            if (table.SortedBy->size() < sortBy.size()) {
+                sortBy.erase(sortBy.begin() + table.SortedBy->size(), sortBy.end());
+            }
+
+            int i = 0;
+            for (; i < sortBy.size(); ++i) {
+                if (sortBy[i] != table.SortedBy->at(i)) {
+                    break;
+                }
+            }
+            sortBy.erase(sortBy.begin() + i, sortBy.end());
+        }
+        YCHECK(sortBy.size() >= KeyColumns.size());
+        return sortBy;
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);

@@ -1,6 +1,7 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/server/data_node )
 set( SRCS
+  ${BASE}/artifact.cpp
   ${BASE}/blob_chunk.cpp
   ${BASE}/blob_reader_cache.cpp
   ${BASE}/blob_session.cpp
@@ -29,6 +30,7 @@ set( SRCS
   ${BASE}/ytree_integration.cpp
 )
 set( HDRS
+  ${BASE}/artifact.h
   ${BASE}/blob_chunk.h
   ${BASE}/blob_reader_cache.h
   ${BASE}/blob_session.h
@@ -64,3 +66,5 @@ list(APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
 )
+
+protoc( ${BASE}/artifact.proto YT_SOURCE_FILES )

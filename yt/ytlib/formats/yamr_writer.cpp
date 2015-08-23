@@ -9,7 +9,7 @@ namespace NYT {
 namespace NFormats {
 
 using namespace NYTree;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

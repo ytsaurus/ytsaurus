@@ -36,7 +36,7 @@ struct ISession
     virtual EWriteSessionType GetType() const = 0;
 
     //! Returns target chunk location.
-    virtual TLocationPtr GetLocation() const = 0;
+    virtual TStoreLocationPtr GetStoreLocation() const = 0;
 
     //! Returns the chunk info.
     virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const = 0;

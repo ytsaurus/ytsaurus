@@ -213,6 +213,11 @@ config = {
         minor: 5,
         patch: 0,
     },
+    banned_python_wrapper_versions: [
+        ["0.5.0", "0.5.100"],
+        ["0.6.0", "0.6.9"],
+        ["0.6.14", "0.6.15"]
+    ],
     redirect: [],
     static: [],
 };
@@ -266,12 +271,12 @@ function provideWinstonTransport() {
         // XXX(sandello): We are forcing logging to use provided timestamps.
         config.logging.timestamp = false;
         return ensureFileExistsAndOwned(config.logging.filename, config.user, config.group).then(function() {
-            console.error("Setting up logging to file '%s'", config.logging.filename);
+            // console.error("Setting up logging to file '%s'", config.logging.filename);
             return new winston.transports.File(config.logging);
         });
     } else {
         return Q.try(function() {
-            console.error("Setting up logging to console");
+            // console.error("Setting up logging to console");
             return new winston.transports.Console({ timestamp : false, raw : false, colorize : true });
         });
     }

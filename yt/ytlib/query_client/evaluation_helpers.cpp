@@ -3,6 +3,7 @@
 
 #include "private.h"
 #include "plan_helpers.h"
+#include "plan_fragment.h"
 #include "helpers.h"
 #include "query_statistics.h"
 
@@ -14,7 +15,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
-using NVersionedTableClient::GetUnversionedRowDataSize;
+using NTableClient::GetUnversionedRowDataSize;
 
 static const auto& Logger = QueryClientLogger;
 
@@ -136,51 +137,43 @@ TJoinEvaluator GetJoinEvaluator(
     TConstExpressionPtr predicate,
     const TTableSchema& selfTableSchema)
 {
-    const auto& joinColumns = joinClause.JoinColumns;
+    const auto& equations = joinClause.Equations;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
-    auto& foreignKeyColumns = joinClause.ForeignKeyColumns;
+    auto& foreignKeyColumnsCount = joinClause.ForeignKeyColumnsCount;
+    auto& renamedTableSchema = joinClause.RenamedTableSchema;
     auto& joinedTableSchema = joinClause.JoinedTableSchema;
     auto& foreignDataId = joinClause.ForeignDataId;
-    auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, foreignTableSchema);
+    auto foreignPredicate = ExtractPredicateForColumnSubset(predicate, renamedTableSchema);
 
     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
     auto subquery = New<TQuery>(std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     subquery->TableSchema = foreignTableSchema;
-    subquery->KeyColumns = foreignKeyColumns;
+    subquery->KeyColumnsCount = foreignKeyColumnsCount;
+    subquery->RenamedTableSchema = renamedTableSchema;
 
+    // (join key... , other columns...)
     auto projectClause = New<TProjectClause>();
-    for (const auto& column : foreignTableSchema.Columns()) {
-        if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) != joinColumns.end()) {
-            projectClause->AddProjection(New<TReferenceExpression>(
-                column.Type,
-                column.Name),
-                column.Name);
-        }
+    std::vector<TConstExpressionPtr> joinKeyExprs;
+    for (const auto& column : equations) {
+        projectClause->AddProjection(column.second, InferName(column.second));
+        joinKeyExprs.push_back(column.second);
     }
 
-    for (const auto& column : foreignTableSchema.Columns()) {
-        if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) == joinColumns.end()) {
-            projectClause->AddProjection(New<TReferenceExpression>(
-                column.Type,
-                column.Name),
-                column.Name);
-        }
+    for (const auto& column : renamedTableSchema.Columns()) {
+        projectClause->AddProjection(New<TReferenceExpression>(
+            column.Type,
+            column.Name),
+            column.Name);
     }
 
     subquery->ProjectClause = projectClause;
 
-    std::vector<TConstExpressionPtr> joinKeyExprs;
-    for (const auto& column : joinColumns) {
-        joinKeyExprs.push_back(New<TReferenceExpression>(
-            foreignTableSchema.GetColumnOrThrow(column).Type,
-            column));
-    }
-
     auto subqueryTableSchema = subquery->GetTableSchema();
 
-    std::vector<std::pair<bool, int>> columnMapping;
+    auto joinKeySize = equations.size();
 
+    std::vector<std::pair<bool, int>> columnMapping;
     for (const auto& column : joinedTableSchema.Columns()) {
         if (auto self = selfTableSchema.FindColumn(column.Name)) {
             columnMapping.emplace_back(true, selfTableSchema.GetColumnIndex(*self));
@@ -199,6 +192,8 @@ TJoinEvaluator GetJoinEvaluator(
         const std::vector<TRow>& allRows,
         std::vector<TRow>* joinedRows)
     {
+        // TODO: keys should be joined with allRows: [(key, sourceRow)]
+
         subquery->WhereClause = New<TInOpExpression>(
             joinKeyExprs,
             // TODO(babenko): fixme
@@ -241,18 +236,14 @@ TJoinEvaluator GetJoinEvaluator(
 
         // Join rowsets.
         TRowBuilder rowBuilder;
+        // allRows have format (join key... , other columns...)
         for (auto row : allRows) {
-            rowBuilder.Reset();
-            for (const auto& column : joinColumns) {
-                rowBuilder.AddValue(row[selfTableSchema.GetColumnIndexOrThrow(column)]);
-            }
-
-            auto equalRange = foreignLookup.equal_range(rowBuilder.GetRow());
+            auto equalRange = foreignLookup.equal_range(row);
             for (auto it = equalRange.first; it != equalRange.second; ++it) {
                 rowBuilder.Reset();
                 auto foreignRow = *it;
                 for (auto columnIndex : columnMapping) {
-                    rowBuilder.AddValue(columnIndex.first ? row[columnIndex.second] : foreignRow[columnIndex.second]);
+                    rowBuilder.AddValue(columnIndex.first ? row[joinKeySize + columnIndex.second] : foreignRow[columnIndex.second]);
                 }
 
                 if (!UpdateAndCheckRowLimit(&context->JoinRowLimit, &context->StopFlag)) {

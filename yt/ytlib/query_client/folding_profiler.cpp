@@ -92,19 +92,21 @@ TFoldingProfiler& TFoldingProfiler::Set(yhash_set<Stroka>* references)
 TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 {
     Fold(static_cast<int>(EFoldingObjectType::ScanOp));
-    Profile(query->TableSchema);
+    Profile(query->RenamedTableSchema);
     TCodegenSource codegenSource = &CodegenScanOp;
 
-    TTableSchema schema = query->TableSchema;
+    TTableSchema schema = query->RenamedTableSchema;
 
     for (const auto& joinClause : query->JoinClauses) {
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
 
         Profile(schema);
-        Profile(joinClause->ForeignTableSchema);
+        Profile(joinClause->RenamedTableSchema);
 
-        for (const auto& column : joinClause->JoinColumns) {
-            Fold(column.c_str());
+        std::vector<TCodegenExpression> selfKeys;
+        for (const auto& column : joinClause->Equations) {
+            selfKeys.push_back(Profile(column.first, schema));
+            Profile(column.second, joinClause->RenamedTableSchema);
         }
 
         if (auto selfFilter = ExtractPredicateForColumnSubset(query->WhereClause, schema)) {
@@ -113,7 +115,7 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
         codegenSource = MakeCodegenJoinOp(
             Variables_->JoinEvaluators.size(),
-            joinClause->JoinColumns,
+            selfKeys,
             schema,
             std::move(codegenSource));
 
@@ -152,6 +154,11 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
         int keySize = codegenGroupExprs.size();
 
+        auto keyTypes = std::vector<EValueType>();
+        for (int id = 0; id < keySize; id++) {
+            keyTypes.push_back(groupClause->GroupedTableSchema.Columns()[id].Type);
+        }
+
         codegenSource = MakeCodegenGroupOp(
             MakeCodegenAggregateInitialize(
                 codegenAggregates,
@@ -173,9 +180,8 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
                 keySize,
                 groupClause->IsFinal),
             std::move(codegenSource),
-            keySize,
-            keySize + codegenAggregates.size(),
-            groupClause->GroupedTableSchema);
+            keyTypes,
+            keySize + codegenAggregates.size());
 
         schema = groupClause->GetTableSchema();
     }
@@ -191,7 +197,11 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             Fold(column.c_str());
         }
 
-        codegenSource = MakeCodegenOrderOp(orderClause->OrderColumns, schema, std::move(codegenSource));
+        codegenSource = MakeCodegenOrderOp(
+            orderClause->OrderColumns,
+            schema,
+            std::move(codegenSource),
+            orderClause->IsDesc);
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {

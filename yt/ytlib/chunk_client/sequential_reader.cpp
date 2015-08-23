@@ -45,7 +45,7 @@ TSequentialReader::TSequentialReader(
         blockIndexes.push_back(info.Index);
     }
 
-    LOG_DEBUG("Creating sequential reader (Blocks: [%v])",
+    LOG_TRACE("Creating sequential reader (Blocks: [%v])",
         JoinToString(blockIndexes));
 
     FetchNextGroup();

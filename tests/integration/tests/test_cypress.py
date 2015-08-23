@@ -403,6 +403,49 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2", preserve_account=True) # preserve is ON
         assert get("//tmp/t2/@account") == "max"
 
+    def test_copy_force1(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@a", 1)
+        create("table", "//tmp/t2")
+        set("//tmp/t2/@a", 2)
+        copy("//tmp/t1", "//tmp/t2", force=True)
+        assert get("//tmp/t2/@a", 1)
+
+    def test_copy_force2(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        tx = start_transaction()
+        lock("//tmp/t2", tx=tx)
+        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2", force=True)
+
+    def test_copy_force3(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t2", {})
+        copy("//tmp/t1", "//tmp/t2", force=True)
+        assert get("//tmp/t2/@type") == "table"
+
+    def test_copy_force_account1(self):
+        create_account("a")
+
+        set("//tmp/a1", {})
+        set("//tmp/a1/@account", "a")
+        set("//tmp/a2", {})
+
+        copy("//tmp/a1", "//tmp/a2", force=True, preserve_account=True)
+
+        assert get("//tmp/a2/@account") == "a"
+
+    def test_copy_force_account2(self):
+        create_account("a")
+
+        set("//tmp/a1", {})
+        set("//tmp/a1/@account", "a")
+        set("//tmp/a2", {})
+
+        copy("//tmp/a1", "//tmp/a2", force=True, preserve_account=False)
+
+        assert get("//tmp/a2/@account") == "tmp"
+
     def test_move_simple1(self):
         set("//tmp/a", 1)
         move("//tmp/a", "//tmp/b")
@@ -442,6 +485,33 @@ class TestCypress(YTEnvSetup):
     def test_move_recursive_fail(self):
         create("map_node", "//tmp/a")
         with pytest.raises(YtError): move("//tmp/a", "//tmp/b/c", recursive=False)
+
+    def test_move_force1(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@a", 1)
+        create("table", "//tmp/t2")
+        set("//tmp/t2/@a", 2)
+        move("//tmp/t1", "//tmp/t2", force=True)
+        assert get("//tmp/t2/@a", 1)
+        assert not exists("//tmp/t1")
+
+    def test_move_force2(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        tx = start_transaction()
+        lock("//tmp/t2", tx=tx)
+        with pytest.raises(YtError): move("//tmp/t1", "//tmp/t2", force=True)
+        assert exists("//tmp/t1")
+
+    def test_move_force3(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t2", {})
+        move("//tmp/t1", "//tmp/t2", force=True)
+        assert get("//tmp/t2/@type") == "table"
+        assert not exists("//tmp/t1")
+
+    def test_move_force4(self):
+        with pytest.raises(YtError): copy("//tmp", "/", force=True)
 
     def test_embedded_attributes(self):
         set("//tmp/a", {})

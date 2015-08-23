@@ -53,7 +53,9 @@ public:
                 return;
 
             TGuard<TSpinLock> guard(SpinLock_);
-            WarmupDeadline_ = NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(Config_->WarmupTime);
+            WarmupDeadline_ = Config_->EnableWarmup
+                ? NProfiling::GetCpuInstant() + NProfiling::DurationToCpuDuration(Config_->WarmupTime)
+                : 0;
             Started_ = true;
         }
 
@@ -84,7 +86,7 @@ public:
 
     TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id, bool isRetry)
     {
-        YASSERT(id != NullMutationId);
+        YASSERT(id);
 
         TGuard<TSpinLock> guard(SpinLock_);
 
@@ -127,7 +129,7 @@ public:
 
     void EndRequest(const TMutationId& id, TSharedRefArray response)
     {
-        YASSERT(id != NullMutationId);
+        YASSERT(id);
 
         TPromise<TSharedRefArray> promise;
         {
@@ -160,7 +162,7 @@ public:
 
     void CancelRequest(const TMutationId& id)
     {
-        YASSERT(id != NullMutationId);
+        YASSERT(id);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -175,7 +177,7 @@ public:
     bool TryReplyFrom(IServiceContextPtr context)
     {
         auto mutationId = GetMutationId(context);
-        if (mutationId == NullMutationId) {
+        if (!mutationId) {
             return false;
         }
 

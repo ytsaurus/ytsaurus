@@ -2,14 +2,13 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
-
-#include <ytlib/new_table_client/public.h>
-
 #include <server/cypress_server/public.h>
 
 #include <server/security_server/cluster_resources.h>
-#include <yt/ytlib/chunk_client/data_statistics.pb.h>
+
+#include <ytlib/table_client/public.h>
+
+#include <core/yson/public.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -63,13 +62,13 @@ void SerializeOwningNodesPaths(
     TChunkTree* chunkTree,
     NYson::IYsonConsumer* consumer);
 
-NVersionedTableClient::TOwningKey GetMaxKey(const TChunk* chunk);
-NVersionedTableClient::TOwningKey GetMaxKey(const TChunkList* chunkList);
-NVersionedTableClient::TOwningKey GetMaxKey(const TChunkTree* chunkTree);
+NTableClient::TOwningKey GetMaxKey(const TChunk* chunk);
+NTableClient::TOwningKey GetMaxKey(const TChunkList* chunkList);
+NTableClient::TOwningKey GetMaxKey(const TChunkTree* chunkTree);
 
-NVersionedTableClient::TOwningKey GetMinKey(const TChunk* chunk);
-NVersionedTableClient::TOwningKey GetMinKey(const TChunkList* chunkList);
-NVersionedTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
+NTableClient::TOwningKey GetMinKey(const TChunk* chunk);
+NTableClient::TOwningKey GetMinKey(const TChunkList* chunkList);
+NTableClient::TOwningKey GetMinKey(const TChunkTree* chunkTree);
 
 ////////////////////////////////////////////////////////////////////////////////
 

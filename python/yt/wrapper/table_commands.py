@@ -24,18 +24,16 @@ Common operations parameters
 * **strategy** : (`yt.wrapper.operation_commands.WaitStrategy`) (Deprecated!) \
 strategy of waiting result, `yt.wrapper.get_config(client).DEFAULT_STRATEGY` by default
 
-* **replication_factor** : (integer) number of output data replicas
+* **replication_factor** : (Deprecated!) (integer) number of output data replicas
 
-* **compression_codec** : (one of "none" (default for files), "lz4" (default for tables), "snappy",\
+* **compression_codec** : (Deprecated!) (one of "none" (default for files), "lz4" (default for tables), "snappy",\
  "gzip_best_compression", "gzip_normal", "lz4_high_compresion", "quick_lz") compression \
 algorithm for output data
 
-* **job_count** : (integer) recommendation how many jobs should run
-
-* **table_writer** : (dict) spec of `"write" operation \
+* **table_writer** : (dict) spec of `"write_table" operation \
 <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#write>`_.
 
-* **table_reader** : (dict) spec of `"read" operation \
+* **table_reader** : (dict) spec of `"read_table" operation \
 <https://wiki.yandex-team.ru/yt/Design/ClientInterface/Core#read>`_.
 
 * **format** : (string or descendant of `yt.wrapper.format.Format`) format of input and output \
@@ -44,7 +42,7 @@ data of operation
 * **memory_limit** : (integer) memory limit in Mb in *scheduler* for every *job* (512Mb by default)
 
 
-Operation run under self-pinged transaction, if `yt.wrapper.get_config(client).DETACHED` is `False`.
+Operation run under self-pinged transaction, if `yt.wrapper.get_config(client)["detached"]` is `False`.
 """
 
 import config
@@ -52,7 +50,7 @@ from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
                    compose, bool_to_string, chunk_iter_lines, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
-from errors import YtIncorrectResponse, YtError
+from errors import YtIncorrectResponse, YtError, YtOperationFailedError
 from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
@@ -62,19 +60,16 @@ from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribu
 from file_commands import smart_upload_file
 from operation_commands import Operation, WaitStrategy
 from transaction_commands import _make_transactional_request, abort_transaction
-from transaction import Transaction, Abort
+from transaction import Transaction, null_transaction_id
 from format import create_format, YsonFormat, YamrFormat
-from lock import lock
-from heavy_commands import make_heavy_request
-from http import RETRIABLE_ERRORS, get_api_version
-from response_stream import ResponseStream, EmptyResponseStream
+from heavy_commands import make_write_request, make_read_request
+from http import get_api_version
 import yt.logger as logger
 import yt.packages.simplejson as json
 
 import os
 import sys
 import types
-import exceptions
 import tempfile
 import socket
 import getpass
@@ -107,14 +102,15 @@ def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None
     if not result:
         raise YtError("You must specify non-empty list of source tables")
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"]:
-        if not replace_unexisting_by_empty:
-            return [table for table in result if exists(table.name, client=client)]
-        def get_empty_table(table):
-            logger.warning("Warning: input table '%s' does not exist", table.name)
-            return DEFAULT_EMPTY_TABLE
-        return [table if exists(table.name, client=client) else get_empty_table(table)
-                  for table in result]
-
+        filtered_result = []
+        for table in result:
+            if exists(table.name, client=client):
+                filtered_result.append(table)
+            else:
+                logger.warning("Warning: input table '%s' does not exist", table.name)
+                if replace_unexisting_by_empty:
+                    filtered_result.append(DEFAULT_EMPTY_TABLE)
+        result = filtered_result
     return result
 
 def _are_default_empty_table(tables):
@@ -151,7 +147,7 @@ def _reliably_upload_files(files, client=None):
         return []
 
     file_paths = []
-    with Transaction(null=True, client=client):
+    with Transaction(transaction_id=null_transaction_id, client=client):
         for file in flatten(files):
             file_paths.append(smart_upload_file(file, client=client))
     return file_paths
@@ -272,11 +268,11 @@ def _add_user_command_spec(op_type, binary, format, input_format, output_format,
         return spec, []
 
     if local_files is not None:
-        require(files is None, "You cannot specify files and local_files simultaneously")
+        require(files is None, YtError("You cannot specify files and local_files simultaneously"))
         files = local_files
 
     if yt_files is not None:
-        require(file_paths is None, "You cannot specify yt_files and file_paths simultaneously")
+        require(file_paths is None, YtError("You cannot specify yt_files and file_paths simultaneously"))
         file_paths = yt_files
 
     files = _reliably_upload_files(files, client=client)
@@ -406,7 +402,7 @@ def create_table(path, recursive=None, ignore_existing=False,
 
     Shortcut for `create("table", ...)`.
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) path to table
-    :param recursive: (bool) create the path automatically, `config.CREATE_RECURSIVE` by default
+    :param recursive: (bool) create the path automatically, `config["yamr_mode"]["create_recursive"]` by default
     :param ignore_existing: (bool) if it sets to `False` and table exists, \
                             Python Wrapper raises `YtResponseError`.
     :param replication_factor: (int) number of data replicas
@@ -425,7 +421,7 @@ def create_temp_table(path=None, prefix=None, client=None):
     """Create temporary table by given path with given prefix and return name.
 
     :param path: (string or :py:class:`yt.wrapper.table.TablePath`) existing path, \
-                 by default `client.TEMP_TABLES_STORAGE`
+                 by default `config["remote_temp_tables_directory"]`
     :param prefix: (string) prefix of table name
     :return: (string) name of result table
     """
@@ -445,25 +441,28 @@ def create_temp_table(path=None, prefix=None, client=None):
     return name
 
 def write_table(table, input_stream, format=None, table_writer=None,
-                replication_factor=None, compression_codec=None, client=None, raw=True):
+                replication_factor=None, compression_codec=None, client=None, raw=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+                    `yt.wrapper.config["tabular_data_format"]` by default.
     :param table_writer: (dict) spec of "write" operation
     :param replication_factor: (integer) number of data replicas
     :param compression_codec: (string) standard operation parameter
 
     Python Wrapper try to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.
-    Set `yt.wrapper.client.USE_RETRIES_DURING_WRITE` to ``False`` for writing \
+    Set `yt.wrapper.config["write_retries"]["enable"]` to ``False`` for writing \
     without splitting and retries.
 
     Writing is executed under self-pinged transaction.
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
 
@@ -482,7 +481,8 @@ def write_table(table, input_stream, format=None, table_writer=None,
                          compression_codec=compression_codec, client=client)
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
-    if get_config(client)["write_retries"]["enable"] and can_split_input:
+    enable_retries = get_config(client)["write_retries"]["enable"] and can_split_input and "sorted_by" not in table.attributes
+    if enable_retries:
         input_stream = chunk_iter_lines(_split_rows(input_stream, format, raw), get_config(client)["write_retries"]["chunk_size"])
     elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
         input_stream = chunk_iter_stream(input_stream, MB)
@@ -490,19 +490,19 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
 
-    make_heavy_request(
+    make_write_request(
         "write" if get_api_version(client=client) == "v2" else "write_table",
         input_stream,
         table,
         params,
         prepare_table,
-        get_config(client)["write_retries"]["enable"] and can_split_input,
+        use_retries=enable_retries,
         client=client)
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
-def read_table(table, format=None, table_reader=None, response_type=None, raw=True, response_parameters=None, client=None):
+def read_table(table, format=None, table_reader=None, response_type=None, raw=None, response_parameters=None, read_transaction=None, client=None):
     """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
@@ -513,9 +513,11 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     :return: if `raw` is specified -- string or :class:`yt.wrapper.driver.ResponseStream`,\
              else -- rows generator (python dict or :class:`yt.wrapper.yamr_record.Record`)
 
-    If :py:data:`yt.wrapper.config.RETRY_READ` is specified,
+    If :py:data:`yt.wrapper.config["read_retries"]["enable"]` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
     if response_type is not None:
         logger.info("Option response_type is deprecated and ignored")
 
@@ -523,6 +525,13 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
     format = _prepare_format(format, raw, client)
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
         return StringIO() if raw else EMPTY_GENERATOR
+    attributes = get(table.name + "/@", client=client)
+    if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] / attributes["chunk_count"] < MB:
+        logger.info("Table chunks are too small; consider running the following command to improve read performance: "
+                    "yt merge --proxy {1} --src {0} --dst {0} "
+                    "--spec '{{"
+                       "combine_chunks=true;"
+                    "}}'".format(table.name, get_config(client)["proxy"]["url"]))
 
     params = {
         "path": table.to_yson_type(),
@@ -532,135 +541,57 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=Tr
         params["table_reader"] = table_reader
 
     command_name = "read" if get_api_version(client=client) == "v2" else "read_table"
-    retry_count = get_config(client)["read_retries"]["retry_count"]
-
-    def read_content(response_stream):
-        if raw:
-            return response_stream
-        else:
-            return format.load_rows(response_stream)
 
     def set_response_parameters(parameters):
         if response_parameters is not None:
             for key in parameters:
                 response_parameters[key] = parameters[key]
 
-    def execute_with_retries(func):
-        for attempt in xrange(config.get_request_retry_count(client)):
-            try:
-                return func()
-            except RETRIABLE_ERRORS as err:
-                if attempt + 1 == config.get_request_retry_count(client):
-                    raise
-                logger.warning(str(err))
-                logger.warning("New retry (%d) ...", attempt + 2)
+    def process_response(response):
+        if response.response_parameters is None:
+            raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response)
+        set_response_parameters(response.response_parameters)
 
+    class RetriableState(object):
+        def __init__(self):
+            self.started = False
+            self.index = None
 
-    if not get_config(client)["read_retries"]["enable"]:
-        def simple_read():
-            response = _make_transactional_request(
-                command_name,
-                params,
-                return_content=False,
-                use_heavy_proxy=True,
-                client=client)
-            if response.response_parameters is None:
-                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            set_response_parameters(response.response_parameters)
-            return read_content(response)
-        return execute_with_retries(simple_read)
-    else:
-        title = "Python wrapper: read {0}".format(to_name(table, client=client))
-        tx = Transaction(attributes={"title": title}, client=client)
-        tx.__enter__()
+        def prepare_params_for_retry(self):
+            if not self.started:
+                return params
 
-        def iter_with_retries(iter):
-            try:
-                for attempt in xrange(retry_count):
-                    try:
-                        for elem in iter():
-                            yield elem
-                        break
-                    except RETRIABLE_ERRORS as err:
-                        if attempt + 1 == retry_count:
-                            raise
-                        logger.warning(str(err))
-                        logger.warning("New retry (%d) ...", attempt + 2)
-            except exceptions.GeneratorExit:
-                tx.__exit__(None, None, None)
-            except:
-                tx.__exit__(*sys.exc_info())
-                raise
+            if "ranges" not in table.name.attributes:
+                table.name.attributes["lower_limit"] = {"row_index": self.index}
             else:
-                tx.__exit__(None, None, None)
+                if len(table.name.attributes["ranges"]) > 1:
+                    raise YtError("Read table with multiple tanges using retries is not supported")
+                table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.index}
+            params["path"] = table.to_yson_type()
+            return params
 
-        def get_response_parameters():
-            response = _make_transactional_request(
-                command_name,
-                params,
-                return_content=False,
-                use_heavy_proxy=True,
-                client=client)
-            if response.response_parameters is None:
-                raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)")
-            return response.response_parameters
+        def iterate(self, response):
+            if not self.started:
+                process_response(response)
+                self.index = response.response_parameters.get("start_row_index", None)
+                self.started = True
+            for row in format.load_rows(response, raw=True):
+                yield row
+                self.index += 1
 
-        class Iterator(object):
-            def __init__(self, index):
-                self.index = index
-                self.iterator = iter_with_retries(self.execute_read)
-                self.response = None
+    # For read commands response is actually ResponseStream
+    response = make_read_request(
+        command_name,
+        table,
+        params,
+        process_response_action=process_response,
+        retriable_state_class=RetriableState,
+        client=client)
 
-            def execute_read(self):
-                if "lower_limit" in table.name.attributes or "upper_limit" in table.name.attributes:
-                    table.name.attributes["lower_limit"] = {"row_index": self.index}
-                else:
-                    if "ranges" not in table.name.attributes:
-                        table.name.attributes["ranges"] = [{}]
-                    table.name.attributes["ranges"][0]["lower_limit"] = {"row_index": self.index}
-                    if len(table.name.attributes["ranges"]) > 1:
-                        raise YtError("Read table with multiple tanges using retries is not supported")
-                params["path"] = table.to_yson_type()
-                self.response = _make_transactional_request(
-                    command_name,
-                    params,
-                    return_content=False,
-                    use_heavy_proxy=True,
-                    client=client)
-                for row in format.load_rows(self.response, raw=True):
-                    yield row
-                    self.index += 1
-
-            def next(self):
-                return self.iterator.next()
-
-            def __iter__(self):
-                return self
-
-            def close(self):
-                if self.response is not None:
-                    self.response.close()
-                tx.__exit__(Abort, None, None)
-
-        try:
-            lock(table, mode="snapshot", client=client)
-            parameters = execute_with_retries(get_response_parameters)
-            set_response_parameters(parameters)
-            index = parameters.get("start_row_index", None)
-            if index is None:
-                tx.__exit__(None, None, None)
-                return read_content(EmptyResponseStream())
-            iterator = Iterator(index)
-            return read_content(
-                ResponseStream(
-                    lambda: iterator.response,
-                    iterator,
-                    close=iterator.close,
-                    process_error=lambda request: iterator.response._process_error(request),
-                    get_response_parameters=lambda: None))
-        except:
-            tx.__exit__(*sys.exc_info())
-            raise
+    if raw:
+        return response
+    else:
+        return format.load_rows(response)
 
 def _are_nodes(source_tables, destination_table):
     return len(source_tables) == 1 and \
@@ -674,8 +605,8 @@ def copy_table(source_table, destination_table, replace=True, client=None):
     :param destination_table: string or `TablePath`
     :param replace: (bool) override `destination_table`
 
-    .. note:: param `replace` is overridden by setted \
-              `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+    .. note:: param `replace` is overridden by set \
+              `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
     If `source_table` is a list of tables, tables would be merged.
     """
     if get_config(client)["yamr_mode"]["replace_tables_on_copy_and_move"]:
@@ -706,7 +637,7 @@ def move_table(source_table, destination_table, replace=True, client=None):
     :param destination_table: string or `TablePath`
     :param replace: (bool) override `destination_table`
 
-    .. note:: param `replace` is overridden by `yt.wrapper.config.REPLACE_TABLES_WHILE_COPY_OR_MOVE`
+    .. note:: param `replace` is overridden by `yt.wrapper.config["yamr_mode"]["replace_tables_on_copy_and_move"]`
 
     If `source_table` is a list of tables, tables would be merged.
     """
@@ -843,7 +774,7 @@ def reshard_table(path, pivot_keys, first_tablet_index=None, last_tablet_index=N
 
     make_request("reshard_table", params, client=client)
 
-def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, verbose_logging=None, format=None, raw=True, client=None):
+def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, verbose_logging=None, enable_code_cache=None, format=None, raw=None, client=None):
     """Execute a SQL-like query. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -854,6 +785,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     :param format: (string or descendant of `Format`) output format
     :param raw: (bool) don't parse response to rows
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
     format = _prepare_format(format, raw, client)
     params = {
         "query": query,
@@ -866,6 +799,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         params["output_row_limit"] = output_row_limit
     if verbose_logging is not None:
         params["verbose_logging"] = bool_to_string(verbose_logging)
+    if enable_code_cache is not None:
+        params["enable_code_cache"] = bool_to_string(enable_code_cache)
 
     response = _make_transactional_request(
         "select_rows",
@@ -879,7 +814,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     else:
         return format.load_rows(response)
 
-def lookup_rows(table, input_stream, format=None, raw=False, client=None):
+def lookup_rows(table, input_stream, format=None, raw=None, client=None):
     """Lookup rows in dynamic table. NB! This command is not currently supported! The feature is coming with 0.17+ version!
 
     .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
@@ -887,6 +822,8 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     :param format: (string or descendant of `Format`) output format
     :param raw: (bool) don't parse response to rows
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
 
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
@@ -914,16 +851,19 @@ def lookup_rows(table, input_stream, format=None, raw=False, client=None):
     else:
         return format.load_rows(response)
 
-def insert_rows(table, input_stream, format=None, raw=False, client=None):
+def insert_rows(table, input_stream, format=None, raw=None, client=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+                    `yt.wrapper.config["tabular_data_format"]` by default.
 
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
 
@@ -943,16 +883,19 @@ def insert_rows(table, input_stream, format=None, raw=False, client=None):
         use_heavy_proxy=True,
         client=client)
 
-def delete_rows(table, input_stream, format=None, raw=False, client=None):
+def delete_rows(table, input_stream, format=None, raw=None, client=None):
     """Write rows from input_stream to table.
 
     :param table: (string or :py:class:`yt.wrapper.table.TablePath`) output table. Specify \
                 `TablePath` attributes for append mode or something like this. Table can not exist.
     :param input_stream: python file-like object, string, list of strings, `StringIterIO`.
     :param format: (string or subclass of `Format`) format of input data, \
-                    `yt.wrapper.config.format.TABULAR_DATA_FORMAT` by default.
+                    `yt.wrapper.config["tabular_data_format"]` by default.
 
     """
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+
     table = to_table(table, client=client)
     format = _prepare_format(format, raw, client)
 
@@ -1004,11 +947,11 @@ def run_merge(source_table, destination_table, mode=None,
     :param mode: ['auto' (default), 'unordered', 'ordered', or 'sorted']. Mode `sorted` keeps sortedness \
                  of output tables, mode `ordered` is about chunk magic, not for ordinary users.
                  In 'auto' mode system chooses proper mode depending on the table sortedness.
+    :param job_count:  (integer) recommendation how many jobs should run.
     :param strategy: standard operation parameter
     :param table_writer: standard operation parameter
     :param replication_factor: (int) number of destination table replicas.
     :param compression_codec: (string) compression algorithm of destination_table.
-    :param job_count: (integer) standard operation parameter.
     :param spec: (dict) standard operation parameter.
 
 
@@ -1100,6 +1043,9 @@ class Finalizer(object):
                     remove_with_empty_dirs(table, client=self.client)
 
     def check_for_merge(self, table):
+        if get_config(self.client)["auto_merge_output"]["action"] == "none":
+            return
+
         chunk_count = int(get_attribute(table, "chunk_count", client=self.client))
         if  chunk_count < get_config(self.client)["auto_merge_output"]["min_chunk_count"]:
             return
@@ -1114,11 +1060,14 @@ class Finalizer(object):
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
-        if get_config(self.client)["auto_merge_output"]["enable"]:
+        if get_config(self.client)["auto_merge_output"]["action"] == "merge":
             table = TablePath(table, append=False)
-            run_merge(source_table=table, destination_table=table, mode=mode,
-                      spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
-                      client=self.client)
+            try:
+                run_merge(source_table=table, destination_table=table, mode=mode,
+                          spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
+                          client=self.client)
+            except YtOperationFailedError():
+                logger.warning("Failed to merge table " + table)
         else:
             logger.info("Chunks of output table {0} are too small. "
                         "This may cause suboptimal system performance. "
@@ -1265,6 +1214,7 @@ def _run_operation(binary, source_table, destination_table,
     :param local_files: (string or list  of string) paths to scripts on local machine.
     :param yt_files: (string or list  of string) paths to scripts in Cypress.
     :param op_name: (one of "map" (default), "reduce", ...) TODO(veronikaiv): list it!
+    :param job_count:  (integer) recommendation how many jobs should run.
 
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
@@ -1292,16 +1242,14 @@ def _run_operation(binary, source_table, destination_table,
         reduce_by = _prepare_reduce_by(reduce_by, client)
 
         if get_config(client)["yamr_mode"]["run_map_reduce_if_source_is_not_sorted"]:
-            are_tables_not_sorted = False
+            are_input_tables_not_properly_sorted = False
             for table in source_table:
                 sorted_by = get_sorted_by(table.name, [], client=client)
-                if not sorted_by:
-                    are_tables_not_sorted = True
+                if not sorted_by or not is_prefix(sort_by, sorted_by):
+                    are_input_tables_not_properly_sorted = True
                     continue
-                if not is_prefix(reduce_by, sorted_by):
-                    raise YtError("reduce_by parameter {0} conflicts with sorted_by attribute {1} of input table {2}".format(reduce_by, sorted_by, table.name))
 
-            if are_tables_not_sorted and not are_sorted_output:
+            if are_input_tables_not_properly_sorted and not are_sorted_output:
                 if job_count is not None:
                     spec = update({"partition_count": job_count}, spec)
                 run_map_reduce(
@@ -1326,10 +1274,10 @@ def _run_operation(binary, source_table, destination_table,
                     spec=spec)
                 return
 
-            if are_sorted_output and are_tables_not_sorted:
+            if are_input_tables_not_properly_sorted and are_sorted_output:
                 logger.info("Sorting %s", source_table)
                 temp_table = create_temp_table(client=client)
-                run_sort(source_table, temp_table, sort_by=reduce_by, client=client)
+                run_sort(source_table, temp_table, sort_by=sort_by, client=client)
                 finalize = lambda: remove(temp_table, client=client)
                 source_table = [TablePath(temp_table)]
 

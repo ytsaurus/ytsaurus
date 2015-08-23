@@ -795,7 +795,7 @@ class TJournalManager::TImpl
 public:
     TImpl(
         TDataNodeConfigPtr config,
-        TLocation* location,
+        TStoreLocation* location,
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Location_(location)
@@ -912,7 +912,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    TLocation* const Location_;
+    TStoreLocation* const Location_;
     NCellNode::TBootstrap* const Bootstrap_;
 
     TFileChangelogDispatcherPtr MultiplexedChangelogDispatcher_;
@@ -936,7 +936,7 @@ private:
                     chunkId)
                     << ex;
                 Location_->Disable(error);
-                THROW_ERROR error;
+                YUNREACHABLE(); // Disable() exits the process.
             }
         });
     }
@@ -1046,7 +1046,7 @@ private:
             chunkStore->RegisterNewChunk(chunk);
 
             auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            auto changelog = dispatcher->CreateChangelog(chunk->GetLocation(), chunkId, false)
+            auto changelog = dispatcher->CreateChangelog(chunk->GetStoreLocation(), chunkId, false)
                 .Get()
                 .ValueOrThrow();
 
@@ -1063,12 +1063,13 @@ private:
                 return nullptr;
             }
 
+            auto journalChunk = chunk->AsJournalChunk();
+
             auto dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            auto changelog = dispatcher->OpenChangelog(chunk->GetLocation(), chunkId)
+            auto changelog = dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId)
                 .Get()
                 .ValueOrThrow();
 
-            auto journalChunk = chunk->AsJournalChunk();
             journalChunk->AttachChangelog(changelog);
 
             return changelog;
@@ -1128,7 +1129,7 @@ private:
 
 TJournalManager::TJournalManager(
     TDataNodeConfigPtr config,
-    TLocation* location,
+    TStoreLocation* location,
     NCellNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, location, bootstrap))
 { }

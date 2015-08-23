@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include <core/misc/public.h>
 #include <core/misc/small_vector.h>
 #include <core/misc/chunked_memory_allocator.h>
 
@@ -24,7 +25,7 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
 
 const ui32 PacketSignature = 0x78616d6f;
 const i32 MaxPacketPartCount = 1 << 28;
-const i32 MaxPacketPartSize = 1 << 28;
+const i32 MaxPacketPartSize = DefaultEnvelopePartSize;
 const i32 NullPacketPartSize = -1;
 const int TypicalPacketPartCount = 64;
 

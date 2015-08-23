@@ -7,9 +7,9 @@
 
 #include <ytlib/job_tracker_client/job.pb.h>
 
-#include <ytlib/new_table_client/public.h>
-#include <ytlib/new_table_client/schemaful_reader_adapter.h>
-#include <ytlib/new_table_client/schemaful_writer_adapter.h>
+#include <ytlib/table_client/public.h>
+#include <ytlib/table_client/schemaful_reader_adapter.h>
+#include <ytlib/table_client/schemaful_writer_adapter.h>
 
 #include <ytlib/scheduler/job.pb.h>
 
@@ -55,10 +55,10 @@ protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt_;
 
-    NVersionedTableClient::ISchemalessMultiChunkReaderPtr Reader_;
-    NVersionedTableClient::ISchemalessMultiChunkWriterPtr Writer_;
-    NVersionedTableClient::TSchemalessReaderFactory ReaderFactory_;
-    NVersionedTableClient::TSchemalessWriterFactory WriterFactory_;
+    NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
+    NTableClient::ISchemalessMultiChunkWriterPtr Writer_;
+    NTableClient::TSchemalessReaderFactory ReaderFactory_;
+    NTableClient::TSchemalessWriterFactory WriterFactory_;
 
     i64 TotalRowCount_;
 

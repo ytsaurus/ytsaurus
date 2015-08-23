@@ -25,8 +25,8 @@
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <ytlib/new_table_client/table_ypath_proxy.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/table_ypath_proxy.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/file_client/file_ypath_proxy.h>
 
@@ -84,16 +84,16 @@ public:
     virtual TFuture<void> Revive() override;
     virtual TFuture<void> Commit() override;
 
-    virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) override;
-    virtual void OnJobCompleted(TJobPtr job) override;
-    virtual void OnJobFailed(TJobPtr job) override;
-    virtual void OnJobAborted(TJobPtr job) override;
+    virtual void OnJobRunning(const TJobId& jobId, const NJobTrackerClient::NProto::TJobStatus& status) override;
+    virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) override;
+    virtual void OnJobFailed(const TFailedJobSummary& jobSummary) override;
+    virtual void OnJobAborted(const TAbortedJobSummary& jobSummary) override;
 
     virtual void Abort() override;
 
     virtual void CheckTimeLimit() override;
 
-    virtual TJobPtr ScheduleJob(
+    virtual TJobId ScheduleJob(
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) override;
 
@@ -133,6 +133,8 @@ protected:
     IOperationHost* Host;
     TOperation* Operation;
 
+    const TOperationId OperationId;
+
     NApi::IClientPtr AuthenticatedMasterClient;
     NApi::IClientPtr AuthenticatedInputMasterClient;
     NApi::IClientPtr AuthenticatedOutputMasterClient;
@@ -171,7 +173,6 @@ protected:
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
-
     struct TUserTableBase
     {
         NYPath::TRichYPath Path;
@@ -209,7 +210,7 @@ protected:
 
     struct TEndpoint
     {
-        NVersionedTableClient::TOwningKey Key;
+        NTableClient::TOwningKey Key;
         bool Left;
         int ChunkTreeKey;
 
@@ -224,8 +225,8 @@ protected:
         bool AppendRequested = false;
         NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
-        NVersionedTableClient::TTableWriterOptionsPtr Options = New<NVersionedTableClient::TTableWriterOptions>();
-        TNullable<NVersionedTableClient::TKeyColumns> KeyColumns;
+        NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
+        TNullable<NTableClient::TKeyColumns> KeyColumns;
 
         // Server-side upload transaction.
         NTransactionClient::TTransactionId UploadTransactionId;
@@ -260,41 +261,20 @@ protected:
     TIntermediateTable IntermediateTable;
 
 
-    struct TUserFileBase
+    struct TUserFile
     {
         NYPath::TRichYPath Path;
         EOperationStage Stage;
         Stroka FileName;
-
-        void Persist(TPersistenceContext& context);
-
-    };
-
-    struct TRegularUserFile
-        : public TUserFileBase
-    {
         NChunkClient::NProto::TRspFetch FetchResponse;
+        NObjectClient::EObjectType Type;
         bool Executable;
-
-        void Persist(TPersistenceContext& context);
-
-    };
-
-    std::vector<TRegularUserFile> RegularFiles;
-
-
-    struct TUserTableFile
-        : public TUserFileBase
-    {
-        NChunkClient::NProto::TRspFetch FetchResponse;
         NYson::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
-
     };
 
-    std::vector<TUserTableFile> TableFiles;
-
+    std::vector<TUserFile> Files;
 
     struct TJoblet
         : public TIntrinsicRefCounted
@@ -318,7 +298,10 @@ protected:
         int JobIndex;
         i64 StartRowIndex;
 
-        TJobPtr Job;
+        TJobId JobId;
+        EJobType JobType;
+        Stroka Address;
+        NNodeTrackerClient::NProto::TNodeResources ResourceLimits;
         TChunkStripeListPtr InputStripeList;
         IChunkPoolOutput::TCookie OutputCookie;
 
@@ -417,16 +400,16 @@ protected:
 
         void CheckCompleted();
 
-        TJobPtr ScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+        TJobId ScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
 
-        virtual void OnJobCompleted(TJobletPtr joblet);
-        virtual void OnJobFailed(TJobletPtr joblet);
-        virtual void OnJobAborted(TJobletPtr joblet);
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary);
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
         virtual void OnJobLost(TCompletedJobPtr completedJob);
 
         // First checks against a given node, then against all nodes if needed.
         void CheckResourceDemandSanity(
-            TExecNodePtr node,
+            const NNodeTrackerClient::NProto::TNodeResources& nodeResourceLimits,
             const NNodeTrackerClient::NProto::TNodeResources& neededResources);
 
         // Checks against all available nodes.
@@ -500,7 +483,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            TNullable<NVersionedTableClient::TKeyColumns> keyColumns);
+            TNullable<NTableClient::TKeyColumns> keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -512,7 +495,7 @@ protected:
         static TChunkStripePtr BuildIntermediateChunkStripe(
             google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
 
-        void RegisterOutput(TJobletPtr joblet, int key);
+        void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
 
     };
 
@@ -568,13 +551,16 @@ protected:
 
     void MoveTaskToCandidates(TTaskPtr task, std::multimap<i64, TTaskPtr>& candidateTasks);
 
-    bool CheckJobLimits(TExecNodePtr node, TTaskPtr task, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+    bool CheckJobLimits(
+        TTaskPtr task,
+        const NNodeTrackerClient::NProto::TNodeResources& jobLimits,
+        const NNodeTrackerClient::NProto::TNodeResources& nodeResourceLimits);
 
-    TJobPtr DoScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
-    TJobPtr DoScheduleLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
-    TJobPtr DoScheduleNonLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+    TJobId DoScheduleJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+    TJobId DoScheduleLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
+    TJobId DoScheduleNonLocalJob(ISchedulingContext* context, const NNodeTrackerClient::NProto::TNodeResources& jobLimits);
 
-    void OnJobStarted(TJobPtr job);
+    void OnJobStarted(const TJobId& jobId);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(BackgroundThread);
@@ -582,8 +568,8 @@ protected:
 
     // Jobs in progress management.
     void RegisterJoblet(TJobletPtr joblet);
-    TJobletPtr GetJoblet(TJobPtr job);
-    void RemoveJoblet(TJobPtr job);
+    TJobletPtr GetJoblet(const TJobId& jobId);
+    void RemoveJoblet(const TJobId& jobId);
 
 
     // Initialization.
@@ -600,7 +586,7 @@ protected:
     void LockInputTables();
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
-    void FetchFileObjects();
+    void FetchFileObjects(std::vector<TUserFile>* files);
     void RequestFileObjects();
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
@@ -609,7 +595,10 @@ protected:
     void AddAllTaskPendingHints();
     void InitInputChunkScratcher();
     void SuspendUnavailableInputStripes();
-
+    void InitQuerySpec(
+        NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
+        const Stroka& queryString,
+        const NQueryClient::TTableSchema& schema);
 
     struct TCellData
     {
@@ -621,7 +610,7 @@ protected:
     void InitCells();
     const TCellData& GetCellData(NObjectClient::TCellTag cellTag);
 
-    void ValidateKey(const NVersionedTableClient::TOwningKey& key);
+    void ValidateKey(const NTableClient::TOwningKey& key);
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
@@ -732,14 +721,11 @@ protected:
     //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const;
 
-    NVersionedTableClient::TKeyColumns CheckInputTablesSorted(
-        const TNullable<NVersionedTableClient::TKeyColumns>& keyColumns);
+    NTableClient::TKeyColumns CheckInputTablesSorted(
+        const TNullable<NTableClient::TKeyColumns>& keyColumns);
     static bool CheckKeyColumnsCompatible(
-        const NVersionedTableClient::TKeyColumns& fullColumns,
-        const NVersionedTableClient::TKeyColumns& prefixColumns);
-
-    static EAbortReason GetAbortReason(TJobPtr job);
-    static EAbortReason GetAbortReason(TJobletPtr joblet);
+        const NTableClient::TKeyColumns& fullColumns,
+        const NTableClient::TKeyColumns& prefixColumns);
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
     bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
@@ -749,13 +735,11 @@ protected:
 
 
     void RegisterEndpoints(
-        const NVersionedTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
+        const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
         int key,
         TOutputTable* outputTable);
 
-    virtual void RegisterOutput(
-        TJobletPtr joblet,
-        int key);
+    virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary);
 
     void RegisterOutput(
         NChunkClient::TRefCountedChunkSpecPtr chunkSpec,
@@ -787,7 +771,14 @@ protected:
     //! |TotalEstimateInputDataSize / jobCount|, whichever is smaller. If the resulting
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
-    std::vector<TChunkStripePtr> SliceInputChunks(i64 maxSliceDataSize, int* jobCount);
+    std::vector<TChunkStripePtr> SliceChunks(
+            const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& chunkSpecs,
+            i64 maxSliceDataSize,
+            int* jobCount);
+
+    std::vector<TChunkStripePtr> SliceInputChunks(
+            i64 maxSliceDataSize,
+            int* jobCount);
 
     int SuggestJobCount(
         i64 totalDataSize,
@@ -798,8 +789,7 @@ protected:
     void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
         TUserJobSpecPtr config,
-        const std::vector<TRegularUserFile>& regularFiles,
-        const std::vector<TUserTableFile>& tableFiles);
+        const std::vector<TUserFile>& files);
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,
@@ -888,10 +878,15 @@ private:
 
     NApi::IClientPtr CreateClient();
 
-    static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);
+    static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
         const NObjectClient::TTransactionId& transactionId);
+
+    void DoRequestFileObjects(
+        std::vector<TUserFile>* files,
+        std::function<void(NYTree::TAttributeFilter&)> updateAttributeFilter = nullptr,
+        std::function<void(const TUserFile&, const NYTree::IAttributeDictionary&)> onFileObject = nullptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,8 +8,6 @@
 #include <server/data_node/chunk_cache.h>
 #include <server/data_node/master_connector.h>
 
-#include <core/concurrency/action_queue.h>
-
 #ifdef _unix_
     #include <sys/stat.h>
 #endif
@@ -18,7 +16,6 @@ namespace NYT {
 namespace NExecAgent {
 
 using namespace NCellNode;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,24 +26,19 @@ static const auto& Logger = ExecAgentLogger;
 TSlotManager::TSlotManager(
     TSlotManagerConfigPtr config,
     TBootstrap* bootstrap)
-    : Config(config)
-    , Bootstrap(bootstrap)
-    , ActionQueue(New<TActionQueue>("ExecSlots"))
-    , IsEnabled(true)
+    : Config_(config)
+    , Bootstrap_(bootstrap)
 {
     YCHECK(config);
     YCHECK(bootstrap);
 }
-
-TSlotManager::~TSlotManager()
-{ }
 
 void TSlotManager::Initialize(int slotCount)
 {
     bool jobControlEnabled = false;
 
 #if defined(_unix_) && !defined(_darwin_)
-    if (Config->EnforceJobControl) {
+    if (Config_->EnforceJobControl) {
         uid_t ruid, euid, suid;
         YCHECK(getresuid(&ruid, &euid, &suid) == 0);
         if (suid != 0) {
@@ -57,55 +49,73 @@ void TSlotManager::Initialize(int slotCount)
     }
 #endif
 
-    try {
-        auto nodeRpcPort = Bootstrap->GetConfig()->RpcPort;
+    SlotPathCounters_.resize(Config_->Paths.size());
 
-        const auto& execAgentConfig = Bootstrap->GetConfig()->ExecAgent;
-        Config->EnableCGroups = execAgentConfig->EnableCGroups;
-        Config->SupportedCGroups = execAgentConfig->SupportedCGroups;
+    try {
+        auto nodeRpcPort = Bootstrap_->GetConfig()->RpcPort;
+
+        const auto& execAgentConfig = Bootstrap_->GetConfig()->ExecAgent;
+        Config_->EnableCGroups = execAgentConfig->EnableCGroups;
+        Config_->SupportedCGroups = execAgentConfig->SupportedCGroups;
 
         for (int slotId = 0; slotId < slotCount; ++slotId) {
             auto slotName = ToString(slotId);
-            auto slotPath = NFS::CombinePaths(Config->Path, slotName);
+            std::vector<Stroka> slotPaths;
+            for (const auto& path : Config_->Paths) {
+                slotPaths.push_back(NFS::CombinePaths(path, slotName));
+            }
             TNullable<int> userId(Null);
             if (jobControlEnabled) {
-                userId = Config->StartUid + slotId;
+                userId = Config_->StartUid + slotId;
             }
             auto slot = New<TSlot>(
-                Config,
-                slotPath,
+                Config_,
+                std::move(slotPaths),
                 Format("yt-node-%v", nodeRpcPort),
-                ActionQueue->GetInvoker(),
+                ActionQueue_->GetInvoker(),
                 slotId,
                 userId);
             slot->Initialize();
-            Slots.push_back(slot);
+            Slots_.push_back(slot);
         }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to initialize slots") << ex;
         LOG_WARNING(error);
-        Bootstrap->GetMasterConnector()->RegisterAlert(error);
-        IsEnabled = false;
+        Bootstrap_->GetMasterConnector()->RegisterAlert(error);
+        IsEnabled_ = false;
     }
 
-    auto chunkCache = Bootstrap->GetChunkCache();
-    IsEnabled &= chunkCache->IsEnabled();
+    auto chunkCache = Bootstrap_->GetChunkCache();
+    IsEnabled_ &= chunkCache->IsEnabled();
 }
 
 TSlotPtr TSlotManager::AcquireSlot()
 {
-    for (auto slot : Slots) {
+    auto pathIndexIt = std::min_element(
+        SlotPathCounters_.begin(),
+        SlotPathCounters_.end());
+    int pathIndex = std::distance(SlotPathCounters_.begin(), pathIndexIt);
+
+    for (auto slot : Slots_) {
         if (slot->IsFree()) {
-            slot->Acquire();
+            ++SlotPathCounters_[pathIndex];
+            slot->Acquire(pathIndex);
             return slot;
         }
     }
     YUNREACHABLE();
 }
 
+void TSlotManager::ReleaseSlot(TSlotPtr slot)
+{
+    auto pathIndex = slot->GetPathIndex();
+    --SlotPathCounters_[pathIndex];
+    slot->Release();
+}
+
 int TSlotManager::GetSlotCount() const
 {
-    return IsEnabled ? static_cast<int>(Slots.size()) : 0;
+    return IsEnabled_ ? static_cast<int>(Slots_.size()) : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

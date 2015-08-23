@@ -63,13 +63,19 @@ struct TReferenceExpression
 {
     TReferenceExpression(
         const TSourceLocation& sourceLocation,
-        TStringBuf columnName)
+        TStringBuf columnName,
+        TStringBuf tableName = TStringBuf())
         : TExpression(sourceLocation)
         , ColumnName(columnName)
+        , TableName(tableName)
     { }
 
     Stroka ColumnName;
+    Stroka TableName;
 };
+
+DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
+DEFINE_REFCOUNTED_TYPE(TReferenceExpression)
 
 struct TCommaExpression
     : public TExpression
@@ -162,7 +168,7 @@ typedef std::pair<TExpressionPtr, Stroka> TNamedExpression;
 typedef std::vector<TNamedExpression> TNamedExpressionList;
 typedef TNullable<TNamedExpressionList> TNullableNamedExpressionList;
 
-typedef std::vector<Stroka> TIdentifierList;
+typedef std::vector<TReferenceExpressionPtr> TIdentifierList;
 typedef TNullable<TIdentifierList> TNullableIdentifierList;
 
 struct TTableDescriptor
@@ -194,9 +200,20 @@ struct TQuery
             , Fields(fields)
         { }
 
+        TJoin(
+            const TTableDescriptor& table,
+            const TExpressionPtr& left,
+            const TExpressionPtr& right)
+            : Table(table)
+            , Left(left)
+            , Right(right)
+        { }
+
         TTableDescriptor Table;
         TIdentifierList Fields;
 
+        TExpressionPtr Left;
+        TExpressionPtr Right;
     };
 
     std::vector<TJoin> Joins;
@@ -206,6 +223,7 @@ struct TQuery
     TNullableNamedExpressionList GroupExprs;
     TExpressionPtr HavingPredicate;
     TNullableIdentifierList OrderFields;
+    bool IsOrderDesc = false;
     i64 Limit = 0;
 };
 

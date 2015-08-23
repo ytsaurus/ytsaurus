@@ -110,6 +110,11 @@ void ThrowCannotRemoveRoot()
     THROW_ERROR_EXCEPTION("Root node cannot be removed");
 }
 
+void ThrowCannotReplaceRoot()
+{
+    THROW_ERROR_EXCEPTION("Root node cannot be replaced");
+}
+
 void ThrowCannotRemoveAttribute(const Stroka& key)
 {
     THROW_ERROR_EXCEPTION("Attribute %Qv cannot be removed",

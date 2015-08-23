@@ -8,7 +8,9 @@
 
 #include <core/misc/small_vector.h>
 
-#include <ytlib/new_table_client/versioned_row.h>
+#include <ytlib/table_client/versioned_row.h>
+
+#include <ytlib/tablet_client/public.h>
 
 #include <ytlib/transaction_client/helpers.h>
 
@@ -17,8 +19,9 @@
 namespace NYT {
 namespace NTabletNode {
 
+using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

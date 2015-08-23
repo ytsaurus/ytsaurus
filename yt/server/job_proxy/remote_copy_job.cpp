@@ -23,7 +23,7 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
@@ -45,7 +45,7 @@ using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NScheduler;
 using namespace NJobTrackerClient::NProto;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,7 +195,7 @@ private:
 
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 rspOrError,
-                NChunkClient::EErrorCode::MasterCommunicationFailed,
+                NChunkClient::EErrorCode::ChunkCreationFailed,
                 "Error creating chunk");
 
             const auto& rsp = rspOrError.Value();
@@ -310,7 +310,7 @@ private:
         {
             static const yhash_set<int> masterMetaTags{
                 TProtoExtensionTag<TMiscExt>::Value,
-                TProtoExtensionTag<NVersionedTableClient::NProto::TBoundaryKeysExt>::Value
+                TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
             };
 
             auto masterChunkMeta = chunkMeta;

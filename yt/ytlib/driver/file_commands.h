@@ -42,6 +42,7 @@ private:
 
 struct TWriteFileRequest
     : public TTransactionalRequest
+    , public TPrerequisiteRequest
 {
     NYPath::TRichYPath Path;
     NYTree::INodePtr FileWriter;

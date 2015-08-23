@@ -14,8 +14,7 @@ class THydraServiceBase
 {
 protected:
     THydraServiceBase(
-        IHydraManagerPtr hydraManager,
-        IInvokerPtr automatonInvoker,
+        IInvokerPtr invoker,
         const NRpc::TServiceId& serviceId,
         const NLogging::TLogger& logger,
         int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
@@ -23,11 +22,10 @@ protected:
     void ValidatePeer(EPeerKind kind);
     void SyncWithUpstream();
 
+    virtual IHydraManagerPtr GetHydraManager() = 0;
+    
 private:
-    // Avoid name clash when inheriting from both THydraServiceBase and TCompositeAutomatonPart.
-    const IHydraManagerPtr ServiceHydraManager_;
-
-    virtual bool IsUp(TCtxDiscoverPtr context) const override;
+    virtual bool IsUp(TCtxDiscoverPtr context) override;
 
 };
 

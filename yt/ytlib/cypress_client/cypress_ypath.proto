@@ -45,6 +45,7 @@ message TReqCopy
     // "move" is actually "copy" with "remove_source" set to true.
     optional bool remove_source = 3 [default = false];
     optional bool recursive = 4 [default = false];
+    optional bool force = 5 [default = false];
 }
 
 message TRspCopy

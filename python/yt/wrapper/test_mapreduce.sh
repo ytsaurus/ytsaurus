@@ -82,6 +82,8 @@ test_base_functionality()
     ./mapreduce -drop "ignat/temp"
     ./mapreduce -sort  -src "ignat/other_table" -dst "ignat/other_table"
     check "1\t2\t3\n4\t5\t6\n" "`./mapreduce -read "ignat/other_table"`"
+    ./mapreduce -sort "ignat/other_table"
+    check "1\t2\t3\n4\t5\t6\n" "`./mapreduce -read "ignat/other_table"`"
     check "4\t5\t6\n" "`./mapreduce -read "ignat/other_table" -lowerkey 3`"
     ./mapreduce -map "cat" -src "ignat/other_table" -dst "ignat/mapped" -ytspec '{"job_count": 10}'
     check 2 `./mapreduce -read "ignat/mapped" | wc -l`
@@ -90,6 +92,30 @@ test_base_functionality()
     ./mapreduce -map "cat" -src "ignat/other_table" -src "ignat/mapped" \
         -dst "ignat/temp" -append
     check 8 `./mapreduce -read "ignat/temp" | wc -l`
+}
+
+test_list()
+{
+    ./mapreduce -write "ignat/test_dir/table1" <table_file
+    ./mapreduce -write "ignat/test_dir/table2" <table_file
+    check "table1\ntable2\n" "`./mapreduce -list -prefix "${YT_PREFIX}ignat/test_dir/"`"
+
+    export YT_USE_YAMR_STYLE_PREFIX=1
+
+    check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir"`"
+    check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/"`"
+    check "ignat/test_dir/table1\nignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/tab"`"
+    check "ignat/test_dir/table1\n" "`./mapreduce -list -prefix "ignat/test_dir/table1"`"
+    check "ignat/test_dir/table1\n" "`./mapreduce -list -exact "ignat/test_dir/table1"`"
+    check "" "`./mapreduce -list -exact "ignat/test_dir/table"`"
+    check "" "`./mapreduce -list -exact "ignat/test_dir"`"
+    check_failed './mapreduce -list -exact "ignat/test_dir/" -prefix "ignat"'
+
+    check "ignat/test_dir/table1\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python -c "import json, sys; print json.load(sys.stdin)[0]['name']"`"
+    check "ignat/test_dir/table2\n" "`./mapreduce -list -prefix "ignat/test_dir/table" -jsonoutput | python -c "import json, sys; print json.load(sys.stdin)[1]['name']"`"
+    check "[]\n" "`./mapreduce -list -exact "ignat/test_dir/table" -jsonoutput`"
+
+    export YT_USE_YAMR_STYLE_PREFIX=0
 }
 
 test_codec()
@@ -213,6 +239,7 @@ if __name__ == '__main__':
     chmod +x my_mapper.py
 
     ./mapreduce -drop ignat/dir/mapper.py
+    ./mapreduce -listfiles >&2
     initial_number_of_files="`./mapreduce -listfiles | wc -l`"
 
     ./mapreduce -upload ignat/dir/mapper.py -executable < my_mapper.py
@@ -362,6 +389,17 @@ if __name__ == '__main__':
     check "`echo -e "c3=x\tc2=5\nc3=z\tc2=2\n" | ./order.py`" "`./mapreduce -read "ignat/reduced_table" -dsv | ./order.py`"
 
     rm -f my_reducer.py order.py
+
+    echo -e "a=1\tb=2\na=1\tb=1" | ./mapreduce -dsv -write "<sorted_by=[a]>ignat/test_table"
+
+    ./mapreduce -reduce "cat" -src "ignat/test_table" -dst "ignat/reduced_table" -reduceby "a" -dsv
+    check "`echo -e "a=1\tb=2\na=1\tb=1"`" "`./mapreduce -read "ignat/reduced_table" -dsv`"
+
+    ./mapreduce -reduce "cat" -src "ignat/test_table" -dst "ignat/reduced_table" -reduceby "a" -sortby "a" -sortby "b" -dsv
+    check "`echo -e "a=1\tb=1\na=1\tb=2"`" "`./mapreduce -read "ignat/reduced_table" -dsv`"
+
+    ./mapreduce -reduce "cat" -src "ignat/test_table" -dst "ignat/reduced_table" -reduceby "b" -sortby "b" -dsv
+    check "`echo -e "b=1\ta=1\nb=2\ta=1"`" "`./mapreduce -read "ignat/reduced_table" -dsv`"
 }
 
 test_empty_destination()
@@ -550,10 +588,11 @@ test_many_to_many_copy_move()
 }
 
 prepare_table_files
-test_sortby_reduceby
 test_base_functionality
+test_list
 test_codec
 test_many_output_tables
+test_sortby_reduceby
 test_chunksize
 test_mapreduce
 test_input_output_format

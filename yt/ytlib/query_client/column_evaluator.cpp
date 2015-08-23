@@ -12,7 +12,7 @@
 namespace NYT {
 namespace NQueryClient {
 
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,37 +29,37 @@ TColumnEvaluator::TColumnEvaluator(
     , Expressions_(keySize)
 { }
 
-void TColumnEvaluator::PrepareEvaluator(int index)
+void TColumnEvaluator::PrepareEvaluator()
 {
-    YCHECK(index < KeySize_);
-    YCHECK(Schema_.Columns()[index].Expression);
-
-    if (!Evaluators_[index]) {
-        yhash_set<Stroka> references;
-        Expressions_[index] = PrepareExpression(
-            Schema_.Columns()[index].Expression.Get(),
-            Schema_,
-            FunctionRegistry_.Get());
-        Evaluators_[index] = Profile(
-            Expressions_[index],
-            Schema_,
-            nullptr,
-            &Variables_[index],
-            &references,
-            FunctionRegistry_)();
-
-        for (const auto& reference : references) {
-            ReferenceIds_[index].push_back(Schema_.GetColumnIndexOrThrow(reference));
+    for (size_t index = 0; index < KeySize_; ++index) {
+        if (!Schema_.Columns()[index].Expression) {
+            continue;
         }
-        std::sort(ReferenceIds_[index].begin(), ReferenceIds_[index].end());
+        if (!Evaluators_[index]) {
+            yhash_set<Stroka> references;
+            Expressions_[index] = PrepareExpression(
+                Schema_.Columns()[index].Expression.Get(),
+                Schema_,
+                FunctionRegistry_);
+            Evaluators_[index] = Profile(
+                Expressions_[index],
+                Schema_,
+                nullptr,
+                &Variables_[index],
+                &references,
+                FunctionRegistry_)();
+
+            for (const auto& reference : references) {
+                ReferenceIds_[index].push_back(Schema_.GetColumnIndexOrThrow(reference));
+            }
+            std::sort(ReferenceIds_[index].begin(), ReferenceIds_[index].end());
+        }
     }
 }
 
 void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, int index)
 {
     YCHECK(index < fullRow.GetCount());
-
-    PrepareEvaluator(index);
 
     TQueryStatistics statistics;
     TExecutionContext executionContext;
@@ -158,13 +158,11 @@ TRow TColumnEvaluator::EvaluateKeys(
 
 const std::vector<int>& TColumnEvaluator::GetReferenceIds(int index)
 {
-    PrepareEvaluator(index);
     return ReferenceIds_[index];
 }
 
 TConstExpressionPtr TColumnEvaluator::GetExpression(int index)
 {
-    PrepareEvaluator(index);
     return Expressions_[index];
 }
 
@@ -210,6 +208,8 @@ public:
         if (!cachedEvaluator) {
             auto evaluator = New<TColumnEvaluator>(schema, keySize, FunctionRegistry_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
+            evaluator->PrepareEvaluator();
+
             TryInsert(cachedEvaluator, &cachedEvaluator);
         }
 

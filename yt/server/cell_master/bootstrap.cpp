@@ -300,9 +300,9 @@ void TBootstrap::Run()
     Sleep(TDuration::Max());
 }
 
-void TBootstrap::DumpSnapshot(const Stroka& fileName)
+void TBootstrap::TryLoadSnapshot(const Stroka& fileName, bool dump)
 {
-    BIND(&TBootstrap::DoDumpSnapshot, this, fileName)
+    BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker())
         .Run()
         .Get()
@@ -568,10 +568,10 @@ void TBootstrap::DoRun()
     RpcServer_->Start();
 }
 
-void TBootstrap::DoDumpSnapshot(const Stroka& fileName)
+void TBootstrap::DoLoadSnapshot(const Stroka& fileName, bool dump)
 {
     auto reader = CreateFileSnapshotReader(fileName, InvalidSegmentId, false);
-    HydraFacade_->DumpSnapshot(reader);
+    HydraFacade_->LoadSnapshot(reader, dump);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

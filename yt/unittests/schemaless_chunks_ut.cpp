@@ -3,11 +3,11 @@
 
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_chunk_reader.h>
-#include <ytlib/new_table_client/schemaless_chunk_writer.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/config.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_chunk_reader.h>
+#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/client_block_cache.h>
 #include <ytlib/chunk_client/data_statistics.h>
@@ -19,7 +19,7 @@
 #include <core/compression/public.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 namespace {
 
 using namespace NChunkClient;
@@ -386,5 +386,5 @@ TEST_F(TSchemalessChunksTest, MultiPartSampledRead)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

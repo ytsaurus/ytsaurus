@@ -240,6 +240,24 @@ public:
         return TSharedRef(begin, end, Holder_);
     }
 
+    //! Creates a vector of slices with specified size.
+    std::vector<TSharedRef> Split(size_t partSize) const
+    {
+        YCHECK(partSize > 0);
+        std::vector<TSharedRef> result;
+        result.reserve(Size() / partSize + 1);
+        auto sliceBegin = Begin();
+        while (sliceBegin < End()) {
+            auto sliceEnd = sliceBegin + partSize;
+            if (sliceEnd < sliceBegin || sliceEnd > End()) {
+                sliceEnd = End();
+            }
+            result.push_back(Slice(sliceBegin, sliceEnd));
+            sliceBegin = sliceEnd;
+        }
+        return result;
+    }
+
 private:
     struct TBlobHolder
         : public TIntrinsicRefCounted

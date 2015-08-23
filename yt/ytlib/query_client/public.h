@@ -1,7 +1,7 @@
 #pragma once
 
 #include <ytlib/tablet_client/public.h>
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 #include <ytlib/node_tracker_client/public.h>
 
 // TODO(babenko): kill this when refactoring TDataSplit
@@ -31,6 +31,9 @@ class TQueryStatistics;
 
 DECLARE_REFCOUNTED_STRUCT(TExpression)
 typedef TIntrusivePtr<const TExpression> TConstExpressionPtr;
+
+DECLARE_REFCOUNTED_STRUCT(TFunctionExpression)
+typedef TIntrusivePtr<const TFunctionExpression> TConstFunctionExpressionPtr;
 
 DECLARE_REFCOUNTED_STRUCT(TJoinClause)
 typedef TIntrusivePtr<const TJoinClause> TConstJoinClausePtr;
@@ -74,38 +77,36 @@ DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFunctionRegistry)
 
-DECLARE_REFCOUNTED_CLASS(TFunctionRegistry)
-
 // TODO(babenko): kill this when refactoring TDataSplit
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 typedef std::vector<TDataSplit> TDataSplits;
 
-using NVersionedTableClient::ISchemafulReader;
-using NVersionedTableClient::ISchemafulReaderPtr;
-using NVersionedTableClient::ISchemafulWriter;
-using NVersionedTableClient::ISchemafulWriterPtr;
-using NVersionedTableClient::EValueType;
-using NVersionedTableClient::TTableSchema;
-using NVersionedTableClient::TColumnSchema;
-using NVersionedTableClient::TKeyColumns;
+using NTableClient::ISchemafulReader;
+using NTableClient::ISchemafulReaderPtr;
+using NTableClient::ISchemafulWriter;
+using NTableClient::ISchemafulWriterPtr;
+using NTableClient::EValueType;
+using NTableClient::TTableSchema;
+using NTableClient::TColumnSchema;
+using NTableClient::TKeyColumns;
 
 using NTransactionClient::TTimestamp;
 using NTransactionClient::NullTimestamp;
 
-using NVersionedTableClient::TRowBuffer;
-using NVersionedTableClient::TRowBufferPtr;
+using NTableClient::TRowBuffer;
+using NTableClient::TRowBufferPtr;
 
 using NNodeTrackerClient::TNodeDirectoryPtr;
 
-typedef NVersionedTableClient::TUnversionedRow TRow;
-typedef NVersionedTableClient::TUnversionedRowHeader TRowHeader;
-typedef NVersionedTableClient::TUnversionedValue TValue;
-typedef NVersionedTableClient::TUnversionedOwningValue TOwningValue;
-typedef NVersionedTableClient::TUnversionedValueData TValueData;
-typedef NVersionedTableClient::TUnversionedOwningRow TOwningRow;
-typedef NVersionedTableClient::TUnversionedRowBuilder TRowBuilder;
-typedef NVersionedTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
-typedef NVersionedTableClient::TOwningKey TKey;
+typedef NTableClient::TUnversionedRow TRow;
+typedef NTableClient::TUnversionedRowHeader TRowHeader;
+typedef NTableClient::TUnversionedValue TValue;
+typedef NTableClient::TUnversionedOwningValue TOwningValue;
+typedef NTableClient::TUnversionedValueData TValueData;
+typedef NTableClient::TUnversionedOwningRow TOwningRow;
+typedef NTableClient::TUnversionedRowBuilder TRowBuilder;
+typedef NTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
+typedef NTableClient::TOwningKey TKey;
 
 typedef std::pair<TKey, TKey> TKeyRange;
 typedef std::pair<TRow, TRow> TRowRange;

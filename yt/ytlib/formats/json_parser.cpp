@@ -102,7 +102,9 @@ class TJsonParser::TImpl
 {
 public:
     TImpl(IYsonConsumer* consumer, TJsonFormatConfigPtr config, EYsonType type)
-        : Consumer_(consumer), Config_(config), Type_(type)
+        : Consumer_(consumer)
+        , Config_(config)
+        , Type_(type)
     {
         YCHECK(Type_ != EYsonType::MapFragment);
         if (!Config_) {
@@ -120,6 +122,8 @@ public:
             yajl_config(YajlHandle_, yajl_allow_partial_values, 1);
         }
         yajl_set_memory_limit(YajlHandle_, Config_->MemoryLimit);
+
+        Buffer_ = std::vector<char>(Config_->BufferSize);
     }
 
     void Read(const TStringBuf& data);
@@ -131,6 +135,8 @@ private:
     IYsonConsumer* Consumer_;
     TJsonFormatConfigPtr Config_;
     EYsonType Type_;
+
+    std::vector<char> Buffer_;
 
     yajl_handle YajlHandle_;
     TJsonCallbacks Callbacks_;
@@ -193,11 +199,9 @@ void TJsonParser::TImpl::Finish()
 
 void TJsonParser::TImpl::Parse(TInputStream* input)
 {
-    static const int bufferLength = 65536;
-    std::array<char, bufferLength> buffer;
-    while (int readLength = input->Read(buffer.data(), bufferLength))
+    while (int readLength = input->Read(Buffer_.data(), Config_->BufferSize))
     {
-        Read(TStringBuf(buffer.data(), readLength));
+        Read(TStringBuf(Buffer_.data(), readLength));
     }
     Finish();
 }

@@ -183,6 +183,8 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSchedulerService)
+
 IServicePtr CreateSchedulerService(TBootstrap* bootstrap)
 {
     return New<TSchedulerService>(bootstrap);

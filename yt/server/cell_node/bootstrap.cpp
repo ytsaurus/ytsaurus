@@ -309,9 +309,8 @@ void TBootstrap::DoRun()
     JobProxyConfig->EnableCGroups = Config->ExecAgent->EnableCGroups;
     JobProxyConfig->SupportedCGroups = Config->ExecAgent->SupportedCGroups;
 
-    JobProxyConfig->IopsThreshold = Config->ExecAgent->IopsThreshold;
+    JobProxyConfig->EnableIopsThrottling = Config->ExecAgent->EnableIopsThrottling;
 
-    JobProxyConfig->SandboxName = SandboxDirectoryName;
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
     JobProxyConfig->SupervisorConnection->Address = localInterconnectAddress;
@@ -348,6 +347,7 @@ void TBootstrap::DoRun()
     JobController->RegisterFactory(NJobAgent::EJobType::PartitionReduce, createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::ReduceCombiner,  createExecJob);
     JobController->RegisterFactory(NJobAgent::EJobType::RemoteCopy,      createExecJob);
+    JobController->RegisterFactory(NJobAgent::EJobType::OrderedMap,      createExecJob);
 
     auto createChunkJob = BIND([this] (
             const NJobAgent::TJobId& jobId,

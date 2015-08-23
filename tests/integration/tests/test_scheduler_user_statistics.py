@@ -129,13 +129,13 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 counter_name = "user_job.cpu.user.$.completed.map.count"
                 count = None
 
-                while count is None or tries <= 10:
+                while count is None and tries <= 10:
                     statistics = get("//sys/operations/{0}/@progress".format(op_id))
                     tries += 1
                     try:
                         count = get_statistics(statistics["job_statistics"], counter_name)
                     except KeyError:
-                        pass
+                        time.sleep(1)
 
                 assert count == 1
 

@@ -825,7 +825,7 @@ void TDecoratedAutomaton::LogFollowerMutation(
         *logResult = std::move(actualLogResult);
     }
 
-    LoggedVersion_ = GetLoggedVersion().Advance();
+    LoggedVersion_ = pendingMutation.Version.Advance();
 }
 
 TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()

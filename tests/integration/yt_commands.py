@@ -6,8 +6,8 @@ import pytest
 
 import sys
 import time
-import cStringIO
 from datetime import datetime
+import cStringIO
 from cStringIO import StringIO
 
 
@@ -90,6 +90,16 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
             output_stream = cStringIO.StringIO()
 
     parameters = prepare_parameters(parameters)
+    
+    yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
+    description = driver.get_command_descriptor(command_name)
+    if description.input_type() != "null" and parameters.get("input_format") is None:
+        parameters["input_format"] = yson_format
+    if description.output_type() != "null":
+        if parameters.get("output_format") is None:
+            parameters["output_format"] = yson_format
+        if output_stream is None:
+            output_stream = cStringIO.StringIO()
 
     if verbose:
         print >>sys.stderr, str(datetime.now()), command_name, parameters
@@ -401,6 +411,9 @@ def abort_op(op, **kwargs):
 
 def build_snapshot(*args, **kwargs):
     get_driver().build_snapshot(*args, **kwargs)
+
+def get_version():
+    return yson.loads(execute_command("get_version", {}))
 
 def gc_collect():
     get_driver().gc_collect()

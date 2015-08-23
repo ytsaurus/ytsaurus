@@ -10,6 +10,7 @@ namespace NDriver {
 struct TStartTransactionRequest
     : public TTransactionalRequest
     , public TMutatingRequest
+    , public TPrerequisiteRequest
 {
     TNullable<TDuration> Timeout;
     NYTree::INodePtr Attributes;

@@ -17,7 +17,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const Stroka TestFileName("health_check~");
-static const Stroka DisabledLockFileName("disabled");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +35,6 @@ TDiskHealthChecker::TDiskHealthChecker(
     , Logger(DataNodeLogger)
 {
     Logger.AddTag("Path: %v", Path_);
-    FailedLock_.clear();
 }
 
 void TDiskHealthChecker::Start()
@@ -64,25 +62,17 @@ void TDiskHealthChecker::OnCheckCompleted(const TError& error)
         return;
     }
 
-    if (!FailedLock_.test_and_set())
-        return;
-
     auto actualError = error.GetCode() == NYT::EErrorCode::Timeout
         ? TError("Disk health check timed out at %v", Path_)
         : error;
     LOG_ERROR(actualError);
+
     Failed_.Fire(actualError);
 }
 
 void TDiskHealthChecker::DoRunCheck()
 {
     LOG_DEBUG("Disk health check started");
-
-    auto lockFileName = NFS::CombinePaths(Path_, DisabledLockFileName);
-    if (NFS::Exists(lockFileName)) {
-        LOG_INFO("Lock file found at %v", Path_);
-        THROW_ERROR_EXCEPTION("Location is disabled by lock file");
-    }
 
     std::vector<ui8> writeData(Config_->TestSize);
     std::vector<ui8> readData(Config_->TestSize);

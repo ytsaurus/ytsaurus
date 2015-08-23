@@ -25,14 +25,14 @@ public:
         NCellNode::TBootstrap* bootstrap,
         const TChunkId& chunkId,
         const TSessionOptions& options,
-        TLocationPtr location,
+        TStoreLocationPtr location,
         TLease lease);
 
     ~TSessionBase();
 
     virtual const TChunkId& GetChunkId() const override;
     virtual EWriteSessionType GetType() const override;
-    TLocationPtr GetLocation() const override;
+    TStoreLocationPtr GetStoreLocation() const override;
 
     virtual TFuture<void> Start() override;
 
@@ -63,7 +63,7 @@ protected:
     NCellNode::TBootstrap* Bootstrap_;
     TChunkId ChunkId_;
     TSessionOptions Options_;
-    TLocationPtr Location_;
+    TStoreLocationPtr Location_;
     TLease Lease_;
 
     IInvokerPtr WriteInvoker_;

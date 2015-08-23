@@ -96,6 +96,46 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
+    @only_linux
+    def test_control_attributes_yson(self):
+        create('table', '//tmp/in1')
+        write_table(
+            '//tmp/in1',
+            {'key': 4, 'value': 3},
+            sorted_by = 'key')
+
+        create('table', '//tmp/in2')
+        write_table(
+            '//tmp/in2',
+            {'key': 1, 'value': 6},
+            sorted_by = 'key')
+
+        create('table', '//tmp/out')
+
+        op_id = reduce(
+            dont_track=True,
+            in_=['//tmp/in1', '//tmp/in2'],
+            out='<sorted_by=[key]>//tmp/out',
+            command='cat > /dev/stderr',
+            spec={
+                "reducer" : {"format" : yson.loads("<format=text>yson")},
+                "job_io" : 
+                    {"control_attributes" : 
+                        {"enable_table_index" : "true", 
+                         "enable_row_index" : "true"}},
+                "job_count" : 1})
+        
+        track_op(op_id)
+        
+        job_ids = ls('//sys/operations/{}/jobs'.format(op_id))
+        assert len(job_ids) == 1
+        assert read_file('//sys/operations/{}/jobs/{}/stderr'.format(op_id, job_ids[0])) == \
+            '<"table_index"=1>#;\n' \
+            '<"row_index"=0>#;\n' \
+            '{"key"=1;"value"=6};\n' \
+            '<"table_index"=0>#;\n' \
+            '<"row_index"=0>#;\n' \
+            '{"key"=4;"value"=3};\n'
 
     @only_linux
     def test_cat_teleport(self):
@@ -192,10 +232,10 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert read_table('//tmp/out') == \
             [
                 {'key': "0", 'value': "1"},
+                {'key': "2", 'value': "9"},
                 {'key': "2", 'value': "6"},
                 {'key': "2", 'value': "7"},
-                {'key': "2", 'value': "8"},
-                {'key': "2", 'value': "9"}
+                {'key': "2", 'value': "8"}
             ]
 
         assert get('//tmp/out/@sorted')

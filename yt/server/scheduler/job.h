@@ -31,6 +31,9 @@ public:
     //! The operation the job belongs to.
     DEFINE_BYVAL_RO_PROPERTY(TOperation*, Operation);
 
+    //! The id of operation the job belongs to.
+    DEFINE_BYVAL_RO_PROPERTY(TOperationId, OperationId);
+
     //! Exec node where the job is running.
     DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
 
@@ -50,9 +53,9 @@ public:
     TDuration GetDuration() const;
 
     //! Job result returned by node.
-    DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::NProto::TJobResult, Result);
+    DEFINE_BYREF_RO_PROPERTY(TRefCountedJobResultPtr, Result);
 
-    void SetResult(const NJobTrackerClient::NProto::TJobResult& result);
+    void SetResult(NJobTrackerClient::NProto::TJobResult&& result);
 
     // Custom and builtin job statistics.
     DEFINE_BYREF_RO_PROPERTY(TStatistics, Statistics);
@@ -70,16 +73,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TJobSpecBuilder, SpecBuilder);
 
 
-    // Fair share strategy stuff.
-
-    //! Determines the per-operation list (either preemptable or non-preemptable) this
-    //! job belongs to.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Preemptable);
-
-    //! Iterator in the per-operation list pointing to this particular job.
-    DEFINE_BYVAL_RW_PROPERTY(TJobList::iterator, JobListIterator);
-
-
 public:
     TJob(
         const TJobId& id,
@@ -91,6 +84,38 @@ public:
         bool restarted,
         TJobSpecBuilder specBuilder);
 
+};
+
+DEFINE_REFCOUNTED_TYPE(TJob)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCompletedJobSummary
+{
+    explicit TCompletedJobSummary(TJobPtr job);
+
+    const TRefCountedJobResultPtr Result;
+    const TJobId Id;
+    const TStatistics Statistics;
+};
+
+struct TFailedJobSummary
+{
+    explicit TFailedJobSummary(TJobPtr job);
+
+    const TRefCountedJobResultPtr Result;
+    const TJobId Id;
+};
+
+struct TAbortedJobSummary
+{
+    explicit TAbortedJobSummary(TJobPtr job);
+
+    TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
+
+    const TRefCountedJobResultPtr Result;
+    const TJobId Id;
+    const EAbortReason AbortReason;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

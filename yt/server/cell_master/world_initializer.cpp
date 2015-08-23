@@ -435,16 +435,6 @@ private:
                         .EndList()
                     .EndMap());
 
-            CreateNode(
-                "//home",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                        .Item("account").Value("tmp")
-                    .EndMap());
-
             CommitTransaction(transactionId);
 
             LOG_INFO("World initialization completed");

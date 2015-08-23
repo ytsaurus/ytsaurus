@@ -111,7 +111,7 @@ private:
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
         {
-            if (Options_.TransactionId != NullTransactionId) {
+            if (Options_.TransactionId) {
                 auto transactionManager = Client_->GetTransactionManager();
                 Transaction_ = transactionManager->Attach(Options_.TransactionId);
             }

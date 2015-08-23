@@ -17,8 +17,8 @@
 
 #include <ytlib/tablet_client/config.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/samples_fetcher.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/samples_fetcher.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -39,7 +39,7 @@ namespace NTabletNode {
 
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NTabletNode::NProto;
@@ -387,6 +387,8 @@ private:
                 chunkSpec->mutable_chunk_id()->CopyFrom(chunkInfo.chunk_id());
                 chunkSpec->mutable_replicas()->MergeFrom(chunkInfo.replicas());
                 chunkSpec->mutable_chunk_meta()->CopyFrom(store->GetChunkMeta());
+                ToProto(chunkSpec->mutable_lower_limit(), TReadLimit(partition->GetPivotKey()));
+                ToProto(chunkSpec->mutable_upper_limit(), TReadLimit(partition->GetNextPivotKey()));
                 fetcher->AddChunk(chunkSpec);
             }
         }
@@ -397,6 +399,9 @@ private:
         }
 
         auto samples = fetcher->GetSamples();
+
+        // NB(psushin): This filtering is typically redundant (except for the first pivot), 
+        // since fetcher already returns samples within given limits.
         samples.erase(
             std::remove_if(
                 samples.begin(),

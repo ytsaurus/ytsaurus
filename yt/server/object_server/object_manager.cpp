@@ -171,7 +171,7 @@ public:
         }
 
         auto mutationId = GetMutationId(context);
-        if (mutationId != NullMutationId) {
+        if (mutationId) {
             auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
             auto asyncResponseMessage = responseKeeper->TryBeginRequest(mutationId, context->IsRetry());
             if (asyncResponseMessage) {
@@ -241,7 +241,7 @@ private:
 
         TTransaction* transaction = nullptr;
         auto transactionId = GetTransactionId(context);
-        if (transactionId != NullTransactionId) {
+        if (transactionId) {
             transaction = transactionManager->GetTransactionOrThrow(transactionId);
         }
 
@@ -1076,9 +1076,9 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
         const auto& path = prerequisite.path();
         i64 revision = prerequisite.revision();
 
-        auto* transaction = transactionId == NullTransactionId
-            ? nullptr
-            : getPrerequisiteTransaction(transactionId);
+        auto* transaction = transactionId
+            ? getPrerequisiteTransaction(transactionId)
+            : nullptr;
 
         auto resolver = cypressManager->CreateResolver(transaction);
         INodePtr nodeProxy;
@@ -1197,7 +1197,7 @@ void TObjectManager::HydraExecuteLeader(
         }
     }
 
-    if (mutationId != NullMutationId) {
+    if (mutationId) {
         auto responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
         // NB: Context must already be replied by now.
         responseKeeper->EndRequest(mutationId, context->GetResponseMessage());

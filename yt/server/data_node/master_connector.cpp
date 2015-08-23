@@ -8,6 +8,7 @@
 #include "chunk_store.h"
 #include "chunk_cache.h"
 #include "session_manager.h"
+#include "artifact.h"
 
 #include <core/concurrency/delayed_executor.h>
 
@@ -59,6 +60,7 @@ using namespace NHive;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NCellNode;
 
 using NNodeTrackerClient::TAddressMap;
@@ -428,7 +430,9 @@ void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
         addChunkInfo(chunk);
     }
     for (const auto& chunk : Bootstrap_->GetChunkCache()->GetChunks()) {
-        addChunkInfo(chunk);
+        if (!IsArtifactChunkId(chunk->GetId())) {
+            *request->add_chunks() = BuildAddChunkInfo(chunk);
+        }
     }
 
     LOG_INFO("Full node heartbeat sent to master (%v)",
@@ -599,7 +603,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
 
         for (const auto& info : rsp->tablet_slots_to_remove()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
-            YCHECK(cellId != NullCellId);
+            YCHECK(cellId);
             auto slot = slotManager->FindSlot(cellId);
             if (!slot) {
                 LOG_WARNING("Requested to remove a non-existing slot %v, ignored",
@@ -738,20 +742,27 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto* delta = GetChunksDelta(chunk->GetId());
+    if (IsArtifactChunkId(chunk->GetId()))
+        return;
+
+	auto* delta = GetChunksDelta(chunk->GetId());
     if (delta->State != EState::Online)
         return;
 
     delta->RemovedSinceLastSuccess.erase(chunk);
     delta->AddedSinceLastSuccess.insert(chunk);
 
-    LOG_DEBUG("Chunk addition registered (ChunkId: %v)",
-        chunk->GetId());
+    LOG_DEBUG("Chunk addition registered (ChunkId: %v, LocationId: %v)",
+        chunk->GetId(),
+        chunk->GetLocation()->GetId());
 }
 
 void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (IsArtifactChunkId(chunk->GetId()))
+        return;
 
     auto* delta = GetChunksDelta(chunk->GetId());
     if (delta->State != EState::Online)
@@ -760,8 +771,9 @@ void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
     delta->AddedSinceLastSuccess.erase(chunk);
     delta->RemovedSinceLastSuccess.insert(chunk);
 
-    LOG_DEBUG("Chunk removal registered (ChunkId: %v)",
-        chunk->GetId());
+    LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v)",
+        chunk->GetId(),
+        chunk->GetLocation()->GetId());
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)

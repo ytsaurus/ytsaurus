@@ -19,8 +19,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/object_client/helpers.h>
 
@@ -70,8 +70,8 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
@@ -436,7 +436,7 @@ public:
         ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns()); // may throw
 
         TTabletCell* hintedCell;
-        if (cellId == NullTabletCellId) {
+        if (!cellId) {
             ValidateHasHealthyCells(); // may throw
             hintedCell = nullptr;
         } else {
@@ -533,6 +533,7 @@ public:
             ToProto(req.mutable_next_pivot_key(), nextPivotKey);
             req.set_mount_config(serializedMountConfig.Data());
             req.set_writer_options(serializedWriterOptions.Data());
+            req.set_atomicity(static_cast<int>(table->GetAtomicity()));
 
             auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
             auto chunks = EnumerateChunksInChunkTree(chunkList);
@@ -546,11 +547,13 @@ public:
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
             hiveManager->PostMessage(mailbox, req);
 
-            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v)",
+            LOG_INFO_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
+                "Atomicity: %v)",
                 table->GetId(),
                 tablet->GetId(),
                 cell->GetId(),
-                chunks.size());
+                chunks.size(),
+                table->GetAtomicity());
         }
     }
 
@@ -698,9 +701,10 @@ public:
 
         // Validate pivot keys against table schema.
         auto schema = GetTableSchema(table);
+        int keyColumnCount = table->KeyColumns().size();
         ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns());
         for (const auto& pivotKey : pivotKeys) {
-            ValidatePivotKey(pivotKey, schema, table->KeyColumns().size());
+            ValidatePivotKey(pivotKey, schema, keyColumnCount);
         }
 
         if (lastTabletIndex != tablets.size() - 1) {
@@ -779,8 +783,8 @@ public:
 
         for (auto* chunk : chunks) {
             auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-            auto minKey = FromProto<TOwningKey>(boundaryKeysExt.min());
-            auto maxKey = FromProto<TOwningKey>(boundaryKeysExt.max());
+            auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
+            auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
             auto range = GetIntersectingTablets(newTablets, minKey, maxKey);
             for (auto it = range.first; it != range.second; ++it) {
                 auto* tablet = *it;

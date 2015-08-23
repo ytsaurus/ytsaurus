@@ -1,15 +1,20 @@
+import common
+import default_config
+
+import yt.yson as yson
+import yt.packages.simplejson as json
+
 import os
 import sys
 import types
-
-import common
-import default_config
 
 # NB: Magic!
 # To support backward compatibility we must translate uppercase fields as config values.
 # To implement this translation we replace config module with special class Config!
 
 class Config(types.ModuleType):
+    DEFAULT_PICKLING_FRAMEWORK = "dill"
+
     def __init__(self):
         self.shortcuts = {
             "http.PROXY": "proxy/url",
@@ -48,6 +53,7 @@ class Config(types.ModuleType):
             "USE_NON_STRICT_UPPER_KEY": "yamr_mode/use_non_strict_upper_key",
             "CHECK_INPUT_FULLY_CONSUMED": "yamr_mode/check_input_fully_consumed",
             "FORCE_DROP_DST": "yamr_mode/abort_transactions_with_remove",
+            "USE_YAMR_STYLE_PREFIX": "yamr_mode/use_yamr_style_prefix",
 
             "OPERATION_STATE_UPDATE_PERIOD": "operation_tracker/poll_period",
             "STDERR_LOGGING_LEVEL": "operation_tracker/stderr_logging_level",
@@ -61,8 +67,6 @@ class Config(types.ModuleType):
             "LOCAL_TMP_DIR": "local_temp_directory",
             "REMOVE_TEMP_FILES": "clear_local_temp_files",
 
-
-            "MERGE_INSTEAD_WARNING": "auto_merge_output/enable",
             "MIN_CHUNK_COUNT_FOR_MERGE_WARNING": "auto_merge_output/min_chunk_count",
             "MAX_CHUNK_SIZE_FOR_MERGE_WARNING": "auto_merge_output/max_chunk_size",
 
@@ -89,8 +93,14 @@ class Config(types.ModuleType):
 
             "DETACHED": "detached",
 
-            "format.TABULAR_DATA_FORMAT": "tabular_data_format"
+            "format.TABULAR_DATA_FORMAT": "tabular_data_format",
+
+            "CONFIG_PATH": "config_path",
+            "CONFIG_FORMAT": "config_format"
         }
+
+        # Some shortcuts can't be backported one-to-one so they are processed manually
+        self.special_shortcuts = {"MERGE_INSTEAD_WARNING": int}
 
         super(Config, self).__init__(__name__)
 
@@ -115,10 +125,14 @@ class Config(types.ModuleType):
                 obj = getattr(obj, part)
             setattr(cls, parts[-1],
                 property(lambda obj_self, key=key: self._get(self.shortcuts[key]))
-                    .setter(lambda ojb_self, value, key=key: self._set(self.shortcuts[key], value)))
+                    .setter(lambda obj_self, value, key=key: self._set(self.shortcuts[key], value)))
+        # MERGE_INSTEAD_WARNING shortcut is processed manually
+        self._process_merge_instead_warning_shortcut()
 
         self.default_config_module = default_config
         self.common_module = common
+        self.json_module = json
+        self.yson_module = yson
 
         self._init()
         self._update_from_env()
@@ -133,6 +147,9 @@ class Config(types.ModuleType):
         self.SPEC = None
         self.TRANSACTION = "0-0-0-0"
         self.PING_ANCESTOR_TRANSACTIONS = False
+        self._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+        self._ENABLE_HTTP_CHAOS_MONKEY = False
+        self._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
 
         self._env_configurable_options = ["TRACE", "TRANSACTION", "PING_ANCESTOR_TRANSACTIONS", "SPEC"]
 
@@ -161,6 +178,29 @@ class Config(types.ModuleType):
                 var_type = str
             return var_type
 
+        # These options should be processed before reading config fil
+        for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
+            if opt_name in os.environ:
+                self.config[self.shortcuts[opt_name]] = os.environ[opt_name]
+
+        config_path = self.config["config_path"]
+        if config_path is None:
+            config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
+        if os.path.isfile(config_path):
+            load_func = None
+            format = self.config["config_format"]
+            if format == "yson":
+                load_func = self.yson_module.load
+            elif format == "json":
+                load_func = self.json_module.load
+            else:
+                raise self.common_module.YtError("Incorrect config_format '%s'" % format)
+            try:
+                self.update_config(load_func(open(config_path)))
+            except Exception:
+                print >>sys.stderr, "Failed to parse YT config from " + config_path
+                raise
+
         old_options = sorted(list(self.shortcuts))
         old_options_short = [value.split(".")[-1] for value in old_options]
 
@@ -180,6 +220,8 @@ class Config(types.ModuleType):
             elif key in self._env_configurable_options:
                 var_type = get_var_type(self.__dict__[key])
                 self.__dict__[key] = var_type(value)
+            elif key in self.special_shortcuts:
+                setattr(self, key, self.special_shortcuts[key](value))
 
 
     # NB: Method required for compatibility
@@ -192,7 +234,12 @@ class Config(types.ModuleType):
         config = self.get_config(client)
         backend = config["backend"]
         if backend is None:
-            backend = "http" if config["proxy"]["url"] is not None else "native"
+            if config["proxy"]["url"] is not None:
+                backend = "http"
+            elif config["driver_config"] is not None or config["driver_config_path"] is not None:
+                backend = "native"
+            else:
+                raise self.common_module.YtError("Cannot determine backend type: either driver config or proxy url should be specified.")
         return backend
 
     def get_single_request_timeout(self, client):
@@ -257,6 +304,12 @@ class Config(types.ModuleType):
         for k in parts[:-1]:
             d = d[k]
         d[parts[-1]] = value
+
+    def _process_merge_instead_warning_shortcut(self):
+        modern_path = "auto_merge_output/action"
+        getter = lambda obj_self: self._get(modern_path) == "merge"
+        setter = lambda obj_self, value: self._set(modern_path, "merge" if value else "log")
+        setattr(self.cls, "MERGE_INSTEAD_WARNING", property(getter, setter))
 
 # Process reload correctly
 special_module_name = "_yt_config_" + __name__

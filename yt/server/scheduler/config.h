@@ -6,7 +6,7 @@
 
 #include <core/rpc/config.h>
 
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
 
@@ -32,8 +32,8 @@ public:
     TDuration FairSharePreemptionTimeout;
     double FairShareStarvationTolerance;
 
-    TDuration FairShareUpdatePeriod;
-    TDuration FairShareLogPeriod;
+    TNullable<TDuration> FairShareUpdatePeriod;
+    TNullable<TDuration> FairShareLogPeriod;
 
     //! Any operation with usage less than this cannot be preempted.
     double MinPreemptableRatio;
@@ -92,8 +92,12 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEventLogConfig
-    : public NVersionedTableClient::TBufferedTableWriterConfig
+    : public NTableClient::TBufferedTableWriterConfig
 {
 public:
     NYPath::TYPath Path;
@@ -104,6 +108,10 @@ public:
             .Default("//sys/scheduler/event_log");
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TEventLogConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TOperationOptions
     : public NYTree::TYsonSerializable
@@ -118,61 +126,75 @@ public:
     }
 };
 
+class TSimpleOperationOptions
+    : public TOperationOptions
+{
+public:
+    int MaxJobCount;
+    i64 JobMaxSliceDataSize;
+
+    TSimpleOperationOptions()
+    {
+        RegisterParameter("max_job_count", MaxJobCount)
+            .Default(100000);
+
+        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
+            .Default((i64)256 * 1024 * 1024)
+            .GreaterThan(0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapOperationOptions
-    : public TOperationOptions
-{
-public:
-    int MaxJobCount;
-    i64 JobMaxSliceDataSize;
-
-    TMapOperationOptions()
-    {
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default(100000);
-
-        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-    }
-};
-
-class TMergeOperationOptions
-    : public TOperationOptions
-{
-public:
-    int MaxJobCount;
-
-    i64 JobMaxSliceDataSize;
-
-    TMergeOperationOptions()
-    {
-        RegisterParameter("max_job_count", MaxJobCount)
-            .Default(100000);
-        RegisterParameter("job_max_slice_data_size", JobMaxSliceDataSize)
-            .Default((i64)256 * 1024 * 1024)
-            .GreaterThan(0);
-    }
-};
-
-class TOrderedMergeOperationOptions
-    : public TMergeOperationOptions
+    : public TSimpleOperationOptions
 { };
+
+DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedMergeOperationOptions
-    : public TMergeOperationOptions
+    : public TSimpleOperationOptions
 { };
 
-class TSortedMergeOperationOptions
-    : public TMergeOperationOptions
+DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOrderedMergeOperationOptions
+    : public TSimpleOperationOptions
 { };
+
+DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSortedMergeOperationOptions
+    : public TSimpleOperationOptions
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TReduceOperationOptions
     : public TSortedMergeOperationOptions
 { };
 
+DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 { };
+
+DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSortOperationOptionsBase
     : public TOperationOptions
@@ -204,13 +226,25 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSortOperationOptions
     : public TSortOperationOptionsBase
 { };
 
+DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMapReduceOperationOptions
     : public TSortOperationOptionsBase
 { };
+
+DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteCopyOperationOptions
     : public TOperationOptions
@@ -225,6 +259,10 @@ public:
             .GreaterThan(0);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
@@ -353,6 +391,8 @@ public:
 
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scratchers
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
+
+    TNullable<NYPath::TYPath> UdfRegistryPath;
 
     TSchedulerConfig()
     {
@@ -503,11 +543,16 @@ public:
         RegisterParameter("chunk_location_throttler", ChunkLocationThrottler)
             .DefaultNew();
 
+        RegisterParameter("udf_registry_path", UdfRegistryPath)
+            .Default(Null);
+
         RegisterInitializer([&] () {
             ChunkLocationThrottler->Limit = 10000;
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

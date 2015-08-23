@@ -49,6 +49,7 @@ void TSetCommand::DoExecute()
     TSetNodeOptions options;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
+    SetPrerequisites(&options);
     auto producer = Context_->CreateInputProducer();
     auto value = ConvertToYsonString(producer);
 
@@ -69,6 +70,7 @@ void TRemoveCommand::DoExecute()
     options.Force = Request_->Force;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
+    SetPrerequisites(&options);
 
     auto asyncResult = Context_->GetClient()->RemoveNode(
         Request_->Path.GetPath(),
@@ -157,6 +159,7 @@ void TLockCommand::DoExecute()
     options.AttributeKey = Request_->AttributeKey;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
+    SetPrerequisites(&options);
 
     auto asyncLockId = Context_->GetClient()->LockNode(
         Request_->Path.GetPath(),
@@ -175,9 +178,11 @@ void TCopyCommand::DoExecute()
 {
     TCopyNodeOptions options;
     options.Recursive = Request_->Recursive;
+    options.Force = Request_->Force;
     options.PreserveAccount = Request_->PreserveAccount;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
+    SetPrerequisites(&options);
 
     auto asyncNodeId = Context_->GetClient()->CopyNode(
         Request_->SourcePath.GetPath(),
@@ -197,7 +202,9 @@ void TMoveCommand::DoExecute()
     TMoveNodeOptions options;
     SetTransactionalOptions(&options);
     SetMutatingOptions(&options);
+    SetPrerequisites(&options);
     options.Recursive = Request_->Recursive;
+    options.Force = Request_->Force;
     options.PreserveAccount = Request_->PreserveAccount;
 
     auto asyncNodeId = Context_->GetClient()->MoveNode(

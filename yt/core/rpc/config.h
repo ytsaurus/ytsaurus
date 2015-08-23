@@ -183,6 +183,10 @@ public:
     //! For how long responses are kept in memory.
     TDuration ExpirationTime;
 
+    //! If |true| then initial warmup is enabled. In particular, #WarmupTime and #ExpirationTime are
+    //! checked against each other. If |false| then initial warmup is disabled and #WarmupTime is ignored.
+    bool EnableWarmup;
+
     //! For how long the keeper remains passive after start and merely collects all responses.
     TDuration WarmupTime;
 
@@ -190,10 +194,12 @@ public:
     {
         RegisterParameter("expiration_time", ExpirationTime)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("enable_warmup", EnableWarmup)
+            .Default(true);
         RegisterParameter("warmup_time", WarmupTime)
             .Default(TDuration::Minutes(6));
         RegisterValidator([&] () {
-            if (WarmupTime < ExpirationTime) {
+            if (EnableWarmup && WarmupTime < ExpirationTime) {
                 THROW_ERROR_EXCEPTION("\"warmup_time\" cannot be less than \"expiration_time\"");
             }
         });

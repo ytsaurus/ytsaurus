@@ -24,41 +24,47 @@ exports.redirectUnlessDirectory = function(req, rsp)
 // Redirects request to a predefined location.
 exports.redirectTo = function(rsp, target, code)
 {
-    rsp.removeHeader("Vary");
-    rsp.removeHeader("Transfer-Encoding");
-    rsp.removeHeader("Content-Encoding");
-    rsp.removeHeader("Content-Disposition");
-    rsp.removeHeader("Content-Type");
-    rsp.setHeader("Location", target);
-    rsp.setHeader("Content-Length", 0);
-    rsp.setHeader("Connection", "close");
-    rsp.shouldKeepAlive = false;
-    rsp.writeHead(code || 303);
+    var sent_headers = !!rsp._header;
+    if (!sent_headers) {
+        rsp.removeHeader("Vary");
+        rsp.removeHeader("Transfer-Encoding");
+        rsp.removeHeader("Content-Encoding");
+        rsp.removeHeader("Content-Disposition");
+        rsp.removeHeader("Content-Type");
+        rsp.setHeader("Location", target);
+        rsp.setHeader("Content-Length", 0);
+        rsp.setHeader("Connection", "close");
+        rsp.shouldKeepAlive = false;
+        rsp.writeHead(code || 303);
+    }
     rsp.end();
 };
 
 // Dispatches request with a precomputed result.
 exports.dispatchAs = function(rsp, body, type)
 {
-    rsp.removeHeader("Vary");
-    rsp.removeHeader("Transfer-Encoding");
-    rsp.removeHeader("Content-Encoding");
-    rsp.removeHeader("Content-Disposition");
-    if (typeof(type) === "string") {
-        rsp.setHeader("Content-Type", type);
-    } else {
-        rsp.removeHeader("Content-Type");
+    var sent_headers = !!rsp._header;
+    if (!sent_headers) {
+        rsp.removeHeader("Vary");
+        rsp.removeHeader("Transfer-Encoding");
+        rsp.removeHeader("Content-Encoding");
+        rsp.removeHeader("Content-Disposition");
+        if (typeof(type) === "string") {
+            rsp.setHeader("Content-Type", type);
+        } else {
+            rsp.removeHeader("Content-Type");
+        }
+        if (typeof(body) !== "undefined") {
+            rsp.setHeader("Content-Length",
+                typeof(body) === "string" ?
+                Buffer.byteLength(body) :
+                body.length);
+        } else {
+            rsp.setHeader("Content-Length", 0);
+        }
+        rsp.setHeader("Connection", "close");
+        rsp.shouldKeepAlive = false;
     }
-    if (typeof(body) !== "undefined") {
-        rsp.setHeader("Content-Length",
-            typeof(body) === "string" ?
-            Buffer.byteLength(body) :
-            body.length);
-    } else {
-        rsp.setHeader("Content-Length", 0);
-    }
-    rsp.setHeader("Connection", "close");
-    rsp.shouldKeepAlive = false;
     rsp.writeHead(rsp.statusCode || 200);
     rsp.end(body);
 };
@@ -474,4 +480,24 @@ exports.escapeHeader = function(x)
         .replace("\n", "\\n")
         .replace("\r", "\\r")
         .replace("\t", "\\t");
+};
+
+exports.lexicographicalCompare = function(a, b)
+{
+    for (var i = 0; i < a.length && i < b.length; ++i) {
+        if (a[i] === b[i]) {
+            continue;
+        } else {
+            return a[i] - b[i];
+        }
+    }
+    return a.length - b.length;
+}
+
+String.prototype.format = function() {
+    var i = 0, args = arguments;
+    return this.replace(/\{(\d*)\}/g, function(match, key) {
+        key = key === '' ? i++ : parseInt(key);
+        return typeof args[key] !== 'undefined' ? args[key] : '';
+    });
 };

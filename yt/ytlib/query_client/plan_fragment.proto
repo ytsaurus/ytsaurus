@@ -1,7 +1,7 @@
 package NYT.NQueryClient.NProto;
 
 import "yt/core/misc/guid.proto";
-import "yt/ytlib/new_table_client/chunk_meta.proto";
+import "yt/ytlib/table_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,12 +96,19 @@ message TAggregateItem
     optional uint32 result_type = 6;
 }
 
+message TEquation
+{
+    required TExpression left = 1;
+    required TExpression right = 2;
+}
+
 message TJoinClause
 {
-    repeated string join_columns = 1;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
-    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt foreign_key_columns = 4;
+    repeated TEquation equations = 1;
+    required NYT.NTableClient.NProto.TTableSchemaExt joined_table_schema = 2;
+    required NYT.NTableClient.NProto.TTableSchemaExt foreign_table_schema = 3;
+    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
+    required int64 foreign_key_columns_count = 4;
     required NYT.NProto.TGuid foreign_data_id = 5;
 }
 
@@ -109,7 +116,7 @@ message TGroupClause
 {
     repeated TNamedItem group_items = 1;
     repeated TAggregateItem aggregate_items = 2;
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt grouped_table_schema = 3;
+    required NYT.NTableClient.NProto.TTableSchemaExt grouped_table_schema = 3;
     required bool is_merge = 4;
     required bool is_final = 5;
 }
@@ -117,6 +124,7 @@ message TGroupClause
 message TOrderClause
 {
     repeated string order_columns = 1;
+    required bool is_desc = 2;
 }
 
 message TProjectClause
@@ -132,8 +140,10 @@ message TQuery
 
     required int64 limit = 4;
 
-    required NYT.NVersionedTableClient.NProto.TTableSchemaExt table_schema = 5;
-    required NYT.NVersionedTableClient.NProto.TKeyColumnsExt key_columns = 6;
+    required NYT.NTableClient.NProto.TTableSchemaExt table_schema = 5;
+    required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 13;
+    required int64 key_columns_count = 6;
+
 
     repeated TJoinClause join_clauses = 7;
     optional TExpression predicate = 8;
@@ -155,6 +165,7 @@ message TPlanFragment
     required bool ordered = 6;
     optional bool verbose_logging = 7 [default = false];
     optional uint64 max_subqueries = 9 [default = 16];
+    optional bool enable_code_cache = 10 [default = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

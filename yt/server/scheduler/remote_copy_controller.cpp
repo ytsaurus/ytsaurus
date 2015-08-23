@@ -202,7 +202,6 @@ private:
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
 
-            auto* remoteCopyJobSpecExt = jobSpec->MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             NNodeTrackerClient::TNodeDirectoryBuilder directoryBuilder(
                 Controller_->NodeDirectory,
@@ -225,15 +224,15 @@ private:
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet);
-            RegisterOutput(joblet, Index_);
+            TTask::OnJobCompleted(joblet, jobSummary);
+            RegisterOutput(joblet, Index_, jobSummary);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet, jobSummary);
             Controller_->UpdateAllTasksIfNeeded(Controller_->JobCounter);
         }
 
@@ -472,8 +471,13 @@ private:
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
         auto clusterDirectory = Host->GetClusterDirectory();
-        auto connection = clusterDirectory->GetConnectionOrThrow(Spec_->ClusterName);
-        auto connectionConfig = CloneYsonSerializable(connection->GetConfig());
+        TConnectionConfigPtr connectionConfig;
+        if (Spec_->ClusterConnection) {
+            connectionConfig = *Spec_->ClusterConnection;
+        } else {
+            auto connection = clusterDirectory->GetConnectionOrThrow(Spec_->ClusterName);
+            connectionConfig = CloneYsonSerializable(connection->GetConfig());
+        }
         if (Spec_->NetworkName) {
             connectionConfig->NetworkName = *Spec_->NetworkName;
         }

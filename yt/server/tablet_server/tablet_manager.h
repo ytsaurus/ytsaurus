@@ -3,7 +3,7 @@
 #include "public.h"
 #include "tablet_cell.h"
 
-#include <ytlib/new_table_client/public.h>
+#include <ytlib/table_client/public.h>
 
 #include <server/hydra/entity_map.h>
 #include <server/hydra/mutation.h>
@@ -36,7 +36,7 @@ public:
 
     int GetAssignedTabletCellCount(const Stroka& address) const;
 
-    NVersionedTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
+    NTableClient::TTableSchema GetTableSchema(NTableServer::TTableNode* table);
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet);
 
@@ -67,7 +67,7 @@ public:
         NTableServer::TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const std::vector<NVersionedTableClient::TOwningKey>& pivotKeys);
+        const std::vector<NTableClient::TOwningKey>& pivotKeys);
 
 
 

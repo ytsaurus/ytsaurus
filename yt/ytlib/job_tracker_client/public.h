@@ -14,12 +14,16 @@ namespace NProto {
 class TJobSpec;
 class TReqHeartbeat;
 class TRspHeartbeat;
+class TJobResult;
 
 } // namespace NProto
 
 ///////////////////////////////////////////////////////////////////////////////
 
 typedef TGuid TJobId;
+extern const TJobId NullJobId;
+
+///////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EJobType,
     // Scheduler jobs
@@ -37,6 +41,7 @@ DEFINE_ENUM(EJobType,
     ((ReduceCombiner)    ( 11))
     ((RemoteCopy)        ( 12))
     ((IntermediateSort)  ( 13))
+    ((OrderedMap)        ( 14))
     ((SchedulerLast)     ( 99)) // sentinel
 
     // Master jobs

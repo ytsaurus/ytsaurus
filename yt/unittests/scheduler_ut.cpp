@@ -467,7 +467,7 @@ TEST_F(TSchedulerTest, YieldToFromCanceledFiber)
     EXPECT_TRUE(asyncResult.Get().IsOK());
 }
 
-TEST_F(TSchedulerTest, JustYield)
+TEST_F(TSchedulerTest, JustYield1)
 {
     auto invoker = Queue1->GetInvoker();
     auto asyncResult = BIND([] () {
@@ -476,6 +476,18 @@ TEST_F(TSchedulerTest, JustYield)
         }
     }).AsyncVia(invoker).Run().Get();
     EXPECT_TRUE(asyncResult.IsOK());
+}
+
+TEST_F(TSchedulerTest, JustYield2)
+{
+    auto invoker = Queue1->GetInvoker();
+    auto asyncResult = BIND([] () {
+        WaitFor(VoidFuture);
+        for (int i = 0; i < 10; ++i) {
+            Yield();
+        }
+    }).AsyncVia(invoker).Run();
+    EXPECT_TRUE(asyncResult.Get().IsOK());
 }
 
 TEST_F(TSchedulerTest, CancelInAdjacentCallback)

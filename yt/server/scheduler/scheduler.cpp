@@ -15,6 +15,7 @@
 #include "event_log.h"
 
 #include <core/concurrency/thread_affinity.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/rpc/message.h>
 #include <core/rpc/response_keeper.h>
@@ -28,10 +29,10 @@
 
 #include <ytlib/scheduler/helpers.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/schemaless_writer.h>
-#include <ytlib/new_table_client/schemaless_buffered_table_writer.h>
-#include <ytlib/new_table_client/table_consumer.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_writer.h>
+#include <ytlib/table_client/schemaless_buffered_table_writer.h>
+#include <ytlib/table_client/table_consumer.h>
 
 #include <server/cell_scheduler/config.h>
 #include <server/cell_scheduler/bootstrap.h>
@@ -53,7 +54,7 @@ using namespace NJobTrackerClient;
 using namespace NChunkClient;
 using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 
@@ -286,9 +287,9 @@ public:
         TTransactionAttachOptions userAttachOptions;
         userAttachOptions.Ping = false;
         userAttachOptions.PingAncestors = false;
-        auto userTransaction = transactionId == NullTransactionId
-            ? nullptr
-            : transactionManager->Attach(transactionId, userAttachOptions);
+        auto userTransaction = transactionId
+            ? transactionManager->Attach(transactionId, userAttachOptions)
+            : nullptr;
 
         // Merge operation spec with template
         auto specTemplate = GetSpecTemplate(type, spec);
@@ -439,12 +440,16 @@ public:
         ToProto(req->mutable_job_id(), jobId);
 
         auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error dumping input context for job %v",
-            jobId)
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error saving input context for job %v into %v",
+            jobId,
+            path);
 
-        auto& res = rspOrError.Value();
+        const auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
-        MasterConnector_->AttachJobContext(path, chunkIds);
+        YCHECK(chunkIds.size() == 1);
+        MasterConnector_->AttachJobContext(path, chunkIds.front(), jobId);
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
             jobId,
@@ -539,7 +544,7 @@ public:
                         LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
                             node->GetDefaultAddress(),
                             job->GetId(),
-                            job->GetOperation()->GetId());
+                            job->GetOperationId());
                         AbortJob(job, TError("Job vanished"));
                         UnregisterJob(job);
                     }
@@ -549,7 +554,7 @@ public:
                     operation->GetController()->CheckTimeLimit();
                 }
 
-                auto schedulingContext = CreateSchedulingContext(node, runningJobs);
+                auto schedulingContext = CreateSchedulingContext(this->Config_, node, runningJobs);
 
                 if (hasWaitingJobs) {
                     LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
@@ -559,13 +564,32 @@ public:
                     }
                 }
 
+                for (auto job : schedulingContext->StartedJobs()) {
+                    // TODO(acid): Should we filter started jobs list in Strategy?
+                    if (!FindOperation(job->GetOperationId())) {
+                        LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                        continue;
+                    }
+                    RegisterJob(job);
+                }
+
                 for (auto job : schedulingContext->PreemptedJobs()) {
+                    if (!FindOperation(job->GetOperationId())) {
+                        LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                        continue;
+                    }
+                    PreemptJob(job);
                     ToProto(response->add_jobs_to_abort(), job->GetId());
                 }
 
                 std::vector<TFuture<void>> asyncResults;
                 auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
                 for (auto job : schedulingContext->StartedJobs()) {
+                    auto operation = FindOperation(job->GetOperationId());
+                    if (!operation) {
+                        continue;
+                    }
+
                     auto* startInfo = response->add_jobs_to_start();
                     ToProto(startInfo->mutable_job_id(), job->GetId());
                     *startInfo->mutable_resource_limits() = job->ResourceUsage();
@@ -578,7 +602,7 @@ public:
 
                         // Release to avoid circular references.
                         job->SetSpecBuilder(TJobSpecBuilder());
-                        operationsToLog.insert(job->GetOperation());
+                        operationsToLog.insert(operation);
                 }
 
                 context->ReplyFrom(Combine(asyncResults));
@@ -606,7 +630,6 @@ public:
     DEFINE_SIGNAL(void(TOperationPtr), OperationUnregistered);
     DEFINE_SIGNAL(void(TOperationPtr, INodePtr update), OperationRuntimeParamsUpdated);
 
-    DEFINE_SIGNAL(void(TJobPtr job), JobStarted);
     DEFINE_SIGNAL(void(TJobPtr job), JobFinished);
     DEFINE_SIGNAL(void(TJobPtr, const TNodeResources& resourcesDelta), JobUpdated);
 
@@ -722,8 +745,6 @@ public:
 
 
 private:
-    friend class TSchedulingContext;
-
     TSchedulerConfigPtr Config_;
     INodePtr ConfigAtStart_;
     TBootstrap* Bootstrap_;
@@ -1185,7 +1206,7 @@ private:
         LOG_INFO("Reviving operation (OperationId: %v)",
             operationId);
 
-        if (operation->GetMutationId() != NullMutationId) {
+        if (operation->GetMutationId()) {
             TRspStartOperation response;
             ToProto(response.mutable_operation_id(), operationId);
             auto responseMessage = CreateResponseMessage(response);
@@ -1311,7 +1332,7 @@ private:
             LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
                 address,
                 job->GetId(),
-                job->GetOperation()->GetId());
+                job->GetOperationId());
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
@@ -1368,7 +1389,7 @@ private:
 
         LOG_DEBUG("Progress: %v, %v (OperationId: %v)",
             operation->GetController()->GetLoggingProgress(),
-            Strategy_->GetOperationLoggingProgress(operation),
+            Strategy_->GetOperationLoggingProgress(operation->GetId()),
             operation->GetId());
     }
 
@@ -1438,7 +1459,9 @@ private:
 
     void RegisterJob(TJobPtr job)
     {
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         auto node = job->GetNode();
 
         ++JobTypeCounters_[job->GetType()];
@@ -1446,10 +1469,6 @@ private:
         YCHECK(IdToJob_.insert(std::make_pair(job->GetId(), job)).second);
         YCHECK(operation->Jobs().insert(job).second);
         YCHECK(node->Jobs().insert(job).second);
-
-        job->GetNode()->ResourceUsage() += job->ResourceUsage();
-
-        JobStarted_.Fire(job);
 
         LOG_DEBUG("Job registered (JobId: %v, JobType: %v, OperationId: %v)",
             job->GetId(),
@@ -1459,7 +1478,9 @@ private:
 
     void UnregisterJob(TJobPtr job)
     {
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         auto node = job->GetNode();
 
         --JobTypeCounters_[job->GetType()];
@@ -1489,26 +1510,33 @@ private:
             return;
 
         job->SetState(EJobState::Aborted);
-        ToProto(job->Result().mutable_error(), error);
-        ToProto(job->Result().mutable_statistics(), SerializedEmptyStatistics.Data());
+        {
+            TJobResult jobResult;
+            ToProto(jobResult.mutable_error(), error);
+            ToProto(jobResult.mutable_statistics(), SerializedEmptyStatistics.Data());
+            job->SetResult(std::move(jobResult));
+        }
 
         OnJobFinished(job);
 
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         if (operation->GetState() == EOperationState::Running) {
-            operation->GetController()->OnJobAborted(job);
+            LogFinishedJobFluently(ELogEventType::JobAborted, job)
+                .Item("reason").Value(GetAbortReason(job->Result()));
+            operation->UpdateJobStatistics(job);
+            operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
         }
     }
 
     void PreemptJob(TJobPtr job)
     {
+        YCHECK(FindOperation(job->GetOperationId()));
+
         LOG_DEBUG("Job preempted (JobId: %v, OperationId: %v)",
             job->GetId(),
-            job->GetOperation()->GetId());
-
-        job->GetNode()->ResourceUsage() -= job->ResourceUsage();
-        JobUpdated_.Fire(job, -job->ResourceUsage());
-        job->ResourceUsage() = ZeroNodeResources();
+            job->GetOperationId());
 
         TError error("Job preempted");
         error.Attributes().Set("abort_reason", EAbortReason::Preemption);
@@ -1518,9 +1546,11 @@ private:
 
     void OnJobRunning(TJobPtr job, const TJobStatus& status)
     {
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         if (operation->GetState() == EOperationState::Running) {
-            operation->GetController()->OnJobRunning(job, status);
+            operation->GetController()->OnJobRunning(job->GetId(), status);
         }
     }
 
@@ -1535,13 +1565,17 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Completed);
-            job->SetResult(*result);
+            job->SetResult(std::move(*result));
 
             OnJobFinished(job);
 
-            auto operation = job->GetOperation();
+            auto operation = FindOperation(job->GetOperationId());
+            YCHECK(operation);
+
             if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnJobCompleted(job);
+                LogFinishedJobFluently(ELogEventType::JobCompleted, job);
+                operation->UpdateJobStatistics(job);
+                operation->GetController()->OnJobCompleted(TCompletedJobSummary(job));
             }
 
             ProcessFinishedJobResult(job);
@@ -1550,19 +1584,38 @@ private:
         UnregisterJob(job);
     }
 
+    TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
+    {
+        return LogEventFluently(eventType)
+            .Item("job_id").Value(job->GetId())
+            .Item("operation_id").Value(job->GetOperationId())
+            .Item("start_time").Value(job->GetStartTime())
+            .Item("finish_time").Value(job->GetFinishTime())
+            .Item("resource_limits").Value(job->ResourceLimits())
+            .Item("statistics").Value(job->Statistics())
+            .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
+            .Item("job_type").Value(job->GetType());
+    }
+
     void OnJobFailed(TJobPtr job, TJobResult* result)
     {
         if (job->GetState() == EJobState::Running ||
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Failed);
-            job->SetResult(*result);
+            job->SetResult(std::move(*result));
 
             OnJobFinished(job);
 
-            auto operation = job->GetOperation();
+            auto operation = FindOperation(job->GetOperationId());
+            YCHECK(operation);
+
             if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnJobFailed(job);
+                auto error = FromProto<TError>(job->Result()->error());
+                LogFinishedJobFluently(ELogEventType::JobFailed, job)
+                    .Item("error").Value(error);
+                operation->UpdateJobStatistics(job);
+                operation->GetController()->OnJobFailed(TFailedJobSummary(job));
             }
 
             ProcessFinishedJobResult(job);
@@ -1581,13 +1634,18 @@ private:
             job->GetState() == EJobState::Waiting)
         {
             job->SetState(EJobState::Aborted);
-            job->SetResult(*result);
+            job->SetResult(std::move(*result));
 
             OnJobFinished(job);
 
-            auto operation = job->GetOperation();
+            auto operation = FindOperation(job->GetOperationId());
+            YCHECK(operation);
+
             if (operation->GetState() == EOperationState::Running) {
-                operation->GetController()->OnJobAborted(job);
+                LogFinishedJobFluently(ELogEventType::JobAborted, job)
+                    .Item("reason").Value(GetAbortReason(job->Result()));
+                operation->UpdateJobStatistics(job);
+                operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
             }
         }
 
@@ -1617,7 +1675,7 @@ private:
     void ProcessFinishedJobResult(TJobPtr job)
     {
         auto jobFailed = job->GetState() == EJobState::Failed;
-        const auto& schedulerResultExt = job->Result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        const auto& schedulerResultExt = job->Result()->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id() 
             ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
@@ -1627,17 +1685,19 @@ private:
             ? FromProto<TChunkId>(schedulerResultExt.fail_context_chunk_id())
             : NullChunkId;
 
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
+
         if (jobFailed) {
-            if (stderrChunkId != NullChunkId) {
+            if (stderrChunkId) {
                 operation->SetStderrCount(operation->GetStderrCount() + 1);
             }
             MasterConnector_->CreateJobNode(job, stderrChunkId, failContextChunkId);
             return;
         }
 
-        YCHECK(failContextChunkId == NullChunkId);
-        if (stderrChunkId == NullChunkId) {
+        YCHECK(!failContextChunkId);
+        if (!stderrChunkId) {
             // Do not create job node.
             return;
         }
@@ -1910,11 +1970,11 @@ private:
                 .Do(BIND(&NScheduler::BuildInitializingOperationAttributes, operation))
                 .Item("progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildProgress, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("brief_progress").BeginMap()
                     .DoIf(hasProgress, BIND(&IOperationController::BuildBriefProgress, operation->GetController()))
-                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_.get(), operation->GetId()))
                 .EndMap()
                 .Item("running_jobs").BeginAttributes()
                     .Item("opaque").Value("true")
@@ -1999,7 +2059,8 @@ private:
             return nullptr;
         }
 
-        auto operation = job->GetOperation();
+        auto operation = FindOperation(job->GetOperationId());
+        YCHECK(operation);
 
         Logger.AddTag("JobType: %v, State: %v, OperationId: %v",
             job->GetType(),
@@ -2100,94 +2161,7 @@ private:
         return job;
     }
 
-    std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
-        TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs);
-
 };
-
-////////////////////////////////////////////////////////////////////
-
-class TScheduler::TSchedulingContext
-    : public ISchedulingContext
-{
-public:
-    DEFINE_BYVAL_RO_PROPERTY(TExecNodePtr, Node);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
-
-public:
-    TSchedulingContext(
-        TImpl* owner,
-        TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs)
-        : Node_(node)
-        , RunningJobs_(runningJobs)
-        , Owner_(owner)
-    { }
-
-
-    virtual bool CanStartMoreJobs() const override
-    {
-        if (!Node_->HasSpareResources()) {
-            return false;
-        }
-
-        auto maxJobStarts = Owner_->Config_->MaxStartedJobsPerHeartbeat;
-        if (maxJobStarts && StartedJobs_.size() >= maxJobStarts.Get()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    virtual TJobPtr StartJob(
-        TOperationPtr operation,
-        EJobType type,
-        const TNodeResources& resourceLimits,
-        bool restarted,
-        TJobSpecBuilder specBuilder) override
-    {
-        auto id = MakeRandomId(
-            EObjectType::SchedulerJob,
-            Owner_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
-        auto startTime = TInstant::Now();
-        auto job = New<TJob>(
-            id,
-            type,
-            operation,
-            Node_,
-            startTime,
-            resourceLimits,
-            restarted,
-            specBuilder);
-        StartedJobs_.push_back(job);
-        Owner_->RegisterJob(job);
-        return job;
-    }
-
-    virtual void PreemptJob(TJobPtr job) override
-    {
-        YCHECK(job->GetNode() == Node_);
-        PreemptedJobs_.push_back(job);
-        Owner_->PreemptJob(job);
-    }
-
-private:
-    TImpl* Owner_;
-
-};
-
-std::unique_ptr<ISchedulingContext> TScheduler::TImpl::CreateSchedulingContext(
-    TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs)
-{
-    return std::unique_ptr<ISchedulingContext>(new TSchedulingContext(
-        this,
-        node,
-        runningJobs));
-}
 
 ////////////////////////////////////////////////////////////////////
 
@@ -2307,7 +2281,7 @@ TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TY
     return Impl_->DumpInputContext(jobId, path);
 }
 
-void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context) noexcept
+void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
 {
     Impl_->ProcessHeartbeat(node, context);
 }

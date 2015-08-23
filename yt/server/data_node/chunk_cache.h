@@ -56,17 +56,16 @@ public:
      */
     int GetChunkCount();
 
-    //! Downloads a chunk into the cache.
+    //! Downloads a single- or multi-chunk artifact into the cache.
     /*!
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
      *
      *  Thread affinity: any
      */
-    TFuture<IChunkPtr> DownloadChunk(
-        const TChunkId& chunkId,
-        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr,
-        const NChunkClient::TChunkReplicaList& seedReplicas = NChunkClient::TChunkReplicaList());
+    TFuture<IChunkPtr> PrepareArtifact(
+        const TArtifactKey& key,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory = nullptr);
 
     //! Raised when a chunk is added to the cache.
     DECLARE_SIGNAL(void(IChunkPtr), ChunkAdded);

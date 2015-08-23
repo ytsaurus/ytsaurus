@@ -59,8 +59,7 @@ public:
         ITransactionManagerPtr transactionManager,
         ITimestampProviderPtr timestampProvider)
         : THydraServiceBase(
-            hydraManager,
-            automatonInvoker,
+            hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             TServiceId(TTransactionSupervisorServiceProxy::GetServiceName(), hiveManager->GetSelfCellId()),
             HiveLogger)
         , TCompositeAutomatonPart(
@@ -68,6 +67,7 @@ public:
             automaton,
             automatonInvoker)
         , Config_(config)
+        , HydraManager_(hydraManager)
         , ResponseKeeper_(responseKeeper)
         , HiveManager_(hiveManager)
         , TransactionManager_(transactionManager)
@@ -137,6 +137,7 @@ public:
 
 private:
     const TTransactionSupervisorConfigPtr Config_;
+    const IHydraManagerPtr HydraManager_;
     const TResponseKeeperPtr ResponseKeeper_;
     const THiveManagerPtr HiveManager_;
     const ITransactionManagerPtr TransactionManager_;
@@ -319,7 +320,7 @@ private:
                 transactionId,
                 force);
             auto responseMessage = CreateErrorResponseMessage(ex);
-            if (mutationId != NullMutationId) {
+            if (mutationId) {
                 ResponseKeeper_->EndRequest(mutationId, responseMessage);
             }
             return MakeFuture(responseMessage);
@@ -639,7 +640,7 @@ private:
             auto* mutationContext = GetCurrentMutationContext();
             mutationContext->Response().Data = responseMessage;
 
-            if (mutationId != NullMutationId) {
+            if (mutationId) {
                 ResponseKeeper_->EndRequest(mutationId, responseMessage);
             }
         }
@@ -690,7 +691,7 @@ private:
     void SetCommitResponse(TCommit* commit, TSharedRefArray responseMessage)
     {
         const auto& mutationId = commit->GetMutationId();
-        if (mutationId != NullMutationId) {
+        if (mutationId) {
             ResponseKeeper_->EndRequest(mutationId, responseMessage);
         }
 
@@ -844,6 +845,13 @@ private:
     void LoadValues(TLoadContext& context)
     {
         PersistentCommitMap_.LoadValues(context);
+    }
+
+
+    // THydraServiceBase overrides.
+    virtual IHydraManagerPtr GetHydraManager() override
+    {
+        return HydraManager_;
     }
 
 };

@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/public.cpp
   ${BASE}/rowset.cpp
+  ${BASE}/table_reader.cpp
   ${BASE}/transaction.cpp
 )
 set( HDRS
@@ -27,6 +28,7 @@ set( HDRS
   ${BASE}/private.h
   ${BASE}/public.h
   ${BASE}/rowset.h
+  ${BASE}/table_reader.h
   ${BASE}/transaction.h
 )
 

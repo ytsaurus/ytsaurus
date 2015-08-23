@@ -29,11 +29,11 @@
 
 #include <core/profiling/profile_manager.h>
 
-#include <ytlib/new_table_client/name_table.h>
-#include <ytlib/new_table_client/private.h>
-#include <ytlib/new_table_client/chunk_meta_extensions.h>
-#include <ytlib/new_table_client/schema.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/private.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/table_client/schema.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -58,8 +58,8 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NCellNode;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
-using namespace NVersionedTableClient::NProto;
+using namespace NTableClient;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -112,8 +112,6 @@ public:
             .SetCancelable(true)
             .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrecacheChunk)
-            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
@@ -347,11 +345,11 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto blockStore = Bootstrap_->GetBlockStore();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
         response->set_throttling(IsOutThrottling());
 
         if (IsOutThrottling()) {
@@ -432,8 +430,8 @@ private:
 
         ValidateConnected();
 
-        auto chunkStore = Bootstrap_->GetChunkStore();
-        response->set_has_complete_chunk(chunkStore->FindChunk(chunkId).operator bool());
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
 
         response->set_throttling(IsOutThrottling());
 
@@ -766,23 +764,33 @@ private:
         }
 
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
-        std::vector<Stroka> samples;
-        RandomSampleN(
-            samplesExt.entries().begin(),
-            samplesExt.entries().end(),
-            std::back_inserter(samples),
-            sampleRequest->sample_count());
+        auto samples = FromProto<TOwningKey>(samplesExt.entries());
 
-        int keySizeDelta = prefixLength - keyColumns.size();
-        if (keySizeDelta < 0) {
-            // Requested key is wider than the keys stored in chunk.
-            std::vector<TUnversionedValue> values(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null, 0));
-            for (int i = 0; i < samples.size(); ++i) {
-                auto row = FromProto<TUnversionedOwningRow>(samples[i]);
-                YCHECK(row.GetCount() == chunkKeyColumns.size());
-                std::copy(row.Begin(), row.End(), values.begin());
-                samples[i] = SerializeToString(values.data(), values.data() + keyColumns.size());
-            }
+        auto lowerKey = sampleRequest->has_lower_key() 
+            ? FromProto<TOwningKey>(sampleRequest->lower_key()) 
+            : MinKey();
+
+        auto upperKey = sampleRequest->has_upper_key() 
+            ? FromProto<TOwningKey>(sampleRequest->upper_key()) 
+            : MaxKey();
+
+        auto it = std::remove_if(
+            samples.begin(),
+            samples.end(),
+            [&] (const TOwningKey& key) {
+                return  key < lowerKey || key >= upperKey;
+            });
+
+        std::random_shuffle(samples.begin(), it);
+        auto count = std::min(
+            static_cast<int>(std::distance(samples.begin(), it)), 
+            sampleRequest->sample_count());
+        samples.erase(samples.begin() + count, samples.end());
+
+        
+        for (int i = 0; i < samples.size(); ++i) {
+            YCHECK(samples[i].GetCount() == chunkKeyColumns.size());
+            samples[i] = WidenKey(samples[i], keyColumns.size());
         }
 
         ToProto(chunkSamples->mutable_keys(), samples);
@@ -850,23 +858,6 @@ private:
             auto* key = chunkSamples->add_keys();
             ToProto(key, keyValues.data(), keyValues.data() + keyValues.size());
         }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PrecacheChunk)
-    {
-        auto chunkId = FromProto<TChunkId>(request->chunk_id());
-
-        context->SetRequestInfo("ChunkId: %v",
-            chunkId);
-
-        ValidateConnected();
-
-        auto chunkCache = Bootstrap_->GetChunkCache();
-        auto chunkOrError = WaitFor(chunkCache->DownloadChunk(chunkId));
-        THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError, "Error precaching chunk %v",
-            chunkId);
-
-        context->Reply();
     }
 
     DECLARE_ONE_WAY_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)

@@ -300,8 +300,7 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
     #define REF_UNREF_DECLARATION_ATTRIBUTES
 #endif
 
-#define DECLARE_REFCOUNTED_TYPE(kind, type) \
-    kind type; \
+#define DECLARE_REFCOUNTED_TYPE(type) \
     typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
     \
     void Ref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
@@ -312,12 +311,14 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 //! Forward-declares a class type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
 #define DECLARE_REFCOUNTED_CLASS(type) \
-    DECLARE_REFCOUNTED_TYPE(class, type)
+    class type; \
+    DECLARE_REFCOUNTED_TYPE(type)
 
 //! Forward-declares a struct type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
 #define DECLARE_REFCOUNTED_STRUCT(type) \
-    DECLARE_REFCOUNTED_TYPE(struct, type)
+    struct type; \
+    DECLARE_REFCOUNTED_TYPE(type)
 
 //! Provides implementations for Ref/Unref overloads. Use this macro right
 //! after the type's full definition.

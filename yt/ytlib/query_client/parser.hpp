@@ -44,7 +44,7 @@
     #include "ast.h"
 
     namespace NYT { namespace NQueryClient { namespace NAst {
-        using namespace NVersionedTableClient;
+        using namespace NTableClient;
 
         class TLexer;
         class TParser;
@@ -304,11 +304,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // identifier-list
       char dummy5[sizeof(TIdentifierList)];
 
-      // literal-list
-      // literal-tuple
+      // const-list
+      // const-tuple
       char dummy6[sizeof(TLiteralValueList)];
 
-      // literal-tuple-list
+      // const-tuple-list
       char dummy7[sizeof(TLiteralValueTupleList)];
 
       // named-expression
@@ -318,22 +318,29 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       char dummy9[sizeof(TNamedExpressionList)];
 
       // literal-value
+      // const-value
       char dummy10[sizeof(TNullable<TLiteralValue>)];
 
+      // qualified-identifier
+      char dummy11[sizeof(TReferenceExpressionPtr)];
+
       // "identifier"
-      char dummy11[sizeof(TStringBuf)];
+      char dummy12[sizeof(TStringBuf)];
 
       // table-descriptor
-      char dummy12[sizeof(TTableDescriptor)];
+      char dummy13[sizeof(TTableDescriptor)];
+
+      // is-desc
+      char dummy14[sizeof(bool)];
 
       // "double literal"
-      char dummy13[sizeof(double)];
+      char dummy15[sizeof(double)];
 
       // "int64 literal"
-      char dummy14[sizeof(i64)];
+      char dummy16[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy15[sizeof(ui64)];
+      char dummy17[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -369,19 +376,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwUsing = 1007,
         KwGroupBy = 1008,
         KwOrderBy = 1009,
-        KwAs = 1010,
-        KwAnd = 1011,
-        KwOr = 1012,
-        KwNot = 1013,
-        KwBetween = 1014,
-        KwIn = 1015,
-        KwFalse = 1016,
-        KwTrue = 1017,
-        Identifier = 1018,
-        Int64Literal = 1019,
-        Uint64Literal = 1020,
-        DoubleLiteral = 1021,
-        StringLiteral = 1022,
+        KwAsc = 1010,
+        KwDesc = 1011,
+        KwAs = 1012,
+        KwOn = 1013,
+        KwAnd = 1014,
+        KwOr = 1015,
+        KwNot = 1016,
+        KwBetween = 1017,
+        KwIn = 1018,
+        KwFalse = 1019,
+        KwTrue = 1020,
+        Identifier = 1021,
+        Int64Literal = 1022,
+        Uint64Literal = 1023,
+        DoubleLiteral = 1024,
+        StringLiteral = 1025,
         OpModulo = 37,
         LeftParenthesis = 40,
         RightParenthesis = 41,
@@ -389,13 +399,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         OpPlus = 43,
         Comma = 44,
         OpMinus = 45,
+        Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1023,
+        OpLessOrEqual = 1026,
         OpEqual = 61,
-        OpNotEqual = 1024,
+        OpNotEqual = 1027,
         OpGreater = 62,
-        OpGreaterOrEqual = 1025
+        OpGreaterOrEqual = 1028
       };
     };
 
@@ -450,9 +461,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
 
+  basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l);
+
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TTableDescriptor v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const bool v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const double v, const location_type& l);
 
@@ -572,7 +587,19 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
+    make_KwAsc (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwDesc (const location_type& l);
+
+    static inline
+    symbol_type
     make_KwAs (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwOn (const location_type& l);
 
     static inline
     symbol_type
@@ -649,6 +676,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_OpMinus (const location_type& l);
+
+    static inline
+    symbol_type
+    make_Dot (const location_type& l);
 
     static inline
     symbol_type
@@ -753,17 +784,17 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   static const unsigned char yydefact_[];
 
   // YYPGOTO[NTERM-NUM].
-  static const signed char yypgoto_[];
+  static const short int yypgoto_[];
 
   // YYDEFGOTO[NTERM-NUM].
-  static const signed char yydefgoto_[];
+  static const short int yydefgoto_[];
 
   // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
   // positive, shift that token.  If negative, reduce the rule whose
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const short int yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -878,13 +909,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 129,     ///< Last index in yytable_.
-      yynnts_ = 35,  ///< Number of nonterminal symbols.
+      yylast_ = 165,     ///< Last index in yytable_.
+      yynnts_ = 38,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 36, ///< Termination state number.
+      yyfinal_ = 37, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 42  ///< Number of tokens.
+      yyntokens_ = 46  ///< Number of tokens.
     };
 
 

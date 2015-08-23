@@ -3,14 +3,14 @@
 
 #include <ytlib/driver/driver.h>
 
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NDriver {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,6 +230,7 @@ TSelectRowsExecutor::TSelectRowsExecutor()
     , OutputRowLimitArg("", "output_row_limit", "output rows limit", false, std::numeric_limits<int>::max(), "INTEGER")
     , RangeExpansionLimitArg("", "range_expansion_limit", "range expansion limit", false, 1000, "INTEGER")
     , VerboseLoggingArg("", "verbose_logging", "verbose logging", false)
+    , EnableCodeCacheArg("", "enable_code_cache", "enable_code_cache", true)
     , MaxSubqueriesArg("", "max_subqueries", "max subqueries", false, 0, "INTEGER")
 {
     CmdLine.add(QueryArg);
@@ -238,6 +239,7 @@ TSelectRowsExecutor::TSelectRowsExecutor()
     CmdLine.add(OutputRowLimitArg);
     CmdLine.add(RangeExpansionLimitArg);
     CmdLine.add(VerboseLoggingArg);
+    CmdLine.add(EnableCodeCacheArg);
     CmdLine.add(MaxSubqueriesArg);
 }
 
@@ -258,6 +260,7 @@ void TSelectRowsExecutor::BuildParameters(IYsonConsumer* consumer)
             fluent.Item("range_expansion_limit").Value(RangeExpansionLimitArg.getValue());
         })
         .Item("verbose_logging").Value(VerboseLoggingArg.getValue())
+        .Item("enable_code_cache").Value(EnableCodeCacheArg.getValue())
         .DoIf(MaxSubqueriesArg.isSet(), [&] (TFluentMap fluent) {
             fluent.Item("max_subqueries").Value(MaxSubqueriesArg.getValue());
         });

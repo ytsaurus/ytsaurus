@@ -180,7 +180,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         auto rspOrError = WaitFor(objectProxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError,
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            NChunkClient::EErrorCode::ChunkCreationFailed,
             "Error creating chunk");
         const auto& rsp = rspOrError.Value();
 
@@ -311,6 +311,7 @@ void TNontemplateMultiChunkWriterBase::DoFinishSession(const TSession& session)
 
     if (!rspOrError.IsOK()) {
         CompletionError_.TrySet(TError(
+            EErrorCode::MasterCommunicationFailed,
             "Failed to confirm chunk %v",
             session.ChunkId)
             << rspOrError);
@@ -397,7 +398,7 @@ void TNontemplateMultiChunkWriterBase::DoClose()
         return;
     }
 
-    if (ParentChunkListId_ == NullChunkListId) {
+    if (!ParentChunkListId_) {
         LOG_DEBUG("Chunk sequence writer closed, no chunks attached");
         CompletionError_.TrySet(TError());
         return;

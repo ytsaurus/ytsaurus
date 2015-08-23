@@ -16,8 +16,10 @@ class TJournalChunk
 public:
     TJournalChunk(
         NCellNode::TBootstrap* bootstrap,
-        TLocationPtr location,
+        TStoreLocationPtr location,
         const TChunkDescriptor& descriptor);
+
+    TStoreLocationPtr GetStoreLocation() const;
 
     virtual void SyncRemove(bool force) override;
 
@@ -30,10 +32,18 @@ public:
         i64 priority,
         const TNullable<std::vector<int>>& extensionTags) override;
 
-    virtual TFuture<std::vector<TSharedRef>> ReadBlocks(
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
+        const std::vector<int>& blockIndexes,
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) override;
+
+    virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        i64 priority) override;
+        i64 priority,
+        bool populateCache,
+        NChunkClient::IBlockCachePtr blockCache) override;
 
     void AttachChangelog(NHydra::IChangelogPtr changelog);
     void DetachChangelog();
@@ -47,11 +57,13 @@ public:
     bool IsSealed() const;
 
 private:
+    const TStoreLocationPtr StoreLocation_;
+
     const TRefCountedChunkMetaPtr Meta_ = New<TRefCountedChunkMeta>();
 
     bool Active_ = false;
     NHydra::IChangelogPtr Changelog_;
-    
+
     mutable i64 CachedRowCount_ = 0;
     mutable i64 CachedDataSize_ = 0;
 
@@ -64,7 +76,7 @@ private:
 
     virtual TFuture<void> AsyncRemove() override;
 
-    void DoReadBlocks(
+    void DoReadBlockRange(
         int firstBlockIndex,
         int blockCount,
         TPromise<std::vector<TSharedRef>> promise);

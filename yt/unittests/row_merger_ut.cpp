@@ -5,14 +5,14 @@
 
 #include <core/ytree/convert.h>
 
-#include <ytlib/new_table_client/versioned_row.h>
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/row_buffer.h>
-#include <ytlib/new_table_client/row_merger.h>
-#include <ytlib/new_table_client/config.h>
+#include <ytlib/table_client/versioned_row.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/row_buffer.h>
+#include <ytlib/table_client/row_merger.h>
+#include <ytlib/table_client/config.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 namespace {
 
 using namespace NYTree;
@@ -679,5 +679,5 @@ TEST_F(TVersionedRowMergerTest, ManyDeletes)
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NVersionedTableClient
+} // namespace NTableClient
 } // namespace NYT

@@ -31,6 +31,7 @@ void TStartTransactionCommand::DoExecute()
     if (Request_->Attributes) {
         options.Attributes = ConvertToAttributes(Request_->Attributes);
     }
+    SetPrerequisites(&options);
 
     auto transactionManager = Context_->GetClient()->GetTransactionManager();
     auto transaction = WaitFor(transactionManager->Start(
@@ -47,7 +48,7 @@ void TStartTransactionCommand::DoExecute()
 void TPingTransactionCommand::DoExecute()
 {
     // Specially for evvers@ :)
-    if (Request_->TransactionId == NullTransactionId)
+    if (!Request_->TransactionId)
         return;
 
     auto transaction = AttachTransaction(true);
