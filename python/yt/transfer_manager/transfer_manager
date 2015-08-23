@@ -4,11 +4,20 @@ import yt.transfer_manager.traceback_helpers as traceback_helpers
 from yt.transfer_manager.flask_helpers import process_gzip
 from yt.transfer_manager.logger import TaskIdLogger
 from yt.transfer_manager.pattern_matching import match_copy_pattern
+from yt.transfer_manager.message_queue import MessageReader, MessageWriter
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
 from yt.tools.hadoop import Hive
 from yt.tools.remote_copy_tools import Kiwi
+from yt.tools.remote_copy_tools import \
+    copy_yamr_to_yt_pull, \
+    copy_yt_to_yamr_pull, \
+    copy_yt_to_yamr_push, \
+    copy_yt_to_kiwi, \
+    copy_yt_to_yt, \
+    copy_yt_to_yt_through_proxy, \
+    copy_hive_to_yt
 
 from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid, get_value, update
@@ -29,6 +38,7 @@ import logging.handlers
 import thread
 import argparse
 import traceback
+import subprocess
 import pwd
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -214,10 +224,11 @@ class Task(object):
 class Application(object):
     ERROR_BUFFER_SIZE = 2 ** 16
 
-    def __init__(self, config):
+    def __init__(self, config_path):
         self._daemon = Flask(__name__)
 
-        self._config = config
+        self._config_path = config_path
+        self._config = config = json.load(open(config_path))
         self._mutex = RLock()
         self._yt = Yt(**config["yt_backend_options"])
 
@@ -227,23 +238,28 @@ class Application(object):
 
         self._yandex_yt_python_tools_version = self._get_yandex_yt_python_tools_version()
 
+    def init_logger(self):
+        # Replace current logger with socket logger.
+        logger.LOGGER.handlers = [logging.handlers.SocketHandler('localhost', self._logging_port)]
+
+    def start_processes(self):
+        self._sleep_step = 0.5
+
         # Run logging process. It inherits current logging configuration.
         self._logging_process = Process(target=self._run_logging_server, name="LoggingThread")
         self._logging_process.daemon = True
         self._logging_process.start()
-        # Replace current logger with socket logger.
-        logger.LOGGER.handlers = [logging.handlers.SocketHandler('localhost', self._logging_port)]
 
-        self._sleep_step = 0.5
+        self.init_logger()
 
         # Prepare auth node if it is missing
-        self._auth_path = os.path.join(config["path"], "auth")
+        self._auth_path = os.path.join(self._path, "auth")
         self._yt.create("map_node", self._auth_path, ignore_existing=True)
 
         # Run lock thread
         self._terminating = False
         self._lock_acquired = False
-        self._lock_path = os.path.join(config["path"], "lock")
+        self._lock_path = os.path.join(self._path, "lock")
         self._lock_timeout = 10.0
         self._yt.create("map_node", self._lock_path, ignore_existing=True)
         self._lock_thread = SafeThread(target=self._take_lock, name="LockThread")
@@ -735,7 +751,7 @@ class Application(object):
                     error = None
                     completed = False
 
-                    process_is_alive = process.is_alive()
+                    process_is_alive = process.poll() is None
 
                     while not message_queue.empty():
                         message = None
@@ -796,11 +812,13 @@ class Application(object):
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
 
-                    queue = Queue()
-                    task_process = Process(target=self._execute_task, args=(self._tasks[id], queue))
+                    task_process = subprocess.Popen(["./transfer_manager", "--execute-task", "--config", self._config_path],
+                                                    stdout=subprocess.PIPE, stdin=subprocess.PIPE,
+                                                    preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT))
+                    task_process.stdin.write(json.dumps(self._tasks[id].dict()))
+                    task_process.stdin.close()
                     task_process.aborted = False
-                    task_process.daemon = True
-                    task_process.start()
+                    queue = MessageReader(task_process.stdout)
                     self._task_processes[id] = (task_process, queue)
 
                 self._pending_tasks = filter(lambda id: self._tasks[id].state == "pending", self._pending_tasks)
@@ -808,26 +826,8 @@ class Application(object):
 
             time.sleep(self._sleep_step)
 
-    def _execute_task(self, task, message_queue):
-        signal.signal(signal.SIGTERM, signal.SIG_DFL)
-
-        prctl.set_pdeathsig(signal.SIGINT)
+    def execute_task(self, task, message_queue):
         logger.LOGGER = TaskIdLogger(task.id)
-
-        import yt.tools.remote_copy_tools
-        if self._yandex_yt_python_tools_version and self._get_yandex_yt_python_tools_version() == self._yandex_yt_python_tools_version:
-            reload(yt.tools.remote_copy_tools)
-        import yt.wrapper as yt
-        from yt.tools.remote_copy_tools import \
-            copy_yamr_to_yt_pull, \
-            copy_yt_to_yamr_pull, \
-            copy_yt_to_yamr_push, \
-            copy_yt_to_kiwi, \
-            copy_yt_to_yt, \
-            copy_yt_to_yt_through_proxy, \
-            copy_hive_to_yt
-
-        yt._cleanup_http_session()
 
         logger.info("Start executing task")
         try:
@@ -1082,7 +1082,7 @@ class Application(object):
                 except OSError:
                     pass
                 time.sleep(0.5)
-                if process.is_alive():
+                if process.poll() is None:
                     try:
                         os.kill(process.pid, signal.SIGTERM)
                     except OSError:
@@ -1213,124 +1213,25 @@ class Application(object):
         return Response(json.dumps(matchings), mimetype='application/json')
 
 
-DEFAULT_CONFIG = {
-    "clusters": {
-        "quine": {
-            "type": "yt",
-            "options": {
-                "proxy": "quine.yt.yandex.net",
-            },
-            "version": 2,
-            "fastbone": True
-        },
-        "smith": {
-            "type": "yt",
-            "options": {
-                "proxy": "smith.yt.yandex.net",
-            },
-            "version": 1,
-            "fastbone": True
-        },
-        "plato": {
-            "type": "yt",
-            "options": {
-                "proxy": "plato.yt.yandex.net",
-            },
-            "version": 1,
-            "fastbone": True,
-            "dc_name": "sas"
-        },
-        "cedar": {
-            "type": "yamr",
-            "options": {
-                "server": "cedar00.search.yandex.net",
-                "opts": "MR_NET_TABLE=ipv6",
-                "binary": "/Berkanavt/bin/mapreduce-dev",
-                "server_port": 8013,
-                "http_port": 13013
-            },
-            "table_url_pattern": "https://specto.yandex.ru/cedar-viewer/table/?table=%table%",
-            "fastbone": True
-        },
-        "redwood": {
-            "type": "yamr",
-            "options": {
-                "server": "redwood00.search.yandex.net",
-                "binary": "/Berkanavt/bin/mapreduce-dev",
-                "server_port": 8013,
-                "http_port": 13013,
-                "timeout": 300
-            },
-            "table_url_pattern": "https://specto.yandex.ru/redwood-viewer/table/?table=%table%",
-            "fastbone": True
-        },
-        "flux": {
-            "type": "yt",
-            "options": {
-                "proxy": "flux.yt.yandex.net",
-                "token": "93b4cacc08aa4538a79a76c21e99c0fb"
-            }
-        },
-        "tasmania": {
-            "type": "hive",
-            "options": {
-                "hcatalog_host": "v013h.hdp.yandex.net:50111",
-                "hdfs_host": "v009h.hdp.yandex.net:14000",
-                "hive_importer_library": "/home/ignat/hive_import/hiveExporter.jar"
-            }
-        }
-    },
-    "kiwi_transmitter": "flux",
-    "availability_graph": {
-        "quine": ["cedar", "redwood", "plato", "smith"],
-        "smith": ["cedar", "redwood", "quine", "plato"],
-        "plato": ["cedar", "redwood", "quine", "smith"],
-        "cedar": ["redwood", "smith", "plato"],
-        "redwood": ["cedar", "smith", "plato"],
-        "tasmania": ["plato"]
-    },
-    "backend_tag": "testing",
-    "default_mr_user": "userdata",
-    "default_kiwi_user": "gemini",
-    "scheduling_backoff": 5,
-    "error_details_length_limit": 50000,
-    "pending_tasks_limit": 5000,
-    "pending_tasks_limit_per_user": 500,
-    "running_tasks_limit_per_direction": 10,
-    "running_jobs_limit_per_direction": 200,
-    "enable_detailed_traceback": False,
-
-    # Common config for all yt clients.
-    "yt_client_config": {
-        "operation_tracker": {
-            "ignore_stderr_if_download_failed": True
-        }
-    },
-
-    "yt_backend_options": {
-        "proxy": "plato.yt.yandex.net",
-        "token": "93b4cacc08aa4538a79a76c21e99c0fb"
-    },
-    "path": "//home/ignat/transfer_manager_test",
-
-    "port": 5010
-}
-
 def main():
     signal.signal(signal.SIGTERM, sigterm_handler)
 
     parser = argparse.ArgumentParser(description="Transfer manager.")
-    parser.add_argument("--config")
+    parser.add_argument("--execute-task", action="store_true", default=False)
+    parser.add_argument("--config", required=True)
     args = parser.parse_args()
 
-    if args.config is not None:
-        config = json.load(open(args.config))
+    if args.execute_task:
+        app = Application(args.config)
+        app.init_logger()
+        task = Task(**json.loads(sys.stdin.read().strip()))
+        message_queue = MessageWriter(sys.stdout)
+        app.execute_task(task, message_queue)
     else:
-        config = DEFAULT_CONFIG
-
-    app = Application(config)
-    app.run(host=config.get("host", "::"), port=config["port"], use_reloader=False, threaded=True)
-    app.terminate()
+        app = Application(args.config)
+        app.start_processes()
+        app.run(host=app._config.get("host", "::"), port=app._config["port"], use_reloader=False, threaded=True)
+        app.terminate()
 
 if __name__ == "__main__":
     main()
