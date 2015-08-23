@@ -173,29 +173,5 @@ void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAtt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAttributeDictionaryRefSerializer::Save(TStreamSaveContext& context, const std::unique_ptr<IAttributeDictionary>& obj)
-{
-    using NYT::Save;
-    if (obj) {
-        Save(context, true);
-        Save(context, *obj);
-    } else {
-        Save(context, false);
-    }
-}
-
-void TAttributeDictionaryRefSerializer::Load(TStreamLoadContext& context, std::unique_ptr<IAttributeDictionary>& obj)
-{
-    using NYT::Load;
-    if (Load<bool>(context)) {
-        obj = CreateEphemeralAttributes();
-        Load(context, *obj);
-    } else {
-        obj.reset();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYTree
 } // namespace NYT
