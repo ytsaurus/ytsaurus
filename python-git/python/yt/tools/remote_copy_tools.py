@@ -1,5 +1,6 @@
-from yt.wrapper.common import generate_uuid, bool_to_string
+from yt.wrapper.common import generate_uuid, bool_to_string, MB
 from yt.tools.conversion_tools import convert_to_erasure
+import yt.yson as yson
 import yt.logger as logger
 import yt.wrapper as yt
 
@@ -93,6 +94,12 @@ def _split_rows_yt(yt_client, table, split_size):
     data_size = yt_client.get(table + "/@uncompressed_data_size")
     return _split_rows(row_count, split_size, data_size)
 
+def _set_mapper_settings_for_read_from_yt(spec):
+    if "mapper" not in spec:
+        spec["mapper"] = {}
+    spec["mapper"]["memory_limit"] = 4 * 1024 * 1024 * 1024
+    spec["mapper"]["memory_reserve_factor"] = 0.2
+
 def _get_read_ranges_command(prepare_command, read_command):
     return """\
 set -uxe
@@ -109,19 +116,19 @@ while true; do
 done;""".format(prepare_command, read_command)
 
 def _get_read_from_yt_command(yt_client, src, format, fastbone):
-    token = yt_client.config.get("token", "")
-
-    hosts = "hosts"
-    if fastbone:
-        hosts = "hosts/fb"
-
-    command = """PATH=".:$PATH" PYTHONPATH=. YT_RETRY_READ=1 YT_HOSTS="{1}" """\
-              """yt2 read "{2}"'[#'"${{start}}"':#'"${{end}}"']' --format '{3}' --proxy {4}"""\
-              .format(token, hosts, src, format, yt_client.config["proxy"]["url"])
-
-    transaction = yt_client.TRANSACTION
-    if yt_client.TRANSACTION != "0-0-0-0":
-        command += " --tx " + transaction
+    assert yt_client.TRANSACTION is not None
+    config = {
+        "proxy": {
+            "proxy_discovery_url":("hosts/fb" if fastbone else "hosts")
+        },
+        "read_retries": {
+            "enable": True,
+            "create_transaction_and_take_snapshot_lock": False
+        }
+    }
+    command = """PATH=".:$PATH" PYTHONPATH=. """\
+              """yt2 read '{0}[#'"${{start}}"':#'"${{end}}"']' --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
+              .format(src, format, yt_client.config["proxy"]["url"], yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
 
     return command
 
@@ -168,48 +175,79 @@ def run_operation_and_notify(message_queue, run_operation, *args, **kwargs):
                             }})
     operation.wait()
 
+def copy_user_attributes(source_client, destination_client, source_table, destination_table):
+    source_attributes = source_client.get(source_table + "/@")
+
+    for attribute in source_attributes.get("user_attribute_keys", []):
+        destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
+
+def run_erasure_merge(source_client, destination_client, source_table, destination_table):
+    compression_codec = source_client.get_attribute(source_table, "compression_codec")
+    erasure_codec = source_client.get_attribute(source_table, "erasure_codec")
+
+    convert_to_erasure(destination_table, yt_client=destination_client, erasure_codec=erasure_codec,
+                       compression_codec=compression_codec)
+
 def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
 
-    if check_permission(source_client, "write", src):
-        try:
-            merge_spec = deepcopy(spec_template)
-            merge_spec["combine_chunks"] = bool_to_string(True)
-            run_operation_and_notify(
-                message_queue,
-                source_client.run_merge,
-                src,
-                src,
-                spec=merge_spec)
-        except yt.YtError as error:
-            raise yt.YtError("Failed to merge source table", inner_errors=[error])
+    compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
+    chunk_count = source_client.get_attribute(src, "chunk_count")
 
-    run_operation_and_notify(
-        message_queue,
-        destination_client.run_remote_copy,
-        src,
-        dst,
-        cluster_name=source_client._name,
-        network_name=network_name,
-        spec=spec_template,
-        remote_cluster_token=source_client.config["token"])
+    if compressed_data_size / chunk_count < 10 * MB and chunk_count > 100:
+        if check_permission(source_client, "write", src):
+            try:
+                merge_spec = deepcopy(spec_template)
+                merge_spec["combine_chunks"] = bool_to_string(True)
+                run_operation_and_notify(
+                    message_queue,
+                    source_client.run_merge,
+                    src,
+                    src,
+                    spec=merge_spec)
+            except yt.YtError as error:
+                raise yt.YtError("Failed to merge source table", inner_errors=[error])
+        else:
+            raise yt.YtError("Failed to merge source table {0}, no write permission. "
+                             "If you can not get a write permission use 'proxy' copy method".format(src))
+
+    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+    with destination_client.Transaction():
+        run_operation_and_notify(
+            message_queue,
+            destination_client.run_remote_copy,
+            src,
+            dst,
+            cluster_name=source_client._name,
+            network_name=network_name,
+            spec=spec_template,
+            remote_cluster_token=source_client.config["token"])
+
+        run_erasure_merge(source_client, destination_client, src, dst)
+        copy_user_attributes(source_client, destination_client, src, dst)
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
     if spec_template is None:
         spec_template = {}
 
     tmp_dir = tempfile.mkdtemp()
-    files = _prepare_read_from_yt_command(source_client, src, "yson", tmp_dir, fastbone, pack=True)
 
+    destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     try:
-        with source_client.Transaction():
+        with source_client.Transaction(), destination_client.Transaction():
+            # NB: for reliable access to table under snapshot lock we should use id.
+            src = "#" + source_client.get(src + "/@id")
+            source_client.lock(src, mode="snapshot")
+            files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
+
             sorted_by = None
+            dst_table = dst
             if source_client.exists(src + "/@sorted_by"):
                 sorted_by = source_client.get(src + "/@sorted_by")
+                dst_table = yt.TablePath(dst, client=source_client)
+                dst_table.attributes["sorted_by"] = sorted_by
             row_count = source_client.get(src + "/@row_count")
-            compression_codec = source_client.get(src + "/@compression_codec")
-            erasure_codec = source_client.get(src + "/@erasure_codec")
 
             ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
@@ -217,50 +255,45 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
 
             spec = deepcopy(spec_template)
             spec["data_size_per_job"] = 1
-            spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
+            _set_mapper_settings_for_read_from_yt(spec)
             spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
-            destination_client.create("table", dst, ignore_existing=True)
             run_operation_and_notify(
                 message_queue,
                 destination_client.run_map,
                 "bash read_from_yt.sh",
                 temp_table,
-                dst,
+                dst_table,
                 files=files,
                 spec=spec,
                 input_format=yt.SchemafulDsvFormat(columns=["start", "end"]),
-                output_format=yt.YsonFormat())
+                output_format=yt.JsonFormat())
 
             result_row_count = destination_client.records_count(dst)
             if row_count != result_row_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
-                raise yt.IncorrectRowCount(error)
+                raise IncorrectRowCount(error)
 
-            if sorted_by:
-                logger.info("Sorting '%s'", dst)
-                run_operation_and_notify(
-                    message_queue,
-                    destination_client.run_sort,
-                    dst,
-                    sort_by=sorted_by)
+            #if sorted_by:
+            #    logger.info("Sorting '%s'", dst)
+            #    run_operation_and_notify(
+            #        message_queue,
+            #        destination_client.run_sort,
+            #        dst,
+            #        sort_by=sorted_by)
 
-            convert_to_erasure(dst, yt_client=destination_client, erasure_codec=erasure_codec, compression_codec=compression_codec)
+            run_erasure_merge(source_client, destination_client, src, dst)
+            copy_user_attributes(source_client, destination_client, src, dst)
 
     finally:
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=False, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None, message_queue=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
-
-    record_count = yamr_client.records_count(src, allow_cache=True)
-    sorted = yamr_client.is_sorted(src, allow_cache=True)
-
-    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
 
     yt_client.mkdir(os.path.dirname(dst), recursive=True)
     if compression_codec is not None:
@@ -275,6 +308,11 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
         temp_yamr_table = "tmp/yt/" + generate_uuid()
         yamr_client.copy(src, temp_yamr_table)
         src = temp_yamr_table
+
+    record_count = yamr_client.records_count(src, allow_cache=True)
+    sorted = yamr_client.is_sorted(src, allow_cache=True)
+
+    logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
 
     ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
     read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id)
@@ -309,15 +347,24 @@ while true; do
     set +e;
 done"""
 
+    yt_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
+
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
         with yt_client.Transaction():
+            # NB: put back when it start working properly
+            #if sorted:
+            #    dst_path = yt.TablePath(dst, client=yt_client)
+            #    dst_path.attributes["sorted_by"] = ["key", "subkey"]
+            #else:
+            dst_path = dst
+
             run_operation_and_notify(
                 message_queue,
                 yt_client.run_map,
                 command,
                 temp_table,
-                dst,
+                dst_path,
                 input_format=yt.SchemafulDsvFormat(columns=["command"]),
                 output_format=yt.YamrFormat(lenval=True, has_subkey=True),
                 files=yamr_client.binary,
@@ -328,9 +375,9 @@ done"""
             if result_record_count != record_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
                 logger.error(error)
-                raise yt.IncorrectRowCount(error)
+                raise IncorrectRowCount(error)
 
-            if sorted or force_sort:
+            if (sorted and force_sort is None) or force_sort:
                 logger.info("Sorting '%s'", dst)
                 run_operation_and_notify(
                     message_queue,
@@ -345,7 +392,7 @@ done"""
         if not yamr_client.supports_read_snapshots:
             yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, job_count=None, fastbone=True, message_queue=None):
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, job_count=None, force_sort=None, fastbone=True, message_queue=None):
     if job_count is None:
         job_count = 200
 
@@ -375,7 +422,12 @@ while True:
 
     try:
         with yt_client.Transaction():
+            # NB: for reliable access to table under snapshot lock we should use id.
+            src = "#" + yt_client.get(src + "/@id")
+
             yt_client.lock(src, mode="snapshot")
+
+            is_sorted = yt_client.exists(src + "/@sorted_by")
 
             row_count = yt_client.get(src + "/@row_count")
 
@@ -398,7 +450,11 @@ while True:
                 yamr_client.drop(dst)
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
-                raise yt.IncorrectRowCount(error)
+                raise IncorrectRowCount(error)
+
+            if (is_sorted and force_sort is None) or force_sort:
+                yamr_client.run_sort(dst, dst)
+
     finally:
         shutil.rmtree(tmp_dir)
 
@@ -432,7 +488,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         yamr_client.drop(dst)
         error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
         logger.error(error)
-        raise yt.IncorrectRowCount(error)
+        raise IncorrectRowCount(error)
 
 def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, kwworm_options=None, message_queue=None):
     extract_value_script_to_table = """\
@@ -486,6 +542,7 @@ while True:
     spec["locality_timeout"] = 0
     spec["pool"] = "transfer_kiwi"
     spec["mapper"] = {"cpu_limit": 0}
+    _set_mapper_settings_for_read_from_yt(spec)
     if "max_failed_job_count" not in spec:
         spec["max_failed_job_count"] = 1000
 
@@ -517,7 +574,6 @@ while True:
             files=files,
             input_format=yt.YamrFormat(lenval=False,has_subkey=False),
             output_format=output_format,
-            memory_limit=1280 * yt.common.MB,
             spec=spec)
     finally:
         shutil.rmtree(tmp_dir)
@@ -530,8 +586,10 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
 
     tmp_dir = tempfile.mkdtemp()
     try:
-        files = _prepare_read_from_yt_command(yt_client, src, "<lenval=true>yamr", tmp_dir, fastbone, pack=True)
-        _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
+        with yt_client.Transaction():
+            yt_client.lock(src, mode="snapshot")
+            files = _prepare_read_from_yt_command(yt_client, src, "<lenval=true>yamr", tmp_dir, fastbone, pack=True)
+            _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command="bash read_from_yt.sh", ranges=ranges, files=files, **kwargs)
     finally:
         shutil.rmtree(tmp_dir)
 
@@ -551,7 +609,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spe
 
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
-    spec["mapper"] = {"memory_limit": 2 * 1024 * 1024 * 1024}
+    _set_mapper_settings_for_read_from_yt(spec)
     run_operation_and_notify(
         message_queue,
         yt_client.run_map,

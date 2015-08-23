@@ -5,10 +5,9 @@ from config import get_config
 from common import require, chunk_iter_stream, chunk_iter_string, bool_to_string, parse_bool
 from errors import YtError, YtResponseError
 from http import get_api_version
-from heavy_commands import make_heavy_request
+from heavy_commands import make_write_request, make_read_request
 from cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
-from transaction_commands import _make_transactional_request
-from table import prepare_path
+from table import to_table
 
 from yt.yson import to_yson_type
 
@@ -23,7 +22,7 @@ def md5sum(filename):
             h.update(buf)
     return h.hexdigest()
 
-def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
+def read_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
     """Download file from path in Cypress to local machine.
 
     :param path: (string of `TablePath`) path to file in Cypress
@@ -36,26 +35,61 @@ def download_file(path, response_type=None, file_reader=None, offset=None, lengt
     if response_type is not None:
         logger.info("Option response_type is deprecated and ignored")
 
-    params = {"path": prepare_path(path, client=client)}
+    path = to_table(path, client=client)
+    params = {"path": path.to_yson_type()}
     if file_reader is not None:
         params["file_reader"] = file_reader
-    if offset is not None:
-        params["offset"] = offset
     if length is not None:
         params["length"] = length
+    if offset is not None:
+        params["offset"] = offset
 
-    return _make_transactional_request(
-        "download" if get_api_version(client=client) == "v2" else "read_file",
+    def process_response(response):
+        pass
+
+    class RetriableState(object):
+        def __init__(self):
+            if offset is not None:
+                self.offset = offset
+            else:
+                self.offset = 0
+            self.length = length
+
+        def prepare_params_for_retry(self):
+            params["offset"] = self.offset
+            if self.length is not None:
+                params["length"] = self.length
+            return params
+
+        def iterate(self, response):
+            for chunk in chunk_iter_stream(response, get_config(client)["read_buffer_size"]):
+                yield chunk
+                if self.offset is not None:
+                    self.offset += len(chunk)
+                if self.length is not None:
+                    self.length -= len(chunk)
+
+    command_name = "download" if get_api_version(client=client) == "v2" else "read_file"
+    return make_read_request(
+        command_name,
+        path,
         params,
-        return_content=False,
-        use_heavy_proxy=True,
+        process_response_action=process_response,
+        retriable_state_class=RetriableState,
         client=client)
 
-def upload_file(stream, destination, file_writer=None, client=None):
+def download_file(path, response_type=None, file_reader=None, offset=None, length=None, client=None):
+    """Download file from path in Cypress to local machine. Deprecated!
+    .. seealso::  :py:func:`yt.wrapper.file_commands.read_file`.
+    """
+    return read_file(path=path, response_type=response_type, file_reader=file_reader,
+                     offset=offset, length=length, client=client)
+
+def write_file(destination, stream, file_writer=None, client=None):
     """Upload file to destination path from stream on local machine.
 
-    :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param destination: (string or `TablePath`) destination path in Cypress
+    :param stream: some stream, string generator or 'yt.wrapper.string_iter_io.StringIterIO' for example
     :param file_writer: (dict) spec of upload operation
     """
     # Read stream by chunks. Also it helps to correctly process StringIO from cStringIO (it has bug with default iteration)
@@ -69,14 +103,29 @@ def upload_file(stream, destination, file_writer=None, client=None):
     if file_writer is not None:
         params["file_writer"] = file_writer
 
-    make_heavy_request(
+    enable_retries = get_config(client)["write_retries"]["enable"]
+    if get_config(client)["write_file_as_one_chunk"]:
+        if "file_writer" not in params:
+            params["file_writer"] = {}
+        params["file_writer"]["desired_chunk_size"] = 1024 ** 4
+        enable_retries = False
+
+    make_write_request(
         "upload" if get_api_version(client=client) == "v2" else "write_file",
         stream,
         destination,
         params,
         lambda path: create("file", path, ignore_existing=True, client=client),
-        get_config(client)["write_retries"]["enable"],
+        enable_retries,
         client=client)
+
+def upload_file(stream, destination, file_writer=None, client=None):
+    """Upload file to destination path from stream on local machine. Deprecated!
+    .. seealso::  :py:func:`yt.wrapper.file_commands.write_file`.
+    .. note:: upload_file and write_file have different argument order. \
+    Be careful renaming upload_file to write_file!
+    """
+    write_file(destination=destination, stream=stream, file_writer=file_writer, client=client)
 
 def smart_upload_file(filename, destination=None, yt_filename=None, placement_strategy=None, ignore_set_attributes_error=True, client=None):
     """
@@ -94,18 +143,18 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
     'placement_strategy':
 
     * "replace" or "ignore" -> destination path will be 'destination' \
-    or 'config.FILE_STORAGE/<basename>' if destination is not specified
+    or 'config["remote_temp_files_directory"]/<basename>' if destination is not specified
 
-    * "random" (only for None `destination` param) -> destination path will be 'config.FILE_STORAGE/<basename><random_suffix>'\
+    * "random" (only for None `destination` param) -> destination path will be 'config["remote_temp_files_directory"]/<basename><random_suffix>'\
 
-    * "hash" (only for None `destination` param) -> destination path will be 'config.FILE_STORAGE/hash/<md5sum_of_file>' \
+    * "hash" (only for None `destination` param) -> destination path will be 'config["remote_temp_files_directory"]/hash/<md5sum_of_file>' \
     or this path will be link to some random Cypress path
     """
 
     def upload_with_check(path):
         require(not exists(path, client=client),
                 YtError("Cannot upload file to '{0}', node already exists".format(path)))
-        upload_file(open(filename), path, client=client)
+        write_file(path, open(filename), client=client)
 
     require(os.path.isfile(filename),
             YtError("Upload: %s should be file" % filename))
