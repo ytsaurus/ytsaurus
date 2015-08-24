@@ -17,7 +17,7 @@ class TestTablets(YTEnvSetup):
             sleep(1)
 
     def _wait_for_cells(self, ids):
-        print "Waiting for tablet cells to become healthy..."
+        print >>sys.stderr, "Waiting for tablet cells to become healthy..."
         self._wait(lambda: all(get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
 
     def _sync_create_cells(self, size, count):
