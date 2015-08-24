@@ -10,8 +10,6 @@ import uuid
 import pytest
 
 from time import sleep
-from functools import wraps
-import pytest
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
