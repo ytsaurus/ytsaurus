@@ -1061,7 +1061,8 @@ class Finalizer(object):
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
         if get_config(self.client)["auto_merge_output"]["action"] == "merge":
-            table = TablePath(table, append=False)
+            table = TablePath(table)
+            table.attributes.clear()
             try:
                 run_merge(source_table=table, destination_table=table, mode=mode,
                           spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
