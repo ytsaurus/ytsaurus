@@ -113,7 +113,7 @@ private:
             request->has_account() ? MakeNullable(request->account()) : Null);
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction =  transactionId != NullTransactionId
+        auto* transaction =  transactionId
             ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 

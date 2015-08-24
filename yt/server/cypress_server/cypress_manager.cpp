@@ -1207,7 +1207,7 @@ private:
 
             // Reconstruct TrunkNode and Transaction.
             auto transactionId = node->GetVersionedId().TransactionId;
-            if (transactionId != NullTransactionId) {
+            if (transactionId) {
                 node->SetTrunkNode(GetNode(TVersionedNodeId(node->GetId())));
                 node->SetTransaction(transactionManager->GetTransaction(transactionId));
             }
@@ -2015,14 +2015,14 @@ private:
         auto type = EObjectType(request.type());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction =  transactionId == NullTransactionId
-            ? nullptr
-            : transactionManager->GetTransaction(transactionId);
+        auto* transaction = transactionId
+            ? transactionManager->GetTransaction(transactionId)
+            : nullptr;
 
         auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = accountId == NullObjectId
-            ? nullptr
-            : securityManager->GetAccount(accountId);
+        auto* account = accountId
+            ? securityManager->GetAccount(accountId)
+            : nullptr;
 
         auto attributes = request.has_node_attributes()
             ? FromProto(request.node_attributes())
@@ -2076,11 +2076,11 @@ private:
         auto* account = securityManager->GetAccount(accountId);
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = clonedTransactionId == NullTransactionId
-            ? nullptr
-            : transactionManager->GetTransaction(clonedTransactionId);
+        auto* clonedTransaction = clonedTransactionId
+            ? transactionManager->GetTransaction(clonedTransactionId)
+            : nullptr;
 
-        auto factory = CreateNodeFactory(transaction, account, false);
+        auto factory = CreateNodeFactory(clonedTransaction, account, false);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Cloning foreign node (SourceNodeId: %v, ClonedNodeId: %v, Account: %v)",
             TVersionedNodeId(sourceNodeId, sourceTransactionId),
@@ -2096,7 +2096,7 @@ private:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(clonedTrunkNode);
 
-        LockNode(clonedTrunkNode, transaction, ELockMode::Exclusive);
+        LockNode(clonedTrunkNode, clonedTransaction, ELockMode::Exclusive);
 
         factory->Commit();
     }

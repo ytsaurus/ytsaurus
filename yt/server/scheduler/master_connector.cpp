@@ -296,7 +296,7 @@ public:
     void AttachJobContext(const TYPath& path, const TChunkId& inputContextChunkId, const TJobId& jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(inputContextChunkId != NullChunkId);
+        YCHECK(inputContextChunkId);
 
         auto validate = [&] (const TError& error) {
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -1567,10 +1567,10 @@ private:
         std::vector<TChunkId> stderrChunkIds;
         std::vector<TChunkId> failContextChunkIds;
         for (const auto& request : jobRequests) {
-            if (request.StderrChunkId != NullChunkId) {
+            if (request.StderrChunkId) {
                 stderrChunkIds.push_back(request.StderrChunkId);
             }
-            if (request.FailContextChunkId != NullChunkId) {
+            if (request.FailContextChunkId) {
                 failContextChunkIds.push_back(request.FailContextChunkId);
             }
         }
