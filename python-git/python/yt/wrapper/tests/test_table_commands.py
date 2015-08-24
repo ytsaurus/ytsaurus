@@ -1,4 +1,4 @@
-from yt.wrapper.table import TablePath
+from yt.wrapper.table import TablePath, TempTable
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, check, get_temp_dsv_records
@@ -125,6 +125,10 @@ class TestTableCommands(object):
 
         table = yt.create_temp_table(path=TEST_DIR, prefix="prefix")
         assert table.startswith(TEST_DIR + "/prefix")
+
+        with TempTable() as table:
+            assert yt.exists(table)
+        assert not yt.exists(table)
 
     def test_write_many_chunks(self):
         yt.config.WRITE_BUFFER_SIZE = 1
