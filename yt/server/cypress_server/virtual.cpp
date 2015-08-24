@@ -281,11 +281,6 @@ bool TVirtualMulticellMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
     return false;
 }
 
-TFuture<bool> TVirtualMulticellMapBase::CheckBuiltinAttributeExistsAsync(const Stroka& key)
-{
-    return Null;
-}
-
 TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSizes()
 {
     std::vector<TFuture<std::pair<TCellTag, i64>>> asyncResults{

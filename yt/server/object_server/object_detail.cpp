@@ -609,11 +609,6 @@ bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
     return false;
 }
 
-TFuture<bool> TObjectProxyBase::CheckBuiltinAttributeExistsAsync(const Stroka& /*key*/)
-{
-    return Null;
-}
-
 void TObjectProxyBase::DeclareMutating()
 {
     YCHECK(NHydra::HasMutationContext());

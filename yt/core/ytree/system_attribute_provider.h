@@ -16,12 +16,6 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAttributePresenceMode,
-    (True)
-    (False)
-    (Async)
-);
-
 struct ISystemAttributeProvider
 {
     virtual ~ISystemAttributeProvider()
@@ -31,7 +25,7 @@ struct ISystemAttributeProvider
     struct TAttributeDescriptor
     {
         const char* Key = nullptr;
-        EAttributePresenceMode Present = EAttributePresenceMode::True;
+        bool Present = true;
         bool Opaque = false;
         bool Custom = false;
         bool Removable = false;
@@ -40,12 +34,6 @@ struct ISystemAttributeProvider
         EPermissionSet WritePermission = EPermission::Write;
 
         TAttributeDescriptor& SetPresent(bool value)
-        {
-            Present = value ? EAttributePresenceMode::True : EAttributePresenceMode::False;
-            return *this;
-        }
-
-        TAttributeDescriptor& SetPresent(EAttributePresenceMode value)
         {
             Present = value;
             return *this;
@@ -128,12 +116,6 @@ struct ISystemAttributeProvider
      *  \returns |false| if there is no removable builtin attribute with the given key.
      */
     virtual bool RemoveBuiltinAttribute(const Stroka& key) = 0;
-
-    //! Asynchronously checks if a given builtin attribute (marked with |EAttributePresenceMode::Async|) exists.
-    /*!
-     *  \returns A future representing the outcome of the check or |Null| if no such asynchronous attribute is known.
-     */
-    virtual TFuture<bool> CheckBuiltinAttributeExistsAsync(const Stroka& key) = 0;
 
 
     // Extension methods.

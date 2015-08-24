@@ -77,8 +77,6 @@ protected:
     virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
     TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(const Stroka& key);
     virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
-    virtual TFuture<bool> CheckBuiltinAttributeExistsAsync(const Stroka& key) override;
-    TFuture<bool> CheckExternalBuiltinAttributeExistsAsync(const Stroka& key);
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
     virtual void AfterInvoke(NRpc::IServiceContextPtr context) override;
