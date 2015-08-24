@@ -63,7 +63,7 @@ public:
 
 private:
     const TQueryAgentConfigPtr Config_;
-    const NCellNode::TBootstrap* Bootstrap_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
