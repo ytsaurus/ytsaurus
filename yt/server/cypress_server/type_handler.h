@@ -95,7 +95,7 @@ struct INodeTypeHandler
     virtual bool IsExternalizable() = 0;
 
     //! Returns the total resource usage as seen by the user.
-    //! These values are exposes via |resource_usage| attribute.
+    //! These values are exposed via |resource_usage| attribute.
     virtual NSecurityServer::TClusterResources GetTotalResourceUsage(const TCypressNodeBase* node) = 0;
 
     //! Returns the incremental resource usage for accounting purposes.
