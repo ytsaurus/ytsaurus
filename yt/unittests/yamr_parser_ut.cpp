@@ -214,6 +214,34 @@ TEST(TYamrParserTest, Escaping)
     ParseYamr(input, &Mock, config);
 }
 
+TEST(TYamrParserTest, CustomSeparators)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    InSequence dummy;
+
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar("value"));
+    EXPECT_CALL(Mock, OnEndMap());
+    EXPECT_CALL(Mock, OnListItem());
+    EXPECT_CALL(Mock, OnBeginMap());
+        EXPECT_CALL(Mock, OnKeyedItem("key"));
+        EXPECT_CALL(Mock, OnStringScalar("key2"));
+        EXPECT_CALL(Mock, OnKeyedItem("value"));
+        EXPECT_CALL(Mock, OnStringScalar("value2"));
+    EXPECT_CALL(Mock, OnEndMap());
+
+    auto config = New<TYamrFormatConfig>();
+    config->RecordSeparator = 'Y';
+    config->FieldSeparator = 'X';
+
+    Stroka input = "keyXvalueYkey2Xvalue2Y";
+    ParseYamr(input, &Mock, config);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -413,6 +413,15 @@ void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema
         }
 #endif
     }
+
+    for (const auto& newColumn : newSchema.Columns()) {
+        if (!oldSchema.FindColumn(newColumn.Name)) {
+            if (newColumn.Expression) {
+                THROW_ERROR_EXCEPTION("New computed column %Qv",
+                    newColumn.Name);
+            }
+        }
+    }
 }
 
 void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema, int keyColumnCount)

@@ -313,7 +313,8 @@ private:
         {
             static const yhash_set<int> masterMetaTags{
                 TProtoExtensionTag<TMiscExt>::Value,
-                TProtoExtensionTag<NVersionedTableClient::NProto::TBoundaryKeysExt>::Value
+                TProtoExtensionTag<NVersionedTableClient::NProto::TBoundaryKeysExt>::Value,
+                TProtoExtensionTag<NVersionedTableClient::NProto::TOldBoundaryKeysExt>::Value
             };
 
             auto masterChunkMeta = chunkMeta;

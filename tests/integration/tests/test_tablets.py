@@ -503,7 +503,8 @@ class TestTablets(YTEnvSetup):
         tablet_data = self._find_tablet_orchid(address, tablet_id)
         assert len(tablet_data["eden"]["stores"]) == 1
         assert len(tablet_data["partitions"]) == 1
-        assert len(tablet_data["partitions"][0]["stores"]) == 1
+        # Getting 2 stores is also possible since the rotation may happen while the rows were locked.
+        assert len(tablet_data["partitions"][0]["stores"]) >= 1
 
     def _test_in_memory(self, mode):
         self._sync_create_cells(1, 1)
@@ -581,6 +582,9 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t/@schema", [
             {"name": "key", "type": "uint64"},
             {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t/@schema", [
+            {"name": "key", "type": "int64"},
+            {"name": "value1", "type": "string"}])
 
         self._create_table_with_computed_column("//tmp/t1")
         self._sync_mount_table("//tmp/t1")
@@ -596,6 +600,11 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t1/@schema", [
             {"name": "key1", "type": "int64"},
             {"name": "key2", "type": "int64", "expression": "key1 * 100"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t1/@schema", [
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
+            {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3"},
             {"name": "value", "type": "string"}])
 
     def test_update_key_columns_success(self):
