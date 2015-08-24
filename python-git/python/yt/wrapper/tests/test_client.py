@@ -149,6 +149,11 @@ class TestClient(object):
 
             assert other_client.get("/")
             assert '{"a":"b"}\n' == other_client.read_table(other_table, raw=True).read()
+
+            with client.TempTable(TEST_DIR) as table:
+                assert client.exists(table)
+            assert not client.exists(table)
+
         finally:
             yt.config["proxy"]["url"] = old_proxy_url
 
