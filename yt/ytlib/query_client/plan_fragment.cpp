@@ -167,7 +167,7 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires either integral or floating-point operand",
                     source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
+                    << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
         case EUnaryOp::Not:
@@ -175,7 +175,7 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires boolean operand",
                     source)
-                    << TErrorAttribute("operand_type", ToString(operandType));
+                    << TErrorAttribute("operand_type", operandType);
             }
             return operandType;
 
