@@ -53,10 +53,6 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DriverLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TDriverRequest::TDriverRequest()
     : InputStream(nullptr)
     , OutputStream(nullptr)
@@ -159,16 +155,11 @@ public:
                 request.CommandName));
         }
 
-        LOG_INFO("Command started (Command: %v, User: %v)",
-            request.CommandName,
-            request.AuthenticatedUser);
-
         const auto& entry = it->second;
 
         YCHECK(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YCHECK(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
-        // TODO(babenko): ReadFromFollowers is switched off
         auto context = New<TCommandContext>(
             this,
             entry.Descriptor,
@@ -246,12 +237,7 @@ private:
             command->Execute(context);
         }
 
-        const auto& error = context->GetError();
-        if (error.IsOK()) {
-            LOG_INFO("Command completed (Command: %v)", request.CommandName);
-        } else {
-            LOG_INFO(error, "Command failed (Command: %v)", request.CommandName);
-        }
+        auto error = context->GetError();
 
         WaitFor(context->Terminate());
 
@@ -279,7 +265,6 @@ private:
 
         TFuture<void> Terminate()
         {
-            LOG_DEBUG("Terminating client");
             return Client_->Terminate();
         }
 
