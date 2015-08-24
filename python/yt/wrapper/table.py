@@ -5,6 +5,8 @@ from config import get_config
 
 from yt.yson import YsonString
 
+from contextlib import contextmanager
+
 def check_prefix(prefix):
     require(prefix.startswith("//"),
             YtError("PREFIX should start with //"))
@@ -156,3 +158,17 @@ def to_name(object, client=None):
 
 def prepare_path(object, client=None):
     return to_table(object, client=client).to_yson_type()
+
+@contextmanager
+def TempTable(path=None, prefix=None, client=None):
+    """Create temporary table in given path with given prefix on scope enter and remove it on scope exit.
+       .. seealso:: :py:func:`yt.wrapper.table_commands.create_temp_table`
+    """
+    from cypress_commands import remove
+    from table_commands import create_temp_table
+
+    table = create_temp_table(path, prefix, client=client)
+    try:
+        yield table
+    finally:
+        remove(table, force=True, client=client)
