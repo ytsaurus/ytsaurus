@@ -27,7 +27,6 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto CellsScanPeriod = TDuration::Seconds(3);
 static const auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +101,7 @@ void TTabletTracker::Start()
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TTabletTracker::ScanCells, MakeWeak(this)),
-        CellsScanPeriod);
+        Config_->CellScanPeriod);
     PeriodicExecutor_->Start();
 }
 
