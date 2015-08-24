@@ -356,14 +356,13 @@ TFuture<TYsonString> TSupportsAttributes::DoGetAttribute(const TYPath& path)
             std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
             builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
             for (const auto& descriptor : builtinDescriptors) {
-                if (descriptor.Present == EAttributePresenceMode::False)
+                if (!descriptor.Present)
                     continue;
 
                 auto key = Stroka(descriptor.Key);
                 TAttributeValueConsumer attributeValueConsumer(&writer, key);
 
                 if (descriptor.Opaque) {
-                    // TODO(babenko): Opaque && Present == Async is not currently supported
                     attributeValueConsumer.OnEntity();
                     continue;
                 }
@@ -454,7 +453,9 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
     NYPath::TTokenizer tokenizer(path);
 
     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        TAsyncYsonWriter writer;
+        TStringStream stream;
+        TYsonWriter writer(&stream);
+
         writer.OnBeginList();
 
         auto* customAttributes = GetCustomAttributes();
@@ -471,40 +472,16 @@ TFuture<TYsonString> TSupportsAttributes::DoListAttribute(const TYPath& path)
             std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinDescriptors;
             builtinAttributeProvider->ListBuiltinAttributes(&builtinDescriptors);
             for (const auto& descriptor : builtinDescriptors) {
-                switch (descriptor.Present) {
-                    case EAttributePresenceMode::True:
-                        writer.OnListItem();
-                        writer.OnStringScalar(descriptor.Key);
-                        break;
-
-                    case EAttributePresenceMode::False:
-                        break;
-
-                    case EAttributePresenceMode::Async: {
-                        auto key = Stroka(descriptor.Key);
-                        auto asyncResult = builtinAttributeProvider->CheckBuiltinAttributeExistsAsync(key);
-                        if (asyncResult) {
-                            writer.OnRaw(asyncResult.Apply(BIND([=] (bool value) {
-                                TStringStream stream;
-                                TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::ListFragment);
-                                if (value) {
-                                    writer.OnListItem();
-                                    writer.OnStringScalar(key);
-                                }
-                                return TYsonString(stream.Str(), EYsonType::ListFragment);
-                            })));
-                        }
-                        break;
-                    }
-                    default:
-                        YUNREACHABLE();
+                if (descriptor.Present) {
+                    writer.OnListItem();
+                    writer.OnStringScalar(descriptor.Key);
                 }
             }
         }
 
         writer.OnEndList();
 
-        return writer.Finish();
+        return MakeFuture(TYsonString(stream.Str()));
     } else  {
         tokenizer.Expect(NYPath::ETokenType::Literal);
         auto key = tokenizer.GetLiteralValue();
@@ -581,18 +558,7 @@ TFuture<bool> TSupportsAttributes::DoExistsAttribute(const TYPath& path)
             auto maybeDescriptor = builtinAttributeProvider->FindBuiltinAttributeDescriptor(key);
             if (maybeDescriptor) {
                 const auto& descriptor = *maybeDescriptor;
-                switch (descriptor.Present) {
-                    case EAttributePresenceMode::True:
-                        return TrueFuture;
-                    case EAttributePresenceMode::False:
-                        return FalseFuture;
-                    case EAttributePresenceMode::Async: {
-                        auto asyncResult = builtinAttributeProvider->CheckBuiltinAttributeExistsAsync(key);
-                        return  asyncResult ? asyncResult : FalseFuture;
-                    }
-                    default:
-                        YUNREACHABLE();
-                }
+                return descriptor.Present ? TrueFuture : FalseFuture;
             }
         }
 

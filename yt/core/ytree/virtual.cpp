@@ -184,11 +184,6 @@ bool TVirtualMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
     return false;
 }
 
-TFuture<bool> TVirtualMapBase::CheckBuiltinAttributeExistsAsync(const Stroka& /*key*/)
-{
-    return Null;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualEntityNode
