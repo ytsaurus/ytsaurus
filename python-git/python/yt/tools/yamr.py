@@ -22,13 +22,13 @@ def set_pdeathsig():
 class YamrError(YtError):
     pass
 
-def _check_output(command, **kwargs):
+def _check_output(command, silent=False, **kwargs):
     logger.info("Executing command '{}'".format(command))
     result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
     logger.info("Command '{}' successfully executed".format(command))
     return result
 
-def _check_call(command, **kwargs):
+def _check_call(command, silent=False, **kwargs):
     logger.info("Executing command '{}'".format(command))
     timeout = kwargs.pop('timeout', None)
     proc = subprocess.Popen(command, stderr=subprocess.PIPE, preexec_fn=set_pdeathsig, **kwargs)
@@ -71,9 +71,6 @@ class Yamr(object):
         self.scheduler_info_update_period = scheduler_info_update_period
         self._last_update_time_of_scheduler_info = None
         self.scheduler_info = {}
-
-        # Check that binary exists and supports help
-        _check_output("{0} --help".format(self.binary), shell=True)
 
         self.supports_shared_transactions = \
             subprocess.call("{0} --help | grep sharedtransaction >/dev/null".format(self.binary), shell=True) == 0

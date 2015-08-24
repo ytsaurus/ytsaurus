@@ -1222,8 +1222,12 @@ def main():
     args = parser.parse_args()
 
     if args.execute_task:
+        # NB: we do not want see configuration messages for each task.
+        logger.LOGGER.setLevel(logging.WARNING)
         app = Application(args.config)
         app.init_logger()
+        logger.LOGGER.setLevel(logging.INFO)
+
         task = Task(**json.loads(sys.stdin.read().strip()))
         message_queue = MessageWriter(sys.stdout)
         app.execute_task(task, message_queue)
