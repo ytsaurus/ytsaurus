@@ -30,19 +30,8 @@ def _write_config(config, filename, format="yson"):
         else:  # json
             json.dump(config, f, indent=4)
 
-<<<<<<< HEAD
-def write_config(config, filename):
-    with open(filename, 'wt') as f:
-        f.write(yson.dumps(config, yson_format="pretty", boolean_as_string=False))
 
-def write_with_flush(data):
-    sys.stdout.write(data)
-    sys.stdout.flush()
-
-def get_open_port():
-=======
 def _get_open_port():
->>>>>>> origin/master
     for _ in xrange(GEN_PORT_ATTEMPTS):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -131,16 +120,14 @@ class YTEnv(object):
         self._ports = defaultdict(list)
         self._kill_previously_run_services()
 
-<<<<<<< HEAD
-        self._run_all(self.NUM_MASTERS, self.NUM_SECONDARY_MASTER_CELLS, self.NUM_NODES, self.NUM_SCHEDULERS, self.START_PROXY,
-                      start_secondary_master_cells=self.START_SECONDARY_MASTER_CELLS, ports=ports)
-
-    def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy, start_secondary_master_cells=True,
-                 instance_id="", cell_tag=0, ports=None):
-        get_open_port.busy_ports = set()
-=======
-        self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS,
-                      self.START_PROXY, self.USE_PROXY_FROM_PACKAGE, ports=ports)
+        self._run_all(self.NUM_MASTERS,
+                      self.NUM_SECONDARY_MASTER_CELLS,
+                      self.NUM_NODES,
+                      self.NUM_SCHEDULERS,
+                      self.START_PROXY,
+                      use_proxy_from_package=self.USE_PROXY_FROM_PACKAGE,
+                      start_secondary_master_cells=self.START_SECONDARY_MASTER_CELLS,
+                      ports=ports)
 
     def _get_localhost_addresses(self, addresses):
         return ["localhost:" + addr.rsplit(":", 1)[1] for addr in addresses]
@@ -203,11 +190,10 @@ class YTEnv(object):
                 callback_func(self, args)
                 break
 
-    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, use_proxy_from_package=False,
-                 instance_id="", cell_tag=0, ports=None):
+    def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy,
+                 use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0, ports=None):
 
         _get_open_port.busy_ports = set()
->>>>>>> origin/master
 
         def list_ports(service_name, count):
             if ports is not None and service_name in ports:
@@ -229,15 +215,9 @@ class YTEnv(object):
         list_ports(node_name, 2 * nodes_count)
         list_ports(proxy_name, 2)
 
-<<<<<<< HEAD
-        logging.info('Setting up configuration with %s masters, %s nodes, %s schedulers, % secondary master cells' %
-                     (masters_count, nodes_count, schedulers_count, secondary_master_cell_count))
-        logging.info('SANDBOX_DIR is %s', self.path_to_run)
-=======
-        logger.info("Setting up configuration with %d masters, %d nodes, %d schedulers, %d proxy.",
-                     masters_count, nodes_count, schedulers_count, int(has_proxy))
+        logger.info("Setting up configuration with %d masters, %d nodes, %d schedulers, % secondary master cells, %d proxy.",
+                     masters_count, nodes_count, schedulers_count, secondary_master_cell_count, int(has_proxy))
         logger.info("YT working dir is %s", self.path_to_run)
->>>>>>> origin/master
 
         if masters_count == 0:
             logger.info("Do nothing, because we have 0 masters")
@@ -245,30 +225,22 @@ class YTEnv(object):
             return
 
         try:
-<<<<<<< HEAD
-            logging.info("Configuring...")
             self._run_masters(masters_count, master_name, secondary_master_cell_count, cell_tag, start_secondary_master_cells=start_secondary_master_cells)
-            self._run_schedulers(schedulers_count, scheduler_name, cell_tag)
-            self._run_nodes(nodes_count, node_name, cell_tag)
-            self._prepare_driver(driver_name, secondary_master_cell_count, cell_tag)
-            self._prepare_console_driver(console_driver_name, self.configs[driver_name])
-            self._run_proxy(has_proxy, proxy_name, cell_tag)
-=======
-            self._run_masters(masters_count, master_name, cell_tag)
             self._run_schedulers(schedulers_count, scheduler_name)
             self._run_nodes(nodes_count, node_name)
-            self._prepare_driver(driver_name)
+            self._prepare_driver(driver_name, secondary_master_cell_count)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
             self._run_proxy(has_proxy, proxy_name, use_proxy_from_package)
-            self._write_environment_info_to_file(masters_count, schedulers_count, nodes_count, has_proxy)
->>>>>>> origin/master
+            self._write_environment_info_to_file(masters_count, secondary_master_cell_count, schedulers_count, nodes_count, has_proxy)
         except:
             self.clear_environment()
             raise
 
-    def _write_environment_info_to_file(self, masters_count, schedulers_count, nodes_count, has_proxy):
+    def _write_environment_info_to_file(self, masters_count, secondary_master_cell_count, schedulers_count, nodes_count, has_proxy):
         info = {}
         info["master"] = {"addresses": self.get_master_addresses()}
+        if secondary_master_cell_count > 0:
+            info["secondary_master_cell_count"] = secondary_master_cell_count
         if schedulers_count > 0:
             info["scheduler"] = {"addresses": self.get_scheduler_addresses()}
         if nodes_count > 0:
@@ -322,49 +294,7 @@ class YTEnv(object):
         if proc.returncode is None:
             return False, "Alarm! {0} (pid {1}) was not killed after 50 iterations\n".format(name, proc.pid)
 
-<<<<<<< HEAD
-    def kill_service(self, name):
-        print "Killing", name
-
-        ok = True
-        message = ""
-        remaining_processes = []
-        for p in self._process_to_kill[name]:
-            p_message, p_ok = self.kill_process(p, name)
-            if not p_ok:
-                ok = False
-                remaining_processes.append(p)
-            else:
-                del self._all_processes[p.pid]
-            message += p_message
-
-        self._process_to_kill[name] = remaining_processes
-
-        return ok, message
-
-
-    def clear_environment(self, safe=True):
-        total_ok = True
-        total_message = ""
-        for name in self.configs:
-            ok, message = self.kill_service(name)
-            if not ok:
-                total_ok = False
-                total_message += message + "\n\n"
-
-        if safe:
-            assert total_ok, total_message
-
-    def check_liveness(self):
-        for pid, info in self._all_processes.iteritems():
-            proc, args = info
-            if proc.returncode is not None:
-                self.clear_environment(safe=False)
-                py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
-                             .format(" ".join(args)))
-=======
         return True, ""
->>>>>>> origin/master
 
     def _secondary_master_name(self, master_name, index):
         return master_name + "_secondary_" + str(index)
@@ -429,7 +359,6 @@ class YTEnv(object):
         if masters_count == 0:
             return
 
-<<<<<<< HEAD
         self._master_cell_tags = {}
         self._primary_masters = {}
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -439,42 +368,21 @@ class YTEnv(object):
                 current_master_name = self._secondary_master_name(master_name, cell_index - 1)
             self._master_cell_tags[current_master_name] = cell_tag + cell_index
             self._primary_masters[current_master_name] = master_name
-=======
-        self._master_addresses[master_name] = ["%s:%s" % (self._hostname, self._ports[master_name][2 * i])
-                                               for i in xrange(masters_count)]
->>>>>>> origin/master
 
             self._master_addresses[current_master_name] = \
                     ["%s:%s" % (self._hostname, self._ports[current_master_name][2 * i])
                      for i in xrange(masters_count)]
 
-<<<<<<< HEAD
             os.mkdir(os.path.join(self.path_to_run, current_master_name))
-=======
-        for i in xrange(masters_count):
-            config = self.CONFIGS_MODULE.get_master_config()
->>>>>>> origin/master
 
             for master_index in xrange(masters_count):
-                config = configs.get_master_config()
+                config = self.CONFIGS_MODULE.get_master_config()
 
-<<<<<<< HEAD
                 current = os.path.join(self.path_to_run, current_master_name, str(master_index))
                 os.mkdir(current)
 
                 config["rpc_port"] = self._ports[current_master_name][2 * master_index]
                 config["monitoring_port"] = self._ports[current_master_name][2 * master_index + 1]
-=======
-            config["rpc_port"] = self._ports[master_name][2 * i]
-            config["monitoring_port"] = self._ports[master_name][2 * i + 1]
-
-            config["master"]["cell_tag"] = cell_tag
-            config["master"]["addresses"] = self._master_addresses[master_name]
-            config["timestamp_provider"]["addresses"] = self._master_addresses[master_name]
-            config["changelogs"]["path"] = os.path.join(current, "changelogs")
-            config["snapshots"]["path"] = os.path.join(current, "snapshots")
-            config["logging"] = self._init_logging(config["logging"], current, "master-" + str(i))
->>>>>>> origin/master
 
                 config["primary_master"]["cell_id"] = "ffffffff-ffffffff-%x0259-ffffffff" % cell_tag
                 config["primary_master"]["addresses"] = self._master_addresses[master_name]
@@ -487,37 +395,25 @@ class YTEnv(object):
                 config["timestamp_provider"]["addresses"] = self._master_addresses[master_name]
                 config["changelogs"]["path"] = os.path.join(current, "changelogs")
                 config["snapshots"]["path"] = os.path.join(current, "snapshots")
-                config["logging"] = init_logging(config["logging"], current, "master-" + str(master_index))
+                config["logging"] = self._init_logging(config["logging"], current, "master-" + str(master_index))
 
-<<<<<<< HEAD
                 self.modify_master_config(config)
                 update(config, self.DELTA_MASTER_CONFIG)
 
                 config_path = os.path.join(current, "master_config.yson")
-                write_config(config, config_path)
+                _write_config(config, config_path)
 
                 self.configs[current_master_name].append(config)
                 self.config_paths[current_master_name].append(config_path)
                 self.log_paths[current_master_name].append(config["logging"]["writers"]["debug"]["file_name"])
-=======
-            config_path = os.path.join(current, "master_config.yson")
-            _write_config(config, config_path)
-
-            self.configs[master_name].append(config)
-            self.config_paths[master_name].append(config_path)
-            self.log_paths[master_name].append(config["logging"]["writers"]["info"]["file_name"])
-
-    def start_masters(self, master_name):
-        masters_count = len(self.log_paths[master_name])
-        if masters_count == 0:
-            return
-
-        self._run_ytserver("master", master_name)
->>>>>>> origin/master
 
     def start_masters(self, master_name, secondary=None):
         if secondary is None:
             secondary = "secondary" in master_name
+
+        masters_count = len(self.log_paths[master_name])
+        if masters_count == 0:
+            return
 
         self._run_ytserver("master", master_name)
         def masters_ready():
@@ -531,24 +427,16 @@ class YTEnv(object):
             ok = False
             master_id = 0
             for logging_file in self.log_paths[master_name]:
-<<<<<<< HEAD
-                if not os.path.exists(logging_file): continue
-                if ok: break
+                if not os.path.exists(logging_file):
+                    continue
+                if ok:
+                    break
 
                 for line in reversed(open(logging_file).readlines()):
                     if any([bad_marker in line for bad_marker in bad_markers]) and not has_last_good_marker: break
                     if last_good_marker in line:
                         has_last_good_marker = True
                     if any([good_marker in line for good_marker in good_markers]):
-=======
-                if not os.path.exists(logging_file):
-                    continue
-
-                for line in reversed(open(logging_file).readlines()):
-                    if bad_marker in line:
-                        break
-                    if good_marker in line:
->>>>>>> origin/master
                         self.leader_log = logging_file
                         self.leader_id = master_id
                         found_good_markers += 1
@@ -573,17 +461,12 @@ class YTEnv(object):
 
             return ok
 
-<<<<<<< HEAD
-        self._wait_for(masters_ready, name=master_name)
-        if secondary:
-            logging.info("Secondary master %s registered", master_name.rsplit("_", 1)[1])
-        else:
-            logging.info('Leader is %d', self.leader_id)
-=======
         self._wait_for(masters_ready, name=master_name, max_wait_time=30)
-        if masters_count > 1:
-            logger.info("Leader master index: %d", self.leader_id)
->>>>>>> origin/master
+        if secondary:
+            logger.info("Secondary master %s registered", master_name.rsplit("_", 1)[1])
+        else:
+            if masters_count > 1:
+                logger.info("Leader master index: %d", self.leader_id)
 
     def start_all_masters(self, master_name, secondary_master_cell_count, start_secondary_master_cells):
         self.start_masters(master_name)
@@ -595,7 +478,7 @@ class YTEnv(object):
         self._prepare_masters(masters_count, master_name, secondary_master_cell_count, cell_tag)
         self.start_all_masters(master_name, secondary_master_cell_count, start_secondary_master_cells)
 
-    def _prepare_nodes(self, nodes_count, node_name, cell_tag):
+    def _prepare_nodes(self, nodes_count, node_name):
         if nodes_count == 0:
             return
 
@@ -618,29 +501,16 @@ class YTEnv(object):
             config["rpc_port"] = self._ports[node_name][2 * i]
             config["monitoring_port"] = self._ports[node_name][2 * i + 1]
 
-<<<<<<< HEAD
             master_name = node_name.replace("node", "master", 1)
             for key in ("addresses", "cell_id"):
-                config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
-                config['cluster_connection']['master_cache'][key] = self.configs[master_name][0]["primary_master"][key]
-            config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
-            config['cluster_connection']['timestamp_provider']['addresses'] = self._master_addresses[master_name]
+                config["cluster_connection"]["primary_master"][key] = self.configs[master_name][0]["primary_master"][key]
+                config["cluster_connection"]["master_cache"][key] = self.configs[master_name][0]["primary_master"][key]
+            config["cluster_connection"]["secondary_masters"] = self.configs[master_name][0]["secondary_masters"]
+            config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses[master_name]
 
-            config['data_node']['cache_location']['path'] = os.path.join(current, 'chunk_cache')
-            config['data_node']['store_locations'].append({
-                'path': os.path.join(current, 'chunk_store'),
-                'low_watermark' : 0,
-                'high_watermark' : 0
-=======
-            config["cluster_connection"]["master"]["addresses"] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config["cluster_connection"]["master_cache"]["addresses"] = self._master_addresses[node_name.replace("node", "master", 1)]
-            config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses[node_name.replace("node", "master", 1)]
-
-            config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(current, "multiplexed")
-            config["data_node"]["cache_locations"].append({
-                "path": os.path.join(current, "chunk_cache")
->>>>>>> origin/master
-            })
+            # NB: cache location is necessary for backward compatibility
+            config["data_node"]["cache_location"] = {"path": os.path.join(current, "chunk_cache")}
+            config["data_node"]["cache_locations"].append(config["data_node"]["cache_location"])
             config["data_node"]["store_locations"].append({
                 "path": os.path.join(current, "chunk_store"),
                 "low_watermark": 0,
@@ -712,8 +582,8 @@ class YTEnv(object):
         self._wait_for(all_nodes_ready, name=node_name,
                        max_wait_time=max(nodes_count * 6.0, 20))
 
-    def _run_nodes(self, nodes_count, node_name, cell_tag):
-        self._prepare_nodes(nodes_count, node_name, cell_tag)
+    def _run_nodes(self, nodes_count, node_name):
+        self._prepare_nodes(nodes_count, node_name)
         self.start_nodes(node_name)
 
     def _get_cache_addresses(self, instance_id):
@@ -722,7 +592,7 @@ class YTEnv(object):
         else:
             return self._master_addresses["master" + instance_id]
 
-    def _prepare_schedulers(self, schedulers_count, scheduler_name, cell_tag):
+    def _prepare_schedulers(self, schedulers_count, scheduler_name):
         if schedulers_count == 0:
             return
 
@@ -735,32 +605,17 @@ class YTEnv(object):
             current = os.path.join(self.path_to_run, scheduler_name, str(i))
             os.mkdir(current)
 
-<<<<<<< HEAD
-            config = configs.get_scheduler_config()
+            config = self.CONFIGS_MODULE.get_scheduler_config()
             master_name = scheduler_name.replace("scheduler", "master", 1)
             for key in ("addresses", "cell_id"):
-                config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
-            config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
-            config['cluster_connection']['timestamp_provider']['addresses'] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
-
-            config['rpc_port'] = self._ports[scheduler_name][2 * i]
-            config['monitoring_port'] = self._ports[scheduler_name][2 * i + 1]
-            config['scheduler']['snapshot_temp_path'] = os.path.join(current, 'snapshots')
-
-            config['logging'] = init_logging(config['logging'], current, 'scheduler-' + str(i))
-=======
-            config = self.CONFIGS_MODULE.get_scheduler_config()
-            config["cluster_connection"]["master"]["addresses"] = \
-                self._master_addresses[scheduler_name.replace("scheduler", "master", 1)]
-            config["cluster_connection"]["timestamp_provider"]["addresses"] = \
-                self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
+                config["cluster_connection"]["primary_master"][key] = self.configs[master_name][0]["primary_master"][key]
+            config["cluster_connection"]["secondary_masters"] = self.configs[master_name][0]["secondary_masters"]
+            config["cluster_connection"]["timestamp_provider"]["addresses"] = self._get_cache_addresses(scheduler_name.replace("scheduler", "", 1))
 
             config["rpc_port"] = self._ports[scheduler_name][2 * i]
             config["monitoring_port"] = self._ports[scheduler_name][2 * i + 1]
             config["scheduler"]["snapshot_temp_path"] = os.path.join(current, "snapshots")
-
             config["logging"] = self._init_logging(config["logging"], current, "scheduler-" + str(i))
->>>>>>> origin/master
 
             self.modify_scheduler_config(config)
             update(config, self.DELTA_SCHEDULER_CONFIG)
@@ -802,13 +657,11 @@ class YTEnv(object):
 
         self._wait_for(scheduler_ready, name=scheduler_name)
 
-    def _run_schedulers(self, schedulers_count, scheduler_name, cell_tag):
-        self._prepare_schedulers(schedulers_count, scheduler_name, cell_tag)
+    def _run_schedulers(self, schedulers_count, scheduler_name):
+        self._prepare_schedulers(schedulers_count, scheduler_name)
         self.start_schedulers(scheduler_name)
 
-<<<<<<< HEAD
-
-    def _prepare_driver(self, driver_name, secondary_master_cell_count, cell_tag):
+    def _prepare_driver(self, driver_name, secondary_master_cell_count):
         master_name = driver_name.replace("driver", "master", 1)
         for cell_index in xrange(secondary_master_cell_count + 1):
             if cell_index == 0:
@@ -817,30 +670,22 @@ class YTEnv(object):
             else:
                 current_driver_name = driver_name + "_secondary_" + str(cell_index - 1)
                 master_config = self.configs[master_name][0]["secondary_masters"][cell_index - 1]
-            config = configs.get_driver_config()
+
+            config = self.CONFIGS_MODULE.get_driver_config()
             for key in ("addresses", "cell_id"):
-                config['primary_master'][key] = master_config[key]
+                config["primary_master"][key] = master_config[key]
 
             # Main driver config requires secondary masters
             if cell_index == 0:
-                config['secondary_masters'] = [{} for _ in xrange(secondary_master_cell_count)]
+                config["secondary_masters"] = [{} for _ in xrange(secondary_master_cell_count)]
                 for index in xrange(secondary_master_cell_count):
                     for key in ("addresses", "cell_id"):
-                        config['secondary_masters'][index][key] = self.configs[master_name][0]["secondary_masters"][index][key]
+                        config["secondary_masters"][index][key] = self.configs[master_name][0]["secondary_masters"][index][key]
 
-            config['timestamp_provider']['addresses'] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
+            config["timestamp_provider"]["addresses"] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
 
             self.configs[current_driver_name] = config
-            self.driver_logging_config = init_logging(None, self.path_to_run, "driver")
-=======
-    def _prepare_driver(self, driver_name):
-        config = self.CONFIGS_MODULE.get_driver_config()
-        config["master"]["addresses"] = self._master_addresses[driver_name.replace("driver", "master", 1)]
-        config["timestamp_provider"]["addresses"] = self._get_cache_addresses(driver_name.replace("driver", "", 1))
-
-        self.configs[driver_name] = config
-        self.driver_logging_config = self._init_logging(None, self.path_to_run, "driver")
->>>>>>> origin/master
+            self.driver_logging_config = self._init_logging(None, self.path_to_run, "driver")
 
     def _prepare_console_driver(self, console_driver_name, driver_config):
         config = self.CONFIGS_MODULE.get_console_driver_config()
@@ -855,30 +700,19 @@ class YTEnv(object):
         self.config_paths[console_driver_name].append(config_path)
         self.log_paths[console_driver_name].append(config["logging"]["writers"]["info"]["file_name"])
 
-<<<<<<< HEAD
-    def _prepare_proxy(self, has_proxy, proxy_name, cell_tag):
-        if not has_proxy: return
-=======
     def _prepare_proxy(self, has_proxy, proxy_name):
         if not has_proxy:
             return
->>>>>>> origin/master
 
         current = os.path.join(self.path_to_run, proxy_name)
         os.mkdir(current)
 
-<<<<<<< HEAD
-        driver_config = configs.get_driver_config()
+        driver_config = self.CONFIGS_MODULE.get_driver_config()
         master_name = proxy_name.replace("proxy", "master", 1)
         for key in ("addresses", "cell_id"):
             driver_config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
         driver_config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
         driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
-=======
-        driver_config = self.CONFIGS_MODULE.get_driver_config()
-        driver_config["master"]["addresses"] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
-        driver_config["timestamp_provider"]["addresses"] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
->>>>>>> origin/master
 
         proxy_config = self.CONFIGS_MODULE.get_proxy_config()
         proxy_config["proxy"]["logging"] = self._init_logging(proxy_config["proxy"]["logging"], current, "http_proxy")
@@ -944,13 +778,8 @@ class YTEnv(object):
 
         self._wait_for(started, name="proxy", max_wait_time=20)
 
-<<<<<<< HEAD
-    def _run_proxy(self, has_proxy, proxy_name, cell_tag):
-        self._prepare_proxy(has_proxy, proxy_name, cell_tag)
-=======
     def _run_proxy(self, has_proxy, proxy_name, use_proxy_from_package=False):
         self._prepare_proxy(has_proxy, proxy_name)
->>>>>>> origin/master
         if has_proxy:
             self.start_proxy(proxy_name, use_proxy_from_package)
 
