@@ -866,7 +866,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     if (path.Empty()) {
         if (ignoreExisting && GetThisImpl()->GetType() == type) {
-            ToProto(response->mutable_node_id(), GetId());
+            auto* node = GetThisImpl();
+            ToProto(response->mutable_node_id(), node->GetId());
+            response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
+                ? Bootstrap_->GetCellTag()
+                : node->GetExternalCellTag());
             context->Reply();
             return;
         }

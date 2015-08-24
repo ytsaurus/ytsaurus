@@ -674,6 +674,9 @@ public:
 
         if (response) {
             ToProto(response->mutable_node_id(), node->GetId());
+            response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
+                ? Bootstrap_->GetCellTag()
+                : node->GetExternalCellTag());
         }
 
         return node;
