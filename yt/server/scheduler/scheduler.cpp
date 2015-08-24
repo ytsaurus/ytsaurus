@@ -509,19 +509,14 @@ public:
                     auto missingJobs = node->Jobs();
 
                     for (auto& jobStatus : *request->mutable_jobs()) {
-                        auto jobType = EJobType(jobStatus.job_type());
-                        // Skip jobs that are not issued by the scheduler.
-                        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
-                            continue;
-
-                            auto job = ProcessJobHeartbeat(
-                                node,
-                                request,
-                                response,
-                                &jobStatus);
-                            if (job) {
-                                YCHECK(missingJobs.erase(job) == 1);
-                                switch (job->GetState()) {
+                        auto job = ProcessJobHeartbeat(
+                            node,
+                            request,
+                            response,
+                            &jobStatus);
+                        if (job) {
+                            YCHECK(missingJobs.erase(job) == 1);
+                            switch (job->GetState()) {
                                 case EJobState::Completed:
                                 case EJobState::Failed:
                                 case EJobState::Aborted:
@@ -535,9 +530,9 @@ public:
                                     break;
                                 default:
                                     break;
-                                }
                             }
                         }
+                    }
 
                     // Check for missing jobs.
                     for (auto job : missingJobs) {
@@ -554,7 +549,11 @@ public:
                     operation->GetController()->CheckTimeLimit();
                 }
 
-                auto schedulingContext = CreateSchedulingContext(this->Config_, node, runningJobs);
+                auto schedulingContext = CreateSchedulingContext(
+                    Config_,
+                    node,
+                    runningJobs,
+                    Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
 
                 if (hasWaitingJobs) {
                     LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
