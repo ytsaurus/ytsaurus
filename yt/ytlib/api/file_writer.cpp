@@ -109,7 +109,7 @@ private:
 
     void DoOpen()
     {
-        if (Options_.TransactionId != NullTransactionId) {
+        if (Options_.TransactionId) {
             auto transactionManager = Client_->GetTransactionManager();
             Transaction_ = transactionManager->Attach(Options_.TransactionId);
             ListenTransaction(Transaction_);

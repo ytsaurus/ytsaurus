@@ -561,9 +561,9 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 
     auto cellTag = Bootstrap_->GetCellTag();
 
-    auto id = hintId == NullObjectId
-        ? MakeRegularId(type, cellTag, random, version)
-        : hintId;
+    auto id = hintId
+        ? hintId
+        : MakeRegularId(type, cellTag, random, version);
     YASSERT(TypeFromId(id) == type);
 
     ++CreatedObjectCount_;
@@ -1262,14 +1262,14 @@ void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObj
     auto type = EObjectType(request.type());
 
     auto transactionManager = Bootstrap_->GetTransactionManager();
-    auto* transaction =  transactionId == NullTransactionId
-        ? nullptr
-        : transactionManager->GetTransaction(transactionId);
+    auto* transaction =  transactionId
+        ? transactionManager->GetTransaction(transactionId)
+        : nullptr;
 
     auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* account = accountId == NullObjectId
-        ? nullptr
-        : securityManager->GetAccount(accountId);
+    auto* account = accountId
+        ? securityManager->GetAccount(accountId)
+        : nullptr;
 
     auto attributes = request.has_object_attributes()
         ? FromProto(request.object_attributes())

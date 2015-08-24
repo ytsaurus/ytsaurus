@@ -615,7 +615,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
 
         for (const auto& info : rsp->tablet_slots_to_create()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
-            YCHECK(cellId != NullCellId);
+            YCHECK(cellId);
             if (slotManager->GetAvailableTabletSlotCount() == 0) {
                 LOG_WARNING("Requested to start cell %v when all slots are used, ignored",
                     cellId);
