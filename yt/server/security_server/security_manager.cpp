@@ -1028,8 +1028,7 @@ private:
 
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        if (!objectManager->IsForeign(node)) {
+        if (!node->IsExternal()) {
             auto cypressManager = Bootstrap_->GetCypressManager();
             auto handler = cypressManager->GetHandler(node);
             node->CachedResourceUsage() = handler->GetAccountingResourceUsage(node);
