@@ -549,16 +549,14 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return
-                Controller->SimpleSort
+            return Controller->SimpleSort
                 ? Controller->SimpleSortPool.get()
                 : Controller->ShufflePool->GetInput();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return
-                Controller->SimpleSort
+            return Controller->SimpleSort
                 ? Controller->SimpleSortPool.get()
                 : Partition->ChunkPoolOutput;
         }
@@ -759,7 +757,7 @@ protected:
 
         virtual i64 GetLocality(const Stroka& address) const override
         {
-            if (Partition->AssignedAddress && Partition->AssignedAddress.Get() == address) {
+            if (Partition->AssignedAddress && *Partition->AssignedAddress == address) {
                 // Handle initially assigned address.
                 return 1;
             } else {
@@ -1440,10 +1438,10 @@ protected:
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
             if (Spec->PartitionCount) {
-                result = Spec->PartitionCount.Get();
+                result = *Spec->PartitionCount;
             } else {
                 // NB: Spec->PartitionDataSize is not Null.
-                result = 1 + dataSizeAfterPartition / Spec->PartitionDataSize.Get();
+                result = 1 + dataSizeAfterPartition / *Spec->PartitionDataSize;
             }
         } else {
             result = GetEmpiricalParitionCount(dataSizeAfterPartition);
@@ -2386,7 +2384,7 @@ private:
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             if (Spec->InputQuery) {
-                InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+                InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
             }
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
