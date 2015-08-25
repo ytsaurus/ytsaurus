@@ -49,6 +49,7 @@ namespace NScheduler {
 
 //! Describes which part of the operation needs a particular file.
 DEFINE_ENUM(EOperationStage,
+    (None)
     (Map)
     (ReduceCombiner)
     (Reduce)
@@ -173,7 +174,7 @@ protected:
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
-    struct TUserTableBase
+    struct TUserObjectBase
     {
         NYPath::TRichYPath Path;
         NObjectClient::TObjectId ObjectId;
@@ -195,7 +196,7 @@ protected:
     };
 
     struct TInputTable
-        : public TUserTableBase
+        : public TUserObjectBase
     {
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
@@ -219,7 +220,7 @@ protected:
     };
 
     struct TOutputTable
-        : public TUserTableBase
+        : public TUserObjectBase
         , public TLivePreviewTableBase
     {
         bool AppendRequested = false;
@@ -262,13 +263,14 @@ protected:
 
 
     struct TUserFile
+        : public TUserObjectBase
     {
-        NYPath::TRichYPath Path;
-        EOperationStage Stage;
+        std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
+        EOperationStage Stage = EOperationStage::None;
         Stroka FileName;
         NChunkClient::NProto::TRspFetch FetchResponse;
-        NObjectClient::EObjectType Type;
-        bool Executable;
+        NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
+        bool Executable = false;
         NYson::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
@@ -581,13 +583,13 @@ protected:
     void DoPrepare();
     void GetInputTablesBasicAttributes();
     void GetOutputTablesBasicAttributes();
-    void GetFilesBasicAttributes();
+    void GetFilesBasicAttributes(std::vector<TUserFile>* files);
     void FetchInputTables();
     void LockInputTables();
     void BeginUploadOutputTables();
     void GetOutputTablesUploadParams();
-    void FetchFileObjects(std::vector<TUserFile>* files);
-    void RequestFileObjects();
+    void FetchUserFiles(std::vector<TUserFile>* files);
+    void LockUserFiles(std::vector<TUserFile>* files, const std::vector<Stroka>& attributeKeys);
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
     void CollectTotals();
@@ -882,11 +884,6 @@ private:
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
         const NObjectClient::TTransactionId& transactionId);
-
-    void DoRequestFileObjects(
-        std::vector<TUserFile>* files,
-        std::function<void(NYTree::TAttributeFilter&)> updateAttributeFilter = nullptr,
-        std::function<void(const TUserFile&, const NYTree::IAttributeDictionary&)> onFileObject = nullptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
