@@ -41,6 +41,7 @@ public:
     bool GetAppend() const;
     NChunkClient::TChannel GetChannel() const;
     std::vector<NChunkClient::TReadRange> GetRanges() const;
+    TNullable<Stroka> GetFileName() const;
 
 private:
     TYPath Path_;
