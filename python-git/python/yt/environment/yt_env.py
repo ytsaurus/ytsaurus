@@ -710,8 +710,8 @@ class YTEnv(object):
         driver_config = self.CONFIGS_MODULE.get_driver_config()
         master_name = proxy_name.replace("proxy", "master", 1)
         for key in ("addresses", "cell_id"):
-            driver_config['cluster_connection']['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
-        driver_config['cluster_connection']['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
+            driver_config['primary_master'][key] = self.configs[master_name][0]["primary_master"][key]
+        driver_config['secondary_masters'] = self.configs[master_name][0]["secondary_masters"]
         driver_config['timestamp_provider']['addresses'] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
 
         proxy_config = self.CONFIGS_MODULE.get_proxy_config()
