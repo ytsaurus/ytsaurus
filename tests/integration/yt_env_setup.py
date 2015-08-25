@@ -15,7 +15,7 @@ SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox
 TOOLS_ROOTDIR = os.path.abspath('tools')
 
 mark_multicell = pytest.mark.skipif( \
-    os.environ.get("ENABLE_YT_MULTICELL_TESTS") != "1",
+    'os.environ.get("ENABLE_YT_MULTICELL_TESTS") != "1"',
     reason = "Multicell tests require explicit ENABLE_YT_MULTICELL_TESTS=1")
 
 def skip_if_multicell(func):
