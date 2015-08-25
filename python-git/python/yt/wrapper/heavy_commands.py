@@ -3,7 +3,7 @@
 import yt.logger as logger
 import config
 from config import get_option, get_config, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
-from common import get_backoff
+from common import get_backoff, chunk_iter_lines
 from errors import YtResponseError
 from table import to_table, to_name
 from transaction import Transaction
@@ -33,7 +33,6 @@ class FakeTransaction(object):
     def commit(self):
         pass
 
-
 def make_write_request(command_name, stream, path, params, create_object, use_retries, client=None):
     path = to_table(path, client=client)
     request_timeout = get_total_request_timeout(client)
@@ -45,9 +44,12 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
         create_object(path.name)
         if use_retries:
             retry_timeout = get_config(client)["write_retries"]["retry_timeout"]
+            chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
             started = False
-            for chunk in stream:
+            for chunk in chunk_iter_lines(stream, chunk_size):
+                assert isinstance(chunk, list)
+
                 if started:
                     path.append = True
                 started = True
@@ -62,15 +64,11 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                             raise HTTPError()
                         with Transaction(timeout=request_timeout, client=client):
                             params["path"] = path.to_yson_type()
-                            if isinstance(chunk, list):
-                                data = iter(chunk)
-                            else:
-                                data = chunk
 
                             _make_transactional_request(
                                 command_name,
                                 params,
-                                data=data,
+                                data=iter(chunk),
                                 use_heavy_proxy=True,
                                 retry_unavailable_proxy=False,
                                 timeout=retry_timeout,
