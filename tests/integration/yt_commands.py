@@ -13,8 +13,6 @@ from cStringIO import StringIO
 
 ###########################################################################
 
-only_linux = pytest.mark.skipif('not sys.platform.startswith("linux")')
-
 driver = None
 is_multicell = None
 

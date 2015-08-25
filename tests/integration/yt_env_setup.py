@@ -14,6 +14,8 @@ from time import sleep
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
 
+linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
+
 mark_multicell = pytest.mark.skipif( \
     'os.environ.get("ENABLE_YT_MULTICELL_TESTS") != "1"',
     reason = "Multicell tests require explicit ENABLE_YT_MULTICELL_TESTS=1")
