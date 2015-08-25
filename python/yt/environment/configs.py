@@ -126,7 +126,7 @@ def get_scheduler_config():
 """
 {
     cluster_connection = {
-        enable_read_from_followers = %true;
+        enable_read_from_followers = true;
 
         primary_master = {
             rpc_timeout = 5000;
@@ -318,7 +318,7 @@ def get_driver_config():
     return yson.loads(
 """
 {
-    enable_read_from_followers = %true;
+    enable_read_from_followers = true;
 
     primary_master = {
         rpc_timeout = 5000;
@@ -342,7 +342,7 @@ def get_driver_config():
         > yson
     };
 
-    enable_udf = %true;
+    enable_udf = true;
 }
 """)
 
