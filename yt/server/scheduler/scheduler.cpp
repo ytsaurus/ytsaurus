@@ -43,6 +43,7 @@ namespace NScheduler {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NRpc;
 using namespace NTransactionClient;
 using namespace NCypressClient;
@@ -409,7 +410,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto proxy = CreateJobProberProxy(jobId);
+        auto job = GetJobOrThrow(jobId);
+
+        auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.Strace();
         ToProto(req->mutable_job_id(), jobId);
@@ -423,18 +426,20 @@ public:
         return TYsonString(FromProto<Stroka>(res->trace()));
     }
 
-    TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    TFuture<void> DumpInputContext(const TJobId& jobId, const TYPath& path)
     {
         return BIND(&TImpl::DoDumpInputContext, MakeStrong(this), jobId, path)
             .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
             .Run();
     }
 
-    void DoDumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+    void DoDumpInputContext(const TJobId& jobId, const TYPath& path)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto proxy = CreateJobProberProxy(jobId);
+        auto job = GetJobOrThrow(jobId);
+
+        auto proxy = CreateJobProberProxy(job);
 
         auto req = proxy.DumpInputContext();
         ToProto(req->mutable_job_id(), jobId);
@@ -449,20 +454,15 @@ public:
         const auto& res = rspOrError.Value();
         auto chunkIds = FromProto<TGuid>(res->chunk_id());
         YCHECK(chunkIds.size() == 1);
-        MasterConnector_->AttachJobContext(path, chunkIds.front(), jobId);
+        MasterConnector_->AttachJobContext(path, chunkIds.front(), job);
 
         LOG_INFO("Input context saved (JobId: %v, Path: %v)",
             jobId,
             path);
     }
 
-    TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
+    TJobProberServiceProxy CreateJobProberProxy(TJobPtr job)
     {
-        auto job = FindJob(jobId);
-        if (!job) {
-            THROW_ERROR_EXCEPTION("No such job %v", jobId);
-        }
-
         const auto& address = GetInterconnectAddress(job->GetNode()->Addresses());
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
@@ -1501,6 +1501,15 @@ private:
         return it == IdToJob_.end() ? nullptr : it->second;
     }
 
+    TJobPtr GetJobOrThrow(const TJobId& jobId)
+    {
+        auto job = FindJob(jobId);
+        if (!job) {
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        }
+        return job;
+    }
+
     void AbortJob(TJobPtr job, const TError& error)
     {
         // This method must be safe to call for any job.
@@ -2275,7 +2284,7 @@ TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
     return Impl_->Strace(jobId);
 }
 
-TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const TYPath& path)
 {
     return Impl_->DumpInputContext(jobId, path);
 }
