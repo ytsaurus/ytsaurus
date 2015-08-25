@@ -616,7 +616,7 @@ describe("YtCommand - v2 command parameters", function() {
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].Print()
-                .should.eql('{"output_format"=<"boolean_as_string"=%true>"json";"input_format"=<"boolean_as_string"=%true>"json";"path"=<"append"="true">"//home"}');
+                .should.eql('{"output_format"=<"boolean_as_string"=%true;>"json";"input_format"=<"boolean_as_string"=%true;>"json";"path"=<"append"="true";>"//home";}');
         }, done).end('{"path":{"$value":"//home","$attributes":{"append":"true"}}}');
     });
 
@@ -629,7 +629,7 @@ describe("YtCommand - v2 command parameters", function() {
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].Print()
-                .should.eql('{"output_format"=<"boolean_as_string"=%true>"json";"input_format"=<"boolean_as_string"=%true>"json";"\\x80"="\\xFF"}');
+                .should.eql('{"output_format"=<"boolean_as_string"=%true;>"json";"input_format"=<"boolean_as_string"=%true;>"json";"\\x80"="\\xFF";}');
 
         }, done).end('{"\\u0080":"\\u00FF"}');
     });
@@ -752,7 +752,7 @@ describe("YtCommand - v3 command parameters", function() {
             rsp.should.be.http2xx;
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Print().should.eql('{"output_format"="json";"input_format"="json";"path"=<"append"="true">"//home"}');
+            stub.firstCall.args[6].Print().should.eql('{"output_format"="json";"input_format"="json";"path"=<"append"="true";>"//home";}');
         }, done).end('{"path":{"$value":"//home","$attributes":{"append":"true"}}}');
     });
 
@@ -764,7 +764,7 @@ describe("YtCommand - v3 command parameters", function() {
             rsp.should.be.http2xx;
             rsp.body.should.be.empty;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].Print().should.eql('{"output_format"="json";"input_format"="json";"\\x80"="\\xFF"}');
+            stub.firstCall.args[6].Print().should.eql('{"output_format"="json";"input_format"="json";"\\x80"="\\xFF";}');
 
         }, done).end('{"\\u0080":"\\u00FF"}');
     });
@@ -795,7 +795,7 @@ describe("YtCommand - v2 input format selection", function() {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].GetByYPath("/input_format").Print()
-                .should.eql('<"boolean_as_string"=%true>"json"');
+                .should.eql('<"boolean_as_string"=%true;>"json"');
         }, done).end();
     });
 
@@ -807,8 +807,8 @@ describe("YtCommand - v2 input format selection", function() {
             stub.should.have.been.calledOnce;
             var ifmt = stub.firstCall.args[6].GetByYPath("/input_format").Print();
             expect([
-                '<"format"="text";"boolean_as_string"=%true>"yson"',
-                '<"boolean_as_string"=%true;"format"="text">"yson"'
+                '<"format"="text";"boolean_as_string"=%true;>"yson"',
+                '<"boolean_as_string"=%true;"format"="text";>"yson"'
             ]).to.include(ifmt);
         }, done).end();
     });
@@ -820,7 +820,7 @@ describe("YtCommand - v2 input format selection", function() {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].GetByYPath("/input_format").Print()
-                .should.eql('<"boolean_as_string"=%true>"yson"');
+                .should.eql('<"boolean_as_string"=%true;>"yson"');
         }, done).end();
     });
 
@@ -832,7 +832,7 @@ describe("YtCommand - v2 input format selection", function() {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].GetByYPath("/input_format").Print()
-                .should.eql('<"boolean_as_string"=%true>"dsv"');
+                .should.eql('<"boolean_as_string"=%true;>"dsv"');
         }, done).end();
     });
 
@@ -851,8 +851,8 @@ describe("YtCommand - v2 input format selection", function() {
             stub.should.have.been.calledOnce;
             var ifmt = stub.firstCall.args[6].GetByYPath("/input_format").Print();
             expect([
-                '<"foo"="bar";"boolean_as_string"=%true>"yson"',
-                '<"boolean_as_string"=%true;"foo"="bar">"yson"'
+                '<"foo"="bar";"boolean_as_string"=%true;>"yson"',
+                '<"boolean_as_string"=%true;"foo"="bar";>"yson"'
             ]).to.include(ifmt);
         }, done).end();
     });
@@ -909,7 +909,7 @@ describe("YtCommand - v2 output format selection", function() {
             rsp.should.have.content_type("application/json");
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].GetByYPath("/output_format").Print()
-                .should.eql('<"boolean_as_string"=%true>"json"');
+                .should.eql('<"boolean_as_string"=%true;>"json"');
         }, done).end();
     });
 
@@ -922,8 +922,8 @@ describe("YtCommand - v2 output format selection", function() {
             stub.should.have.been.calledOnce;
             var ofmt = stub.firstCall.args[6].GetByYPath("/output_format").Print();
             expect([
-                '<"boolean_as_string"=%true;"format"="text">"yson"',
-                '<"format"="text";"boolean_as_string"=%true>"yson"',
+                '<"boolean_as_string"=%true;"format"="text";>"yson"',
+                '<"format"="text";"boolean_as_string"=%true;>"yson"',
             ]).to.include(ofmt);
         }, done).end();
     });
@@ -936,7 +936,7 @@ describe("YtCommand - v2 output format selection", function() {
             rsp.should.have.content_type("application/octet-stream");
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].GetByYPath("/output_format").Print()
-                .should.eql('<"boolean_as_string"=%true>"yson"');
+                .should.eql('<"boolean_as_string"=%true;>"yson"');
         }, done).end();
     });
 
@@ -949,7 +949,7 @@ describe("YtCommand - v2 output format selection", function() {
             rsp.should.have.content_type("text/tab-separated-values");
             stub.should.have.been.calledOnce;
             stub.firstCall.args[6].GetByYPath("/output_format").Print()
-                .should.eql('<"boolean_as_string"=%true>"dsv"');
+                .should.eql('<"boolean_as_string"=%true;>"dsv"');
         }, done).end();
     });
 
@@ -969,8 +969,8 @@ describe("YtCommand - v2 output format selection", function() {
             stub.should.have.been.calledOnce;
             var ofmt = stub.firstCall.args[6].GetByYPath("/output_format").Print();
             expect([
-                '<"foo"="bar";"boolean_as_string"=%true>"yson"',
-                '<"boolean_as_string"=%true;"foo"="bar">"yson"',
+                '<"foo"="bar";"boolean_as_string"=%true;>"yson"',
+                '<"boolean_as_string"=%true;"foo"="bar";>"yson"',
             ]).to.include(ofmt);
         }, done).end();
     });
@@ -1118,7 +1118,7 @@ describe("YtCommand - v3 input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"format"="text">"yson"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"format"="text";>"yson"');
         }, done).end();
     });
 
@@ -1128,7 +1128,7 @@ describe("YtCommand - v3 input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"format"="text">"yson"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"format"="text";>"yson"');
         }, done).end();
     });
 
@@ -1166,7 +1166,7 @@ describe("YtCommand - v3 input format selection", function() {
         function(rsp) {
             rsp.should.be.http2xx;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"foo"="bar">"yson"');
+            stub.firstCall.args[6].GetByYPath("/input_format").Print().should.eql('<"foo"="bar";>"yson"');
         }, done).end();
     });
 
@@ -1232,7 +1232,7 @@ describe("YtCommand - v3 output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.have.content_type("application/x-yt-yson-text");
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"format"="text">"yson"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"format"="text";>"yson"');
         }, done).end();
     });
 
@@ -1243,7 +1243,7 @@ describe("YtCommand - v3 output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.have.content_type("application/x-yt-yson-text");
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"format"="text">"yson"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"format"="text";>"yson"');
         }, done).end();
     });
 
@@ -1284,7 +1284,7 @@ describe("YtCommand - v3 output format selection", function() {
             rsp.should.be.http2xx;
             rsp.should.not.have.content_type;
             stub.should.have.been.calledOnce;
-            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"foo"="bar">"yson"');
+            stub.firstCall.args[6].GetByYPath("/output_format").Print().should.eql('<"foo"="bar";>"yson"');
         }, done).end();
     });
 
