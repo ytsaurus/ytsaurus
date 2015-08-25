@@ -307,14 +307,13 @@ TEST_F(TYsonWriterTest, PrettyFormat)
 
     EXPECT_EQ(
         "<\n"
-        "    \"attr\" = \"value\"\n"
-        ">\n"
-        "{\n"
+        "    \"attr\" = \"value\";\n"
+        "> {\n"
         "    \"key1\" = \"value1\";\n"
         "    \"key2\" = <\n"
-        "        \"other_attr\" = \"other_value\"\n"
-        "    > \"value2\"\n"
-        "}\n",
+        "        \"other_attr\" = \"other_value\";\n"
+        "    > \"value2\";\n"
+        "}",
         outputStream.Str());
 }
 

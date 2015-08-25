@@ -130,12 +130,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         job_ids = ls('//sys/operations/{}/jobs'.format(op_id))
         assert len(job_ids) == 1
         assert read_file('//sys/operations/{}/jobs/{}/stderr'.format(op_id, job_ids[0])) == \
-            '<"table_index"=1>#;\n' \
-            '<"row_index"=0>#;\n' \
+            '<"table_index"=1;>#;\n' \
+            '<"row_index"=0;>#;\n' \
             '{"key"=1;"value"=6};\n' \
-            '<"table_index"=0>#;\n' \
-            '<"row_index"=0>#;\n' \
-            '{"key"=4;"value"=3};\n'
+            '<"table_index"=0;>#;\n' \
+            '<"row_index"=0;>#;\n' \
+            '{"key"=4;"value"=3;};\n'
 
     @linux_only
     def test_cat_teleport(self):
@@ -400,10 +400,10 @@ echo {v = 2} >&7
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
 
         assert stderr_bytes == \
-            '{"key"="a";"value"=""};\n' \
-            '<"key_switch"=%true>#;\n' \
-            '{"key"="b";"value"=""};\n' \
-            '{"key"="b";"value"=""};\n'
+            '{"key"="a";"value"="";};\n' \
+            '<"key_switch"=%true;>#;\n' \
+            '{"key"="b";"value"="";};\n' \
+            '{"key"="b";"value"="";};\n'
 
 ##################################################################
 
