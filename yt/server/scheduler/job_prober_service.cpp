@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, DumpInputContext)
     {
@@ -59,7 +59,7 @@ private:
         auto trace = WaitFor(Bootstrap_->GetScheduler()->Strace(jobId))
             .ValueOrThrow();
 
-        context->SetResponseInfo("Trace: %Qv", trace.Data());
+        context->SetResponseInfo("Trace: %v", trace.Data());
 
         ToProto(response->mutable_trace(), trace.Data());
         context->Reply();
