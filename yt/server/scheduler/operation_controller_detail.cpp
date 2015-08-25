@@ -64,7 +64,7 @@ using NTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TUserTableBase::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TUserObjectBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Path);
@@ -84,7 +84,7 @@ void TOperationControllerBase::TLivePreviewTableBase::Persist(TPersistenceContex
 
 void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context)
 {
-    TUserTableBase::Persist(context);
+    TUserObjectBase::Persist(context);
 
     using NYT::Persist;
     Persist(context, ChunkCount);
@@ -106,7 +106,7 @@ void TOperationControllerBase::TEndpoint::Persist(TPersistenceContext& context)
 
 void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& context)
 {
-    TUserTableBase::Persist(context);
+    TUserObjectBase::Persist(context);
     TLivePreviewTableBase::Persist(context);
 
     using NYT::Persist;
@@ -139,8 +139,10 @@ void TOperationControllerBase::TIntermediateTable::Persist(TPersistenceContext& 
 
 void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
 {
+    TUserObjectBase::Persist(context);
+
     using NYT::Persist;
-    Persist(context, Path);
+    Persist<TAttributeDictionaryRefSerializer>(context, Attributes);
     Persist(context, Stage);
     Persist(context, FileName);
     Persist(context, FetchResponse);
@@ -1015,6 +1017,13 @@ void TOperationControllerBase::Initialize()
         OutputTables.push_back(table);
     }
 
+    for (const auto& pair : GetFilePaths()) {
+        TUserFile file;
+        file.Path = pair.first;
+        file.Stage = pair.second;
+        Files.push_back(file);
+    }
+
     if (InputTables.size() > Config->MaxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
@@ -1068,12 +1077,16 @@ void TOperationControllerBase::DoPrepare()
 
     GetInputTablesBasicAttributes();
     GetOutputTablesBasicAttributes();
-    GetFilesBasicAttributes();
+    GetFilesBasicAttributes(&Files);
+
     LockInputTables();
+    LockUserFiles(&Files, {});
+
     FetchInputTables();
+    FetchUserFiles(&Files);
+
     BeginUploadOutputTables();
     GetOutputTablesUploadParams();
-    RequestFileObjects();
 
     PickIntermediateDataCell();
     InitCells();
@@ -2515,41 +2528,39 @@ void TOperationControllerBase::GetInputTablesBasicAttributes()
         auto req = TTableYPathProxy::GetBasicAttributes(table.Path.GetPath());
         req->set_permissions(static_cast<ui32>(EPermission::Read));
         SetTransactionId(req, Operation->GetInputTransaction());
-        batchReq->AddRequest(req, "get_basic_attrs");
+        batchReq->AddRequest(req, "get_basic_attributes");
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of input tables");
     const auto& batchRsp = batchRspOrError.Value();
 
-    {
-        auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
-        for (int index = 0; index < InputTables.size(); ++index) {
-            auto& table = InputTables[index];
-            auto path = table.Path.GetPath();
+    auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
+    for (int index = 0; index < InputTables.size(); ++index) {
+        auto& table = InputTables[index];
+        auto path = table.Path.GetPath();
 
-            {
-                const auto& rspOrError = rspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of input table %v",
-                    path);
-                const auto& rsp = rspOrError.Value();
+        {
+            const auto& rspOrError = rspsOrError[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of input table %v",
+                path);
+            const auto& rsp = rspOrError.Value();
 
-                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
-                table.CellTag = rsp->cell_tag();
+            table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+            table.CellTag = rsp->cell_tag();
 
-                auto type = TypeFromId(table.ObjectId);
-                if (type != EObjectType::Table) {
-                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                        table.Path.GetPath(),
-                        EObjectType::Table,
-                        type);
-                }
-
-                LOG_INFO("Basic attributes of input table received (Path: %v, ObjectId: %v, CellTag: %v)",
-                    path,
-                    table.ObjectId,
-                    table.CellTag);
+            auto type = TypeFromId(table.ObjectId);
+            if (type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                    table.Path.GetPath(),
+                    EObjectType::Table,
+                    type);
             }
+
+            LOG_INFO("Basic attributes of input table received (Path: %v, ObjectId: %v, CellTag: %v)",
+                path,
+                table.ObjectId,
+                table.CellTag);
         }
     }
 }
@@ -2564,48 +2575,46 @@ void TOperationControllerBase::GetOutputTablesBasicAttributes()
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& table : OutputTables) {
-        auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
+        auto req = TTableYPathProxy::GetBasicAttributes(table.Path.GetPath());
         req->set_permissions(static_cast<ui32>(EPermission::Write));
         SetTransactionId(req, Operation->GetOutputTransaction());
-        batchReq->AddRequest(req, "get_basic_attrs");
+        batchReq->AddRequest(req, "get_basic_attributes");
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of output tables");
     const auto& batchRsp = batchRspOrError.Value();
 
-    {
-        auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attrs");
-        for (int index = 0; index < OutputTables.size(); ++index) {
-            auto& table = OutputTables[index];
-            const auto& path = table.Path.GetPath();
-            {
-                const auto& rspOrError = rspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of output table %v",
-                    path);
-                const auto& rsp = rspOrError.Value();
+    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
+    for (int index = 0; index < OutputTables.size(); ++index) {
+        auto& table = OutputTables[index];
+        const auto& path = table.Path.GetPath();
+        {
+            const auto& rspOrError = rspsOrError[index];
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of output table %v",
+                path);
+            const auto& rsp = rspOrError.Value();
 
-                table.ObjectId = FromProto<TObjectId>(rsp->object_id());
-                table.CellTag = rsp->cell_tag();
+            table.ObjectId = FromProto<TObjectId>(rsp->object_id());
+            table.CellTag = rsp->cell_tag();
 
-                auto type = TypeFromId(table.ObjectId);
-                if (type != EObjectType::Table) {
-                    THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                        table.Path.GetPath(),
-                        EObjectType::Table,
-                        type);
-                }
-
-                LOG_INFO("Basic attributes of output table received (Path: %v, ObjectId: %v, CellTag: %v)",
-                    path,
-                    table.ObjectId,
-                    table.CellTag);
+            auto type = TypeFromId(table.ObjectId);
+            if (type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                    table.Path.GetPath(),
+                    EObjectType::Table,
+                    type);
             }
+
+            LOG_INFO("Basic attributes of output table received (Path: %v, ObjectId: %v, CellTag: %v)",
+                path,
+                table.ObjectId,
+                table.CellTag);
         }
     }
 }
 
-void TOperationControllerBase::GetFilesBasicAttributes()
+void TOperationControllerBase::GetFilesBasicAttributes(std::vector<TUserFile>* files)
 {
     LOG_INFO("Getting basic attributes of files");
 
@@ -2614,49 +2623,38 @@ void TOperationControllerBase::GetFilesBasicAttributes()
 
     auto batchReq = proxy.ExecuteBatch();
 
-    for (const auto& pair : GetFilePaths()) {
-        const auto& path = pair.first;
-        auto req = TObjectYPathProxy::Get(path.GetPath() + "/@type");
+    for (const auto& file : *files) {
+        auto req = TObjectYPathProxy::GetBasicAttributes(file.Path.GetPath());
+        req->set_permissions(static_cast<ui32>(EPermission::Read));
         SetTransactionId(req, Operation->GetInputTransaction());
-        batchReq->AddRequest(req, "get_file_types");
+        batchReq->AddRequest(req, "get_basic_attributes");
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting file object types");
+    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting basic attributes of files");
     const auto& batchRsp = batchRspOrError.Value();
 
-    auto paths = GetFilePaths();
-    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGet>("get_file_types");
-    for (int index = 0; index < paths.size(); ++index) {
-        const auto& richPath = paths[index].first;
-        const auto& path = richPath.GetPath();
-        auto stage = paths[index].second;
+    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
+    for (int index = 0; index < files->size(); ++index) {
+        auto& file = (*files)[index];
+        const auto& path = file.Path.GetPath();
         const auto& rspOrError = rspsOrError[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting type for file %v",
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes of file %v",
             path);
-
         const auto& rsp = rspOrError.Value();
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
-        TUserFile* file;
-        switch (type) {
-            case EObjectType::File:
-            case EObjectType::Table:
-                Files.push_back(TUserFile());
-                file = &Files.back();
-                break;
-            default:
-                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
-                    path,
-                    EObjectType::File,
-                    EObjectType::Table,
-                    type);
-        }
-        file->Type = type;
-        file->Stage = stage;
-        file->Path = richPath;
-    }
 
-    LOG_INFO("File types received");
+        file.ObjectId = FromProto<TObjectId>(rsp->object_id());
+        file.CellTag = rsp->cell_tag();
+
+        file.Type = TypeFromId(file.ObjectId);
+        if (file.Type != EObjectType::File && file.Type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv or %Qlv, actual %Qlv",
+                path,
+                EObjectType::File,
+                EObjectType::Table,
+                file.Type);
+        }
+    }
 }
 
 void TOperationControllerBase::FetchInputTables()
@@ -2703,13 +2701,12 @@ void TOperationControllerBase::FetchInputTables()
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching input tables");
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input table %v",
+            path);
         const auto& batchRsp = batchRspOrError.Value();
 
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
         for (const auto& rspOrError : rspsOrError) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching input table %v",
-                path);
             const auto& rsp = rspOrError.Value();
             NodeDirectory->MergeFrom(rsp->node_directory());
             for (const auto& chunk : rsp->chunks()) {
@@ -2765,7 +2762,8 @@ void TOperationControllerBase::LockInputTables()
             auto path = table.Path.GetPath();
             {
                 const auto& rspOrError = lockInRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking input table %v", path);
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking input table %v",
+                    path);
             }
             {
                 const auto& rspOrError = getInAttributesRspsOrError[index];
@@ -2937,77 +2935,81 @@ void TOperationControllerBase::GetOutputTablesUploadParams()
     }
 }
 
-void TOperationControllerBase::FetchFileObjects(std::vector<TUserFile>* files)
+void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
+    for (auto& file : *files) {
+        auto objectIdPath = FromObjectId(file.ObjectId);
+        const auto& path = file.Path.GetPath();
 
-    auto batchReq = proxy.ExecuteBatch();
+        LOG_INFO("Fetching user file (Path: %v)",
+            path);
 
-    for (const auto& file : *files) {
-        auto path = file.Path.GetPath();
-        // XXX(babenko): multicell
-        auto req = TFileYPathProxy::Fetch(path);
-        ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-        switch (file.Type) {
-            case EObjectType::Table:
-                req->set_fetch_all_meta_extensions(true);
-                InitializeFetchRequest(req.Get(), file.Path);
-                break;
-            case EObjectType::File:
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                break;
-            default:
-                YUNREACHABLE();
-        }
-        SetTransactionId(req, Operation->GetInputTransaction());
-        batchReq->AddRequest(req, "fetch_files");
-    }
+        auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, file.CellTag);
+        TObjectServiceProxy proxy(channel);
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error requesting file objects");
-    const auto& batchRsp = batchRspOrError.Value();
+        auto batchReq = proxy.ExecuteBatch();
 
-    auto fetchFileRsps = batchRsp->GetResponses<TFileYPathProxy::TRspFetch>("fetch_files");
-    for (int index = 0; index < static_cast<int>(files->size()); ++index) {
-        auto& file = (*files)[index];
-        const auto& rspOrError = fetchFileRsps[index];
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching user file %v", file.Path.GetPath());
+        {
+            auto req = TChunkOwnerYPathProxy::Fetch(objectIdPath);
+            ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+            switch (file.Type) {
+                case EObjectType::Table:
+                    req->set_fetch_all_meta_extensions(true);
+                    InitializeFetchRequest(req.Get(), file.Path);
+                    break;
 
-        const auto& rsp = rspOrError.Value();
-        file.FetchResponse.Swap(rsp.Get());
+                case EObjectType::File:
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    break;
 
-        if (file.Type == EObjectType::Table) {
-            NodeDirectory->MergeFrom(rsp->node_directory());
+                default:
+                    YUNREACHABLE();
+            }
+            SetTransactionId(req, Operation->GetInputTransaction());
+            batchReq->AddRequest(req, "fetch");
         }
 
-        LOG_INFO("User file fetched (Path: %v)", file.Path.GetPath());
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
+             path);
+        const auto& batchRsp = batchRspOrError.Value();
+
+        {
+            auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
+            file.FetchResponse.Swap(rsp.Get());
+
+            if (file.Type == EObjectType::Table) {
+                NodeDirectory->MergeFrom(rsp->node_directory());
+            }
+        }
+
+        LOG_INFO("User file fetched (Path: %v, FileName: %v)",
+            path,
+            file.FileName);
     }
 }
 
-void TOperationControllerBase::DoRequestFileObjects(
+void TOperationControllerBase::LockUserFiles(
     std::vector<TUserFile>* files,
-    std::function<void(TAttributeFilter&)> updateAttributeFilter,
-    std::function<void(const TUserFile&, const IAttributeDictionary&)> onFileObject)
+    const std::vector<Stroka>& attributeKeys)
 {
+    LOG_INFO("Locking user files");
+
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& file : *files) {
-        auto path = file.Path.GetPath();
+        auto objectIdPath = FromObjectId(file.ObjectId);
+        const auto& path = file.Path.GetPath();
+
         {
-            auto req = TCypressYPathProxy::Lock(path);
+            auto req = TCypressYPathProxy::Lock(objectIdPath);
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
             SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "lock_file");
-        }
-        {
-            auto req = TYPathProxy::GetKey(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
-            batchReq->AddRequest(req, "get_file_name");
+            batchReq->AddRequest(req, "lock");
         }
         {
             auto req = TYPathProxy::Get(path);
@@ -3017,30 +3019,29 @@ void TOperationControllerBase::DoRequestFileObjects(
                 attributeFilter.Keys.push_back("executable");
                 attributeFilter.Keys.push_back("file_name");
             }
+            attributeFilter.Keys.push_back("key");
             attributeFilter.Keys.push_back("chunk_count");
             attributeFilter.Keys.push_back("uncompressed_data_size");
-            if (updateAttributeFilter) {
-                updateAttributeFilter(attributeFilter);
-            }
+            attributeFilter.Keys.insert(attributeFilter.Keys.end(), attributeKeys.begin(), attributeKeys.end());
             ToProto(req->mutable_attribute_filter(), attributeFilter);
-            batchReq->AddRequest(req, "get_file_attributes");
+            batchReq->AddRequest(req, "get_attributes");
         }
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error requesting file objects");
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
     const auto& batchRsp = batchRspOrError.Value();
 
     TEnumIndexedVector<yhash_set<Stroka>, EOperationStage> userFileNames;
-    auto validateUserFileName = [&] (const TUserFile& userFile) {
+    auto validateUserFileName = [&] (const TUserFile& file) {
         // TODO(babenko): more sanity checks?
-        auto path = userFile.Path.GetPath();
-        const auto& fileName = userFile.FileName;
+        auto path = file.Path.GetPath();
+        const auto& fileName = file.FileName;
         if (fileName.empty()) {
             THROW_ERROR_EXCEPTION("Empty user file name for %v",
                 path);
         }
-        if (!userFileNames[userFile.Stage].insert(fileName).second) {
+        if (!userFileNames[file.Stage].insert(fileName).second) {
             THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
                 fileName,
                 path);
@@ -3048,47 +3049,33 @@ void TOperationControllerBase::DoRequestFileObjects(
     };
 
     {
-        auto lockFileRspsOrError = batchRsp->GetResponses<TCypressYPathProxy::TRspLock>("lock_file");
-        auto getFileNameRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_file_name");
-        auto getFileAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_file_attributes");
-        for (int index = 0; index < static_cast<int>(files->size()); ++index) {
+        auto getAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_attributes");
+        for (int index = 0; index < files->size(); ++index) {
             auto& file = (*files)[index];
-            auto path = file.Path.GetPath();
-            {
-                const auto& rspOrError = lockFileRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking user file %v",
-                    path);
+            const auto& path = file.Path.GetPath();
 
-                LOG_INFO("User file locked (Path: %v)",
-                    path);
-            }
             {
-                const auto& rspOrError = getFileNameRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    rspOrError,
-                    "Error getting file name for user file %v",
-                    path);
-                const auto& rsp = rspOrError.Value();
-                if (file.Type == EObjectType::File) {
-                    file.FileName = rsp->value();
-                } else {
-                    auto key = ConvertTo<Stroka>(TYsonString(rsp->value()));
-                    file.FileName = file.Path.Attributes().Get<Stroka>("file_name", key);
-                    file.Format = file.Path.Attributes().GetYson("format");
-                }
-            }
-            {
-                const auto& rspOrError = getFileAttributesRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes for user file %v",
-                    path);
+                const auto& rsp = getAttributesRspsOrError[index].Value();
 
-                const auto& rsp = rspOrError.Value();
                 auto node = ConvertToNode(TYsonString(rsp->value()));
-                const auto& attributes = node->Attributes();
+                file.Attributes = node->Attributes().Clone();
+                const auto& attributes = *file.Attributes;
 
-                if (file.Type == EObjectType::File) {
-                    file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
-                    file.Executable = attributes.Get<bool>("executable", false);
+                file.FileName = attributes.Get<Stroka>("key");
+                file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
+                file.FileName = file.Path.GetFileName().Get(file.FileName);
+
+                switch (file.Type) {
+                    case EObjectType::File:
+                        file.Executable = attributes.Get<bool>("executable", false);
+                        break;
+
+                    case EObjectType::Table:
+                        file.Format = file.Path.Attributes().GetYson("format");
+                        break;
+
+                    default:
+                        YUNREACHABLE();
                 }
 
                 i64 fileSize = attributes.Get<i64>("uncompressed_data_size");
@@ -3109,30 +3096,15 @@ void TOperationControllerBase::DoRequestFileObjects(
                         Config->MaxChunkCountPerFetch);
                 }
 
-                if (onFileObject) {
-                    onFileObject(file, attributes);
-                }
-
-                LOG_INFO("User file attributes received (Path: %v)", path);
+                LOG_INFO("User file locked (Path: %v, Stage: %v, FileName: %v)",
+                    path,
+                    file.Stage,
+                    file.FileName);
             }
 
-            if (file.Type == EObjectType::File) {
-                file.FileName = file.Path.Attributes().Get<Stroka>("file_name", file.FileName);
-                file.Executable = file.Path.Attributes().Get<bool>("executable", file.Executable);
-            }
             validateUserFileName(file);
         }
     }
-}
-
-void TOperationControllerBase::RequestFileObjects()
-{
-    LOG_INFO("Requesting file objects");
-
-    DoRequestFileObjects(&Files);
-    FetchFileObjects(&Files);
-
-    LOG_INFO("File objects received");
 }
 
 void TOperationControllerBase::InitQuerySpec(
@@ -3144,63 +3116,65 @@ void TOperationControllerBase::InitQuerySpec(
     auto ast = PrepareJobQueryAst(queryString);
     auto registry = CreateBuiltinFunctionRegistry();
     auto externalFunctions = GetExternalFunctions(ast, registry);
-    bool fetchUdfs = externalFunctions.size() > 0;
 
     std::vector<TUserFile> udfFiles;
-    std::vector<TUdfDescriptorPtr> descriptors;
+    std::vector<TUdfDescriptorPtr> udfDescriptors;
 
-    if (fetchUdfs) {
+    if (!externalFunctions.empty()) {
         if (!Config->UdfRegistryPath) {
             THROW_ERROR_EXCEPTION("External UDF registry is not configured");
         }
 
-        LOG_INFO("Requesting UDF descriptors for: [%v]", JoinToString(externalFunctions));
-
         for (const auto& function : externalFunctions) {
-            udfFiles.emplace_back();
-            udfFiles.back().Path = GetUdfDescriptorPath(Config->UdfRegistryPath.Get(), function);
-            udfFiles.back().Type = EObjectType::File;
+            LOG_INFO("Requesting UDF descriptor (Function: %v)", function);
+            TUserFile file;
+            file.Path = GetUdfDescriptorPath(*Config->UdfRegistryPath, function);
+            udfFiles.push_back(file);
         }
 
-        DoRequestFileObjects(
+        GetFilesBasicAttributes(&udfFiles);
+
+        LockUserFiles(
             &udfFiles,
-            [] (TAttributeFilter& attributeFilter) {
-                attributeFilter.Keys.push_back(FunctionDescriptorAttribute);
-                attributeFilter.Keys.push_back(AggregateDescriptorAttribute);
-            },
-            [&] (const TUserFile& file, const IAttributeDictionary& attributes) {
-                auto descriptor = New<TUdfDescriptor>();
-                descriptor->Name = file.FileName;
-                descriptor->FunctionDescriptor = attributes.Find<TCypressFunctionDescriptorPtr>(FunctionDescriptorAttribute);
-                descriptor->AggregateDescriptor = attributes.Find<TCypressAggregateDescriptorPtr>(AggregateDescriptorAttribute);
-                descriptors.push_back(std::move(descriptor));
+            {
+                FunctionDescriptorAttribute,
+                AggregateDescriptorAttribute
             });
 
-        registry = CreateJobFunctionRegistry(descriptors, Null, std::move(registry));
+        FetchUserFiles(&udfFiles);
+
+        for (const auto& file : udfFiles) {
+            if (file.Type != EObjectType::File) {
+                THROW_ERROR_EXCEPTION("Object %v has invalid type: expected %Qlv, actual %Qlv",
+                    file.Path,
+                    EObjectType::File,
+                    file.Type);
+            }
+            auto descriptor = New<TUdfDescriptor>();
+            descriptor->Name = file.FileName;
+            descriptor->FunctionDescriptor = file.Attributes->Find<TCypressFunctionDescriptorPtr>(FunctionDescriptorAttribute);
+            descriptor->AggregateDescriptor = file.Attributes->Find<TCypressAggregateDescriptorPtr>(AggregateDescriptorAttribute);
+            udfDescriptors.push_back(std::move(descriptor));
+        }
+
+        registry = CreateJobFunctionRegistry(udfDescriptors, Null, std::move(registry));
     }
 
     auto query = PrepareJobQuery(queryString, std::move(ast), schema, registry);
-
-    if (fetchUdfs) {
-        FetchFileObjects(&udfFiles);
-
-        LOG_INFO("UDF descriptors received");
-    }
-
     ToProto(querySpec->mutable_query(), query);
 
-    for (const auto& descriptor : descriptors) {
+    for (const auto& descriptor : udfDescriptors) {
         auto* protoDescriptor = querySpec->add_udf_descriptors();
         ToProto(protoDescriptor, ConvertToYsonString(descriptor).Data());
     }
 
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     for (const auto& file : udfFiles) {
-        auto *descriptor = querySpec->add_udf_files();
-        descriptor->set_type(static_cast<int>(file.Type));
-        descriptor->set_file_name(file.FileName);
+        auto* protoDescriptor = querySpec->add_udf_files();
+        protoDescriptor->set_type(static_cast<int>(file.Type));
+        protoDescriptor->set_file_name(file.FileName);
         nodeDirectory->MergeFrom(file.FetchResponse.node_directory());
-        descriptor->mutable_chunks()->MergeFrom(file.FetchResponse.chunks());
+        protoDescriptor->mutable_chunks()->MergeFrom(file.FetchResponse.chunks());
     }
     nodeDirectory->DumpTo(querySpec->mutable_node_directory());
 }
