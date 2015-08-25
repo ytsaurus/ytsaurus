@@ -426,6 +426,11 @@ std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
     }
 }
 
+TNullable<Stroka> TRichYPath::GetFileName() const
+{
+    return Attributes().Find<Stroka>("file_name");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka ToString(const TRichYPath& path)
