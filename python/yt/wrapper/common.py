@@ -92,6 +92,7 @@ def get_value(value, default):
         return value
 
 def chunk_iter_lines(lines, chunk_size):
+    """ Unite lines into large chunks """
     size = 0
     chunk = []
     for line in lines:
