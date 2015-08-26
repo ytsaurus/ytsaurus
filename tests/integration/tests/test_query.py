@@ -38,7 +38,7 @@ class TestQuery(YTEnvSetup):
                 "key_columns": key_columns
             })
         mount_table(path)
-        self._wait_for_tablet_state(path, ["mounted"])
+        self.wait_for_tablet_state(path, ["mounted"])
         insert_rows(path, data)
 
     # TODO(sandello): TableMountCache is not invalidated at the moment,
@@ -87,7 +87,7 @@ class TestQuery(YTEnvSetup):
         self.assertItemsEqual(actual, expected)
 
     def test_merging_group_by(self):
-        self._sync_create_cells(3, 3)
+        self.sync_create_cells(3, 3)
 
         create("table", "//tmp/t",
             attributes = {
@@ -103,7 +103,7 @@ class TestQuery(YTEnvSetup):
 
         mount_table("//tmp/t")
 
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         data = [{"a" : i, "b" : i * 10} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -119,7 +119,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_merging_group_by2(self):
-        self._sync_create_cells(3, 3)
+        self.sync_create_cells(3, 3)
 
         create("table", "//tmp/t",
             attributes = {
@@ -135,7 +135,7 @@ class TestQuery(YTEnvSetup):
 
         mount_table("//tmp/t")
 
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         data = [{"a" : i, "b" : str(i)} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -153,7 +153,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_order_by(self):
-        self._sync_create_cells(3, 1)
+        self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
             attributes = {
@@ -165,7 +165,7 @@ class TestQuery(YTEnvSetup):
             })
 
         mount_table("//tmp/t")
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         values = [i for i in xrange(0, 300)]
         shuffle(values)
@@ -185,7 +185,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_join(self):
-        self._sync_create_cells(3, 1)
+        self.sync_create_cells(3, 1)
 
         self._create_table(
             "//tmp/jl",
@@ -252,7 +252,7 @@ class TestQuery(YTEnvSetup):
         assert expected == actual
 
     def test_join_many(self):
-        self._sync_create_cells(1, 1)
+        self.sync_create_cells(1, 1)
 
         self._create_table(
             "//tmp/a",
@@ -331,7 +331,7 @@ class TestQuery(YTEnvSetup):
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
 
     def test_tablets(self):
-        self._sync_create_cells(3, 1)
+        self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
             attributes = {
@@ -340,7 +340,7 @@ class TestQuery(YTEnvSetup):
             })
 
         mount_table("//tmp/t")
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         stripe = 10
 
@@ -351,17 +351,17 @@ class TestQuery(YTEnvSetup):
             insert_rows("//tmp/t", data)
 
         unmount_table("//tmp/t")
-        self._wait_for_tablet_state("//tmp/t", ["unmounted"])
+        self.wait_for_tablet_state("//tmp/t", ["unmounted"])
         reshard_table("//tmp/t", [[], [10], [30], [50], [70], [90]])
         mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=2)
-        self._wait_for_tablet_state("//tmp/t", ["unmounted", "mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["unmounted", "mounted"])
 
         select_rows("* from [//tmp/t] where key < 50")
 
         with pytest.raises(YtError): select_rows("* from [//tmp/t] where key < 51")
 
     def test_computed_column_simple(self):
-        self._sync_create_cells(3, 1)
+        self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
             attributes = {
@@ -373,7 +373,7 @@ class TestQuery(YTEnvSetup):
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
         mount_table("//tmp/t")
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         insert_rows("//tmp/t", [{"key": i, "value": i * 2} for i in xrange(0,100)])
 
@@ -390,7 +390,7 @@ class TestQuery(YTEnvSetup):
         self.assertItemsEqual(actual, expected)
 
     def test_computed_column_far_divide(self):
-        self._sync_create_cells(3, 1)
+        self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
             attributes = {
@@ -403,7 +403,7 @@ class TestQuery(YTEnvSetup):
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
         mount_table("//tmp/t")
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         def expected(key_range):
             return [{"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
@@ -423,7 +423,7 @@ class TestQuery(YTEnvSetup):
         self.assertItemsEqual(actual, expected([30]))
 
     def test_computed_column_modulo(self):
-        self._sync_create_cells(3, 1)
+        self.sync_create_cells(3, 1)
 
         create("table", "//tmp/t",
             attributes = {
@@ -436,7 +436,7 @@ class TestQuery(YTEnvSetup):
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
         mount_table("//tmp/t")
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         def expected(key_range):
             return [{"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
@@ -541,7 +541,7 @@ class TestQuery(YTEnvSetup):
         self.assertItemsEqual(actual, expected)
 
     def test_cardinality(self):
-        self._sync_create_cells(3, 3)
+        self.sync_create_cells(3, 3)
 
         create("table", "//tmp/card",
             attributes = {
@@ -557,7 +557,7 @@ class TestQuery(YTEnvSetup):
 
         mount_table("//tmp/card")
 
-        self._wait_for_tablet_state("//tmp/card", ["mounted"])
+        self.wait_for_tablet_state("//tmp/card", ["mounted"])
 
         data = [{"a" : i} for i in xrange(0,20000)]
         insert_rows("//tmp/card", data)
@@ -596,7 +596,7 @@ class TestQuery(YTEnvSetup):
         self.assertItemsEqual(actual, expected)
 
     def test_YT_2375(self):
-        self._sync_create_cells(3, 3)
+        self.sync_create_cells(3, 3)
         create(
             "table", "//tmp/t",
             attributes={
@@ -605,7 +605,7 @@ class TestQuery(YTEnvSetup):
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
         mount_table("//tmp/t")
-        self._wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.wait_for_tablet_state("//tmp/t", ["mounted"])
 
         insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
         # should not raise
