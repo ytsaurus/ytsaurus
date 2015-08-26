@@ -33,19 +33,17 @@ static const pid_t InvalidProcessId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 #ifdef _linux_
 
 bool TryKill(int pid, int signal)
 {
     YCHECK(pid > 0);
-    int result = ::kill(pid, signal);
-    if (result < 0) {
-        return false;
-    }
-    return true;
+    return ::kill(pid, signal) >= 0;
 }
 
-bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+bool TryWaitid(idtype_t idtype, id_t id, siginfo_t* infop, int options)
 {
     while (true) {
         if (infop != nullptr) {
@@ -77,7 +75,7 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     }
 }
 
-void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
+void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t* infop, int options)
 {
     YCHECK(infop != nullptr);
 
@@ -119,6 +117,8 @@ bool TryResetSignals()
 }
 
 #endif
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -230,7 +230,7 @@ void TProcess::Spawn()
     Pipe_ = pipeFactory.Create();
     pipeFactory.Clear();
 
-    LOG_DEBUG("Spawning new process (Path: %v, ErrorPipe: [%v],  Arguments: [%v], Environment: [%v]", 
+    LOG_DEBUG("Spawning child process (Path: %v, ErrorPipe: {%v},  Arguments: [%v], Environment: [%v])",
         Path_,
         Pipe_,
         JoinToString(Args_), 
@@ -262,12 +262,12 @@ void TProcess::Spawn()
 
     SpawnActions_.push_back(TSpawnAction {
         TryResetSignals,
-        "Error resetting signals to default disposition in the child: signal failed"
+        "Error resetting signals to default disposition in child process: signal failed"
     });
 
     SpawnActions_.push_back(TSpawnAction {
         std::bind(TrySetSignalMask, &oldSignals, nullptr),
-        "Error unblocking signals in the child: pthread_sigmask failed"
+        "Error unblocking signals in child process: pthread_sigmask failed"
     });
 
     SpawnActions_.push_back(TSpawnAction {
@@ -277,13 +277,12 @@ void TProcess::Spawn()
 
     SpawnChild();
 
-    LOG_DEBUG("Child process is spawned. Pid: %v", ProcessId_);
-
     // This should not fail ever.
     YCHECK(TrySetSignalMask(&oldSignals, nullptr));
 
     Pipe_.CloseWriteFD();
-    ThrowOnChildError();
+
+    ValidateSpawnResult();
 #else
     THROW_ERROR_EXCEPTION("Unsupported platform");
 #endif
@@ -315,7 +314,7 @@ void TProcess::SpawnChild()
 #endif
 }
 
-void TProcess::ThrowOnChildError()
+void TProcess::ValidateSpawnResult()
 {
 #ifdef _linux_
     int data[2];
@@ -324,11 +323,11 @@ void TProcess::ThrowOnChildError()
 
     if (res == 0) {
         // Child successfully spawned or was killed by a signal.
-        // But there is no way to ditinguish between two situations:
+        // But there is no way to distinguish between these two cases:
         // * child killed by signal before exec
         // * child killed by signal after exec
-        // So we treat kill-before-exec the same way as kill-after-exec
-        LOG_DEBUG("Command execed. Pid: %v", ProcessId_);
+        // So we treat kill-before-exec the same way as kill-after-exec.
+        LOG_DEBUG("Child process spawn successfully (Pid: %v)", ProcessId_);
         return;
     }
 
@@ -339,9 +338,7 @@ void TProcess::ThrowOnChildError()
         Finished_ = true;
     }
 
-#ifdef _linux_
     Cleanup(ProcessId_);
-#endif
     ProcessId_ = InvalidProcessId;
 
     int actionIndex = data[0];
@@ -384,7 +381,7 @@ TError TProcess::Wait()
 {
 #ifdef _linux_
     YCHECK(ProcessId_ != InvalidProcessId);
-    LOG_DEBUG("Start to wait for %v to finish", ProcessId_);
+    LOG_DEBUG("Waiting for child process to finish (Pid: %v)", ProcessId_);
 
     siginfo_t processInfo;
 
@@ -396,12 +393,12 @@ TError TProcess::Wait()
         TGuard<TSpinLock> guard(LifecycleChangeLock_);
 
         // This call just should return immediately
-        // because we have already waited for this process with WNOHANG
+        // because we have already waited for this process with WNOHANG.
         WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
 
         Finished_ = true;
     }
-    LOG_DEBUG("Finish to wait for %v to finish", ProcessId_);
+    LOG_DEBUG("Child process finished (Pid: %v)", ProcessId_);
 
     return ProcessInfoToError(processInfo);
 #else
@@ -412,7 +409,7 @@ TError TProcess::Wait()
 void TProcess::Kill(int signal)
 {
 #ifdef _linux_
-    LOG_DEBUG("Kill %v process", ProcessId_);
+    LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
 
     TGuard<TSpinLock> guard(LifecycleChangeLock_);
 
@@ -426,7 +423,7 @@ void TProcess::Kill(int signal)
 
     auto result = TryKill(ProcessId_, signal);
     if (!result) {
-        THROW_ERROR_EXCEPTION("kill failed")
+        THROW_ERROR_EXCEPTION("Error killing child process: kill failed")
             << TError::FromSystem();
     }
 #else
