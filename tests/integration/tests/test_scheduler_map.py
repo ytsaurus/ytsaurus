@@ -50,7 +50,7 @@ class TestCGroups(YTEnvSetup):
         with pytest.raises(YtError):
             track_op(op_id)
 
-        for job_desc in ls("//sys/operations/{0}/jobs".format(op_id), attr=["error"]):
+        for job_desc in ls("//sys/operations/{0}/jobs".format(op_id), attributes=["error"]):
             print job_desc.attributes
             print job_desc.attributes["error"]["inner_errors"][0]["message"]
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]

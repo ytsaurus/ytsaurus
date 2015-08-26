@@ -523,21 +523,21 @@ class TestCypress(YTEnvSetup):
 
     def test_get_with_attributes(self):
         set("//tmp/a", {})
-        assert get("//tmp", attr=["type"]) == to_yson_type({"a": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
+        assert get("//tmp", attributes=["type"]) == to_yson_type({"a": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
 
     def test_list_with_attributes(self):
         set("//tmp/a", {})
-        assert ls("//tmp", attr=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
+        assert ls("//tmp", attributes=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
 
     def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert get("//sys/transactions", attr=["type"]) == to_yson_type(\
+        assert get("//sys/transactions", attributes=["type"]) == to_yson_type(\
             {tx: to_yson_type(None, attributes={"type": "transaction"})},
             attributes={"type": "transaction_map"})
 
     def test_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert ls("//sys/transactions", attr=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
+        assert ls("//sys/transactions", attributes=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
 
     def test_exists(self):
         assert exists("//tmp")
