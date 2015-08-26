@@ -3074,12 +3074,32 @@ void TOperationControllerBase::InitQuerySpec(
 void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
-        for (const auto& chunk : table.Chunks) {
+        for (const auto& chunkSpec : table.Chunks) {
+            if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                switch (Spec->UnavailableChunkStrategy) {
+                    case EUnavailableChunkAction::Fail:
+                        THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
+                            chunkId);
+
+                    case EUnavailableChunkAction::Skip:
+                        LOG_TRACE("Skipping unavailable chunk (ChunkId: %v)",
+                            chunkId);
+                        continue;
+
+                    case EUnavailableChunkAction::Wait:
+                        // Do nothing.
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
+            }
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
             i64 chunkCompressedDataSize;
-            NChunkClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
+            NChunkClient::GetStatistics(chunkSpec, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
 
             TotalEstimatedInputDataSize += chunkDataSize;
             TotalEstimatedInputRowCount += chunkRowCount;
@@ -3110,13 +3130,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
                 switch (Spec->UnavailableChunkStrategy) {
-                    case EUnavailableChunkAction::Fail:
-                        THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
-                            chunkId);
-
                     case EUnavailableChunkAction::Skip:
-                        LOG_TRACE("Skipping unavailable chunk (ChunkId: %v)",
-                            chunkId);
                         continue;
 
                     case EUnavailableChunkAction::Wait:
