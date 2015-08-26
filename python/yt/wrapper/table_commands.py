@@ -49,7 +49,7 @@ import config
 from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_lines, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
+                   compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
 from errors import YtIncorrectResponse, YtError, YtOperationFailedError
 from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
@@ -80,22 +80,30 @@ from copy import deepcopy
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
-def _split_rows(stream, format, raw):
+def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
     if isinstance(stream, str):
         stream = StringIO(stream)
 
-    if hasattr(stream, "read"):
-        if not raw:
-            raise YtError("Passing raw=False and stream as input forbidden")
-        for row in format.load_rows(stream, raw=True):
-            yield row
-    else:
-        for row in stream:
-            if raw:
-                yield row
-            else:
-                yield format.dumps_row(row)
+    is_iterable = any([isinstance(stream, type) for type in [types.ListType, types.GeneratorType]]) or hasattr(stream, "next")
+    is_filelike = hasattr(stream, "read")
 
+    if not is_iterable and not is_filelike:
+        raise YtError("Cannot split stream into chunks")
+
+    if raw:
+        if is_filelike:
+            if split_rows:
+                stream = format.load_rows(stream, raw=True)
+            else:
+                stream = chunk_iter_stream(stream, chunk_size)
+        for chunk in stream:
+            yield chunk
+    else:
+        if is_filelike:
+            raise YtError("Incorrect input type, it must be generator or list")
+        # is_iterable
+        for row in stream:
+            yield format.dumps_row(row)
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
@@ -482,13 +490,10 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and can_split_input and "sorted_by" not in table.attributes
-    if enable_retries:
-        input_stream = chunk_iter_lines(_split_rows(input_stream, format, raw), get_config(client)["write_retries"]["chunk_size"])
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
-
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
+
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=enable_retries, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     make_write_request(
         "write" if get_api_version(client=client) == "v2" else "write_table",
@@ -833,10 +838,7 @@ def lookup_rows(table, input_stream, format=None, raw=None, client=None):
     params["input_format"] = format.to_yson_type()
     params["output_format"] = format.to_yson_type()
 
-    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
-        input_stream = _split_rows(input_stream, format, raw)
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     response = _make_transactional_request(
         "lookup_rows",
@@ -871,10 +873,7 @@ def insert_rows(table, input_stream, format=None, raw=None, client=None):
     params["path"] = table.to_yson_type()
     params["input_format"] = format.to_yson_type()
 
-    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
-        input_stream = _split_rows(input_stream, format, raw)
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     _make_transactional_request(
         "insert_rows",
@@ -903,10 +902,7 @@ def delete_rows(table, input_stream, format=None, raw=None, client=None):
     params["path"] = table.to_yson_type()
     params["input_format"] = format.to_yson_type()
 
-    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
-        input_stream = _split_rows(input_stream, format, raw)
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     _make_transactional_request(
         "delete_rows",
