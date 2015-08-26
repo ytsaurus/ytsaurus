@@ -195,16 +195,20 @@ void AbortOperation(const TAuth& auth, const TOperationId& operationId)
 
 Stroka GetProxyForHeavyRequest(const TAuth& auth)
 {
-    yvector<Stroka> result;
-    while (result.empty()) {
+    if (!TConfig::Get()->UseHosts) {
+        return auth.ServerName;
+    }
+
+    yvector<Stroka> hosts;
+    while (hosts.empty()) {
         THttpHeader header("GET", TConfig::Get()->Hosts, false);
         Stroka response = RetryRequest(auth, header);
-        ParseJsonStringArray(response, result);
-        if (result.empty()) {
+        ParseJsonStringArray(response, hosts);
+        if (hosts.empty()) {
             Sleep(TConfig::Get()->RetryInterval);
         }
     }
-    return result.front();
+    return hosts.front();
 }
 
 Stroka RetryRequest(

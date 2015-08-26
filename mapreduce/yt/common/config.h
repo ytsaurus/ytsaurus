@@ -24,6 +24,7 @@ struct TConfig
 
     bool ForceIpV4;
     bool ForceIpV6;
+    bool UseHosts;
 
     NJson::TJsonValue Spec;
 
@@ -36,7 +37,7 @@ struct TConfig
     int RetryCount;
 
     static Stroka GetEnv(const char* var, const char* defaultValue = "");
-    static bool GetBool(const char* var);
+    static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
     static TDuration GetDuration(const char* var, int defaultValueSeconds);
     static Stroka GetEncoding(const char* var);
