@@ -56,7 +56,11 @@ private:
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
         auto scheduler = Bootstrap->GetScheduler();
         auto node = scheduler->GetOrRegisterNode(addresses);
-        scheduler->ProcessHeartbeat(node, context);
+        try {
+            scheduler->ProcessHeartbeat(node, context);
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Failed to process heartbeat");
+        }
     }
 
 };

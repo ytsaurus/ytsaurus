@@ -17,6 +17,7 @@ from copy import deepcopy
 from random import randint, shuffle
 
 yt.config.VERSION = "v3"
+#yt.config.http.TOKEN = "your token"
 
 # Config is passed to mapper.
 CONFIG_FILE_NAME = "copy-table.config"
@@ -240,20 +241,25 @@ def regions_mapper(r):
         return driver_src.execute_select(query)
     raw_data = StringIO(query(r["left"], r["right"]))
 
-    # Insert data into destination table.
-    new_data = []
-    def dump_data():
-        driver_dst.execute_command(config["mode"], config["destination"], prepare(new_data))
-        del new_data[:]
+    if config["mode"] == "write":
+        # Yield data.
+        for row in yson.load(raw_data, yson_type="list_fragment"):
+            yield row
+    else:
+        # Insert data into destination table.
+        new_data = []
+        def dump_data():
+            driver_dst.execute_command(config["mode"], config["destination"], prepare(new_data))
+            del new_data[:]
 
-    # Process data.
-    for row in yson.load(raw_data, yson_type="list_fragment"):
-        new_data.append(Transform.row(row))
-        if len(new_data) > config["rows_per_insert"]: dump_data()
-    dump_data()
+        # Process data.
+        for row in yson.load(raw_data, yson_type="list_fragment"):
+            new_data.append(Transform.row(row))
+            if len(new_data) > config["rows_per_insert"]: dump_data()
+        dump_data()
 
-    # Yield processed range.
-    yield r
+        # Yield processed range.
+        yield r
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
@@ -276,11 +282,15 @@ if __name__ == "__main__":
     parser.add_argument("--max_retry_count", type=int, default=MAX_RETRY_COUNT, help="Maximum number of 'yt' call retries")
     parser.add_argument("--sleep_interval", type=int, default=SLEEP_INTERVAL, help="Sleep interval between 'yt' call retries")
     parser.add_argument("--where", type=str, help="Additional predicate for 'yt select'")
+    parser.add_argument("--static_dst", action='store_true', help="Destination table is a static table")
     args = parser.parse_args()
 
     # Source and destination table paths.
     src = args.copy[0] if args.copy else args.delete
     dst = args.copy[1] if args.copy else None
+
+    if args.proxy_dst and args.static_dst:
+        raise Exception("static_dst is not supported for external claster")
 
     # YT proxies connections.
     existent = lambda x: None if len(x) == 0 else x[0] if x[0] is not None else existent(x[1:])
@@ -404,13 +414,20 @@ if __name__ == "__main__":
         yt_dst.create_table(dst)
         yt_dst.set_attribute(dst, "schema", Transform.schema(schema))
         yt_dst.set_attribute(dst, "key_columns", Transform.key_columns(key_columns))
-        yt_dst.reshard_table(dst, Transform.pivot_keys(pivot_keys))
-        yt_dst.mount_table(dst)
-        while not mounted(yt_dst, dst):
-            sleep(1)
+
+        out_table = ""
+        if args.static_dst:
+            out_table = dst
+            config["mode"] = "write"
+        else:
+            out_table = out_regions_table
+            config["mode"] = "insert"
+            yt_dst.reshard_table(dst, Transform.pivot_keys(pivot_keys))
+            yt_dst.mount_table(dst)
+            while not mounted(yt_dst, dst):
+                sleep(1)
 
         config["destination"] = dst
-        config["mode"] = "insert"
         config["select_columns"] = Transform.select_columns(schema)
         write_config(config)
 
@@ -419,7 +436,7 @@ if __name__ == "__main__":
             yt.run_map(
                 regions_mapper,
                 regions_table,
-                out_regions_table,
+                out_table,
                 spec=spec,
                 format=yt.YsonFormat(format="text"),
                 local_files=CONFIG_FILE_NAME)

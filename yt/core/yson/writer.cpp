@@ -124,6 +124,7 @@ TYsonWriter::TYsonWriter(
     , EnableRaw(enableRaw)
     , Depth(0)
     , BeforeFirstItem(true)
+    , PrintSpace(false)
     , BooleanAsString(booleanAsString)
     , IndentSize(indent)
 {
@@ -156,8 +157,17 @@ void TYsonWriter::EndNode()
     }
 }
 
+void TYsonWriter::BeginScalar()
+{
+    if (PrintSpace) {
+        Stream->Write(' ');
+    }
+    PrintSpace = false;
+}
+
 void TYsonWriter::BeginCollection(ETokenType beginToken)
 {
+    PrintSpace = false;
     Stream->Write(TokenTypeToChar(beginToken));
     ++Depth;
     BeforeFirstItem = true;
@@ -209,12 +219,14 @@ void TYsonWriter::WriteStringScalar(const TStringBuf& value)
 
 void TYsonWriter::OnStringScalar(const TStringBuf& value)
 {
+    BeginScalar();
     WriteStringScalar(value);
     EndNode();
 }
 
 void TYsonWriter::OnInt64Scalar(i64 value)
 {
+    BeginScalar();
     if (Format == EYsonFormat::Binary) {
         Stream->Write(NDetail::Int64Marker);
         WriteVarInt64(Stream, value);
@@ -226,6 +238,7 @@ void TYsonWriter::OnInt64Scalar(i64 value)
 
 void TYsonWriter::OnUint64Scalar(ui64 value)
 {
+    BeginScalar();
     if (Format == EYsonFormat::Binary) {
         Stream->Write(NDetail::Uint64Marker);
         WriteVarUint64(Stream, value);
@@ -238,6 +251,7 @@ void TYsonWriter::OnUint64Scalar(ui64 value)
 
 void TYsonWriter::OnDoubleScalar(double value)
 {
+    BeginScalar();
     if (Format == EYsonFormat::Binary) {
         Stream->Write(NDetail::DoubleMarker);
         Stream->Write(&value, sizeof(double));
@@ -249,6 +263,7 @@ void TYsonWriter::OnDoubleScalar(double value)
 
 void TYsonWriter::OnBooleanScalar(bool value)
 {
+    BeginScalar();
     if (BooleanAsString) {
         OnStringScalar(FormatBool(value));
     } else {
@@ -263,6 +278,7 @@ void TYsonWriter::OnBooleanScalar(bool value)
 
 void TYsonWriter::OnEntity()
 {
+    BeginScalar();
     Stream->Write(TokenTypeToChar(EntityToken));
     EndNode();
 }
@@ -320,7 +336,7 @@ void TYsonWriter::OnEndAttributes()
 {
     EndCollection(EndAttributesToken);
     if (Format == EYsonFormat::Pretty) {
-        Stream->Write(' ');
+        PrintSpace = true;
     }
 }
 

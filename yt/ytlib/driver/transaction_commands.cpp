@@ -48,7 +48,7 @@ void TStartTransactionCommand::DoExecute()
 void TPingTransactionCommand::DoExecute()
 {
     // Specially for evvers@ :)
-    if (Request_->TransactionId == NullTransactionId)
+    if (!Request_->TransactionId)
         return;
 
     auto transaction = AttachTransaction(true);

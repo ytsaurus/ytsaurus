@@ -371,11 +371,11 @@ private:
     {
         TStringBuilder builder;
 
-        if (RequestId_ != NullRequestId) {
+        if (RequestId_) {
             AppendInfo(&builder, "RequestId: %v", GetRequestId());
         }
 
-        if (RealmId_ != NullRealmId) {
+        if (RealmId_) {
             AppendInfo(&builder, "RealmId: %v", GetRealmId());
         }
 
@@ -384,7 +384,7 @@ private:
         }
 
         auto mutationId = GetMutationId(*RequestHeader_);
-        if (mutationId != NullMutationId) {
+        if (mutationId) {
             AppendInfo(&builder, "MutationId: %v", mutationId);
         }
 
@@ -407,7 +407,7 @@ private:
     {
         TStringBuilder builder;
 
-        if (RequestId_ != NullRequestId) {
+        if (RequestId_) {
             AppendInfo(&builder, "RequestId: %v", RequestId_);
         }
 

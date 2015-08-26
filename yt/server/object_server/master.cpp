@@ -70,7 +70,7 @@ private:
             request->object_count());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction =  transactionId != NullTransactionId
+        auto* transaction = transactionId
             ? transactionManager->GetTransactionOrThrow(transactionId)
             : nullptr;
 

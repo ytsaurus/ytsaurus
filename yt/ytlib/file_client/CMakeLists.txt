@@ -22,6 +22,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/file_ypath.proto YT_SOURCE_FILES )
 protoc( ${BASE}/file_chunk_meta.proto YT_SOURCE_FILES )
 

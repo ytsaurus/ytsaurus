@@ -446,26 +446,26 @@ void TOperationControllerBase::TTask::CheckCompleted()
     }
 }
 
-TJobPtr TOperationControllerBase::TTask::ScheduleJob(
+TJobId TOperationControllerBase::TTask::ScheduleJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
     int chunkListCount = GetChunkListCountPerJob();
     if (!Controller->HasEnoughChunkLists(chunkListCount)) {
         LOG_DEBUG("Job chunk list demand is not met");
-        return nullptr;
+        return NullJobId;
     }
 
     int jobIndex = Controller->JobIndexGenerator.Next();
     auto joblet = New<TJoblet>(this, jobIndex);
 
-    auto node = context->GetNode();
-    const auto& address = node->GetDefaultAddress();
+    const auto& nodeResourceLimits = context->ResourceLimits();
+    const auto& address = context->GetAddress();
     auto* chunkPoolOutput = GetChunkPoolOutput();
     joblet->OutputCookie = chunkPoolOutput->Extract(address);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
         LOG_DEBUG("Job input is empty");
-        return nullptr;
+        return NullJobId;
     }
 
     joblet->InputStripeList = chunkPoolOutput->GetStripeList(joblet->OutputCookie);
@@ -478,11 +478,11 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
         LOG_DEBUG("Job actual resource demand is not met (Limits: {%v}, Demand: {%v})",
             FormatResources(jobLimits),
             FormatResources(neededResources));
-        CheckResourceDemandSanity(node, neededResources);
+        CheckResourceDemandSanity(nodeResourceLimits, neededResources);
         chunkPoolOutput->Aborted(joblet->OutputCookie);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
-        return nullptr;
+        return NullJobId;
     }
 
     auto jobType = GetJobType();
@@ -516,20 +516,23 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
     });
 
     auto restarted = LostJobCookieMap.find(joblet->OutputCookie) != LostJobCookieMap.end();
-    joblet->Job = context->StartJob(
+    joblet->JobId = context->StartJob(
         Controller->Operation,
         jobType,
         neededResources,
         restarted,
         jobSpecBuilder);
 
+    joblet->JobType = jobType;
+    joblet->Address = context->GetAddress();
+
     LOG_INFO(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
         "Approximate: %v, DataSize: %v (%v local), RowCount: %v, Restarted: %v, ResourceLimits: {%v})",
-        joblet->Job->GetId(),
-        Controller->Operation->GetId(),
+        joblet->JobId,
+        Controller->OperationId,
         jobType,
-        context->GetNode()->GetDefaultAddress(),
+        joblet->Address,
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
@@ -554,7 +557,7 @@ TJobPtr TOperationControllerBase::TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    return joblet->Job;
+    return joblet->JobId;
 }
 
 bool TOperationControllerBase::TTask::IsPending() const
@@ -608,30 +611,16 @@ void TOperationControllerBase::TTask::Persist(TPersistenceContext& context)
     Persist(context, LostJobCookieMap);
 }
 
-void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr joblet)
-{
-    UNUSED(joblet);
-}
+void TOperationControllerBase::TTask::PrepareJoblet(TJobletPtr /* joblet */)
+{ }
 
-void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
-{
-    auto job = joblet->Job;
-    auto address = job->GetNode()->GetDefaultAddress();
-    Controller->LogEventFluently(ELogEventType::JobStarted)
-        .Item("job_id").Value(job->GetId())
-        .Item("operation_id").Value(job->GetOperation()->GetId())
-        .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("node_address").Value(address)
-        .Item("job_type").Value(job->GetType())
-        .Item("total_data_size").Value(joblet->InputStripeList->TotalDataSize)
-        .Item("local_data_size").Value(joblet->InputStripeList->LocalDataSize)
-        .Item("scheduling_locality").Value(joblet->Task->GetLocality(address));
-}
+void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
+{ }
 
-void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet)
+void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
     if (Controller->IsRowCountPreserved()) {
-        const auto& statistics = joblet->Job->Statistics();
+        const auto& statistics = jobSummary.Statistics;
         auto inputStatistics = GetTotalInputDataStatistics(statistics);
         auto outputStatistics = GetTotalOutputDataStatistics(statistics);
         if (inputStatistics.row_count() != outputStatistics.row_count()) {
@@ -676,12 +665,12 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
     AddPendingHint();
 }
 
-void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet)
+void TOperationControllerBase::TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& /* jobSummary */)
 {
     ReinstallJob(joblet, EJobReinstallReason::Failed);
 }
 
-void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet)
+void TOperationControllerBase::TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& /* jobSummary */)
 {
     ReinstallJob(joblet, EJobReinstallReason::Aborted);
 }
@@ -738,7 +727,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 }
 
 void TOperationControllerBase::TTask::CheckResourceDemandSanity(
-    TExecNodePtr node,
+    const TNodeResources& nodeResourceLimits,
     const TNodeResources& neededResources)
 {
     // The task is requesting more than some node is willing to provide it.
@@ -747,7 +736,7 @@ void TOperationControllerBase::TTask::CheckResourceDemandSanity(
 
     // First check if this very node has enough resources (including those currently
     // allocated by other jobs).
-    if (Dominates(node->ResourceLimits(), neededResources))
+    if (Dominates(nodeResourceLimits, neededResources))
         return;
 
     CheckResourceDemandSanity(neededResources);
@@ -876,9 +865,8 @@ const TNodeResources& TOperationControllerBase::TTask::GetMinNeededResources() c
     return *CachedMinNeededResources;
 }
 
-TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr joblet) const
+TNodeResources TOperationControllerBase::TTask::GetNeededResources(TJobletPtr /* joblet */) const
 {
-    UNUSED(joblet);
     return GetMinNeededResources();
 }
 
@@ -913,12 +901,12 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
 
     // Store recovery info.
     auto completedJob = New<TCompletedJob>(
-        joblet->Job->GetId(),
+        joblet->JobId,
         this,
         joblet->OutputCookie,
         destinationPool,
         inputCookie,
-        joblet->Job->GetNode()->GetDefaultAddress());
+        joblet->Address);
 
     Controller->RegisterIntermediate(
         joblet,
@@ -937,9 +925,12 @@ TChunkStripePtr TOperationControllerBase::TTask::BuildIntermediateChunkStripe(
     return stripe;
 }
 
-void TOperationControllerBase::TTask::RegisterOutput(TJobletPtr joblet, int key)
+void TOperationControllerBase::TTask::RegisterOutput(
+    TJobletPtr joblet,
+    int key,
+    const TCompletedJobSummary& jobSummary)
 {
-    Controller->RegisterOutput(joblet, key);
+    Controller->RegisterOutput(joblet, key, jobSummary);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -952,6 +943,7 @@ TOperationControllerBase::TOperationControllerBase(
     : Config(config)
     , Host(host)
     , Operation(operation)
+    , OperationId(Operation->GetId())
     , AuthenticatedMasterClient(CreateClient())
     , AuthenticatedInputMasterClient(AuthenticatedMasterClient)
     , AuthenticatedOutputMasterClient(AuthenticatedMasterClient)
@@ -1156,7 +1148,6 @@ void TOperationControllerBase::InitializeTransactions()
 
 void TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
-    auto operationId = Operation->GetId();
     LOG_INFO("Starting async scheduler transaction");
 
     auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
@@ -1174,8 +1165,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
         reqExt->set_enable_staged_accounting(false);
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler async for operation %v",
-            operationId));
+        attributes->Set("title", Format("Scheduler async for operation %v", OperationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         GenerateMutationId(req);
@@ -1203,8 +1193,6 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
-    auto operationId = Operation->GetId();
-
     LOG_INFO("Starting sync scheduler transaction");
 
     auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
@@ -1224,8 +1212,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler sync for operation %v",
-            operationId));
+        attributes->Set("title", Format("Scheduler sync for operation %v", OperationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         GenerateMutationId(req);
@@ -1252,8 +1239,6 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
 
 void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
 {
-    auto operationId = Operation->GetId();
-
     LOG_INFO("Starting input transaction");
 
     auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
@@ -1270,8 +1255,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler input for operation %v",
-            operationId));
+        attributes->Set("title", Format("Scheduler input for operation %v", OperationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         GenerateMutationId(req);
@@ -1297,8 +1281,6 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
 
 void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTransactionId)
 {
-    auto operationId = Operation->GetId();
-
     LOG_INFO("Starting output transaction");
 
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
@@ -1316,8 +1298,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Scheduler output for operation %v",
-            operationId));
+        attributes->Set("title", Format("Scheduler output for operation %v", OperationId));
         ToProto(req->mutable_object_attributes(), *attributes);
 
         GenerateMutationId(req);
@@ -1416,7 +1397,7 @@ void TOperationControllerBase::AbortAllJoblets()
     for (const auto& pair : JobletMap) {
         auto joblet = pair.second;
         JobCounter.Aborted(1);
-        joblet->Task->OnJobAborted(joblet);
+        joblet->Task->OnJobAborted(joblet, TAbortedJobSummary(pair.first, EAbortReason::Scheduler));
     }
     JobletMap.clear();
 }
@@ -1551,43 +1532,48 @@ void TOperationControllerBase::CommitResults()
     LOG_INFO("Results committed");
 }
 
-void TOperationControllerBase::OnJobRunning(TJobPtr job, const TJobStatus& status)
+void TOperationControllerBase::OnJobRunning(const TJobId& /* jobId */, const TJobStatus& /* status */)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    UNUSED(job);
-    UNUSED(status);
 }
 
-void TOperationControllerBase::OnJobStarted(TJobPtr job)
+void TOperationControllerBase::OnJobStarted(const TJobId& jobId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    UNUSED(job);
+    auto joblet = GetJoblet(jobId);
+    auto address = joblet->Address;
+    LogEventFluently(ELogEventType::JobStarted)
+        .Item("job_id").Value(joblet->JobId)
+        .Item("operation_id").Value(OperationId)
+        .Item("resource_limits").Value(joblet->ResourceLimits)
+        .Item("node_address").Value(address)
+        .Item("job_type").Value(joblet->JobType)
+        .Item("total_data_size").Value(joblet->InputStripeList->TotalDataSize)
+        .Item("local_data_size").Value(joblet->InputStripeList->LocalDataSize)
+        .Item("scheduling_locality").Value(joblet->Task->GetLocality(address));
 
     JobCounter.Start(1);
 }
 
-void TOperationControllerBase::OnJobCompleted(TJobPtr job)
+void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSummary)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& result = job->Result();
-
-    LogFinishedJobFluently(ELogEventType::JobCompleted, job);
+    const auto& jobId = jobSummary.Id;
+    const auto& result = jobSummary.Result;
 
     JobCounter.Completed(1);
 
-    Operation->UpdateJobStatistics(job);
-
-    const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerResultEx = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     // Populate node directory by adding additional nodes returned from the job.
     NodeDirectory->MergeFrom(schedulerResultEx.node_directory());
 
-    auto joblet = GetJoblet(job);
-    joblet->Task->OnJobCompleted(joblet);
+    auto joblet = GetJoblet(jobId);
+    joblet->Task->OnJobCompleted(joblet, jobSummary);
 
-    RemoveJoblet(job);
+    RemoveJoblet(jobId);
 
     UpdateTask(joblet->Task);
 
@@ -1596,25 +1582,21 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
     }
 }
 
-void TOperationControllerBase::OnJobFailed(TJobPtr job)
+void TOperationControllerBase::OnJobFailed(const TFailedJobSummary& jobSummary)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& result = job->Result();
+    const auto& jobId = jobSummary.Id;
+    const auto& result = jobSummary.Result;
 
-    auto error = FromProto<TError>(result.error());
-
-    LogFinishedJobFluently(ELogEventType::JobFailed, job)
-        .Item("error").Value(error);
+    auto error = FromProto<TError>(result->error());
 
     JobCounter.Failed(1);
 
-    Operation->UpdateJobStatistics(job);
+    auto joblet = GetJoblet(jobId);
+    joblet->Task->OnJobFailed(joblet, jobSummary);
 
-    auto joblet = GetJoblet(job);
-    joblet->Task->OnJobFailed(joblet);
-
-    RemoveJoblet(job);
+    RemoveJoblet(jobId);
 
     if (error.Attributes().Get<bool>("fatal", false)) {
         OnOperationFailed(error);
@@ -1630,27 +1612,23 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
     }
 }
 
-void TOperationControllerBase::OnJobAborted(TJobPtr job)
+void TOperationControllerBase::OnJobAborted(const TAbortedJobSummary& jobSummary)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto abortReason = GetAbortReason(job);
-
-    LogFinishedJobFluently(ELogEventType::JobAborted, job)
-        .Item("reason").Value(abortReason);
+    const auto& jobId = jobSummary.Id;
+    auto abortReason = jobSummary.AbortReason;
 
     JobCounter.Aborted(1, abortReason);
 
-    Operation->UpdateJobStatistics(job);
+    auto joblet = GetJoblet(jobId);
+    joblet->Task->OnJobAborted(joblet, jobSummary);
 
-    auto joblet = GetJoblet(job);
-    joblet->Task->OnJobAborted(joblet);
-
-    RemoveJoblet(job);
+    RemoveJoblet(jobId);
 
     if (abortReason == EAbortReason::FailedChunks) {
-        const auto& result = job->Result();
-        const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        const auto& result = jobSummary.Result;
+        const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
         for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
@@ -1820,7 +1798,7 @@ void TOperationControllerBase::CheckTimeLimit()
     }
 }
 
-TJobPtr TOperationControllerBase::ScheduleJob(
+TJobId TOperationControllerBase::ScheduleJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
@@ -1831,34 +1809,29 @@ TJobPtr TOperationControllerBase::ScheduleJob(
         Operation->GetSuspended())
     {
         LOG_TRACE("Operation is not running, scheduling request ignored");
-        return nullptr;
+        return NullJobId;
     }
 
     if (GetPendingJobCount() == 0) {
         LOG_TRACE("No pending jobs left, scheduling request ignored");
-        return nullptr;
+        return NullJobId;
     }
 
-    auto job = DoScheduleJob(context, jobLimits);
-    if (!job) {
-        return nullptr;
+    auto jobId = DoScheduleJob(context, jobLimits);
+    if (!jobId) {
+        return NullJobId;
     }
 
-    OnJobStarted(job);
+    OnJobStarted(jobId);
 
-    return job;
+    return jobId;
 }
 
-void TOperationControllerBase::CustomizeJoblet(TJobletPtr joblet)
-{
-    UNUSED(joblet);
-}
+void TOperationControllerBase::CustomizeJoblet(TJobletPtr /* joblet */)
+{ }
 
-void TOperationControllerBase::CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
-{
-    UNUSED(joblet);
-    UNUSED(jobSpec);
-}
+void TOperationControllerBase::CustomizeJobSpec(TJobletPtr /* joblet */, TJobSpec* /* jobSpec */)
+{ }
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
@@ -1981,39 +1954,42 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
     }
 }
 
-bool TOperationControllerBase::CheckJobLimits(TExecNodePtr node, TTaskPtr task, const TNodeResources& jobLimits)
+bool TOperationControllerBase::CheckJobLimits(
+    TTaskPtr task,
+    const TNodeResources& jobLimits,
+    const TNodeResources& nodeResourceLimits)
 {
     auto neededResources = task->GetMinNeededResources();
     if (Dominates(jobLimits, neededResources)) {
         return true;
     }
-    task->CheckResourceDemandSanity(node, neededResources);
+    task->CheckResourceDemandSanity(nodeResourceLimits, neededResources);
     return false;
 }
 
-TJobPtr TOperationControllerBase::DoScheduleJob(
+TJobId TOperationControllerBase::DoScheduleJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
-    auto localJob = DoScheduleLocalJob(context, jobLimits);
-    if (localJob) {
-        return localJob;
+    auto localJobId = DoScheduleLocalJob(context, jobLimits);
+    if (localJobId) {
+        return localJobId;
     }
 
-    auto nonLocalJob = DoScheduleNonLocalJob(context, jobLimits);
-    if (nonLocalJob) {
-        return nonLocalJob;
+    auto nonLocalJobId = DoScheduleNonLocalJob(context, jobLimits);
+    if (nonLocalJobId) {
+        return nonLocalJobId;
     }
 
-    return nullptr;
+    return NullJobId;
 }
 
-TJobPtr TOperationControllerBase::DoScheduleLocalJob(
+TJobId TOperationControllerBase::DoScheduleLocalJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
-    auto node = context->GetNode();
-    const auto& address = node->GetDefaultAddress();
+    const auto& nodeResourceLimits = context->ResourceLimits();
+    const auto& address = context->GetAddress();
 
     for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -2054,7 +2030,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
                 continue;
             }
 
-            if (!CheckJobLimits(node, task, jobLimits)) {
+            if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
                 continue;
             }
 
@@ -2063,7 +2039,7 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
         }
 
         if (!Running) {
-            return nullptr;
+            return NullJobId;
         }
 
         if (bestTask) {
@@ -2076,23 +2052,23 @@ TJobPtr TOperationControllerBase::DoScheduleLocalJob(
                 FormatResources(jobLimits),
                 bestTask->GetPendingDataSize(),
                 bestTask->GetPendingJobCount());
-            auto job = bestTask->ScheduleJob(context, jobLimits);
-            if (job) {
+            auto jobId = bestTask->ScheduleJob(context, jobLimits);
+            if (jobId) {
                 UpdateTask(bestTask);
-                return job;
+                return jobId;
             }
         }
     }
-    return nullptr;
+    return NullJobId;
 }
 
-TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
+TJobId TOperationControllerBase::DoScheduleNonLocalJob(
     ISchedulingContext* context,
     const TNodeResources& jobLimits)
 {
-    auto now = TInstant::Now();
-    const auto& node = context->GetNode();
-    const auto& address = node->GetDefaultAddress();
+    auto now = context->GetNow();
+    const auto& nodeResourceLimits = context->ResourceLimits();
+    const auto& address = context->GetAddress();
 
     for (auto group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
@@ -2146,7 +2122,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     break;
                 }
 
-                if (!CheckJobLimits(node, task, jobLimits)) {
+                if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
                     ++it;
                     continue;
                 }
@@ -2166,7 +2142,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                 }
 
                 if (!Running) {
-                    return nullptr;
+                    return NullJobId;
                 }
 
                 LOG_DEBUG(
@@ -2178,11 +2154,11 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
                     task->GetPendingDataSize(),
                     task->GetPendingJobCount());
 
-                auto job = task->ScheduleJob(context, jobLimits);
-                if (job) {
+                auto jobId = task->ScheduleJob(context, jobLimits);
+                if (jobId) {
                     UpdateTask(task);
                     LOG_DEBUG("Processed %v tasks", processedTaskCount);
-                    return job;
+                    return jobId;
                 }
 
                 // If task failed to schedule job, its min resources might have been updated.
@@ -2198,7 +2174,7 @@ TJobPtr TOperationControllerBase::DoScheduleNonLocalJob(
             LOG_DEBUG("Processed %v tasks", processedTaskCount);
         }
     }
-    return nullptr;
+    return NullJobId;
 }
 
 TCancelableContextPtr TOperationControllerBase::GetCancelableContext() const
@@ -2345,7 +2321,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
 
         for (int index = 0; index < static_cast<int>(OutputTables.size()); ++index) {
             const auto& table = OutputTables[index];
-            auto path = GetLivePreviewOutputPath(Operation->GetId(), index);
+            auto path = GetLivePreviewOutputPath(OperationId, index);
             addRequest(path, table.Options->ReplicationFactor, "create_output", OutputTables[index].EffectiveAcl);
         }
     }
@@ -2353,7 +2329,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     if (IsIntermediateLivePreviewSupported()) {
         LOG_INFO("Creating intermediate table for live preview");
 
-        auto path = GetLivePreviewIntermediatePath(Operation->GetId());
+        auto path = GetLivePreviewIntermediatePath(OperationId);
         addRequest(path, 1, "create_intermediate", ConvertToYsonString(Spec->IntermediateDataAcl));
     }
 
@@ -3263,17 +3239,6 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
-EAbortReason TOperationControllerBase::GetAbortReason(TJobPtr job)
-{
-    auto error = FromProto<TError>(job->Result().error());
-    return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
-}
-
-EAbortReason TOperationControllerBase::GetAbortReason(TJobletPtr joblet)
-{
-    return joblet->Job ? GetAbortReason(joblet->Job) : EAbortReason::Other;
-}
-
 bool TOperationControllerBase::IsSortedOutputSupported() const
 {
     return false;
@@ -3365,9 +3330,10 @@ void TOperationControllerBase::RegisterOutput(
 
 void TOperationControllerBase::RegisterOutput(
     TJobletPtr joblet,
-    int key)
+    int key,
+    const TCompletedJobSummary& jobSummary)
 {
-    const auto* userJobResult = FindUserJobResult(joblet);
+    const auto* userJobResult = FindUserJobResult(jobSummary.Result);
 
     for (int tableIndex = 0; tableIndex < static_cast<int>(OutputTables.size()); ++tableIndex) {
         auto& table = OutputTables[tableIndex];
@@ -3442,19 +3408,19 @@ TChunkListId TOperationControllerBase::ExtractChunkList()
 
 void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)
 {
-    YCHECK(JobletMap.insert(std::make_pair(joblet->Job->GetId(), joblet)).second);
+    YCHECK(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
 }
 
-TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(TJobPtr job)
+TOperationControllerBase::TJobletPtr TOperationControllerBase::GetJoblet(const TJobId& jobId)
 {
-    auto it = JobletMap.find(job->GetId());
+    auto it = JobletMap.find(jobId);
     YCHECK(it != JobletMap.end());
     return it->second;
 }
 
-void TOperationControllerBase::RemoveJoblet(TJobPtr job)
+void TOperationControllerBase::RemoveJoblet(const TJobId& jobId)
 {
-    YCHECK(JobletMap.erase(job->GetId()) == 1);
+    YCHECK(JobletMap.erase(jobId) == 1);
 }
 
 void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
@@ -3581,7 +3547,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     // Local environment.
     fillEnvironment(config->Environment);
 
-    jobSpec->add_environment(Format("YT_OPERATION_ID=%v", Operation->GetId()));
+    jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto registerChunks = [&] (
@@ -3623,7 +3589,7 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->set_memory_reserve(memoryReserve);
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
-    jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->Job->GetId()));
+    jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
@@ -3693,28 +3659,13 @@ void TOperationControllerBase::ValidateKey(const TOwningKey& key)
     }
 }
 
-void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr config)
-{
-    UNUSED(config);
-}
+void TOperationControllerBase::InitFinalOutputConfig(TJobIOConfigPtr /* config */)
+{ }
 
 TFluentLogEvent TOperationControllerBase::LogEventFluently(ELogEventType eventType)
 {
     return Host->LogEventFluently(eventType)
-        .Item("operation_id").Value(Operation->GetId());
-}
-
-TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
-{
-    return LogEventFluently(eventType)
-        .Item("job_id").Value(job->GetId())
-        .Item("operation_id").Value(job->GetOperation()->GetId())
-        .Item("start_time").Value(job->GetStartTime())
-        .Item("finish_time").Value(job->GetFinishTime())
-        .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("statistics").Value(job->Statistics())
-        .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
-        .Item("job_type").Value(job->GetType());
+        .Item("operation_id").Value(OperationId);
 }
 
 IClientPtr TOperationControllerBase::CreateClient()
@@ -3727,16 +3678,14 @@ IClientPtr TOperationControllerBase::CreateClient()
         ->CreateClient(options);
 }
 
-const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJobletPtr joblet)
+const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(const TRefCountedJobResultPtr& result)
 {
-    const auto& result = joblet->Job->Result();
-    const auto& schedulerJobResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    const auto& schedulerJobResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     if (schedulerJobResultExt.has_user_job_result()) {
         return &schedulerJobResultExt.user_job_result();
-    } else {
-        return nullptr;
     }
+    return nullptr;
 }
 
 void TOperationControllerBase::Persist(TPersistenceContext& context)

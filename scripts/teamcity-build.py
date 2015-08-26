@@ -231,12 +231,11 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
         "__".join([options.btid, options.build_number, suite_name]))
-    working_files_to_archive = ["bin/ytserver", "lib/libyt-driver-python.so", "lib/libyt-yson-python.so", "lib/YT.so"]
+    working_files_to_archive = ["bin/yt", "bin/ytserver", "lib/*.so"]
 
     mkdirp(sandbox_current)
 
     failed = False
-    result = None
 
     with tempfile.NamedTemporaryFile() as handle:
         try:
@@ -259,19 +258,23 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
-        result = etree.parse(handle)
+        try:
+            result = etree.parse(handle)
+            for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
+                if isinstance(node.text, str):
+                    node.text = node.text \
+                        .replace("&quot;", "\"") \
+                        .replace("&apos;", "\'") \
+                        .replace("&amp;", "&") \
+                        .replace("&lt;", "<") \
+                        .replace("&gt;", ">")
 
-    for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
-        if isinstance(node.text, str):
-            node.text = node.text \
-                .replace("&quot;", "\"") \
-                .replace("&apos;", "\'") \
-                .replace("&amp;", "&") \
-                .replace("&lt;", "<") \
-                .replace("&gt;", ">")
+            with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
+                result.write(handle, encoding="utf-8")
 
-    with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
-        result.write(handle, encoding="utf-8")
+        except UnicodeDecodeError, etree.ParseError:
+            failed = True
+            teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
     try:
         if failed:
@@ -280,15 +283,17 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 sandbox_archive),
                 status="WARNING")
             shutil.copytree(sandbox_current, sandbox_archive)
-            mkdirp(os.path.join(sandbox_archive, "build"))
-            for file in working_files_to_archive:
-                shutil.copy(os.path.join(options.working_directory, file), os.path.join(sandbox_archive, "build"))
-            mkdirp(os.path.join(sandbox_archive, "cores_dumps"))
+            artifact_path = os.path.join(sandbox_archive, "artifacts")
+            core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
+            mkdirp(artifact_path)
+            mkdirp(core_dumps_path)
+            for fileglob in working_files_to_archive:
+                for file in glob.glob(os.path.join(options.working_directory, fileglob)):
+                    shutil.copy(file, artifact_path)
             for dir, _, files in os.walk(suite_path):
                 for file in files:
                     if file.startswith("core."):
-                        shutil.copy(os.path.join(dir, file), os.path.join(sandbox_archive, "core_dumps"))
-
+                        shutil.copy(os.path.join(dir, file), core_dumps_path)
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         shutil.rmtree(sandbox_current)
@@ -350,10 +355,6 @@ def build_python_packages(options):
             return versions[0]
         else:
             return "0"
-
-    # trusty build broken python packages, temporaly turn it off :(
-    if not options.package or options.codename == "trusty":
-        return
 
     run(["sudo", "apt-get", "update"])
 

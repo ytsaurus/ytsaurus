@@ -475,7 +475,7 @@ private:
 
     static void ValidateTabletStartOptions(const TTransactionStartOptions& options)
     {
-        if (options.ParentId != NullTransactionId) {
+        if (options.ParentId) {
             THROW_ERROR_EXCEPTION("Tablet transaction cannot have a parent");
         }
         if (!options.Ping) {
@@ -551,7 +551,7 @@ private:
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
         }
-        if (options.ParentId != NullTransactionId) {
+        if (options.ParentId) {
             ToProto(req->mutable_transaction_id(), options.ParentId);
         }
 
@@ -560,7 +560,7 @@ private:
         reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
         reqExt->set_timeout(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
-        if (options.ParentId != NullTransactionId) {
+        if (options.ParentId) {
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);
         }
 

@@ -113,9 +113,9 @@ private:
         }
 
         {
-            auto cellId = options.CellId == NullCellId
-                  ? Connection_->GetConfig()->Master->CellId
-                  : options.CellId;
+            auto cellId = options.CellId
+                  ? options.CellId
+                  : Connection_->GetConfig()->Master->CellId;
             auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
             THydraServiceProxy proxy(channel);

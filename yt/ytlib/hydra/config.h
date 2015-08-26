@@ -33,7 +33,7 @@ public:
         });
 
         RegisterValidator([&] () {
-           if (CellId == NullCellId) {
+           if (!CellId) {
                THROW_ERROR_EXCEPTION("\"cell_id\" cannot be equal to %v",
                    NullCellId);
            }

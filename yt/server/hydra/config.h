@@ -270,7 +270,7 @@ public:
 
         RegisterValidator([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
-                THROW_ERROR_EXCEPTION("\"leader_grace_time\" must be larger than \"leader_lease_timeout\"");
+                THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");
             }
         });
     }

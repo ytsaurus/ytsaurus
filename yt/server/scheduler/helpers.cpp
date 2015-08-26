@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "helpers.h"
+#include "public.h"
 #include "operation.h"
 #include "job.h"
 #include "exec_node.h"
@@ -60,7 +61,7 @@ void BuildJobAttributes(TJobPtr job, NYson::IYsonConsumer* consumer)
             fluent.Item("finish_time").Value(job->GetFinishTime().Get());
         })
         .DoIf(state == EJobState::Failed, [=] (TFluentMap fluent) {
-            auto error = FromProto<TError>(job->Result().error());
+            auto error = FromProto<TError>(job->Result()->error());
             fluent.Item("error").Value(error);
         });
 }
@@ -88,6 +89,14 @@ Stroka TrimCommandForBriefSpec(const Stroka& command)
         command.length() <= MaxBriefSpecCommandLength
         ? command
         : command.substr(0, MaxBriefSpecCommandLength) + "...";
+}
+
+////////////////////////////////////////////////////////////////////
+
+EAbortReason GetAbortReason(const TRefCountedJobResultPtr& result)
+{
+    auto error = FromProto<TError>(result->error());
+    return error.Attributes().Get<EAbortReason>("abort_reason", EAbortReason::Scheduler);
 }
 
 ////////////////////////////////////////////////////////////////////

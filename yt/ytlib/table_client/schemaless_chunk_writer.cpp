@@ -833,7 +833,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
 {
     Options_->NetworkName = options->NetworkName;
 
-    Logger.AddTag("Path: %v, TransactihonId: %v",
+    Logger.AddTag("Path: %v, TransactionId: %v",
         RichPath_.GetPath(),
         TransactionId_);
 }

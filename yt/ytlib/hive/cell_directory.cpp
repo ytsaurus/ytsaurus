@@ -70,9 +70,7 @@ void ToProto(NProto::TCellDescriptor* protoDescriptor, const TCellDescriptor& de
     protoDescriptor->set_config_version(descriptor.ConfigVersion);
     for (const auto& maybePeer : descriptor.Peers) {
         auto* protoPeer = protoDescriptor->add_peers();
-        if (maybePeer) {
-            ToProto(protoPeer, *maybePeer);
-        }
+        ToProto(protoPeer, maybePeer.Get(TNodeDescriptor()));
     }
 }
 

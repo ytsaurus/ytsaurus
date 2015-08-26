@@ -139,6 +139,7 @@ public:
     { }
 
     virtual TFluentLogEvent LogEventFluently(ELogEventType eventType) = 0;
+    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) = 0;
 };
 
 class TEventLogHostBase
@@ -146,6 +147,7 @@ class TEventLogHostBase
 {
 public:
     virtual TFluentLogEvent LogEventFluently(ELogEventType eventType) override;
+    virtual TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) override;
 
 protected:
     virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;

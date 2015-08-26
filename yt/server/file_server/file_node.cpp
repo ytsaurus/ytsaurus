@@ -19,7 +19,6 @@ using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NSecurityServer;
-using namespace NFileClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,32 +63,6 @@ protected:
             transaction,
             trunkNode);
     }
-
-    virtual std::unique_ptr<TFileNode> DoCreate(
-        const TVersionedNodeId& id,
-        TReqCreate* request,
-        TRspCreate* response) override
-    {
-        // NB: Validate everything before calling TBase::DoCreate to ensure atomicity.
-        TChunk* chunk = nullptr;
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        if (request->HasExtension(TReqCreateFileExt::create_file_ext)) {
-            const auto& requestExt = request->GetExtension(TReqCreateFileExt::create_file_ext);
-            auto chunkId = FromProto<TChunkId>(requestExt.chunk_id());
-            chunk = chunkManager->GetChunkOrThrow(chunkId);
-            chunk->ValidateConfirmed();
-        }
-
-        auto node = TChunkOwnerTypeHandler::DoCreate(id, request, response);
-
-        if (chunk) {
-            auto* chunkList = node->GetChunkList();
-            chunkManager->AttachToChunkList(chunkList, chunk);
-        }
-
-        return node;
-    }
-
 };
 
 INodeTypeHandlerPtr CreateFileTypeHandler(TBootstrap* bootstrap)

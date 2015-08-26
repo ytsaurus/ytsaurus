@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "config.h"
 #include "fair_share_strategy.h"
+#include "public.h"
 #include "scheduler_strategy.h"
 #include "master_connector.h"
 #include "job_resources.h"
@@ -28,6 +29,7 @@ static const double RatioComparisonPrecision = sqrt(RatioComputationPrecision);
 
 struct ISchedulerElement;
 typedef TIntrusivePtr<ISchedulerElement> ISchedulerElementPtr;
+typedef TWeakPtr<ISchedulerElement> ISchedulerElementWeakPtr;
 
 class TOperationElement;
 typedef TIntrusivePtr<TOperationElement> TOperationElementPtr;
@@ -41,23 +43,31 @@ typedef TIntrusivePtr<TPool> TPoolPtr;
 class TRootElement;
 typedef TIntrusivePtr<TRootElement> TRootElementPtr;
 
+struct TFairShareContext;
+
+class TDynamicAttributesMap;
+
 ////////////////////////////////////////////////////////////////////
 
 struct TSchedulableAttributes
 {
-    TSchedulableAttributes()
-    { }
-
     EResourceType DominantResource = EResourceType::Cpu;
     double DemandRatio = 0.0;
     double UsageRatio = 0.0;
     double FairShareRatio = 0.0;
     double AdjustedMinShareRatio = 0.0;
     double MaxPossibleUsageRatio = 1.0;
-    double SatisfactionRatio = 0.0;
     double BestAllocationRatio = 1.0;
     i64 DominantLimit = 0;
-    bool Active = true;
+};
+
+struct TDynamicAttributes
+{
+    double SatisfactionRatio = 0.0;
+    bool Active = false;
+    ISchedulerElementWeakPtr BestLeafDescendant;
+    TInstant MinSubtreeStartTime;
+    TNodeResources ResourceUsageDiscount = ZeroNodeResources();
 };
 
 DEFINE_ENUM(ESchedulableStatus,
@@ -76,16 +86,17 @@ struct ISchedulerElement
     virtual void UpdateTopDown() = 0;
 
     virtual void BeginHeartbeat() = 0;
-    virtual void UpdateDynamicAttributes() = 0;
-    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) = 0;
-    virtual bool ScheduleJob(ISchedulingContext* context) = 0;
+    virtual void UpdateDynamicAttributes(TDynamicAttributesMap& dynamicAttributesMap) = 0;
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) = 0;
+    virtual bool ScheduleJob(TFairShareContext& context) = 0;
     virtual void EndHeartbeat() = 0;
 
     virtual const TSchedulableAttributes& Attributes() const = 0;
     virtual TSchedulableAttributes& Attributes() = 0;
     virtual void UpdateAttributes() = 0;
 
-    virtual TInstant GetStartTime() const = 0;
+    virtual const TDynamicAttributes& DynamicAttributes() const = 0;
+    virtual TDynamicAttributes& DynamicAttributes() = 0;
 
     virtual Stroka GetId() const = 0;
 
@@ -93,7 +104,6 @@ struct ISchedulerElement
     virtual double GetMinShareRatio() const = 0;
     virtual double GetMaxShareRatio() const = 0;
 
-    virtual ISchedulerElement* GetBestLeafDescendant() = 0;
     virtual ESchedulableStatus GetStatus() const = 0;
 
     virtual bool GetStarving() const = 0;
@@ -102,7 +112,6 @@ struct ISchedulerElement
 
     virtual const TNodeResources& ResourceDemand() const = 0;
     virtual const TNodeResources& ResourceUsage() const = 0;
-    virtual const TNodeResources& ResourceUsageDiscount() const = 0;
     virtual const TNodeResources& ResourceLimits() const = 0;
     virtual const TNodeResources& MaxPossibleResourceUsage() const = 0;
 
@@ -126,6 +135,80 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
+class TDynamicAttributesMap
+{
+public:
+    void Initialize(const ISchedulerElement* element, TDynamicAttributes value = TDynamicAttributes())
+    {
+        Impl_[element->GetId()] = value;
+    }
+
+    void Initialize(const ISchedulerElementPtr& element, TDynamicAttributes value = TDynamicAttributes())
+    {
+        Initialize(element.Get(), value);
+    }
+
+    void Erase(const ISchedulerElement* element)
+    {
+        YCHECK(Impl_.erase(element->GetId()));
+    }
+
+    void Erase(const ISchedulerElementPtr& element)
+    {
+        Erase(element.Get());
+    }
+
+    TDynamicAttributes& At(const ISchedulerElement* element)
+    {
+        return Impl_.at(element->GetId());
+    }
+
+    TDynamicAttributes& At(const ISchedulerElementPtr& element)
+    {
+        return At(element.Get());
+    }
+
+    const TDynamicAttributes& At(const ISchedulerElement* element) const
+    {
+        return Impl_.at(element->GetId());
+    }
+
+    const TDynamicAttributes& At(const ISchedulerElementPtr& element) const
+    {
+        return At(element.Get());
+    }
+
+    bool GetActive(const ISchedulerElement* element) const
+    {
+        auto it = Impl_.find(element->GetId());
+        if (it == Impl_.end()) {
+            return false;
+        }
+        return it->second.Active;
+    }
+
+    bool GetActive(const ISchedulerElementPtr& element) const
+    {
+        return GetActive(element.Get());
+    }
+
+private:
+    yhash_map<Stroka, TDynamicAttributes> Impl_;
+
+};
+
+struct TFairShareContext
+{
+    explicit TFairShareContext(ISchedulingContext* schedulingContext)
+        : SchedulingContext(schedulingContext)
+    { }
+
+    ISchedulingContext* SchedulingContext;
+    TDynamicAttributesMap DynamicAttributesMap;
+};
+
+////////////////////////////////////////////////////////////////////
+
 class TSchedulerElementBase
     : public ISchedulerElement
 {
@@ -141,6 +224,8 @@ public:
     virtual void UpdateBottomUp() override
     {
         UpdateAttributes();
+        DynamicAttributesMap.At(this).Active = true;
+        UpdateDynamicAttributes(DynamicAttributesMap);
     }
 
     // Updates attributes that are propagated from root down to leafs.
@@ -149,18 +234,17 @@ public:
     { }
 
     virtual void BeginHeartbeat() override
+    { }
+
+    virtual void UpdateDynamicAttributes(TDynamicAttributesMap& dynamicAttributesMap) override
     {
-        Attributes_.Active = true;
+        YCHECK(dynamicAttributesMap.GetActive(this));
+        dynamicAttributesMap.At(this).SatisfactionRatio = ComputeLocalSatisfactionRatio();
     }
 
-    virtual void UpdateDynamicAttributes() override
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
-        Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
-    }
-
-    virtual void PrescheduleJob(TExecNodePtr /*node*/, bool /*starvingOnly*/) override
-    {
-        UpdateDynamicAttributes();
+        UpdateDynamicAttributes(context.DynamicAttributesMap);
     }
 
     virtual void EndHeartbeat() override
@@ -220,6 +304,16 @@ public:
                 Attributes_.DemandRatio,
                 Attributes_.MaxPossibleUsageRatio);
         }
+    }
+
+    virtual const TDynamicAttributes& DynamicAttributes() const override
+    {
+        return DynamicAttributesMap.At(this);
+    }
+
+    virtual TDynamicAttributes& DynamicAttributes() override
+    {
+        return DynamicAttributesMap.At(this);
     }
 
     ESchedulableStatus GetStatus(double defaultTolerance) const
@@ -304,9 +398,12 @@ public:
 protected:
     ISchedulerStrategyHost* Host;
 
-    explicit TSchedulerElementBase(ISchedulerStrategyHost* host)
+    TDynamicAttributesMap& DynamicAttributesMap;
+
+    TSchedulerElementBase(ISchedulerStrategyHost* host, TDynamicAttributesMap& dynamicAttributesMap)
         : Starving_(false)
         , Host(host)
+        , DynamicAttributesMap(dynamicAttributesMap)
     { }
 
     double ComputeLocalSatisfactionRatio() const
@@ -336,12 +433,11 @@ class TCompositeSchedulerElement
     : public TSchedulerElementBase
 {
 public:
-    explicit TCompositeSchedulerElement(ISchedulerStrategyHost* host)
-        : TSchedulerElementBase(host)
+    TCompositeSchedulerElement(ISchedulerStrategyHost* host, TDynamicAttributesMap& dynamicAttributesMap)
+        : TSchedulerElementBase(host, dynamicAttributesMap)
         , Parent_(nullptr)
         , ResourceDemand_(ZeroNodeResources())
         , ResourceUsage_(ZeroNodeResources())
-        , ResourceUsageDiscount_(ZeroNodeResources())
         , ResourceLimits_(InfiniteNodeResources())
         , Mode(ESchedulingMode::Fifo)
     { }
@@ -395,62 +491,94 @@ public:
         }
     }
 
-    virtual void UpdateDynamicAttributes() override
+    virtual void UpdateDynamicAttributes(TDynamicAttributesMap& dynamicAttributesMap) override
     {
+        YCHECK(dynamicAttributesMap.GetActive(this));
+        auto& attributes = dynamicAttributesMap.At(this);
+
         // Compute local satisfaction ratio.
-        Attributes_.SatisfactionRatio = ComputeLocalSatisfactionRatio();
+        attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
         // Start times bubble up from leaf nodes with operations.
-        MinSubtreeStartTime = TInstant::Max();
+        attributes.MinSubtreeStartTime = TInstant::Max();
         // Adjust satisfaction ratio using children.
         // Declare the element passive if all children are passive.
-        Attributes_.Active = false;
-        BestLeafDescendant_ = nullptr;
+        attributes.Active = false;
+        attributes.BestLeafDescendant.Reset();
 
-        auto bestChild = GetBestChild();
-        if (bestChild) {
+        while (auto bestChild = GetBestActiveChild(dynamicAttributesMap)) {
+            auto childBestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant.Lock();
+            if (!childBestLeafDescendant) {
+                bestChild->UpdateDynamicAttributes(dynamicAttributesMap);
+                if (!dynamicAttributesMap.GetActive(bestChild)) {
+                    continue;
+                }
+                childBestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant.Lock();
+                YCHECK(childBestLeafDescendant);
+            }
+
             // We need to evaluate both MinSubtreeStartTime and SatisfactionRatio
             // because parent can use different scheduling mode.
-            MinSubtreeStartTime = std::min(MinSubtreeStartTime, bestChild->GetStartTime());
+            attributes.MinSubtreeStartTime = std::min(
+                attributes.MinSubtreeStartTime,
+                dynamicAttributesMap.At(bestChild).MinSubtreeStartTime);
 
-            Attributes_.SatisfactionRatio = std::min(
-                Attributes_.SatisfactionRatio,
-                bestChild->Attributes().SatisfactionRatio);
+            attributes.SatisfactionRatio = std::min(
+                attributes.SatisfactionRatio,
+                dynamicAttributesMap.At(bestChild).SatisfactionRatio);
 
-            BestLeafDescendant_ = bestChild->GetBestLeafDescendant();
-            Attributes_.Active = true;
+            attributes.BestLeafDescendant = dynamicAttributesMap.At(bestChild).BestLeafDescendant;
+            attributes.Active = true;
+            break;
         }
     }
 
-    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
-        if (!Attributes_.Active)
-            return;
+        const auto& node = context.SchedulingContext->GetNode();
+        context.DynamicAttributesMap.Initialize(this);
+        auto& attributes = context.DynamicAttributesMap.At(this);
+
+        attributes.Active = true;
 
         if (!node->CanSchedule(GetSchedulingTag())) {
-            Attributes_.Active = false;
+            attributes.Active = false;
             return;
         }
 
-        for (const auto& child : GetActiveChildren()) {
+        for (const auto& child : Children) {
             // If pool is starving, any child will do.
             if (Starving_) {
-                child->PrescheduleJob(node, false);
+                child->PrescheduleJob(context, false);
             } else {
-                child->PrescheduleJob(node, starvingOnly);
+                child->PrescheduleJob(context, starvingOnly);
             }
         }
-        UpdateDynamicAttributes();
+
+        TSchedulerElementBase::PrescheduleJob(context, starvingOnly);
     }
 
-    virtual bool ScheduleJob(ISchedulingContext* context) override
+    virtual bool ScheduleJob(TFairShareContext& context) override
     {
-        if (!BestLeafDescendant_) {
+        auto& attributes = context.DynamicAttributesMap.At(this);
+        if (!attributes.Active) {
             return false;
         }
 
-        // NB: Ignore the child's result.
-        BestLeafDescendant_->ScheduleJob(context);
+        auto bestLeafDescendant = attributes.BestLeafDescendant.Lock();
+        if (!bestLeafDescendant) {
+            // NB: This can only happen as a result of deletion of bestLeafDescendant node
+            // from scheduling tree in another fiber (e.x. operation abort),
+            // while this fiber was waiting for controller.
+            UpdateDynamicAttributes(context.DynamicAttributesMap);
+            if (!attributes.Active) {
+                return false;
+            }
+            bestLeafDescendant = attributes.BestLeafDescendant.Lock();
+            YCHECK(bestLeafDescendant);
+        }
 
+        // NB: Ignore the child's result.
+        bestLeafDescendant->ScheduleJob(context);
         return true;
     }
 
@@ -460,11 +588,6 @@ public:
         for (const auto& child : Children) {
             child->EndHeartbeat();
         }
-    }
-
-    virtual ISchedulerElement* GetBestLeafDescendant() override
-    {
-        return BestLeafDescendant_;
     }
 
     virtual bool IsRoot() const
@@ -515,7 +638,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceDemand);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
     DEFINE_BYREF_RO_PROPERTY(TNodeResources, ResourceLimits);
     DEFINE_BYREF_RO_PROPERTY(TNodeResources, MaxPossibleResourceUsage);
 
@@ -524,10 +646,6 @@ protected:
 
     yhash_set<ISchedulerElementPtr> Children;
     yhash_set<ISchedulerElementPtr> DisabledChildren;
-
-    ISchedulerElement* BestLeafDescendant_ = nullptr;
-
-    TInstant MinSubtreeStartTime;
 
     // Given a non-descending continuous |f|, |f(0) = 0|, and a scalar |a|,
     // computes |x \in [0,1]| s.t. |f(x) = a|.
@@ -579,7 +697,7 @@ protected:
 
     void UpdateFifo()
     {
-        auto bestChild = GetBestChildFifo(false);
+        auto bestChild = GetBestActiveChildFifo(DynamicAttributesMap);
         for (const auto& child : Children) {
             auto& childAttributes = child->Attributes();
             if (child == bestChild) {
@@ -647,47 +765,44 @@ protected:
     }
 
 
-    std::vector<ISchedulerElementPtr> GetActiveChildren() const
+    std::vector<ISchedulerElementPtr> GetActiveChildren(const TDynamicAttributesMap& dynamicAttributesMap) const
     {
         std::vector<ISchedulerElementPtr> result;
         result.reserve(Children.size());
         for (const auto& child : Children) {
-            if (child->Attributes().Active) {
+            if (dynamicAttributesMap.GetActive(child)) {
                 result.push_back(child);
             }
         }
         return result;
     }
 
-    ISchedulerElementPtr GetBestChild() const
+    ISchedulerElementPtr GetBestActiveChild(const TDynamicAttributesMap& dynamicAttributesMap) const
     {
         switch (Mode) {
             case ESchedulingMode::Fifo:
-                return GetBestChildFifo(true);
+                return GetBestActiveChildFifo(dynamicAttributesMap);
             case ESchedulingMode::FairShare:
-                return GetBestChildFairShare();
+                return GetBestActiveChildFairShare(dynamicAttributesMap);
             default:
                 YUNREACHABLE();
         }
     }
 
-    ISchedulerElementPtr GetBestChildFifo(bool needsActive) const
+    ISchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesMap& dynamicAttributesMap) const
     {
-        auto isBetter = [] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
+        auto isBetter = [&dynamicAttributesMap] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
             if (lhs->GetWeight() > rhs->GetWeight()) {
                 return true;
             }
             if (lhs->GetWeight() < rhs->GetWeight()) {
                 return false;
             }
-            return lhs->GetStartTime() < rhs->GetStartTime();
+            return dynamicAttributesMap.At(lhs).MinSubtreeStartTime < dynamicAttributesMap.At(rhs).MinSubtreeStartTime;
         };
 
         ISchedulerElementPtr bestChild;
-        for (const auto& child : Children) {
-            if (needsActive && !child->Attributes().Active)
-                continue;
-
+        for (const auto& child : GetActiveChildren(dynamicAttributesMap)) {
             if (bestChild && isBetter(bestChild, child))
                 continue;
 
@@ -695,27 +810,19 @@ protected:
         }
         return bestChild;
     }
-
-    ISchedulerElementPtr GetBestChildFairShare() const
+    ISchedulerElementPtr GetBestActiveChildFairShare(const TDynamicAttributesMap& dynamicAttributesMap) const
     {
         ISchedulerElementPtr bestChild;
-        for (const auto& child : GetActiveChildren()) {
-            if (!bestChild ||
-                child->Attributes().SatisfactionRatio < bestChild->Attributes().SatisfactionRatio)
+        double bestChildSatisfactionRatio;
+        for (const auto& child : GetActiveChildren(dynamicAttributesMap)) {
+            double childSatisfactionRatio = dynamicAttributesMap.At(child).SatisfactionRatio;
+            if (!bestChild || childSatisfactionRatio < bestChildSatisfactionRatio)
             {
                 bestChild = child;
+                bestChildSatisfactionRatio = childSatisfactionRatio;
             }
         }
         return bestChild;
-    }
-
-
-    void SetMode(ESchedulingMode mode)
-    {
-        if (Mode != mode) {
-            Mode = mode;
-            Update();
-        }
     }
 
 };
@@ -729,8 +836,9 @@ public:
     TPool(
         ISchedulerStrategyHost* host,
         const Stroka& id,
-        TFairShareStrategyConfigPtr strategyConfig)
-        : TCompositeSchedulerElement(host)
+        TFairShareStrategyConfigPtr strategyConfig,
+        TDynamicAttributesMap& dynamicAttributesMap)
+        : TCompositeSchedulerElement(host, dynamicAttributesMap)
         , Id(id)
         , StrategyConfig_(strategyConfig)
     {
@@ -758,12 +866,6 @@ public:
     {
         DoSetConfig(New<TPoolConfig>());
         DefaultConfigured = true;
-    }
-
-    virtual TInstant GetStartTime() const override
-    {
-        // For pools StartTime is equal to minimal start time among active children.
-        return MinSubtreeStartTime;
     }
 
     virtual Stroka GetId() const override
@@ -831,7 +933,6 @@ public:
         while (currentPool) {
             currentPool->ResourceUsage() += delta;
             currentPool->IncreaseUsageRatio(delta);
-            currentPool->UpdateDynamicAttributes();
             currentPool = currentPool->GetParent();
         }
     }
@@ -847,7 +948,7 @@ private:
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
         Config_ = newConfig;
-        SetMode(Config_->Mode);
+        Mode = Config_->Mode;
     }
 
     TNodeResources ComputeResourceLimits() const
@@ -869,69 +970,89 @@ public:
         TStrategyOperationSpecPtr spec,
         TOperationRuntimeParamsPtr runtimeParams,
         ISchedulerStrategyHost* host,
-        TOperationPtr operation)
-        : TSchedulerElementBase(host)
+        TOperationPtr operation,
+        TDynamicAttributesMap& dynamicAttributesMap)
+        : TSchedulerElementBase(host, dynamicAttributesMap)
         , Operation_(operation)
         , Spec_(spec)
         , RuntimeParams_(runtimeParams)
         , Pool_(nullptr)
         , ResourceUsage_(ZeroNodeResources())
-        , ResourceUsageDiscount_(ZeroNodeResources())
         , NonpreemptableResourceUsage_(ZeroNodeResources())
         , Config(config)
     { }
 
 
-    virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
+    virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
-        TSchedulerElementBase::PrescheduleJob(node, starvingOnly);
+        const auto& node = context.SchedulingContext->GetNode();
+        context.DynamicAttributesMap.Initialize(this, DynamicAttributesMap.At(this));
+        auto& attributes = context.DynamicAttributesMap.At(this);
+
+        attributes.Active = true;
 
         if (!node->CanSchedule(GetSchedulingTag())) {
-            Attributes_.Active = false;
+            attributes.Active = false;
+            return;
         }
 
         if (starvingOnly && !Starving_) {
-            Attributes_.Active = false;
+            attributes.Active = false;
+            return;
         }
 
         if (Operation_->GetState() != EOperationState::Running) {
-            Attributes_.Active = false;
+            attributes.Active = false;
+            return;
         }
+
+        TSchedulerElementBase::PrescheduleJob(context, starvingOnly);
     }
 
-    virtual bool ScheduleJob(ISchedulingContext* context) override
+    virtual bool ScheduleJob(TFairShareContext& context) override
     {
-        auto node = context->GetNode();
+        auto node = context.SchedulingContext->GetNode();
         auto controller = Operation_->GetController();
 
         // Compute job limits from node limits and pool limits.
-        auto jobLimits = node->ResourceLimits() - node->ResourceUsage() + node->ResourceUsageDiscount();
-        TCompositeSchedulerElement* pool = Pool_;
-        while (pool) {
-            auto poolLimits = pool->ResourceLimits() - pool->ResourceUsage() + pool->ResourceUsageDiscount();
-            jobLimits = Min(jobLimits, poolLimits);
-            pool = pool->GetParent();
+        auto jobLimits =
+            node->ResourceLimits()
+            - node->ResourceUsage()
+            + context.SchedulingContext->ResourceUsageDiscount();
+        {
+            TCompositeSchedulerElement* pool = Pool_;
+            while (pool) {
+                auto poolLimits =
+                    pool->ResourceLimits()
+                    - pool->ResourceUsage()
+                    + context.DynamicAttributesMap.At(pool).ResourceUsageDiscount;
+
+                jobLimits = Min(jobLimits, poolLimits);
+                pool = pool->GetParent();
+            }
         }
         auto operationLimits = ResourceLimits() - ResourceUsage();
         jobLimits = Min(jobLimits, operationLimits);
 
-        auto job = controller->ScheduleJob(context, jobLimits);
-        if (job) {
-            return true;
+        auto jobId = controller->ScheduleJob(context.SchedulingContext, jobLimits);
+        if (!jobId) {
+            context.DynamicAttributesMap.At(this).Active = false;
         } else {
-            Attributes_.Active = false;
+            const auto& job = context.SchedulingContext->FindStartedJob(jobId);
+
+            node->ResourceUsage() += job->ResourceUsage();
+            OnJobStarted(jobId, job->ResourceUsage());
+            UpdateDynamicAttributes(context.DynamicAttributesMap);
+        }
+
+        {
             TCompositeSchedulerElement* pool = Pool_;
             while (pool) {
-                pool->UpdateDynamicAttributes();
+                pool->UpdateDynamicAttributes(context.DynamicAttributesMap);
                 pool = pool->GetParent();
             }
-            return false;
         }
-    }
-
-    virtual TInstant GetStartTime() const override
-    {
-        return Operation_->GetStartTime();
+        return jobId != NJobTrackerClient::NullJobId;
     }
 
     virtual Stroka GetId() const override
@@ -957,11 +1078,6 @@ public:
     virtual TNullable<Stroka> GetSchedulingTag() const override
     {
         return Spec_->SchedulingTag;
-    }
-
-    virtual ISchedulerElement* GetBestLeafDescendant() override
-    {
-        return this;
     }
 
     virtual const TNodeResources& ResourceDemand() const override
@@ -1040,7 +1156,6 @@ public:
     {
         ResourceUsage() += delta;
         IncreaseUsageRatio(delta);
-        UpdateDynamicAttributes();
         GetPool()->IncreaseUsage(delta);
     }
 
@@ -1056,16 +1171,114 @@ public:
         return false;
     }
 
+    void IncreaseJobResourceUsage(const TJobId& jobId, const TNodeResources& resourcesDelta)
+    {
+        auto& properties = JobPropertiesMap_.at(jobId);
+        properties.ResourceUsage += resourcesDelta;
+        if (!properties.IsPreemptable) {
+            NonpreemptableResourceUsage_ += resourcesDelta;
+        }
+        IncreaseUsage(resourcesDelta);
+        UpdatePreemptableJobsList();
+    }
+
+    void UpdatePreemptableJobsList()
+    {
+        auto limits = Host->GetTotalResourceLimits();
+
+        auto getNonpreemptableUsageRatio = [&] (const TNodeResources& extraResources) -> double {
+            i64 usage = GetResource(
+                NonpreemptableResourceUsage_ + extraResources,
+                Attributes_.DominantResource);
+            i64 limit = GetResource(limits, Attributes_.DominantResource);
+            return limit == 0 ? 1.0 : (double) usage / limit;
+        };
+
+        // Remove nonpreemptable jobs exceeding the fair share.
+        while (!NonpreemptableJobs_.empty()) {
+            if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= Attributes_.FairShareRatio) {
+                break;
+            }
+
+            auto jobId = NonpreemptableJobs_.back();
+            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            YCHECK(!jobProperties.IsPreemptable);
+
+            NonpreemptableJobs_.pop_back();
+            NonpreemptableResourceUsage_ -= jobProperties.ResourceUsage;
+
+            PreemptableJobs_.push_front(jobId);
+
+            jobProperties.IsPreemptable = true;
+            jobProperties.JobIdListIterator = PreemptableJobs_.begin();
+        }
+
+        // Add more nonpreemptable jobs until filling up the fair share.
+        while (!PreemptableJobs_.empty()) {
+            auto jobId = PreemptableJobs_.front();
+            auto& jobProperties = JobPropertiesMap_.at(jobId);
+            YCHECK(jobProperties.IsPreemptable);
+
+            if (getNonpreemptableUsageRatio(jobProperties.ResourceUsage) > Attributes_.FairShareRatio) {
+                break;
+            }
+
+            PreemptableJobs_.pop_front();
+
+            NonpreemptableJobs_.push_back(jobId);
+            NonpreemptableResourceUsage_ += jobProperties.ResourceUsage;
+
+            jobProperties.IsPreemptable = false;
+            jobProperties.JobIdListIterator = --NonpreemptableJobs_.end();
+        }
+    }
+
+    bool IsJobPreemptable(const TJobId& jobId) const
+    {
+        return JobPropertiesMap_.at(jobId).IsPreemptable;
+    }
+
+    void OnJobStarted(const TJobId& jobId, const TNodeResources& resourceUsage)
+    {
+        PreemptableJobs_.push_back(jobId);
+
+        auto it = JobPropertiesMap_.insert(std::make_pair(
+            jobId,
+            TJobProperties(true, --PreemptableJobs_.end(), ZeroNodeResources())));
+        YCHECK(it.second);
+
+        IncreaseJobResourceUsage(jobId, resourceUsage);
+    }
+
+    void OnJobFinished(const TJobId& jobId)
+    {
+        auto it = JobPropertiesMap_.find(jobId);
+        YCHECK(it != JobPropertiesMap_.end());
+
+        auto& properties = it->second;
+
+        if (properties.IsPreemptable) {
+            PreemptableJobs_.erase(properties.JobIdListIterator);
+        } else {
+            NonpreemptableJobs_.erase(properties.JobIdListIterator);
+        }
+        IncreaseJobResourceUsage(jobId, -properties.ResourceUsage);
+
+        JobPropertiesMap_.erase(it);
+    }
+
     DEFINE_BYVAL_RO_PROPERTY(TOperationPtr, Operation);
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
     DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeParamsPtr, RuntimeParams);
     DEFINE_BYVAL_RW_PROPERTY(TPool*, Pool);
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceUsageDiscount);
+
+    typedef std::list<TJobId> TJobIdList;
+
+    DEFINE_BYREF_RW_PROPERTY(TJobIdList, NonpreemptableJobs);
+    DEFINE_BYREF_RW_PROPERTY(TJobIdList, PreemptableJobs);
 
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, NonpreemptableResourceUsage);
-    DEFINE_BYREF_RW_PROPERTY(TJobList, NonpreemptableJobs);
-    DEFINE_BYREF_RW_PROPERTY(TJobList, PreemptableJobs);
 
 private:
     mutable TNodeResources ResourceDemand_;
@@ -1073,6 +1286,28 @@ private:
     mutable TNodeResources MaxPossibleResourceUsage_;
 
     TFairShareStrategyConfigPtr Config;
+
+    // Fair share strategy stuff.
+    struct TJobProperties
+    {
+        TJobProperties(bool isPreemptable, TJobIdList::iterator jobIdListIterator, const TNodeResources& resourceUsage)
+            : IsPreemptable(isPreemptable)
+            , JobIdListIterator(jobIdListIterator)
+            , ResourceUsage(resourceUsage)
+        { }
+
+        //! Determines the per-operation list (either preemptable or non-preemptable) this
+        //! job belongs to.
+        bool IsPreemptable;
+
+        //! Iterator in the per-operation list pointing to this particular job.
+        TJobIdList::iterator JobIdListIterator;
+
+        TNodeResources ResourceUsage;
+    };
+
+    typedef yhash_map<TJobId, TJobProperties> TJobPropertiesMap;
+    TJobPropertiesMap JobPropertiesMap_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1081,18 +1316,12 @@ class TRootElement
     : public TCompositeSchedulerElement
 {
 public:
-    explicit TRootElement(ISchedulerStrategyHost* host)
-        : TCompositeSchedulerElement(host)
+    TRootElement(ISchedulerStrategyHost* host, TDynamicAttributesMap& dynamicAttributesMap)
+        : TCompositeSchedulerElement(host, dynamicAttributesMap)
     {
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
-        SetMode(ESchedulingMode::FairShare);
-    }
-
-    virtual TInstant GetStartTime() const override
-    {
-        // For pools StartTime is equal to minimal start time among active children.
-        return MinSubtreeStartTime;
+        Mode = ESchedulingMode::FairShare;
     }
 
     virtual bool IsRoot() const override
@@ -1141,7 +1370,6 @@ public:
         Host->SubscribeOperationRegistered(BIND(&TFairShareStrategy::OnOperationRegistered, this));
         Host->SubscribeOperationUnregistered(BIND(&TFairShareStrategy::OnOperationUnregistered, this));
 
-        Host->SubscribeJobStarted(BIND(&TFairShareStrategy::OnJobStarted, this));
         Host->SubscribeJobFinished(BIND(&TFairShareStrategy::OnJobFinished, this));
         Host->SubscribeJobUpdated(BIND(&TFairShareStrategy::OnJobUpdated, this));
         Host->SubscribePoolsUpdated(BIND(&TFairShareStrategy::OnPoolsUpdated, this));
@@ -1149,17 +1377,21 @@ public:
         Host->SubscribeOperationRuntimeParamsUpdated(
             BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
-        RootElement = New<TRootElement>(Host);
+        RootElement = New<TRootElement>(Host, DynamicAttributesMap);
+        DynamicAttributesMap.Initialize(RootElement);
     }
 
 
-    virtual void ScheduleJobs(ISchedulingContext* context) override
+    virtual void ScheduleJobs(ISchedulingContext* schedulingContext) override
     {
-        auto now = TInstant::Now();
-        auto node = context->GetNode();
+        auto now = schedulingContext->GetNow();
+        auto node = schedulingContext->GetNode();
+        TFairShareContext context(schedulingContext);
+
+        RootElement->BeginHeartbeat();
 
         // Run periodic update.
-        if (!LastUpdateTime || now > LastUpdateTime.Get() + Config->FairShareUpdatePeriod) {
+        if (Config->FairShareUpdatePeriod && (!LastUpdateTime || now > LastUpdateTime.Get() + *Config->FairShareUpdatePeriod)) {
             PROFILE_TIMING ("/fair_share_update_time") {
                 // The root element get the whole cluster.
                 RootElement->Update();
@@ -1179,21 +1411,17 @@ public:
             }
         }
 
-        RootElement->BeginHeartbeat();
-
         // Run periodic logging.
-        if (!LastLogTime || now > LastLogTime.Get() + Config->FairShareLogPeriod) {
-            // Update satisfaction attributes.
-            RootElement->PrescheduleJob(context->GetNode(), false);
+        if (Config->FairShareLogPeriod && (!LastLogTime || now > LastLogTime.Get() + *Config->FairShareLogPeriod)) {
             // Log pools information.
-            Host->LogEventFluently(ELogEventType::FairShareInfo)
+            Host->LogEventFluently(ELogEventType::FairShareInfo, now)
                 .Do(BIND(&TFairShareStrategy::BuildPoolsInformation, this))
                 .Item("operations").DoMapFor(OperationToElement, [=] (TFluentMap fluent, const TOperationMap::value_type& pair) {
-                    auto operation = pair.first;
+                    auto operationId = pair.first;
                     BuildYsonMapFluently(fluent)
-                        .Item(ToString(operation->GetId()))
+                        .Item(ToString(operationId))
                         .BeginMap()
-                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operation))
+                            .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operationId))
                         .EndMap();
                 });
             LastLogTime = now;
@@ -1201,8 +1429,8 @@ public:
 
         // First-chance scheduling.
         LOG_DEBUG("Scheduling new jobs");
-        RootElement->PrescheduleJob(context->GetNode(), false);
-        while (context->CanStartMoreJobs()) {
+        RootElement->PrescheduleJob(context, false);
+        while (schedulingContext->CanStartMoreJobs()) {
             if (!RootElement->ScheduleJob(context)) {
                 break;
             }
@@ -1212,48 +1440,50 @@ public:
         LOG_DEBUG("Looking for preemptable jobs");
         yhash_set<TCompositeSchedulerElementPtr> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        for (const auto& job : context->RunningJobs()) {
-            auto operation = job->GetOperation();
-            auto operationElement = GetOperationElement(operation);
+        for (const auto& job : schedulingContext->RunningJobs()) {
+            auto operationElement = FindOperationElement(job->GetOperationId());
+            if (!operationElement) {
+                LOG_INFO("Dangling running job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                continue;
+            }
+
             if (IsJobPreemptable(job) && !operationElement->HasStarvingParent()) {
                 TCompositeSchedulerElement* pool = operationElement->GetPool();
                 while (pool) {
                     discountedPools.insert(pool);
-                    pool->ResourceUsageDiscount() += job->ResourceUsage();
+                    context.DynamicAttributesMap.At(pool).ResourceUsageDiscount += job->ResourceUsage();
                     pool = pool->GetParent();
                 }
-                node->ResourceUsageDiscount() += job->ResourceUsage();
+                context.SchedulingContext->ResourceUsageDiscount() += job->ResourceUsage();
                 preemptableJobs.push_back(job);
                 LOG_DEBUG("Job is preemptable (JobId: %v)",
                     job->GetId());
             }
         }
 
-        RootElement->BeginHeartbeat();
-
-        auto resourceDiscount = node->ResourceUsageDiscount();
-        int startedBeforePreemption = context->StartedJobs().size();
+        auto resourceDiscount = context.SchedulingContext->ResourceUsageDiscount();
+        int startedBeforePreemption = schedulingContext->StartedJobs().size();
 
         // Second-chance scheduling.
         // NB: Schedule at most one job.
         LOG_DEBUG("Scheduling new jobs with preemption");
-        RootElement->PrescheduleJob(context->GetNode(), true);
-        while (context->CanStartMoreJobs()) {
+        RootElement->PrescheduleJob(context, true);
+        while (schedulingContext->CanStartMoreJobs()) {
             if (!RootElement->ScheduleJob(context)) {
                 break;
             }
-            if (context->StartedJobs().size() != startedBeforePreemption) {
+            if (schedulingContext->StartedJobs().size() != startedBeforePreemption) {
                 break;
             }
         }
 
-        int startedAfterPreemption = context->StartedJobs().size();
+        int startedAfterPreemption = schedulingContext->StartedJobs().size();
         int scheduledDuringPreemption = startedAfterPreemption - startedBeforePreemption;
 
         // Reset discounts.
-        node->ResourceUsageDiscount() = ZeroNodeResources();
+        context.SchedulingContext->ResourceUsageDiscount() = ZeroNodeResources();
         for (const auto& pool : discountedPools) {
-            pool->ResourceUsageDiscount() = ZeroNodeResources();
+            context.DynamicAttributesMap.At(pool).ResourceUsageDiscount = ZeroNodeResources();
         }
 
         // Preempt jobs if needed.
@@ -1265,8 +1495,11 @@ public:
             });
 
         auto poolLimitsViolated = [&] (TJobPtr job) -> bool {
-            auto operation = job->GetOperation();
-            auto operationElement = GetOperationElement(operation);
+            auto operationElement = FindOperationElement(job->GetOperationId());
+            if (!operationElement) {
+                return false;
+            }
+
             TCompositeSchedulerElement* pool = operationElement->GetPool();
             while (pool) {
                 if (!Dominates(pool->ResourceLimits(), pool->ResourceUsage())) {
@@ -1278,7 +1511,7 @@ public:
         };
 
         auto anyPoolLimitsViolated = [&] () -> bool {
-            for (const auto& job : context->StartedJobs()) {
+            for (const auto& job : schedulingContext->StartedJobs()) {
                 if (poolLimitsViolated(job)) {
                     return true;
                 }
@@ -1290,6 +1523,11 @@ public:
         bool poolsLimitsViolated = true;
 
         for (const auto& job : preemptableJobs) {
+            if (!FindOperationElement(job->GetOperationId())) {
+                LOG_INFO("Dangling preemptable job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                continue;
+            }
+
             // Update flags only if violation is not resolved yet to avoid costly computations.
             if (nodeLimitsViolated) {
                 nodeLimitsViolated = !Dominates(node->ResourceLimits(), node->ResourceUsage());
@@ -1303,7 +1541,7 @@ public:
             }
 
             if (nodeLimitsViolated || (poolsLimitsViolated && poolLimitsViolated(job))) {
-                context->PreemptJob(job);
+                PreemptJob(job, context);
             }
         }
 
@@ -1311,35 +1549,35 @@ public:
 
         LOG_DEBUG("Heartbeat info (StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: {%v})",
-            context->StartedJobs().size(),
-            context->PreemptedJobs().size(),
+            schedulingContext->StartedJobs().size(),
+            schedulingContext->PreemptedJobs().size(),
             scheduledDuringPreemption,
             preemptableJobs.size(),
             FormatResources(resourceDiscount));
     }
 
-    virtual void BuildOperationAttributes(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildOperationAttributes(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         auto serializedParams = ConvertToAttributes(element->GetRuntimeParams());
         BuildYsonMapFluently(consumer)
             .Items(*serializedParams);
     }
 
-    virtual void BuildOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         auto pool = element->GetPool();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
-            .Item("start_time").Value(element->GetStartTime())
+            .Item("start_time").Value(element->DynamicAttributes().MinSubtreeStartTime)
             .Item("preemptable_job_count").Value(element->PreemptableJobs().size())
             .Do(BIND(&TFairShareStrategy::BuildElementYson, pool, element));
     }
 
-    virtual void BuildBriefOperationProgress(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         auto pool = element->GetPool();
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
@@ -1347,10 +1585,12 @@ public:
             .Item("fair_share_ratio").Value(attributes.FairShareRatio);
     }
 
-    virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) override
+    virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         const auto& attributes = element->Attributes();
+        const auto& dynamicAttributes = element->DynamicAttributes();
+
         return Format(
             "Scheduling = {Status: %v, DominantResource: %v, Demand: %.4lf, "
             "Usage: %.4lf, FairShare: %.4lf, Satisfaction: %.4lf, AdjustedMinShare: %.4lf, "
@@ -1362,7 +1602,7 @@ public:
             attributes.DemandRatio,
             attributes.UsageRatio,
             attributes.FairShareRatio,
-            attributes.SatisfactionRatio,
+            dynamicAttributes.SatisfactionRatio,
             attributes.AdjustedMinShareRatio,
             attributes.MaxPossibleUsageRatio,
             attributes.BestAllocationRatio,
@@ -1395,9 +1635,9 @@ public:
         BuildPoolsInformation(consumer);
     }
 
-    virtual void BuildBriefSpec(TOperationPtr operation, IYsonConsumer* consumer) override
+    virtual void BuildBriefSpec(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(operationId);
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(element->GetPool()->GetId());
     }
@@ -1409,28 +1649,21 @@ private:
     typedef yhash_map<Stroka, TPoolPtr> TPoolMap;
     TPoolMap Pools;
 
-    typedef yhash_map<TOperationPtr, TOperationElementPtr> TOperationMap;
+    typedef yhash_map<TOperationId, TOperationElementPtr> TOperationMap;
     TOperationMap OperationToElement;
 
     std::list<TOperationPtr> OperationQueue;
     yhash_map<Stroka, int> RunningOperationCount;
 
-    typedef std::list<TJobPtr> TJobList;
-    TJobList JobList;
-    yhash_map<TJobPtr, TJobList::iterator> JobToIterator;
-
     TRootElementPtr RootElement;
     TNullable<TInstant> LastUpdateTime;
     TNullable<TInstant> LastLogTime;
 
+    TDynamicAttributesMap DynamicAttributesMap;
+
     bool IsJobPreemptable(TJobPtr job)
     {
-        auto operation = job->GetOperation();
-        if (operation->GetState() != EOperationState::Running) {
-            return false;
-        }
-
-        auto element = GetOperationElement(operation);
+        auto element = GetOperationElement(job->GetOperationId());
         auto spec = element->GetSpec();
 
         double usageRatio = element->Attributes().UsageRatio;
@@ -1443,11 +1676,22 @@ private:
             return false;
         }
 
-        if (!job->GetPreemptable()) {
+        if (!element->IsJobPreemptable(job->GetId())) {
             return false;
         }
 
         return true;
+    }
+
+    void PreemptJob(TJobPtr job, TFairShareContext& context)
+    {
+        auto operationElement = GetOperationElement(job->GetOperationId());
+
+        context.SchedulingContext->GetNode()->ResourceUsage() -= job->ResourceUsage();
+        operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
+        job->ResourceUsage() = ZeroNodeResources();
+
+        context.SchedulingContext->PreemptJob(job);
     }
 
 
@@ -1497,13 +1741,17 @@ private:
             spec,
             params,
             Host,
-            operation);
-        YCHECK(OperationToElement.insert(std::make_pair(operation, operationElement)).second);
+            operation,
+            DynamicAttributesMap);
+        YCHECK(OperationToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
+        DynamicAttributesMap.Initialize(operationElement);
+        DynamicAttributesMap.At(operationElement).MinSubtreeStartTime = operation->GetStartTime();
+        DynamicAttributesMap.At(operationElement).BestLeafDescendant = operationElement;
 
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
         if (!pool) {
-            pool = New<TPool>(Host, poolName, Config);
+            pool = New<TPool>(Host, poolName, Config, DynamicAttributesMap);
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
@@ -1527,9 +1775,10 @@ private:
         }
     }
 
+    // TODO(acid): This interface can also use operationId.
     void ActivateOperation(TOperationPtr operation)
     {
-        auto operationElement = GetOperationElement(operation);
+        auto operationElement = GetOperationElement(operation->GetId());
         auto pool = operationElement->GetPool();
         pool->EnableChild(operationElement);
 
@@ -1546,10 +1795,11 @@ private:
 
     void OnOperationUnregistered(TOperationPtr operation)
     {
-        auto operationElement = GetOperationElement(operation);
+        auto operationElement = GetOperationElement(operation->GetId());
         auto* pool = operationElement->GetPool();
 
-        YCHECK(OperationToElement.erase(operation) == 1);
+        YCHECK(OperationToElement.erase(operation->GetId()) == 1);
+        DynamicAttributesMap.Erase(operationElement);
         pool->RemoveChild(operationElement);
         pool->IncreaseUsage(-operationElement->ResourceUsage());
 
@@ -1581,7 +1831,7 @@ private:
             auto it = OperationQueue.begin();
             while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
                 auto operation = *it;
-                if (CanAddOperationToPool(GetOperationElement(operation)->GetPool())) {
+                if (CanAddOperationToPool(GetOperationElement(operation->GetId())->GetPool())) {
                     ActivateOperation(operation);
                     if (operation->GetState() == EOperationState::Pending) {
                         operation->SetState(EOperationState::Running);
@@ -1605,7 +1855,7 @@ private:
         TOperationPtr operation,
         INodePtr update)
     {
-        auto element = FindOperationElement(operation);
+        auto element = FindOperationElement(operation->GetId());
         if (!element)
             return;
 
@@ -1622,54 +1872,29 @@ private:
     }
 
 
-    void OnJobStarted(TJobPtr job)
-    {
-        auto element = GetOperationElement(job->GetOperation());
-
-        auto it = JobList.insert(JobList.begin(), job);
-        YCHECK(JobToIterator.insert(std::make_pair(job, it)).second);
-
-        job->SetPreemptable(true);
-        element->PreemptableJobs().push_back(job);
-        job->SetJobListIterator(--element->PreemptableJobs().end());
-
-        OnJobResourceUsageUpdated(job, element, job->ResourceUsage());
-    }
-
     void OnJobFinished(TJobPtr job)
     {
-        auto element = GetOperationElement(job->GetOperation());
-
-        auto it = JobToIterator.find(job);
-        YASSERT(it != JobToIterator.end());
-
-        JobList.erase(it->second);
-        JobToIterator.erase(it);
-
-        if (job->GetPreemptable()) {
-            element->PreemptableJobs().erase(job->GetJobListIterator());
-        } else {
-            element->NonpreemptableJobs().erase(job->GetJobListIterator());
-        }
-
-        OnJobResourceUsageUpdated(job, element, -job->ResourceUsage());
+        auto element = GetOperationElement(job->GetOperationId());
+        element->OnJobFinished(job->GetId());
     }
 
     void OnJobUpdated(TJobPtr job, const TNodeResources& resourcesDelta)
     {
-        auto element = GetOperationElement(job->GetOperation());
-        OnJobResourceUsageUpdated(job, element, resourcesDelta);
+        auto element = GetOperationElement(job->GetOperationId());
+        element->IncreaseJobResourceUsage(job->GetId(), resourcesDelta);
     }
 
     void RegisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        DynamicAttributesMap.Initialize(pool);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
     void RegisterPool(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
+        DynamicAttributesMap.Initialize(pool);
         pool->SetParent(parent.Get());
         parent->AddChild(pool);
 
@@ -1681,6 +1906,7 @@ private:
     void UnregisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.erase(pool->GetId()) == 1);
+        DynamicAttributesMap.Erase(pool);
         auto parent = pool->GetParent();
         SetPoolParent(pool, nullptr);
 
@@ -1725,15 +1951,15 @@ private:
     }
 
 
-    TOperationElementPtr FindOperationElement(TOperationPtr operation)
+    TOperationElementPtr FindOperationElement(const TOperationId& operationId)
     {
-        auto it = OperationToElement.find(operation);
+        auto it = OperationToElement.find(operationId);
         return it == OperationToElement.end() ? nullptr : it->second;
     }
 
-    TOperationElementPtr GetOperationElement(TOperationPtr operation)
+    TOperationElementPtr GetOperationElement(const TOperationId& operationId)
     {
-        auto element = FindOperationElement(operation);
+        auto element = FindOperationElement(operationId);
         YCHECK(element);
         return element;
     }
@@ -1784,7 +2010,7 @@ private:
                             YCHECK(orphanPoolIds.erase(childId) == 1);
                         } else {
                             // Create new pool.
-                            pool = New<TPool>(Host, childId, Config);
+                            pool = New<TPool>(Host, childId, Config, DynamicAttributesMap);
                             pool->SetConfig(config);
                             RegisterPool(pool, parent);
                         }
@@ -1817,74 +2043,14 @@ private:
         }
     }
 
-    void OnJobResourceUsageUpdated(
-        TJobPtr job,
-        TOperationElementPtr element,
-        const TNodeResources& resourcesDelta)
-    {
-        element->IncreaseUsage(resourcesDelta);
-
-        const auto& attributes = element->Attributes();
-        auto limits = Host->GetTotalResourceLimits();
-
-        auto& preemptableJobs = element->PreemptableJobs();
-        auto& nonpreemptableJobs = element->NonpreemptableJobs();
-        auto& nonpreemptableResourceUsage = element->NonpreemptableResourceUsage();
-
-        if (!job->GetPreemptable()) {
-            nonpreemptableResourceUsage += resourcesDelta;
-        }
-
-        auto getNonpreemptableUsageRatio = [&] (const TNodeResources& extraResources) -> double {
-            i64 usage = GetResource(
-                nonpreemptableResourceUsage + extraResources,
-                attributes.DominantResource);
-            i64 limit = GetResource(limits, attributes.DominantResource);
-            return limit == 0 ? 1.0 : (double) usage / limit;
-        };
-
-        // Remove nonpreemptable jobs exceeding the fair share.
-        while (!nonpreemptableJobs.empty()) {
-            if (getNonpreemptableUsageRatio(ZeroNodeResources()) <= attributes.FairShareRatio)
-                break;
-
-            auto job = nonpreemptableJobs.back();
-            YCHECK(!job->GetPreemptable());
-
-            nonpreemptableJobs.pop_back();
-            nonpreemptableResourceUsage -= job->ResourceUsage();
-
-            preemptableJobs.push_front(job);
-
-            job->SetPreemptable(true);
-            job->SetJobListIterator(preemptableJobs.begin());
-        }
-
-        // Add more nonpreemptable jobs until filling up the fair share.
-        while (!preemptableJobs.empty()) {
-            auto job = preemptableJobs.front();
-            YCHECK(job->GetPreemptable());
-
-            if (getNonpreemptableUsageRatio(job->ResourceUsage()) > attributes.FairShareRatio)
-                break;
-
-            preemptableJobs.pop_front();
-
-            nonpreemptableJobs.push_back(job);
-            nonpreemptableResourceUsage += job->ResourceUsage();
-
-            job->SetPreemptable(false);
-            job->SetJobListIterator(--nonpreemptableJobs.end());
-        }
-    }
-
-
     static void BuildElementYson(
         TCompositeSchedulerElementPtr composite,
         ISchedulerElementPtr element,
         IYsonConsumer* consumer)
     {
         const auto& attributes = element->Attributes();
+        const auto& dynamicAttributes = element->DynamicAttributes();
+
         BuildYsonMapFluently(consumer)
             .Item("scheduling_status").Value(element->GetStatus())
             .Item("starving").Value(element->GetStarving())
@@ -1900,7 +2066,7 @@ private:
             .Item("usage_ratio").Value(attributes.UsageRatio)
             .Item("demand_ratio").Value(attributes.DemandRatio)
             .Item("fair_share_ratio").Value(attributes.FairShareRatio)
-            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
+            .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
             .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
     }
 

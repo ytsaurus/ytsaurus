@@ -174,7 +174,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto& meta = request->chunk_meta();
         auto blockCount = request->has_block_count() ? MakeNullable(request->block_count()) : Null;
 
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v",
@@ -185,6 +184,8 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
+
+        const TChunkMeta* meta = request->has_chunk_meta() ? &request->chunk_meta() : nullptr;
 
         session->Finish(meta, blockCount)
             .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {

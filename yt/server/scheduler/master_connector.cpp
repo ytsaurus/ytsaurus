@@ -19,14 +19,14 @@
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <ytlib/file_client/file_ypath_proxy.h>
+
 #include <ytlib/scheduler/helpers.h>
 
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/hive/cluster_directory.h>
-
-#include <yt/ytlib/file_client/file_ypath.pb.h>
 
 #include <server/cell_scheduler/bootstrap.h>
 #include <server/cell_scheduler/config.h>
@@ -42,6 +42,7 @@ using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NFileClient;
 using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NApi;
@@ -85,30 +86,29 @@ public:
         return CancelableControlInvoker;
     }
 
-
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
-        auto id = operation->GetId();
+        auto operationId = operation->GetId();
         LOG_INFO("Creating operation node (OperationId: %v)",
-            id);
+            operationId);
 
         auto* list = CreateUpdateList(operation);
         auto strategy = Bootstrap->GetScheduler()->GetStrategy();
 
-        auto path = GetOperationPath(id);
+        auto path = GetOperationPath(operationId);
         auto batchReq = StartBatchRequest(list);
         {
             auto req = TYPathProxy::Set(path);
             req->set_value(BuildYsonStringFluently()
                 .BeginAttributes()
-                    .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operation))
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationAttributes, strategy, operationId))
                     .Do(BIND(&BuildInitializingOperationAttributes, operation))
                     .Item("brief_spec").BeginMap()
                         .Do(BIND(&IOperationController::BuildBriefSpec, operation->GetController()))
-                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operation))
+                        .Do(BIND(&ISchedulerStrategy::BuildBriefSpec, strategy, operationId))
                     .EndMap()
                     .Item("progress").BeginMap().EndMap()
                     .Item("brief_progress").BeginMap().EndMap()
@@ -157,11 +157,11 @@ public:
         YCHECK(Connected);
         YCHECK(operation->GetState() == EOperationState::Reviving);
 
-        auto id = operation->GetId();
+        auto operationId = operation->GetId();
         LOG_INFO("Resetting reviving operation node (OperationId: %v)",
-            id);
+            operationId);
 
-        auto* list = GetUpdateList(operation);
+        auto* list = GetUpdateList(operationId);
         auto batchReq = StartBatchRequest(list);
 
         auto attributes = ConvertToAttributes(BuildYsonStringFluently()
@@ -172,7 +172,7 @@ public:
             .EndMap());
 
         for (const auto& key : attributes->List()) {
-            auto req = TYPathProxy::Set(GetOperationPath(id) + "/@" + ToYPathLiteral(key));
+            auto req = TYPathProxy::Set(GetOperationPath(operationId) + "/@" + ToYPathLiteral(key));
             req->set_value(attributes->GetYson(key).Data());
             GenerateMutationId(req);
             batchReq->AddRequest(req);
@@ -195,18 +195,14 @@ public:
         LOG_INFO("Flushing operation node (OperationId: %v)",
             id);
 
-        auto* list = FindUpdateList(operation);
+        auto* list = FindUpdateList(id);
         if (!list) {
             LOG_INFO("Operation node is not registered, omitting flush (OperationId: %v)",
                 id);
             return VoidFuture;
         }
 
-        // Create a batch update for this particular operation.
-        auto batchReq = StartBatchRequest(list);
-        PrepareOperationUpdate(list, batchReq);
-
-        return batchReq->Invoke().Apply(
+        return UpdateOperationNode(list).Apply(
             BIND(&TImpl::OnOperationNodeFlushed, MakeStrong(this), operation)
                 .Via(CancelableControlInvoker));
     }
@@ -220,12 +216,12 @@ public:
         YCHECK(Connected);
 
         LOG_DEBUG("Creating job node (OperationId: %v, JobId: %v, StdErrChunkId: %v, FailContextChunkIds: %v)",
-            job->GetOperation()->GetId(),
+            job->GetOperationId(),
             job->GetId(),
             stderrChunkId,
             failContextChunkId);
 
-        auto* list = GetUpdateList(job->GetOperation());
+        auto* list = GetUpdateList(job->GetOperationId());
         TJobRequest request;
         request.Job = job;
         request.StderrChunkId = stderrChunkId;
@@ -246,7 +242,7 @@ public:
             chunkListId,
             childId);
 
-        auto* list = GetUpdateList(operation);
+        auto* list = GetUpdateList(operation->GetId());
         TLivePreviewRequest request;
         request.ChunkListId = chunkListId;
         request.ChildId = childId;
@@ -266,7 +262,7 @@ public:
             chunkListId,
             childrenIds.size());
 
-        auto* list = GetUpdateList(operation);
+        auto* list = GetUpdateList(operation->GetId());
         for (const auto& childId : childrenIds) {
             TLivePreviewRequest request;
             request.ChunkListId = chunkListId;
@@ -274,7 +270,6 @@ public:
             list->LivePreviewRequests.push_back(request);
         }
     }
-
 
     void AddGlobalWatcherRequester(TWatcherRequester requester)
     {
@@ -285,7 +280,6 @@ public:
     {
         GlobalWatcherHandlers.push_back(handler);
     }
-
 
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester)
     {
@@ -299,29 +293,60 @@ public:
         list->WatcherHandlers.push_back(handler);
     }
 
-    void AttachJobContext(const TYPath& path, const std::vector<TChunkId>& inputContexts)
+    void AttachJobContext(const TYPath& path, const TChunkId& inputContextChunkId, const TJobId& jobId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YCHECK(inputContextChunkId != NullChunkId);
 
-        auto batchReq = StartBatchRequest();
-        int index = 0;
+        auto validate = [&] (const TError& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                error,
+                "Error saving input context for job %v into %v",
+                jobId,
+                path);
+        };
 
-        for (const auto& inputContext : inputContexts) {
-            if (inputContext != NChunkServer::NullChunkId) {
-                auto contextPath = Format("%v/%v",
-                    path,
-                    ToYPathLiteral(index));
-                auto req = StartCreateFileRequest(contextPath, inputContext);
+        TTransactionPtr transaction = nullptr;
+        {
+            auto batchReq = StartBatchRequest();
+            AddStartJobFileTransaction(
+                batchReq,
+                Format("Saving input context for job %v into %v", jobId, path));
 
-                batchReq->AddRequest(req, "create_input_context");
-            }
-            ++index;
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            validate(batchRspOrError);
+
+            auto batchRsp = batchRspOrError.Value();
+            transaction = AttachTransaction(GetJobFileTransactionId(batchRsp));
+        }
+        auto attachBatchReq = StartBatchRequest();
+        {
+            auto batchReq = StartBatchRequest();
+            auto description = BuildYsonStringFluently(EYsonFormat::Binary)
+                .BeginMap()
+                    .Item("type").Value("input_context")
+                    .Item("job_id").Value(jobId)
+                .EndMap();
+
+            AddCreateJobFile(batchReq, transaction, path, "input_context", description);
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            validate(batchRspOrError);
+
+            AddAttachChunks(
+                batchRspOrError.Value(),
+                {inputContextChunkId},
+                attachBatchReq,
+                "input_context",
+                validate);
+        }
+        {
+            auto batchRspOrError = WaitFor(attachBatchReq->Invoke());
+            validate(GetCumulativeError(batchRspOrError));
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(batchRspOrError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error saving input context into %v",
-            path);
+        auto error = WaitFor(transaction->Commit());
+        validate(error);
     }
 
     DEFINE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
@@ -930,7 +955,7 @@ private:
     TOperationPtr CreateOperationFromAttributes(const TOperationId& operationId, const IAttributeDictionary& attributes)
     {
         auto getTransaction = [&] (const TTransactionId& id, bool ping) -> TTransactionPtr {
-            if (id == NullTransactionId) {
+            if (!id) {
                 return nullptr;
             }
             auto clusterDirectory = Bootstrap->GetClusterDirectory();
@@ -1186,15 +1211,15 @@ private:
         return &pair.first->second;
     }
 
-    TUpdateList* FindUpdateList(TOperationPtr operation)
+    TUpdateList* FindUpdateList(const TOperationId& operationId)
     {
-        auto it = UpdateLists.find(operation->GetId());
+        auto it = UpdateLists.find(operationId);
         return it == UpdateLists.end() ? nullptr : &it->second;
     }
 
-    TUpdateList* GetUpdateList(TOperationPtr operation)
+    TUpdateList* GetUpdateList(const TOperationId& operationId)
     {
-        auto* result = FindUpdateList(operation);
+        auto* result = FindUpdateList(operationId);
         YCHECK(result);
         return result;
     }
@@ -1254,10 +1279,7 @@ private:
                 LOG_DEBUG("Updating operation node (OperationId: %v)",
                     operation->GetId());
 
-                auto batchReq = StartBatchRequest(&list);
-                PrepareOperationUpdate(&list, batchReq);
-
-                asyncResults.push_back(batchReq->Invoke().Apply(
+                asyncResults.push_back(UpdateOperationNode(&list).Apply(
                     BIND(&TImpl::OnOperationNodeUpdated, MakeStrong(this), operation)
                         .AsyncVia(CancelableControlInvoker)));
             }
@@ -1278,25 +1300,19 @@ private:
         LOG_INFO("Operation nodes updated");
     }
 
-    void OnOperationNodeUpdated(
-        TOperationPtr operation,
-        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+    void OnOperationNodeUpdated(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
-
-        GetOperationNodeUpdateError(operation, batchRspOrError)
-            .ThrowOnError();
 
         LOG_DEBUG("Operation node updated (OperationId: %v)",
             operation->GetId());
     }
 
 
-    void PrepareOperationUpdate(
-        TOperationPtr operation,
-        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    TObjectServiceProxy::TReqExecuteBatchPtr StartOperationUpdate(TOperationPtr operation)
     {
+        auto batchReq = StartBatchRequest();
         auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
@@ -1354,170 +1370,288 @@ private:
             req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
+        return batchReq;
     }
 
-    void PrepareOperationUpdate(
-        TUpdateList* list,
-        TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    void AddCreateJobNodes(
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
+        std::vector<TJobRequest> &jobRequests)
     {
-        auto operation = list->Operation;
+        for (const auto& request : jobRequests) {
+            auto job = request.Job;
+            auto operation = job->GetOperation();
+            auto jobPath = GetJobPath(operation->GetId(), job->GetId());
 
-        PrepareOperationUpdate(operation, batchReq);
-
-        // Create jobs.
-        {
-            auto& requests = list->JobRequests;
-            for (const auto& request : requests) {
-                auto job = request.Job;
-                auto operation = job->GetOperation();
-                auto jobPath = GetJobPath(operation->GetId(), job->GetId());
-
-                {
-                    auto req = TYPathProxy::Set(jobPath);
-                    req->set_value(BuildYsonStringFluently()
+            {
+                auto req = TYPathProxy::Set(jobPath);
+                req->set_value(
+                    BuildYsonStringFluently()
                         .BeginAttributes()
                         .Do(BIND(&BuildJobAttributes, job))
                         .EndAttributes()
                         .BeginMap()
                         .EndMap()
                         .Data());
-                    batchReq->AddRequest(req, "update_op_node");
-                }
-
-                if (request.StderrChunkId != NullChunkId) {
-                    auto stderrPath = GetStderrPath(operation->GetId(), job->GetId());
-
-                    auto req = TCypressYPathProxy::Create(stderrPath);
-                    GenerateMutationId(req);
-                    req->set_type(static_cast<int>(EObjectType::File));
-
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("vital", false);
-                    attributes->Set("replication_factor", 1);
-                    attributes->Set("account", TmpAccountName);
-                    ToProto(req->mutable_node_attributes(), *attributes);
-
-                    auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-                    ToProto(reqExt->mutable_chunk_id(), request.StderrChunkId);
-
-                    batchReq->AddRequest(req, "create_stderr");
-                }
-
-                if (request.FailContextChunkId != NullChunkId) {
-                    auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId());
-
-                    auto req = TCypressYPathProxy::Create(failContextPath);
-                    GenerateMutationId(req);
-                    req->set_type(static_cast<int>(EObjectType::File));
-
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("vital", false);
-                    attributes->Set("replication_factor", 1);
-                    attributes->Set("account", TmpAccountName);
-                    ToProto(req->mutable_node_attributes(), *attributes);
-
-                    auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-                    ToProto(reqExt->mutable_chunk_id(), request.FailContextChunkId);
-
-                    batchReq->AddRequest(req, "create_fail_context");
-                }
+                batchReq->AddRequest(req, "update_op_node");
             }
-            requests.clear();
-        }
-
-        // Attach live preview chunks.
-        {
-            auto& requests = list->LivePreviewRequests;
-
-            // Sort by chunk list.
-            std::sort(
-                requests.begin(),
-                requests.end(),
-                [] (const TLivePreviewRequest& lhs, const TLivePreviewRequest& rhs) {
-                    return lhs.ChunkListId < rhs.ChunkListId;
-                });
-
-            // Group by chunk list.
-            int rangeBegin = 0;
-            while (rangeBegin < static_cast<int>(requests.size())) {
-                int rangeEnd = rangeBegin; // non-inclusive
-                while (rangeEnd < static_cast<int>(requests.size()) &&
-                       requests[rangeBegin].ChunkListId == requests[rangeEnd].ChunkListId)
-                {
-                    ++rangeEnd;
-                }
-
-                auto req = TChunkListYPathProxy::Attach(FromObjectId(requests[rangeBegin].ChunkListId));
-                GenerateMutationId(req);
-                for (int index = rangeBegin; index < rangeEnd; ++index) {
-                    ToProto(req->add_children_ids(), requests[index].ChildId);
-                }
-                batchReq->AddRequest(req, "update_live_preview");
-
-                rangeBegin = rangeEnd;
-            }
-            requests.clear();
         }
     }
 
-    TError GetOperationNodeUpdateError(
+    void AddCreateJobFile(
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
+        TTransactionPtr transaction,
+        const TYPath &path,
+        const Stroka &tag,
+        const TNullable<TYsonString> &description = Null)
+    {
+        {
+            auto req = TCypressYPathProxy::Create(path);
+            SetTransactionId(req, transaction);
+            GenerateMutationId(req);
+            req->set_type(static_cast<int>(EObjectType::File));
+
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("vital", false);
+            attributes->Set("replication_factor", 1);
+            attributes->Set("account", TmpAccountName);
+            if (description) {
+                attributes->Set("description", *description);
+            }
+            ToProto(req->mutable_node_attributes(), *attributes);
+            batchReq->AddRequest(req, Format("create_%v", tag));
+        }
+        {
+            auto req = TFileYPathProxy::PrepareForUpdate(path);
+            req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
+            req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+            GenerateMutationId(req);
+            SetTransactionId(req, transaction);
+            batchReq->AddRequest(req, Format("prepare_for_update_%v", tag));
+        }
+    }
+
+    void AddCreateJobFiles(
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
+        std::vector<TJobRequest> &jobRequests,
+        TTransactionPtr transaction)
+    {
+        for (const auto& request : jobRequests) {
+            auto job = request.Job;
+            auto operation = job->GetOperation();
+
+            if (request.StderrChunkId != NullChunkId) {
+                auto stderrPath = GetStderrPath(operation->GetId(), job->GetId());
+                AddCreateJobFile(batchReq, transaction, stderrPath, "stderr");
+            }
+
+            if (request.FailContextChunkId != NullChunkId) {
+                auto failContextPath = GetFailContextPath(operation->GetId(), job->GetId());
+                AddCreateJobFile(batchReq, transaction, failContextPath, "fail_context");
+            }
+        }
+    }
+
+    void AddUpdateLivePreview(
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
+        std::vector<TLivePreviewRequest> livePreviewRequests)
+    {
+        // Sort by chunk list.
+        std::sort(
+            livePreviewRequests.begin(),
+            livePreviewRequests.end(),
+            [] (const TLivePreviewRequest& lhs, const TLivePreviewRequest& rhs) {
+                return lhs.ChunkListId < rhs.ChunkListId;
+            });
+
+        // Group by chunk list.
+        int rangeBegin = 0;
+        while (rangeBegin < static_cast<int>(livePreviewRequests.size())) {
+            int rangeEnd = rangeBegin; // non-inclusive
+            while (rangeEnd < static_cast<int>(livePreviewRequests.size()) &&
+                   livePreviewRequests[rangeBegin].ChunkListId == livePreviewRequests[rangeEnd].ChunkListId)
+            {
+                ++rangeEnd;
+            }
+
+            auto req = TChunkListYPathProxy::Attach(FromObjectId(livePreviewRequests[rangeBegin].ChunkListId));
+            GenerateMutationId(req);
+            for (int index = rangeBegin; index < rangeEnd; ++index) {
+                ToProto(req->add_children_ids(), livePreviewRequests[index].ChildId);
+            }
+            batchReq->AddRequest(req, "update_live_preview");
+
+            rangeBegin = rangeEnd;
+        }
+    }
+
+    void AddAttachChunks(
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp,
+        const std::vector<TChunkId> &chunkIds,
+        TObjectServiceProxy::TReqExecuteBatchPtr batchReq,
+        const Stroka &tag,
+        std::function<void(const TError&)> errorValidator)
+    {
+        {
+            auto rspsOrError = batchRsp->GetResponses(Format("create_%v", tag));
+            for (const auto &rspOrError : rspsOrError) {
+                errorValidator(rspOrError);
+            }
+        }
+
+        auto rspsOrError = batchRsp->GetResponses<TFileYPathProxy::TRspPrepareForUpdate>(Format("prepare_for_update_%v", tag));
+        YCHECK(chunkIds.size() == rspsOrError.size());
+        for (int i = 0; i < chunkIds.size(); ++i) {
+            const auto &rspOrError = rspsOrError[i];
+            auto chunkListId = FromProto<TChunkListId>(rspOrError.Value()->chunk_list_id());
+            auto req = TChunkListYPathProxy::Attach(FromObjectId(chunkListId));
+            GenerateMutationId(req);
+            ToProto(req->add_children_ids(), chunkIds[i]);
+            batchReq->AddRequest(req, Format("attach_%v", tag));
+        }
+    }
+
+    void AddStartJobFileTransaction(TObjectServiceProxy::TReqExecuteBatchPtr batchReq, const Stroka &txTitle)
+    {
+        auto req = TMasterYPathProxy::CreateObjects();
+        req->set_type(static_cast<int>(EObjectType::Transaction));
+
+        auto* reqExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
+        reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
+        reqExt->set_enable_uncommitted_accounting(false);
+        reqExt->set_enable_staged_accounting(false);
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", txTitle);
+        ToProto(req->mutable_object_attributes(), *attributes);
+
+        GenerateMutationId(req);
+        batchReq->AddRequest(req, "start_job_file_tx");
+    }
+
+    void ValidateResponses(
+        TObjectServiceProxy::TRspExecuteBatchPtr batchRsp,
+        const Stroka &tag,
+        std::function<void(const TError &)> errorValidator)
+    {
+        auto rspsOrError = batchRsp->GetResponses(tag);
+        for (const auto& rspOrError : rspsOrError) {
+            errorValidator(rspOrError);
+        }
+    }
+
+    TTransactionId GetJobFileTransactionId(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_job_file_tx").Value();
+        return FromProto<TTransactionId>(rsp->object_ids(0));
+    }
+
+    TTransactionPtr AttachTransaction(const TTransactionId& transactionId)
+    {
+        TTransactionAttachOptions options;
+        options.AutoAbort = true;
+        auto transactionManager = Bootstrap->GetMasterClient()->GetTransactionManager();
+        return transactionManager->Attach(transactionId, options);
+    }
+
+    void DoUpdateOperationNode(
         TOperationPtr operation,
-        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+        std::vector<TJobRequest> jobRequests,
+        std::vector<TLivePreviewRequest> livePreviewRequests)
     {
         auto operationId = operation->GetId();
 
-        if (!batchRspOrError.IsOK()) {
-            return TError("Error updating operation node %v",
-                operationId)
-                << batchRspOrError;
-        }
-
-        const auto& batchRsp = batchRspOrError.Value();
-
-        {
-            auto rspsOrError = batchRsp->GetResponses("update_op_node");
-            for (const auto& rspOrError : rspsOrError) {
-                if (!rspOrError.IsOK()) {
-                    return TError("Error updating operation node %v",
-                        operationId)
-                        << rspOrError;
-                }
+        std::vector<TChunkId> stderrChunkIds;
+        std::vector<TChunkId> failContextChunkIds;
+        for (const auto& request : jobRequests) {
+            if (request.StderrChunkId != NullChunkId) {
+                stderrChunkIds.push_back(request.StderrChunkId);
+            }
+            if (request.FailContextChunkId != NullChunkId) {
+                failContextChunkIds.push_back(request.FailContextChunkId);
             }
         }
 
-        // NB: Here we silently ignore (but still log down) create_stderr and update_live_preview failures.
-        // These requests may fail due to user transaction being aborted.
+        auto validateOperationUpdate = [&] (const TError& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                error,
+                "Error updating operation node %v",
+                operationId);
+        };
+
+        bool hasChunksToAttach = !stderrChunkIds.empty() || !failContextChunkIds.empty();
+        TTransactionPtr transaction = nullptr;
         {
-            auto rspsOrError = batchRsp->GetResponses("create_stderr");
-            for (const auto& rspOrError : rspsOrError) {
-                if (!rspOrError.IsOK()) {
-                    LOG_WARNING(rspOrError, "Error creating stderr node (OperationId: %v)",
+            auto batchReq = StartOperationUpdate(operation);
+            AddCreateJobNodes(batchReq, jobRequests);
+            AddUpdateLivePreview(batchReq, livePreviewRequests);
+
+            if (hasChunksToAttach) {
+                AddStartJobFileTransaction(
+                    batchReq,
+                    Format("Attaching job files for operation %v", operationId));
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            validateOperationUpdate(batchRspOrError);
+            const auto &batchRsp = batchRspOrError.Value();
+
+            ValidateResponses(batchRsp, "update_op_node", validateOperationUpdate);
+            ValidateResponses(batchRsp, "update_live_preview", [&] (const TError& error) {
+                if (!error.IsOK()) {
+                    LOG_WARNING(
+                        error,
+                        "Error updating live preview (OperationId: %v)",
                         operationId);
                 }
+            });
+
+            if (!hasChunksToAttach) {
+                return;
             }
+
+            transaction = AttachTransaction(GetJobFileTransactionId(batchRsp));
         }
 
+        auto validateFileCreation = [&] (const TError& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                error,
+                "Error creating job file for operation %v",
+                operationId);
+        };
+
+        auto attachBatchReq = StartBatchRequest();
         {
-            auto rspsOrError = batchRsp->GetResponses("create_fail_context");
-            for (const auto& rspOrError : rspsOrError) {
-                if (!rspOrError.IsOK()) {
-                    LOG_WARNING(rspOrError, "Error creating fail context node (OperationId: %v)",
-                        operationId);
-                }
-            }
-        }
+            auto batchReq = StartBatchRequest();
+            AddCreateJobFiles(batchReq, jobRequests, transaction);
 
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            validateFileCreation(batchRspOrError);
+            const auto &batchRsp = batchRspOrError.Value();
+
+            AddAttachChunks(batchRsp, stderrChunkIds, attachBatchReq, "stderr", validateFileCreation);
+            AddAttachChunks(batchRsp, failContextChunkIds, attachBatchReq, "fail_context", validateFileCreation);
+        }
         {
-            auto rspsOrError = batchRsp->GetResponses("update_live_preview");
-            for (const auto& rspOrError : rspsOrError) {
-                if (!rspOrError.IsOK()) {
-                    LOG_WARNING(rspOrError, "Error updating live preview (OperationId: %v)",
-                        operationId);
-                }
-            }
+            auto batchRspOrError = WaitFor(attachBatchReq->Invoke());
+            validateFileCreation(GetCumulativeError(batchRspOrError));
         }
 
-        return TError();
+        auto error = WaitFor(transaction->Commit());
+        validateFileCreation(error);
+    }
+
+    TFuture <void> UpdateOperationNode(TUpdateList* list)
+    {
+        auto operation = list->Operation;
+
+        return BIND(
+            &TImpl::DoUpdateOperationNode,
+            MakeStrong(this),
+            operation,
+            Passed(std::move(list->JobRequests)),
+            Passed(std::move(list->LivePreviewRequests)))
+        .AsyncVia(CancelableControlInvoker)
+        .Run();
     }
 
     void OnOperationNodeCreated(
@@ -1554,14 +1688,13 @@ private:
 
     void OnOperationNodeFlushed(
         TOperationPtr operation,
-        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+        const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
         auto operationId = operation->GetId();
 
-        auto error = GetOperationNodeUpdateError(operation, batchRspOrError);
         if (!error.IsOK()) {
             LOG_ERROR(error);
             Disconnect();
@@ -1716,25 +1849,6 @@ private:
             LOG_ERROR(ex, "Error updating cluster directory");
         }
     }
-
-
-    TCypressYPathProxy::TReqCreatePtr StartCreateFileRequest(const TYPath& path, const TChunkId& chunkId)
-    {
-        auto req = TCypressYPathProxy::Create(path);
-        GenerateMutationId(req);
-        req->set_type(static_cast<int>(EObjectType::File));
-
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("vital", false);
-        attributes->Set("replication_factor", 1);
-        attributes->Set("account", TmpAccountName);
-        ToProto(req->mutable_node_attributes(), *attributes);
-
-        auto* reqExt = req->MutableExtension(NFileClient::NProto::TReqCreateFileExt::create_file_ext);
-        ToProto(reqExt->mutable_chunk_id(), chunkId);
-
-        return req;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1824,9 +1938,10 @@ void TMasterConnector::AddOperationWatcherHandler(TOperationPtr operation, TWatc
 
 void TMasterConnector::AttachJobContext(
     const TYPath& path,
-    const std::vector<TChunkId>& inputContexts)
+    const TChunkId& inputContextChunkId,
+    const TJobId& jobId)
 {
-    return Impl->AttachJobContext(path, inputContexts);
+    return Impl->AttachJobContext(path, inputContextChunkId, jobId);
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterConnected, *Impl);

@@ -387,7 +387,7 @@ void TNontemplateMultiChunkWriterBase::DoClose()
         return;
     }
 
-    if (ParentChunkListId_ == NullChunkListId) {
+    if (!ParentChunkListId_) {
         LOG_DEBUG("Chunk sequence writer closed, no chunks attached");
         CompletionError_.TrySet(TError());
         return;

@@ -223,7 +223,7 @@ private:
 
     virtual TSharedRef SerializeBody() override
     {
-        return SerializeToProtoWithEnvelope(*this, Codec_);
+        return SerializeToProtoWithEnvelope(*this, Codec_, false);
     }
 
 };

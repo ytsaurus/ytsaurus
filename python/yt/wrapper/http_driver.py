@@ -9,6 +9,7 @@ from http import make_get_request_with_retries, make_request_with_retries, get_t
 from response_stream import ResponseStream
 
 import sys
+from copy import deepcopy
 from datetime import datetime
 
 def escape_utf8(obj):
@@ -65,6 +66,7 @@ def make_request(command_name, params,
                  retry_unavailable_proxy=True,
                  response_should_be_json=False,
                  use_heavy_proxy=False,
+                 timeout=None,
                  client=None):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
@@ -99,6 +101,19 @@ def make_request(command_name, params,
             params["mutation_id"] = generate_uuid()
         if "retry" not in params:
             params["retry"] = bool_to_string(False)
+
+    if command.is_volatile and allow_retries:
+        def set_retry(command, params, arguments):
+            if command.is_volatile:
+                params["retry"] = bool_to_string(True)
+                if command.input_type is None:
+                    arguments["data"] = dumps(params)
+                else:
+                    arguments["headers"].update({"X-YT-Parameters": dumps(params)})
+        copy_params = deepcopy(params)
+        retry_action = lambda arguments: set_retry(command, copy_params, arguments)
+    else:
+        retry_action = None
 
     # prepare url
     url = "http://{0}/{1}/{2}".format(proxy, api_path, command_name)
@@ -135,18 +150,6 @@ def make_request(command_name, params,
     if params:
         headers.update({"X-YT-Parameters": dumps(params)})
 
-    if command.is_volatile and allow_retries:
-        def set_retry(arguments):
-            if command.is_volatile:
-                params["retry"] = bool_to_string(True)
-                if command.input_type is None:
-                    arguments["data"] = dumps(params)
-                else:
-                    arguments["headers"].update({"X-YT-Parameters": dumps(params)})
-        retry_action = set_retry
-    else:
-        retry_action = None
-
     token = get_token(client=client)
     if token is not None:
         headers["Authorization"] = "OAuth " + token
@@ -179,6 +182,7 @@ def make_request(command_name, params,
             data=data,
             stream=stream,
             response_should_be_json=response_should_be_json,
+            timeout=timeout,
             client=client)
     except YtProxyUnavailable:
         ban_host(proxy, client=client)

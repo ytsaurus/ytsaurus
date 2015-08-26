@@ -61,8 +61,12 @@ default_config = {
     "api_version": "v2",
 
     # Native driver config usually read from file.
-    "driver_config_path": "/etc/ytdriver.conf",
+    "driver_config_path": None,
     "driver_config": None,
+
+    # Path to file with additional configuration.
+    "config_path": None,
+    "config_format": "yson",
 
     "pickling": {
         # Extensions to consider while looking files to archive.
@@ -73,7 +77,12 @@ default_config = {
         # It useful if local version of python differs from version installed on cluster.
         "force_using_py_instead_of_pyc": False,
         # Function to replace standard py_wrapper.create_modules_archive.
-        "create_modules_archive_function": None
+        "create_modules_archive_function": None,
+        # Pickling framework used to save user modules.
+        "framework": "dill",
+        # Check that python version on local machine is the same as on cluster nodes.
+        # Turn it off at your own risk.
+        "check_python_version": False
     },
 
     "yamr_mode": {
@@ -88,7 +97,8 @@ default_config = {
         "run_map_reduce_if_source_is_not_sorted": False,
         "use_non_strict_upper_key": False,
         "check_input_fully_consumed": False,
-        "abort_transactions_with_remove": False
+        "abort_transactions_with_remove": False,
+        "use_yamr_style_prefix": False
     },
 
     "tabular_data_format": None,
@@ -102,14 +112,16 @@ default_config = {
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
 
     "operation_tracker": {
-        # How often check operation state.
+        # Operation state check interval.
         "poll_period": 5000,
-        # What level use to log stderrs.
+        # Log level used for print stderr messages.
         "stderr_logging_level": "INFO",
-        # Turn on to ignore stderr if download failed.
+        # Ignore failures during stderr downloads.
         "ignore_stderr_if_download_failed": False,
-        # Abort operation if sigint happened while waiting operation to finish.
-        "abort_on_sigint": True
+        # Abort operation when SIGINT is received while waiting for the operation to finish.
+        "abort_on_sigint": True,
+        # Log job statistics on operation complete.
+        "log_job_statistics": False
     },
 
     # Size of block to read from response stream.
@@ -132,21 +144,33 @@ default_config = {
     # How often wake up to determine whether transaction need to be pinged.
     "transaction_sleep_period": 100,
 
+    "write_file_as_one_chunk": True,
+
+    # Default value of raw option in read, write, select, insert, lookup, delete.
+    "default_value_of_raw_option": True,
+
     # Retries for read request. This type of retries parse data stream, if it is enabled, reading may be much slower.
     "read_retries": {
         "enable": False,
-        "retry_count": 10
+        "retry_count": 30,
+        "retry_timeout": 60000,
+        "create_transaction_and_take_snapshot_lock": True
     },
 
     # Retries for write commands. It split data stream into chunks and write it separately undef transactions.
     "write_retries": {
         "enable": True,
         # The size of data chunk that retried.
-        "chunk_size": 512 * common.MB
+        "chunk_size": 512 * common.MB,
+        "retry_timeout": 60000
     },
 
     "auto_merge_output": {
-        "enable": False,
+        # Action can be:
+        # "none" - do nothing
+        # "merge" - check output and merge chunks if necessary
+        # "log" - check output and log result, do not merge
+        "action": "log",
         "min_chunk_count": 1000,
         "max_chunk_size": 32 * common.MB
     }
