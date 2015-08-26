@@ -76,7 +76,7 @@ class YTEnvSetup(YTEnv):
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
             self.transactions_at_start = set(yt_commands.get_transactions())
-            self._wait_for_nodes()
+            self.wait_for_nodes()
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
@@ -109,28 +109,29 @@ class YTEnvSetup(YTEnv):
             assert yt_commands.get("//sys/nodes/%s/@state" % address) == "online"
             print "Node %s is unbanned" % address
 
-    def _wait_for_nodes(self):
+    def wait_for_nodes(self):
         _wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
 
-    def _sync_create_cells(self, size, count):
-        ids = []
-        for _ in xrange(count):
-            ids.append(yt_commands.create_tablet_cell(size))
-
+    def wait_for_cells(self):
         print "Waiting for tablet cells to become healthy..."
-        _wait(lambda: all(yt_commands.get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
+        _wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
 
-    def _wait_for_tablet_state(self, path, states):
+    def sync_create_cells(self, size, count):
+        for _ in xrange(count):
+            yt_commands.create_tablet_cell(size)
+        self.wait_for_cells()
+
+    def wait_for_tablet_state(self, path, states):
         print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
         _wait(lambda: all(any(x["state"] == state for state in states) for x in yt_commands.get(path + "/@tablets")))
 
-    def _sync_mount_table(self, path):
+    def sync_mount_table(self, path):
         yt_commands.mount_table(path)
 
         print "Waiting for tablets to become mounted..."
         _wait(lambda: all(x["state"] == "mounted" for x in yt_commands.get(path + "/@tablets")))
 
-    def _sync_unmount_table(self, path):
+    def sync_unmount_table(self, path):
         yt_commands.unmount_table(path)
 
         print "Waiting for tablets to become unmounted..."
