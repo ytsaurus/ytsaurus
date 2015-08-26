@@ -405,7 +405,7 @@ class YTEnv(object):
 
                 self.configs[current_master_name].append(config)
                 self.config_paths[current_master_name].append(config_path)
-                self.log_paths[current_master_name].append(config["logging"]["writers"]["debug"]["file_name"])
+                self.log_paths[current_master_name].append(config["logging"]["writers"]["info"]["file_name"])
 
     def start_masters(self, master_name, secondary=None):
         if secondary is None:
