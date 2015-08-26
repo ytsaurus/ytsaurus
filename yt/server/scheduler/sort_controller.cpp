@@ -2280,20 +2280,20 @@ private:
 
         for (const auto& file : Files) {
             switch (file.Stage) {
-            case EOperationStage::Map:
-                MapperFiles.push_back(file);
-                break;
+                case EOperationStage::Map:
+                    MapperFiles.push_back(file);
+                    break;
 
-            case EOperationStage::ReduceCombiner:
-                ReduceCombinerFiles.push_back(file);
-                break;
+                case EOperationStage::ReduceCombiner:
+                    ReduceCombinerFiles.push_back(file);
+                    break;
 
-            case EOperationStage::Reduce:
-                ReducerFiles.push_back(file);
-                break;
+                case EOperationStage::Reduce:
+                    ReducerFiles.push_back(file);
+                    break;
 
-            default:
-                YUNREACHABLE();
+                default:
+                    YUNREACHABLE();
             }
         }
 
