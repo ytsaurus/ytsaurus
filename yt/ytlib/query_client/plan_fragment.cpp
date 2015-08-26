@@ -1034,6 +1034,10 @@ public:
 
     virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
     {
+        if (tableName != TableName_) {
+            return nullptr;
+        }
+
         auto column = SourceTableSchema_.FindColumn(name);
         if (column) {
             RefinedTableSchema_->Columns().push_back(*column);
