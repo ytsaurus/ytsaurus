@@ -34,13 +34,6 @@ public:
         auto channel = CreateBalancingChannel(config, channelFactory);
         Proxy_ = std::make_unique<TTimestampServiceProxy>(channel);
         Proxy_->SetDefaultTimeout(Config_->RpcTimeout);
-
-        LatestTimestampExecutor_ = New<TPeriodicExecutor>(
-            GetSyncInvoker(),
-            BIND(&TRemoteTimestampProvider::SendUpdateRequest, MakeWeak(this)),
-            Config_->UpdatePeriod,
-            EPeriodicExecutorMode::Manual);
-        LatestTimestampExecutor_->Start();
     }
 
     virtual TFuture<TTimestamp> GenerateTimestamps(int count) override
@@ -68,16 +61,27 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return LatestTimestamp_;
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        auto result = LatestTimestamp_;
+
+        if (!LatestTimestampExecutor_) {
+            LatestTimestampExecutor_ = New<TPeriodicExecutor>(
+                GetSyncInvoker(),
+                BIND(&TRemoteTimestampProvider::UpdateLatestTimestamp, MakeWeak(this)),
+                Config_->UpdatePeriod,
+                EPeriodicExecutorMode::Automatic);
+            guard.Release();
+            LatestTimestampExecutor_->Start();
+        }
+
+        return result;
     }
 
-
 private:
-    TRemoteTimestampProviderConfigPtr Config_;
+    const TRemoteTimestampProviderConfigPtr Config_;
 
     std::unique_ptr<TTimestampServiceProxy> Proxy_;
-
-    TPeriodicExecutorPtr LatestTimestampExecutor_;
 
     struct TRequest
     {
@@ -87,6 +91,7 @@ private:
 
     TSpinLock SpinLock_;
     bool GenerateInProgress_ = false;
+    TPeriodicExecutorPtr LatestTimestampExecutor_;
     TTimestamp LatestTimestamp_ = MinTimestamp;
     std::vector<TRequest> PendingRequests_;
 
@@ -124,6 +129,8 @@ private:
         int count,
         const TTimestampServiceProxy::TErrorOrRspGenerateTimestampsPtr& rspOrError)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         TError error;
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -162,30 +169,28 @@ private:
     }
 
 
-    void SendUpdateRequest()
+    void UpdateLatestTimestamp()
     {
-        LOG_DEBUG("Updating current timestamp");
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        LOG_DEBUG("Updating latest timestamp");
 
         auto req = Proxy_->GenerateTimestamps();
-        req->Invoke().Subscribe(BIND(
-            &TRemoteTimestampProvider::OnUpdateResponse,
-            MakeStrong(this)));
-    }
+        auto rspOrError = WaitFor(req->Invoke());
 
-    void OnUpdateResponse(const TTimestampServiceProxy::TErrorOrRspGenerateTimestampsPtr& rspOrError)
-    {
-        if (rspOrError.IsOK()) {
-            const auto& rsp = rspOrError.Value();
-            auto timestamp = TTimestamp(rsp->timestamp());
-            LOG_DEBUG("Current timestamp updated (Timestamp: %v)", timestamp);
-
-            TGuard<TSpinLock> guard(SpinLock_);
-            LatestTimestamp_ = std::max(LatestTimestamp_, timestamp);
-        } else {
-            LOG_WARNING(rspOrError, "Error updating current timestamp");
+        if (!rspOrError.IsOK()) {
+            LOG_WARNING(rspOrError, "Error updating latest timestamp");
+            return;
         }
 
-        LatestTimestampExecutor_->ScheduleNext();
+        const auto& rsp = rspOrError.Value();
+        auto timestamp = TTimestamp(rsp->timestamp());
+
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (timestamp > LatestTimestamp_) {
+            LOG_DEBUG("Latest timestamp updated (Timestamp: %v)", timestamp);
+            LatestTimestamp_ = timestamp;
+        }
     }
 
 };
