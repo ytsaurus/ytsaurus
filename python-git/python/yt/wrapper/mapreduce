@@ -24,7 +24,6 @@
 from yt.wrapper.cli_helpers import write_silently, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _remove_locks, _get_format_from_tables
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
-from yt.wrapper.table import check_prefix
 
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
 import yt.wrapper.config as config
@@ -36,8 +35,14 @@ import os
 import sys
 import types
 from argparse import ArgumentParser, RawTextHelpFormatter, REMAINDER, Action
+from copy import deepcopy
 from operator import attrgetter
 from itertools import imap, groupby
+
+def removed(list, value):
+    result = deepcopy(list)
+    result.remove(value)
+    return result
 
 def unlist_destination_tables(tables):
     if tables is None:
@@ -54,17 +59,80 @@ def calculate_if_function(obj):
         return obj
 
 def remove_prefix(table):
-    if table.startswith(config.PREFIX):
-        return table[len(config.PREFIX):]
+    if table.startswith(config["prefix"]):
+        return table[len(config["prefix"]):]
     return table
 
-def list_all_entities(type):
-    if config.PREFIX is None:
+def list_entities(type, prefix, exact, jsonoutput):
+    if config["prefix"] is None:
         die("You should specify PREFIX for list command")
-    check_prefix(config.PREFIX)
-    tables = yt.search(config.PREFIX[:-1], type,
-                       path_filter=lambda path: path.startswith(config.PREFIX))
-    return sorted(map(remove_prefix, tables))
+    if exact is not None and prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
+        die("prefix and exact options can not be specified simultaneously with enabled option use_yamr_style_prefix")
+    if jsonoutput and type == "file":
+        die("Option jsonoutput is not supported for files")
+
+    if prefix is not None and config["yamr_mode"]["use_yamr_style_prefix"]:
+        prefix = os.path.join(config["prefix"], prefix)
+    elif exact is not None:
+        prefix = os.path.join(config["prefix"], exact)
+    else:
+        prefix = config["prefix"]
+
+    attributes = []
+    if jsonoutput:
+        attributes = [
+            "account",
+            "chunk_count",
+            "row_count",
+            "compressed_data_size",
+            "uncompressed_data_size",
+            "resource_usage",
+            "sorted_by",
+            "modification_time",
+            "creation_time",
+            "access_time",
+            "compression_codec",
+            "replication_factor"]
+
+    # NB: it will be files in case of type == "file"
+    tables = []
+    if exact is not None:
+        if yt.exists(prefix) and yt.get(prefix + "/@type") == type:
+            table_attributes = yt.get(prefix, attributes=attributes).attributes
+            tables.append(yson.to_yson_type(prefix, attributes=table_attributes))
+    else:
+        request_prefix = prefix.rsplit("/", 1)[0]
+        tables = yt.search(request_prefix, type,
+                           path_filter=lambda path: path.startswith(request_prefix), attributes=attributes)
+        tables = filter(lambda table: table.startswith(prefix), tables)
+
+    if jsonoutput:
+        result = []
+        for table in tables:
+            attrs = table.attributes
+            result.append({
+                "name": remove_prefix(str(table)),
+                "user": attrs["account"],
+                "chunks": attrs["chunk_count"],
+                "records": attrs["row_count"],
+                "size": attrs["uncompressed_data_size"],
+                "byte_size": attrs["uncompressed_data_size"],
+                "full_size": attrs["uncompressed_data_size"],
+                "disk_size": attrs["resource_usage"]["disk_space"],
+                "sorted": bool(attrs.get("sorted_by")),
+                "write_locked": None,
+                "mod_time": attrs["modification_time"],
+                "atime": attrs["access_time"],
+                "creat_time": attrs["creation_time"],
+                "creat_transaction": None,
+                "replicas": attrs["replication_factor"],
+                "compression_algo": attrs["compression_codec"],
+                "block_format": None,
+                "hier_chunk": None})
+        result.sort(key=lambda item: item["name"])
+        return [json.dumps(result, indent=4)]
+    else:
+        return sorted(map(remove_prefix, map(str, tables)))
 
 def add_eoln(str):
     return str + "\n"
@@ -95,29 +163,32 @@ class MaybeMissingValueArgumentAction(Action):
             values = MissingValue()
         setattr(namespace, self.dest, values)
 
+def arg_to_names(arg):
+    return ["-" + arg, "--" + arg]
+
 def add_maybe_missing_value_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, nargs="?", action=MaybeMissingValueArgumentAction)
+        parser.add_argument(*arg_to_names(arg), nargs="?", action=MaybeMissingValueArgumentAction)
 def add_store_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action=ForbidRepeatedArgumentsAction)
+        parser.add_argument(*arg_to_names(arg), action=ForbidRepeatedArgumentsAction)
 def add_bool_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action="store_true", default=False)
+        parser.add_argument(*arg_to_names(arg), action="store_true", default=False)
 def add_multiple_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action="append")
+        parser.add_argument(*arg_to_names(arg), action="append")
 
 def add_multiple_args_to_one_dest(parser, args, dest=None):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, action=AppendAction, dest=dest)
+        parser.add_argument(*arg_to_names(arg), action=AppendAction, dest=dest)
 
 def add_integer_args(parser, args):
     for arg in flatten(args):
-        parser.add_argument("-" + arg, type=int)
+        parser.add_argument(*arg_to_names(arg), type=int)
 
 def add_help_message(parser, arg_name, message):
-    arg_name = "-" + arg_name
+    arg_name = ", ".join(arg_to_names(arg_name))
     args_tuple = parser._get_option_tuples(arg_name)
     for arg in args_tuple:
         if arg[1] == arg_name:
@@ -196,17 +267,19 @@ Examples:
     action_stores = ["read", "writesorted", "map", "reduce", "reducews", "reducewsonly", "drop",
                      "erase", "aborttx", "committx", "renewtx", "set", "get", "upload", "download",
                      "createtable", "exists", "track", "ytlock"]
-    action_flags = ["version", "copy", "move", "sort", "merge", "list", "listfiles", "starttx"]
+    action_flags = ["version", "copy", "move", "merge", "list", "listfiles", "starttx"]
 
     add_bool_args(parser, action_flags + ["subkey", "lenval", "append", "dynallocmode", "dsv", "pingtx",
-                                          "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable"])
+                                          "smartformat", "force", "executable", "waitable", "failonemptysrctable", "nocreatetmptable",
+                                          "jsonoutput", "tableindex"])
+    parser.add_argument(*arg_to_names("sort"), const=True, default=False, nargs="?")
 
     add_maybe_missing_value_args(parser, action_maybe_stores)
 
     add_store_args(parser, action_stores + ["server", "lowerkey", "upperkey", "prefix", "codec",
                                             "format", "inputformat", "outputformat", "tx", "value",
                                             "replicationfactor", "memlimit", "timeout", "title", "fs", "rs",
-                                            "mode", "tablereader", "tablewriter"])
+                                            "mode", "tablereader", "tablewriter", "compress", "exact"])
     add_multiple_args(parser, ["src", "file", "mapfile", "reducefile", "ytfile", "opt", "ytspec", "sortby", "reduceby"])
     add_multiple_args_to_one_dest(parser, ["dst", "dstappend", "dstsorted"], "dst")
     add_integer_args(parser, ["jobcount", "threadcount", "chunksize", "jcmultiplier", "detached", "waitfor", "stderrlevel", "maxjobfails", "count"])
@@ -226,6 +299,8 @@ Examples:
              "by default value depends on yt installation."),
             ("committx",
              "NEW! commit given transaction"),
+            ("compress",
+             "Used only for compatibility, option value is ignored"),
             ("copy",
              "copy given tables to one destination table"),
             ("createtable",
@@ -339,6 +414,8 @@ Examples:
              "source table, this option can be passed multiple times"),
             ("starttx",
              "NEW! start transaction, returns transaction id"),
+            ("stderrlevel",
+             "Used only for compatibility, option value is ignored"),
             ("subkey",
              "turn on yamr format with subkey"),
             ("tablereader",
@@ -388,6 +465,8 @@ Examples:
 
     actions_count = sum([vars(args)[arg] is not None for arg in action_stores + action_maybe_stores]) + \
                     sum([vars(args)[arg] for arg in action_flags])
+    if args.sort:
+        actions_count += 1
     mapreduce_case = args.map is not None and args.reduce is not None and actions_count == 2
     if actions_count != 1 and not mapreduce_case:
         die("You should pass exactly one action", 1)
@@ -395,15 +474,15 @@ Examples:
         die("Version: YT wrapper " + get_version(), 0)
 
     if args.failonemptysrctable:
-        config.TREAT_UNEXISTING_AS_EMPTY = False
+        config["yamr_mode"]["treat_unexisting_as_empty"] = False
     if args.chunksize is not None:
-        config.CHUNK_SIZE = args.chunksize
+        config["write_retries"]["chunk_size"] = args.chunksize
     if args.server is not None:
-        config.set_proxy(args.server)
-    if args.prefix is not None:
-        config.PREFIX = args.prefix
+        config["proxy"]["url"] = args.server
+    if args.prefix is not None and not config["yamr_mode"]["use_yamr_style_prefix"]:
+        config["prefix"] = args.prefix
     if args.timeout is not None:
-        config.TRANSACTION_TIMEOUT = int(args.timeout)
+        config["transaction_timeout"] = int(args.timeout)
 
     spec = {}
     if args.ytspec is not None:
@@ -428,6 +507,13 @@ Examples:
             has_dstsorted = True
             dst.append(yt.TablePath(value, sorted_by=["key", "subkey"]))
 
+    if args.sort and args.sort is not True:
+        dst.append(args.sort)
+        if args.src is None:
+            args.src = []
+        args.src.append(args.sort)
+        args.sort = True
+
     if not dst:
         dst = None
 
@@ -439,16 +525,17 @@ Examples:
     map_files = to_list(args.file) + to_list(args.mapfile)
     reduce_files = to_list(args.file) + to_list(args.reducefile)
 
-    config.DEFAULT_FORMAT = yt.YamrFormat(lenval=args.lenval,
-                                          has_subkey=args.subkey,
-                                          field_separator=args.fs,
-                                          record_separator=args.rs)
+    format = yt.YamrFormat(lenval=args.lenval,
+                           has_subkey=args.subkey,
+                           field_separator=args.fs,
+                           record_separator=args.rs,
+                           enable_table_index=args.tableindex)
     if args.dsv:
         if args.lenval or args.subkey:
             die("Options subkey and lenval are mutually exclusive with dsv option")
         args.dsv = yt.DsvFormat()
         # Try it if occur problem with reduce_by and sort_by
-        #config.USE_YAMR_SORT_REDUCE_COLUMNS = False
+        #config["yamr_mode"]["use_yamr_sort_reduce_columns"] = False
 
     commands_that_use_format = ["get", "set", "read", "write", "writesorted", "map", "reduce", "reducews"]
     if sum([vars(args)[arg] is not None for arg in commands_that_use_format]) == 0 \
@@ -466,7 +553,7 @@ Examples:
          args.dsv,
          lambda: get_smart_format([args.src, args.read], args.smartformat, args.subkey, args.lenval,
                                   ignore_unexisting_tables=True),
-         config.DEFAULT_FORMAT]))
+         format]))
 
     write_tables = args.write if not isinstance(args.write, MissingValue) else None
     outputformat = first_not_none(imap(calculate_if_function,
@@ -474,7 +561,7 @@ Examples:
          args.outputformat,
          args.dsv,
          lambda: get_smart_format([dst, write_tables], args.smartformat, args.subkey, args.lenval),
-         config.DEFAULT_FORMAT]))
+         format]))
 
     if isinstance(outputformat, str):
         outputformat = yt.create_format(outputformat)
@@ -486,9 +573,9 @@ Examples:
     config.PING_ANCESTOR_TRANSACTIONS = args.pingtx
 
     if args.memlimit is not None:
-        config.MEMORY_LIMIT = int(args.memlimit) * MB
+        config["memory_limit"] = int(args.memlimit) * MB
 
-    config.DETACHED = (args.detached is None) or bool(args.detached)
+    config["detached"] = (args.detached is None) or bool(args.detached)
 
     attributes = {}
 
@@ -507,9 +594,9 @@ Examples:
 
 
     if args.list:
-        write_silently(imap(add_eoln, list_all_entities("table")))
+        write_silently(imap(add_eoln, list_entities(type="table", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput)))
     if args.listfiles:
-        write_silently(imap(add_eoln, list_all_entities("file")))
+        write_silently(imap(add_eoln, list_entities(type="file", prefix=args.prefix, exact=args.exact, jsonoutput=args.jsonoutput)))
     if args.read is not None:
         write_silently(
             chunk_iter_stream(
@@ -574,6 +661,7 @@ Examples:
         yt.run_reduce(op, args.src, dst, files=reduce_files, file_paths=args.ytfile,
                       input_format=inputformat, output_format=outputformat,
                       reduce_by=args.reduceby,
+                      sort_by=args.sortby,
                       replication_factor=replication_factor,
                       compression_codec=args.codec,
                       job_count=args.jobcount,
@@ -622,12 +710,12 @@ Examples:
         if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
             remove_with_empty_dirs(args.upload)
         yt.mkdir(os.path.dirname(args.upload))
-        yt.upload_file(sys.stdin, args.upload)
+        yt.write_file(args.upload, sys.stdin)
         if args.executable:
             yt.set_attribute(args.upload, "executable", bool_to_string(True))
     if args.download is not None:
         if yt.exists(args.download):
-            write_silently(chunk_iter_stream(yt.download_file(args.download), 16 * MB))
+            write_silently(chunk_iter_stream(yt.read_file(args.download), 16 * MB))
 
     if args.exists is not None:
         print bool_to_string(yt.exists(args.exists))
@@ -652,8 +740,8 @@ Examples:
         print yt.lock(args.ytlock, mode=args.mode, waitable=args.waitable, wait_for=args.waitfor)
 
     if args.track is not None:
-        config.DETACHED = True
-        config.KEYBOARD_ABORT = False
+        config["detached"] = True
+        config["operation_tracker"]["abort_on_sigint"] = False
         yt.WaitStrategy().process_operation("unknown", args.track)
 
 if __name__ == "__main__":

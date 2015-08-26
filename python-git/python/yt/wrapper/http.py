@@ -1,6 +1,5 @@
 import yt.logger as logger
-import config
-from config import get_config, get_option, set_option
+from config import get_config, get_option, set_option, get_backend_type
 from common import require, get_backoff, get_value
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_http_response_error, YtRequestRateLimitExceeded
 from command import parse_commands
@@ -9,6 +8,7 @@ import yt.yson as yson
 import yt.packages.simplejson as json
 
 import os
+import random
 import string
 import time
 import types
@@ -24,6 +24,10 @@ RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, IncompleteRead, SocketE
 session_ = yt.packages.requests.Session()
 def get_session():
     return session_
+
+def _cleanup_http_session():
+    global session_
+    session_ = yt.packages.requests.Session()
 
 def configure_ip(client):
     if get_option("_ip_configured", client):
@@ -58,7 +62,7 @@ def create_response(response, request_headers, client):
             return yson.json_to_yson(json.loads(str))
         if header_format == "yson":
             return yson.loads(str)
-        assert False, header_format
+        raise YtError("Incorrect header format: {0}".format(header_format))
 
     def get_error():
         if not str(response.status_code).startswith("2"):
@@ -67,10 +71,16 @@ def create_response(response, request_headers, client):
                 url_base = "/".join(response.url.split("/")[:3])
                 raise YtTokenError(
                     "Your authentication token was rejected by the server (X-YT-Request-ID: {0}).\n"
-                    "Please refer to {1}/auth/ for obtaining a valid token or submit your request to https://st.yandex-team.ru/createTicket?queue=YTADMIN"\
+                    "Please refer to {1}/auth/ for obtaining a valid token if it will not fix error: "
+                    "please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMIN"\
                         .format(
                             response.headers.get("X-YT-Request-ID", "missing"),
                             url_base))
+
+                try:
+                    response.json()
+                except json.JSONDecodeError:
+                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
             return response.json()
         else:
             error = parse_error_from_headers(response.headers)
@@ -117,6 +127,8 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
         try:
             try:
                 response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers, client)
+                if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
+                    raise YtIncorrectResponse("", response)
             except ConnectionError as error:
                 if hasattr(error, "response"):
                     raise build_http_response_error(url, headers, create_response(error.response, headers, client).error())
@@ -129,21 +141,22 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 try:
                     response.json()
                 except json.JSONDecodeError:
-                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)")
+                    raise YtIncorrectResponse("Response body can not be decoded from JSON (bug in proxy)", response)
             if response.status_code == 503:
-                raise YtProxyUnavailable("Retrying response with code 503 and body %s" % response.content)
+                raise YtProxyUnavailable(response)
             if not response.is_ok():
                 raise build_http_response_error(url, headers, response.error())
 
             return response
         except tuple(retriable_errors) as error:
-            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, type(error), str(error), headers)
+            message =  "HTTP %s request %s has failed with error %s, message: '%s', headers: %s" % (method, url, str(type(error)), error.message, headers)
             if make_retries and attempt + 1 < get_config(client)["proxy"]["request_retry_count"]:
                 if retry_action is not None:
                     retry_action(kwargs)
                 backoff = get_backoff(get_config(client)["proxy"]["request_retry_timeout"], current_time)
+                logger.warning(message)
                 if backoff:
-                    logger.warning("%s. Sleep for %.2lf seconds...", message, backoff)
+                    logger.warning("Sleep for %.2lf seconds before next retry", backoff)
                     time.sleep(backoff)
                 logger.warning("New retry (%d) ...", attempt + 2)
             else:
@@ -180,12 +193,8 @@ def get_api_version(client=None):
         set_option("_api_version", api_version_from_config, client)
         return api_version_from_config
 
-
-    # XXX(ignat): COPY-PASTE from driver.py
-    backend = config["backend"]
-    if backend is None:
-        backend = "http" if config["proxy"]["url"] is not None else "native"
-    require(backend == "http", YtError("Cannot automatically detect api version for non-proxy backend"))
+    require(get_backend_type(client) == "http",
+            YtError("Cannot automatically detect api version for non-proxy backend"))
 
     api_versions = _request_api(get_config(client)["proxy"]["url"])
     if "v3" in api_versions:
@@ -211,12 +220,6 @@ def get_api_commands(client=None):
 
     return commands
 
-def get_command_descriptor(command_name, client):
-    commands = get_api_commands(client=client)
-    require(command_name in commands,
-            YtError("Command {0} is not supported by api/{1}".format(command_name, get_api_version(client))))
-    return commands[command_name]
-
 def get_token(client=None):
     if not get_config(client)["enable_token"]:
         return None
@@ -238,3 +241,32 @@ def get_token(client=None):
         token = None
     return token
 
+def get_user_name(token=None, headers=None, client=None):
+    if token is None and headers is None:
+        token = get_token(client)
+
+    version = get_api_version(client=client)
+    proxy = get_proxy_url(None, client=client)
+
+    if version == "v3":
+        if headers is None:
+            headers = {}
+        if token is not None:
+            headers["Authorization"] = "OAuth " + token.strip()
+        data = None
+        verb = "whoami"
+    else:
+        if not token:
+            return None
+        data = "token=" + token.strip()
+        verb = "login"
+
+    response = make_request_with_retries(
+        "post",
+        "http://{0}/auth/{1}".format(proxy, verb),
+        headers=headers,
+        data=data)
+    login = response.json()["login"]
+    if not login:
+        return None
+    return login

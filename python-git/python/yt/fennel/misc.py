@@ -5,6 +5,7 @@ import gzip
 import StringIO
 import json
 import struct
+import logging
 
 #==========================================
 
@@ -126,7 +127,7 @@ def _transform_record(record, cluster_name, log_name):
             "timezone": "+0000"
         })
     except:
-        log.error("Unable to transform record: %r", record)
+        logging.getLogger("Fennel").error("Unable to transform record: %r", record)
         raise
     return record
 

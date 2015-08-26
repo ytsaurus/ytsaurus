@@ -21,7 +21,7 @@ def main():
     args = parser.parse_args()
         
     if args.proxy is not None:
-        yt.config.set_proxy(args.proxy)
+        yt.config["proxy"]["url"] = args.proxy
 
     convert_to_erasure(args.src, args.dst, args.erasure_codec, args.compression_codec, args.desired_chunk_size)
 

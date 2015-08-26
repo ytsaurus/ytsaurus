@@ -56,9 +56,6 @@ def convert_to_stream(data):
     else:
         return StringIterIO(data)
 
-def get_command_descriptor(command_name):
-    return get_driver_instance().get_command_descriptor(command_name)
-
 def make_request(command_name, params,
                  data=None,
                  return_content=True,

@@ -20,7 +20,7 @@ Cypress (metainformation tree) commands:
     create, remove, exists, list, find, get, set,
     copy, link, move
 File commands:
-    upload, download
+    write-file, read-file
 Table commands:
     read, write
 Tablet commands:
@@ -277,30 +277,32 @@ def add_read_parser(add_parser):
     add_spec_help(parser, "--table-reader")
     parser.set_defaults(func=read)
 
-def download(**args):
-    write_silently(chunk_iter_stream(yt.download_file(**args), 16 * MB))
+def read_file(**args):
+    write_silently(chunk_iter_stream(yt.read_file(**args), 16 * MB))
 
-def add_download_parser(add_parser):
-    parser = add_parser("download", yt.download_file)
-    add_ypath_argument(parser)
-    add_spec_help(parser, "--file-reader")
-    parser.add_argument("--offset", type=int, help="offset in input file in bytes, 0 by default")
-    parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
-    parser.set_defaults(func=download)
+def add_read_file_parser(add_parser):
+    for name, func in [("read-file", yt.read_file), ("download", yt.download_file)]:
+        parser = add_parser(name, func)
+        add_ypath_argument(parser)
+        add_spec_help(parser, "--file-reader")
+        parser.add_argument("--offset", type=int, help="offset in input file in bytes, 0 by default")
+        parser.add_argument("--length", type=int, help="length in bytes of desired part of input file, all file without offset by default")
+        parser.set_defaults(func=read_file)
 
-def upload(**args):
+def write_file(**args):
     func_args = dict(args)
     func_args.pop("executable")
-    yt.upload_file(sys.stdin, **func_args)
+    yt.write_file(stream=sys.stdin, **func_args)
     if args["executable"]:
         yt.set(args["destination"] + "/@executable", bool_to_string(True))
 
-def add_upload_parser(add_parser):
-    parser = add_parser("upload", yt.upload_file)
-    parser.add_argument("destination")
-    add_spec_help(parser, "--file-writer")
-    parser.add_argument("--executable", action="store_true", help="do file executable")
-    parser.set_defaults(func=upload)
+def add_write_file_parser(add_parser):
+    for name, func in [("write-file", yt.write_file), ("upload", yt.upload_file)]:
+        parser = add_parser(name, func)
+        parser.add_argument("destination")
+        add_spec_help(parser, "--file-writer")
+        parser.add_argument("--executable", action="store_true", help="do file executable")
+        parser.set_defaults(func=write_file)
 
 def add_write_parser(add_parser):
     parser = add_parser("write", yt.write_table, epilog="Rewrite table by default. For append mode specify <append=true> before path.")
@@ -361,6 +363,7 @@ def add_copy_parser(add_parser):
     parser.add_argument("source_path", help="source address, path must exist")
     parser.add_argument("destination_path", help="destination address, path must not exist")
     parser.add_argument("--preserve-account", action="store_true", help="preserve account of copied nodes")
+    parser.add_argument("-f", "--force", action="store_true")
 
 def move(**args):
     if "no_preserve_account" in args:
@@ -373,6 +376,7 @@ def add_move_parser(add_parser):
     parser.add_argument("source_path", help="old node address, path must exist")
     parser.add_argument("destination_path", help="new node address, path must not exist")
     parser.add_argument("--no-preserve-account", action="store_true", help="do not preserve account of moved nodes")
+    parser.add_argument("-f", "--force", action="store_true")
     parser.set_defaults(func=move)
 
 def add_link_parser(add_parser):
@@ -723,8 +727,8 @@ def main():
     add_read_parser(add_parser)
     add_write_parser(add_parser)
 
-    add_upload_parser(add_parser)
-    add_download_parser(add_parser)
+    add_read_file_parser(add_parser)
+    add_write_file_parser(add_parser)
 
     add_get_parser(add_parser)
     add_set_parser(add_parser)
@@ -787,9 +791,9 @@ def main():
         yt.config.TRANSACTION = config_args.tx
         yt.config.PING_ANCESTOR_TRANSACTIONS = config_args.ping_ancestor_txs
     if config_args.proxy is not None:
-        yt.config.set_proxy(config_args.proxy)
+        yt.config["proxy"]["url"] = config_args.proxy
     if config_args.prefix is not None:
-        yt.config.PREFIX = config_args.prefix
+        yt.config["prefix"] = config_args.prefix
     yt.config.TRACE = config_args.trace
     yt.config.update_config(config_args.config)
 
