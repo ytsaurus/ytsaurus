@@ -449,7 +449,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
-        ContainsRegex("Column \"k\" occurs both in main and joined tables"));
+        ContainsRegex("Column .* occurs both in main and joined tables"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

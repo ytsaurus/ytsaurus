@@ -343,17 +343,9 @@ public:
         return nullptr;
     }
 
-    const TColumnSchema* GetColumnPtr(const TStringBuf& name)
+    const yhash_map<TPair<Stroka, Stroka>, size_t>& GetLookup() const
     {
-        if (auto column = TableSchema_->FindColumn(name)) {
-            return column;
-        } else if (auto original = AddColumnPtr(name)) {
-            auto& resultColumns = TableSchema_->Columns();
-            resultColumns.push_back(*original);
-            resultColumns.back().Name = name;
-            return &resultColumns.back();
-        }
-        return nullptr;
+        return Lookup_;
     }
 
     const TColumnSchema* GetAggregateColumnPtr(
@@ -664,11 +656,6 @@ private:
 
 protected:
     virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName)
-    {
-        return nullptr;
-    }
-
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name)
     {
         return nullptr;
     }
@@ -1097,32 +1084,17 @@ public:
         return column;
     }
 
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name) override
-    {
-        const TColumnSchema* column = nullptr;
-
-        if ((column = Self_->GetColumnPtr(name))) {
-            if (Foreign_->GetColumnPtr(name)) {
-                THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables", name);
-            }
-        } else {
-            column = Foreign_->GetColumnPtr(name);
-        }
-
-        return column;
-    }
-
     virtual void Finish() override
     {
         Self_->Finish();
         Foreign_->Finish();
 
-        for (const auto& column : Self_->GetTableSchema()->Columns()) {
-            GetColumnPtr(column.Name);
+        for (const auto& column : Self_->GetLookup()) {
+            GetColumnPtr(column.first.first, column.first.second);
         }
 
-        for (const auto& column : Foreign_->GetTableSchema()->Columns()) {
-            GetColumnPtr(column.Name);
+        for (const auto& column : Foreign_->GetLookup()) {
+            GetColumnPtr(column.first.first, column.first.second);
         }
     }
 
