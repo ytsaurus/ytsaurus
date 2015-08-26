@@ -883,9 +883,7 @@ public:
             }
         }
 
-        YCHECK(trunkOwningNode);
-
-        if (!hasUpdates) {
+        if (!hasUpdates && IsObjectAlive(trunkOwningNode)) {
             auto cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->SealJournal(trunkOwningNode, nullptr);
         }
