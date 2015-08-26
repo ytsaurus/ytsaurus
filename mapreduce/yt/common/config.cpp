@@ -25,10 +25,13 @@ Stroka TConfig::GetEnv(const char* var, const char* defaultValue)
     return value ? value : defaultValue;
 }
 
-bool TConfig::GetBool(const char* var)
+bool TConfig::GetBool(const char* var, bool defaultValue)
 {
     Stroka val = GetEnv(var, "");
-    return val != "" && val != "0" && val != "False" && val != "FALSE";
+    if (val.Empty()) {
+        return defaultValue;
+    }
+    return val != "0" && val != "False" && val != "FALSE";
 }
 
 int TConfig::GetInt(const char* var, int defaultValue)
@@ -135,6 +138,7 @@ TConfig::TConfig()
 
     ForceIpV4 = GetBool("YT_FORCE_IPV4");
     ForceIpV6 = GetBool("YT_FORCE_IPV6");
+    UseHosts = GetBool("YT_USE_HOSTS", true);
 
     LoadToken();
     LoadSpec();

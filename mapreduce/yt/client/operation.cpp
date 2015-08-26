@@ -122,6 +122,8 @@ private:
             THttpHeader header("POST", "create");
             header.AddPath(cypressPath);
             header.AddParam("type", "file");
+            header.AddParam("recursive", true);
+            header.AddParam("ignore_existing", true);
             header.AddMutationId();
             RetryRequest(Auth_, header);
         }

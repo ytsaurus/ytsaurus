@@ -9,6 +9,7 @@
 
 #include <util/string/quote.h>
 #include <util/string/printf.h>
+#include <util/string/cast.h>
 
 namespace NYT {
 
@@ -212,7 +213,16 @@ void THttpRequest::Connect()
 {
     LOG_DEBUG("REQ %s - connect to %s", ~RequestId, ~HostName);
 
-    NetworkAddress.Reset(new TNetworkAddress(HostName, 80));
+    Stroka hostName(HostName);
+    ui16 port = 80;
+
+    auto colon = HostName.find(':');
+    if (colon != Stroka::npos) {
+        port = FromString<ui16>(HostName.substr(colon + 1));
+        hostName = HostName.substr(0, colon);
+    }
+
+    NetworkAddress.Reset(new TNetworkAddress(hostName, port));
 
     TSocketHolder socket(DoConnect());
     SetNonBlock(socket, false);
