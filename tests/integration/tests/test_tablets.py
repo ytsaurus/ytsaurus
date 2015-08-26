@@ -609,8 +609,7 @@ class TestTablets(YTEnvSetup):
 
     def _test_snapshots(self, atomicity):
         cell_ids = self.sync_create_cells(1, 1)
-        assert len(cell_ids) == 1
-        cell_id = cell_ids[0]
+        cell_id = ls("//sys/tablet_cells")[0]
 
         self._create_table("//tmp/t", atomicity=atomicity)
         self.sync_mount_table("//tmp/t")
