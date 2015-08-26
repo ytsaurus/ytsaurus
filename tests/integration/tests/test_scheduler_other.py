@@ -107,19 +107,19 @@ class TestSchedulerOther(YTEnvSetup):
 
         # Default infinite time limit.
         op1 = map(dont_track=True,
-            command="sleep 1.0; cat >/dev/null",
+            command="sleep 3.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out1")
 
         # Operation specific time limit.
         op2 = map(dont_track=True,
-            command="sleep 1.0; cat >/dev/null",
+            command="sleep 3.0; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out2",
-            spec={'time_limit': 800})
+            spec={'time_limit': 1000})
 
-        time.sleep(0.9)
-        assert get("//sys/operations/{0}/@state".format(op1)) != "failed"
+        time.sleep(2.0)
+        assert get("//sys/operations/{0}/@state".format(op1)) == "running"
         assert get("//sys/operations/{0}/@state".format(op2)) == "failed"
 
         track_op(op1)
