@@ -109,14 +109,14 @@ def add_start_subparser(subparsers):
 
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)
-    parser.add_argument("--id", required=True, help="local YT id")
+    parser.add_argument("id", help="local YT id")
     parser.add_argument("--delete", help="remove working directory after stopping", action="store_true",
                         dest="remove_working_dir")
 
 def add_delete_subparser(subparsers):
     parser = subparsers.add_parser("delete", help="Stop local YT with given id and remove its folder",
                                    func=delete)
-    parser.add_argument("--id", required=True, help="local YT id")
+    parser.add_argument("id", help="local YT id")
 
 def get_proxy_func(**kwargs):
     print get_proxy(**kwargs)
