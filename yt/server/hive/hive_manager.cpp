@@ -180,7 +180,9 @@ public:
         
         auto proxy = FindHiveProxy(cellId);
         if (!proxy) {
-            return MakeFuture(TError("Cannot connect to cell %v",
+            return MakeFuture(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Cannot connect to cell %v",
                 cellId));
         }
 
