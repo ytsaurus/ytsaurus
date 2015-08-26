@@ -37,13 +37,13 @@ def export_table(object, args):
         logger.error("You should specify yt proxy")
         return CANCEL
 
-    if params.yt_proxy == yt.config.http.PROXY:
+    if params.yt_proxy == yt.config["proxy"]["url"]:
         logger.error("Source and destination proxies should be different")
         return CANCEL
 
-    source_client = Yt(yt.config.http.PROXY, get_token())
+    source_client = Yt(yt.config["proxy"]["url"], get_token())
     destination_client = Yt(params.yt_proxy, params.yt_token)
-    yt.config.http.PROXY = None
+    yt.config["proxy"]["url"] = None
   
     if not source_client.exists(src):
         logger.warning("Export table '%s' is empty", src)
@@ -61,7 +61,7 @@ def export_table(object, args):
 
 
 def main():
-    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+    yt.config["operation_tracker"]["ignore_stderr_if_download_failed"]= True
 
     parser = ArgumentParser()
     parser.add_argument("--tables-queue")

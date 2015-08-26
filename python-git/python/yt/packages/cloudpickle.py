@@ -41,6 +41,8 @@ import new
 import dis
 import traceback
 
+import __main__ as _main_module
+
 #relevant opcodes
 STORE_GLOBAL = chr(dis.opname.index('STORE_GLOBAL'))
 DELETE_GLOBAL = chr(dis.opname.index('DELETE_GLOBAL'))
@@ -72,6 +74,20 @@ try:
     from cStringIO import StringIO
 except ImportError:
     from StringIO import StringIO
+
+# Types definition for dispatch table.
+class _class:
+    def _method():
+        pass
+
+_method = _class._method
+StaticMethodType = type(staticmethod(_method))
+ClassMethodType = type(classmethod(_method))
+PropertyType = property()
+
+from weakref import ref
+_instance = _class()
+ReferenceType = type(ref(_instance))
 
 def islambda(func):
     return getattr(func,'func_name') == '<lambda>'
@@ -172,7 +188,9 @@ class CloudPickler(pickle.Pickler):
         If the dict is a global, deal with it in a special way
         """
         #print 'saving', obj
-        if obj is __builtins__:
+        if obj is _main_module.__dict__:
+            self.write("c__main__\n__dict__\n")
+        elif obj is __builtins__:
             self.save_reduce(_get_module_builtins, (), obj=obj)
         else:
             pickle.Pickler.save_dict(self, obj)
@@ -379,18 +397,23 @@ class CloudPickler(pickle.Pickler):
         """
         code = func.func_code
 
-        # extract all global ref's
-        func_global_refs = CloudPickler.extract_code_globals(code)
-        if code.co_consts:   # see if nested function have any global refs
-            for const in code.co_consts:
-                if type(const) is types.CodeType and const.co_names:
-                    func_global_refs = func_global_refs.union( CloudPickler.extract_code_globals(const))
-        # process all variables referenced by global environment
-        f_globals = {}
-        for var in func_global_refs:
-            #Some names, such as class functions are not global - we don't need them
-            if func.func_globals.has_key(var):
-                f_globals[var] = func.func_globals[var]
+        # If function globals can be imported from global namespace - let's do it.
+        # Otherwise, strip all unused dependencies and pickle what's left.
+        if func.func_globals is _main_module.__dict__:
+            f_globals = func.func_globals
+        else:
+            # extract all global ref's
+            func_global_refs = CloudPickler.extract_code_globals(code)
+            if code.co_consts:   # see if nested function have any global refs
+                for const in code.co_consts:
+                    if type(const) is types.CodeType and const.co_names:
+                        func_global_refs = func_global_refs.union( CloudPickler.extract_code_globals(const))
+            # process all variables referenced by global environment
+            f_globals = {}
+            for var in func_global_refs:
+                #Some names, such as class functions are not global - we don't need them
+                if func.func_globals.has_key(var):
+                    f_globals[var] = func.func_globals[var]
 
         # defaults requires no processing
         defaults = func.func_defaults
@@ -506,12 +529,12 @@ class CloudPickler(pickle.Pickler):
                     raise
 
         except (ImportError, KeyError, AttributeError):
-            if typ == types.TypeType or typ == types.ClassType:
+            if issubclass(typ, types.TypeType) or typ == types.ClassType:
                 sendRef = False
             else: #we can't deal with this
                 raise
         else:
-            if klass is not obj and (typ == types.TypeType or typ == types.ClassType):
+            if klass is not obj and (issubclass(typ, types.TypeType) or typ == types.ClassType):
                 sendRef = False
         if not sendRef:
             self.save_class_obj(obj, name, pack)
@@ -597,10 +620,23 @@ class CloudPickler(pickle.Pickler):
             self.save_inst_logic(obj)
     dispatch[types.InstanceType] = save_inst
 
+    def save_weakref(self, obj):
+        refobj = obj()
+        self.save_reduce(_create_weakref, (refobj,), obj=obj)
+    dispatch[ReferenceType] = save_weakref
+
+    def save_staticmethod(self, obj):
+        self.save_reduce(staticmethod, (obj.__func__,), obj=obj)
+    dispatch[StaticMethodType] = save_staticmethod
+
+    def save_classmethod(self, obj):
+        self.save_reduce(classmethod, (obj.__func__,), obj=obj)
+    dispatch[ClassMethodType] = save_classmethod
+
     def save_property(self, obj):
         # properties not correctly saved in python
         self.save_reduce(property, (obj.fget, obj.fset, obj.fdel, obj.__doc__), obj=obj)
-    dispatch[property] = save_property
+    dispatch[PropertyType] = save_property
 
     def save_itemgetter(self, obj):
         """itemgetter serializer (needed for namedtuple support)
@@ -894,6 +930,17 @@ def env_vars_load(env_dct):
     for var, value in env_dct.items():
         os.environ[var] = value
     error_msg('Loaded Environment variables %s' % env_dct.keys(), logging.DEBUG)
+
+# Implementation was taken from dill
+def _create_weakref(obj, *args):
+    from weakref import ref
+    if obj is None: # it's dead
+        if PY3:
+            from collections import UserDict
+        else:
+            from UserDict import UserDict
+        return ref(UserDict(), *args)
+    return ref(obj, *args)
 
 # restores function attributes
 def _restore_attr(obj, attr):

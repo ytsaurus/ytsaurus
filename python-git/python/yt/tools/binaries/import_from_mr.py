@@ -41,7 +41,7 @@ def import_table(object, args):
                     mr_user=params.mr_user,
                     timeout=300.0)
 
-        yt_client = Yt(yt.config.http.PROXY, token=yt.config.http.TOKEN)
+        yt_client = Yt(yt.config["proxy"]["url"], token=yt.config["token"])
 
         if yamr.is_empty(src):
             logger.info("Source table '%s' is empty", src)
@@ -72,7 +72,7 @@ def import_table(object, args):
         return CANCEL
 
 def main():
-    yt.config.IGNORE_STDERR_IF_DOWNLOAD_FAILED = True
+    yt.config["operation_tracker"]["ignore_stderr_if_download_failed"] = True
 
     parser = ArgumentParser()
     parser.add_argument("--tables-queue", help="YT path to list with tables")
@@ -105,7 +105,7 @@ def main():
     args = parser.parse_args()
 
     if args.yt_proxy is not None:
-        yt.config.set_proxy(args.yt_proxy)
+        yt.config["proxy"]["url"] = args.yt_proxy
 
     if args.tables_queue is not None:
         assert args.src is None and args.dst is None

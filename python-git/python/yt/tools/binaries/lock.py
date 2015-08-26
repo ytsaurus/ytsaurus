@@ -43,7 +43,7 @@ def main():
                                 preexec_fn=lambda: libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM))
 
         while True:
-            if not tx.ping_thread.is_alive():
+            if not tx._ping_thread.is_alive():
                 logger.error("Pinging thread failed. Terminating command.")
                 proc.send_signal(2)
                 time.sleep(args.step)
