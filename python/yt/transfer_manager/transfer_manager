@@ -697,7 +697,7 @@ class Application(object):
         if client._type == "yt":
             if task.pool is None:
                 raise SchedulingError("Task has no pool")
-            pool_path = "//sys/scheduler/orchid/scheduler/pools/" + task.pool
+            #pool_path = "//sys/scheduler/orchid/scheduler/pools/" + task.pool
 
             try:
                 #if not client.exists(pool_path):
@@ -818,7 +818,7 @@ class Application(object):
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
 
-                    task_process = subprocess.Popen(["./transfer_manager", "--execute-task", "--config", self._config_path],
+                    task_process = subprocess.Popen(["transfer_manager", "--execute-task", "--config", self._config_path],
                                                     stdout=subprocess.PIPE, stdin=subprocess.PIPE,
                                                     preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT))
                     task_process.stdin.write(json.dumps(self._tasks[id].dict()))
