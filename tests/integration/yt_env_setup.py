@@ -150,19 +150,19 @@ class YTEnvSetup(YTEnv):
                 yt_commands.set("//sys/nodes/%s/@banned" % str(node), False)
 
     def _remove_accounts(self):
-        accounts = yt_commands.ls('//sys/accounts', attr=['builtin'])
+        accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])
         for account in accounts:
             if not account.attributes['builtin']:
                 yt_commands.remove_account(str(account))
 
     def _remove_users(self):
-        users = yt_commands.ls('//sys/users', attr=['builtin'])
+        users = yt_commands.ls('//sys/users', attributes=['builtin'])
         for user in users:
             if not user.attributes['builtin']:
                 yt_commands.remove_user(str(user))
 
     def _remove_groups(self):
-        groups = yt_commands.ls('//sys/groups', attr=['builtin'])
+        groups = yt_commands.ls('//sys/groups', attributes=['builtin'])
         for group in groups:
             if not group.attributes['builtin']:
                 yt_commands.remove_group(str(group))

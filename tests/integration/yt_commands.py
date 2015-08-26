@@ -53,7 +53,6 @@ def prepare_paths(paths):
 
 def prepare_parameters(parameters):
     change(parameters, "tx", "transaction_id")
-    change(parameters, "attr", "attributes")
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
 
