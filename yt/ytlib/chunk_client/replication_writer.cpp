@@ -613,8 +613,9 @@ void TReplicationWriter::DoOpen()
         IsOpen_ = true;
     } catch (const std::exception& ex) {
         CancelWriter(true);
-        THROW_ERROR_EXCEPTION("Not enough target nodes to start writing session for chunk %v",
-            ChunkId_)
+        THROW_ERROR_EXCEPTION("Not enough target nodes to write blob chunk")
+            << TErrorAttribute("chunk_id", ChunkId_)
+            << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
             << ex;
     }
 }
