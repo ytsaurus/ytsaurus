@@ -38,7 +38,7 @@ def _working_dir(test_name):
 
 def _wait(predicate):
     while not predicate():
-        sleep(1)
+        sleep(1.0)
 
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
@@ -76,6 +76,7 @@ class YTEnvSetup(YTEnv):
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
             self.transactions_at_start = set(yt_commands.get_transactions())
+            self._wait_for_nodes()
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
@@ -88,6 +89,7 @@ class YTEnvSetup(YTEnv):
             yt_commands.gc_collect()
             yt_commands.clear_metadata_caches()
 
+            self._unban_nodes()
             self._remove_accounts()
             self._remove_users()
             self._remove_groups()
@@ -95,6 +97,20 @@ class YTEnvSetup(YTEnv):
             self._remove_racks()
 
             yt_commands.gc_collect()
+
+    def set_node_banned(self, address, flag):
+        yt_commands.set("//sys/nodes/%s/@banned" % address, flag)
+        # Give it enough time to register or unregister the node
+        sleep(1.0)
+        if flag:
+            assert yt_commands.get("//sys/nodes/%s/@state" % address) == "offline"
+            print "Node %s is banned" % address
+        else:
+            assert yt_commands.get("//sys/nodes/%s/@state" % address) == "online"
+            print "Node %s is unbanned" % address
+
+    def _wait_for_nodes(self):
+        _wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
 
     def _sync_create_cells(self, size, count):
         ids = []
@@ -126,6 +142,12 @@ class YTEnvSetup(YTEnv):
                 yt_commands.abort_transaction(tx)
             except:
                 pass
+
+    def _unban_nodes(self):
+        nodes = yt_commands.ls("//sys/nodes", attributes=["banned"])
+        for node in nodes:
+            if node.attributes["banned"]:
+                yt_commands.set("//sys/nodes/%s/@banned" % str(node), False)
 
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attr=['builtin'])
