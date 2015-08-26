@@ -179,7 +179,7 @@ private:
                 };
 
                 auto asyncStatistics = BIND(&TEvaluator::RunWithExecutor, Evaluator_)
-                    .AsyncVia(Bootstrap_->GetBoundedConcurrencyQueryPoolInvoker())
+                    .AsyncVia(Bootstrap_->GetQueryPoolInvoker())
                     .Run(
                         subquery,
                         mergingReader,
