@@ -110,6 +110,10 @@ def get_master_config():
         rpc_timeout = 1000;
     };
 
+    tablet_manager = {
+        cell_scan_period = 100;
+    };
+
     multicell_manager = {
         cell_statistics_gossip_period = 80;
     };
@@ -283,6 +287,8 @@ def get_node_config():
             leader_lease_timeout = 200;
             disable_leader_lease_grace_delay = %true;
         };
+
+        slot_scan_period = 100;
     };
 
     query_agent = { };
