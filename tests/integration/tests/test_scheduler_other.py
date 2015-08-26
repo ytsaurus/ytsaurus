@@ -21,24 +21,6 @@ class TestSchedulerOther(YTEnvSetup):
         }
     }
 
-    def _set_banned_flag(self, value):
-        if value:
-            flag = True
-            state = "offline"
-        else:
-            flag = False
-            state = "online"
-
-        nodes = get("//sys/nodes")
-        assert len(nodes) == 1
-        address = nodes.keys()[0]
-        set("//sys/nodes/%s/@banned" % address, flag)
-
-        # Give it enough time to register or unregister the node
-        time.sleep(1.0)
-        assert get("//sys/nodes/%s/@state" % address) == state
-        print "Node is %s" % state
-
     def _prepare_tables(self):
         create("table", "//tmp/t_in")
         set("//tmp/t_in/@replication_factor", 1)
@@ -47,9 +29,13 @@ class TestSchedulerOther(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
+    def _set_node_banned(self, flag):
+        address = ls("//sys/nodes")[0]
+        self.set_node_banned(address, flag)
+
     def test_strategies(self):
         self._prepare_tables()
-        self._set_banned_flag(True)
+        self._set_node_banned(True)
 
         print "Fail strategy"
         with pytest.raises(YtError):
@@ -63,7 +49,7 @@ class TestSchedulerOther(YTEnvSetup):
         print "Wait strategy"
         op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
 
-        self._set_banned_flag(False)
+        self._set_node_banned(False)
         track_op(op_id)
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]

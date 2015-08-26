@@ -63,14 +63,9 @@ class TestErasure(YTEnvSetup):
 
         for r in replicas:
             replica_index = r.attributes["index"]
-            port = int(r.rsplit(":", 1)[1])
-            node_index = filter(lambda x: x == port, self.Env._ports["node"])[0]
-            print "Banning node %d containing replica %d" % (node_index, replica_index)
-            set("//sys/nodes/%s/@banned" % r, True)
-
-            # Give it enough time to unregister the node
-            time.sleep(1.0)
-            assert get("//sys/nodes/%s/@state" % r) == "offline"
+            address = str(r)
+            print "Banning node %s containing replica %d" % (address, replica_index)
+            self.set_node_banned(address, True)
 
             ok = False
             for i in xrange(10):
@@ -82,7 +77,7 @@ class TestErasure(YTEnvSetup):
             assert ok
             assert read_table("//tmp/table") == [{"b":"hello"}]
 
-            set("//sys/nodes/%s/@banned" % r, False)
+            self.set_node_banned(r, False)
 
     def test_reed_solomon_repair(self):
         self._test_repair("reed_solomon_6_3", 9, 6)
