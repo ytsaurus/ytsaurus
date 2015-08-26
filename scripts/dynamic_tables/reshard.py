@@ -22,6 +22,13 @@ yt.config.VERSION = "v3"
 yt.config.http.HEADER_FORMAT = "yson"
 
 
+GB = 1024 * 1024 * 1024
+
+STATIC_MEMORY_SIZE = 48 * GB
+SLOT_COUNT = 10
+SLOT_DEGREE = 2
+
+
 def make_pivot_keys(ty, expr, shards=1):
     logging.info("Type: %s ; Expression: %s ; Shards: %s", ty, expr, shards)
     modulo = None
@@ -50,9 +57,33 @@ def make_pivot_keys(ty, expr, shards=1):
     return [[]] + [[cls(i * span / shards - shift)] for i in xrange(1, shards)]
 
 
-def reshard(table, shards, yes=False):
+def reshard(table, shards=None, auto=False, yes=False):
+    if shards is None and not auto or shards is not None and auto:
+        logging.error("Please, specify exactly one of flags `--shards` and `--auto`")
+        return
+
+    if auto:
+        table_attributes = yt.get(table + "/@")
+        in_memory_mode = table_attributes.get("in_memory_mode", None)
+        if in_memory_mode is None:
+            logging.error("`--auto` could be used only with in-memory tables")
+            return
+        elif in_memory_mode == "compressed":
+            shards = 1 + table_attributes["compressed_data_size"] / \
+                (STATIC_MEMORY_SIZE / SLOT_COUNT / SLOT_DEGREE)
+        elif in_memory_mode == "uncompressed":
+            shards = 1 + table_attributes["uncompressed_data_size"] / \
+                (STATIC_MEMORY_SIZE / SLOT_COUNT / SLOT_DEGREE)
+        else:
+            raise RuntimeError("Unknown @in_memory_mode `%s`" % in_memory_mode)
+
     pivot_schema = yt.get(table + "/@schema/0")
-    pivot_keys = make_pivot_keys(pivot_schema.get("type", None), pivot_schema.get("expression", None), shards)
+    pivot_keys = make_pivot_keys(
+        pivot_schema.get("type", None),
+        pivot_schema.get("expression", None),
+        shards)
+
+    logging.info("Resharding into %s tablets", len(pivot_keys))
 
     if not yes:
         fmt = lambda x: "'" + yson.dumps(x)[1:-1] + "'"
@@ -85,7 +116,8 @@ def reshard(table, shards, yes=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--table", type=str, required=True, help="Table to reshard")
-    parser.add_argument("--shards", type=int, required=True, help="Target number of shards")
+    parser.add_argument("--shards", type=int, help="Target number of shards")
+    parser.add_argument("--auto", action="store_true", help="Target shards to fit in memory")
     parser.add_argument("--silent", action="store_true", help="Do not log anything")
     parser.add_argument("--yes", action="store_true", help="Actually do something (do nothing by default)")
     args = parser.parse_args()
@@ -93,4 +125,4 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.ERROR)
     else:
         logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-    reshard(args.table, args.shards, args.yes)
+    reshard(args.table, args.shards, args.auto, args.yes)

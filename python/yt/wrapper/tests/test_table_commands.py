@@ -38,7 +38,7 @@ class TestTableCommands(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
-    def test_read_write(self):
+    def _test_read_write(self):
         table = TEST_DIR + "/table"
         yt.create_table(table)
         check([], yt.read_table(table))
@@ -79,6 +79,22 @@ class TestTableCommands(object):
             yt.write_table(table, ["x=1\n"], format="dsv")
         finally:
             yt.config["tabular_data_format"] = yt.format.DsvFormat()
+
+    def test_read_write_with_retries(self):
+        old_value = yt.config["write_retries"]["enable"]
+        yt.config["write_retries"]["enable"] = True
+        try:
+            self._test_read_write()
+        finally:
+            yt.config["write_retries"]["enable"] = old_value
+
+    def test_read_write_without_retries(self):
+        old_value = yt.config["write_retries"]["enable"]
+        yt.config["write_retries"]["enable"] = False
+        try:
+            self._test_read_write()
+        finally:
+            yt.config["write_retries"]["enable"] = old_value
 
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
