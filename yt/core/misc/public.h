@@ -67,6 +67,9 @@ using TFingerprint = ui64;
 template <class T, unsigned size>
 class SmallVector;
 
+template <class TProto>
+class TRefCountedProto;
+
 const i64 DefaultEnvelopePartSize = 1LL << 28;
 
 ///////////////////////////////////////////////////////////////////////////////

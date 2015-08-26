@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import yt.wrapper.config
 from yt.wrapper import errors
 from yt.wrapper import client
 from yt.wrapper import table
@@ -39,6 +40,7 @@ import time
 import sys
 import collections
 
+yt.wrapper.config.RETRY_READ = True
 
 log = logging.getLogger("Fennel")
 
@@ -85,21 +87,35 @@ class EventLog(object):
         self._archive_row_count_attr = "{0}/@row_count".format(self._archive_table_name)
 
     def get_row_count(self):
-        with self.yt.Transaction():
+        with self.yt.PingableTransaction():
             first_row = self.yt.get(self._number_of_first_row_attr)
             row_count = self.yt.get(self._row_count_attr)
             return row_count + first_row
 
     def get_archive_row_count(self):
-        with self.yt.Transaction():
+        with self.yt.PingableTransaction():
             first_row = self.yt.get(self._archive_number_of_first_row_attr)
             row_count = self.yt.get(self._archive_row_count_attr)
             return row_count + first_row
 
+    def update_processed_row_count(self, value):
+        try:
+            attr_name = "//sys/scheduler/event_log/@processed_row_count"
+            row_count = self.yt.get(attr_name)
+            self.yt.set(attr_name, row_count + value)
+        except errors.YtError:
+            self.log.error("Failed to update processed row count. Unhandled exception", exc_info=True)
+
     def get_data(self, begin, count):
-        with self.yt.Transaction():
-            rows_removed = self.yt.get(self._number_of_first_row_attr)
-            begin -= rows_removed
+        with self.yt.PingableTransaction():
+
+            # NB: attributes processed_row_count added by ignat to fix fennel.
+            # This attribute should never be changed manually and event_log should never be rotated.
+            row_count = self.yt.get("//sys/scheduler/event_log/@processed_row_count")
+            begin = row_count
+
+            #rows_removed = self.yt.get(self._number_of_first_row_attr)
+            #begin -= rows_removed
 
             result = []
             if begin < 0:
@@ -207,7 +223,7 @@ class EventLog(object):
         backoff_time = 5
         while not finished:
             try:
-                with self.yt.Transaction():
+                with self.yt.PingableTransaction():
                     func()
                 finished = True
             except errors.YtError:
@@ -251,7 +267,7 @@ class EventLog(object):
         assert number_of_first_row == archive_row_count, "%d != %d" % (number_of_first_row, archive_row_count)
 
     def initialize(self):
-        with self.yt.Transaction():
+        with self.yt.PingableTransaction():
             if not self.yt.exists(self._number_of_first_row_attr):
                 self.yt.set(self._number_of_first_row_attr, 0)
             if not self.yt.exists(self._archive_number_of_first_row_attr):
@@ -732,10 +748,13 @@ class Application(object):
                         while not saved:
                             try:
                                 data = self._event_log.get_data(self._last_acked_seqno, chunk_size)
+                                row_count = len(data)
+                                assert row_count == chunk_size
                                 data = misc._preprocess(data, cluster_name=self._cluster_name, log_name=self._log_name)
                                 self._last_acked_seqno = yield self._log_broker.save_chunk(self._last_acked_seqno + self._chunk_size, data)
 
                                 self._event_log.update_last_saved_ts(self._log_broker.get_chunk_data_ts())
+                                self._event_log.update_processed_row_count(row_count)
                             except EventLog.NotEnoughDataError:
                                 self.log.info("Not enough data in the event log", exc_info=True)
                                 yield sleep_future(30.0, self._io_loop)
@@ -793,7 +812,7 @@ class LastSeqnoGetter(object):
 
 def _get_logbroker_hostname(logbroker_url):
     log.info("Getting adviced logbroker endpoint hostname for %s...", logbroker_url)
-    response = requests.get("http://{0}/advice".format(logbroker_url), headers={"ClientHost": socket.getfqdn()})
+    response = requests.get("http://{0}/advice".format(logbroker_url), headers={"ClientHost": socket.getfqdn(), "Accept-Encoding": "identity"})
     if not response.ok:
         raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
     host = response.text.strip()

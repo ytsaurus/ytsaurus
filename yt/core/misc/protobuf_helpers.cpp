@@ -15,22 +15,43 @@ using namespace google::protobuf::io;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TrySerializeToProto(const google::protobuf::MessageLite& message, TSharedRef* data)
+namespace {
+
+bool SerializeMessage(
+    const google::protobuf::MessageLite& message,
+    const TSharedMutableRef& mutableData,
+    bool partial)
+{
+    return partial
+        ? message.SerializePartialToArray(mutableData.Begin(), mutableData.Size())
+        : message.SerializeToArray(mutableData.Begin(), mutableData.Size());
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TrySerializeToProto(
+    const google::protobuf::MessageLite& message,
+    TSharedRef* data,
+    bool partial)
 {
     size_t size = message.ByteSize();
     struct TSerializedMessageTag { };
     auto mutableData = TSharedMutableRef::Allocate<TSerializedMessageTag>(size, false);
-    if (!message.SerializePartialToArray(mutableData.Begin(), size)) {
+    if (!SerializeMessage(message, mutableData, partial)) {
         return false;
     }
     *data = mutableData;
     return true;
 }
 
-TSharedRef SerializeToProto(const google::protobuf::MessageLite& message)
+TSharedRef SerializeToProto(
+    const google::protobuf::MessageLite& message,
+    bool partial)
 {
     TSharedRef data;
-    YCHECK(TrySerializeToProto(message, &data));
+    YCHECK(TrySerializeToProto(message, &data, partial));
     return data;
 }
 
@@ -71,7 +92,8 @@ struct TSerializedMessageFixedHeader
 bool TrySerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
     TSharedRef* data,
-    NCompression::ECodec codecId)
+    NCompression::ECodec codecId,
+    bool partial)
 {
     NProto::TSerializedMessageEnvelope envelope;
     if (codecId != NCompression::ECodec::None) {
@@ -81,7 +103,7 @@ bool TrySerializeToProtoWithEnvelope(
     size_t messageSize = message.ByteSize();
     struct TSerializedMessageTag { };
     auto serializedMessage = TSharedMutableRef::Allocate<TSerializedMessageTag>(messageSize, false);
-    if (!message.SerializePartialToArray(serializedMessage.Begin(), messageSize)) {
+    if (!SerializeMessage(message, serializedMessage, partial)) {
         return false;
     }
 
@@ -113,10 +135,11 @@ bool TrySerializeToProtoWithEnvelope(
 
 TSharedRef SerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
-    NCompression::ECodec codecId)
+    NCompression::ECodec codecId,
+    bool partial)
 {
     TSharedRef data;
-    YCHECK(TrySerializeToProtoWithEnvelope(message, &data, codecId));
+    YCHECK(TrySerializeToProtoWithEnvelope(message, &data, codecId, partial));
     return data;
 }
 

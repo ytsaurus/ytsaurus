@@ -141,7 +141,8 @@ DECLARE_REFCOUNTED_CLASS(TFileWriter)
 
 DECLARE_REFCOUNTED_CLASS(TMemoryWriter)
 
-DECLARE_REFCOUNTED_CLASS(TRefCountedChunkSpec)
+using TRefCountedChunkSpec = TRefCountedProto<NProto::TChunkSpec>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 DECLARE_REFCOUNTED_CLASS(TChunkSlice)
 
 class TReadLimit;

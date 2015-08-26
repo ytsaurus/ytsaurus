@@ -57,12 +57,15 @@ protected:
 
     int Depth;
     bool BeforeFirstItem;
+    bool PrintSpace;
 
     bool BooleanAsString;
     const int IndentSize;
 
     void WriteIndent();
     void WriteStringScalar(const TStringBuf& value);
+
+    void BeginScalar();
 
     void BeginCollection(ETokenType beginToken);
     void CollectionItem(ETokenType separatorToken);

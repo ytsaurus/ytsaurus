@@ -62,9 +62,10 @@ TFuture<void> TBlobSession::DoStart()
 }
 
 TFuture<IChunkPtr> TBlobSession::DoFinish(
-    const TChunkMeta& chunkMeta,
+    const TChunkMeta* chunkMeta,
     const TNullable<int>& blockCount)
 {
+    YCHECK(chunkMeta != nullptr);
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (!blockCount) {
@@ -90,7 +91,7 @@ TFuture<IChunkPtr> TBlobSession::DoFinish(
         }
     }
 
-    return CloseWriter(chunkMeta).Apply(
+    return CloseWriter(*chunkMeta).Apply(
         BIND(&TBlobSession::OnWriterClosed, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker()));
 }

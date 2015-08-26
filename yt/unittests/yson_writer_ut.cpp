@@ -259,6 +259,38 @@ TEST_F(TYsonWriterTest, NoNewLinesInEmptyList)
     EXPECT_EQ(outputStream.Str(), "[]\n");
 }
 
+TEST_F(TYsonWriterTest, PrettyFormat)
+{
+    TStringStream outputStream;
+    TYsonWriter writer(&outputStream, EYsonFormat::Pretty);
+    writer.OnBeginAttributes();
+        writer.OnKeyedItem("attr");
+        writer.OnStringScalar("value");
+    writer.OnEndAttributes();
+    writer.OnBeginMap();
+        writer.OnKeyedItem("key1");
+        writer.OnStringScalar("value1");
+        writer.OnKeyedItem("key2");
+        writer.OnBeginAttributes();
+            writer.OnKeyedItem("other_attr");
+            writer.OnStringScalar("other_value");
+        writer.OnEndAttributes();
+        writer.OnStringScalar("value2");
+    writer.OnEndMap();
+
+    EXPECT_EQ(
+        "<\n"
+        "    \"attr\" = \"value\"\n"
+        ">\n"
+        "{\n"
+        "    \"key1\" = \"value1\";\n"
+        "    \"key2\" = <\n"
+        "        \"other_attr\" = \"other_value\"\n"
+        "    > \"value2\"\n"
+        "}\n",
+        outputStream.Str());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TYsonFragmentWriterTest, NewLinesInList)

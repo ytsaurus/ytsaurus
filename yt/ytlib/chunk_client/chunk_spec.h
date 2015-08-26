@@ -10,26 +10,14 @@
 
 #include <core/erasure/public.h>
 
+#include <core/misc/protobuf_helpers.h>
+
 #include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TRefCountedChunkSpec
-    : public TIntrinsicRefCounted
-    , public NProto::TChunkSpec
-{
-public:
-    TRefCountedChunkSpec();
-    TRefCountedChunkSpec(const TRefCountedChunkSpec& other);
-    TRefCountedChunkSpec(TRefCountedChunkSpec&& other);
-
-    explicit TRefCountedChunkSpec(const NProto::TChunkSpec& other);
-    explicit TRefCountedChunkSpec(NProto::TChunkSpec&& other);
-
-};
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 

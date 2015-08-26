@@ -3,6 +3,7 @@
 #include "public.h"
 #include "job.h"
 #include "event_log.h"
+#include "scheduling_context.h"
 
 #include <core/misc/error.h>
 
@@ -14,8 +15,6 @@
 #include <core/yson/public.h>
 
 #include <core/ytree/public.h>
-
-#include <ytlib/scheduler/job.pb.h>
 
 #include <ytlib/api/public.h>
 
@@ -106,30 +105,6 @@ struct IOperationHost
         const TError& error) = 0;
 };
 
-struct ISchedulingContext
-{
-    virtual ~ISchedulingContext()
-    { }
-
-
-    virtual TExecNodePtr GetNode() const = 0;
-
-    virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
-    virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
-    virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
-
-    virtual bool CanStartMoreJobs() const = 0;
-
-    virtual TJobPtr StartJob(
-        TOperationPtr operation,
-        EJobType type,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        bool restarted,
-        TJobSpecBuilder specBuilder) = 0;
-
-    virtual void PreemptJob(TJobPtr job) = 0;
-};
-
 /*!
  *  \note Thread affinity: ControlThread
  */
@@ -196,22 +171,22 @@ struct IOperationController
 
 
     //! Called during heartbeat processing to notify the controller that a job is running.
-    virtual void OnJobRunning(TJobPtr job, const NJobTrackerClient::NProto::TJobStatus& status) = 0;
+    virtual void OnJobRunning(const TJobId& jobId, const NJobTrackerClient::NProto::TJobStatus& status) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has completed.
-    virtual void OnJobCompleted(TJobPtr job) = 0;
+    virtual void OnJobCompleted(const TCompletedJobSummary& jobSummary) = 0;
 
     //! Called during heartbeat processing to notify the controller that a job has failed.
-    virtual void OnJobFailed(TJobPtr job) = 0;
+    virtual void OnJobFailed(const TFailedJobSummary& jobSummary) = 0;
 
     //! Called during preemption to notify the controller that a job has been aborted.
-    virtual void OnJobAborted(TJobPtr job) = 0;
+    virtual void OnJobAborted(const TAbortedJobSummary& jobSummary) = 0;
 
     //! Called during heartbeat to abort operation if it has reached it's time limit.
     virtual void CheckTimeLimit() = 0;
 
     //! Called during heartbeat processing to request actions the node must perform.
-    virtual TJobPtr ScheduleJob(
+    virtual TJobId ScheduleJob(
         ISchedulingContext* context,
         const NNodeTrackerClient::NProto::TNodeResources& jobLimits) = 0;
 
@@ -235,6 +210,8 @@ struct IOperationController
     //! Used by remote copy operations which depend on all parts, including parity ones.
     virtual bool NeedsAllChunkParts() const = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IOperationController)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -474,8 +474,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"foo": "bar"})
 
-        set("//tmp/input_contexts", {})
-
         tmpdir = tempfile.mkdtemp(prefix="dump_job_context_semaphore")
 
         command="touch {0}/started; cat; until rmdir {0} 2>/dev/null; do sleep 1; done".format(tmpdir)
@@ -501,14 +499,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
             jobs = ls(jobs_path)
             assert jobs
             for job_id in jobs:
-                dump_job_context(job_id, "//tmp/input_contexts")
+                dump_job_context(job_id, "//tmp/input_context")
 
         finally:
             os.unlink(pin_filename)
 
         track_op(op_id)
 
-        context = read_file("//tmp/input_contexts/0")
+        context = read_file("//tmp/input_context")
+        assert get("//tmp/input_context/@description/type") == "input_context"
         assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
     @only_linux

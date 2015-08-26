@@ -86,7 +86,7 @@ public:
 
     TFuture<TSharedRefArray> TryBeginRequest(const TMutationId& id, bool isRetry)
     {
-        YASSERT(id != NullMutationId);
+        YASSERT(id);
 
         TGuard<TSpinLock> guard(SpinLock_);
 
@@ -129,7 +129,7 @@ public:
 
     void EndRequest(const TMutationId& id, TSharedRefArray response)
     {
-        YASSERT(id != NullMutationId);
+        YASSERT(id);
 
         TPromise<TSharedRefArray> promise;
         {
@@ -162,7 +162,7 @@ public:
 
     void CancelRequest(const TMutationId& id)
     {
-        YASSERT(id != NullMutationId);
+        YASSERT(id);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
@@ -177,7 +177,7 @@ public:
     bool TryReplyFrom(IServiceContextPtr context)
     {
         auto mutationId = GetMutationId(context);
-        if (mutationId == NullMutationId) {
+        if (!mutationId) {
             return false;
         }
 

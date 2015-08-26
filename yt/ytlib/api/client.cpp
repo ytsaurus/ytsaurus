@@ -153,10 +153,10 @@ TError TCheckPermissionResult::ToError(const Stroka& user, NYTree::EPermission p
             }
             error.Attributes().Set("user", user);
             error.Attributes().Set("permission", permission);
-            if (ObjectId != NullObjectId) {
+            if (ObjectId) {
                 error.Attributes().Set("denied_by", ObjectId);
             }
-            if (SubjectId != NullObjectId) {
+            if (SubjectId) {
                 error.Attributes().Set("denied_for", SubjectId);
             }
             return error;
@@ -1029,7 +1029,7 @@ private:
 
     static void GenerateMutationId(IClientRequestPtr request, TMutatingOptions& options)
     {
-        if (options.MutationId == NullMutationId) {
+        if (!options.MutationId) {
             options.MutationId = NRpc::GenerateMutationId();
         }
         SetMutationId(request, options.MutationId, options.Retry);
@@ -1048,7 +1048,7 @@ private:
         bool allowNullTransaction,
         bool pingTransaction)
     {
-        if (options.TransactionId == NullTransactionId) {
+        if (!options.TransactionId) {
             if (!allowNullTransaction) {
                 THROW_ERROR_EXCEPTION("A valid master transaction is required");
             }
@@ -1376,7 +1376,7 @@ private:
         if (options.LastTabletIndex) {
             req->set_last_tablet_index(*options.LastTabletIndex);
         }
-        if (options.CellId != NullTabletCellId) {
+        if (options.CellId) {
             ToProto(req->mutable_cell_id(), options.CellId);
         }
         req->set_estimated_uncompressed_size(options.EstimatedUncompressedSize);
@@ -1685,7 +1685,7 @@ private:
 
         auto req = TMasterYPathProxy::CreateObjects();
         GenerateMutationId(req, options);
-        if (options.TransactionId != NullTransactionId) {
+        if (options.TransactionId) {
             ToProto(req->mutable_transaction_id(), options.TransactionId);
         }
         req->set_type(static_cast<int>(type));

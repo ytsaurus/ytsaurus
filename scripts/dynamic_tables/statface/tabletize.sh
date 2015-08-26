@@ -2,7 +2,9 @@
 
 export YT_PROXY=barney.yt.yandex.net
 
-./tabletize.py --input //home/hans/report_Multiproject_Totals_Totals_daily --output //tmp/totals \
+CONVERT="../convert_static_table_to_dynamic.py"
+
+$CONVERT --input //home/hans/report_Multiproject_Totals_Totals_daily --output //tmp/totals \
     --schema '[{name=project;type=string};
                {name=region_sname;type=string};
                {name=fielddate;type=date};
@@ -19,7 +21,7 @@ export YT_PROXY=barney.yt.yandex.net
     --key-columns '[project;region_sname;fielddate]' \
     --hash-columns '[project;region_sname]'
 
-./tabletize.py --input //home/hans/report_Multiproject_Totals_Geography_daily --output //tmp/geography \
+$CONVERT --input //home/hans/report_Multiproject_Totals_Geography_daily --output //tmp/geography \
     --schema '[{name=projectid;type=string};
                {name=geoid;type=string};
                {name=fielddate;type=date};
@@ -36,7 +38,7 @@ export YT_PROXY=barney.yt.yandex.net
                {name=geoid__lvl;type=int64}]' \
     --key-columns '[projectid;geoid;fielddate]'
 
-./tabletize.py --input //home/hans/report_Search_Mobile_All_Adhoc_AudienceMobileWebShort_daily --output //tmp/mobile_web \
+$CONVERT --input //home/hans/report_Search_Mobile_All_Adhoc_AudienceMobileWebShort_daily --output //tmp/mobile_web \
     --schema '[{name=old_cookie;type=string};
                {name=platform_type;type=string};
                {name=fielddate;type=date};

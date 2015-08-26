@@ -8,6 +8,7 @@ import sh
 import ctypes
 import signal
 import subprocess32 as subprocess
+from datetime import datetime, timedelta
 from urllib import quote_plus
 
 
@@ -21,13 +22,13 @@ def set_pdeathsig():
 class YamrError(YtError):
     pass
 
-def _check_output(command, **kwargs):
+def _check_output(command, silent=False, **kwargs):
     logger.info("Executing command '{}'".format(command))
     result = subprocess.check_output(command, preexec_fn=set_pdeathsig, **kwargs)
     logger.info("Command '{}' successfully executed".format(command))
     return result
 
-def _check_call(command, **kwargs):
+def _check_call(command, silent=False, **kwargs):
     logger.info("Executing command '{}'".format(command))
     timeout = kwargs.pop('timeout', None)
     proc = subprocess.Popen(command, stderr=subprocess.PIPE, preexec_fn=set_pdeathsig, **kwargs)
@@ -44,7 +45,7 @@ def _check_call(command, **kwargs):
     logger.info("Command '{}' successfully executed".format(command))
 
 class Yamr(object):
-    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None):
+    def __init__(self, binary, server, server_port, http_port, proxies=None, proxy_port=None, fetch_info_from_http=False, mr_user="tmp", opts="", timeout=None, max_failed_jobs=None, scheduler_info_update_period=5.0):
         self.binary = binary
         self.binary_name = os.path.basename(binary)
         self.server = self._make_address(server, server_port)
@@ -67,8 +68,9 @@ class Yamr(object):
             max_failed_jobs = 100
         self.max_failed_jobs = max_failed_jobs
 
-        # Check that binary exists and supports help
-        _check_output("{0} --help".format(self.binary), shell=True)
+        self.scheduler_info_update_period = scheduler_info_update_period
+        self._last_update_time_of_scheduler_info = None
+        self.scheduler_info = {}
 
         self.supports_shared_transactions = \
             subprocess.call("{0} --help | grep sharedtransaction >/dev/null".format(self.binary), shell=True) == 0
@@ -96,7 +98,7 @@ class Yamr(object):
 
     def list(self, prefix):
         output = _check_output(
-            "{0} -server {1} -list -prefix {2} -jsonoutput"\
+            '{0} -server {1} -list -prefix "{2}" -jsonoutput'\
                 .format(self.binary, self.server, prefix),
             timeout=self._light_command_timeout,
             shell=True)
@@ -105,7 +107,7 @@ class Yamr(object):
     def get_field_from_server(self, table, field, allow_cache):
         if not allow_cache or table not in self.cache:
             output = _check_output(
-                "{0} -server {1} -list -prefix {2} -jsonoutput"\
+                '{0} -server {1} -list -prefix "{2}" -jsonoutput'\
                     .format(self.binary, self.server, table),
                 timeout=self._light_command_timeout,
                 shell=True)
@@ -132,6 +134,19 @@ class Yamr(object):
         else:
             return self._as_int(self.get_field_from_server(table, "size", allow_cache=allow_cache))
 
+    def is_directory(self, path):
+        if path.endswith("/"):
+            path = path[:-1]
+        output = _check_output(
+            '{0} -server {1} -list -prefix "{2}" -jsonoutput'.format(self.binary, self.server, path),
+            timeout=self._light_command_timeout,
+            shell=True)
+        listing = json.loads(output)
+        for entry in listing:
+            if entry["name"].startswith(path + "/"):
+                return True
+        return False
+
     def is_sorted(self, table, allow_cache=False):
         if self.fetch_info_from_http:
             return self.get_field_from_page(table, "Sorted").lower() == "yes"
@@ -148,10 +163,10 @@ class Yamr(object):
         return empty_lines and empty_lines[0].startswith("Table is empty")
 
     def drop(self, table):
-        _check_call("USER=yt MR_USER={0} {1} -server {2} -drop {3}".format(self.mr_user, self.binary, self.server, table), shell=True, timeout=self._light_command_timeout)
+        _check_call('USER=yt MR_USER={0} {1} -server {2} -drop "{3}"'.format(self.mr_user, self.binary, self.server, table), shell=True, timeout=self._light_command_timeout)
 
     def copy(self, src, dst):
-        _check_call("USER=yt MR_USER={0} {1} -server {2} -copy -src {3} -dst {4}".format(self.mr_user, self.binary, self.server, src, dst), shell=True, timeout=self._light_command_timeout)
+        _check_call('USER=yt MR_USER={0} {1} -server {2} -copy -src "{3}" -dst "{4}"'.format(self.mr_user, self.binary, self.server, src, dst), shell=True, timeout=self._light_command_timeout)
 
     def _as_int(self, obj):
         if obj is None:
@@ -159,7 +174,7 @@ class Yamr(object):
         return int(obj)
 
     def write(self, table, data):
-        command = "MR_USER={0} {1} -server {2} -write {3}".format(self.mr_user, self.binary, self.server, table)
+        command = 'MR_USER={0} {1} -server {2} -write "{3}"'.format(self.mr_user, self.binary, self.server, table)
         proc = subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=set_pdeathsig, shell=True)
         _, stderr = proc.communicate(data)
         if proc.returncode != 0:
@@ -178,30 +193,54 @@ class Yamr(object):
                         .format(self.proxies[i % len(self.proxies)], quote_plus(table), start, end)
             else:
                 shared_tx_str = ("-sharedtransactionid " + transaction_id) if self.supports_shared_transactions else ""
-                command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read {5}:[{6},{7}] -lenval -subkey {8}\n'\
+                command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read "{5}:[{6},{7}]" -lenval -subkey {8}\n'\
                         .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table, start, end, shared_tx_str)
             commands.append(command)
         return commands
 
     def get_write_command(self, table, fastbone):
-        return "{0} USER=yt MR_USER={1} ./{2} -server {3} {4} -append -lenval -subkey -write {5}"\
+        return '{0} USER=yt MR_USER={1} ./{2} -server {3} {4} -append -lenval -subkey -write "{5}"'\
                 .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table)
+
+    def run_sort(self, src, dst, opts=""):
+        shell_command = 'MR_USER={0} {1} -server {2} -sort -src "{3}" -dst "{4}" -maxjobfails {5} {6}'\
+            .format(self.mr_user, self.binary, self.server, src, dst, self.max_failed_jobs, opts)
+        _check_call(shell_command, shell=True)
 
     def run_map(self, command, src, dst, files=None, opts=""):
         if files is None:
             files = []
-        shell_command = "MR_USER={0} {1} -server {2} -map '{3}' -src {4} -dst {5} -maxjobfails {6} {7} {8}"\
+        shell_command = 'MR_USER={0} {1} -server {2} -map "{3}" -src "{4}" -dst "{5}" -maxjobfails {6} {7} {8}'\
             .format(self.mr_user, self.binary, self.server, command, src, dst, self.max_failed_jobs, " ".join("-file " + file for file in files), opts)
         _check_call(shell_command, shell=True)
 
     def make_read_snapshot(self, table, finish_timeout=300):
         transaction_id = "yt_" + generate_uuid()
-        shell_command = "MR_USER={0} {1} -server {2} -mkreadsnapshot {3} -sharedtransactionid {4} -finishtimeout {5}"\
+        shell_command = 'MR_USER={0} {1} -server {2} -mkreadsnapshot "{3}" -sharedtransactionid {4} -finishtimeout {5}'\
             .format(self.mr_user, self.binary, self.server, table, transaction_id, finish_timeout)
         _check_call(shell_command, shell=True)
         return transaction_id
 
     def remote_copy(self, remote_server, src, dst, fastbone):
-        shell_command = "MR_USER={0} {1} -srcserver {2} -server {3} -copy -src {4} -dst {5} {6}"\
+        shell_command = 'MR_USER={0} {1} -srcserver {2} -server {3} -copy -src "{4}" -dst "{5}" {6}'\
             .format(self.mr_user, self.binary, remote_server, self.server, src, dst, self._make_fastbone(fastbone))
         _check_call(shell_command, shell=True)
+
+    def get_scheduler_info(self):
+        if self._last_update_time_of_scheduler_info is None or \
+                datetime.now() - self._last_update_time_of_scheduler_info > timedelta(seconds=self.scheduler_info_update_period):
+            self._last_update_time_of_scheduler_info = datetime.now()
+            try:
+                scheduler_info = sh.curl("{0}/json?info=scheduler".format(self.http_server), "--max-time", 1, insecure=True, location=True).stdout
+                try:
+                    self.scheduler_info = json.loads(scheduler_info)
+                except ValueError:
+                    self.scheduler_info = {}
+            #except sh.ErrorReturnCode_28:
+            #    logger.warning("Timeout occured while requesting scheduler info from %s", self.http_server)
+            except Exception as err:
+                logger.warning("Error occured (%s: %s) while requesting scheduler info from %s", str(type(err)), str(err), self.http_server)
+        return self.scheduler_info
+
+    def get_operations(self):
+        return self.get_scheduler_info().get("scheduler", {}).get("operationList", [])

@@ -379,14 +379,13 @@ protected:
             TTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet);
+            TTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->PartitionJobCounter.Completed(1);
 
-            auto* resultExt = joblet->Job->Result().MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
+            auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
             RegisterIntermediate(
@@ -426,19 +425,18 @@ protected:
             Controller->PartitionJobCounter.Lost(1);
         }
 
-        virtual void OnJobFailed(TJobletPtr joblet) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
-            TTask::OnJobFailed(joblet);
+            TTask::OnJobFailed(joblet, jobSummary);
 
             Controller->PartitionJobCounter.Failed(1);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet, jobSummary);
 
-            auto abortReason = Controller->GetAbortReason(joblet);
-            Controller->PartitionJobCounter.Aborted(1, abortReason);
+            Controller->PartitionJobCounter.Aborted(1, jobSummary.AbortReason);
 
             Controller->UpdateAllTasksIfNeeded(Controller->PartitionJobCounter);
         }
@@ -645,9 +643,9 @@ protected:
             }
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TPartitionBoundTask::OnJobCompleted(joblet);
+            TPartitionBoundTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortDataSizeCounter.Completed(joblet->InputStripeList->TotalDataSize);
 
@@ -657,7 +655,7 @@ protected:
 
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
-                auto* resultExt = joblet->Job->Result().MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+                auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
 
                 RegisterIntermediate(
@@ -668,7 +666,7 @@ protected:
                 Controller->FinalSortJobCounter.Completed(1);
 
                 // Sort outputs in small partitions go directly to the output.
-                RegisterOutput(joblet, Partition->Index);
+                RegisterOutput(joblet, Partition->Index, jobSummary);
                 Controller->OnPartitionCompleted(Partition);
             }
 
@@ -679,7 +677,7 @@ protected:
             }
         }
 
-        virtual void OnJobFailed(TJobletPtr joblet) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
             Controller->SortDataSizeCounter.Failed(joblet->InputStripeList->TotalDataSize);
 
@@ -689,22 +687,21 @@ protected:
                 Controller->FinalSortJobCounter.Failed(1);
             }
 
-            TTask::OnJobFailed(joblet);
+            TTask::OnJobFailed(joblet, jobSummary);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             Controller->SortDataSizeCounter.Aborted(joblet->InputStripeList->TotalDataSize);
-            auto abortReason = Controller->GetAbortReason(joblet);
 
             if (Controller->IsSortedMergeNeeded(Partition)) {
-                Controller->IntermediateSortJobCounter.Aborted(1, abortReason);
+                Controller->IntermediateSortJobCounter.Aborted(1, jobSummary.AbortReason);
             } else {
-                Controller->FinalSortJobCounter.Aborted(1, abortReason);
+                Controller->FinalSortJobCounter.Aborted(1, jobSummary.AbortReason);
                 Controller->UpdateAllTasksIfNeeded(Controller->FinalSortJobCounter);
             }
 
-            TTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet, jobSummary);
         }
 
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
@@ -791,7 +788,7 @@ protected:
         {
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            const auto& address = joblet->Job->GetNode()->GetDefaultAddress();
+            const auto& address = joblet->Address;
             Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
@@ -966,29 +963,28 @@ protected:
             TMergeTask::OnJobStarted(joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobCompleted(joblet);
+            TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortedMergeJobCounter.Completed(1);
-            RegisterOutput(joblet, Partition->Index);
+            RegisterOutput(joblet, Partition->Index, jobSummary);
         }
 
-        virtual void OnJobFailed(TJobletPtr joblet) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
             Controller->SortedMergeJobCounter.Failed(1);
 
-            TMergeTask::OnJobFailed(joblet);
+            TMergeTask::OnJobFailed(joblet, jobSummary);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            auto abortReason = Controller->GetAbortReason(joblet);
-            Controller->SortedMergeJobCounter.Aborted(1, abortReason);
+            Controller->SortedMergeJobCounter.Aborted(1, jobSummary.AbortReason);
 
             Controller->UpdateAllTasksIfNeeded(Controller->SortedMergeJobCounter);
 
-            TMergeTask::OnJobAborted(joblet);
+            TMergeTask::OnJobAborted(joblet, jobSummary);
         }
 
     };
@@ -1097,26 +1093,26 @@ protected:
             Controller->UnorderedMergeJobCounter.Start(1);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobCompleted(joblet);
+            TMergeTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter.Completed(1);
-            RegisterOutput(joblet, Partition->Index);
+            RegisterOutput(joblet, Partition->Index, jobSummary);
         }
 
-        virtual void OnJobFailed(TJobletPtr joblet) override
+        virtual void OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobFailed(joblet);
+            TMergeTask::OnJobFailed(joblet, jobSummary);
 
             Controller->UnorderedMergeJobCounter.Failed(1);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TMergeTask::OnJobAborted(joblet);
+            TMergeTask::OnJobAborted(joblet, jobSummary);
 
-            Controller->UnorderedMergeJobCounter.Aborted(1);
+            Controller->UnorderedMergeJobCounter.Aborted(1, jobSummary.AbortReason);
         }
 
     };
@@ -1619,14 +1615,14 @@ protected:
             .EndMap();
     }
 
-    virtual void RegisterOutput(TJobletPtr joblet, int key) override
+    virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
     {
         {
-            auto totalOutput = GetTotalOutputDataStatistics(joblet->Job->Statistics());
+            auto totalOutput = GetTotalOutputDataStatistics(jobSummary.Statistics);
             TotalOutputRowCount += totalOutput.row_count();
         }
 
-        TOperationControllerBase::RegisterOutput(std::move(joblet), key);
+        TOperationControllerBase::RegisterOutput(std::move(joblet), key, jobSummary);
     }
 
 };
@@ -2472,6 +2468,7 @@ private:
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
+            reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
 
             InitUserJobSpecTemplate(
                 schedulerJobSpecExt->mutable_user_job_spec(),
@@ -2482,7 +2479,7 @@ private:
 
     virtual void CustomizeJoblet(TJobletPtr joblet) override
     {
-        switch (joblet->Job->GetType()) {
+        switch (joblet->JobType) {
             case EJobType::PartitionMap:
                 joblet->StartRowIndex = MapStartRowIndex;
                 MapStartRowIndex += joblet->InputStripeList->TotalRowCount;

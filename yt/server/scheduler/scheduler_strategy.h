@@ -26,7 +26,6 @@ struct ISchedulerStrategyHost
     DECLARE_INTERFACE_SIGNAL(void(TOperationPtr), OperationUnregistered);
     DECLARE_INTERFACE_SIGNAL(void(TOperationPtr, NYTree::INodePtr update), OperationRuntimeParamsUpdated);
 
-    DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobStarted);
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job, const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), JobUpdated);
     
@@ -44,35 +43,35 @@ struct ISchedulerStrategy
     virtual ~ISchedulerStrategy()
     { }
 
-    virtual void ScheduleJobs(ISchedulingContext* context) = 0;
+    virtual void ScheduleJobs(ISchedulingContext* schedulingContext) = 0;
 
     //! Builds a YSON structure containing a set of attributes to be assigned to operation's node
     //! in Cypress during creation.
     virtual void BuildOperationAttributes(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
     //! Builds a YSON structure reflecting operation's progress.
     //! This progress is periodically pushed into Cypress and is also displayed via Orchid.
     virtual void BuildOperationProgress(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
     //! Similar to #BuildOperationProgress but constructs a reduced version to used by UI.
     virtual void BuildBriefOperationProgress(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
     //! Builds a YSON structure reflecting the state of the scheduler to be displayed in Orchid.
     virtual void BuildOrchid(NYson::IYsonConsumer* consumer) = 0;
 
     //! Provides a string describing operation status and statistics.
-    virtual Stroka GetOperationLoggingProgress(TOperationPtr operation) = 0;
+    virtual Stroka GetOperationLoggingProgress(const TOperationId& operationId) = 0;
 
     //! Called for a just initialized operation to construct its brief spec
     //! to be used by UI.
     virtual void BuildBriefSpec(
-        TOperationPtr operation,
+        const TOperationId& operationId,
         NYson::IYsonConsumer* consumer) = 0;
 
 };

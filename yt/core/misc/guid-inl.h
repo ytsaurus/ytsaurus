@@ -31,6 +31,11 @@ FORCED_INLINE bool TGuid::IsEmpty() const
     return Parts64[0] == 0 && Parts64[1] == 0;
 }
 
+FORCED_INLINE TGuid::operator bool() const
+{
+    return !IsEmpty();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 FORCED_INLINE void ToProto(NProto::TGuid* protoGuid, const TGuid& guid)

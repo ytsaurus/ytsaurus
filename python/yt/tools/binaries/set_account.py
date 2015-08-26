@@ -16,7 +16,7 @@ def main():
     args = parser.parse_args()
 
     if args.proxy is not None:
-        yt.config.set_proxy(args.proxy)
+        yt.config["proxy"]["url"] = args.proxy
 
     for obj in yt.search(args.dir, attributes=["account"]):
         if obj.attributes["account"] != args.account:

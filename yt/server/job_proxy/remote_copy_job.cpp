@@ -87,7 +87,7 @@ public:
             TClientOptions clientOptions;
             clientOptions.User = NSecurityClient::JobUserName;
             RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
-            RemoteNodeDirectory_->MergeFrom(remoteCopySpec.remote_node_directory());
+            RemoteNodeDirectory_->MergeFrom(SchedulerJobSpecExt_.node_directory());
         }
     }
 

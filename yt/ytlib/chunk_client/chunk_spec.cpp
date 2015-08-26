@@ -15,31 +15,6 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRefCountedChunkSpec::TRefCountedChunkSpec()
-{ }
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(const TRefCountedChunkSpec& other)
-{
-    CopyFrom(other);
-}
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(TRefCountedChunkSpec&& other)
-{
-    Swap(&other);
-}
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(const TChunkSpec& other)
-{
-    CopyFrom(other);
-}
-
-TRefCountedChunkSpec::TRefCountedChunkSpec(TChunkSpec&& other)
-{
-    Swap(&other);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsUnavailable(const TChunkReplicaList& replicas, NErasure::ECodec codecId, bool checkParityParts)
 {
     if (codecId == NErasure::ECodec::None) {

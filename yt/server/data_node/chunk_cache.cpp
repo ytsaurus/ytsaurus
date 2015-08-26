@@ -31,6 +31,8 @@
 
 #include <ytlib/file_client/file_chunk_reader.h>
 
+#include <ytlib/file_client/file_chunk_reader.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/table_client/name_table.h>

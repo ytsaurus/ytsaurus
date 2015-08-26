@@ -177,7 +177,7 @@ public:
         }
 
         // COMPAT(babenko)
-        if (tabletSnapshot->TableId == NullObjectId) {
+        if (!tabletSnapshot->TableId) {
             return VoidFuture;
         }
 

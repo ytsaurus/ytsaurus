@@ -206,12 +206,14 @@ inline std::vector<TOriginal> FromProto(
 //! Returns |true| iff everything went well.
 bool TrySerializeToProto(
     const google::protobuf::MessageLite& message,
-    TSharedMutableRef* data);
+    TSharedMutableRef* data,
+    bool partial = true);
 
 //! Serializes a protobuf message.
 //! Fails on error.
 TSharedRef SerializeToProto(
-    const google::protobuf::MessageLite& message);
+    const google::protobuf::MessageLite& message,
+    bool partial = true);
 
 //! Deserializes a chunk of memory into a protobuf message.
 //! Returns |true| iff everything went well.
@@ -231,14 +233,16 @@ void DeserializeFromProto(
 bool TrySerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
     TSharedMutableRef* data,
-    NCompression::ECodec codecId = NCompression::ECodec::None);
+    NCompression::ECodec codecId = NCompression::ECodec::None,
+    bool partial = true);
 
 //! Serializes a given protobuf message and wraps it with envelope.
 //! Optionally compresses the serialized message.
 //! Fails on error.
 TSharedRef SerializeToProtoWithEnvelope(
     const google::protobuf::MessageLite& message,
-    NCompression::ECodec codecId = NCompression::ECodec::None);
+    NCompression::ECodec codecId = NCompression::ECodec::None,
+    bool partial = true);
 
 //! Unwraps a chunk of memory obtained from #TrySerializeToProtoWithEnvelope
 //! and deserializes it into a protobuf message.
@@ -328,6 +332,38 @@ void FilterProtoExtensions(
     NProto::TExtensionSet* target,
     const NProto::TExtensionSet& source,
     const yhash_set<int>& tags);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Wrapper that makes proto message refcounted.
+template <class TProto>
+class TRefCountedProto
+    : public TIntrinsicRefCounted
+    , public TProto
+{
+public:
+    TRefCountedProto() = default;
+
+    TRefCountedProto(const TRefCountedProto<TProto>& other)
+    {
+        TProto::CopyFrom(other);
+    }
+
+    TRefCountedProto(TRefCountedProto<TProto>&& other)
+    {
+        TProto::Swap(&other);
+    }
+
+    explicit TRefCountedProto(const TProto& other)
+    {
+        TProto::CopyFrom(other);
+    }
+
+    explicit TRefCountedProto(TProto&& other)
+    {
+        TProto::Swap(&other);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

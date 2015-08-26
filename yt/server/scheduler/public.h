@@ -2,6 +2,7 @@
 
 #include <core/misc/enum.h>
 #include <core/misc/error.h>
+#include <core/misc/protobuf_helpers.h>
 
 #include <ytlib/scheduler/public.h>
 
@@ -18,66 +19,33 @@ using NJobTrackerClient::EJobState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerService;
-typedef TIntrusivePtr<TSchedulerService> TSchedulerServicePtr;
+DECLARE_REFCOUNTED_CLASS(TSchedulerService)
 
-class TSchedulerServiceProxy;
+DECLARE_REFCOUNTED_CLASS(TOperation)
 
-class TOperation;
-typedef TIntrusivePtr<TOperation> TOperationPtr;
+DECLARE_REFCOUNTED_CLASS(TJob)
 
-class TJob;
-typedef TIntrusivePtr<TJob> TJobPtr;
+using TJobList = std::list<TJobPtr>;
 
-typedef std::list<TJobPtr> TJobList;
+DECLARE_REFCOUNTED_CLASS(TExecNode)
 
-class TExecNode;
-typedef TIntrusivePtr<TExecNode> TExecNodePtr;
+DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
+DECLARE_REFCOUNTED_CLASS(TEventLogConfig)
 
-class TFairShareStrategyConfig;
-typedef TIntrusivePtr<TFairShareStrategyConfig> TFairShareStrategyConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TSimpleOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TMapOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TUnorderedMergeOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TOrderedMergeOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TSortedMergeOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TEraseOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TReduceOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TSortOperationOptionsBase)
+DECLARE_REFCOUNTED_CLASS(TSortOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TMapReduceOperationOptions)
+DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationOptions)
 
-class TEventLogConfig;
-typedef TIntrusivePtr<TEventLogConfig> TEventLogConfigPtr;
-
-class TSimpleOperationOptions;
-typedef TIntrusivePtr<TSimpleOperationOptions> TSimpleOperationOptionsPtr;
-
-class TMapOperationOptions;
-typedef TIntrusivePtr<TMapOperationOptions> TMapOperationOptionsPtr;
-
-class TUnorderedMergeOperationOptions;
-typedef TIntrusivePtr<TUnorderedMergeOperationOptions> TUnorderedMergeOperationOptionsPtr;
-
-class TReduceOperationOptions;
-typedef TIntrusivePtr<TReduceOperationOptions> TReduceOperationOptionsPtr;
-
-class TEraseOperationOptions;
-typedef TIntrusivePtr<TEraseOperationOptions> TEraseOperationOptionsPtr;
-
-class TOrderedMergeOperationOptions;
-typedef TIntrusivePtr<TOrderedMergeOperationOptions> TOrderedMergeOperationOptionsPtr;
-
-class TSortedMergeOperationOptions;
-typedef TIntrusivePtr<TSortedMergeOperationOptions> TSortedMergeOperationOptionsPtr;
-
-class TSortOperationOptionsBase;
-typedef TIntrusivePtr<TSortOperationOptionsBase> TSortOperationOptionsBasePtr;
-
-class TMapReduceOperationOptions;
-typedef TIntrusivePtr<TMapReduceOperationOptions> TMapReduceOperationOptionsPtr;
-
-class TSortOperationOptions;
-typedef TIntrusivePtr<TSortOperationOptions> TSortOperationOptionsPtr;
-
-class TRemoteCopyOperationOptions;
-typedef TIntrusivePtr<TRemoteCopyOperationOptions> TRemoteCopyOperationOptionsPtr;
-
-class TSchedulerConfig;
-typedef TIntrusivePtr<TSchedulerConfig> TSchedulerConfigPtr;
-
-class TScheduler;
-typedef TIntrusivePtr<TScheduler> TSchedulerPtr;
+DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
+DECLARE_REFCOUNTED_CLASS(TScheduler)
 
 struct IEventLogHost;
 
@@ -87,10 +55,12 @@ struct ISchedulerStrategyHost;
 struct IOperationHost;
 struct ISchedulingContext;
 
-struct IOperationController;
-typedef TIntrusivePtr<IOperationController> IOperationControllerPtr;
+DECLARE_REFCOUNTED_STRUCT(IOperationController);
 
 class TMasterConnector;
+
+using TRefCountedJobResult = TRefCountedProto<NJobTrackerClient::NProto::TJobResult>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedJobResult);
 
 ////////////////////////////////////////////////////////////////////////////////
 

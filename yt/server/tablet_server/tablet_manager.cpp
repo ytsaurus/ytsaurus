@@ -422,7 +422,7 @@ public:
         ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns()); // may throw
 
         TTabletCell* hintedCell;
-        if (cellId == NullTabletCellId) {
+        if (!cellId) {
             ValidateHasHealthyCells(); // may throw
             hintedCell = nullptr;
         } else {

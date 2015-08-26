@@ -1,6 +1,7 @@
 #pragma once
 
 #include <core/misc/enum.h>
+#include <core/misc/public.h>
 
 #include <ytlib/chunk_client/public.h>
 
@@ -49,7 +50,8 @@ DECLARE_REFCOUNTED_CLASS(TStoredBlobChunk)
 DECLARE_REFCOUNTED_CLASS(TCachedBlobChunk)
 DECLARE_REFCOUNTED_CLASS(TJournalChunk)
 
-DECLARE_REFCOUNTED_CLASS(TRefCountedChunkMeta)
+using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
+DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 DECLARE_REFCOUNTED_STRUCT(ISession)
 DECLARE_REFCOUNTED_CLASS(TBlobSession)

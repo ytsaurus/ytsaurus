@@ -190,7 +190,7 @@ struct TSelectRowsRequest
     bool FailOnIncompleteResult;
     bool VerboseLogging;
     bool EnableCodeCache;
-    int MaxSubqueries;
+    ui64 MaxSubqueries;
 
     TSelectRowsRequest()
     {

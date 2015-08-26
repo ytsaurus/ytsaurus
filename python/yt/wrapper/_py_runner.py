@@ -30,15 +30,22 @@ def main():
         for name in dir(sys.modules['__main__']):
             globals()[name] = sys.modules['__main__'].__dict__[name]
 
-    from yt.wrapper.pickling import load
-    __operation, __attributes, __operation_type, __input_format, __output_format, __keys = load(open(__operation_dump))
-
     import _py_runner_helpers
     import yt.yson
-    from yt.wrapper.format import YsonFormat
-    yt.wrapper.config.config = load(open(__config_dump_filename))
+    import yt.wrapper.config
+    from yt.wrapper.format import YsonFormat, extract_key
+    from yt.wrapper.pickling import Unpickler
+    yt.wrapper.config.config = \
+        Unpickler(yt.wrapper.config.DEFAULT_PICKLING_FRAMEWORK).load(open(__config_dump_filename))
 
-    from yt.wrapper.format import extract_key
+    unpickler = Unpickler(yt.wrapper.config.config["pickling"]["framework"])
+
+    __operation, __attributes, __operation_type, __input_format, __output_format, __keys, __python_version = \
+        unpickler.load(open(__operation_dump))
+
+    if yt.wrapper.config["pickling"]["check_python_version"] and yt.wrapper.common.get_python_version() != __python_version:
+        sys.stderr.write("Python version on cluster differs from local python version")
+        sys.exit(1)
 
     if __attributes.get("is_raw_io", False):
         __operation()
@@ -60,10 +67,13 @@ def main():
             if __operation_type == "mapper" or raw:
                 __result = itertools.chain.from_iterable(itertools.imap(__operation, __rows))
             else:
-                __result = \
-                    itertools.chain.from_iterable(
-                        itertools.starmap(__operation,
-                            itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
+                if __attributes.get("is_reduce_aggregator"):
+                    __result = __operation(itertools.groupby(__rows, lambda row: extract_key(row, __keys)))
+                else:
+                    __result = \
+                        itertools.chain.from_iterable(
+                            itertools.starmap(__operation,
+                                itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
 
         __output_format.dump_rows(__result, streams.get_original_stdout(), raw=raw)
 

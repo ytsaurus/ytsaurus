@@ -91,10 +91,9 @@ private:
             auto transactionManager = Bootstrap->GetTransactionManager();
             auto cypressManager = Bootstrap->GetCypressManager();
 
-            auto* transaction =
-                TransactionId == NullTransactionId
-                ? nullptr
-                : transactionManager->GetTransactionOrThrow(TransactionId);
+            auto* transaction = TransactionId
+                ? transactionManager->GetTransactionOrThrow(TransactionId)
+                : nullptr;
 
             int currentNodeCount = 0;
             while (currentNodeCount < MaxNodesPerAction) {

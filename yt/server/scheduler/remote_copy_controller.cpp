@@ -205,11 +205,10 @@ private:
         {
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
 
-            auto* remoteCopyJobSpecExt = jobSpec->MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             NNodeTrackerClient::TNodeDirectoryBuilder directoryBuilder(
                 Controller_->NodeDirectory,
-                remoteCopyJobSpecExt->mutable_remote_node_directory());
+                schedulerJobSpecExt->mutable_node_directory());
 
             auto* inputSpec = schedulerJobSpecExt->add_input_specs();
             auto list = joblet->InputStripeList;
@@ -228,15 +227,15 @@ private:
             AddFinalOutputSpecs(jobSpec, joblet);
         }
 
-        virtual void OnJobCompleted(TJobletPtr joblet) override
+        virtual void OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary) override
         {
-            TTask::OnJobCompleted(joblet);
-            RegisterOutput(joblet, Index_);
+            TTask::OnJobCompleted(joblet, jobSummary);
+            RegisterOutput(joblet, Index_, jobSummary);
         }
 
-        virtual void OnJobAborted(TJobletPtr joblet) override
+        virtual void OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
-            TTask::OnJobAborted(joblet);
+            TTask::OnJobAborted(joblet, jobSummary);
             Controller_->UpdateAllTasksIfNeeded(Controller_->JobCounter);
         }
 

@@ -777,7 +777,7 @@ private:
                     if (suggestedAddress) {
                         AddPeer(*suggestedAddress, suggestedDescriptor, EPeerType::Peer);
                         PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
-                        LOG_DEBUG("Peer suggestion received (Block: %v, SuggestorAddress: %v, SuggestedAddress: %v)",
+                        LOG_DEBUG("Peer descriptor received (Block: %v, SuggestorAddress: %v, SuggestedAddress: %v)",
                             blockIndex,
                             adddress,
                             *suggestedAddress);

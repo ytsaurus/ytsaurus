@@ -69,7 +69,8 @@ public:
 
     void AttachJobContext(
         const NYPath::TYPath& directory,
-        const std::vector<NChunkClient::TChunkId>& inputContexts);
+        const NChunkClient::TChunkId& inputContextChunkId,
+        const TJobId& jobId);
 
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);

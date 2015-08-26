@@ -21,6 +21,7 @@ set( SRCS
   ${BASE}/progress_counter.cpp
   ${BASE}/remote_copy_controller.cpp
   ${BASE}/scheduler.cpp
+  ${BASE}/scheduling_context.cpp
   ${BASE}/scheduler_service.cpp
   ${BASE}/serialize.cpp
   ${BASE}/snapshot_builder.cpp
@@ -52,6 +53,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/remote_copy_controller.h
   ${BASE}/scheduler.h
+  ${BASE}/scheduling_context.h
   ${BASE}/scheduler_service.h
   ${BASE}/scheduler_strategy.h
   ${BASE}/serialize.h

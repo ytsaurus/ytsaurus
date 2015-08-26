@@ -54,7 +54,7 @@ struct ISession
 
     //! Finishes the session.
     virtual TFuture<IChunkPtr> Finish(
-        const NChunkClient::NProto::TChunkMeta& chunkMeta,
+        const NChunkClient::NProto::TChunkMeta* chunkMeta,
         const TNullable<int>& blockCount) = 0;
 
     //! Puts a contiguous range of blocks into the window.

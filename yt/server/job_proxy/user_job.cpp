@@ -369,7 +369,7 @@ private:
         }
 
         auto errorChunkId = ErrorOutput_->GetChunkId();
-        if (errorChunkId != NullChunkId) {
+        if (errorChunkId) {
             ToProto(schedulerResultExt->mutable_stderr_chunk_id(), errorChunkId);
             LOG_INFO("Stderr chunk generated (ChunkId: %v)", errorChunkId);
         }
