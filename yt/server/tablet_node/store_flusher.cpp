@@ -97,8 +97,8 @@ public:
     }
 
 private:
-    TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TTabletNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
     TAsyncSemaphore Semaphore_;
