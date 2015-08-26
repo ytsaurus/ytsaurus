@@ -125,6 +125,9 @@ class YTEnvSetup(YTEnv):
         print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
         _wait(lambda: all(any(x["state"] == state for state in states) for x in yt_commands.get(path + "/@tablets")))
 
+    def wait_until_sealed(self, path):
+        _wait(lambda: yt_commands.get(path + "/@sealed"))
+
     def sync_mount_table(self, path):
         yt_commands.mount_table(path)
 

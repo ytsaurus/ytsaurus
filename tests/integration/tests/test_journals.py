@@ -13,13 +13,9 @@ class TestJournals(YTEnvSetup):
 
     DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
 
-    def _wait_until_sealed(self, path):
-        while not get(path + "/@sealed"):
-            sleep(0.1)
-
     def _write_and_wait_until_sealed(self, path, data):
         write_journal(path, data)
-        self._wait_until_sealed(path)
+        self.wait_until_sealed(path)
 
     def test_create_success(self):
         create("journal", "//tmp/j")
