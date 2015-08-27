@@ -171,8 +171,18 @@ inline TObjectId ReplaceTypeInId(
     EObjectType type)
 {
     auto result = id;
-    result.Parts32[1] &= ~0xffff;
+    result.Parts32[1] &= ~0x0000ffff;
     result.Parts32[1] |= static_cast<ui32>(type);
+    return result;
+}
+
+inline TObjectId ReplaceCellTagInId(
+    const TObjectId& id,
+    TCellTag cellTag)
+{
+    auto result = id;
+    result.Parts32[1] &= ~0xffff0000;
+    result.Parts32[1] |= static_cast<ui32>(cellTag) << 16;
     return result;
 }
 

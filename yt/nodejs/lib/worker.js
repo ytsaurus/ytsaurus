@@ -15,6 +15,8 @@ var Q = require("bluebird");
 var profiler = require("profiler");
 var heapdump = require("heapdump");
 
+var binding = require("./ytnode");
+
 // Debugging stuff.
 var __DBG = require("./debug").that("C", "Cluster Worker");
 var __PROFILE = false;
@@ -186,6 +188,8 @@ process.on("message", function(message) {
             break;
     }
 });
+
+process.on("exit", binding.ShutdownSingletons);
 
 // Fire up the head.
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });

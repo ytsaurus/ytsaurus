@@ -261,7 +261,7 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
             PreloadFuture_.Reset();
         }
 
-        if  (mode == EInMemoryMode::None) {
+        if (mode == EInMemoryMode::None) {
             PreloadState_ = EStorePreloadState::Disabled;
         } else {
             switch (mode) {
@@ -556,7 +556,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
         chunkReader = CreateReplicationReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             options,
-            Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
+            Bootstrap_->GetMasterClient(),
             New<TNodeDirectory>(),
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             StoreId_,

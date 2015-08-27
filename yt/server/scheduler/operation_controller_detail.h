@@ -204,10 +204,10 @@ protected:
     std::vector<TInputTable> InputTables;
 
 
-    struct TEndpoint
+    struct TJobBoundaryKeys
     {
-        NTableClient::TOwningKey Key;
-        bool Left;
+        NTableClient::TOwningKey MinKey;
+        NTableClient::TOwningKey MaxKey;
         int ChunkTreeKey;
 
         void Persist(TPersistenceContext& context);
@@ -233,7 +233,7 @@ protected:
         //! Trees are sorted w.r.t. key and appended to #OutputChunkListId.
         std::multimap<int, NChunkClient::TChunkTreeId> OutputChunkTreeIds;
 
-        std::vector<TEndpoint> Endpoints;
+        std::vector<TJobBoundaryKeys> BoundaryKeys;
 
         NYTree::TYsonString EffectiveAcl;
 
@@ -713,7 +713,7 @@ protected:
     void RegisterInputStripe(TChunkStripePtr stripe, TTaskPtr task);
 
 
-    void RegisterEndpoints(
+    void RegisterBoundaryKeys(
         const NTableClient::NProto::TBoundaryKeysExt& boundaryKeys,
         int key,
         TOutputTable* outputTable);

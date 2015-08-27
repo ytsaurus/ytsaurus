@@ -84,7 +84,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
 
-    const TGuid& GetCellId() const;
+    const NElection::TCellId& GetCellId() const;
 
     void Run();
 
@@ -137,6 +137,7 @@ private:
     void DoRun();
     NNodeTrackerClient::TAddressMap GetLocalAddresses();
     void PopulateAlerts(std::vector<TError>* alerts);
+    NElection::TCellId ToRedirectorCellId(const NElection::TCellId& cellId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

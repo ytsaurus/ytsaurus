@@ -11,6 +11,8 @@
 #include "schemaless_row_reorderer.h"
 #include "table_ypath_proxy.h"
 
+#include <ytlib/api/client.h>
+
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
@@ -42,6 +44,7 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTableClient::NProto;
 using namespace NRpc;
+using namespace NApi;
 using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 using namespace NYPath;
@@ -601,7 +604,7 @@ public:
     TSchemalessMultiChunkWriter(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
@@ -612,7 +615,7 @@ public:
         : TBase(
             config,
             options,
-            masterChannel,
+            client,
             transactionId,
             parentChunkListId,
             createChunkWriter,
@@ -646,7 +649,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     TOwningKey lastKey,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     bool reorderValues,
@@ -673,7 +676,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     auto writer = New<TWriter>(
         config,
         options,
-        masterChannel,
+        client,
         transactionId,
         parentChunkListId,
         createChunkWriter,
@@ -700,7 +703,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     std::unique_ptr<IPartitioner> partitioner,
@@ -731,7 +734,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     auto writer = New<TWriter>(
         config,
         options,
-        masterChannel,
+        client,
         transactionId,
         parentChunkListId,
         createChunkWriter,
@@ -760,9 +763,8 @@ public:
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         TTransactionPtr transaction,
-        TTransactionManagerPtr transactionManager,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
 
@@ -781,7 +783,7 @@ private:
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
-    const IChannelPtr MasterChannel_;
+    const IClientPtr Client_;
     const TTransactionPtr Transaction_;
     const TTransactionManagerPtr TransactionManager_;
     const IThroughputThrottlerPtr Throttler_;
@@ -813,9 +815,8 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     TTransactionPtr transaction,
-    TTransactionManagerPtr transactionManager,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
     : Logger(TableClientLogger)
@@ -824,15 +825,12 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     , RichPath_(richPath)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
-    , MasterChannel_(masterChannel)
+    , Client_(client)
     , Transaction_(transaction)
-    , TransactionManager_(transactionManager)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
 {
-    Options_->NetworkName = options->NetworkName;
-
     Logger.AddTag("Path: %v, TransactihonId: %v",
         RichPath_.GetPath(),
         TransactionId_);
@@ -878,7 +876,7 @@ void TSchemalessTableWriter::CreateUploadTransaction()
 {
     LOG_INFO("Creating upload transaction");
 
-    TTransactionStartOptions options;
+    NTransactionClient::TTransactionStartOptions options;
     options.ParentId = TransactionId_;
     options.EnableUncommittedAccounting = false;
 
@@ -886,7 +884,7 @@ void TSchemalessTableWriter::CreateUploadTransaction()
     attributes->Set("title", Format("Table upload to %v", RichPath_.GetPath()));
     options.Attributes = std::move(attributes);
 
-    auto transactionOrError = WaitFor(TransactionManager_->Start(
+    auto transactionOrError = WaitFor(Client_->GetTransactionManager()->Start(
         ETransactionType::Master,
         options));
 
@@ -909,7 +907,8 @@ void TSchemalessTableWriter::FetchTableInfo()
     bool append = RichPath_.GetAppend();
     bool sorted = !KeyColumns_.empty();
 
-    TObjectServiceProxy objectProxy(MasterChannel_);
+    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy objectProxy(channel);
     auto batchReq = objectProxy.ExecuteBatch();
 
     {
@@ -1023,7 +1022,7 @@ void TSchemalessTableWriter::DoOpen()
         NameTable_,
         KeyColumns_,
         LastKey_,
-        MasterChannel_,
+        Client_,
         UploadTransaction_->GetId(),
         ChunkListId_,
         true,
@@ -1060,7 +1059,8 @@ void TSchemalessTableWriter::DoClose()
         GenerateMutationId(req);
         ToProto(req->mutable_key_columns(), KeyColumns_);
 
-        TObjectServiceProxy objectProxy(MasterChannel_);
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy objectProxy(channel);
         auto rspOrError = WaitFor(objectProxy.Execute(req));
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -1102,9 +1102,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     TTransactionPtr transaction,
-    TTransactionManagerPtr transactionManager,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -1114,9 +1113,8 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
         richPath,
         nameTable,
         keyColumns,
-        masterChannel,
+        client,
         transaction,
-        transactionManager,
         throttler,
         blockCache);
 }
