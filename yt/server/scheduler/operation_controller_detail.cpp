@@ -12,6 +12,7 @@
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_scraper.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
 
@@ -231,107 +232,6 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContex
     Persist(context, InputStripes);
     Persist(context, ChunkSpecs);
     Persist(context, State);
-}
-
-////////////////////////////////////////////////////////////////////
-
-TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
-    TOperationControllerBase* controller,
-    NRpc::IChannelPtr masterChannel)
-    : Controller(controller)
-    , PeriodicExecutor(New<TPeriodicExecutor>(
-        controller->GetCancelableControlInvoker(),
-        BIND(&TInputChunkScratcher::LocateChunks, MakeWeak(this)),
-        controller->Config->ChunkScratchPeriod))
-    , Proxy(masterChannel)
-    , Started(false)
-    , Logger(controller->Logger)
-{ }
-
-void TOperationControllerBase::TInputChunkScratcher::Start()
-{
-    if (Started)
-        return;
-
-    auto controller = Controller.Lock();
-    if (!controller) {
-        return;
-    }
-
-    Started = true;
-
-    LOG_DEBUG("Starting input chunk scratcher");
-
-    NextChunkIterator = controller->InputChunkMap.begin();
-    PeriodicExecutor->Start();
-}
-
-void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
-{
-    auto controller = Controller.Lock();
-    if (!controller) {
-        return;
-    }
-
-    VERIFY_THREAD_AFFINITY(controller->ControlThread);
-
-    auto startIterator = NextChunkIterator;
-    auto req = Proxy.LocateChunks();
-
-    for (int chunkCount = 0; chunkCount < controller->Config->MaxChunksPerScratch; ++chunkCount) {
-        ToProto(req->add_chunk_ids(), NextChunkIterator->first);
-
-        ++NextChunkIterator;
-        if (NextChunkIterator == controller->InputChunkMap.end()) {
-            NextChunkIterator = controller->InputChunkMap.begin();
-        }
-
-        if (NextChunkIterator == startIterator) {
-            // Total number of chunks is less than MaxChunksPerScratch.
-            break;
-        }
-    }
-
-    WaitFor(controller->Host->GetChunkLocationThrottler()->Throttle(
-        req->chunk_ids_size()));
-
-    LOG_DEBUG("Locating input chunks (Count: %v)", req->chunk_ids_size());
-
-    auto rspOrError = WaitFor(req->Invoke());
-    if (!rspOrError.IsOK()) {
-        LOG_WARNING(rspOrError, "Failed to locate input chunks");
-        return;
-    }
-
-    const auto& rsp = rspOrError.Value();
-    controller->NodeDirectory->MergeFrom(rsp->node_directory());
-
-    int availableCount = 0;
-    int unavailableCount = 0;
-    for (const auto& chunkInfo : rsp->chunks()) {
-        auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-        auto it = controller->InputChunkMap.find(chunkId);
-        YCHECK(it != controller->InputChunkMap.end());
-
-        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
-
-        auto& descriptor = it->second;
-        YCHECK(!descriptor.ChunkSpecs.empty());
-        auto& chunkSpec = descriptor.ChunkSpecs.front();
-        auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
-
-        if (IsUnavailable(replicas, codecId, controller->NeedsAllChunkParts())) {
-            ++unavailableCount;
-            controller->OnInputChunkUnavailable(chunkId, descriptor);
-        } else {
-            ++availableCount;
-            controller->OnInputChunkAvailable(chunkId, descriptor, replicas);
-        }
-    }
-
-    LOG_DEBUG("Input chunks located (AvailableCount: %v, UnavailableCount: %v)",
-        availableCount,
-        unavailableCount);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1037,10 +937,6 @@ void TOperationControllerBase::Essentiate()
     Operation->SetSchedulingTag(Spec->SchedulingTag);
 
     InitializeTransactions();
-
-    InputChunkScratcher = New<TInputChunkScratcher>(
-        this,
-        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader));
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1096,9 +992,9 @@ void TOperationControllerBase::DoPrepare()
 
     AddAllTaskPendingHints();
 
-    // Input chunk scratcher initialization should be the last step to avoid races,
-    // because input chunk scratcher works in control thread.
-    InitInputChunkScratcher();
+    // Input chunk scraper initialization should be the last step to avoid races,
+    // because input chunk scraper works in control thread.
+    InitInputChunkScraper();
 }
 
 void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
@@ -1140,8 +1036,8 @@ void TOperationControllerBase::DoRevive()
 
     AddAllTaskPendingHints();
 
-    // Input chunk scratcher initialization should be the last step to avoid races.
-    InitInputChunkScratcher();
+    // Input chunk scraper initialization should be the last step to avoid races.
+    InitInputChunkScraper();
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1351,11 +1247,29 @@ void TOperationControllerBase::InitChunkListPool()
         Operation->GetOutputTransaction()->GetId());
 }
 
-void TOperationControllerBase::InitInputChunkScratcher()
+void TOperationControllerBase::InitInputChunkScraper()
 {
+    yhash_set<TChunkId> chunkIds;
+    for (const auto& pair : InputChunkMap) {
+        chunkIds.insert(pair.first);
+    }
+
+    YCHECK(!InputChunkScraper);
+    InputChunkScraper = New<TChunkScraper>(
+        Config,
+        CancelableBackgroundInvoker,
+        Host->GetChunkLocationThrottler(),
+        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader),
+        NodeDirectory,
+        std::move(chunkIds),
+        BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
+            .Via(CancelableBackgroundInvoker),
+        Logger
+    );
+
     if (UnavailableInputChunkCount > 0) {
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
-        InputChunkScratcher->Start();
+        InputChunkScraper->Start();
     }
 }
 
@@ -1363,7 +1277,7 @@ void TOperationControllerBase::SuspendUnavailableInputStripes()
 {
     YCHECK(UnavailableInputChunkCount == 0);
 
-    for (auto& pair : InputChunkMap) {
+    for (const auto& pair : InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", pair.first);
@@ -1666,6 +1580,23 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
+void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+{
+    auto it = InputChunkMap.find(chunkId);
+    YCHECK(it != InputChunkMap.end());
+
+    auto& descriptor = it->second;
+    YCHECK(!descriptor.ChunkSpecs.empty());
+    auto& chunkSpec = descriptor.ChunkSpecs.front();
+    auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
+
+    if (IsUnavailable(replicas, codecId, NeedsAllChunkParts())) {
+        OnInputChunkUnavailable(chunkId, descriptor);
+    } else {
+        OnInputChunkAvailable(chunkId, descriptor, replicas);
+    }
+}
+
 void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
 {
     if (descriptor.State != EInputChunkState::Waiting)
@@ -1675,6 +1606,10 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
 
     --UnavailableInputChunkCount;
     YCHECK(UnavailableInputChunkCount >= 0);
+
+    if (UnavailableInputChunkCount == 0) {
+        InputChunkScraper->Stop();
+    }
 
     // Update replicas in place for all input chunks with current chunkId.
     for (auto& chunkSpec : descriptor.ChunkSpecs) {
@@ -1734,7 +1669,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
                 AddTaskPendingHint(inputStripe.Task);
             }
-            InputChunkScratcher->Start();
+            InputChunkScraper->Start();
             break;
         }
 
@@ -1746,7 +1681,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
-            InputChunkScratcher->Start();
+            InputChunkScraper->Start();
             break;
         }
 
