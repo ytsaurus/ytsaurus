@@ -523,32 +523,28 @@ class TestTablets(YTEnvSetup):
 
         sleep(3.0)
 
-        def _get_store_orchid():
+        def _check_preload_state(state):
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             assert len(tablet_data["eden"]["stores"]) == 1
             assert len(tablet_data["partitions"]) == 1
-            assert len(tablet_data["partitions"][0]["stores"]) == 1
-            store_id = tablet_data["partitions"][0]["stores"].keys()[0]
-            return tablet_data["partitions"][0]["stores"][store_id]
+            assert len(tablet_data["partitions"][0]["stores"]) >= 1
+            assert all(s["preload_state"] == state for _, s in tablet_data["partitions"][0]["stores"].iteritems())
 
-        store_data = _get_store_orchid()
-        assert store_data["preload_state"] == "complete"
+        _check_preload_state("complete")
 
         set("//tmp/t/@in_memory_mode", "none")
         remount_table("//tmp/t")
 
         sleep(3.0)
         
-        store_data = _get_store_orchid()
-        assert store_data["preload_state"] == "disabled"
+        _check_preload_state("disabled")
 
         set("//tmp/t/@in_memory_mode", mode)
         remount_table("//tmp/t")
 
         sleep(3.0)
         
-        store_data = _get_store_orchid()
-        assert store_data["preload_state"] == "complete"
+        _check_preload_state("complete")
 
     def test_in_memory_compressed(self):
         self._test_in_memory("compressed")
