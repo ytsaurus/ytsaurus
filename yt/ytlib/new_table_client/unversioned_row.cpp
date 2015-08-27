@@ -274,10 +274,10 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             rhs.Type != EValueType::Min &&
             rhs.Type != EValueType::Max) 
         {
-                // Never compare composite values with non-sentinels.
-                THROW_ERROR_EXCEPTION(
-                    EErrorCode::IncomparableType, 
-                    "Composite types are not comparable");
+            // Never compare composite values with non-sentinels.
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::IncomparableType, 
+                "Composite types are not comparable");
         }
     }
 
