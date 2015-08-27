@@ -27,6 +27,8 @@ class TJobProxyConfig
 {
 public:
     // Filled by exec agent.
+    NApi::TConnectionConfigPtr ClusterConnection;
+
     NBus::TTcpBusServerConfigPtr RpcServer;
     NBus::TTcpBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
@@ -53,6 +55,8 @@ public:
     TJobProxyConfig()
     {
         RegisterParameter("rpc_server", RpcServer)
+            .DefaultNew();
+        RegisterParameter("cluster_connection", ClusterConnection)
             .DefaultNew();
         RegisterParameter("supervisor_connection", SupervisorConnection);
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)

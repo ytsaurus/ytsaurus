@@ -491,7 +491,8 @@ class TestTablets(YTEnvSetup):
         tablet_data = self._find_tablet_orchid(address, tablet_id)
         assert len(tablet_data["eden"]["stores"]) == 1
         assert len(tablet_data["partitions"]) == 1
-        assert len(tablet_data["partitions"][0]["stores"]) == 1
+        # Getting 2 stores is also possible since the rotation may happen while the rows were locked.
+        assert len(tablet_data["partitions"][0]["stores"]) >= 1
 
     def _test_in_memory(self, mode):
         self._sync_create_cells(1, 1)
@@ -503,38 +504,42 @@ class TestTablets(YTEnvSetup):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = self._get_tablet_leader_address(tablet_id)
-        
+
+        def _check_preload_state(state):
+            tablet_data = self._find_tablet_orchid(address, tablet_id)
+            assert len(tablet_data["eden"]["stores"]) == 1
+            assert len(tablet_data["partitions"]) == 1
+            assert len(tablet_data["partitions"][0]["stores"]) >= 1
+            assert all(s["preload_state"] == state for _, s in tablet_data["partitions"][0]["stores"].iteritems())
+            actual_preload_pending = get("//tmp/t/@tablets/0/statistics/store_preload_pending_count")
+            actual_preload_completed = get("//tmp/t/@tablets/0/statistics/store_preload_completed_count")
+            if state == "complete":
+                assert (actual_preload_pending + actual_preload_completed) >= 1
+            else:
+                assert actual_preload_pending == 0
+                assert actual_preload_completed == 0
+            assert get("//tmp/t/@tablets/0/statistics/store_preload_failed_count") == 0
+
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
 
         sleep(3.0)
 
-        def _get_store_orchid():
-            tablet_data = self._find_tablet_orchid(address, tablet_id)
-            assert len(tablet_data["eden"]["stores"]) == 1
-            assert len(tablet_data["partitions"]) == 1
-            assert len(tablet_data["partitions"][0]["stores"]) == 1
-            store_id = tablet_data["partitions"][0]["stores"].keys()[0]
-            return tablet_data["partitions"][0]["stores"][store_id]
-
-        store_data = _get_store_orchid()
-        assert store_data["preload_state"] == "complete"
+        _check_preload_state("complete")
 
         set("//tmp/t/@in_memory_mode", "none")
         remount_table("//tmp/t")
 
         sleep(3.0)
-        
-        store_data = _get_store_orchid()
-        assert store_data["preload_state"] == "disabled"
+
+        _check_preload_state("disabled")
 
         set("//tmp/t/@in_memory_mode", mode)
         remount_table("//tmp/t")
 
         sleep(3.0)
-        
-        store_data = _get_store_orchid()
-        assert store_data["preload_state"] == "complete"
+
+        _check_preload_state("complete")
 
     def test_in_memory_compressed(self):
         self._test_in_memory("compressed")
@@ -569,6 +574,9 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t/@schema", [
             {"name": "key", "type": "uint64"},
             {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t/@schema", [
+            {"name": "key", "type": "int64"},
+            {"name": "value1", "type": "string"}])
 
         self._create_table_with_computed_column("//tmp/t1")
         self._sync_mount_table("//tmp/t1")
@@ -584,6 +592,11 @@ class TestTablets(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t1/@schema", [
             {"name": "key1", "type": "int64"},
             {"name": "key2", "type": "int64", "expression": "key1 * 100"},
+            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError): set("//tmp/t1/@schema", [
+            {"name": "key1", "type": "int64"},
+            {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3"},
+            {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3"},
             {"name": "value", "type": "string"}])
 
     def test_update_key_columns_success(self):

@@ -96,13 +96,10 @@ class TRemoteReaderOptions
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    Stroka NetworkName;
     EReadSessionType SessionType;
 
     TRemoteReaderOptions()
     {
-        RegisterParameter("network_name", NetworkName)
-            .Default(NNodeTrackerClient::InterconnectNetworkName);
         RegisterParameter("session_type", SessionType)
             .Default(EReadSessionType::User);
     }
@@ -215,15 +212,15 @@ class TRemoteWriterOptions
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    Stroka NetworkName;
     EWriteSessionType SessionType;
+    bool AllowAllocatingNewTargetNodes;
 
     TRemoteWriterOptions()
     {
-        RegisterParameter("network_name", NetworkName)
-            .Default(NNodeTrackerClient::InterconnectNetworkName);
         RegisterParameter("session_type", SessionType)
             .Default(EWriteSessionType::User);
+        RegisterParameter("allow_allocate_new_target_nodes", AllowAllocatingNewTargetNodes)
+            .Default(true);
     }
 };
 

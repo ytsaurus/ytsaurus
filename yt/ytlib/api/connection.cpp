@@ -56,10 +56,11 @@ class TConnection
     : public IConnection
 {
 public:
-    explicit TConnection(
-        TConnectionConfigPtr config,
-        TCallback<bool(const TError&)> isRetriableError)
+    explicit TConnection(TConnectionConfigPtr config)
         : Config_(config)
+    { }
+
+    void Initialize(TCallback<bool(const TError&)> isRetriableError)
     {
         auto initMasterChannel = [&] (EMasterChannelKind channelKind, TMasterConnectionConfigPtr config, EPeerKind peerKind) {
             MasterChannels_[channelKind] = CreatePeerChannel(
@@ -228,7 +229,9 @@ IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
     TCallback<bool(const TError&)> isRetriableError)
 {
-    return New<TConnection>(config, isRetriableError);
+    auto connection = New<TConnection>(config);
+    connection->Initialize(isRetriableError);
+    return connection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

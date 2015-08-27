@@ -350,7 +350,6 @@ struct TTableReaderOptions
 {
     bool Unordered = false;
     NTableClient::TTableReaderConfigPtr Config;
-    NChunkClient::TRemoteReaderOptionsPtr RemoteReaderOptions;
 };
 
 struct TStartOperationOptions
@@ -501,7 +500,7 @@ struct IClientBase
     // Tables
     virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options) = 0;
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)
