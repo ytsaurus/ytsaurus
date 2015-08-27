@@ -140,6 +140,5 @@ def get_version():
         return "unknown"
 
 def get_python_version():
-    version = sys.version_info
-    return (version.major, version.minor, version.micro)
+    return sys.version_info[:3]
 
