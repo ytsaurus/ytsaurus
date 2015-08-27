@@ -27,6 +27,7 @@ public:
         const TKeyColumns& keyColumns,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
+        NChunkClient::TScrapeChunksCallback scraperCallback,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk) override;

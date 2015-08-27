@@ -38,8 +38,9 @@ TSamplesFetcher::TSamplesFetcher(
     const TKeyColumns& keyColumns,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
+    TScrapeChunksCallback scraperCallback,
     const NLogging::TLogger& logger)
-    : TFetcherBase(config, nodeDirectory, invoker, logger)
+    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
 {
