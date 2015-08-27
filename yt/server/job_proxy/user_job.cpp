@@ -956,7 +956,7 @@ private:
         auto servicedIOs = BlockIO_.GetIOServiced();
 
         for (const auto& item : servicedIOs) {
-            LOG_DEBUG("%v %v operation for %v device", item.Value, item.Type, item.DeviceId);
+            LOG_DEBUG("Serviced %v IO operations (OperationType: %v, DeviceId: %v)", item.Value, item.Type, item.DeviceId);
 
             auto previousItemIt = std::find_if(
                 LastServicedIOs_.begin(),
@@ -971,7 +971,7 @@ private:
             }
 
             if (deltaOperations < 0) {
-                LOG_WARNING("%v < 0 operations were serviced for %v device since the last check",
+                LOG_WARNING("%v < 0 IO operations were serviced since the last check (DeviceId: %v)",
                     deltaOperations,
                     item.DeviceId);
             }
