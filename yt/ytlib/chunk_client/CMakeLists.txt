@@ -4,6 +4,7 @@ set( SRCS
   ${BASE}/block_id.cpp
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_replica.cpp
+  ${BASE}/chunk_scraper.cpp
   ${BASE}/chunk_slice.cpp
   ${BASE}/chunk_spec.cpp
   ${BASE}/client_block_cache.cpp
@@ -39,6 +40,7 @@ set( HDRS
   ${BASE}/chunk_reader.h
   ${BASE}/chunk_reader_base.h
   ${BASE}/chunk_replica.h
+  ${BASE}/chunk_scraper.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_slice.h
   ${BASE}/chunk_spec.h
