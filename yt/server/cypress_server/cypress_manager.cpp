@@ -1202,18 +1202,24 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
         auto parentOriginators = GetNodeOriginators(transaction, parentTrunkNode);
         TNullable<Stroka> key;
         for (const auto* parentNode : parentOriginators) {
-            if (IsMapLikeType(parentNode->GetType())) {
-                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
-                auto it = parentMapNode->ChildToKey().find(childTrunkNode);
-                if (it != parentMapNode->ChildToKey().end()) {
-                    key = it->second;
+            switch (parentNode->GetNodeType()) {
+                case ENodeType::Map: {
+                    const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                    auto it = parentMapNode->ChildToKey().find(childTrunkNode);
+                    if (it != parentMapNode->ChildToKey().end()) {
+                        key = it->second;
+                    }
+                    break;
                 }
-            } else if (IsListLikeType(parentNode->GetType())) {
-                const auto* parentListNode = static_cast<const TListNode*>(parentNode);
-                auto it = parentListNode->ChildToIndex().find(childTrunkNode);
-                return it != parentListNode->ChildToIndex().end();
-            } else {
-                YUNREACHABLE();
+
+                case ENodeType::List: {
+                    const auto* parentListNode = static_cast<const TListNode*>(parentNode);
+                    auto it = parentListNode->ChildToIndex().find(childTrunkNode);
+                    return it != parentListNode->ChildToIndex().end();
+                }
+
+                default:
+                    YUNREACHABLE();
             }
 
             if (key) {
@@ -1227,16 +1233,22 @@ bool TCypressManager::IsAlive(TCypressNodeBase* trunkNode, TTransaction* transac
 
         // Look for thombstones.
         for (const auto* parentNode : parentOriginators) {
-            if (IsMapLikeType(parentNode->GetType())) {
-                const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
-                auto it = parentMapNode->KeyToChild().find(*key);
-                if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
-                    return false;
+            switch (parentNode->GetNodeType()) {
+                case ENodeType::Map: {
+                    const auto* parentMapNode = static_cast<const TMapNode*>(parentNode);
+                    auto it = parentMapNode->KeyToChild().find(*key);
+                    if (it != parentMapNode->KeyToChild().end() && it->second != childTrunkNode) {
+                        return false;
+                    }
+                    break;
                 }
-            } else if (IsListLikeType(parentNode->GetType())) {
-                // Do nothing.
-            } else {
-                YUNREACHABLE();
+
+                case ENodeType::List:
+                    // Do nothing.
+                    break;
+
+                default:
+                    YUNREACHABLE();
             }
         }
 
@@ -1635,30 +1647,40 @@ void TCypressManager::ListSubtreeNodes(
         subtreeNodes->push_back(trunkNode);
     }
 
-    if (IsMapLikeType(trunkNode->GetType())) {
-        auto originators = GetNodeReverseOriginators(transaction, trunkNode);
-        yhash_map<Stroka, TCypressNodeBase*> children;
-        for (const auto* node : originators) {
-            const auto* mapNode = static_cast<const TMapNode*>(node);
-            for (const auto& pair : mapNode->KeyToChild()) {
-                if (pair.second) {
-                    children[pair.first] = pair.second;
-                } else {
-                    // NB: erase may fail.
-                    children.erase(pair.first);
+    switch (trunkNode->GetNodeType()) {
+        case ENodeType::Map: {
+            auto originators = GetNodeReverseOriginators(transaction, trunkNode);
+            yhash_map<Stroka, TCypressNodeBase*> children;
+            for (const auto* node : originators) {
+                const auto* mapNode = static_cast<const TMapNode*>(node);
+                for (const auto& pair : mapNode->KeyToChild()) {
+                    if (pair.second) {
+                        children[pair.first] = pair.second;
+                    } else {
+                        // NB: erase may fail.
+                        children.erase(pair.first);
+                    }
                 }
             }
+
+            for (const auto& pair : children) {
+                ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
+            }
+
+            break;
         }
 
-        for (const auto& pair : children) {
-            ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
+        case ENodeType::List: {
+            auto* node = GetVersionedNode(trunkNode, transaction);
+            auto* listRoot = static_cast<TListNode*>(node);
+            for (auto* trunkChild : listRoot->IndexToChild()) {
+                ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
+            }
+            break;
         }
-    } else if (IsListLikeType(trunkNode->GetType())) {
-        auto* node = GetVersionedNode(trunkNode, transaction);
-        auto* listRoot = static_cast<TListNode*>(node);
-        for (auto* trunkChild : listRoot->IndexToChild()) {
-            ListSubtreeNodes(trunkChild, transaction, true, subtreeNodes);
-        }
+
+        default:
+            break;
     }
 }
 
