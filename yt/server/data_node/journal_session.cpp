@@ -48,6 +48,7 @@ TFuture<void> TJournalSession::DoStart()
         Bootstrap_,
         Location_,
         TChunkDescriptor(ChunkId_));
+    Chunk_->SetActive(true);
 
     auto dispatcher = Bootstrap_->GetJournalDispatcher();
     auto asyncChangelog = dispatcher->CreateChangelog(Location_, ChunkId_, Options_.OptimizeForLatency);
@@ -59,7 +60,6 @@ TFuture<void> TJournalSession::DoStart()
         if (Chunk_->IsRemoveScheduled())
             return;
         Chunk_->AttachChangelog(changelog);
-        Chunk_->SetActive(true);
     }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
