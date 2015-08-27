@@ -586,7 +586,7 @@ protected:
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();
     void InitChunkListPool();
-    void InitInputChunkScratcher();
+    void InitInputChunkScraper();
     void SuspendUnavailableInputStripes();
     void InitQuerySpec(
         NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
@@ -669,8 +669,13 @@ protected:
 
     };
 
+    //! Callback called by TChunkScraper when get information on some chunk.
+    void OnInputChunkLocated(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::TChunkReplicaList& replicas);
+
     //! Called when a job is unable to read an input chunk or
-    //! chunk scratcher has encountered unavailable chunk.
+    //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
         const NChunkClient::TChunkId& chunkId,
         TInputChunkDescriptor& descriptor);
@@ -802,35 +807,6 @@ private:
     //! Keeps information needed to maintain the liveness state of input chunks.
     TInputChunkMap InputChunkMap;
 
-    class TInputChunkScratcher
-        : public virtual TRefCounted
-    {
-    public:
-        TInputChunkScratcher(TOperationControllerBase* controller, NRpc::IChannelPtr masterChannel);
-
-        //! Starts periodic polling.
-        /*!
-         *  Should be called when operation preparation is complete.
-         *  Safe to call multiple times.
-         */
-        void Start();
-
-    private:
-        void LocateChunks();
-        void OnLocateChunksResponse(const NChunkClient::TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError);
-
-        TWeakPtr<TOperationControllerBase> Controller;
-        NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
-        NChunkClient::TChunkServiceProxy Proxy;
-        TInputChunkMap::iterator NextChunkIterator;
-        bool Started;
-
-        NLogging::TLogger Logger;
-
-    };
-
-    typedef TIntrusivePtr<TInputChunkScratcher> TInputChunkScratcherPtr;
-
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
 
@@ -849,7 +825,7 @@ private:
     //! Used to distinguish already seen ChunkSpecs while building #InputChunkMap.
     yhash_set<NChunkClient::TRefCountedChunkSpecPtr> InputChunkSpecs;
 
-    TInputChunkScratcherPtr InputChunkScratcher;
+    NChunkClient::TChunkScraperPtr InputChunkScraper;
 
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
