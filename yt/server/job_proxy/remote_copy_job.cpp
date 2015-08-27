@@ -81,15 +81,16 @@ public:
         OutputChunkListId_ = FromProto<TChunkListId>(
                 SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
 
-        {
-            const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-            RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
-            RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
-            TClientOptions clientOptions;
-            clientOptions.User = NSecurityClient::JobUserName;
-            RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
-            RemoteNodeDirectory_->MergeFrom(SchedulerJobSpecExt_.node_directory());
-        }
+        const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+        RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
+
+        RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
+
+        TClientOptions clientOptions;
+        clientOptions.User = NSecurityClient::JobUserName;
+        RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
+
+        RemoteNodeDirectory_->MergeFrom(SchedulerJobSpecExt_.node_directory());
     }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override
@@ -124,10 +125,7 @@ public:
     {
         TStatistics result;
         result.AddComplex("/data/input", DataStatistics_);
-        result.AddComplex(
-            "/data/output/" + NYPath::ToYPathLiteral(0),
-            DataStatistics_);
-
+        result.AddComplex("/data/output/" + NYPath::ToYPathLiteral(0), DataStatistics_);
         return result;
     }
 
@@ -163,12 +161,17 @@ private:
             return;
         }
 
+        auto outputCellTag = CellTagFromId(OutputChunkListId_);
+        auto outputMasterChannel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader, outputCellTag);
+        TObjectServiceProxy outputObjectProxy(outputMasterChannel);
+
         CopiedChunkSize_ = 0.0;
 
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
-        LOG_INFO("Copying chunk %v", inputChunkId);
+        LOG_INFO("Copying input chunk (ChunkId: %v)",
+            inputChunkId);
 
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
         writerOptions->ErasureCodec = erasureCodecId;
@@ -184,10 +187,8 @@ private:
         {
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
             auto writerNodeDirectory = New<TNodeDirectory>();
-
-            auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
             auto rspOrError = WaitFor(CreateChunk(
-                channel,
+                outputMasterChannel,
                 WriterConfig_,
                 writerOptions,
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
@@ -202,8 +203,11 @@ private:
             FromProto(&outputChunkId, rsp->object_id());
         }
 
+        LOG_INFO("Output chunk created (ChunkId: %v)",
+            outputChunkId);
+
         // Copy chunk.
-        LOG_INFO("Copying blocks");
+        LOG_INFO("Copying chunk data");
 
         TChunkInfo chunkInfo;
         TChunkMeta chunkMeta;
@@ -301,9 +305,6 @@ private:
         chunkStatistics.set_chunk_count(1);
         DataStatistics_ += chunkStatistics;
 
-        auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader, CellTagFromId(outputChunkId));
-        TObjectServiceProxy objectProxy(channel);
-
         // Confirm chunk.
         LOG_INFO("Confirming output chunk");
         YCHECK(!writtenReplicas.empty());
@@ -325,8 +326,8 @@ private:
             *req->mutable_chunk_meta() = masterChunkMeta;
             NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
-            auto rspOrError = WaitFor(objectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to confirm chunk");
+            auto rspOrError = WaitFor(outputObjectProxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error confirming chunk");
         }
 
         // Attach chunk.
@@ -336,7 +337,7 @@ private:
             ToProto(req->add_children_ids(), outputChunkId);
             GenerateMutationId(req);
 
-            auto rspOrError = WaitFor(objectProxy.Execute(req));
+            auto rspOrError = WaitFor(outputObjectProxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunk");
         }
     }
