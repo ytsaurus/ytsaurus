@@ -7,6 +7,8 @@
 #include "job_resources.h"
 #include "helpers.h"
 
+#include <ytlib/chunk_client/chunk_scraper.h>
+
 #include <ytlib/table_client/samples_fetcher.h>
 #include <ytlib/table_client/unversioned_row.h>
 #include <ytlib/table_client/schemaless_block_writer.h>
@@ -1704,12 +1706,24 @@ private:
             auto chunks = CollectInputChunks();
             int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
 
+            TScrapeChunksCallback scraperCallback;
+            if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
+                scraperCallback = CreateScrapeChunksSessionCallback(
+                    Config,
+                    Host->GetBackgroundInvoker(),
+                    Host->GetChunkLocationThrottler(),
+                    AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
+                    NodeDirectory,
+                    Logger);
+            }
+
             samplesFetcher = New<TSamplesFetcher>(
                 Config->Fetcher,
                 sampleCount,
                 Spec->SortBy,
                 NodeDirectory,
                 Host->GetBackgroundInvoker(),
+                scraperCallback,
                 Logger);
 
             for (const auto& chunk : chunks) {

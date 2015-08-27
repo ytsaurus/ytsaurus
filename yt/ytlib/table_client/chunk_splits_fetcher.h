@@ -24,7 +24,8 @@ public:
         const TKeyColumns& keyColumns,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
-        NLogging::TLogger& logger);
+        NChunkClient::TScrapeChunksCallback scraperCallback,
+        const NLogging::TLogger& logger);
 
 
     virtual TFuture<void> Fetch() override;

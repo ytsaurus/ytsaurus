@@ -335,6 +335,7 @@ private:
             tablet->KeyColumns(),
             nodeDirectory,
             GetCurrentInvoker(),
+            TScrapeChunksCallback(),
             Logger);
 
         {
