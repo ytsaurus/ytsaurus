@@ -31,7 +31,7 @@ public:
 
     virtual TFuture<void> Open(
         const NTableClient::TTableSchema& schema,
-        const TNullable<NTableClient::TKeyColumns>& keyColumns) override;
+        const NTableClient::TKeyColumns& keyColumns) override;
 
     virtual TFuture<void> Close() override;
 
