@@ -895,15 +895,24 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto newProxy = factory->CreateNode(
         type,
-        attributes.get(),
-        request,
-        response);
+        attributes.get());
 
     SetChildNode(factory, path, newProxy, request->recursive());
 
     factory->Commit();
 
-    context->SetResponseInfo("NodeId: %v", newProxy->GetId());
+    auto* newNode = newProxy->GetTrunkNode();
+    const auto& newNodeId = newNode->GetId();
+    auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
+        ? Bootstrap_->GetCellTag()
+        : newNode->GetExternalCellTag();
+
+    ToProto(response->mutable_node_id(), newNode->GetId());
+    response->set_cell_tag(newNodeCellTag);
+
+    context->SetResponseInfo("NodeId: %v, CellTag: %v",
+        newNodeId,
+        newNodeCellTag);
 
     context->Reply();
 }

@@ -178,9 +178,7 @@ protected:
         const TVersionedNodeId& id,
         TCellTag cellTag,
         TTransaction* transaction,
-        IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response) override
+        IAttributeDictionary* attributes) override
     {
         if (!attributes->Contains("channels")) {
             attributes->SetYson("channels", TYsonString("[]"));
@@ -200,9 +198,7 @@ protected:
             id,
             cellTag,
             transaction,
-            attributes,
-            request,
-            response);
+            attributes);
     }
 
     virtual void DoDestroy(TTableNode* table) override
@@ -238,7 +234,7 @@ protected:
     virtual void DoClone(
         TTableNode* sourceNode,
         TTableNode* clonedNode,
-        NCypressServer::ICypressNodeFactoryPtr factory,
+        ICypressNodeFactoryPtr factory,
         ENodeCloneMode mode) override
     {
         switch (mode) {

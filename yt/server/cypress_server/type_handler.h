@@ -38,8 +38,6 @@ struct INodeTypeHandler
         const TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag) = 0;
 
-    typedef NRpc::TTypedServiceRequest<NCypressClient::NProto::TReqCreate> TReqCreate;
-    typedef NRpc::TTypedServiceResponse<NCypressClient::NProto::TRspCreate> TRspCreate;
     //! Creates a new trunk node.
     /*!
      *  This is called during |Create| verb.
@@ -48,9 +46,7 @@ struct INodeTypeHandler
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response) = 0;
+        NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Performs cleanup on node destruction.
     /*!

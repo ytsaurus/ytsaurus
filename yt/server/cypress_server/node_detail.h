@@ -100,9 +100,7 @@ public:
         const TNodeId& hintId,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response) override
+        NYTree::IAttributeDictionary* attributes) override
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(GetObjectType(), hintId);
@@ -110,9 +108,7 @@ public:
             TVersionedNodeId(id),
             externalCellTag,
             transaction,
-            attributes,
-            request,
-            response);
+            attributes);
     }
 
     virtual void Destroy(TCypressNodeBase* node) override
@@ -220,9 +216,7 @@ protected:
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* /*transaction*/,
-        NYTree::IAttributeDictionary* /*attributes*/,
-        TReqCreate* /*request*/,
-        TRspCreate* /*response*/)
+        NYTree::IAttributeDictionary* /*attributes*/    )
     {
         auto nodeHolder = std::make_unique<TImpl>(id);
         nodeHolder->SetExternalCellTag(externalCellTag);
@@ -554,9 +548,7 @@ private:
         const TVersionedNodeId& id,
         NObjectClient::TCellTag cellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response) override;
+        NYTree::IAttributeDictionary* attributes) override;
 
     virtual void DoBranch(
         const TLinkNode* originatingNode,

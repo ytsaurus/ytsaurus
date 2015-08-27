@@ -153,9 +153,7 @@ protected:
         const TVersionedNodeId& id,
         TCellTag cellTag,
         TTransaction* transaction,
-        IAttributeDictionary* attributes,
-        INodeTypeHandler::TReqCreate* request,
-        INodeTypeHandler::TRspCreate* response) override
+        IAttributeDictionary* attributes) override
     {
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto objectManager = Bootstrap_->GetObjectManager();
@@ -185,9 +183,7 @@ protected:
             id,
             cellTag,
             transaction,
-            attributes,
-            request,
-            response);
+            attributes);
         auto* node = nodeHolder.get();
 
         node->SetReplicationFactor(replicationFactor);

@@ -173,9 +173,7 @@ public:
 
     virtual ICypressNodeProxyPtr CreateNode(
         EObjectType type,
-        IAttributeDictionary* attributes = nullptr,
-        TReqCreate* request = nullptr,
-        TRspCreate* response = nullptr) override
+        IAttributeDictionary* attributes = nullptr) override
     {
         ValidateCreatedNodeType(type);
 
@@ -251,9 +249,7 @@ public:
             handler,
             account,
             Transaction_,
-            attributes,
-            request,
-            response);
+            attributes);
 
         RegisterCreatedNode(trunkNode);
 
@@ -646,9 +642,7 @@ public:
         INodeTypeHandlerPtr handler,
         TAccount* account,
         TTransaction* transaction,
-        IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response)
+        IAttributeDictionary* attributes)
     {
         YCHECK(handler);
         YCHECK(account);
@@ -658,9 +652,7 @@ public:
             hintId,
             externalCellTag,
             transaction,
-            attributes,
-            request,
-            response);
+            attributes);
         auto* node = RegisterNode(std::move(nodeHolder));
 
         // Set account.
@@ -671,13 +663,6 @@ public:
         auto* user = securityManager->GetAuthenticatedUser();
         auto* acd = securityManager->GetAcd(node);
         acd->SetOwner(user);
-
-        if (response) {
-            ToProto(response->mutable_node_id(), node->GetId());
-            response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
-                ? Bootstrap_->GetCellTag()
-                : node->GetExternalCellTag());
-        }
 
         return node;
     }
@@ -2047,9 +2032,7 @@ private:
             handler,
             account,
             transaction,
-            attributes.get(),
-            nullptr,
-            nullptr);
+            attributes.get());
 
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
@@ -2198,9 +2181,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
     INodeTypeHandlerPtr handler,
     TAccount* account,
     TTransaction* transaction,
-    IAttributeDictionary* attributes,
-    TReqCreate* request,
-    TRspCreate* response)
+    IAttributeDictionary* attributes)
 {
     return Impl_->CreateNode(
         hintId,
@@ -2208,9 +2189,7 @@ TCypressNodeBase* TCypressManager::CreateNode(
         std::move(handler),
         account,
         transaction,
-        attributes,
-        request,
-        response);
+        attributes);
 }
 
 TCypressNodeBase* TCypressManager::InstantiateNode(

@@ -64,9 +64,7 @@ protected:
         const TVersionedNodeId& id,
         TCellTag cellTag,
         TTransaction* transaction,
-        IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response) override
+        IAttributeDictionary* attributes) override
     {
         TBase::InitializeAttributes(attributes);
 
@@ -78,9 +76,7 @@ protected:
             id,
             cellTag,
             transaction,
-            attributes,
-            request,
-            response);
+            attributes);
     }
 
 };

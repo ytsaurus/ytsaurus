@@ -42,9 +42,7 @@ protected:
         const NCypressServer::TVersionedNodeId& id,
         NObjectClient::TCellTag externalCellTag,
         NTransactionServer::TTransaction* transaction,
-        NYTree::IAttributeDictionary* attributes,
-        NCypressServer::INodeTypeHandler::TReqCreate* request,
-        NCypressServer::INodeTypeHandler::TRspCreate* response) override;
+        NYTree::IAttributeDictionary* attributes) override;
 
     virtual void DoDestroy(TChunkOwner* node) override;
 

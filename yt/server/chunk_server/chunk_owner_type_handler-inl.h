@@ -76,9 +76,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
     const NCypressServer::TVersionedNodeId& id,
     NObjectClient::TCellTag externalCellTag,
     NTransactionServer::TTransaction* transaction,
-    NYTree::IAttributeDictionary* attributes,
-    NCypressServer::INodeTypeHandler::TReqCreate* request,
-    NCypressServer::INodeTypeHandler::TRspCreate* response)
+    NYTree::IAttributeDictionary* attributes)
 {
     auto chunkManager = this->Bootstrap_->GetChunkManager();
     auto objectManager = this->Bootstrap_->GetObjectManager();
@@ -87,9 +85,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreate(
         id,
         externalCellTag,
         transaction,
-        attributes,
-        request,
-        response);
+        attributes);
     auto* node = nodeHolder.get();
 
     if (!node->IsExternal()) {
