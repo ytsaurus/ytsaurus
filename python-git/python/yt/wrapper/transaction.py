@@ -116,7 +116,8 @@ class Transaction(object):
             if not self._started or self.transaction_id == null_transaction_id:
                 return
 
-            if type is not None:
+            action = "commit" if type is None else "abort"
+            if action == "abort":
                 logger.warning(
                     "Error: (type=%s, value=%s), aborting transaction %s ...",
                     type,
@@ -124,13 +125,15 @@ class Transaction(object):
                     self.transaction_id)
 
             try:
-                if type is None:
+                if action == "commit":
                     self.commit()
                 else:
                     self.abort()
             except YtResponseError as rsp:
                 if rsp.is_resolve_error():
-                    logger.warning("Transaction %s is missing, cannot commit or abort" % self.transaction_id)
+                    logger.warning("Transaction %s is missing, cannot %s", self.transaction_id, action)
+                    if action == "commit":
+                        raise
                 else:
                     raise
         finally:
