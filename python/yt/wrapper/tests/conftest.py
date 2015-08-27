@@ -134,6 +134,7 @@ def test_method_teardown():
             yt.abort_transaction(tx)
         except:
             pass
+
     yt.remove(TEST_DIR, recursive=True, force=True)
 
 @pytest.fixture(scope="function")
