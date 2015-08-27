@@ -9,6 +9,7 @@
 #include "job_resources.h"
 #include "helpers.h"
 
+#include <ytlib/chunk_client/chunk_scraper.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -1062,12 +1063,24 @@ protected:
 
         CalculateSizes();
 
+        TScrapeChunksCallback scraperCallback;
+        if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
+            scraperCallback = CreateScrapeChunksSessionCallback(
+                Config,
+                Host->GetBackgroundInvoker(),
+                Host->GetChunkLocationThrottler(),
+                AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
+                NodeDirectory,
+                Logger);
+        }
+
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config->Fetcher,
             ChunkSliceSize,
             KeyColumns,
             NodeDirectory,
             Host->GetBackgroundInvoker(),
+            scraperCallback,
             Logger);
 
         ProcessInputs();
