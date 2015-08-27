@@ -517,11 +517,6 @@ class TestTablets(YTEnvSetup):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = self._get_tablet_leader_address(tablet_id)
-        
-        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
-        insert_rows("//tmp/t", rows)
-
-        sleep(3.0)
 
         def _check_preload_state(state):
             tablet_data = self._find_tablet_orchid(address, tablet_id)
@@ -529,6 +524,19 @@ class TestTablets(YTEnvSetup):
             assert len(tablet_data["partitions"]) == 1
             assert len(tablet_data["partitions"][0]["stores"]) >= 1
             assert all(s["preload_state"] == state for _, s in tablet_data["partitions"][0]["stores"].iteritems())
+            actual_preload_pending = get("//tmp/t/@tablets/0/statistics/store_preload_pending_count")
+            actual_preload_completed = get("//tmp/t/@tablets/0/statistics/store_preload_completed_count")
+            if state == "complete":
+                assert (actual_preload_pending + actual_preload_completed) >= 1
+            else:
+                assert actual_preload_pending == 0
+                assert actual_preload_completed == 0
+            assert get("//tmp/t/@tablets/0/statistics/store_preload_failed_count") == 0
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows)
+
+        sleep(3.0)
 
         _check_preload_state("complete")
 
@@ -536,14 +544,14 @@ class TestTablets(YTEnvSetup):
         remount_table("//tmp/t")
 
         sleep(3.0)
-        
+
         _check_preload_state("disabled")
 
         set("//tmp/t/@in_memory_mode", mode)
         remount_table("//tmp/t")
 
         sleep(3.0)
-        
+
         _check_preload_state("complete")
 
     def test_in_memory_compressed(self):

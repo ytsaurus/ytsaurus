@@ -47,6 +47,9 @@ struct TTabletSnapshot
     TPartitionList Partitions;
 
     int StoreCount = 0;
+    int StorePreloadPendingCount = 0;
+    int StorePreloadCompletedCount = 0;
+    int StorePreloadFailedCount = 0;
 
     TDynamicRowKeyComparer RowKeyComparer;
 
