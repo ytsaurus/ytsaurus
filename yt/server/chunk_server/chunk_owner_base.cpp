@@ -11,6 +11,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NYTree;
 using namespace NChunkClient;
 using namespace NCypressClient;
 
@@ -44,6 +45,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
     Load(context, ReplicationFactor_);
     Load(context, Vital_);
+}
+
+ENodeType TChunkOwnerBase::GetNodeType() const
+{
+    return ENodeType::Entity;
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const
