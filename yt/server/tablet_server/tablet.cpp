@@ -30,7 +30,7 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, PartitionCount);
     Persist(context, StoreCount);
     // COMPAT(sandello)
-    if (context.IsSave() || context.LoadContext().GetVersion() >= 121) {
+    if (context.IsSave() || context.LoadContext().GetVersion() >= 122) {
         Persist(context, StorePreloadPendingCount);
         Persist(context, StorePreloadCompletedCount);
         Persist(context, StorePreloadFailedCount);
