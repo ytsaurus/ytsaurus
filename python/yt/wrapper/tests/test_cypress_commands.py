@@ -262,9 +262,10 @@ class TestCypressCommands(object):
 
         assert read_table(new_client) == "x=2\n"
 
-        with yt.Transaction(timeout=2000, ping=False):
-            yt.write_table(table, ["x=3\n"], format=yt.format.DsvFormat())
-            time.sleep(3)
+        with pytest.raises(yt.YtError):
+            with yt.Transaction(timeout=2000, ping=False):
+                yt.write_table(table, ["x=3\n"], format=yt.format.DsvFormat())
+                time.sleep(3)
 
         assert read_table() == "x=2\n"
         assert read_table(new_client) == "x=2\n"
