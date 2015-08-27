@@ -247,7 +247,7 @@ TSchemafulDsvWriter::TSchemafulDsvWriter(
 
 TFuture<void> TSchemafulDsvWriter::Open(
     const TTableSchema& schema,
-    const TNullable<TKeyColumns>& /*keyColumns*/)
+    const TKeyColumns& /*keyColumns*/)
 {
     if (Config_->Columns) {
         for (const auto& name : *Config_->Columns) {
