@@ -369,7 +369,7 @@ protected:
         {
             jobSpec->CopyFrom(Controller->PartitionJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
-            AddIntermediateOutputSpec(jobSpec, joblet, Null);
+            AddIntermediateOutputSpec(jobSpec, joblet, TKeyColumns());
         }
 
         virtual void OnJobStarted(TJobletPtr joblet) override

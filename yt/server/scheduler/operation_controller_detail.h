@@ -198,7 +198,7 @@ protected:
         // Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
-        TNullable< std::vector<Stroka> > KeyColumns;
+        NTableClient::TKeyColumns KeyColumns;
 
         void Persist(TPersistenceContext& context);
     };
@@ -225,7 +225,7 @@ protected:
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
         NTableClient::TTableWriterOptionsPtr Options =
             New<NTableClient::TTableWriterOptions>();
-        TNullable<NTableClient::TKeyColumns> KeyColumns;
+        NTableClient::TKeyColumns KeyColumns;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
@@ -476,7 +476,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            TNullable<NTableClient::TKeyColumns> keyColumns);
+            NTableClient::TKeyColumns keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -705,11 +705,11 @@ protected:
     //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const;
 
-    std::vector<Stroka> CheckInputTablesSorted(
-        const TNullable< std::vector<Stroka> >& keyColumns);
+    NTableClient::TKeyColumns CheckInputTablesSorted(
+        const NTableClient::TKeyColumns& keyColumns);
     static bool CheckKeyColumnsCompatible(
-        const std::vector<Stroka>& fullColumns,
-        const std::vector<Stroka>& prefixColumns);
+        const NTableClient::TKeyColumns& fullColumns,
+        const NTableClient::TKeyColumns& prefixColumns);
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
     bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
