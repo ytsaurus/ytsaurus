@@ -15,7 +15,7 @@ using namespace NTableClient;
 
 TFuture<void> TSchemafulWriter::Open(
     const TTableSchema& schema,
-    const TNullable<TKeyColumns>& /*keyColumns*/)
+    const TKeyColumns& /*keyColumns*/)
 {
     Schema_ = schema;
     return VoidFuture;
