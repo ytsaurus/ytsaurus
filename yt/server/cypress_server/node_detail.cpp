@@ -531,9 +531,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
     const TVersionedNodeId& id,
     TCellTag cellTag,
     TTransaction* transaction,
-    IAttributeDictionary* attributes,
-    TReqCreate* request,
-    TRspCreate* response)
+    IAttributeDictionary* attributes)
 {
     // Resolve target_path using the appropriate transaction.
     auto targetPath = attributes->Find<Stroka>("target_path");
@@ -551,9 +549,7 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
         id,
         cellTag,
         transaction,
-        attributes,
-        request,
-        response);
+        attributes);
 }
 
 void TLinkNodeTypeHandler::DoBranch(
