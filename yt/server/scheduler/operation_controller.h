@@ -73,7 +73,7 @@ struct IOperationHost
      */
     virtual IInvokerPtr GetBackgroundInvoker() = 0;
 
-    //! Returns the throttler to limit #LocateChunk requests from chunk scratcher.
+    //! Returns the throttler to limit #LocateChunk requests from chunk scraper.
     virtual NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() = 0;
 
     //! Returns the list of currently active exec nodes.
