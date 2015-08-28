@@ -1270,7 +1270,7 @@ private:
 
         Participate();
 
-        SystemLockGuard_ = TSystemLockGuard();
+        SystemLockGuard_.Release();
     }
 
     void CheckForInitialPing(TVersion version)
