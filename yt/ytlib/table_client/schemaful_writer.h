@@ -21,7 +21,7 @@ struct ISchemafulWriter
 {
     virtual TFuture<void> Open(
         const TTableSchema& schema,
-        const TNullable<TKeyColumns>& keyColumns = Null) = 0;
+        const TKeyColumns& keyColumns = TKeyColumns()) = 0;
 
     virtual TFuture<void> Close() = 0;
 

@@ -97,7 +97,7 @@ public:
     // ISchemafulWriter implementation.
     virtual TFuture<void> Open(
         const TTableSchema& schema,
-        const TNullable<TKeyColumns>& /*keyColumns*/) override
+        const TKeyColumns& /*keyColumns*/) override
     {
         Schema_ = schema;
         return VoidFuture;
