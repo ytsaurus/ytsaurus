@@ -628,7 +628,7 @@ class YTEnv(object):
 
         self.modify_proxy_config(proxy_config)
         update(proxy_config, self.DELTA_PROXY_CONFIG)
-        config_path = os.path.join(self.path_to_run, "proxy_config.json")
+        config_path = os.path.join(current, "proxy_config.json")
         _write_config(proxy_config, config_path, format="json")
 
         self.configs[proxy_name] = proxy_config
