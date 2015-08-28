@@ -58,8 +58,7 @@ public:
     {
         RegisterParameter("rpc_server", RpcServer)
             .DefaultNew();
-        RegisterParameter("cluster_connection", ClusterConnection)
-            .DefaultNew();
+        RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("supervisor_connection", SupervisorConnection);
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
