@@ -259,8 +259,6 @@ private:
     ui32 RegisterRevision(TTimestamp timestamp);
     void UpdateTimestampRange(TTimestamp commitTimestamp);
 
-    NTableClient::IVersionedReaderPtr CreateSnapshotReader();
-
     void OnMemoryUsageUpdated();
 
 };
