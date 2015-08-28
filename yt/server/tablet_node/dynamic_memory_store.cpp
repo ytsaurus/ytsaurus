@@ -1486,8 +1486,7 @@ EStoreType TDynamicMemoryStore::GetType() const
 
 void TDynamicMemoryStore::SetStoreState(EStoreState state)
 {
-    if (state == EStoreState::PassiveDynamic) {
-        YCHECK(StoreState_ == EStoreState::ActiveDynamic);
+    if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
         YCHECK(FlushRevision_ == InvalidRevision);
         FlushRevision_ = GetLatestRevision();
     }
@@ -1536,7 +1535,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
         std::move(lowerKey),
         std::move(upperKey),
         timestamp,
-        MaxRevision,
+        timestamp == AllCommittedTimestamp ? GetLatestRevision() : MaxRevision,
         columnFilter);
 }
 
@@ -1588,7 +1587,11 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 
 TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
 {
-    auto tableReader = CreateSnapshotReader();
+    auto tableReader = CreateReader(
+        MinKey(),
+        MaxKey(),
+        LastCommmittedTimestamp,
+        TColumnFilter());
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
         WaitFor(tableReader->Open())
@@ -1734,17 +1737,6 @@ void TDynamicMemoryStore::UpdateTimestampRange(TTimestamp commitTimestamp)
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
-}
-
-IVersionedReaderPtr TDynamicMemoryStore::CreateSnapshotReader()
-{
-    return New<TRangeReader>(
-        this,
-        MinKey(),
-        MaxKey(),
-        AllCommittedTimestamp,
-        GetLatestRevision(),
-        TColumnFilter());
 }
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
