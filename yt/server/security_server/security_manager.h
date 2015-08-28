@@ -208,7 +208,11 @@ public:
     void ValidateUserAccess(TUser* user);
 
     //! Increments per-user counters.
-    void ChargeUser(TUser* user, int requestCount, TDuration requestTime);
+    void ChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration readRequestTime,
+        TDuration writeRequestTime);
 
     //! Returns the current request rate from the user.
     double GetRequestRate(TUser* user);

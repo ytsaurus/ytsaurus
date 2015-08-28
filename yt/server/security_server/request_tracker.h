@@ -19,7 +19,7 @@ class TRequestTracker
     : public TRefCounted
 {
 public:
-    explicit TRequestTracker(
+    TRequestTracker(
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
@@ -29,7 +29,8 @@ public:
     void ChargeUser(
         TUser* user,
         int requestCount,
-        TDuration requestTime);
+        TDuration readRequestTime,
+        TDuration writeRequestTime);
 
 private:
     const TSecurityManagerConfigPtr Config_;

@@ -251,7 +251,7 @@ private:
 
                 // NB: Even if the user was just removed the instance is still valid but not alive.
                 if (IsObjectAlive(user)) {
-                    securityManager->ChargeUser(user, 1, syncTime);
+                    securityManager->ChargeUser(user, 1, syncTime, TDuration());
                 }
 
                 // Optimize for the (typical) case of synchronous response.

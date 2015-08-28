@@ -944,9 +944,17 @@ public:
         }
     }
 
-    void ChargeUser(TUser* user, int requestCount, TDuration requestTime)
+    void ChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration readRequestTime,
+        TDuration writeRequestTime)
     {
-        RequestTracker_->ChargeUser(user, requestCount, requestTime);
+        RequestTracker_->ChargeUser(
+            user,
+            requestCount,
+            readRequestTime,
+            writeRequestTime);
     }
 
     double GetRequestRate(TUser* user)
@@ -2023,9 +2031,13 @@ void TSecurityManager::ValidateUserAccess(TUser* user)
     Impl_->ValidateUserAccess(user);
 }
 
-void TSecurityManager::ChargeUser(TUser* user, int requestCount, TDuration requestTime)
+void TSecurityManager::ChargeUser(
+    TUser* user,
+    int requestCount,
+    TDuration readRequestTime,
+    TDuration writeRequestTime)
 {
-    Impl_->ChargeUser(user, requestCount, requestTime);
+    Impl_->ChargeUser(user, requestCount, readRequestTime, writeRequestTime);
 }
 
 double TSecurityManager::GetRequestRate(TUser* user)
