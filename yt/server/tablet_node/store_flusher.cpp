@@ -286,11 +286,7 @@ private:
         try {
             LOG_INFO("Store flush started");
 
-            auto reader = store->CreateReader(
-                MinKey(),
-                MaxKey(),
-                AllCommittedTimestamp,
-                TColumnFilter());
+            auto reader = store->CreateFlushReader();
         
             // NB: Memory store reader is always synchronous.
             YCHECK(reader->Open().Get().IsOK());

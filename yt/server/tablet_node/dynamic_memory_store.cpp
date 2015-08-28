@@ -50,9 +50,6 @@ static const int MaxEditListCapacity = 256;
 static const int TabletReaderPoolSize = 16 * 1024;
 static const int SnapshotRowsPerRead = 1024;
 
-static const ui32 UncommittedRevision = 0;
-static const ui32 MaxRevision = std::numeric_limits<ui32>::max();
-
 struct TDynamicMemoryStoreReaderPoolTag
 { };
 
@@ -582,6 +579,18 @@ TDynamicMemoryStore::TDynamicMemoryStore(
 TDynamicMemoryStore::~TDynamicMemoryStore()
 {
     LOG_DEBUG("Dynamic memory store destroyed");
+}
+
+IVersionedReaderPtr TDynamicMemoryStore::CreateFlushReader()
+{
+    YCHECK(StoreState_ == EStoreState::PassiveDynamic);
+    return New<TRangeReader>(
+        this,
+        MinKey(),
+        MaxKey(),
+        AllCommittedTimestamp,
+        FlushRevision_,
+        TColumnFilter());
 }
 
 const TDynamicRowKeyComparer& TDynamicMemoryStore::GetRowKeyComparer() const
@@ -1475,6 +1484,16 @@ EStoreType TDynamicMemoryStore::GetType() const
     return EStoreType::DynamicMemory;
 }
 
+void TDynamicMemoryStore::SetStoreState(EStoreState state)
+{
+    if (state == EStoreState::PassiveDynamic) {
+        YCHECK(StoreState_ == EStoreState::ActiveDynamic);
+        YCHECK(FlushRevision_ == InvalidRevision);
+        FlushRevision_ = GetLatestRevision();
+    }
+    TStoreBase::SetStoreState(state);
+}
+
 i64 TDynamicMemoryStore::GetUncompressedDataSize() const
 {
     return GetPoolCapacity();
@@ -1511,12 +1530,13 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    YCHECK(timestamp != AllCommittedTimestamp);
     return New<TRangeReader>(
         this,
         std::move(lowerKey),
         std::move(upperKey),
         timestamp,
-        timestamp == AllCommittedTimestamp ? GetLatestRevision() : MaxRevision,
+        MaxRevision,
         columnFilter);
 }
 
@@ -1525,7 +1545,6 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    // Lookup reader does not support snapshotting.
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TLookupReader>(
         this,
@@ -1552,6 +1571,7 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
     TStoreBase::Save(context);
 
     using NYT::Save;
+    Save(context, FlushRevision_);
     Save(context, MinTimestamp_);
     Save(context, MaxTimestamp_);
 }
@@ -1561,17 +1581,14 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
     TStoreBase::Load(context);
 
     using NYT::Load;
+    Load(context, FlushRevision_);
     Load(context, MinTimestamp_);
     Load(context, MaxTimestamp_);
 }
 
 TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
 {
-    auto tableReader = CreateReader(
-        MinKey(),
-        MaxKey(),
-        AllCommittedTimestamp,
-        TColumnFilter());
+    auto tableReader = CreateSnapshotReader();
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
         WaitFor(tableReader->Open())
@@ -1717,6 +1734,17 @@ void TDynamicMemoryStore::UpdateTimestampRange(TTimestamp commitTimestamp)
         MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
         MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
     }
+}
+
+IVersionedReaderPtr TDynamicMemoryStore::CreateSnapshotReader()
+{
+    return New<TRangeReader>(
+        this,
+        MinKey(),
+        MaxKey(),
+        AllCommittedTimestamp,
+        GetLatestRevision(),
+        TColumnFilter());
 }
 
 void TDynamicMemoryStore::OnMemoryUsageUpdated()
