@@ -158,8 +158,8 @@ private:
 
         if (key == "staged_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
-                    fluent.Item().Value(object->GetId());
+                .DoListFor(transaction->StagedObjectMap(), [=] (TFluentList fluent, const std::pair<TObjectBase*, const TTransaction::TStagedObjectData>& pair) {
+                    fluent.Item().Value(pair.first->GetId());
                 });
             return true;
         }
@@ -587,12 +587,16 @@ public:
         return transaction;
     }
 
-    void StageObject(TTransaction* transaction, TObjectBase* object)
+    void StageObject(TTransaction* transaction, TObjectBase* object, bool releaseOnCommmit)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        YCHECK(transaction->StagedObjects().insert(object).second);
+        YCHECK(transaction->StagedObjectMap().insert(
+            std::make_pair(
+                object,
+                TTransaction::TStagedObjectData{releaseOnCommmit}
+            )).second);
         objectManager->RefObject(object);
     }
 
@@ -607,7 +611,7 @@ public:
         handler->UnstageObject(object, recursive);
 
         if (transaction) {
-            YCHECK(transaction->StagedObjects().erase(object) == 1);
+            YCHECK(transaction->StagedObjectMap().erase(object) == 1);
             objectManager->UnrefObject(object);
         }
     }
@@ -774,12 +778,16 @@ private:
 
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        for (auto* object : transaction->StagedObjects()) {
+        for (const auto& pair : transaction->StagedObjectMap()) {
+            auto* object = pair.first;
+            const auto& data = pair.second;
             const auto& handler = objectManager->GetHandler(object);
             handler->UnstageObject(object, false);
-            objectManager->UnrefObject(object);
+            if (transaction->GetState() == ETransactionState::Aborted || data.ReleaseOnCommit) {
+                objectManager->UnrefObject(object);
+            }
         }
-        transaction->StagedObjects().clear();
+        transaction->StagedObjectMap().clear();
 
         for (auto* node : transaction->StagedNodes()) {
             objectManager->UnrefObject(node);
@@ -1044,9 +1052,10 @@ TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& t
 
 void TTransactionManager::StageObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    TObjectBase* object,
+    bool releaseOnCommit)
 {
-    Impl_->StageObject(transaction, object);
+    Impl_->StageObject(transaction, object, releaseOnCommit);
 }
 
 void TTransactionManager::UnstageObject(

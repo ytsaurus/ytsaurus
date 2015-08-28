@@ -38,7 +38,16 @@ public:
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
-    DEFINE_BYREF_RW_PROPERTY(yhash_set<NObjectServer::TObjectBase*>, StagedObjects);
+
+    struct TStagedObjectData
+    {
+        bool ReleaseOnCommit;
+
+        void Persist(NCellMaster::TPersistenceContext& context);
+    };
+
+    using TStagedObjectMap = yhash_map<NObjectServer::TObjectBase*, TStagedObjectData>;
+    DEFINE_BYREF_RW_PROPERTY(TStagedObjectMap, StagedObjectMap);
 
     // Cypress stuff
     typedef yhash_set<NCypressServer::TCypressNodeBase*> TLockedNodeSet;
