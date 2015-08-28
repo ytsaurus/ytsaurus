@@ -29,6 +29,7 @@
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_service.pb.h>
 #include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/journal_client/helpers.h>
@@ -97,7 +98,7 @@ class TChunkTreeBalancerCallbacks
     : public IChunkTreeBalancerCallbacks
 {
 public:
-    TChunkTreeBalancerCallbacks(NCellMaster::TBootstrap* bootstrap)
+    explicit TChunkTreeBalancerCallbacks(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -362,7 +363,9 @@ public:
         , AddedChunkReplicaCounter_("/added_chunk_replicas")
         , RemovedChunkReplicaCounter_("/removed_chunk_replicas")
     {
-        RegisterMethod(BIND(&TImpl::UpdateChunkProperties, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateChunkProperties, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this), nullptr, nullptr));
+        RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this), nullptr));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -412,14 +415,31 @@ public:
     }
 
 
-    TMutationPtr CreateUpdateChunkPropertiesMutation(
-        const NProto::TReqUpdateChunkProperties& request)
+    TMutationPtr CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             this,
-            &TImpl::UpdateChunkProperties);
+            &TImpl::HydraUpdateChunkProperties);
+    }
+
+    TMutationPtr CreateExportChunksMutation(TCtxExportChunksPtr context)
+    {
+        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
+                HydraExportChunks(context, &context->Response(), context->Request());
+            }));
+    }
+
+    TMutationPtr CreateImportChunksMutation(TCtxImportChunksPtr context)
+    {
+        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
+                HydraImportChunks(context, context->Request());
+            }));
     }
 
 
@@ -1103,7 +1123,7 @@ private:
     }
 
 
-    void UpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
+    void HydraUpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
     {
         for (const auto& update : request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
@@ -1132,6 +1152,67 @@ private:
                 ChunkReplicator_->ScheduleChunkRefresh(chunk);
             }
         }
+    }
+
+    void HydraExportChunks(
+        TCtxExportChunksPtr context,
+        TRspExportChunks* response,
+        const TReqExportChunks& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        for (const auto& protoChunkId : request.chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto* chunk = GetChunkOrThrow(chunkId);
+
+            transactionManager->StageObject(transaction, chunk, false);
+
+            if (response) {
+                auto* chunkData = response->add_chunks();
+                ToProto(chunkData->mutable_id(), chunkId);
+                chunkData->mutable_info()->CopyFrom(chunk->ChunkInfo());
+                chunkData->mutable_meta()->CopyFrom(chunk->ChunkMeta());
+            }
+        }
+
+        LOG_INFO("Chunks exported (TransactionId: %v, ChunkCount: %v)",
+            transactionId,
+            request.chunk_ids_size());
+    }
+
+    void HydraImportChunks(
+        TCtxImportChunksPtr context,
+        TReqImportChunks& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        for (auto& chunkData : *request.mutable_chunks()) {
+            auto chunkId = FromProto<TChunkId>(chunkData.id());
+            auto* chunk = ChunkMap_.Find(chunkId);
+            if (!chunk) {
+                auto chunkHolder = std::make_unique<TChunk>(chunkId);
+                chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
+                chunk->Confirm(chunkData.mutable_info(), chunkData.mutable_meta());
+            }
+
+            transactionManager->StageObject(transaction, chunk, true);
+        }
+
+        LOG_INFO("Chunks imported (TransactionId: %v, ChunkCount: %v)",
+            transactionId,
+            request.chunks_size());
     }
 
 
@@ -1733,6 +1814,18 @@ TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(
     const NProto::TReqUpdateChunkProperties& request)
 {
     return Impl_->CreateUpdateChunkPropertiesMutation(request);
+}
+
+TMutationPtr TChunkManager::CreateExportChunksMutation(
+    TCtxExportChunksPtr context)
+{
+    return Impl_->CreateExportChunksMutation(context);
+}
+
+TMutationPtr TChunkManager::CreateImportChunksMutation(
+    TCtxImportChunksPtr context)
+{
+    return Impl_->CreateImportChunksMutation(context);
 }
 
 TChunk* TChunkManager::CreateChunk(EObjectType type)
