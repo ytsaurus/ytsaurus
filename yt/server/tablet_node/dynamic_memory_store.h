@@ -61,12 +61,6 @@ public:
 
     ~TDynamicMemoryStore();
 
-    //! Returns the reader to be used during flush.
-    /*!
-     *  The reader returns all data that was present at the time the state was changed to passive.
-     */
-    NTableClient::IVersionedReaderPtr CreateFlushReader();
-
 
     //! Returns the cached instance of row key comparer
     //! (obtained by calling TTablet::GetRowKeyComparer).
@@ -148,8 +142,6 @@ public:
     // IStore implementation.
     virtual EStoreType GetType() const override;
 
-    virtual void SetStoreState(EStoreState state) override;
-
     virtual i64 GetUncompressedDataSize() const override;
     virtual i64 GetRowCount() const override;
 
@@ -191,8 +183,6 @@ private:
     class TLookupReader;
 
     const TTabletManagerConfigPtr Config_;
-
-    ui32 FlushRevision_ = InvalidRevision;
 
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;

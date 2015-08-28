@@ -581,18 +581,6 @@ TDynamicMemoryStore::~TDynamicMemoryStore()
     LOG_DEBUG("Dynamic memory store destroyed");
 }
 
-IVersionedReaderPtr TDynamicMemoryStore::CreateFlushReader()
-{
-    YCHECK(StoreState_ == EStoreState::PassiveDynamic);
-    return New<TRangeReader>(
-        this,
-        MinKey(),
-        MaxKey(),
-        AllCommittedTimestamp,
-        FlushRevision_,
-        TColumnFilter());
-}
-
 const TDynamicRowKeyComparer& TDynamicMemoryStore::GetRowKeyComparer() const
 {
     return RowKeyComparer_;
@@ -1484,15 +1472,6 @@ EStoreType TDynamicMemoryStore::GetType() const
     return EStoreType::DynamicMemory;
 }
 
-void TDynamicMemoryStore::SetStoreState(EStoreState state)
-{
-    if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
-        YCHECK(FlushRevision_ == InvalidRevision);
-        FlushRevision_ = GetLatestRevision();
-    }
-    TStoreBase::SetStoreState(state);
-}
-
 i64 TDynamicMemoryStore::GetUncompressedDataSize() const
 {
     return GetPoolCapacity();
@@ -1570,7 +1549,6 @@ void TDynamicMemoryStore::Save(TSaveContext& context) const
     TStoreBase::Save(context);
 
     using NYT::Save;
-    Save(context, FlushRevision_);
     Save(context, MinTimestamp_);
     Save(context, MaxTimestamp_);
 }
@@ -1580,7 +1558,6 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
     TStoreBase::Load(context);
 
     using NYT::Load;
-    Load(context, FlushRevision_);
     Load(context, MinTimestamp_);
     Load(context, MaxTimestamp_);
 }
