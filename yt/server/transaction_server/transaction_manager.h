@@ -58,7 +58,14 @@ public:
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId);
 
     //! Registers and references the object with the transaction.
-    void StageObject(TTransaction* transaction, NObjectServer::TObjectBase* object);
+    /*!
+     * The latter reference is always released when the transaction aborts.
+     * If the transaction commits it is released if #releaseOnCommit is |true|.
+     */
+    void StageObject(
+        TTransaction* transaction,
+        NObjectServer::TObjectBase* object,
+        bool releaseOnCommit);
 
     //! Unregisters the object from its staging transaction,
     //! calls IObjectTypeHandler::UnstageObject and
@@ -66,10 +73,14 @@ public:
     /*!
      *  If #recursive is |true| then all child objects are also released.
      */
-    void UnstageObject(NObjectServer::TObjectBase* object, bool recursive);
+    void UnstageObject(
+        NObjectServer::TObjectBase* object,
+        bool recursive);
 
     //! Registers (and references) the node with the transaction.
-    void StageNode(TTransaction* transaction, NCypressServer::TCypressNodeBase* trunkNode);
+    void StageNode(
+        TTransaction* transaction,
+        NCypressServer::TCypressNodeBase* trunkNode);
 
 private:
     class TImpl;
