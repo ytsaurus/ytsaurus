@@ -721,12 +721,13 @@ private:
         auto nodeId = request.node_id();
         const auto& statistics = request.statistics();
 
-        auto* node = FindNode(nodeId);
-        if (!IsObjectAlive(node))
-            return;
-
-        if (node->GetLocalState() != ENodeState::Registered)
-            return;
+        auto* node = GetNodeOrThrow(nodeId);
+        if (node->GetLocalState() != ENodeState::Registered) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Cannot process a full heartbeat in %Qlv state",
+                node->GetLocalState());
+        }
 
         PROFILE_TIMING ("/full_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
@@ -759,12 +760,13 @@ private:
         auto nodeId = request.node_id();
         const auto& statistics = request.statistics();
 
-        auto* node = FindNode(nodeId);
-        if (!IsObjectAlive(node))
-            return;
-
-        if (node->GetLocalState() != ENodeState::Online)
-            return;
+        auto* node = GetNodeOrThrow(nodeId);
+        if (node->GetLocalState() != ENodeState::Online) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Cannot process an incremental heartbeat in %Qlv state",
+                node->GetLocalState());
+        }
 
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
