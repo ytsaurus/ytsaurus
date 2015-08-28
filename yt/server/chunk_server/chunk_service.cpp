@@ -21,6 +21,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NHydra;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NNodeTrackerServer;
@@ -48,6 +49,8 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+
         context->SetRequestInfo("ChunkCount: %v",
             request->chunk_ids_size());
 
@@ -81,6 +84,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AllocateWriteTargets)
     {
+        ValidatePeer(EPeerKind::Leader);
+
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int desiredTargetCount = request->desired_target_count();
         int minTargetCount = request->min_target_count();
