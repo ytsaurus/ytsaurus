@@ -42,7 +42,7 @@ public:
 
     virtual TFuture<void> Open(
         const TTableSchema& schema,
-        const TNullable<TKeyColumns>& keyColumns) final override;
+        const TKeyColumns& keyColumns) final override;
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) final override;
 
@@ -148,13 +148,13 @@ TChunkWriter::TChunkWriter(
 
 TFuture<void> TChunkWriter::Open(
    const TTableSchema& schema,
-   const TNullable<TKeyColumns>& keyColumns)
+   const TKeyColumns& keyColumns)
 {
     auto nameTable = New<TNameTable>();
     for (int i = 0; i < schema.Columns().size(); ++i) {
         YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
     }
-    Open(nameTable, schema, *keyColumns);
+    Open(nameTable, schema, keyColumns);
     return VoidFuture;
 }
 

@@ -71,21 +71,6 @@ inline bool IsUserType(EObjectType type)
         type == EObjectType::Document;
 }
 
-inline bool IsMapLikeType(EObjectType type)
-{
-    return
-        type == EObjectType::MapNode ||
-        type == EObjectType::CellNode ||
-        type == EObjectType::CellNodeMap ||
-        type == EObjectType::TabletCellNode;
-}
-
-inline bool IsListLikeType(EObjectType type)
-{
-    return
-        type == EObjectType::ListNode;
-}
-
 inline EObjectType TypeFromId(const TObjectId& id)
 {
     return EObjectType(id.Parts32[1] & 0xffff);

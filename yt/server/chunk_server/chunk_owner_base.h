@@ -28,6 +28,8 @@ public:
 public:
     explicit TChunkOwnerBase(const NCypressServer::TVersionedNodeId& id);
 
+    virtual NYTree::ENodeType GetNodeType() const override;
+
     virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;

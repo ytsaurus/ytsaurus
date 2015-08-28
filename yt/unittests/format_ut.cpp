@@ -3,6 +3,8 @@
 
 #include <core/misc/format.h>
 
+#include <limits>
+
 namespace NYT {
 namespace {
 
@@ -40,6 +42,7 @@ TEST(TFormatTest, Strings)
     EXPECT_EQ("abc", Format("%-2s", Stroka("abc")));
     EXPECT_EQ("abc", Format("%0s", Stroka("abc")));
     EXPECT_EQ("abc", Format("%-0s", Stroka("abc")));
+    EXPECT_EQ(100, Format("%100v", "abc").size());
 }
 
 TEST(TFormatTest, Integers)
@@ -72,6 +75,8 @@ TEST(TFormatTest, Floats)
     EXPECT_EQ("3.14", Format("%.2v", 3.1415F));
     EXPECT_EQ("3.14", Format("%.2lf", 3.1415));
     EXPECT_EQ("3.14", Format("%.2v", 3.1415));
+    EXPECT_EQ(Stroka(std::to_string(std::numeric_limits<double>::max())),
+            Format("%lF", std::numeric_limits<double>::max()));
 }
 
 DEFINE_ENUM(EColor,

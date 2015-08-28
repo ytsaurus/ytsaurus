@@ -888,7 +888,7 @@ private:
         // If the input is sorted then the output chunk tree must also be marked as sorted.
         const auto& inputTable = InputTables[0];
         auto& outputTable = OutputTables[0];
-        if (inputTable.KeyColumns) {
+        if (!inputTable.KeyColumns.empty()) {
             outputTable.KeyColumns = inputTable.KeyColumns;
         }
     }
@@ -906,8 +906,8 @@ private:
         // If the input is sorted then the output must also be sorted.
         // To produce sorted output a job needs key columns.
         const auto& table = InputTables[0];
-        if (table.KeyColumns) {
-            ToProto(jobSpecExt->mutable_key_columns(), *table.KeyColumns);
+        if (!table.KeyColumns.empty()) {
+            ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns);
         }
     }
 
@@ -1036,7 +1036,7 @@ protected:
     int PartitionTag;
 
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
+    virtual TKeyColumns GetSpecKeyColumns() = 0;
 
     virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
@@ -1054,7 +1054,7 @@ protected:
 
         auto specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %v",
-            specKeyColumns ? ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
+            !specKeyColumns.empty() ? ConvertToYsonString(specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
         LOG_INFO("Adjusted key columns are %v",
@@ -1415,7 +1415,7 @@ private:
         table.LockMode = ELockMode::Exclusive;
     }
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
+    virtual TKeyColumns GetSpecKeyColumns() override
     {
         return Spec->MergeBy;
     }
@@ -1777,7 +1777,7 @@ private:
         return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
     }
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
+    virtual TKeyColumns GetSpecKeyColumns() override
     {
         return Spec->ReduceBy;
     }
@@ -1832,15 +1832,15 @@ private:
 
     TKeyColumns GetSortingKeyColumns()
     {
-        auto sortBy = InputTables[0].KeyColumns.Get();
+        auto sortBy = InputTables[0].KeyColumns;
         for (const auto& table : InputTables) {
-            if (table.KeyColumns->size() < sortBy.size()) {
-                sortBy.erase(sortBy.begin() + table.KeyColumns->size(), sortBy.end());
+            if (table.KeyColumns.size() < sortBy.size()) {
+                sortBy.erase(sortBy.begin() + table.KeyColumns.size(), sortBy.end());
             }
 
             int i = 0;
             for (; i < sortBy.size(); ++i) {
-                if (sortBy[i] != table.KeyColumns->at(i)) {
+                if (sortBy[i] != table.KeyColumns[i]) {
                     break;
                 }
             }
