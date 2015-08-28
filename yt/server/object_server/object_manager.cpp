@@ -1193,7 +1193,7 @@ void TObjectManager::HydraExecuteLeader(
         if (IsObjectAlive(user)) {
             // NB: Charge for zero requests here since we've already charged the user for one request
             // in TObjectService.
-            securityManager->ChargeUser(user, 0, timer.GetElapsed());
+            securityManager->ChargeUser(user, 0, TDuration(), timer.GetElapsed());
         }
     }
 
