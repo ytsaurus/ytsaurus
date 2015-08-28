@@ -14,6 +14,8 @@
 
 #include <server/object_server/object.h>
 
+#include <server/hydra/rpc_helpers.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/master_hydra_service.h>
@@ -27,6 +29,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NHydra;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,12 +41,15 @@ public:
         : TMasterHydraServiceBase(
             bootstrap,
             TChunkServiceProxy::GetServiceName(),
-            ChunkServerLogger)
+            ChunkServerLogger,
+            TChunkServiceProxy::GetProtocolVersion())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator)));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExportChunks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ImportChunks));
     }
 
 private:
@@ -142,6 +148,42 @@ private:
         context->SetResponseInfo("Targets: [%v]",
             JoinToString(targets, TNodePtrAddressFormatter()));
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ExportChunks)
+    {
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
+            transactionId,
+            request->chunk_ids_size());
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager
+            ->CreateExportChunksMutation(context)
+            ->Commit()
+            .Subscribe(CreateRpcResponseHandler(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ImportChunks)
+    {
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
+
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
+            transactionId,
+            request->chunks_size());
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager
+            ->CreateImportChunksMutation(context)
+            ->Commit()
+            .Subscribe(CreateRpcResponseHandler(context));
     }
 
 };
