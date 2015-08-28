@@ -117,14 +117,6 @@ private:
             node->GetDefaultAddress(),
             statistics);
 
-        if (node->GetLocalState() != ENodeState::Registered) {
-            context->Reply(TError(
-                NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a full heartbeat in %Qlv state",
-                node->GetLocalState()));
-            return;
-        }
-
         nodeTracker
             ->CreateFullHeartbeatMutation(context)
             ->Commit()
@@ -146,14 +138,6 @@ private:
             nodeId,
             node->GetDefaultAddress(),
             statistics);
-
-        if (node->GetLocalState() != ENodeState::Online) {
-            context->Reply(TError(
-                NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process an incremental heartbeat in %Qlv state",
-                node->GetLocalState()));
-            return;
-        }
 
         nodeTracker
             ->CreateIncrementalHeartbeatMutation(context)
