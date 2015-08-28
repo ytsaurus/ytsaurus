@@ -471,7 +471,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto partConfig = NYTree::CloneYsonSerializable(config);
     partConfig->UploadReplicationFactor = 1;
 
-    TChunkServiceProxy proxy(client->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower));
+    TChunkServiceProxy proxy(client->GetMasterChannel(NApi::EMasterChannelKind::Leader));
 
     auto req = proxy.AllocateWriteTargets();
     req->set_desired_target_count(codec->GetTotalPartCount());
