@@ -1590,7 +1590,7 @@ TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
     auto tableReader = CreateReader(
         MinKey(),
         MaxKey(),
-        LastCommmittedTimestamp,
+        AllCommittedTimestamp,
         TColumnFilter());
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
