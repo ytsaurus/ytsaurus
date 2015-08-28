@@ -147,6 +147,8 @@ protected:
 
     template <class TRequest, class TResponse>
     void RegisterMethod(TCallback<TResponse(const TRequest&)> callback);
+    template <class TRequest, class TResponse>
+    void RegisterMethod(TCallback<TResponse(TRequest&)> callback);
 
     bool IsLeader() const;
     bool IsFollower() const;

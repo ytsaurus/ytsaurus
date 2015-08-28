@@ -18,9 +18,8 @@ namespace NHydra {
 template <class TRequest, class TResponse>
 struct TMutationActionTraits
 {
-    static void Run(
-        TCallback<TResponse(const TRequest& request)> handler,
-        TMutationContext* context)
+    template <class TCallback>
+    static void Run(TCallback handler, TMutationContext* context)
     {
         TRequest request;
         DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
@@ -40,9 +39,8 @@ struct TMutationActionTraits
 template <class TRequest>
 struct TMutationActionTraits<TRequest, void>
 {
-    static void Run(
-        TCallback<void(const TRequest& request)> handler,
-        TMutationContext* context)
+    template <class TCallback>
+    static void Run(TCallback handler, TMutationContext* context)
     {
         TRequest request;
         DeserializeFromProtoWithEnvelope(&request, context->Request().Data);
