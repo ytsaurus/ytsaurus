@@ -101,40 +101,36 @@ public:
     }
 
 
-    void PostToSecondaryMaster(
+    void PostToMaster(
         IClientRequestPtr request,
         TCellTag cellTag,
         bool reliable)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
-        PostToSecondaryMaster(request->Serialize(), cellTag, reliable);
+        PostToMaster(request->Serialize(), cellTag, reliable);
     }
 
-    void PostToSecondaryMaster(
+    void PostToMaster(
         const TObjectId& objectId,
         IServiceContextPtr context,
         TCellTag cellTag,
         bool reliable)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
-        PostToSecondaryMaster(ReplicateTarget(objectId, context), cellTag, reliable);
+        PostToMaster(ReplicateTarget(objectId, context), cellTag, reliable);
     }
 
-    void PostToSecondaryMaster(
+    void PostToMaster(
         const ::google::protobuf::MessageLite& requestMessage,
         TCellTag cellTag,
         bool reliable)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
         DoPostMessage(requestMessage, cellTag, reliable);
     }
 
-    void PostToSecondaryMaster(
+    void PostToMaster(
         TSharedRefArray requestMessage,
         TCellTag cellTag,
         bool reliable)
     {
-        YCHECK(Bootstrap_->IsPrimaryMaster());
         NObjectServer::NProto::TReqExecute wrappedRequest;
         WrapRequest(&wrappedRequest, requestMessage);
         DoPostMessage(wrappedRequest, cellTag, reliable);
@@ -537,37 +533,37 @@ void TMulticellManager::PostToPrimaryMaster(
     Impl_->PostToPrimaryMaster(std::move(requestMessage), reliable);
 }
 
-void TMulticellManager::PostToSecondaryMaster(
+void TMulticellManager::PostToMaster(
     IClientRequestPtr request,
     TCellTag cellTag,
     bool reliable)
 {
-    Impl_->PostToSecondaryMaster(std::move(request), cellTag, reliable);
+    Impl_->PostToMaster(std::move(request), cellTag, reliable);
 }
 
-void TMulticellManager::PostToSecondaryMaster(
+void TMulticellManager::PostToMaster(
     const TObjectId& objectId,
     IServiceContextPtr context,
     TCellTag cellTag,
     bool reliable)
 {
-    Impl_->PostToSecondaryMaster(objectId, std::move(context), cellTag, reliable);
+    Impl_->PostToMaster(objectId, std::move(context), cellTag, reliable);
 }
 
-void TMulticellManager::PostToSecondaryMaster(
+void TMulticellManager::PostToMaster(
     const ::google::protobuf::MessageLite& requestMessage,
     TCellTag cellTag,
     bool reliable)
 {
-    Impl_->PostToSecondaryMaster(requestMessage, cellTag, reliable);
+    Impl_->PostToMaster(requestMessage, cellTag, reliable);
 }
 
-void TMulticellManager::PostToSecondaryMaster(
+void TMulticellManager::PostToMaster(
     TSharedRefArray requestMessage,
     TCellTag cellTag,
     bool reliable)
 {
-    Impl_->PostToSecondaryMaster(std::move(requestMessage), cellTag, reliable);
+    Impl_->PostToMaster(std::move(requestMessage), cellTag, reliable);
 }
 
 void TMulticellManager::PostToSecondaryMasters(

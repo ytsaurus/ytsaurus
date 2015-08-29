@@ -846,7 +846,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 
     const auto* node = GetThisImpl();
     if (node->IsExternal()) {
-        PostToSecondaryMaster(context, node->GetExternalCellTag());
+        PostToMaster(context, node->GetExternalCellTag());
     }
 }
 

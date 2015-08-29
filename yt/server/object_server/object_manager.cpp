@@ -426,6 +426,7 @@ TObjectManager::TObjectManager(
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraCreateForeignObject, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraUnrefExportedObjects, Unretained(this)));
 
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
 }
@@ -618,7 +619,7 @@ int TObjectManager::UnrefObject(TObjectBase* object)
                 NProto::TReqRemoveForeignObject request;
                 ToProto(request.mutable_object_id(), object->GetId());
                 auto multicellManager = Bootstrap_->GetMulticellManager();
-                multicellManager->PostToSecondaryMaster(request, replicationCellTag);
+                multicellManager->PostToMaster(request, replicationCellTag);
             }
         }
     }
@@ -1157,7 +1158,7 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     handler->PopulateObjectReplicationRequest(object, &request);
 
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToSecondaryMaster(request, cellTag);
+    multicellManager->PostToMaster(request, cellTag);
 }
 
 void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
@@ -1168,7 +1169,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     req->set_value(ConvertToYsonString(GetReplicatedAttributes(object)->ToMap()).Data());
 
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToSecondaryMaster(req, cellTag);
+    multicellManager->PostToMaster(req, cellTag);
 }
 
 void TObjectManager::HydraExecuteLeader(
@@ -1229,11 +1230,20 @@ void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
 
 void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)
 {
+    // NB: Ordered map is a must to make the behavior deterministic.
+    std::map<TCellTag, NProto::TReqUnrefExportedObjects> unrefRequestMap;
+
     for (const auto& protoId : request.object_ids()) {
         auto id = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
+
         const auto& handler = GetHandler(type);
         auto* object = handler->GetObject(id);
+
+        if (handler->IsObjectImported(object)) {
+            auto& request = unrefRequestMap[CellTagFromId(id)];
+            ToProto(request.add_object_ids(), id);
+        }
 
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
         // CheckEmpty will raise CollectPromise_ when GC queue becomes empty.
@@ -1247,10 +1257,20 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
             id);
     }
 
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    for (const auto& pair : unrefRequestMap) {
+        auto cellTag = pair.first;
+        const auto& request = pair.second;
+        multicellManager->PostToMaster(request, cellTag);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
+            cellTag,
+            request.object_ids_size());
+    }
+
     GarbageCollector_->CheckEmpty();
 }
 
-void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) throw()
+void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) noexcept
 {
     auto objectId = FromProto<TObjectId>(request.object_id());
     auto transactionId = request.has_transaction_id()
@@ -1290,7 +1310,7 @@ void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObj
         request.extensions());
 }
 
-void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) throw()
+void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) noexcept
 {
     auto objectId = FromProto<TObjectId>(request.object_id());
 
@@ -1304,6 +1324,20 @@ void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObj
         LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
             objectId);
     }
+}
+
+void TObjectManager::HydraUnrefExportedObjects(const NProto::TReqUnrefExportedObjects& request) noexcept
+{
+    for (const auto& protoObjectId : request.object_ids()) {
+        auto objectId = FromProto<TObjectId>(protoObjectId);
+        auto* object = FindObject(objectId);
+        if (object) {
+            UnrefObject(object);
+        }
+    }
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (Count: %v)",
+        request.object_ids_size());
 }
 
 const NProfiling::TProfiler& TObjectManager::GetProfiler()
@@ -1338,7 +1372,7 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
 }
 
-std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(TObjectBase  * object)
+std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(TObjectBase* object)
 {
     YCHECK(!IsVersionedType(object->GetType()));
 

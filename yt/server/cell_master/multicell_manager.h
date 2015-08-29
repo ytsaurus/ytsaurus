@@ -36,20 +36,20 @@ public:
         TSharedRefArray requestMessage,
         bool reliable = true);
 
-    void PostToSecondaryMaster(
+    void PostToMaster(
         NRpc::IClientRequestPtr request,
         NObjectClient::TCellTag cellTag,
         bool reliable = true);
-    void PostToSecondaryMaster(
+    void PostToMaster(
         const NObjectClient::TObjectId& objectId,
         NRpc::IServiceContextPtr context,
         NObjectClient::TCellTag cellTag,
         bool reliable = true);
-    void PostToSecondaryMaster(
+    void PostToMaster(
         const ::google::protobuf::MessageLite& requestMessage,
         NObjectClient::TCellTag cellTag,
         bool reliable = true);
-    void PostToSecondaryMaster(
+    void PostToMaster(
         TSharedRefArray requestMessage,
         NObjectClient::TCellTag cellTag,
         bool reliable = true);

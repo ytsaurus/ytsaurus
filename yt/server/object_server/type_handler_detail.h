@@ -36,6 +36,11 @@ public:
         return NObjectClient::NotReplicatedCellTag;
     }
 
+    virtual bool IsObjectImported(TObjectBase* /*object*/) override
+    {
+        return false;
+    }
+
     virtual Stroka GetName(TObjectBase* object) override
     {
         return DoGetName(static_cast<TObject*>(object));

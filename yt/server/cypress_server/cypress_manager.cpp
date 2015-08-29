@@ -267,7 +267,7 @@ public:
             replicationRequest.set_type(static_cast<int>(type));
             ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
             ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
-            multicellManager->PostToSecondaryMaster(replicationRequest, externalCellTag);
+            multicellManager->PostToMaster(replicationRequest, externalCellTag);
         }
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
@@ -315,7 +315,7 @@ public:
             ToProto(protoRequest.mutable_account_id(), clonedNode->GetAccount()->GetId());
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMaster(protoRequest, sourceNode->GetExternalCellTag());
+            multicellManager->PostToMaster(protoRequest, sourceNode->GetExternalCellTag());
         }
 
         return clonedTrunkNode;

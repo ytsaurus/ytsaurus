@@ -886,7 +886,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         SetTransactionId(replicationRequest, GetObjectId(GetTransaction()));
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToSecondaryMaster(replicationRequest, node->GetExternalCellTag());
+        multicellManager->PostToMaster(replicationRequest, node->GetExternalCellTag());
     }
 
     context->Reply();
@@ -940,7 +940,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     YCHECK(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
-        PostToSecondaryMaster(context, node->GetExternalCellTag());
+        PostToMaster(context, node->GetExternalCellTag());
     }
 
     node->EndUpload(statistics, keyColumns);

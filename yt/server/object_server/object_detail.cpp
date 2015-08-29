@@ -418,7 +418,7 @@ void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
     if (replicationCellTag == NotReplicatedCellTag)
         return;
     
-    PostToSecondaryMaster(context, replicationCellTag);
+    PostToMaster(context, replicationCellTag);
 }
 
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
@@ -683,10 +683,10 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
         std::move(context));
 }
 
-void TObjectProxyBase::PostToSecondaryMaster(IServiceContextPtr context, TCellTag cellTag)
+void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag)
 {
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->PostToSecondaryMaster(
+    multicellManager->PostToMaster(
         Object_->GetId(),
         std::move(context),
         cellTag);
