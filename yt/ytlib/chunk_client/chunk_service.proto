@@ -69,6 +69,7 @@ message TChunkTeleportData
     required NYT.NProto.TGuid id = 1;
     required NYT.NChunkClient.NProto.TChunkInfo info = 2;
     required NYT.NChunkClient.NProto.TChunkMeta meta = 3;
+    required int32 erasure_codec = 4; // NErasure::ECodec
 }
 
 message TRspExportChunks
