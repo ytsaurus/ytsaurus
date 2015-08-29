@@ -15,7 +15,7 @@ class TSnapshotDownloader
     : public TRefCounted
 {
 public:
-    explicit TSnapshotDownloader(
+    TSnapshotDownloader(
         TSchedulerConfigPtr config,
         NCellScheduler::TBootstrap* bootstrap,
         TOperationPtr operation);
@@ -23,13 +23,15 @@ public:
     void Run();
 
 private:
-    TSchedulerConfigPtr Config;
-    NCellScheduler::TBootstrap* Bootstrap;
-    TOperationPtr Operation;
+    const TSchedulerConfigPtr Config_;
+    NCellScheduler::TBootstrap* const Bootstrap_;
+    const TOperationPtr Operation_;
 
     NLogging::TLogger Logger;
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotDownloader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
