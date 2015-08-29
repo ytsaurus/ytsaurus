@@ -78,24 +78,36 @@ private:
 
         bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
 
-        descriptors->push_back("cached_replicas");
-        descriptors->push_back("stored_replicas");
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto isForeign = objectManager->IsForeign(chunk);
+
+        descriptors->push_back(TAttributeDescriptor("cached_replicas")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("stored_replicas")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("movable")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("vital")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("overreplicated")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("underreplicated")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("lost")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("data_missing")
+            .SetPresent(chunk->IsErasure() && !isForeign));
+        descriptors->push_back(TAttributeDescriptor("parity_missing")
+            .SetPresent(chunk->IsErasure() && !isForeign));
+        descriptors->push_back(TAttributeDescriptor("unsafely_placed")
+            .SetPresent(!isForeign));
+        descriptors->push_back(TAttributeDescriptor("available")
+            .SetPresent(!isForeign));
+        descriptors->push_back("confirmed");
         descriptors->push_back(TAttributeDescriptor("replication_factor")
             .SetPresent(!chunk->IsErasure()));
         descriptors->push_back(TAttributeDescriptor("erasure_codec")
             .SetPresent(chunk->IsErasure()));
-        descriptors->push_back("movable");
-        descriptors->push_back("vital");
-        descriptors->push_back("overreplicated");
-        descriptors->push_back("underreplicated");
-        descriptors->push_back("lost");
-        descriptors->push_back(TAttributeDescriptor("data_missing")
-            .SetPresent(chunk->IsErasure()));
-        descriptors->push_back(TAttributeDescriptor("parity_missing")
-            .SetPresent(chunk->IsErasure()));
-        descriptors->push_back("unsafely_placed");
-        descriptors->push_back("confirmed");
-        descriptors->push_back("available");
         descriptors->push_back("master_meta_size");
         descriptors->push_back(TAttributeDescriptor("owning_nodes")
             .SetOpaque(true));
@@ -152,6 +164,9 @@ private:
         auto* chunk = GetThisTypedImpl();
         auto status = chunkManager->ComputeChunkStatus(chunk);
 
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto isForeign = objectManager->IsForeign(chunk);
+
         typedef std::function<void(TFluentList fluent, TNodePtrWithIndex replica)> TReplicaSerializer;
 
         auto serializeRegularReplica = [] (TFluentList fluent, TNodePtrWithIndex replica) {
@@ -195,19 +210,75 @@ private:
                 .DoListFor(replicas, serializeReplica);
         };
 
-        if (key == "cached_replicas") {
-            TNodePtrWithIndexList replicas;
-            if (chunk->CachedReplicas()) {
-                replicas = TNodePtrWithIndexList(chunk->CachedReplicas()->begin(), chunk->CachedReplicas()->end());
+        if (!isForeign) {
+            if (key == "cached_replicas") {
+                TNodePtrWithIndexList replicas;
+                if (chunk->CachedReplicas()) {
+                    replicas = TNodePtrWithIndexList(chunk->CachedReplicas()->begin(), chunk->CachedReplicas()->end());
+                }
+                serializeReplicas(consumer, replicas);
+                return true;
             }
-            serializeReplicas(consumer, replicas);
-            return true;
-        }
 
-        if (key == "stored_replicas") {
-            auto replicas = chunk->StoredReplicas();
-            serializeReplicas(consumer, replicas);
-            return true;
+            if (key == "stored_replicas") {
+                auto replicas = chunk->StoredReplicas();
+                serializeReplicas(consumer, replicas);
+                return true;
+            }
+
+            if (key == "movable") {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetMovable());
+                return true;
+            }
+
+            if (key == "vital") {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetVital());
+                return true;
+            }
+
+            if (key == "underreplicated") {
+                BuildYsonFluently(consumer)
+                    .Value(Any(status & EChunkStatus::Underreplicated));
+                return true;
+            }
+
+            if (key == "overreplicated") {
+                BuildYsonFluently(consumer)
+                    .Value(Any(status & EChunkStatus::Overreplicated));
+                return true;
+            }
+
+            if (key == "lost") {
+                BuildYsonFluently(consumer)
+                    .Value(Any(status & EChunkStatus::Lost));
+                return true;
+            }
+
+            if (key == "data_missing") {
+                BuildYsonFluently(consumer)
+                    .Value(Any(status & EChunkStatus::DataMissing));
+                return true;
+            }
+
+            if (key == "parity_missing") {
+                BuildYsonFluently(consumer)
+                    .Value(Any(status & EChunkStatus::ParityMissing));
+                return true;
+            }
+
+            if (key == "unsafely_placed") {
+                BuildYsonFluently(consumer)
+                    .Value(Any(status & EChunkStatus::UnsafelyPlaced));
+                return true;
+            }
+
+            if (key == "available") {
+                BuildYsonFluently(consumer)
+                    .Value(chunk->IsAvailable());
+                return true;
+            }
         }
 
         if (chunk->IsErasure()) {
@@ -224,63 +295,9 @@ private:
             }
         }
 
-        if (key == "movable") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->GetMovable());
-            return true;
-        }
-
-        if (key == "vital") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->GetVital());
-            return true;
-        }
-
-        if (key == "underreplicated") {
-            BuildYsonFluently(consumer)
-                .Value(Any(status & EChunkStatus::Underreplicated));
-            return true;
-        }
-
-        if (key == "overreplicated") {
-            BuildYsonFluently(consumer)
-                .Value(Any(status & EChunkStatus::Overreplicated));
-            return true;
-        }
-
-        if (key == "lost") {
-            BuildYsonFluently(consumer)
-                .Value(Any(status & EChunkStatus::Lost));
-            return true;
-        }
-
-        if (key == "data_missing") {
-            BuildYsonFluently(consumer)
-                .Value(Any(status & EChunkStatus::DataMissing));
-            return true;
-        }
-
-        if (key == "parity_missing") {
-            BuildYsonFluently(consumer)
-                .Value(Any(status & EChunkStatus::ParityMissing));
-            return true;
-        }
-
-        if (key == "unsafely_placed") {
-            BuildYsonFluently(consumer)
-                .Value(Any(status & EChunkStatus::UnsafelyPlaced));
-            return true;
-        }
-
         if (key == "confirmed") {
             BuildYsonFluently(consumer)
                 .Value(chunk->IsConfirmed());
-            return true;
-        }
-
-        if (key == "available") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->IsAvailable());
             return true;
         }
 
