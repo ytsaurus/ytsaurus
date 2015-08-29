@@ -6,6 +6,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
@@ -153,7 +154,7 @@ void TSchemalessTableReader::DoOpen()
 
     LOG_INFO("Opening table reader");
 
-    auto cellTag = InvalidCellTag;
+    auto tableCellTag = InvalidCellTag;
     TObjectId objectId;
 
     {
@@ -174,11 +175,11 @@ void TSchemalessTableReader::DoOpen()
         const auto& rsp = rspOrError.Value();
 
         objectId = FromProto<TObjectId>(rsp->object_id());
-        cellTag = rsp->cell_tag();
+        tableCellTag = rsp->cell_tag();
 
         LOG_INFO("Basic attributes received (ObjectId: %v, CellTag: %v)",
             objectId,
-            cellTag);
+            tableCellTag);
     }
 
     auto objectIdPath = FromObjectId(objectId);
@@ -193,10 +194,13 @@ void TSchemalessTableReader::DoOpen()
         }
     }
 
+    auto nodeDirectory = New<TNodeDirectory>();
+    std::vector<TChunkSpec> chunkSpecs;
+
     {
         LOG_INFO("Fetching table chunks");
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, tableCellTag);
         TObjectServiceProxy proxy(channel);
 
         auto req = TTableYPathProxy::Fetch(objectIdPath);
@@ -208,24 +212,80 @@ void TSchemalessTableReader::DoOpen()
         auto rspOrError = WaitFor(proxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for table %v",
             path);
-
         const auto& rsp = rspOrError.Value();
 
-        auto nodeDirectory = New<TNodeDirectory>();
         nodeDirectory->MergeFrom(rsp->node_directory());
 
-        std::vector<TChunkSpec> chunkSpecs;
-        for (const auto& chunkSpec : rsp->chunks()) {
-            if (IsUnavailable(chunkSpec)) {
-                if (!Config_->IgnoreUnavailableChunks) {
-                    THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
-                        NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
+        for (auto& chunkSpec : *rsp->mutable_chunks()) {
+            chunkSpecs.push_back(TChunkSpec());
+            chunkSpecs.back().Swap(&chunkSpec);
+        }
+    }
+
+    yhash_map<TCellTag, std::vector<TChunkSpec*>> foreignChunkMap;
+    for (auto& chunkSpec : chunkSpecs) {
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto chunkCellTag = CellTagFromId(chunkId);
+        if (chunkCellTag != tableCellTag) {
+            foreignChunkMap[chunkCellTag].push_back(&chunkSpec);
+        }
+    }
+
+    for (const auto& pair : foreignChunkMap) {
+        auto cellTag = pair.first;
+        auto& chunkSpecs = pair.second;
+
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+        TChunkServiceProxy proxy(channel);
+
+        for (int beginIndex = 0; beginIndex < chunkSpecs.size(); beginIndex += Config_->MaxChunksPerLocateRequest) {
+            int endIndex = std::min(
+                beginIndex + Config_->MaxChunksPerLocateRequest,
+                static_cast<int>(chunkSpecs.size()));
+
+            auto req = proxy.LocateChunks();
+            for (int index = beginIndex; index < endIndex; ++index) {
+                req->add_chunk_ids()->CopyFrom(chunkSpecs[index]->chunk_id());
+            }
+
+            LOG_INFO("Locating foreign chunks (CellTag: %v, ChunkCount: %v)",
+                cellTag,
+                req->chunk_ids_size());
+
+            auto rspOrError = WaitFor(req->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locating foreign chunks at cell %v",
+                cellTag);
+            const auto& rsp = rspOrError.Value();
+
+            nodeDirectory->MergeFrom(rsp->node_directory());
+
+            for (int index = beginIndex; index < endIndex; ++index) {
+                int rspIndex = index - beginIndex;
+                auto expectedChunkId = FromProto<TChunkId>(chunkSpecs[index]->chunk_id());
+                auto actualChunkId = rspIndex < rsp->chunks_size()
+                    ? FromProto<TChunkId>(rsp->chunks(rspIndex).chunk_id())
+                    : NullChunkId;
+                if (expectedChunkId != actualChunkId) {
+                    THROW_ERROR_EXCEPTION(
+                        NChunkClient::EErrorCode::NoSuchChunk,
+                        "No such chunk %v",
+                        expectedChunkId);
                 }
-            } else {
-                chunkSpecs.push_back(chunkSpec);
+                chunkSpecs[index]->mutable_replicas()->Swap(rsp->mutable_chunks(rspIndex)->mutable_replicas());
             }
         }
+    }
 
+    if (!Config_->IgnoreUnavailableChunks) {
+        for (const auto& chunkSpec : chunkSpecs) {
+            if (IsUnavailable(chunkSpec)) {
+                THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
+                    NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
+            }
+        }
+    }
+
+    {
         auto factory = Unordered_
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
@@ -240,10 +300,9 @@ void TSchemalessTableReader::DoOpen()
             TColumnFilter(),
             TKeyColumns(),
             Throttler_);
+        WaitFor(UnderlyingReader_->Open())
+            .ThrowOnError();
     }
-
-    WaitFor(UnderlyingReader_->Open())
-        .ThrowOnError();
 
     if (Transaction_) {
         ListenTransaction(Transaction_);
