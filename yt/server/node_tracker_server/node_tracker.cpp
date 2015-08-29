@@ -1178,7 +1178,7 @@ private:
         }
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToPrimaryMaster(request, false);
+        multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }
 
 

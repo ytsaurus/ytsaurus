@@ -74,33 +74,6 @@ public:
     }
 
 
-    void PostToPrimaryMaster(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable = true)
-    {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
-        DoPostMessage(requestMessage, PrimaryMasterCellTag, reliable);
-    }
-
-    void PostToPrimaryMaster(
-        IClientRequestPtr request,
-        bool reliable = true)
-    {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
-        PostToPrimaryMaster(request->Serialize(), reliable);
-    }
-
-    void PostToPrimaryMaster(
-        TSharedRefArray requestMessage,
-        bool reliable = true)
-    {
-        YCHECK(Bootstrap_->IsSecondaryMaster());
-        NObjectServer::NProto::TReqExecute wrappedRequest;
-        WrapRequest(&wrappedRequest, requestMessage);
-        DoPostMessage(wrappedRequest, PrimaryMasterCellTag, reliable);
-    }
-
-
     void PostToMaster(
         IClientRequestPtr request,
         TCellTag cellTag,
@@ -341,7 +314,7 @@ private:
 
         NProto::TReqRegisterSecondaryMaster request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
-        PostToPrimaryMaster(request);
+        PostToMaster(request, PrimaryMasterCellTag, true);
     }
 
     void HydraSetCellStatistics(const NProto::TReqSetCellStatistics& request)
@@ -440,7 +413,7 @@ private:
         auto chunkManager = Bootstrap_->GetChunkManager();
         statistics->set_chunk_count(chunkManager->Chunks().GetSize());
 
-        PostToPrimaryMaster(request, false);
+        PostToMaster(request, PrimaryMasterCellTag, false);
     }
 
 
@@ -511,27 +484,6 @@ TMulticellManager::TMulticellManager(
 
 TMulticellManager::~TMulticellManager()
 { }
-
-void TMulticellManager::PostToPrimaryMaster(
-    const ::google::protobuf::MessageLite& requestMessage,
-    bool reliable)
-{
-    Impl_->PostToPrimaryMaster(requestMessage, reliable);
-}
-
-void TMulticellManager::PostToPrimaryMaster(
-    IClientRequestPtr request,
-    bool reliable)
-{
-    Impl_->PostToPrimaryMaster(std::move(request), reliable);
-}
-
-void TMulticellManager::PostToPrimaryMaster(
-    TSharedRefArray requestMessage,
-    bool reliable)
-{
-    Impl_->PostToPrimaryMaster(std::move(requestMessage), reliable);
-}
 
 void TMulticellManager::PostToMaster(
     IClientRequestPtr request,

@@ -26,16 +26,6 @@ public:
         TBootstrap* bootstrap);
     ~TMulticellManager();
 
-    void PostToPrimaryMaster(
-        const ::google::protobuf::MessageLite& requestMessage,
-        bool reliable = true);
-    void PostToPrimaryMaster(
-        NRpc::IClientRequestPtr request,
-        bool reliable = true);
-    void PostToPrimaryMaster(
-        TSharedRefArray requestMessage,
-        bool reliable = true);
-
     void PostToMaster(
         NRpc::IClientRequestPtr request,
         NObjectClient::TCellTag cellTag,
