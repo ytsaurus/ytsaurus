@@ -244,7 +244,7 @@ public:
 
     virtual TFuture<void> Open(
         const TTableSchema& schema,
-        const TNullable<TKeyColumns>& /*keyColumns*/) override
+        const TKeyColumns& /*keyColumns*/) override
     {
         Writer_->WriteTableSchema(schema);
         return VoidFuture;

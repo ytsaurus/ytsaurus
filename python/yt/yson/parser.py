@@ -263,10 +263,6 @@ class YsonParserBase(object):
             if self._peek_char() == '}':
                 break
             key = self._read_string()
-            if not key:
-                raise YsonParseError(
-                    "Empty map item name in Yson",
-                    self._get_position_info())
             self._skip_whitespaces()
             self._expect_char('=')
             value = self._parse_any()

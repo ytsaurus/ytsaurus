@@ -66,7 +66,7 @@ class TestQuery(YTEnvSetup):
         write_table("<sorted_by=[a; b]>" + path, data)
         with pytest.raises(YtError):
             result = select_rows("a, b from [{0}] where b=b".format(path), verbose=False)
-            print result
+            print >>sys.stderr, result
 
     def test_project1(self):
         self._sample_data(path="//tmp/t")

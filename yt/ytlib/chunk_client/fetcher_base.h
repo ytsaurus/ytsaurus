@@ -4,6 +4,7 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
+#include <core/misc/guid.h>
 #include <core/misc/error.h>
 
 #include <core/rpc/public.h>
@@ -15,6 +16,18 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef TCallback<TFuture<void>(yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)> TScrapeChunksCallback;
+
+TScrapeChunksCallback CreateScrapeChunksSessionCallback(
+    const TChunkScraperConfigPtr config,
+    const IInvokerPtr invoker,
+    const NConcurrency::IThroughputThrottlerPtr throttler,
+    NRpc::IChannelPtr masterChannel,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFetcherBase
     : public TRefCounted
 {
@@ -23,6 +36,7 @@ public:
         TFetcherConfigPtr config,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
+        TScrapeChunksCallback scraperCallback,
         const NLogging::TLogger& logger);
 
     virtual void AddChunk(TRefCountedChunkSpecPtr chunk);
@@ -35,7 +49,7 @@ protected:
 
     //! All chunks for which info is to be fetched.
     std::vector<TRefCountedChunkSpecPtr> Chunks_;
-
+    TScrapeChunksCallback ScraperCallback_;
     NLogging::TLogger Logger;
 
 
@@ -69,7 +83,7 @@ private:
 
 
     void OnFetchingRoundCompleted(const TError& error);
-
+    void OnChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

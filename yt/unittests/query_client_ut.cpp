@@ -2081,7 +2081,7 @@ class TWriterMock
     : public ISchemafulWriter
 {
 public:
-    MOCK_METHOD2(Open, TFuture<void>(const TTableSchema&, const TNullable<TKeyColumns>&));
+    MOCK_METHOD2(Open, TFuture<void>(const TTableSchema&, const TKeyColumns&));
     MOCK_METHOD0(Close, TFuture<void>());
     MOCK_METHOD1(Write, bool(const std::vector<TUnversionedRow>&));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());

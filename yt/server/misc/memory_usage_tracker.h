@@ -77,7 +77,8 @@ public:
     static TMemoryUsageTrackerGuard Acquire(TMemoryUsageTracker<ECategory>* tracker, ECategory category, i64 size);
     static TErrorOr<TMemoryUsageTrackerGuard> TryAcquire(TMemoryUsageTracker<ECategory>* tracker, ECategory category, i64 size);
 
-    friend void swap(TMemoryUsageTrackerGuard<ECategory>& lhs, TMemoryUsageTrackerGuard<ECategory>& rhs);
+    template <class T>
+    friend void swap(TMemoryUsageTrackerGuard<T>& lhs, TMemoryUsageTrackerGuard<T>& rhs);
 
     void Release();
 

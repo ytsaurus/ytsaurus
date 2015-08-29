@@ -198,7 +198,7 @@ protected:
         // Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
-        TNullable< std::vector<Stroka> > KeyColumns;
+        NTableClient::TKeyColumns KeyColumns;
 
         void Persist(TPersistenceContext& context);
     };
@@ -225,7 +225,7 @@ protected:
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
         NTableClient::TTableWriterOptionsPtr Options =
             New<NTableClient::TTableWriterOptions>();
-        TNullable<NTableClient::TKeyColumns> KeyColumns;
+        NTableClient::TKeyColumns KeyColumns;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
@@ -476,7 +476,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            TNullable<NTableClient::TKeyColumns> keyColumns);
+            NTableClient::TKeyColumns keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -586,7 +586,7 @@ protected:
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();
     void InitChunkListPool();
-    void InitInputChunkScratcher();
+    void InitInputChunkScraper();
     void SuspendUnavailableInputStripes();
     void InitQuerySpec(
         NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
@@ -669,8 +669,13 @@ protected:
 
     };
 
+    //! Callback called by TChunkScraper when get information on some chunk.
+    void OnInputChunkLocated(
+        const NChunkClient::TChunkId& chunkId,
+        const NChunkClient::TChunkReplicaList& replicas);
+
     //! Called when a job is unable to read an input chunk or
-    //! chunk scratcher has encountered unavailable chunk.
+    //! chunk scraper has encountered unavailable chunk.
     void OnInputChunkUnavailable(
         const NChunkClient::TChunkId& chunkId,
         TInputChunkDescriptor& descriptor);
@@ -705,11 +710,11 @@ protected:
     //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const;
 
-    std::vector<Stroka> CheckInputTablesSorted(
-        const TNullable< std::vector<Stroka> >& keyColumns);
+    NTableClient::TKeyColumns CheckInputTablesSorted(
+        const NTableClient::TKeyColumns& keyColumns);
     static bool CheckKeyColumnsCompatible(
-        const std::vector<Stroka>& fullColumns,
-        const std::vector<Stroka>& prefixColumns);
+        const NTableClient::TKeyColumns& fullColumns,
+        const NTableClient::TKeyColumns& prefixColumns);
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
     bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
@@ -802,35 +807,6 @@ private:
     //! Keeps information needed to maintain the liveness state of input chunks.
     TInputChunkMap InputChunkMap;
 
-    class TInputChunkScratcher
-        : public virtual TRefCounted
-    {
-    public:
-        TInputChunkScratcher(TOperationControllerBase* controller, NRpc::IChannelPtr masterChannel);
-
-        //! Starts periodic polling.
-        /*!
-         *  Should be called when operation preparation is complete.
-         *  Safe to call multiple times.
-         */
-        void Start();
-
-    private:
-        void LocateChunks();
-        void OnLocateChunksResponse(const NChunkClient::TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError);
-
-        TWeakPtr<TOperationControllerBase> Controller;
-        NConcurrency::TPeriodicExecutorPtr PeriodicExecutor;
-        NChunkClient::TChunkServiceProxy Proxy;
-        TInputChunkMap::iterator NextChunkIterator;
-        bool Started;
-
-        NLogging::TLogger Logger;
-
-    };
-
-    typedef TIntrusivePtr<TInputChunkScratcher> TInputChunkScratcherPtr;
-
     TOperationSpecBasePtr Spec;
     TChunkListPoolPtr ChunkListPool;
 
@@ -849,7 +825,7 @@ private:
     //! Used to distinguish already seen ChunkSpecs while building #InputChunkMap.
     yhash_set<NChunkClient::TRefCountedChunkSpecPtr> InputChunkSpecs;
 
-    TInputChunkScratcherPtr InputChunkScratcher;
+    NChunkClient::TChunkScraperPtr InputChunkScraper;
 
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
