@@ -356,6 +356,9 @@ public:
     //! nodes is less than this bound.
     int SafeOnlineNodeCount;
 
+    //! Maximum number of chunks to export/import per request.
+    int MaxTeleportChunksPerRequest;
+
     TMapOperationOptionsPtr MapOperationOptions;
     TReduceOperationOptionsPtr ReduceOperationOptions;
     TEraseOperationOptionsPtr EraseOperationOptions;
@@ -492,6 +495,10 @@ public:
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(1);
+
+        RegisterParameter("max_teleport_chunks_per_request", MaxTeleportChunksPerRequest)
+            .GreaterThan(0)
+            .Default(10000);
 
         RegisterParameter("map_operation_options", MapOperationOptions)
             .DefaultNew();
