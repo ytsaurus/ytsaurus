@@ -1529,7 +1529,7 @@ protected:
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
-            multicellManager->PostToPrimaryMaster(request, false);
+            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
         }
     }
 
@@ -1603,7 +1603,7 @@ protected:
         if (Bootstrap_->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
-            multicellManager->PostToPrimaryMaster(request, false);
+            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
         }
     }
 
