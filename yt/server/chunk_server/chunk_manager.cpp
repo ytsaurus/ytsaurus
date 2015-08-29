@@ -1183,6 +1183,7 @@ private:
                 ToProto(chunkData->mutable_id(), chunkId);
                 chunkData->mutable_info()->CopyFrom(chunk->ChunkInfo());
                 chunkData->mutable_meta()->CopyFrom(chunk->ChunkMeta());
+                chunkData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
             }
         }
 
@@ -1210,6 +1211,7 @@ private:
                 auto chunkHolder = std::make_unique<TChunk>(chunkId);
                 chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
                 chunk->Confirm(chunkData.mutable_info(), chunkData.mutable_meta());
+                chunk->SetErasureCodec(NErasure::ECodec(chunkData.erasure_codec()));
             }
 
             transactionManager->StageObject(transaction, chunk, true);
