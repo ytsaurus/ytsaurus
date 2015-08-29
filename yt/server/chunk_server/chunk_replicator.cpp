@@ -1128,6 +1128,11 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
     return node->GetDecommissioned();
 }
 
+bool TChunkReplicator::IsForeign(TChunk* chunk)
+{
+    return CellTagFromId(chunk->GetId()) != Bootstrap_->GetCellTag();
+}
+
 bool TChunkReplicator::HasRunningJobs(TChunk* chunk)
 {
     auto jobList = FindJobList(chunk);
@@ -1168,7 +1173,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
     if (!IsObjectAlive(chunk) ||
         chunk->GetRefreshScheduled() ||
-        CellTagFromId(chunk->GetId()) != Bootstrap_->GetCellTag())
+        IsForeign(chunk))
         return;
 
     TRefreshEntry entry;
@@ -1372,7 +1377,9 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetPropertiesUpdateScheduled())
+    if (!IsObjectAlive(chunk) ||
+        chunk->GetPropertiesUpdateScheduled() ||
+        IsForeign(chunk))
         return;
 
     PropertiesUpdateList_.push_back(chunk);
