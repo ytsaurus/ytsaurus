@@ -623,6 +623,7 @@ protected:
 
     // Completion.
     void DoCommit();
+    void TeleportOutputChunks();
     void AttachOutputChunks();
     void EndUploadOutputTables();
     virtual void CustomCommit();

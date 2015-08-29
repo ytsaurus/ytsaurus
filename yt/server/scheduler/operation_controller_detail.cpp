@@ -5,6 +5,7 @@
 #include "chunk_pool.h"
 #include "helpers.h"
 #include "master_connector.h"
+#include "chunk_teleporter.h"
 
 #include <ytlib/transaction_client/helpers.h>
 
@@ -1492,11 +1493,35 @@ void TOperationControllerBase::DoCommit()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
+    TeleportOutputChunks();
     AttachOutputChunks();
     EndUploadOutputTables();
     CustomCommit();
 
     LOG_INFO("Results committed");
+}
+
+void TOperationControllerBase::TeleportOutputChunks()
+{
+    auto teleporter = New<TChunkTeleporter>(
+        Config,
+        AuthenticatedOutputMasterClient,
+        CancelableControlInvoker,
+        Operation->GetSyncSchedulerTransaction()->GetId(),
+        Logger);
+
+    for (const auto& table : OutputTables) {
+        for (const auto& pair : table.OutputChunkTreeIds) {
+            const auto& id = pair.second;
+            auto type = TypeFromId(id);
+            if (type == EObjectType::Chunk || type == EObjectType::ErasureChunk) {
+                teleporter->RegisterChunk(id, table.CellTag);
+            }
+        }
+    }
+
+    WaitFor(teleporter->Run())
+        .ThrowOnError();
 }
 
 void TOperationControllerBase::AttachOutputChunks()
