@@ -21,9 +21,9 @@ TSnapshotDownloader::TSnapshotDownloader(
     TSchedulerConfigPtr config,
     NCellScheduler::TBootstrap* bootstrap,
     TOperationPtr operation)
-    : Config(config)
-    , Bootstrap(bootstrap)
-    , Operation(operation)
+    : Config_(config)
+    , Bootstrap_(bootstrap)
+    , Operation_(operation)
     , Logger(SchedulerLogger)
 {
     YCHECK(bootstrap);
@@ -36,14 +36,14 @@ void TSnapshotDownloader::Run()
 {
     LOG_INFO("Starting downloading snapshot");
 
-    auto client = Bootstrap->GetMasterClient();
+    auto client = Bootstrap_->GetMasterClient();
 
-    auto snapshotPath = GetSnapshotPath(Operation->GetId());
+    auto snapshotPath = GetSnapshotPath(Operation_->GetId());
 
     IFileReaderPtr reader;
     {
         TFileReaderOptions options;
-        options.Config = Config->SnapshotReader;
+        options.Config = Config_->SnapshotReader;
         reader = client->CreateFileReader(snapshotPath, options);
     }
 
@@ -65,11 +65,11 @@ void TSnapshotDownloader::Run()
             blocks.push_back(block);
         }
 
-        Operation->Snapshot() = MergeRefs(blocks);
+        Operation_->Snapshot() = MergeRefs(blocks);
 
         LOG_INFO("Snapshot downloaded successfully");
     } catch (...) {
-        Operation->Snapshot().Reset();
+        Operation_->Snapshot().Reset();
         throw;
     }
 }
