@@ -470,5 +470,30 @@ DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TChunkScraperConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TDuration ChunkScratchPeriod;
+
+    //! Number of chunks scratched per one LocateChunks.
+    int MaxChunksPerScratch;
+
+    TChunkScraperConfig()
+    {
+        RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
+            .Default(TDuration::Seconds(10));
+
+        RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
+            .Default(1000)
+            .GreaterThan(0)
+            .LessThan(100000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkScraperConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

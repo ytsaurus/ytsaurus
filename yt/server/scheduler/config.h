@@ -24,7 +24,7 @@ namespace NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategyConfig
-    : public NYTree::TYsonSerializable
+    : virtual public NYTree::TYsonSerializable
 {
 public:
     // The following settings can be overridden in operation spec.
@@ -266,6 +266,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 
 class TSchedulerConfig
     : public TFairShareStrategyConfig
+    , public NChunkClient::TChunkScraperConfig
 {
 public:
     TDuration ConnectRetryBackoffTime;
@@ -289,14 +290,9 @@ public:
 
     TDuration JobProberRpcTimeout;
 
-    TDuration ChunkScratchPeriod;
-
     TDuration ClusterInfoLoggingPeriod;
-    
-    TNullable<TDuration> OperationTimeLimit;
 
-    //! Number of chunks scratched per one LocateChunks.
-    int MaxChunksPerScratch;
+    TNullable<TDuration> OperationTimeLimit;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -389,7 +385,7 @@ public:
 
     TEventLogConfigPtr EventLog;
 
-    //! Limits the rate (measured in chunks) of location requests issued by all active chunk scratchers
+    //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
     TNullable<NYPath::TYPath> UdfRegistryPath;
@@ -417,18 +413,11 @@ public:
         RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
             .Default(TDuration::Seconds(300));
 
-        RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
-            .Default(TDuration::Seconds(10));
         RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
-
-        RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
-            .Default(1000)
-            .GreaterThan(0)
-            .LessThan(100000);
 
         RegisterParameter("max_failed_job_count", MaxFailedJobCount)
             .Default(100)
