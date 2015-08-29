@@ -180,6 +180,7 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
+    bool IsForeign(TChunk* chunk);
     bool HasRunningJobs(TChunk* chunk);
     bool HasRunningJobs(TChunkPtrWithIndex replica);
 
