@@ -1161,14 +1161,14 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 {
     auto chunkManager = Bootstrap_->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
-    if (IsObjectAlive(chunk)) {
-        ScheduleChunkRefresh(chunk);
-    }
+    ScheduleChunkRefresh(chunk);
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
+    if (!IsObjectAlive(chunk) ||
+        chunk->GetRefreshScheduled() ||
+        CellTagFromId(chunk->GetId()) != Bootstrap_->GetCellTag())
         return;
 
     TRefreshEntry entry;
