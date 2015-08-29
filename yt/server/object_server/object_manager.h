@@ -274,8 +274,9 @@ private:
         NRpc::IServiceContextPtr context);
     void HydraExecuteFollower(const NProto::TReqExecute& request);
     void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
-    void HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) throw();
-    void HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) throw();
+    void HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) noexcept;
+    void HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) noexcept;
+    void HydraUnrefExportedObjects(const NProto::TReqUnrefExportedObjects& request) noexcept;
 
     void OnProfiling();
 

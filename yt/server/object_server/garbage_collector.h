@@ -14,7 +14,6 @@
 #include <server/cell_master/public.h>
 
 #include <set>
-#include <unordered_set>
 
 namespace NYT {
 namespace NObjectServer {

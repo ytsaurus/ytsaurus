@@ -66,6 +66,10 @@ struct IObjectTypeHandler
     //! For objects that are replicated througout the cluster this is #AllSecondaryMastersCellTag.
     virtual TCellTag GetReplicationCellTag(const TObjectBase* object) = 0;
 
+    //! Returns |true| if #object was imported from another cell and thus
+    //! participates in distributed reference counting.
+    virtual bool IsObjectImported(TObjectBase* object) = 0;
+
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;
 

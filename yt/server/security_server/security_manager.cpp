@@ -1699,7 +1699,7 @@ protected:
                 if (!group->IsBuiltin()) {
                     auto req = TGroupYPathProxy::AddMember(GetGroupPath(group->GetName()));
                     req->set_name(subject->GetName());
-                    multicellManager->PostToSecondaryMaster(req, cellTag);
+                    multicellManager->PostToMaster(req, cellTag);
                 }
             }
         };

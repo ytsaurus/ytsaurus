@@ -164,6 +164,11 @@ public:
         IAttributeDictionary* attributes,
         const TObjectCreationExtensions& extensions) override;
 
+    virtual bool IsObjectImported(TObjectBase* object) override
+    {
+        return CellTagFromId(object->GetId()) != Bootstrap_->GetPrimaryCellTag();
+    }
+
     virtual void ResetAllObjects() override
     {
         // NB: All chunk type handlers share the same map.

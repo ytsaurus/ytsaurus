@@ -130,8 +130,8 @@ protected:
     //! Posts the request to all secondary masters.
     void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
 
-    //! Posts the request to a given secondary master.
-    void PostToSecondaryMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
+    //! Posts the request to a given master, either primary or secondary.
+    void PostToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
     virtual bool IsLoggingEnabled() const override;
     virtual NLogging::TLogger CreateLogger() const override;

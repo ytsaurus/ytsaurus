@@ -1260,7 +1260,7 @@ private:
             ToProto(request.mutable_lease_transaction_id(), node->GetLeaseTransaction()->GetId());
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToSecondaryMaster(request, cellTag);
+            multicellManager->PostToMaster(request, cellTag);
         }
     }
 };
