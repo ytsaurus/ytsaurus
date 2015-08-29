@@ -120,6 +120,23 @@ def test_environment_for_yamr(request):
 
     return environment
 
+def test_method_teardown():
+    assert yt.config["proxy"]["url"].startswith("localhost")
+
+    for tx in yt.list("//sys/transactions"):
+        try:
+            title = yt.get("#{0}/@title".format(tx))
+            if "Scheduler lock" in title or "Lease for node" in title:
+                continue
+        except:
+            pass
+        try:
+            yt.abort_transaction(tx)
+        except:
+            pass
+
+    yt.remove(TEST_DIR, recursive=True, force=True)
+
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):
     """ YT cluster fixture.
@@ -128,7 +145,7 @@ def yt_env(request, test_environment):
     """
     test_environment.check_liveness()
     yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
+    request.addfinalizer(test_method_teardown)
     return test_environment
 
 @pytest.fixture(scope="function")
@@ -147,6 +164,6 @@ def yt_env_for_yamr(request, test_environment_for_yamr):
     """
     test_environment_for_yamr.check_liveness()
     yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
+    request.addfinalizer(test_method_teardown)
     return test_environment_for_yamr
 
