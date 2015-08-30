@@ -1238,7 +1238,21 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         auto type = TypeFromId(id);
 
         const auto& handler = GetHandler(type);
-        auto* object = handler->GetObject(id);
+        auto* object = handler->FindObject(id);
+
+        if (!object) {
+            LOG_DEBUG("Object is already destroyed (Type: %v, Id: %v)",
+                type,
+                id);
+            continue;
+        }
+
+        if (object->GetObjectRefCounter() > 0) {
+            LOG_DEBUG("Object resurrected (Type: %v, Id: %v)",
+                type,
+                id);
+            continue;
+        }
 
         if (handler->IsObjectImported(object)) {
             auto& request = unrefRequestMap[CellTagFromId(id)];
