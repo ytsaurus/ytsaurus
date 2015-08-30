@@ -38,7 +38,7 @@ int GetRowIndexFromHeaders(THttpInput* httpInput)
     auto& jsonMap = value.GetMap();
     auto it = jsonMap.find("start_row_index");
     if (it == jsonMap.end()) {
-        LOG_FATAL("Cannot find start_row_index in header");
+        return 0;
     } else {
         return it->Second().GetInteger();
     }
