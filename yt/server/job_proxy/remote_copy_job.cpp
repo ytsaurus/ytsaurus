@@ -186,21 +186,15 @@ private:
         TChunkId outputChunkId;
         {
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-            auto writerNodeDirectory = New<TNodeDirectory>();
-            auto rspOrError = WaitFor(CreateChunk(
-                outputMasterChannel,
+
+            outputChunkId = CreateChunk(
+                host->GetClient(),
+                outputCellTag,
                 WriterConfig_,
                 writerOptions,
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
-                transactionId));
-
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                NChunkClient::EErrorCode::ChunkCreationFailed,
-                "Error creating chunk");
-
-            const auto& rsp = rspOrError.Value();
-            FromProto(&outputChunkId, rsp->object_id());
+                transactionId,
+                Logger);
         }
 
         LOG_INFO("Output chunk created (ChunkId: %v)",
@@ -212,8 +206,6 @@ private:
         TChunkInfo chunkInfo;
         TChunkMeta chunkMeta;
         TChunkReplicaList writtenReplicas;
-
-        auto nodeDirectory = New<TNodeDirectory>();
 
         if (isErasure) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
@@ -234,7 +226,7 @@ private:
                 New<TRemoteWriterOptions>(),
                 outputChunkId,
                 erasureCodec,
-                nodeDirectory,
+                New<TNodeDirectory>(),
                 host->GetClient());
 
             YCHECK(readers.size() == writers.size());
@@ -281,7 +273,7 @@ private:
                 New<TRemoteWriterOptions>(),
                 outputChunkId,
                 TChunkReplicaList(),
-                nodeDirectory,
+                New<TNodeDirectory>(),
                 host->GetClient());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());

@@ -1,22 +1,26 @@
 #include "public.h"
 
-#include <core/actions/public.h>
-#include <core/rpc/public.h>
+#include <ytlib/api/public.h>
 
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/node_tracker_client/public.h>
+#include <ytlib/object_client/public.h>
+
+#include <ytlib/transaction_client/public.h>
+
+#include <core/logging/public.h>
 
 namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectPtr> CreateChunk(
-    NRpc::IChannelPtr masterChannel,
+NChunkClient::TChunkId CreateChunk(
+    NApi::IClientPtr client,
+    NObjectClient::TCellTag cellTag,
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NObjectClient::EObjectType chunkType,
-    NObjectClient::TTransactionId transactionId);
+    const NTransactionClient::TTransactionId& transactionId,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
