@@ -594,12 +594,12 @@ int TObjectManager::RefObject(TObjectBase* object)
     return refCounter;
 }
 
-int TObjectManager::UnrefObject(TObjectBase* object)
+int TObjectManager::UnrefObject(TObjectBase* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(object->IsTrunk());
 
-    int refCounter = object->UnrefObject();
+    int refCounter = object->UnrefObject(count);
     LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
@@ -1254,9 +1254,11 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
             continue;
         }
 
-        if (handler->IsObjectImported(object)) {
+        if (IsForeign(object) && object->GetImportRefCounter() > 0) {
             auto& request = unrefRequestMap[CellTagFromId(id)];
-            ToProto(request.add_object_ids(), id);
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_object_id(), id);
+            entry->set_import_ref_counter(object->GetImportRefCounter());
         }
 
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
@@ -1278,7 +1280,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         multicellManager->PostToMaster(request, cellTag);
         LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
             cellTag,
-            request.object_ids_size());
+            request.entries_size());
     }
 
     GarbageCollector_->CheckEmpty();
@@ -1342,16 +1344,14 @@ void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObj
 
 void TObjectManager::HydraUnrefExportedObjects(const NProto::TReqUnrefExportedObjects& request) noexcept
 {
-    for (const auto& protoObjectId : request.object_ids()) {
-        auto objectId = FromProto<TObjectId>(protoObjectId);
-        auto* object = FindObject(objectId);
-        if (object) {
-            UnrefObject(object);
-        }
+    for (const auto& entry : request.entries()) {
+        auto objectId = FromProto<TObjectId>(entry.object_id());
+        auto* object = GetObject(objectId);
+        UnrefObject(object, entry.import_ref_counter());
     }
 
     LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (Count: %v)",
-        request.object_ids_size());
+        request.entries_size());
 }
 
 const NProfiling::TProfiler& TObjectManager::GetProfiler()

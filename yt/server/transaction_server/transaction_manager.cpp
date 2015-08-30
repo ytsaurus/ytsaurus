@@ -647,6 +647,7 @@ public:
         transaction->ImportedObjects().push_back(object);
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(object);
+        object->ImportRefObject();
     }
 
     void ExportObject(TTransaction* transaction, TObjectBase* object)
@@ -822,8 +823,8 @@ private:
         }
         transaction->StagedNodes().clear();
 
-        if (transaction->GetState() == ETransactionState::Aborted) {
-            for (auto* object : transaction->ExportedObjects()) {
+        for (auto* object : transaction->ExportedObjects()) {
+            if (transaction->GetState() == ETransactionState::Aborted) {
                 objectManager->UnrefObject(object);
             }
         }
@@ -831,6 +832,9 @@ private:
 
         for (auto* object : transaction->ImportedObjects()) {
             objectManager->UnrefObject(object);
+            if (transaction->GetState() == ETransactionState::Aborted) {
+                object->ImportUnrefObject();
+            }
         }
         transaction->ImportedObjects().clear();
 

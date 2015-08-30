@@ -67,9 +67,6 @@ public:
     void Initialize();
 
     //! Registers a new type handler.
-    /*!
-     *  It asserts than no handler of this type is already registered.
-     */
     void RegisterHandler(IObjectTypeHandlerPtr handler);
 
     //! Returns the handler for a given type or |nullptr| if the type is unknown.
@@ -92,12 +89,12 @@ public:
     bool IsForeign(const TObjectBase* object);
 
     //! Adds a reference.
-    // Returns the strong reference counter.
+    //! Returns the strong reference counter.
     int RefObject(TObjectBase* object);
 
-    //! Removes a reference.
-    // Returns the strong reference counter.
-    int UnrefObject(TObjectBase* object);
+    //! Removes #count references.
+    //! Returns the strong reference counter.
+    int UnrefObject(TObjectBase* object, int count = 1);
 
     //! Increments the object weak reference counter thus temporarily preventing it from being destructed.
     //! Returns the weak reference counter.
