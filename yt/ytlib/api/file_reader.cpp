@@ -16,6 +16,7 @@
 #include <ytlib/chunk_client/read_limit.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
+#include <ytlib/chunk_client/helpers.h>
 
 #include <ytlib/file_client/file_chunk_reader.h>
 #include <ytlib/file_client/file_ypath_proxy.h>
@@ -106,6 +107,7 @@ private:
 
         auto cellTag = InvalidCellTag;
         TObjectId objectId;
+
         {
             LOG_INFO("Requesting basic attributes");
 
@@ -131,6 +133,8 @@ private:
                 cellTag);
         }
 
+        auto objectIdPath = FromObjectId(objectId);
+
         {
             auto type = TypeFromId(objectId);
             if (type != EObjectType::File) {
@@ -141,7 +145,8 @@ private:
             }
         }
 
-        auto objectIdPath = FromObjectId(objectId);
+        auto nodeDirectory = New<TNodeDirectory>();
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
 
         {
             LOG_INFO("Fetching file chunks");
@@ -169,21 +174,24 @@ private:
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for file %v",
                 Path_);
-
             const auto& rsp = rspOrError.Value();
 
-            auto nodeDirectory = New<TNodeDirectory>();
-            nodeDirectory->MergeFrom(rsp->node_directory());
-
-            auto chunks = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-            Reader_ = CreateFileMultiChunkReader(
-                Config_,
-                New<TMultiChunkReaderOptions>(),
+            chunkSpecs = ProcessFetchResponse(
                 Client_,
-                Client_->GetConnection()->GetBlockCache(),
+                rsp,
+                cellTag,
                 nodeDirectory,
-                std::move(chunks));
+                Config_->MaxChunksPerLocateRequest,
+                Logger);
         }
+
+        Reader_ = CreateFileMultiChunkReader(
+            Config_,
+            New<TMultiChunkReaderOptions>(),
+            Client_,
+            Client_->GetConnection()->GetBlockCache(),
+            nodeDirectory,
+            std::move(chunkSpecs));
 
         WaitFor(Reader_->Open())
             .ThrowOnError();

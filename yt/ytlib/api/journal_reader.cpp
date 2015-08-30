@@ -18,6 +18,7 @@
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/replication_reader.h>
 #include <ytlib/chunk_client/read_limit.h>
+#include <ytlib/chunk_client/helpers.h>
 
 #include <ytlib/journal_client/journal_ypath_proxy.h>
 
@@ -172,12 +173,15 @@ private:
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching journals for table %v",
                 Path_);
-
             const auto& rsp = rspOrError.Value();
 
-            NodeDirectory_->MergeFrom(rsp->node_directory());
-
-            ChunkSpecs_ = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
+            ChunkSpecs_ = ProcessFetchResponse(
+                Client_,
+                rsp,
+                cellTag,
+                NodeDirectory_,
+                std::numeric_limits<int>::max(), // no foreign chunks are possible anyway
+                Logger);
         }
 
         if (Transaction_) {

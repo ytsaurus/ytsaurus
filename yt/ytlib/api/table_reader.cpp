@@ -242,7 +242,7 @@ void TSchemalessTableReader::DoOpen()
             Client_,
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
-            chunkSpecs,
+            std::move(chunkSpecs),
             NameTable_,
             TColumnFilter(),
             TKeyColumns(),

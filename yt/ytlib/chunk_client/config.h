@@ -381,7 +381,7 @@ class TMultiChunkReaderConfig
 {
 public:
     i64 MaxBufferSize;
-
+    int MaxChunksPerLocateRequest;
 
     TMultiChunkReaderConfig()
     {
@@ -389,6 +389,9 @@ public:
             .GreaterThan(0L)
             .LessThanOrEqual((i64) 10 * 1024 * 1024 * 1024)
             .Default((i64) 100 * 1024 * 1024);
+        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+            .GreaterThan(0)
+            .Default(10000);
 
         RegisterValidator([&] () {
             if (MaxBufferSize < 2 * WindowSize) {
