@@ -284,11 +284,16 @@ IChannelPtr CreateBalancingChannel(
     YCHECK(config);
     YCHECK(channelFactory);
 
-    auto channelProvider = New<TBalancingChannelProvider>(
-        config,
-        channelFactory,
-        discoverRequestHook);
-    return CreateRoamingChannel(channelProvider);
+    if (config->Addresses.size() == 1) {
+        // Shorcut: don't run any discovery if just one address is given.
+        return channelFactory->CreateChannel(config->Addresses[0]);
+    } else {
+        auto channelProvider = New<TBalancingChannelProvider>(
+            config,
+            channelFactory,
+            discoverRequestHook);
+        return CreateRoamingChannel(channelProvider);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
