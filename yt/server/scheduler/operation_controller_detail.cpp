@@ -2740,13 +2740,14 @@ void TOperationControllerBase::FetchInputTables()
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
         for (const auto& rspOrError : rspsOrError) {
             const auto& rsp = rspOrError.Value();
-            table.Chunks = ProcessFetchResponse(
+            ProcessFetchResponse(
                 AuthenticatedInputMasterClient,
                 rsp,
                 table.CellTag,
                 InputNodeDirectory,
                 Config->MaxChunksPerLocateRequest,
-                Logger);
+                Logger,
+                &table.Chunks);
         }
 
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
@@ -3011,13 +3012,14 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
 
         {
             auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
-            file.ChunkSpecs = ProcessFetchResponse(
+            ProcessFetchResponse(
                 AuthenticatedInputMasterClient,
                 rsp,
                 file.CellTag,
                 AuxNodeDirectory,
                 Config->MaxChunksPerLocateRequest,
-                Logger);
+                Logger,
+                &file.ChunkSpecs);
         }
 
         LOG_INFO("User file fetched (Path: %v, FileName: %v)",
