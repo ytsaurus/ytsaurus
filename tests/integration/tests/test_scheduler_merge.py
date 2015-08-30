@@ -373,3 +373,78 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 @mark_multicell
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    def test_multicell_merge_teleport(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", [{"a": 1}])
+        chunk_id1 = get("//tmp/t1/@chunk_ids/0")
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        write_table("//tmp/t2", [{"a": 2}])
+        chunk_id2 = get("//tmp/t2/@chunk_ids/0")
+
+        assert get("#" + chunk_id1 + "/@ref_counter") == 1
+        assert get("#" + chunk_id2 + "/@ref_counter") == 1
+        
+        create("table", "//tmp/t", attributes={"external": False})
+        merge(mode="ordered",
+              in_=["//tmp/t1", "//tmp/t2"],
+              out="//tmp/t")
+
+        assert get("//tmp/t/@chunk_ids") == [chunk_id1, chunk_id2]
+        assert get("#" + chunk_id1 + "/@ref_counter") == 2
+        assert get("#" + chunk_id2 + "/@ref_counter") == 2
+
+        assert read_table("//tmp/t") == [{"a": 1}, {"a": 2}]
+        
+        remove("//tmp/t")
+
+        gc_collect()
+        multicell_sleep()
+        assert get("#" + chunk_id1 + "/@ref_counter") == 1
+        assert get("#" + chunk_id2 + "/@ref_counter") == 1
+        
+    def test_multicell_merge_multi_teleport(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", [{"a": 1}])
+        chunk_id = get("//tmp/t1/@chunk_ids/0")
+
+        assert get("#" + chunk_id + "/@ref_counter") == 1
+        
+        create("table", "//tmp/t2", attributes={"external": False})
+        merge(mode="ordered",
+              in_=["//tmp/t1", "//tmp/t1"],
+              out="//tmp/t2")
+
+        assert get("//tmp/t2/@chunk_ids") == [chunk_id, chunk_id]
+        assert get("#" + chunk_id + "/@ref_counter") == 3
+
+        assert read_table("//tmp/t2") == [{"a": 1}, {"a": 1}]
+        
+        create("table", "//tmp/t3", attributes={"external": False})
+        merge(mode="ordered",
+              in_=["//tmp/t1", "//tmp/t1"],
+              out="//tmp/t3")
+
+        assert get("//tmp/t3/@chunk_ids") == [chunk_id, chunk_id]
+        assert get("#" + chunk_id + "/@ref_counter") == 5
+
+        assert read_table("//tmp/t3") == [{"a": 1}, {"a": 1}]
+        
+        remove("//tmp/t2")
+
+        gc_collect()
+        multicell_sleep()
+        assert get("#" + chunk_id + "/@ref_counter") == 5
+        
+        remove("//tmp/t3")
+
+        gc_collect()
+        multicell_sleep()
+        assert get("#" + chunk_id + "/@ref_counter") == 1
+
+        remove("//tmp/t1")
+
+        gc_collect()
+        assert not exists("//sys/chunks/" + chunk_id)
+

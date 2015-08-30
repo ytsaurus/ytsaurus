@@ -1147,3 +1147,21 @@ class TestJobQuery(YTEnvSetup):
 @mark_multicell
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    def test_multicell_input_fetch(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", [{"a": 1}])
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        write_table("//tmp/t2", [{"a": 2}])
+
+        create("table", "//tmp/t_in", attributes={"external": False})
+        merge(mode="ordered",
+              in_=["//tmp/t1", "//tmp/t2"],
+              out="//tmp/t_in")
+        
+        create("table", "//tmp/t_out")
+        map(in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat")
+
+        assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}]
