@@ -15,15 +15,6 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransaction::TStagedObjectData::Persist(NCellMaster::TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, ReleaseOnCommit);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTransaction::TTransaction(const TTransactionId& id)
     : TNonversionedObjectBase(id)
     , UncommittedAccountingEnabled_(true)
@@ -45,7 +36,9 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
-    Save(context, StagedObjectMap_);
+    Save(context, StagedObjects_);
+    Save(context, ExportedObjects_);
+    Save(context, ImportedObjects_);
     Save(context, LockedNodes_);
     Save(context, Locks_);
     Save(context, BranchedNodes_);
@@ -58,6 +51,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
 
+    // COMPAT(babenko)
+    YCHECK(context.GetVersion() >= 200);
+
     using NYT::Load;
     Load(context, State_);
     Load(context, Timeout_);
@@ -66,7 +62,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);
-    Load(context, StagedObjectMap_);
+    Load(context, StagedObjects_);
+    Load(context, ImportedObjects_);
+    Load(context, ExportedObjects_);
     Load(context, LockedNodes_);
     Load(context, Locks_);
     Load(context, BranchedNodes_);

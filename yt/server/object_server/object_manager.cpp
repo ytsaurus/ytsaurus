@@ -1004,7 +1004,7 @@ TObjectBase* TObjectManager::CreateObject(
     if (stagingTransaction) {
         YCHECK(transaction == stagingTransaction);
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->StageObject(transaction, object, true);
+        transactionManager->StageObject(transaction, object);
     } else {
         YCHECK(object->GetObjectRefCounter() > 0);
     }
