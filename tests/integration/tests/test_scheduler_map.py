@@ -1164,4 +1164,4 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
             out="//tmp/t_out",
             command="cat")
 
-        assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}]
+        self.assertItemsEqual(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])
