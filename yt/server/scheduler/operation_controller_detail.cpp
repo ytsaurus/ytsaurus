@@ -1513,7 +1513,7 @@ void TOperationControllerBase::TeleportOutputChunks()
         Config,
         AuthenticatedOutputMasterClient,
         CancelableControlInvoker,
-        Operation->GetSyncSchedulerTransaction()->GetId(),
+        Operation->GetOutputTransaction()->GetId(),
         Logger);
 
     for (const auto& table : OutputTables) {
