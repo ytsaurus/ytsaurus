@@ -176,13 +176,14 @@ private:
                 Path_);
             const auto& rsp = rspOrError.Value();
 
-            chunkSpecs = ProcessFetchResponse(
+            ProcessFetchResponse(
                 Client_,
                 rsp,
                 cellTag,
                 nodeDirectory,
                 Config_->MaxChunksPerLocateRequest,
-                Logger);
+                Logger,
+                &chunkSpecs);
         }
 
         Reader_ = CreateFileMultiChunkReader(

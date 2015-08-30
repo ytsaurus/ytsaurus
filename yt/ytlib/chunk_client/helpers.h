@@ -28,13 +28,15 @@ NChunkClient::TChunkId CreateChunk(
 
 //! Synchronously parses #fetchResponse, populates #nodeDirectory,
 //! issues additional |LocateChunks| requests for foreign chunks.
-std::vector<NProto::TChunkSpec> ProcessFetchResponse(
+//! The resulting chunk specs are appended to #chunkSpecs.
+void ProcessFetchResponse(
     NApi::IClientPtr client,
     TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
     NObjectClient::TCellTag fetchCellTag,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
-    const NLogging::TLogger& logger);
+    const NLogging::TLogger& logger,
+    std::vector<NProto::TChunkSpec>* chunkSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

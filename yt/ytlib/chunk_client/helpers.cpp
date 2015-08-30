@@ -69,26 +69,21 @@ NChunkClient::TChunkId CreateChunk(
     return FromProto<TChunkId>(rsp->object_id());
 }
 
-std::vector<NProto::TChunkSpec> ProcessFetchResponse(
+void ProcessFetchResponse(
     IClientPtr client,
     TChunkOwnerYPathProxy::TRspFetchPtr fetchResponse,
     TCellTag fetchCellTag,
     TNodeDirectoryPtr nodeDirectory,
     int maxChunksPerLocateRequest,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    std::vector<NProto::TChunkSpec>* chunkSpecs)
 {
     const auto& Logger = logger;
 
     nodeDirectory->MergeFrom(fetchResponse->node_directory());
 
-    std::vector<NProto::TChunkSpec> chunkSpecs;
-    for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
-        chunkSpecs.push_back(NProto::TChunkSpec());
-        chunkSpecs.back().Swap(&chunkSpec);
-    }
-
     yhash_map<TCellTag, std::vector<NProto::TChunkSpec*>> foreignChunkMap;
-    for (auto& chunkSpec : chunkSpecs) {
+    for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto chunkCellTag = CellTagFromId(chunkId);
         if (chunkCellTag != fetchCellTag) {
@@ -141,7 +136,10 @@ std::vector<NProto::TChunkSpec> ProcessFetchResponse(
         }
     }
 
-    return chunkSpecs;
+    for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
+        chunkSpecs->push_back(NProto::TChunkSpec());
+        chunkSpecs->back().Swap(&chunkSpec);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -214,13 +214,14 @@ void TSchemalessTableReader::DoOpen()
             path);
         const auto& rsp = rspOrError.Value();
 
-        chunkSpecs = ProcessFetchResponse(
+        ProcessFetchResponse(
             Client_,
             rsp,
             tableCellTag,
             nodeDirectory,
             Config_->MaxChunksPerLocateRequest,
-            Logger);
+            Logger,
+            &chunkSpecs);
     }
 
     if (!Config_->IgnoreUnavailableChunks) {

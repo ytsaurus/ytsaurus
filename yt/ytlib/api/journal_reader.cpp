@@ -175,13 +175,14 @@ private:
                 Path_);
             const auto& rsp = rspOrError.Value();
 
-            ChunkSpecs_ = ProcessFetchResponse(
+            ProcessFetchResponse(
                 Client_,
                 rsp,
                 cellTag,
                 NodeDirectory_,
                 std::numeric_limits<int>::max(), // no foreign chunks are possible anyway
-                Logger);
+                Logger,
+                &ChunkSpecs_);
         }
 
         if (Transaction_) {
