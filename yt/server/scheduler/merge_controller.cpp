@@ -145,7 +145,7 @@ protected:
             , TaskIndex(taskIndex)
             , PartitionIndex(partitionIndex)
         {
-            ChunkPool = CreateAtomicChunkPool(Controller->NodeDirectory);
+            ChunkPool = CreateAtomicChunkPool(Controller->InputNodeDirectory);
         }
 
         virtual Stroka GetId() const override
@@ -679,6 +679,7 @@ private:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -774,6 +775,7 @@ private:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -1061,7 +1063,7 @@ protected:
             Config->Fetcher,
             ChunkSliceSize,
             KeyColumns,
-            NodeDirectory,
+            InputNodeDirectory,
             Host->GetBackgroundInvoker(),
             Logger);
 
@@ -1784,6 +1786,7 @@ private:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());

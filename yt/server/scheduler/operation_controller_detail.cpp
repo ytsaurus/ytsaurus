@@ -15,6 +15,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
+#include <ytlib/chunk_client/helpers.h>
 
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -146,7 +147,7 @@ void TOperationControllerBase::TUserFile::Persist(TPersistenceContext& context)
     Persist<TAttributeDictionaryRefSerializer>(context, Attributes);
     Persist(context, Stage);
     Persist(context, FileName);
-    Persist(context, FetchResponse);
+    Persist(context, ChunkSpecs);
     Persist(context, Type);
     Persist(context, Executable);
     Persist(context, Format);
@@ -310,7 +311,7 @@ void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
     }
 
     const auto& rsp = rspOrError.Value();
-    controller->NodeDirectory->MergeFrom(rsp->node_directory());
+    controller->InputNodeDirectory->MergeFrom(rsp->node_directory());
 
     int availableCount = 0;
     int unavailableCount = 0;
@@ -771,7 +772,9 @@ void TOperationControllerBase::TTask::AddSequentialInputSpec(
     TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
+    TNodeDirectoryBuilder directoryBuilder(
+        Controller->InputNodeDirectory,
+        schedulerJobSpecExt->mutable_input_node_directory());
     auto* inputSpec = schedulerJobSpecExt->add_input_specs();
     auto list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
@@ -785,7 +788,9 @@ void TOperationControllerBase::TTask::AddParallelInputSpec(
     TJobletPtr joblet)
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    TNodeDirectoryBuilder directoryBuilder(Controller->NodeDirectory, schedulerJobSpecExt->mutable_node_directory());
+    TNodeDirectoryBuilder directoryBuilder(
+        Controller->InputNodeDirectory,
+        schedulerJobSpecExt->mutable_input_node_directory());
     auto list = joblet->InputStripeList;
     for (const auto& stripe : list->Stripes) {
         auto* inputSpec = schedulerJobSpecExt->add_input_specs();
@@ -988,7 +993,8 @@ void TOperationControllerBase::Initialize()
     LOG_INFO("Initializing operation (Title: %v)",
         Spec->Title);
 
-    NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    InputNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+    AuxNodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
 
     for (const auto& path : GetInputTablePaths()) {
         TInputTable table;
@@ -1692,7 +1698,8 @@ void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSum
     const auto& schedulerResultEx = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     // Populate node directory by adding additional nodes returned from the job.
-    NodeDirectory->MergeFrom(schedulerResultEx.node_directory());
+    // NB: Job's output may become some other job's input.
+    InputNodeDirectory->MergeFrom(schedulerResultEx.output_node_directory());
 
     auto joblet = GetJoblet(jobId);
     joblet->Task->OnJobCompleted(joblet, jobSummary);
@@ -2055,7 +2062,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePt
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
             if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
+                const auto& descriptor = InputNodeDirectory->GetDescriptor(replica);
                 DoAddTaskLocalityHint(task, descriptor.GetDefaultAddress());
             }
         }
@@ -2733,7 +2740,7 @@ void TOperationControllerBase::FetchInputTables()
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
         for (const auto& rspOrError : rspsOrError) {
             const auto& rsp = rspOrError.Value();
-            NodeDirectory->MergeFrom(rsp->node_directory());
+            InputNodeDirectory->MergeFrom(rsp->node_directory());
             for (const auto& chunk : rsp->chunks()) {
                 table.Chunks.push_back(chunk);
             }
@@ -3001,11 +3008,13 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
 
         {
             auto rsp = batchRsp->GetResponse<TChunkOwnerYPathProxy::TRspFetch>("fetch").Value();
-            file.FetchResponse.Swap(rsp.Get());
-
-            if (file.Type == EObjectType::Table) {
-                NodeDirectory->MergeFrom(rsp->node_directory());
-            }
+            file.ChunkSpecs = ProcessFetchResponse(
+                AuthenticatedInputMasterClient,
+                rsp,
+                file.CellTag,
+                AuxNodeDirectory,
+                Config->MaxChunksPerLocateRequest,
+                Logger);
         }
 
         LOG_INFO("User file fetched (Path: %v, FileName: %v)",
@@ -3193,15 +3202,12 @@ void TOperationControllerBase::InitQuerySpec(
         ToProto(protoDescriptor, ConvertToYsonString(descriptor).Data());
     }
 
-    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     for (const auto& file : udfFiles) {
         auto* protoDescriptor = querySpec->add_udf_files();
         protoDescriptor->set_type(static_cast<int>(file.Type));
         protoDescriptor->set_file_name(file.FileName);
-        nodeDirectory->MergeFrom(file.FetchResponse.node_directory());
-        protoDescriptor->mutable_chunks()->MergeFrom(file.FetchResponse.chunks());
+        ToProto(protoDescriptor->mutable_chunks(), file.ChunkSpecs);
     }
-    nodeDirectory->DumpTo(querySpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::CollectTotals()
@@ -3710,20 +3716,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
-    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    auto registerChunks = [&] (
-        const NChunkClient::NProto::TRspFetch& response,
-        google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkSpec>* chunkSpecs)
-    {
-        nodeDirectory->MergeFrom(response.node_directory());
-        chunkSpecs->MergeFrom(response.chunks());
-    };
-
     for (const auto& file : files) {
         auto *descriptor = jobSpec->add_files();
         descriptor->set_type(static_cast<int>(file.Type));
         descriptor->set_file_name(file.FileName);
-        registerChunks(file.FetchResponse, descriptor->mutable_chunks());
+        ToProto(descriptor->mutable_chunks(), file.ChunkSpecs);
         switch (file.Type) {
             case EObjectType::File:
                 descriptor->set_executable(file.Executable);
@@ -3735,8 +3732,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 YUNREACHABLE();
         }
     }
-
-    nodeDirectory->DumpTo(jobSpec->mutable_node_directory());
 }
 
 void TOperationControllerBase::InitUserJobSpec(
@@ -3863,7 +3858,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, JobCounter);
 
-    Persist(context, NodeDirectory);
+    Persist(context, InputNodeDirectory);
+    Persist(context, AuxNodeDirectory);
 
     Persist(context, InputTables);
 

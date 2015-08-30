@@ -171,8 +171,10 @@ protected:
     // Job counters.
     TProgressCounter JobCounter;
 
-    // Maps node ids seen in fetch responses to node descriptors.
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    // Maps node ids to descriptors for job input chunks.
+    NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
+    // Maps node ids to descriptors for job auxiliary chunks.
+    NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
     struct TUserObjectBase
     {
@@ -268,6 +270,7 @@ protected:
         std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
         EOperationStage Stage = EOperationStage::None;
         Stroka FileName;
+        std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
         NChunkClient::NProto::TRspFetch FetchResponse;
         NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
         bool Executable = false;

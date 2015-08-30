@@ -38,7 +38,8 @@ struct IJobHost
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
 
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
 

@@ -293,8 +293,13 @@ TJobResult TJobProxy::DoRun()
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
 
-    NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-    NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());
+    InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+    InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
+
+    AuxNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+    if (schedulerJobSpecExt.has_aux_node_directory()) {
+        InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.aux_node_directory());
+    }
 
     HeartbeatExecutor_ = New<TPeriodicExecutor>(
         GetSyncInvoker(),
@@ -402,9 +407,14 @@ IBlockCachePtr TJobProxy::GetBlockCache() const
     return GetNullBlockCache();
 }
 
-TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
+TNodeDirectoryPtr TJobProxy::GetInputNodeDirectory() const
 {
-    return NodeDirectory_;
+    return InputNodeDirectory_;
+}
+
+TNodeDirectoryPtr TJobProxy::GetAuxNodeDirectory() const
+{
+    return AuxNodeDirectory_;
 }
 
 void TJobProxy::CheckMemoryUsage()

@@ -79,7 +79,7 @@ public:
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
             TYsonString(SchedulerJobSpecExt_.output_specs(0).table_writer_options()));
         OutputChunkListId_ = FromProto<TChunkListId>(
-                SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
+            SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
 
         const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
         RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
@@ -89,8 +89,6 @@ public:
         TClientOptions clientOptions;
         clientOptions.User = NSecurityClient::JobUserName;
         RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
-
-        RemoteNodeDirectory_->MergeFrom(SchedulerJobSpecExt_.node_directory());
     }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override
@@ -142,8 +140,6 @@ private:
     TTableWriterOptionsPtr WriterOptionsTemplate_;
 
     TChunkListId OutputChunkListId_;
-
-    TNodeDirectoryPtr RemoteNodeDirectory_ = New<TNodeDirectory>();
 
     int CopiedChunks_ = 0;
     double CopiedChunkSize_ = 0.0;
@@ -213,7 +209,7 @@ private:
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 RemoteClient_,
-                RemoteNodeDirectory_,
+                host->GetInputNodeDirectory(),
                 inputChunkId,
                 inputReplicas,
                 erasureCodec,
@@ -260,7 +256,7 @@ private:
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 RemoteClient_,
-                RemoteNodeDirectory_,
+                host->GetInputNodeDirectory(),
                 Null,
                 inputChunkId,
                 TChunkReplicaList(),

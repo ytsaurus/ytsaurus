@@ -359,6 +359,9 @@ public:
     //! Maximum number of chunks to export/import per request.
     int MaxTeleportChunksPerRequest;
 
+    //! Maximum number of foreign chunks to locate per request.
+    int MaxChunksPerLocateRequest;
+
     TMapOperationOptionsPtr MapOperationOptions;
     TReduceOperationOptionsPtr ReduceOperationOptions;
     TEraseOperationOptionsPtr EraseOperationOptions;
@@ -497,6 +500,9 @@ public:
             .Default(1);
 
         RegisterParameter("max_teleport_chunks_per_request", MaxTeleportChunksPerRequest)
+            .GreaterThan(0)
+            .Default(10000);
+        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .GreaterThan(0)
             .Default(10000);
 

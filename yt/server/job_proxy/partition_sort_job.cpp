@@ -50,7 +50,7 @@ public:
             config->JobIO->TableReader,
             host->GetClient(),
             host->GetBlockCache(),
-            host->GetNodeDirectory(),
+            host->GetInputNodeDirectory(),
             keyColumns,
             nameTable,
             BIND(&IJobHost::ReleaseNetwork, host),

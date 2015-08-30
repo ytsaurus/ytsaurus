@@ -95,6 +95,11 @@ public:
     {
         JobSpec.Swap(&jobSpec);
 
+        const auto& schedulerJobSpecExt = JobSpec.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        if (schedulerJobSpecExt.has_aux_node_directory()) {
+            AuxNodeDirectory->MergeFrom(schedulerJobSpecExt.aux_node_directory());
+        }
+
         Logger.AddTag("JobId: %v, JobType: %v",
             GetId(),
             GetType());
@@ -289,7 +294,7 @@ private:
 
     std::vector<NDataNode::IChunkPtr> CachedChunks;
 
-    TNodeDirectoryPtr NodeDirectory = New<TNodeDirectory>();
+    TNodeDirectoryPtr AuxNodeDirectory = New<TNodeDirectory>();
 
     NLogging::TLogger Logger = ExecAgentLogger;
 
@@ -456,9 +461,6 @@ private:
 
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-
-            NodeDirectory->MergeFrom(userJobSpec.node_directory());
-
             for (const auto& descriptor : userJobSpec.files()) {
                 PrepareFile(ESandboxIndex::User, descriptor);
             }
@@ -466,9 +468,6 @@ private:
 
         if (schedulerJobSpecExt.has_input_query_spec()) {
             const auto& querySpec = schedulerJobSpecExt.input_query_spec();
-
-            NodeDirectory->MergeFrom(querySpec.node_directory());
-
             for (const auto& descriptor : querySpec.udf_files()) {
                 PrepareFile(ESandboxIndex::Udf, descriptor);
             }
@@ -550,10 +549,10 @@ private:
             fileName);
 
         TArtifactKey key(descriptor);
-        auto chunkOrError = WaitFor(
-            Bootstrap->GetChunkCache()->PrepareArtifact(
-                key,
-                NodeDirectory));
+        auto chunkCache = Bootstrap->GetChunkCache();
+        auto chunkOrError = WaitFor(chunkCache->PrepareArtifact(
+            key,
+            AuxNodeDirectory));
 
         YCHECK(JobPhase == EJobPhase::PreparingFiles);
         THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
