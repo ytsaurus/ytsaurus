@@ -1176,7 +1176,7 @@ private:
             auto chunkId = FromProto<TChunkId>(protoChunkId);
             auto* chunk = GetChunkOrThrow(chunkId);
 
-            transactionManager->StageObject(transaction, chunk, false);
+            transactionManager->ExportObject(transaction, chunk);
 
             if (response) {
                 auto* chunkData = response->add_chunks();
@@ -1214,7 +1214,7 @@ private:
                 chunk->SetErasureCodec(NErasure::ECodec(chunkData.erasure_codec()));
             }
 
-            transactionManager->StageObject(transaction, chunk, true);
+            transactionManager->ImportObject(transaction, chunk);
         }
 
         LOG_INFO("Chunks imported (TransactionId: %v, ChunkCount: %v)",

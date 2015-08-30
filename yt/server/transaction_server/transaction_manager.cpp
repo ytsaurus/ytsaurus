@@ -100,6 +100,8 @@ private:
         descriptors->push_back("start_time");
         descriptors->push_back("nested_transaction_ids");
         descriptors->push_back("staged_object_ids");
+        descriptors->push_back("exported_object_ids");
+        descriptors->push_back("imported_object_ids");
         descriptors->push_back("staged_node_ids");
         descriptors->push_back("branched_node_ids");
         descriptors->push_back("locked_node_ids");
@@ -158,8 +160,24 @@ private:
 
         if (key == "staged_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->StagedObjectMap(), [=] (TFluentList fluent, const std::pair<TObjectBase*, const TTransaction::TStagedObjectData>& pair) {
-                    fluent.Item().Value(pair.first->GetId());
+                .DoListFor(transaction->StagedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
+                    fluent.Item().Value(object->GetId());
+                });
+            return true;
+        }
+
+        if (key == "exported_object_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
+                    fluent.Item().Value(object->GetId());
+                });
+            return true;
+        }
+
+        if (key == "imported_object_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->ImportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
+                    fluent.Item().Value(object->GetId());
                 });
             return true;
         }
@@ -587,16 +605,12 @@ public:
         return transaction;
     }
 
-    void StageObject(TTransaction* transaction, TObjectBase* object, bool releaseOnCommmit)
+    void StageObject(TTransaction* transaction, TObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        YCHECK(transaction->StagedObjects().insert(object).second);
         auto objectManager = Bootstrap_->GetObjectManager();
-        YCHECK(transaction->StagedObjectMap().insert(
-            std::make_pair(
-                object,
-                TTransaction::TStagedObjectData{releaseOnCommmit}
-            )).second);
         objectManager->RefObject(object);
     }
 
@@ -611,7 +625,7 @@ public:
         handler->UnstageObject(object, recursive);
 
         if (transaction) {
-            YCHECK(transaction->StagedObjectMap().erase(object) == 1);
+            YCHECK(transaction->StagedObjects().erase(object) == 1);
             objectManager->UnrefObject(object);
         }
     }
@@ -624,6 +638,24 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         transaction->StagedNodes().push_back(trunkNode);
         objectManager->RefObject(trunkNode);
+    }
+
+    void ImportObject(TTransaction* transaction, TObjectBase* object)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        transaction->ImportedObjects().push_back(object);
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(object);
+    }
+
+    void ExportObject(TTransaction* transaction, TObjectBase* object)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        transaction->ExportedObjects().push_back(object);
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(object);
     }
 
 
@@ -778,21 +810,29 @@ private:
 
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        for (const auto& pair : transaction->StagedObjectMap()) {
-            auto* object = pair.first;
-            const auto& data = pair.second;
+        for (auto* object : transaction->StagedObjects()) {
             const auto& handler = objectManager->GetHandler(object);
             handler->UnstageObject(object, false);
-            if (transaction->GetState() == ETransactionState::Aborted || data.ReleaseOnCommit) {
-                objectManager->UnrefObject(object);
-            }
+            objectManager->UnrefObject(object);
         }
-        transaction->StagedObjectMap().clear();
+        transaction->StagedObjects().clear();
 
         for (auto* node : transaction->StagedNodes()) {
             objectManager->UnrefObject(node);
         }
         transaction->StagedNodes().clear();
+
+        if (transaction->GetState() == ETransactionState::Aborted) {
+            for (auto* object : transaction->ExportedObjects()) {
+                objectManager->UnrefObject(object);
+            }
+        }
+        transaction->ExportedObjects().clear();
+
+        for (auto* object : transaction->ImportedObjects()) {
+            objectManager->UnrefObject(object);
+        }
+        transaction->ImportedObjects().clear();
 
         auto* parent = transaction->GetParent();
         if (parent) {
@@ -1052,10 +1092,9 @@ TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& t
 
 void TTransactionManager::StageObject(
     TTransaction* transaction,
-    TObjectBase* object,
-    bool releaseOnCommit)
+    TObjectBase* object)
 {
-    Impl_->StageObject(transaction, object, releaseOnCommit);
+    Impl_->StageObject(transaction, object);
 }
 
 void TTransactionManager::UnstageObject(
@@ -1072,6 +1111,20 @@ void TTransactionManager::StageNode(
     Impl_->StageNode(transaction, trunkNode);
 }
 
+void TTransactionManager::ExportObject(
+    TTransaction* transaction,
+    TObjectBase* object)
+{
+    Impl_->ExportObject(transaction, object);
+}
+
+void TTransactionManager::ImportObject(
+    TTransaction* transaction,
+    TObjectBase* object)
+{
+    Impl_->ImportObject(transaction, object);
+}
+
 void TTransactionManager::PrepareTransactionCommit(
     const TTransactionId& transactionId,
     bool persistent,
@@ -1080,7 +1133,9 @@ void TTransactionManager::PrepareTransactionCommit(
     Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
 }
 
-void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+void TTransactionManager::PrepareTransactionAbort(
+    const TTransactionId& transactionId,
+    bool force)
 {
     Impl_->PrepareTransactionAbort(transactionId, force);
 }

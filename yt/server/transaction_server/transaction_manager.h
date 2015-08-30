@@ -58,14 +58,10 @@ public:
     TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId);
 
     //! Registers and references the object with the transaction.
-    /*!
-     * The latter reference is always released when the transaction aborts.
-     * If the transaction commits it is released if #releaseOnCommit is |true|.
-     */
+    //! The same object can only be staged once.
     void StageObject(
         TTransaction* transaction,
-        NObjectServer::TObjectBase* object,
-        bool releaseOnCommit);
+        NObjectServer::TObjectBase* object);
 
     //! Unregisters the object from its staging transaction,
     //! calls IObjectTypeHandler::UnstageObject and
@@ -81,6 +77,21 @@ public:
     void StageNode(
         TTransaction* transaction,
         NCypressServer::TCypressNodeBase* trunkNode);
+
+    //! Registers and references the object with the transaction.
+    //! The reference is dropped if the transaction aborts
+    //! but is preserved if the transaction commits.
+    //! The same object as be exported more than once.
+    void ExportObject(
+        TTransaction* transaction,
+        NObjectServer::TObjectBase* object);
+
+    //! Registers and references the object with the transaction.
+    //! The reference is dropped if the transaction aborts or aborts.
+    //! The same object as be exported more than once.
+    void ImportObject(
+        TTransaction* transaction,
+        NObjectServer::TObjectBase* object);
 
 private:
     class TImpl;
