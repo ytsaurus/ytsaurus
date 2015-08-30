@@ -2382,13 +2382,14 @@ private:
             PartitionJobSpecTemplate.set_type(static_cast<int>(Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition));
 
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
-
-            auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             if (Spec->InputQuery) {
                 InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
             }
+
+            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
+            auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
