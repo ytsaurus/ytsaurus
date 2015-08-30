@@ -445,11 +445,16 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
 
+    auto objectManager = Bootstrap_->GetObjectManager();
+    bool isForeign = objectManager->IsForeign(Object_);
+
     descriptors->push_back("id");
     descriptors->push_back("type");
     descriptors->push_back("builtin");
     descriptors->push_back("ref_counter");
     descriptors->push_back("weak_ref_counter");
+    descriptors->push_back(TAttributeDescriptor("import_ref_counter")
+        .SetPresent(isForeign));
     descriptors->push_back("foreign");
     descriptors->push_back(TAttributeDescriptor("supported_permissions")
         .SetOpaque(true));
@@ -469,8 +474,10 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
 
 bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
     auto securityManager = Bootstrap_->GetSecurityManager();
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    bool isForeign = objectManager->IsForeign(Object_);
 
     if (key == "id") {
         BuildYsonFluently(consumer)
@@ -499,6 +506,12 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     if (key == "weak_ref_counter") {
         BuildYsonFluently(consumer)
             .Value(Object_->GetObjectWeakRefCounter());
+        return true;
+    }
+
+    if (isForeign && key == "import_ref_counter") {
+        BuildYsonFluently(consumer)
+            .Value(Object_->GetImportRefCounter());
         return true;
     }
 

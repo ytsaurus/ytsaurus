@@ -34,10 +34,10 @@ inline int TObjectBase::RefObject()
     return ++RefCounter_;
 }
 
-inline int TObjectBase::UnrefObject()
+inline int TObjectBase::UnrefObject(int count)
 {
-    YASSERT(RefCounter_ > 0);
-    return --RefCounter_;
+    YASSERT(RefCounter_ >= count);
+    return RefCounter_ -= count;
 }
 
 inline int TObjectBase::WeakRefObject()
@@ -53,6 +53,17 @@ inline int TObjectBase::WeakUnrefObject()
     return --WeakRefCounter_;
 }
 
+inline int TObjectBase::ImportRefObject()
+{
+    return ++ImportRefCounter_;
+}
+
+inline int TObjectBase::ImportUnrefObject()
+{
+    YASSERT(ImportRefCounter_ > 0);
+    return --ImportRefCounter_;
+}
+
 inline void TObjectBase::ResetWeakRefCounter()
 {
     WeakRefCounter_ = 0;
@@ -66,6 +77,11 @@ inline int TObjectBase::GetObjectRefCounter() const
 inline int TObjectBase::GetObjectWeakRefCounter() const
 {
     return WeakRefCounter_;
+}
+
+inline int TObjectBase::GetImportRefCounter() const
+{
+    return ImportRefCounter_;
 }
 
 inline bool TObjectBase::IsAlive() const

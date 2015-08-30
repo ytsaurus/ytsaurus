@@ -42,7 +42,13 @@ message TReqRemoveForeignObject
 
 message TReqUnrefExportedObjects
 {
-    repeated NYT.NProto.TGuid object_ids = 2;
+    message TUnrefEntry
+    {
+        required NYT.NProto.TGuid object_id = 1;
+        required int32 import_ref_counter = 2;
+    }
+
+    repeated TUnrefEntry entries = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
