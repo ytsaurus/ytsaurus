@@ -158,7 +158,6 @@ class TTableReaderConfig
 public:
     bool SuppressAccessTracking;
     bool IgnoreUnavailableChunks;
-    int MaxChunksPerLocateRequest;
 
     TTableReaderConfig()
     {
@@ -166,9 +165,6 @@ public:
             .Default(false);
         RegisterParameter("ignore_unavailable_chunks", IgnoreUnavailableChunks)
             .Default(false);
-        RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
-            .GreaterThan(0)
-            .Default(10000);
     }
 };
 
