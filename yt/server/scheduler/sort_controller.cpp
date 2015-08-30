@@ -289,7 +289,7 @@ protected:
             : TTask(controller)
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
-                Controller->NodeDirectory,
+                Controller->InputNodeDirectory,
                 Controller->PartitionJobCounter.GetTotal(),
                 Controller->Config->MaxChunkStripesPerJob))
         { }
@@ -386,7 +386,7 @@ protected:
             Controller->PartitionJobCounter.Completed(1);
 
             auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
+            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
             RegisterIntermediate(
                 joblet,
@@ -652,7 +652,7 @@ protected:
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
                 auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
+                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
                 RegisterIntermediate(
                     joblet,
@@ -870,7 +870,7 @@ protected:
 
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-            , ChunkPool(CreateAtomicChunkPool(Controller->NodeDirectory))
+            , ChunkPool(CreateAtomicChunkPool(Controller->InputNodeDirectory))
         { }
 
         virtual Stroka GetId() const override
@@ -1219,7 +1219,7 @@ protected:
     void InitShufflePool()
     {
         ShufflePool = CreateShuffleChunkPool(
-            NodeDirectory,
+            InputNodeDirectory,
             static_cast<int>(Partitions.size()),
             Spec->DataSizePerSortJob);
 
@@ -1231,7 +1231,7 @@ protected:
     void InitSimpleSortPool(int sortJobCount)
     {
         SimpleSortPool = CreateUnorderedChunkPool(
-            NodeDirectory,
+            InputNodeDirectory,
             sortJobCount,
             Config->MaxChunkStripesPerJob);
     }
@@ -1690,7 +1690,7 @@ private:
                 Config->Fetcher,
                 sampleCount,
                 Spec->SortBy,
-                NodeDirectory,
+                InputNodeDirectory,
                 Host->GetBackgroundInvoker(),
                 Logger);
 
@@ -2380,7 +2380,10 @@ private:
     {
         {
             PartitionJobSpecTemplate.set_type(static_cast<int>(Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition));
+
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             if (Spec->InputQuery) {
@@ -2411,6 +2414,8 @@ private:
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
+                AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
                 reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
@@ -2428,7 +2433,10 @@ private:
 
         {
             FinalSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionReduce));
+
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -2446,7 +2454,10 @@ private:
 
         {
             SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
+
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());

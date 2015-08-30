@@ -38,8 +38,8 @@ public:
     virtual NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
 
 private:
-    TJobProxyConfigPtr Config_;
-    NJobAgent::TJobId JobId_;
+    const TJobProxyConfigPtr Config_;
+    const NJobAgent::TJobId JobId_;
 
     NLogging::TLogger Logger;
 
@@ -49,7 +49,8 @@ private:
     
     NApi::IClientPtr Client_;
 
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_;
+    NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory_;
 
     i64 JobProxyMemoryLimit_;
 
@@ -89,7 +90,8 @@ private:
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const override;
 
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const override;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const override;
 
     virtual NLogging::TLogger GetLogger() const override;
 

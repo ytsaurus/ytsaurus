@@ -97,7 +97,7 @@ private:
         TRemoteCopyTask(TRemoteCopyController* controller, int index)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateAtomicChunkPool(Controller_->NodeDirectory))
+            , ChunkPool_(CreateAtomicChunkPool(Controller_->InputNodeDirectory))
             , Index_(index)
         { }
 
@@ -204,8 +204,8 @@ private:
 
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             NNodeTrackerClient::TNodeDirectoryBuilder directoryBuilder(
-                Controller_->NodeDirectory,
-                schedulerJobSpecExt->mutable_node_directory());
+                Controller_->InputNodeDirectory,
+                schedulerJobSpecExt->mutable_input_node_directory());
 
             auto* inputSpec = schedulerJobSpecExt->add_input_specs();
             auto list = joblet->InputStripeList;
