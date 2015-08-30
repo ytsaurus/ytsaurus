@@ -2740,10 +2740,13 @@ void TOperationControllerBase::FetchInputTables()
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
         for (const auto& rspOrError : rspsOrError) {
             const auto& rsp = rspOrError.Value();
-            InputNodeDirectory->MergeFrom(rsp->node_directory());
-            for (const auto& chunk : rsp->chunks()) {
-                table.Chunks.push_back(chunk);
-            }
+            table.Chunks = ProcessFetchResponse(
+                AuthenticatedInputMasterClient,
+                rsp,
+                table.CellTag,
+                InputNodeDirectory,
+                Config->MaxChunksPerLocateRequest,
+                Logger);
         }
 
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
