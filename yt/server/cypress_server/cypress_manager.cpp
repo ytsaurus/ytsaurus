@@ -207,7 +207,7 @@ public:
                 handler->IsExternalizable();
         }
 
-        auto externalCellTag = NotReplicatedCellTag;
+        auto cellTag = NotReplicatedCellTag;
         if (isExternal) {
             if (!Bootstrap_->IsPrimaryMaster()) {
                 THROW_ERROR_EXCEPTION("External nodes are only created at primary masters");
@@ -222,16 +222,16 @@ public:
                     handler->GetObjectType());
             }
 
-            auto maybeExternalCellTag = attributes->Find<TCellTag>("external_cell_tag");
-            if (maybeExternalCellTag) {
-                externalCellTag = *maybeExternalCellTag;
-                if (!multicellManager->IsRegisteredSecondaryMaster(externalCellTag)) {
-                    THROW_ERROR_EXCEPTION("Unknown cell tag %v", externalCellTag);
+            auto maybeCellTag = attributes->Find<TCellTag>("cell_tag");
+            if (maybeCellTag) {
+                cellTag = *maybeCellTag;
+                if (!multicellManager->IsRegisteredSecondaryMaster(cellTag)) {
+                    THROW_ERROR_EXCEPTION("Unknown cell tag %v", cellTag);
                 }
-                attributes->Remove("external_cell_tag");
+                attributes->Remove("cell_tag");
             } else {
-                externalCellTag = multicellManager->GetLeastLoadedSecondaryMaster();
-                if (externalCellTag == InvalidCellTag) {
+                cellTag = multicellManager->GetLeastLoadedSecondaryMaster();
+                if (cellTag == InvalidCellTag) {
                     THROW_ERROR_EXCEPTION("No secondary masters registered");
                 }
             }
@@ -245,7 +245,7 @@ public:
 
         auto* trunkNode = cypressManager->CreateNode(
             NullObjectId,
-            externalCellTag,
+            cellTag,
             handler,
             account,
             Transaction_,
@@ -267,7 +267,7 @@ public:
             replicationRequest.set_type(static_cast<int>(type));
             ToProto(replicationRequest.mutable_node_attributes(), *replicationAttributes);
             ToProto(replicationRequest.mutable_account_id(), Account_->GetId());
-            multicellManager->PostToMaster(replicationRequest, externalCellTag);
+            multicellManager->PostToMaster(replicationRequest, cellTag);
         }
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
