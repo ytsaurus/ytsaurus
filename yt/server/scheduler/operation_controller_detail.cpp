@@ -1660,10 +1660,9 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     RemoveJoblet(job);
 
-    if (abortReason == EAbortReason::FailedChunks) {
-        const auto& result = job->Result();
+    const auto& result = job->Result();
+    if (result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
         const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
         for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
