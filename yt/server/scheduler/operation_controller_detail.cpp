@@ -2521,15 +2521,15 @@ void TOperationControllerBase::FetchInputTables()
         const auto& table = InputTables[tableIndex];
 
         for (const auto& range : table.Path.GetRanges()) {
-            for (i64 index = 0; index * Config->MaxChunkCountPerFetch < table.ChunkCount; ++index) {
+            for (i64 index = 0; index * Config->MaxChunksPerFetch < table.ChunkCount; ++index) {
                 auto adjustedRange = range;
-                auto chunkCountLowerLimit = index * Config->MaxChunkCountPerFetch;
+                auto chunkCountLowerLimit = index * Config->MaxChunksPerFetch;
                 if (adjustedRange.LowerLimit().HasChunkIndex()) {
                     chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
                 }
                 adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
-                auto chunkCountUpperLimit = (index + 1) * Config->MaxChunkCountPerFetch;
+                auto chunkCountUpperLimit = (index + 1) * Config->MaxChunksPerFetch;
                 if (adjustedRange.UpperLimit().HasChunkIndex()) {
                     chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
                 }
@@ -2922,12 +2922,12 @@ void TOperationControllerBase::DoRequestFileObjects(
                 }
 
                 i64 chunkCount = attributes.Get<i64>("chunk_count");
-                if (chunkCount > Config->MaxChunkCountPerFetch) {
+                if (chunkCount > Config->MaxChunksPerFetch) {
                     THROW_ERROR_EXCEPTION(
                         "User file %v exceeds chunk count limit: %v > %v",
                         path,
                         chunkCount,
-                        Config->MaxChunkCountPerFetch);
+                        Config->MaxChunksPerFetch);
                 }
 
                 if (onFileObject) {
