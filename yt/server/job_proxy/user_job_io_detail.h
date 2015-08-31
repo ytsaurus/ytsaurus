@@ -21,8 +21,8 @@ public:
 
     virtual void Init() override;
 
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const override;
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr>& GetReaders() const override;
+    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const override;
+    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> GetReaders() const override;
 
     virtual int GetReduceKeyColumnCount() const override;
 
@@ -30,6 +30,8 @@ public:
 
 protected:
     IJobHost* Host_;
+
+    std::atomic<bool> Initialized_ = { false };
 
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpec_;
     NScheduler::TJobIOConfigPtr JobIOConfig_;
