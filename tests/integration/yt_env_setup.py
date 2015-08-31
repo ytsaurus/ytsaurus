@@ -16,9 +16,8 @@ TOOLS_ROOTDIR = os.path.abspath('tools')
 
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 
-mark_multicell = pytest.mark.skipif( \
-    'os.environ.get("ENABLE_YT_MULTICELL_TESTS") != "1"',
-    reason = "Multicell tests require explicit ENABLE_YT_MULTICELL_TESTS=1")
+# Declares new marker "multicell", see tests/conftest.py
+mark_multicell = pytest.mark.multicell
 
 def skip_if_multicell(func):
     def wrapped_func(self, *args, **kwargs):
