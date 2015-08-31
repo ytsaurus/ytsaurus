@@ -285,7 +285,7 @@ IChannelPtr CreateBalancingChannel(
     YCHECK(channelFactory);
 
     if (config->Addresses.size() == 1) {
-        // Shorcut: don't run any discovery if just one address is given.
+        // Shortcut: don't run any discovery if just one address is given.
         return channelFactory->CreateChannel(config->Addresses[0]);
     } else {
         auto channelProvider = New<TBalancingChannelProvider>(
