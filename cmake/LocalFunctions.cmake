@@ -36,7 +36,7 @@ function(UDF udf output type)
     endif()
   endforeach()
 
-  set(_inter_dirname ${CMAKE_BINARY_DIR}/bin/)
+  set(_inter_dirname ${CMAKE_CURRENT_BINARY_DIR})
   set(_inter_filename ${_filename}.${type})
   set(_bc_filename ${_filename}.bc)
   foreach(_file ${_extrafiles})

@@ -62,7 +62,7 @@ struct TExecutionContext
     TRowBufferPtr OutputBuffer;
 
     // TODO(babenko): TSharedRange?
-    std::vector<TRow>* OutputBatchRows;
+    std::vector<TRow>* OutputRowsBatch;
 
     TQueryStatistics* Statistics;
 
