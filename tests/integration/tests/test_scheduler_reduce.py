@@ -132,7 +132,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert read_file('//sys/operations/{}/jobs/{}/stderr'.format(op_id, job_ids[0])) == \
             '<"table_index"=1;>#;\n' \
             '<"row_index"=0;>#;\n' \
-            '{"key"=1;"value"=6};\n' \
+            '{"key"=1;"value"=6;};\n' \
             '<"table_index"=0;>#;\n' \
             '<"row_index"=0;>#;\n' \
             '{"key"=4;"value"=3;};\n'
