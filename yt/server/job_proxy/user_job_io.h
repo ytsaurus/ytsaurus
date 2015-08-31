@@ -17,8 +17,8 @@ struct IUserJobIO
 {
     virtual void Init() = 0;
 
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr>& GetWriters() const = 0;
-    virtual const std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr>& GetReaders() const = 0;
+    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkWriterPtr> GetWriters() const = 0;
+    virtual std::vector<NVersionedTableClient::ISchemalessMultiChunkReaderPtr> GetReaders() const = 0;
 
     //! Used for key switch injection.
     virtual int GetReduceKeyColumnCount() const = 0;
