@@ -1508,7 +1508,6 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    YCHECK(timestamp != AllCommittedTimestamp);
     return New<TRangeReader>(
         this,
         std::move(lowerKey),
@@ -1523,6 +1522,7 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    YCHECK(timestamp != AllCommittedTimestamp);
     return New<TLookupReader>(
         this,
         keys,
