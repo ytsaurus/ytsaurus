@@ -124,7 +124,7 @@ message TGroupClause
 message TOrderClause
 {
     repeated string order_columns = 1;
-    required bool is_desc = 2;
+    required bool is_descending = 2;
 }
 
 message TProjectClause
@@ -143,7 +143,6 @@ message TQuery
     required NYT.NTableClient.NProto.TTableSchemaExt table_schema = 5;
     required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 13;
     required int64 key_columns_count = 6;
-
 
     repeated TJoinClause join_clauses = 7;
     optional TExpression predicate = 8;

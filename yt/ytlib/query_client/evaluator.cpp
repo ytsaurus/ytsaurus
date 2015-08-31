@@ -113,7 +113,7 @@ public:
                 executionContext.OutputBuffer = outputBuffer;
                 executionContext.IntermediateBuffer = intermediateBuffer;
                 executionContext.Writer = writer;
-                executionContext.OutputBatchRows = &outputBatchRows;
+                executionContext.OutputRowsBatch = &outputBatchRows;
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->InputRowLimit;
                 executionContext.OutputRowLimit = query->OutputRowLimit;
