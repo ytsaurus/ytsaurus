@@ -641,6 +641,8 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
                     case EStorePreloadState::Failed:
                         ++Snapshot_->StorePreloadFailedCount;
                         break;
+                    default:
+                        break;
                 }
             }
         }
