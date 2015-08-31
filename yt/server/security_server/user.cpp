@@ -57,6 +57,7 @@ TUserStatistics& operator += (TUserStatistics& lhs, const TUserStatistics& rhs)
 {
     lhs.RequestCounter += rhs.RequestCounter;
     lhs.ReadRequestTimer += rhs.ReadRequestTimer;
+    lhs.WriteRequestTimer += rhs.WriteRequestTimer;
     lhs.AccessTime = std::max(lhs.AccessTime, rhs.AccessTime);
     return lhs;
 }
