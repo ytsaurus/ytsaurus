@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, skip_if_multicell, mark_multicell
+from yt_env_setup import YTEnvSetup, skip_if_multicell
 from yt_commands import *
 from time import sleep
 
@@ -129,6 +129,5 @@ class TestFiles(YTEnvSetup):
 
 ##################################################################
 
-@mark_multicell
 class TestFilesMulticell(TestFiles):
     NUM_SECONDARY_MASTER_CELLS = 2

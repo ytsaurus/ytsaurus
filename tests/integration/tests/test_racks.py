@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, mark_multicell
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import time
@@ -276,7 +276,6 @@ class TestRacks(YTEnvSetup):
 
 ##################################################################
 
-@mark_multicell
 class TestRacksMulticell(TestRacks):
     NUM_SECONDARY_MASTER_CELLS = 2
 

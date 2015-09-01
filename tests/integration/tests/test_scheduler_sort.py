@@ -1,7 +1,7 @@
 import pytest
 
 from random import shuffle
-from yt_env_setup import YTEnvSetup, mark_multicell
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 
@@ -248,6 +248,5 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
 ##################################################################
 
-@mark_multicell
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

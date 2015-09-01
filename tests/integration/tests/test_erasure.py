@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, mark_multicell
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import time
@@ -131,7 +131,6 @@ class TestErasure(YTEnvSetup):
             
 ##################################################################
 
-@mark_multicell
 class TestErasureMulticell(TestErasure):
     NUM_SECONDARY_MASTER_CELLS = 2
 

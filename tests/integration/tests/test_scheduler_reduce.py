@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, mark_multicell, linux_only
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
 
@@ -407,6 +407,5 @@ echo {v = 2} >&7
 
 ##################################################################
 
-@mark_multicell
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

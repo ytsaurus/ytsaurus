@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, mark_multicell, mark_multicell
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 
@@ -152,6 +152,5 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
 ##################################################################
 
-@mark_multicell
 class TestSchedulerEraseCommandsMulticell(TestSchedulerEraseCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
