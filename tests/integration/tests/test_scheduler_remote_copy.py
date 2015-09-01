@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, mark_multicell, skip_if_multicell
+from yt_env_setup import YTEnvSetup, skip_if_multicell
 from yt_commands import *
 
 import time
@@ -238,7 +238,6 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
 ##################################################################
 
-@mark_multicell
 class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 

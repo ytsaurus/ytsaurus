@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, mark_multicell, linux_only, TOOLS_ROOTDIR
+from yt_env_setup import YTEnvSetup, linux_only, TOOLS_ROOTDIR
 from yt_commands import *
 
 from collections import defaultdict
@@ -339,6 +339,5 @@ print "x={0}\ty={1}".format(x, y)
 
 ##################################################################
 
-@mark_multicell
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

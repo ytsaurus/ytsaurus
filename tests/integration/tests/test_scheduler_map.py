@@ -6,7 +6,7 @@ import tempfile
 
 from yt.wrapper import format
 
-from yt_env_setup import YTEnvSetup, mark_multicell, linux_only
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 from distutils.spawn import find_executable
 
@@ -1144,7 +1144,6 @@ class TestJobQuery(YTEnvSetup):
 
 ##################################################################
 
-@mark_multicell
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 

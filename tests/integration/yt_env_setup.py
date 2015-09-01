@@ -16,9 +16,6 @@ TOOLS_ROOTDIR = os.path.abspath('tools')
 
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 
-# Declares new marker "multicell", see tests/conftest.py
-mark_multicell = pytest.mark.multicell
-
 def skip_if_multicell(func):
     def wrapped_func(self, *args, **kwargs):
         if hasattr(self, "NUM_SECONDARY_MASTER_CELLS") and self.NUM_SECONDARY_MASTER_CELLS > 0:
