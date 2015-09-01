@@ -14,6 +14,7 @@
 #include <ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/misc/finally.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -42,6 +43,10 @@ TUserJobIOBase::TUserJobIOBase(IJobHost* host)
 void TUserJobIOBase::Init()
 {
     LOG_INFO("Opening writers");
+
+    TFinallyGuard guard([&] () {
+        Initialized_ = true;
+    });
 
     auto transactionId = FromProto<TTransactionId>(SchedulerJobSpec_.output_transaction_id());
     for (const auto& outputSpec : SchedulerJobSpec_.output_specs()) {
@@ -97,14 +102,22 @@ int TUserJobIOBase::GetReduceKeyColumnCount() const
     return 0;
 }
 
-const std::vector<ISchemalessMultiChunkWriterPtr>& TUserJobIOBase::GetWriters() const
+std::vector<ISchemalessMultiChunkWriterPtr> TUserJobIOBase::GetWriters() const
 {
-    return Writers_;
+    if (Initialized_) {
+        return Writers_;
+    } else {
+        return std::vector<ISchemalessMultiChunkWriterPtr>();
+    }
 }
 
-const ISchemalessMultiChunkReaderPtr& TUserJobIOBase::GetReader() const
+ISchemalessMultiChunkReaderPtr TUserJobIOBase::GetReader() const
 {
-    return Reader_;
+    if (Initialized_) {
+        return Reader_;
+    } else {
+        return nullptr;
+    }
 }
 
 TBoundaryKeysExt TUserJobIOBase::GetBoundaryKeys(ISchemalessMultiChunkWriterPtr writer) const
