@@ -307,14 +307,6 @@ private:
             return true;
         }
 
-        if (key == "owning_nodes") {
-            SerializeOwningNodesPaths(
-                cypressManager,
-                chunk,
-                consumer);
-            return true;
-        }
-
         if (chunk->IsConfirmed()) {
             const auto& miscExt = chunk->MiscExt();
 
@@ -451,6 +443,7 @@ private:
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
         auto* chunk = GetThisTypedImpl();
+
         if (chunk->IsJournal() && key == "quorum_row_count") {
             auto chunkManager = Bootstrap_->GetChunkManager();
             auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
@@ -458,6 +451,11 @@ private:
                 return MakeFuture(ConvertToYsonString(miscExt.row_count()));
             }));
         }
+
+        if (key == "owning_nodes") {
+            return GetMulticellOwningNodes(Bootstrap_, chunk);
+        }
+
         return TBase::GetBuiltinAttributeAsync(key);
     }
 

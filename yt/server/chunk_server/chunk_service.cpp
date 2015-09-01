@@ -2,6 +2,8 @@
 #include "chunk_service.h"
 #include "chunk_manager.h"
 #include "chunk.h"
+#include "helpers.h"
+#include "chunk_owner_base.h"
 #include "private.h"
 
 #include <core/erasure/codec.h>
@@ -15,6 +17,8 @@
 #include <server/object_server/object.h>
 
 #include <server/hydra/rpc_helpers.h>
+
+#include <server/transaction_server/transaction.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
@@ -50,6 +54,7 @@ public:
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExportChunks));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ImportChunks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkOwningNodes));
     }
 
 private:
@@ -184,6 +189,33 @@ private:
             ->CreateImportChunksMutation(context)
             ->Commit()
             .Subscribe(CreateRpcResponseHandler(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkOwningNodes)
+    {
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+        SyncWithUpstream();
+
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+        context->SetRequestInfo("ChunkId: %v",
+            chunkId);
+
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
+
+        auto owningNodes = GetOwningNodes(chunk);
+        for (const auto* node : owningNodes) {
+            auto* protoNode = response->add_nodes();
+            ToProto(protoNode->mutable_node_id(), node->GetId());
+            if (node->GetTransaction()) {
+                ToProto(protoNode->mutable_transaction_id(), node->GetTransaction()->GetId());
+            }
+        }
+
+        context->SetResponseInfo("NodeCount: %v",
+            response->nodes_size());
+        context->Reply();
     }
 
 };

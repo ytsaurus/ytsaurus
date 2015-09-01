@@ -10,6 +10,8 @@
 
 #include <core/yson/public.h>
 
+#include <core/actions/future.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -52,15 +54,9 @@ NSecurityServer::TClusterResources GetDiskUsage(
 
 std::vector<TChunkOwnerBase*> GetOwningNodes(
     TChunkTree* chunkTree);
-void SerializeOwningNodesPaths(
-    NCypressServer::TCypressManagerPtr cypressManager,
-    TChunkTree* chunkTree,
-    NYson::IYsonConsumer* consumer);
-
-void SerializeOwningNodesPaths(
-    NCypressServer::TCypressManagerPtr cypressManager,
-    TChunkTree* chunkTree,
-    NYson::IYsonConsumer* consumer);
+TFuture<NYson::TYsonString> GetMulticellOwningNodes(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkTree* chunkTree);
 
 NTableClient::TOwningKey GetMaxKey(const TChunk* chunk);
 NTableClient::TOwningKey GetMaxKey(const TChunkList* chunkList);

@@ -1,18 +1,37 @@
 #include "stdafx.h"
 #include "helpers.h"
 #include "chunk_owner_base.h"
+#include "chunk_manager.h"
 
 #include <core/ytree/fluent.h>
 
-#include <ytlib/object_client/public.h>
+#include <core/concurrency/scheduler.h>
+
+#include <core/misc/protobuf_helpers.h>
+
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/table_client/unversioned_row.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
+
+#include <ytlib/hive/cell_directory.h>
+
+#include <ytlib/chunk_client/chunk_service_proxy.h>
+
+#include <ytlib/object_client/object_service_proxy.h>
+
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <server/cypress_server/cypress_manager.h>
 #include <server/cypress_server/node_proxy.h>
 
 #include <server/transaction_server/transaction.h>
+
+#include <server/object_server/object.h>
+
+#include <server/cell_master/bootstrap.h>
+#include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/config.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -21,9 +40,16 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectClient;
 using namespace NCypressServer;
+using namespace NCypressClient;
+using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NSecurityServer;
+using namespace NObjectServer;
+using namespace NConcurrency;
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,8 +196,7 @@ void VisitOwningNodes(
     }
 }
 
-std::vector<TChunkOwnerBase*> GetOwningNodes(
-    TChunkTree* chunkTree)
+std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
 {
     yhash_set<TChunkOwnerBase*> owningNodes;
     yhash_set<TChunkTree*> visitedTrees;
@@ -179,32 +204,119 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(
     return std::vector<TChunkOwnerBase*>(owningNodes.begin(), owningNodes.end());
 }
 
-void SerializeOwningNodesPaths(
-    TCypressManagerPtr cypressManager,
-    TChunkTree* chunkTree,
-    IYsonConsumer* consumer)
-{
-    yhash_set<TChunkOwnerBase*> owningNodes;
-    yhash_set<TChunkTree*> visitedTrees;
-    VisitOwningNodes(chunkTree, &visitedTrees, &owningNodes);
+namespace {
 
-    BuildYsonFluently(consumer)
-        .DoListFor(owningNodes, [&] (TFluentList fluent, TChunkOwnerBase* node) {
-            auto proxy = cypressManager->GetNodeProxy(
-                node->GetTrunkNode(),
-                node->GetTransaction());
-            auto path = proxy->GetPath();
-            if (node->GetTransaction()) {
-                fluent.Item()
-                    .BeginAttributes()
-                        .Item("transaction_id").Value(node->GetTransaction()->GetId())
-                    .EndAttributes()
-                    .Value(path);
-            } else {
-                fluent.Item()
-                    .Value(path);
+TYsonString DoGetMulticellOwningNodes(
+    NCellMaster::TBootstrap* bootstrap,
+    const TChunkTreeId& chunkTreeId)
+{
+    std::vector<TVersionedObjectId> nodeIds;
+
+    auto chunkManager = bootstrap->GetChunkManager();
+    auto* chunkTree = chunkManager->FindChunkTree(chunkTreeId);
+    if (IsObjectAlive(chunkTree)) {
+        auto nodes = GetOwningNodes(chunkTree);
+        for (const auto* node : nodes) {
+            nodeIds.push_back(node->GetVersionedId());
+        }
+    }
+
+    auto cellDirectory = bootstrap->GetCellDirectory();
+
+    // Request owning nodes from all cells.
+    auto requestIdsFromCell = [&] (TCellTag cellTag) {
+        if (cellTag == bootstrap->GetCellTag())
+            return;
+
+        auto type = TypeFromId(chunkTreeId);
+        if (type != EObjectType::Chunk &&
+            type != EObjectType::ErasureChunk &&
+            type != EObjectType::JournalChunk)
+            return;
+
+        auto cellId = bootstrap->GetSecondaryCellId(cellTag);
+        auto channel = cellDirectory->GetChannel(cellId, NHydra::EPeerKind::LeaderOrFollower);
+
+        TChunkServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(bootstrap->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+
+        auto req = proxy.GetChunkOwningNodes();
+        ToProto(req->mutable_chunk_id(), chunkTreeId);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk)
+            return;
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting owning nodes for chunk %v from cell %v",
+            chunkTreeId,
+            cellTag);
+        const auto& rsp = rspOrError.Value();
+
+        for (const auto& protoNode : rsp->nodes()) {
+            nodeIds.emplace_back(
+                FromProto<NCypressClient::TNodeId>(protoNode.node_id()),
+                protoNode.has_transaction_id() ? FromProto<TTransactionId>(protoNode.transaction_id()) : NullTransactionId);
+        }
+    };
+
+    requestIdsFromCell(bootstrap->GetPrimaryCellTag());
+    for (auto cellTag : bootstrap->GetSecondaryCellTags()) {
+        requestIdsFromCell(cellTag);
+    }
+
+    // Request node paths from the primary cell.
+    {
+        auto cellId = bootstrap->GetPrimaryCellId();
+        auto channel = cellDirectory->GetChannel(cellId, NHydra::EPeerKind::LeaderOrFollower);
+
+        // TODO(babenko): improve
+        TObjectServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(bootstrap->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+
+        auto batchReq = proxy.ExecuteBatch();
+        for (const auto& versionedId : nodeIds) {
+            auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");
+            batchReq->AddRequest(req, "get_path");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error requesting owning node paths");
+        const auto& batchRsp = batchRspOrError.Value();
+
+        auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>("get_path");
+        YCHECK(rsps.size() == nodeIds.size());
+
+        TStringStream stream;
+        TYsonWriter writer(&stream);
+        writer.OnBeginList();
+
+        for (int index = 0; index < rsps.size(); ++index) {
+            const auto& rsp = rsps[index].Value();
+            const auto& versionedId = nodeIds[index];
+            writer.OnListItem();
+            if (versionedId.TransactionId) {
+                writer.OnBeginAttributes();
+                writer.OnKeyedItem("transaction_id");
+                writer.OnStringScalar(ToString(versionedId.TransactionId));
+                writer.OnEndAttributes();
             }
-        });
+            writer.OnRaw(rsp->value(), EYsonType::Node);
+        }
+
+        writer.OnEndList();
+        return TYsonString(stream.Str());
+    }
+}
+
+} // namespace
+
+TFuture<TYsonString> GetMulticellOwningNodes(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkTree* chunkTree)
+{
+    return BIND(&DoGetMulticellOwningNodes, bootstrap, chunkTree->GetId())
+        .AsyncVia(bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker())
+        .Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
