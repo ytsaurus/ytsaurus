@@ -23,6 +23,8 @@
 
 #include <server/journal_server/public.h>
 
+#include <server/journal_server/public.h>
+
 #include <server/transaction_server/public.h>
 
 #include <server/cypress_server/public.h>
@@ -73,6 +75,7 @@ public:
     TWorldInitializerPtr GetWorldInitializer() const;
     NObjectServer::TObjectManagerPtr GetObjectManager() const;
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
+    NJournalServer::TJournalManagerPtr GetJournalManager() const;
     NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
     NTabletServer::TTabletManagerPtr GetTabletManager() const;
     NHive::THiveManagerPtr GetHiveManager() const;
@@ -112,6 +115,7 @@ private:
     TWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;
+    NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NHive::THiveManagerPtr HiveManager_;

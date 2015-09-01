@@ -1058,35 +1058,6 @@ public:
     }
 
 
-    void SealJournal(
-        TJournalNode* trunkNode,
-        const TDataStatistics* statistics)
-    {
-        YCHECK(trunkNode->IsTrunk());
-
-        trunkNode->SnapshotStatistics() = statistics
-            ? *statistics
-            :  trunkNode->SnapshotStatistics() = trunkNode->GetChunkList()->Statistics().ToDataStatistics();
-
-        trunkNode->SetSealed(true);
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->UpdateAccountNodeUsage(trunkNode);
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
-            trunkNode->GetId());
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        if (objectManager->IsForeign(trunkNode)) {
-            auto req = TJournalYPathProxy::Seal(FromObjectId(trunkNode->GetId()));
-            *req->mutable_statistics() = trunkNode->SnapshotStatistics();
-
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(req, PrimaryMasterCellTag);
-        }
-    }
-
-
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
 
@@ -2317,13 +2288,6 @@ TCypressNodeList TCypressManager::GetNodeReverseOriginators(
     TCypressNodeBase* trunkNode)
 {
     return Impl_->GetNodeReverseOriginators(transaction, trunkNode);
-}
-
-void TCypressManager::SealJournal(
-    TJournalNode* trunkNode,
-    const TDataStatistics* statistics)
-{
-    Impl_->SealJournal(trunkNode, statistics);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNodeBase, TVersionedNodeId, *Impl_);

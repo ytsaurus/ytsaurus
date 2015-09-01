@@ -20,6 +20,8 @@
 
 #include <server/chunk_server/config.h>
 
+#include <server/journal_server/config.h>
+
 #include <server/cypress_server/config.h>
 
 #include <server/object_server/config.h>
@@ -95,6 +97,8 @@ public:
     NTransactionServer::TTransactionManagerConfigPtr TransactionManager;
 
     NChunkServer::TChunkManagerConfigPtr ChunkManager;
+
+    NJournalServer::TJournalManagerConfigPtr JournalManager;
 
     NObjectServer::TObjectManagerConfigPtr ObjectManager;
 

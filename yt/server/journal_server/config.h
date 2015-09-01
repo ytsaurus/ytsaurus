@@ -1,19 +1,21 @@
-﻿#pragma once
+#pragma once
 
-#include <core/misc/public.h>
+#include "public.h"
+
+#include <core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NJournalServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TJournalManager)
+class TJournalManagerConfig
+    : public NYTree::TYsonSerializable
+{ };
 
-DECLARE_REFCOUNTED_CLASS(TJournalManagerConfig)
-
-class TJournalNode;
+DEFINE_REFCOUNTED_TYPE(TJournalManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NJournalServer
+} // namespace ТJournalServer
 } // namespace NYT

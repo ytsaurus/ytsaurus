@@ -29,6 +29,8 @@
 
 #include <server/security_server/account.h>
 
+#include <server/journal_server/journal_manager.h>
+
 #include <server/cell_master/bootstrap.h>
 
 namespace NYT {
@@ -535,8 +537,8 @@ private:
 
         auto* chunk = GetThisTypedImpl();
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->SealChunk(chunk, info);
+        auto journalManager = Bootstrap_->GetJournalManager();
+        journalManager->SealChunk(chunk, info);
 
         context->Reply();
     }
