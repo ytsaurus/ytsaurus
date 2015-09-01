@@ -40,10 +40,6 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache);
 
-    virtual TFuture<void> Open(
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns) final override;
-
     virtual bool Write(const std::vector<TUnversionedRow>& rows) final override;
 
     virtual TFuture<void> GetReadyEvent() final override;
@@ -109,12 +105,6 @@ private:
     TTableSchema Schema;
 
     // ToDo(psushin): refactor.
-    void Open(
-        TNameTablePtr nameTable,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns);
-
-    // ToDo(psushin): refactor.
     void WriteValue(const TUnversionedValue& value);
 
     // ToDo(psushin): refactor.
@@ -145,79 +135,6 @@ TChunkWriter::TChunkWriter(
     , RowIndex(0)
     , LargestBlockSize(0)
 { }
-
-TFuture<void> TChunkWriter::Open(
-   const TTableSchema& schema,
-   const TKeyColumns& keyColumns)
-{
-    auto nameTable = New<TNameTable>();
-    for (int i = 0; i < schema.Columns().size(); ++i) {
-        YCHECK(i == nameTable->RegisterName(schema.Columns()[i].Name));
-    }
-    Open(nameTable, schema, keyColumns);
-    return VoidFuture;
-}
-
-void TChunkWriter::Open(
-    TNameTablePtr nameTable,
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns)
-{
-    Schema = schema;
-    InputNameTable = nameTable;
-
-    // Integers and Doubles align at 8 bytes (stores the whole value),
-    // while String and Any align at 4 bytes (stores just offset to value).
-    // To ensure proper alignment during reading, move all integer and
-    // double columns to the front.
-    using NTableClient::TColumnSchema;
-    std::sort(
-        Schema.Columns().begin(),
-        Schema.Columns().end(),
-        [] (const TColumnSchema& lhs, const TColumnSchema& rhs) {
-            auto isFront = [] (const TColumnSchema& schema) {
-                return schema.Type == EValueType::Int64 || schema.Type == EValueType::Uint64 || schema.Type == EValueType::Double;
-            };
-            if (isFront(lhs) && !isFront(rhs)) {
-                return true;
-            }
-            if (!isFront(lhs) && isFront(rhs)) {
-                return false;
-            }
-            return &lhs < &rhs;
-        }
-    );
-
-    ColumnDescriptors.resize(InputNameTable->GetSize());
-
-    for (const auto& column : Schema.Columns()) {
-        TColumnDescriptor descriptor;
-        descriptor.IndexInBlock = ColumnSizes.size();
-        descriptor.OutputIndex = OutputNameTable->RegisterName(column.Name);
-        descriptor.Type = column.Type;
-
-        if (IsStringLikeType(column.Type)) {
-            ColumnSizes.push_back(4);
-        } else {
-            ColumnSizes.push_back(8);
-        }
-
-        auto id = InputNameTable->GetId(column.Name);
-        ColumnDescriptors[id] = descriptor;
-    }
-
-    for (const auto& column : keyColumns) {
-        auto id = InputNameTable->GetId(column);
-        KeyIds.push_back(id);
-
-        auto& descriptor = ColumnDescriptors[id];
-        YCHECK(descriptor.IndexInBlock >= 0);
-        YCHECK(descriptor.Type != EValueType::Any);
-        descriptor.IsKeyPart = true;
-    }
-
-    CurrentBlock.reset(new TBlockWriter(ColumnSizes));
-}
 
 bool TChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 {

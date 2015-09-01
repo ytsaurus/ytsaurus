@@ -303,76 +303,449 @@ ui64 Estimate(TUnversionedValue lower, TUnversionedValue upper, TDivisors partia
     return 1;
 }
 
-// Extract ranges from a predicate and enrich them with computed column values.
-class TRangeInferrerHeavy
-    : public TRefCounted
+static TNullable<TUnversionedValue> TrimSentinel(TRow row)
 {
-public:
-    TRangeInferrerHeavy(
-        TConstExpressionPtr predicate,
-        const TTableSchema& schema,
-        const TKeyColumns& renamedKeyColumns,
-        const TColumnEvaluatorCachePtr& evaluatorCache,
-        const IFunctionRegistryPtr functionRegistry,
-        ui64 rangeExpansionLimit,
-        bool verboseLogging)
-        : Schema_(schema)
-        , KeySize_(renamedKeyColumns.size())
-        , VerboseLogging_(verboseLogging)
-    {
-        Evaluator_ = evaluatorCache->Find(Schema_, KeySize_);
-        yhash_set<Stroka> references;
-        if (predicate) {
-            Profile(predicate, schema, nullptr, nullptr, &references, functionRegistry);
+    TNullable<TUnversionedValue> result;
+    for (int index = row.GetCount() - 1; index >= 0 && IsSentinelType(row[index].Type); --index) {
+        result = row[index];
+        row.SetCount(index);
+    }
+    return result;
+}
+
+static void AppendSentinel(TRow row, TNullable<TUnversionedValue> sentinel)
+{
+    if (sentinel) {
+        row[row.GetCount()] = sentinel.Get();
+        row.SetCount(row.GetCount() + 1);
+    }
+}
+
+void Copy(TRow source, TRow dest, int count)
+{
+    count = std::min(count, source.GetCount());
+    for (int index = 0; index < count; ++index) {
+        dest[index] = source[index];
+    }
+}
+
+TRow Copy(TRowBuffer* buffer, TRow source, int size = std::numeric_limits<int>::max())
+{
+    size = std::min(size, source.GetCount());
+    auto row = TUnversionedRow::Allocate(buffer->GetPool(), size);
+    for (int index = 0; index < size; ++index) {
+        row[index] = source[index];
+    }
+    return row;
+}
+
+TDivisors GetDivisors(const std::vector<TColumnSchema>& columns, int keyIndex, TConstExpressionPtr expr)
+{
+    auto name = columns[keyIndex].Name;
+
+    TUnversionedValue one;
+    one.Id = 0;
+    one.Type = columns[keyIndex].Type;
+    one.Data.Int64 = 1;
+
+    if (auto referenceExpr = expr->As<TReferenceExpression>()) {
+        return (referenceExpr->ColumnName == name) ? TDivisors{one} : TDivisors();
+    } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
+        TDivisors result;
+        for (const auto& argument : functionExpr->Arguments) {
+            const auto arg = GetDivisors(columns, keyIndex, argument);
+            result.append(arg.begin(), arg.end());
+        }
+        return result;
+    } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
+        return GetDivisors(columns, keyIndex, unaryOp->Operand);
+    } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
+        auto reference = binaryOp->Lhs->As<TReferenceExpression>();
+        auto literal = binaryOp->Rhs->As<TLiteralExpression>();
+        if (binaryOp->Opcode == EBinaryOp::Divide
+            && reference
+            && literal
+            && IsIntegralType(static_cast<TUnversionedValue>(literal->Value).Type)
+            && reference->ColumnName == name)
+        {
+            TUnversionedValue value = literal->Value;
+            value.Id = 0;
+            return TDivisors{value};
+        }
+        auto lhs = GetDivisors(columns, keyIndex, binaryOp->Lhs);
+        auto rhs = GetDivisors(columns, keyIndex, binaryOp->Rhs);
+        lhs.append(rhs.begin(), rhs.end());
+        return lhs;
+    } else if (auto inOp = expr->As<TInOpExpression>()) {
+        TDivisors result;
+        for (const auto& argument : inOp->Arguments) {
+            const auto arg = GetDivisors(columns, keyIndex, argument);
+            result.append(arg.begin(), arg.end());
+        }
+        return result;
+    } else if (expr->As<TLiteralExpression>()) {
+        return TDivisors();
+    } else {
+        YUNREACHABLE();
+    }
+}
+
+TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(
+    const TColumnEvaluator& evaluator,
+    const std::vector<TColumnSchema>& columns,
+    int index)
+{
+    if (!columns[index].Expression) {
+        return Null;
+    }
+    auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
+    if (expr && expr->Opcode == EBinaryOp::Modulo) {
+        if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {
+            TUnversionedValue value = literalExpr->Value;
+            if (IsIntegralType(value.Type)) {
+                value.Id = index;
+                return TModuloRangeGenerator(value);
+            }
+        }
+    }
+    return Null;
+}
+
+void EnrichKeyRange(
+    const TColumnEvaluator& evaluator,
+    const std::vector<TColumnSchema>& columns,
+    TRowBuffer* buffer,
+    std::pair<TRow, TRow>& range,
+    std::vector<std::pair<TRow, TRow>>& ranges,
+    size_t keySize,
+    ui64* rangeExpansionLeft)
+{
+    TRow lower = range.first;
+    TRow upper = range.second;
+
+    auto lowerSentinel = TrimSentinel(lower);
+    auto upperSentinel = TrimSentinel(upper);
+
+    bool canEnumerate = false;
+    size_t prefixSize = 0;
+    for (; prefixSize < std::min(range.first.GetCount(), range.second.GetCount()); ++prefixSize) {
+        if (lower[prefixSize].Type == EValueType::TheBottom) {
+            YCHECK(upper[prefixSize].Type == EValueType::TheBottom);
+            continue;
         }
 
-        // TODO(savrus): use enriched key columns here.
-        KeyTrie_ = ExtractMultipleConstraints(
-            predicate,
-            renamedKeyColumns,
-            Buffer_,
-            functionRegistry);
+        YCHECK(!IsSentinelType(lower[prefixSize].Type) && !IsSentinelType(upper[prefixSize].Type));
 
-        LOG_DEBUG_IF(
-            VerboseLogging_,
-            "Predicate %Qv defines key constraints %Qv",
-            InferName(predicate),
-            KeyTrie_);
-
-
-        auto ranges = GetRangesFromTrieWithinRange(
-            TRowRange(Buffer_->Capture(MinKey().Get()), Buffer_->Capture(MaxKey().Get())),
-            KeyTrie_,
-            Buffer_,
-            true);
-
-        LOG_DEBUG_IF(
-            VerboseLogging_,
-            "Got %v from key trie",
-            ranges.size());
-
-        RangeExpansionLeft_ = (rangeExpansionLimit > ranges.size())
-            ? rangeExpansionLimit - ranges.size()
-            : 0;
-
-        for (int index = 0; index < ranges.size(); ++index) {
-            EnrichKeyRange(ranges[index], EnrichedRanges_);
+        if (lower[prefixSize] != upper[prefixSize]) {
+            if (IsIntegralType(lower[prefixSize].Type) && IsIntegralType(upper[prefixSize].Type)) {
+                canEnumerate = true;
+            }
+            break;
         }
-        EnrichedRanges_ = MergeOverlappingRanges(std::move(EnrichedRanges_));
+
+        YCHECK(lower[prefixSize] == upper[prefixSize]);
     }
 
-    virtual TRowRanges GetRangesWithinRange(const TRowRange& keyRange, TRowBufferPtr rowBuffer)
+    // In prefix there are only Fixed, computed columns and Bottom (undefined).
+
+    // Collect here evalutable columns.
+    std::vector<std::pair<size_t, TNullable<TModuloRangeGenerator>>> computedColumns;
+    std::vector<ui64> estimations;
+
+    std::set<TUnversionedValue> divisorsSet;
+    ui64 rangeCount = 1;
+
+    size_t shrinkSize;
+    for (shrinkSize = 0; shrinkSize < keySize; ++shrinkSize) {
+        if (shrinkSize < prefixSize && lower[shrinkSize].Type != EValueType::TheBottom) {
+            // Is fixed.
+            continue;
+        }
+
+        // Is computed or Bottom.
+        if (!columns[shrinkSize].Expression) {
+            // Is Bottom (undefined)
+            break;
+        }
+
+        const auto& references = evaluator.GetReferenceIds(shrinkSize);
+        auto isEvaluatable = true;
+        for (int referenceIndex : references) {
+            if (referenceIndex >= (canEnumerate ? prefixSize + 1 : prefixSize)) {
+                isEvaluatable = false;
+            }
+        }
+
+        auto moduloGenerator = GetModuloGeneratorForColumn(evaluator, columns, shrinkSize);
+        TDivisors partial;
+        ui64 estimation = moduloGenerator ? moduloGenerator->Count() : std::numeric_limits<ui64>::max();
+
+        if (isEvaluatable) {
+            if (canEnumerate) {
+                partial = GetDivisors(columns, prefixSize, evaluator.GetExpression(shrinkSize));
+                partial.erase(
+                    std::remove_if(partial.begin(), partial.end(), [&] (TUnversionedValue value) {
+                        return divisorsSet.count(value);
+                    }),
+                    partial.end());
+
+                auto enumEstimation = Estimate(lower[prefixSize], upper[prefixSize], partial);
+
+                // Here we solve whether create modulo generator or collect divisors.
+                if (enumEstimation < estimation) {
+                    estimation = enumEstimation;
+                    moduloGenerator.Reset();
+                } else {
+                    partial.clear();
+                }
+            } else {
+                estimation = 1;
+                moduloGenerator.Reset();
+            }
+        } else if (!moduloGenerator) {
+            break;
+        }
+
+        if (estimation <= *rangeExpansionLeft &&
+            rangeCount * estimation <= *rangeExpansionLeft)
+        {
+            rangeCount *= estimation;
+        } else {
+            break;
+        }
+
+        divisorsSet.insert(partial.begin(), partial.end());
+        computedColumns.emplace_back(shrinkSize, moduloGenerator);
+        estimations.push_back(estimation);
+    }
+
+    // Trim trailing modulo columns
+    if (shrinkSize != prefixSize) { // or !canEnumerate || shrinkSize < prefixSize ?
+        while (!computedColumns.empty() &&
+            computedColumns.back().second &&
+            computedColumns.back().first + 1 == shrinkSize)
+        {
+            --shrinkSize;
+            rangeCount /= estimations.back();
+
+            estimations.pop_back();
+            computedColumns.pop_back();
+        }
+    }
+
+    // Update range expansion limit utilization.
+    *rangeExpansionLeft -= std::min(rangeCount, *rangeExpansionLeft);
+
+    TDivisors divisors(divisorsSet.begin(), divisorsSet.end());
+
+    auto enumerateModulo = [&] (TUnversionedRow& prefixRow, auto yield) {
+        for (auto& column : computedColumns) {
+            auto columnIndex = column.first;
+            if (column.second) {
+                column.second->Reset();
+                prefixRow[columnIndex] = MakeUnversionedSentinelValue(EValueType::Null, columnIndex);
+            } else {
+                evaluator.EvaluateKey(prefixRow, buffer, columnIndex);
+            }
+        }
+
+        yield();
+
+        size_t evalIndex = computedColumns.size();
+        while (evalIndex > 0) {
+            auto columnIndex = computedColumns[evalIndex - 1].first;
+            auto generator = computedColumns[evalIndex - 1].second.GetPtr();
+            if (!generator || generator->Finished()) {
+                --evalIndex;
+            } else {
+                YASSERT(generator);
+                prefixRow[columnIndex] = generator->Next();
+                while (evalIndex < computedColumns.size()) {
+                    ++evalIndex;
+                    computedColumns[evalIndex - 1].second->Reset();
+                    auto columnIndex = computedColumns[evalIndex - 1].first;
+                    prefixRow[columnIndex] = MakeUnversionedSentinelValue(EValueType::Null, columnIndex);
+                }
+                yield();
+            }
+        }
+    };
+
+    auto lowerRow = TUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+    auto upperRow = TUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+
+    size_t lowerSize = shrinkSize;
+    while (lowerSize < range.first.GetCount() && !IsSentinelType(range.first[lowerSize].Type)) {
+        ++lowerSize;
+    }
+
+    size_t upperSize = shrinkSize;
+    while (upperSize < range.second.GetCount() && !IsSentinelType(range.second[upperSize].Type)) {
+        ++upperSize;
+    }
+
+    Copy(range.first, lowerRow, keySize + 1);
+    Copy(range.second, upperRow, keySize + 1);
+
+    std::function<void(TUnversionedRow& row,
+        size_t,
+        TNullable<TUnversionedValue> finalizeSentinel,
+        TNullable<TUnversionedValue> sentinel)> finalizeRow;
+    if (shrinkSize < prefixSize) {
+        // Shrinked.
+        // If is shrinked, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
+        // upper bound
+        finalizeRow = [&] (TUnversionedRow& row,
+            size_t size,
+            TNullable<TUnversionedValue> finalizeSentinel,
+            TNullable<TUnversionedValue> sentinel)
+        {
+            row.SetCount(shrinkSize);
+            AppendSentinel(row, finalizeSentinel);
+        };
+    } else {
+        finalizeRow = [&] (TUnversionedRow& row,
+            size_t size,
+            TNullable<TUnversionedValue> finalizeSentinel,
+            TNullable<TUnversionedValue> sentinel)
+        {
+            row.SetCount(size);
+            AppendSentinel(row, sentinel);
+        };
+    }
+
+    // Add range to result.
+    auto yieldRange = [&] (
+        TUnversionedRow lowerRow,
+        TUnversionedRow upperRow,
+        TNullable<TUnversionedValue> lowerSentinel,
+        TNullable<TUnversionedValue> upperSentinel)
     {
+        finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
+        finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
+        YASSERT(lowerRow <= upperRow);
+        ranges.push_back(std::make_pair(Copy(buffer, lowerRow), Copy(buffer, upperRow)));
+    };
+
+    TRow prefixRow = TUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+    Copy(range.first, prefixRow, prefixSize);
+
+    if (canEnumerate && !divisors.empty()) {
+        auto generator = CreateQuotientEnumerationGenerator(
+            range.first[prefixSize],
+            range.second[prefixSize],
+            divisors);
+
+        generator->Reset();
+
+        auto upperBound = upperRow[prefixSize];
+
+        auto step = generator->Next();
+        YCHECK(step == lowerRow[prefixSize]);
+
+        while (!generator->Finished()) {
+            prefixRow[prefixSize] = step;
+
+            lowerRow[prefixSize] = step;
+            step = generator->Next();
+            upperRow[prefixSize] = step;
+
+            enumerateModulo(prefixRow, [&] () {
+                Copy(prefixRow, lowerRow, prefixSize);
+                Copy(prefixRow, upperRow, prefixSize);
+                yieldRange(lowerRow, upperRow, lowerSentinel, Null);
+            });
+
+            lowerSentinel.Reset();
+        }
+
+        prefixRow[prefixSize] = step;
+        lowerRow[prefixSize] = step;
+        upperRow[prefixSize] = upperBound;
+        enumerateModulo(prefixRow, [&] () {
+            Copy(prefixRow, lowerRow, prefixSize);
+            Copy(prefixRow, upperRow, prefixSize);
+            yieldRange(lowerRow, upperRow, Null, upperSentinel);
+        });
+    } else {
+        enumerateModulo(prefixRow, [&] () {
+            Copy(prefixRow, lowerRow, shrinkSize);
+            Copy(prefixRow, upperRow, shrinkSize);
+            yieldRange(lowerRow, upperRow, lowerSentinel, upperSentinel);
+        });
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRangeInferrer CreateHeavyRangeInferrer(
+    TConstExpressionPtr predicate,
+    const TTableSchema& schema,
+    const TKeyColumns& renamedKeyColumns,
+    const TColumnEvaluatorCachePtr& evaluatorCache,
+    const IFunctionRegistryPtr functionRegistry,
+    ui64 rangeExpansionLimit,
+    bool verboseLogging)
+{
+    auto buffer = New<TRowBuffer>();
+    auto keySize = renamedKeyColumns.size();
+
+    auto evaluator = evaluatorCache->Find(schema, keySize);
+    // TODO(savrus): use enriched key columns here.
+    auto keyTrie = ExtractMultipleConstraints(
+        predicate,
+        renamedKeyColumns,
+        buffer,
+        functionRegistry);
+
+    LOG_DEBUG_IF(
+        verboseLogging,
+        "Predicate %Qv defines key constraints %Qv",
+        InferName(predicate),
+        keyTrie);
+
+    auto ranges = GetRangesFromTrieWithinRange(
+        TRowRange(buffer->Capture(MinKey().Get()), buffer->Capture(MaxKey().Get())),
+        keyTrie,
+        buffer,
+        true);
+
+    LOG_DEBUG_IF(
+        verboseLogging,
+        "Got %v from key trie",
+        ranges.size());
+
+    auto rangeExpansionLeft = (rangeExpansionLimit > ranges.size())
+        ? rangeExpansionLimit - ranges.size()
+        : 0;
+
+    std::vector<TRowRange> enrichedRanges;
+    for (int index = 0; index < ranges.size(); ++index) {
+        EnrichKeyRange(
+            *evaluator,
+            schema.Columns(),
+            buffer.Get(),
+            ranges[index],
+            enrichedRanges,
+            keySize,
+            &rangeExpansionLeft );
+    }
+    enrichedRanges = MergeOverlappingRanges(std::move(enrichedRanges));
+
+    return [
+        MOVE(enrichedRanges),
+        MOVE(buffer)
+    ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) mutable {
         auto startIt = std::lower_bound(
-            EnrichedRanges_.begin(),
-            EnrichedRanges_.end(),
+            enrichedRanges.begin(),
+            enrichedRanges.end(),
             keyRange,
             [] (const TRowRange& it, const TRowRange& value) {
                 return it.second <= value.first;
             });
 
         std::vector<TRowRange> result;
-        while (startIt < EnrichedRanges_.end() && startIt->first < keyRange.second) {
+        while (startIt < enrichedRanges.end() && startIt->first < keyRange.second) {
             auto lower = std::max(startIt->first, keyRange.first);
             auto upper = std::min(startIt->second, keyRange.second);
             result.emplace_back(rowBuffer->Capture(lower), rowBuffer->Capture(upper));
@@ -380,408 +753,6 @@ public:
         }
 
         return result;
-    }
-
-private:
-    const TTableSchema Schema_;
-    size_t KeySize_;
-    const bool VerboseLogging_;
-
-    TColumnEvaluatorPtr Evaluator_;
-    TKeyTriePtr KeyTrie_ = TKeyTrie::Universal();
-
-    // TODO(babenko): rename this
-    const TRowBufferPtr Buffer_ = New<TRowBuffer>();
-
-    ui64 RangeExpansionLeft_;
-    std::vector<TRowRange> EnrichedRanges_;
-
-    TDivisors GetDivisors(int keyIndex, TConstExpressionPtr expr)
-    {
-        auto name = Schema_.Columns()[keyIndex].Name;
-
-        TUnversionedValue one;
-        one.Id = 0;
-        one.Type = Schema_.Columns()[keyIndex].Type;
-        one.Data.Int64 = 1;
-
-        if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-            return (referenceExpr->ColumnName == name) ? TDivisors{one} : TDivisors();
-        } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-            TDivisors result;
-            for (const auto& argument : functionExpr->Arguments) {
-                const auto arg = GetDivisors(keyIndex, argument);
-                result.append(arg.begin(), arg.end());
-            }
-            return result;
-        } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-            return GetDivisors(keyIndex, unaryOp->Operand);
-        } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-            auto reference = binaryOp->Lhs->As<TReferenceExpression>();
-            auto literal = binaryOp->Rhs->As<TLiteralExpression>();
-            if (binaryOp->Opcode == EBinaryOp::Divide
-                && reference
-                && literal
-                && IsIntegralType(static_cast<TUnversionedValue>(literal->Value).Type)
-                && reference->ColumnName == name)
-            {
-                TUnversionedValue value = literal->Value;
-                value.Id = 0;
-                return TDivisors{value};
-            }
-            auto lhs = GetDivisors(keyIndex, binaryOp->Lhs);
-            auto rhs = GetDivisors(keyIndex, binaryOp->Rhs);
-            lhs.append(rhs.begin(), rhs.end());
-            return lhs;
-        } else if (auto inOp = expr->As<TInOpExpression>()) {
-            TDivisors result;
-            for (const auto& argument : inOp->Arguments) {
-                const auto arg = GetDivisors(keyIndex, argument);
-                result.append(arg.begin(), arg.end());
-            }
-            return result;
-        } else if (expr->As<TLiteralExpression>()) {
-            return TDivisors();
-        } else {
-            YUNREACHABLE();
-        }
-    }
-
-    TNullable<TModuloRangeGenerator> GetModuloGeneratorForColumn(int index)
-    {
-        if (!Schema_.Columns()[index].Expression) {
-            return Null;
-        }
-        auto expr = Evaluator_->GetExpression(index)->As<TBinaryOpExpression>();
-        if (expr && expr->Opcode == EBinaryOp::Modulo) {
-            if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {
-                TUnversionedValue value = literalExpr->Value;
-                if (IsIntegralType(value.Type)) {
-                    value.Id = index;
-                    return TModuloRangeGenerator(value);
-                }
-            }
-        }
-        return Null;
-    }
-
-    TNullable<TUnversionedValue> TrimSentinel(TRow row)
-    {
-        TNullable<TUnversionedValue> result;
-        for (int index = row.GetCount() - 1; index >= 0 && IsSentinelType(row[index].Type); --index) {
-            result = row[index];
-            row.SetCount(index);
-        }
-        return result;
-    }
-
-    void AppendSentinel(TRow row, TNullable<TUnversionedValue> sentinel)
-    {
-        if (sentinel) {
-            row[row.GetCount()] = sentinel.Get();
-            row.SetCount(row.GetCount() + 1);
-        }
-    }
-
-    TRow Copy(TRow source, int size = std::numeric_limits<int>::max())
-    {
-        size = std::min(size, source.GetCount());
-        auto row = TUnversionedRow::Allocate(Buffer_->GetPool(), size);
-        for (int index = 0; index < size; ++index) {
-            row[index] = source[index];
-        }
-        return row;
-    }
-
-    void Copy(TRow source, TRow dest, int count)
-    {
-        count = std::min(count, source.GetCount());
-        for (int index = 0; index < count; ++index) {
-            dest[index] = source[index];
-        }
-    }
-
-    void EnrichKeyRange(std::pair<TRow, TRow>& range, std::vector<std::pair<TRow, TRow>>& ranges)
-    {
-        TRow lower = range.first;
-        TRow upper = range.second;
-
-        auto lowerSentinel = TrimSentinel(lower);
-        auto upperSentinel = TrimSentinel(upper);
-
-        bool canEnumerate = false;
-        size_t prefixSize = 0;
-        for (; prefixSize < std::min(range.first.GetCount(), range.second.GetCount()); ++prefixSize) {
-            if (lower[prefixSize].Type == EValueType::TheBottom) {
-                YCHECK(upper[prefixSize].Type == EValueType::TheBottom);
-                continue;
-            }
-
-            YCHECK(!IsSentinelType(lower[prefixSize].Type) && !IsSentinelType(upper[prefixSize].Type));
-
-            if (lower[prefixSize] != upper[prefixSize]) {
-                if (IsIntegralType(lower[prefixSize].Type) && IsIntegralType(upper[prefixSize].Type)) {
-                    canEnumerate = true;
-                }
-                break;
-            }
-
-            YCHECK(lower[prefixSize] == upper[prefixSize]);
-        }
-
-        // In prefix there are only Fixed, computed columns and Bottom (undefined).
-
-        // Collect here evalutable columns.
-        std::vector<std::pair<size_t, TNullable<TModuloRangeGenerator>>> computedColumns;
-        std::vector<ui64> estimations;
-
-        std::set<TUnversionedValue> divisorsSet;
-        ui64 rangeCount = 1;
-
-        size_t shrinkSize;
-        for (shrinkSize = 0; shrinkSize < KeySize_; ++shrinkSize) {
-            if (shrinkSize < prefixSize && lower[shrinkSize].Type != EValueType::TheBottom) {
-                // Is fixed.
-                continue;
-            }
-
-            // Is computed or Bottom.
-            if (!Schema_.Columns()[shrinkSize].Expression) {
-                // Is Bottom (undefined)
-                break;
-            }
-
-            const auto& references = Evaluator_->GetReferenceIds(shrinkSize);
-            auto isEvaluatable = true;
-            for (int referenceIndex : references) {
-                if (referenceIndex >= (canEnumerate ? prefixSize + 1 : prefixSize)) {
-                    isEvaluatable = false;
-                }
-            }
-
-            auto moduloGenerator = GetModuloGeneratorForColumn(shrinkSize);
-            TDivisors partial;
-            ui64 estimation = moduloGenerator ? moduloGenerator->Count() : std::numeric_limits<ui64>::max();
-
-            if (isEvaluatable) {
-                if (canEnumerate) {
-                    partial = GetDivisors(prefixSize, Evaluator_->GetExpression(shrinkSize));
-                    partial.erase(
-                        std::remove_if(partial.begin(), partial.end(), [&] (TUnversionedValue value) {
-                            return divisorsSet.count(value);
-                        }),
-                        partial.end());
-
-                    auto enumEstimation = Estimate(lower[prefixSize], upper[prefixSize], partial);
-
-                    // Here we solve whether create modulo generator or collect divisors.
-                    if (enumEstimation < estimation) {
-                        estimation = enumEstimation;
-                        moduloGenerator.Reset();
-                    } else {
-                        partial.clear();
-                    }
-                } else {
-                    estimation = 1;
-                    moduloGenerator.Reset();
-                }
-            } else if (!moduloGenerator) {
-                break;
-            }
-
-            if (estimation <= RangeExpansionLeft_ &&
-                rangeCount * estimation <= RangeExpansionLeft_)
-            {
-                rangeCount *= estimation;
-            } else {
-                break;
-            }
-
-            divisorsSet.insert(partial.begin(), partial.end());
-            computedColumns.emplace_back(shrinkSize, moduloGenerator);
-            estimations.push_back(estimation);
-        }
-
-        // Trim trailing modulo columns
-        if (shrinkSize != prefixSize) { // or !canEnumerate || shrinkSize < prefixSize ?
-            while (!computedColumns.empty() &&
-                computedColumns.back().second &&
-                computedColumns.back().first + 1 == shrinkSize)
-            {
-                --shrinkSize;
-                rangeCount /= estimations.back();
-
-                estimations.pop_back();
-                computedColumns.pop_back();
-            }
-        }
-
-        // Update range expansion limit utilization.
-        RangeExpansionLeft_ -= std::min(rangeCount, RangeExpansionLeft_);
-
-        TDivisors divisors(divisorsSet.begin(), divisorsSet.end());
-
-        auto enumerateModulo = [&] (TUnversionedRow& prefixRow, auto yield) {
-            for (auto& column : computedColumns) {
-                auto columnIndex = column.first;
-                if (column.second) {
-                    column.second->Reset();
-                    prefixRow[columnIndex] = MakeUnversionedSentinelValue(EValueType::Null, columnIndex);
-                } else {
-                    Evaluator_->EvaluateKey(prefixRow, Buffer_, columnIndex);
-                }
-            }
-
-            yield();
-
-            size_t evalIndex = computedColumns.size();
-            while (evalIndex > 0) {
-                auto columnIndex = computedColumns[evalIndex - 1].first;
-                auto generator = computedColumns[evalIndex - 1].second.GetPtr();
-                if (!generator || generator->Finished()) {
-                    --evalIndex;
-                } else {
-                    YASSERT(generator);
-                    prefixRow[columnIndex] = generator->Next();
-                    while (evalIndex < computedColumns.size()) {
-                        ++evalIndex;
-                        computedColumns[evalIndex - 1].second->Reset();
-                        auto columnIndex = computedColumns[evalIndex - 1].first;
-                        prefixRow[columnIndex] = MakeUnversionedSentinelValue(EValueType::Null, columnIndex);
-                    }
-                    yield();
-                }
-            }
-        };
-
-        auto lowerRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
-        auto upperRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
-
-        size_t lowerSize = shrinkSize;
-        while (lowerSize < range.first.GetCount() && !IsSentinelType(range.first[lowerSize].Type)) {
-            ++lowerSize;
-        }
-
-        size_t upperSize = shrinkSize;
-        while (upperSize < range.second.GetCount() && !IsSentinelType(range.second[upperSize].Type)) {
-            ++upperSize;
-        }
-
-        Copy(range.first, lowerRow, KeySize_ + 1);
-        Copy(range.second, upperRow, KeySize_ + 1);
-
-        std::function<void(TUnversionedRow& row,
-            size_t,
-            TNullable<TUnversionedValue> finalizeSentinel,
-            TNullable<TUnversionedValue> sentinel)> finalizeRow;
-        if (shrinkSize < prefixSize) {
-            // Shrinked.
-            // If is shrinked, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
-            // upper bound
-            finalizeRow = [&] (TUnversionedRow& row,
-                size_t size,
-                TNullable<TUnversionedValue> finalizeSentinel,
-                TNullable<TUnversionedValue> sentinel)
-            {
-                row.SetCount(shrinkSize);
-                AppendSentinel(row, finalizeSentinel);
-            };
-        } else {
-            finalizeRow = [&] (TUnversionedRow& row,
-                size_t size,
-                TNullable<TUnversionedValue> finalizeSentinel,
-                TNullable<TUnversionedValue> sentinel)
-            {
-                row.SetCount(size);
-                AppendSentinel(row, sentinel);
-            };
-        }
-
-        // Add range to result.
-        auto yieldRange = [&] (
-            TUnversionedRow lowerRow,
-            TUnversionedRow upperRow,
-            TNullable<TUnversionedValue> lowerSentinel,
-            TNullable<TUnversionedValue> upperSentinel)
-        {
-            finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
-            finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
-            YASSERT(lowerRow <= upperRow);
-            ranges.push_back(std::make_pair(Copy(lowerRow), Copy(upperRow)));
-        };
-
-        TRow prefixRow = TUnversionedRow::Allocate(Buffer_->GetPool(), KeySize_ + 1);
-        Copy(range.first, prefixRow, prefixSize);
-
-        if (canEnumerate && !divisors.empty()) {
-            auto generator = CreateQuotientEnumerationGenerator(
-                range.first[prefixSize],
-                range.second[prefixSize],
-                divisors);
-
-            generator->Reset();
-
-            auto upperBound = upperRow[prefixSize];
-
-            auto step = generator->Next();
-            YCHECK(step == lowerRow[prefixSize]);
-
-            while (!generator->Finished()) {
-                prefixRow[prefixSize] = step;
-
-                lowerRow[prefixSize] = step;
-                step = generator->Next();
-                upperRow[prefixSize] = step;
-
-                enumerateModulo(prefixRow, [&] () {
-                    Copy(prefixRow, lowerRow, prefixSize);
-                    Copy(prefixRow, upperRow, prefixSize);
-                    yieldRange(lowerRow, upperRow, lowerSentinel, Null);
-                });
-
-                lowerSentinel.Reset();
-            }
-
-            prefixRow[prefixSize] = step;
-            lowerRow[prefixSize] = step;
-            upperRow[prefixSize] = upperBound;
-            enumerateModulo(prefixRow, [&] () {
-                Copy(prefixRow, lowerRow, prefixSize);
-                Copy(prefixRow, upperRow, prefixSize);
-                yieldRange(lowerRow, upperRow, Null, upperSentinel);
-            });
-        } else {
-            enumerateModulo(prefixRow, [&] () {
-                Copy(prefixRow, lowerRow, shrinkSize);
-                Copy(prefixRow, upperRow, shrinkSize);
-                yieldRange(lowerRow, upperRow, lowerSentinel, upperSentinel);
-            });
-        }
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-TRangeInferrer CreateHeavyRangeInferrer(
-    TConstExpressionPtr predicate,
-    const TTableSchema& schema,
-    const TKeyColumns& keyColumns,
-    const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging)
-{
-    auto heavyInferrer = New<TRangeInferrerHeavy>(
-        predicate,
-        schema,
-        keyColumns,
-        evaluatorCache,
-        functionRegistry,
-        rangeExpansionLimit,
-        verboseLogging);
-
-    return [MOVE(heavyInferrer)] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) mutable {
-        return heavyInferrer->GetRangesWithinRange(keyRange, rowBuffer);
     };
 }
 
@@ -827,22 +798,20 @@ TRangeInferrer CreateRangeInferrer(
     ui64 rangeExpansionLimit,
     bool verboseLogging)
 {
-    if (!schema.HasComputedColumns()) {
-        return CreateLightRangeInferrer(
+    return schema.HasComputedColumns()
+        ? CreateHeavyRangeInferrer(
+            predicate,
+            schema,
+            keyColumns,
+            evaluatorCache,
+            functionRegistry,
+            rangeExpansionLimit,
+            verboseLogging)
+        : CreateLightRangeInferrer(
             predicate,
             keyColumns,
             functionRegistry,
             verboseLogging);
-    }
-
-    return CreateHeavyRangeInferrer(
-        predicate,
-        schema,
-        keyColumns,
-        evaluatorCache,
-        functionRegistry,
-        rangeExpansionLimit,
-        verboseLogging);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

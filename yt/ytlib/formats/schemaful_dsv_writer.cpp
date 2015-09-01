@@ -240,32 +240,12 @@ void TSchemafulDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
 
 TSchemafulDsvWriter::TSchemafulDsvWriter(
     IAsyncOutputStreamPtr stream,
+    std::vector<int> columnIdMapping,
     TSchemafulDsvFormatConfigPtr config)
     : Stream_(stream)
+    , ColumnIdMapping_(std::move(columnIdMapping))
     , Config_(config)
 { }
-
-TFuture<void> TSchemafulDsvWriter::Open(
-    const TTableSchema& schema,
-    const TKeyColumns& /*keyColumns*/)
-{
-    if (Config_->Columns) {
-        for (const auto& name : *Config_->Columns) {
-            int id;
-            try {
-                id = schema.GetColumnIndexOrThrow(name);
-            } catch (const std::exception& ex) {
-                return MakeFuture(TError(ex));
-            }
-            ColumnIdMapping_.push_back(id);
-        }
-    } else {
-        for (int id = 0; id < schema.Columns().size(); ++id) {
-            ColumnIdMapping_.push_back(id);
-        }
-    }
-    return VoidFuture;
-}
 
 TFuture<void> TSchemafulDsvWriter::Close()
 {
@@ -424,6 +404,27 @@ void TSchemafulDsvWriter::WriteRaw(const TStringBuf& str)
 void TSchemafulDsvWriter::WriteRaw(char ch)
 {
     Buffer_.Append(ch);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
+    NConcurrency::IAsyncOutputStreamPtr stream,
+    const NTableClient::TTableSchema& schema,
+    TSchemafulDsvFormatConfigPtr config)
+{
+    std::vector<int> columnIdMapping;
+    if (config->Columns) {
+        for (const auto& name : *config->Columns) {
+            columnIdMapping.push_back(schema.GetColumnIndexOrThrow(name));
+        }
+    } else {
+        for (int id = 0; id < schema.Columns().size(); ++id) {
+            columnIdMapping.push_back(id);
+        }
+    }
+
+    return New<TSchemafulDsvWriter>(stream, std::move(columnIdMapping), config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

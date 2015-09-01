@@ -60,7 +60,7 @@ TCGValue MakePhi(
     phiData->addIncoming(elseData, elseBB);
 
     PHINode* phiLength = nullptr;
-    if (type == EValueType::String) {
+    if (IsStringLikeType(type)) {
         YCHECK(thenLength->getType() == elseLength->getType());
 
         phiLength = builder.CreatePHI(thenLength->getType(), 2, name + ".phiLength");

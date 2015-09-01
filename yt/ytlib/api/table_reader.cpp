@@ -58,12 +58,9 @@ public:
     TSchemalessTableReader(
         TTableReaderConfigPtr config,
         TRemoteReaderOptionsPtr options,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         TTransactionPtr transaction,
-        IBlockCachePtr blockCache,
         const TRichYPath& richPath,
-        TNameTablePtr nameTable,
-        IThroughputThrottlerPtr throttler,
         bool unordered);
 
     virtual TFuture<void> Open() override;
@@ -87,12 +84,11 @@ public:
 private:
     const TTableReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
+    const IClientPtr Client_;
     const IChannelPtr MasterChannel_;
     const TTransactionPtr Transaction_;
     const IBlockCachePtr BlockCache_;
     const TRichYPath RichPath_;
-    const TNameTablePtr NameTable_;
-    const IThroughputThrottlerPtr Throttler_;
 
     const TTransactionId TransactionId_;
     const bool Unordered_;
@@ -110,28 +106,23 @@ private:
 TSchemalessTableReader::TSchemalessTableReader(
     TTableReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     TTransactionPtr transaction,
-    IBlockCachePtr blockCache,
     const TRichYPath& richPath,
-    TNameTablePtr nameTable,
-    IThroughputThrottlerPtr throttler,
     bool unordered)
     : Config_(config)
     , Options_(options)
-    , MasterChannel_(masterChannel)
+    , Client_(client)
+    , MasterChannel_(client->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower))
     , Transaction_(transaction)
-    , BlockCache_(blockCache)
+    , BlockCache_(client->GetConnection()->GetBlockCache())
     , RichPath_(richPath)
-    , NameTable_(nameTable)
-    , Throttler_(throttler)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
     , Unordered_(unordered)
 {
     YCHECK(Config_);
     YCHECK(MasterChannel_);
     YCHECK(BlockCache_);
-    YCHECK(NameTable_);
 
     Logger.AddTag("Path: %v, TransactionId: %v",
         RichPath_.GetPath(),
@@ -180,7 +171,7 @@ void TSchemalessTableReader::DoOpen()
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object type");
         auto rsp = rspOrError.Value();
-        
+
         auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -204,34 +195,32 @@ void TSchemalessTableReader::DoOpen()
                 chunkSpecs.push_back(chunkSpec);
                 continue;
             }
-             
+
             if (Config_->IgnoreUnavailableChunks) {
                 continue;
             }
-             
+
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::ChunkUnavailable,
                 "Chunk %v is unavailable",
                 NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
 
-        auto options = New<TMultiChunkReaderOptions>();
-        options->NetworkName = Options_->NetworkName;
-
-        auto factory = Unordered_ 
+        auto readerFactory = Unordered_
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
-        UnderlyingReader_ = factory(
+
+        UnderlyingReader_ = readerFactory(
             Config_,
-            options,
-            MasterChannel_,
+            New<TMultiChunkReaderOptions>(),
+            Client_,
             BlockCache_,
             nodeDirectory,
             chunkSpecs,
-            NameTable_,
+            New<TNameTable>(),
             TColumnFilter(),
             TKeyColumns(),
-            Throttler_);
+            NConcurrency::GetUnlimitedThrottler());
 
         WaitFor(UnderlyingReader_->Open())
             .ThrowOnError();
@@ -285,17 +274,20 @@ i64 TSchemalessTableReader::GetTotalRowCount() const
 
 TNameTablePtr TSchemalessTableReader::GetNameTable() const
 {
-    return NameTable_;
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetNameTable();
 }
 
 TKeyColumns TSchemalessTableReader::GetKeyColumns() const
 {
-    return TKeyColumns();
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetKeyColumns();
 }
 
 int TSchemalessTableReader::GetTableIndex() const
 {
-    return 0;
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetTableIndex();
 }
 
 i64 TSchemalessTableReader::GetSessionRowIndex() const
@@ -343,13 +335,10 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
 
     return New<TSchemalessTableReader>(
         options.Config,
-        options.RemoteReaderOptions,
-        client->GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+        New<TRemoteReaderOptions>(),
+        client,
         transaction,
-        client->GetConnection()->GetBlockCache(),
         path,
-        New<TNameTable>(),
-        NConcurrency::GetUnlimitedThrottler(),
         options.Unordered);
 }
 

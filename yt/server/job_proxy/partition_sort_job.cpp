@@ -47,7 +47,7 @@ public:
 
         Reader_ = CreateSchemalessPartitionSortReader(
             config->JobIO->TableReader,
-            host->GetMasterChannel(),
+            host->GetClient(),
             host->GetBlockCache(),
             host->GetNodeDirectory(),
             keyColumns,
@@ -69,7 +69,7 @@ public:
             nameTable,
             keyColumns,
             TOwningKey(),
-            host->GetMasterChannel(),
+            host->GetClient(),
             transactionId,
             chunkListId);
     }

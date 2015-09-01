@@ -766,35 +766,10 @@ public:
             options);
     }
 
-    IMPLEMENT_METHOD(TQueryStatistics, SelectRows, (
+    IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
         const Stroka& query,
-        ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options),
-        (query, writer, options))
-
-    virtual TFuture<std::pair<IRowsetPtr, TQueryStatistics>> SelectRows(
-        const Stroka& query,
-        const TSelectRowsOptions& options) override
-    {
-        auto result = NewPromise<std::pair<IRowsetPtr, TQueryStatistics>>();
-
-        ISchemafulWriterPtr writer;
-        TFuture<IRowsetPtr> rowset;
-        std::tie(writer, rowset) = CreateSchemafulRowsetWriter();
-
-        SelectRows(query, writer, options).Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& error) mutable {
-            if (!error.IsOK()) {
-                // It's uncommon to have the promise set here but let's be sloppy about it.
-                result.Set(TError(error));
-            } else {
-                result.Set(std::make_pair(rowset.Get().Value(), error.Value()));
-            }
-        }));
-
-        return result;
-    }
-
-
+        (query, options))
     IMPLEMENT_METHOD(void, MountTable, (
         const TYPath& path,
         const TMountTableOptions& options),
@@ -1332,9 +1307,8 @@ private:
             std::move(resultRows));
     }
 
-    TQueryStatistics DoSelectRows(
+    std::pair<IRowsetPtr, TQueryStatistics> DoSelectRows(
         const Stroka& query,
-        ISchemafulWriterPtr writer,
         const TSelectRowsOptions& options)
     {
         auto inputRowLimit = options.InputRowLimit.Get(Connection_->GetConfig()->DefaultInputRowLimit);
@@ -1349,7 +1323,15 @@ private:
         fragment->RangeExpansionLimit = options.RangeExpansionLimit;
         fragment->VerboseLogging = options.VerboseLogging;
         fragment->EnableCodeCache = options.EnableCodeCache;
+
+        ISchemafulWriterPtr writer;
+        TFuture<IRowsetPtr> asyncRowset;
+        std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(fragment->Query->GetTableSchema());
+
         auto statistics = WaitFor(QueryHelper_->Execute(fragment, writer))
+            .ValueOrThrow();
+
+        auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
         if (options.FailOnIncompleteResult) {
             if (statistics.IncompleteInput) {
@@ -1361,7 +1343,7 @@ private:
                     << TErrorAttribute("output_row_limit", outputRowLimit);
             }
         }
-        return statistics;
+        return std::make_pair(rowset, statistics);
     }
 
 
@@ -2019,12 +2001,6 @@ public:
         (path, nameTable, keys, options))
 
 
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<NQueryClient::TQueryStatistics>, SelectRows, (
-        const Stroka& query,
-        ISchemafulWriterPtr writer,
-        const TSelectRowsOptions& options),
-        (query, writer, options))
-    typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
     DELEGATE_TIMESTAMPED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
         const Stroka& query,
         const TSelectRowsOptions& options),
@@ -2468,8 +2444,9 @@ private:
 
             const auto& batch = Batches_[InvokeBatchIndex_];
 
-            LOG_DEBUG("Sending batch (BatchIndex: %v, BatchCount: %v, RowCount: %v)",
+            LOG_DEBUG("Sending batch (BatchIndex: %v/%v, RowCount: %v)",
                 InvokeBatchIndex_,
+                Batches_.size(),
                 batch->RowCount);
 
             TTabletServiceProxy proxy(InvokeChannel_);

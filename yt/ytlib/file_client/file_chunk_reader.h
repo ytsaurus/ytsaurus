@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/reader_base.h>
 #include <ytlib/chunk_client/chunk_reader_base.h>
@@ -64,7 +66,7 @@ DEFINE_REFCOUNTED_TYPE(IFileMultiChunkReader)
 IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
     NChunkClient::TMultiChunkReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,

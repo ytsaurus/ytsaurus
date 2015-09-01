@@ -67,6 +67,12 @@ public:
     explicit TCypressNodeBase(const TVersionedNodeId& id);
     virtual ~TCypressNodeBase();
 
+    //! Returns the static type of the node.
+    /*!
+     *  \see NYT::NYTree::INode::GetType
+     */
+    virtual NYTree::ENodeType GetNodeType() const = 0;
+
     TCypressNodeBase* GetParent() const;
     void SetParent(TCypressNodeBase* parent);
     void ResetParent();

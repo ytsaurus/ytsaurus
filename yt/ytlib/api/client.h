@@ -350,7 +350,6 @@ struct TTableReaderOptions
 {
     bool Unordered = false;
     NTableClient::TTableReaderConfigPtr Config;
-    NChunkClient::TRemoteReaderOptionsPtr RemoteReaderOptions;
 };
 
 struct TStartOperationOptions
@@ -378,6 +377,8 @@ struct TDumpJobContextOptions
 struct TStraceJobOptions
     : public TTimeoutOptions
 { };
+
+typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -413,12 +414,7 @@ struct IClientBase
         const std::vector<NTableClient::TKey>& keys,
         const TLookupRowsOptions& options = TLookupRowsOptions()) = 0;
 
-    virtual TFuture<NQueryClient::TQueryStatistics> SelectRows(
-        const Stroka& query,
-        NTableClient::ISchemafulWriterPtr writer,
-        const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
-
-    virtual TFuture<std::pair<IRowsetPtr, NQueryClient::TQueryStatistics>> SelectRows(
+    virtual TFuture<TSelectRowsResult> SelectRows(
         const Stroka& query,
         const TSelectRowsOptions& options = TSelectRowsOptions()) = 0;
 
@@ -501,7 +497,7 @@ struct IClientBase
     // Tables
     virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateTableReader(
         const NYPath::TRichYPath& path,
-        const TTableReaderOptions& options) = 0;
+        const TTableReaderOptions& options = TTableReaderOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientBase)

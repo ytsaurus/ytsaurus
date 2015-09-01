@@ -47,13 +47,8 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto readerOptions = New<TRemoteReaderOptions>();
-    readerOptions->NetworkName = Context_->GetConfig()->NetworkName;
-
     auto options = TTableReaderOptions();
     options.Config = config;
-    options.RemoteReaderOptions = readerOptions;
-
     options.TransactionId = Request_->TransactionId;
     options.Ping = true;
     options.PingAncestors = Request_->PingAncestors;
@@ -102,22 +97,17 @@ void TWriteTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto options = New<TTableWriterOptions>();
-    // NB: Other options are ignored.
-    options->NetworkName = Context_->GetConfig()->NetworkName;
-
     auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto writer = CreateSchemalessTableWriter(
         config,
-        options,
+        New<TTableWriterOptions>(),
         Request_->Path,
         nameTable,
         keyColumns,
-        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
-        AttachTransaction(false),
-        Context_->GetClient()->GetTransactionManager());
+        Context_->GetClient(),
+        AttachTransaction(false));
 
     WaitFor(writer->Open())
         .ThrowOnError();
@@ -234,16 +224,24 @@ void TSelectRowsCommand::DoExecute()
     options.EnableCodeCache = Request_->EnableCodeCache;
     options.MaxSubqueries = Request_->MaxSubqueries;
 
+    auto asyncResult = Context_->GetClient()->SelectRows(
+        Request_->Query,
+        options);
+
+    IRowsetPtr rowset;
+    TQueryStatistics statistics;
+
+    std::tie(rowset, statistics) = WaitFor(asyncResult)
+        .ValueOrThrow();
+
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, output);
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
 
-    auto asyncStatistics = Context_->GetClient()->SelectRows(
-        Request_->Query,
-        writer,
-        options);
-    auto statistics = WaitFor(asyncStatistics)
-        .ValueOrThrow();
+    writer->Write(rowset->GetRows());
+
+    WaitFor(writer->Close())
+        .ThrowOnError();
 
     LOG_INFO("Query result statistics (RowsRead: %v, RowsWritten: %v, AsyncTime: %v, SyncTime: %v, ExecuteTime: %v, "
         "ReadTime: %v, WriteTime: %v, IncompleteInput: %v, IncompleteOutput: %v)",
@@ -356,8 +354,12 @@ void TLookupRowsCommand::DoExecute()
     if (Request_->ColumnNames) {
         options.ColumnFilter.All = false;
         for (const auto& name : *Request_->ColumnNames) {
-            int id = nameTable->GetId(name);
-            options.ColumnFilter.Indexes.push_back(id);
+            auto maybeIndex = nameTable->FindId(name);
+            if (!maybeIndex) {
+                THROW_ERROR_EXCEPTION("No such column %Qv",
+                    name);
+            }
+            options.ColumnFilter.Indexes.push_back(*maybeIndex);
         }
     }
 
@@ -371,10 +373,7 @@ void TLookupRowsCommand::DoExecute()
 
     auto format = Context_->GetOutputFormat();
     auto output = Context_->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, output);
-
-    WaitFor(writer->Open(rowset->GetSchema()))
-        .ThrowOnError();
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
 
     writer->Write(rowset->GetRows());
 

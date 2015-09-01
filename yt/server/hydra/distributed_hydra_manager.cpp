@@ -390,24 +390,50 @@ public:
         }
 
         auto epochContext = AutomatonEpochContext_;
-        auto activeLeader = IsActiveLeader();
-        auto activeFollower = IsActiveFollower();
-        if (!epochContext || !activeLeader && !activeFollower) {
+        if (epochContext->Restarting) {
             return MakeFuture<TMutationResponse>(TError(
                 NHydra::EErrorCode::InvalidState,
-                "Not an active peer"));
+                "Peer is restarting"));
         }
 
-        if (!request.AllowLeaderForwarding && !activeLeader) {
-            return MakeFuture<TMutationResponse>(TError(
-                NHydra::EErrorCode::InvalidState,
-                "Not an active leader"));
-        }
+        auto state = GetAutomatonState();
+        switch (state) {
+            case EPeerState::Leading:
+                if (!LeaderRecovered_) {
+                    return MakeFuture<TMutationResponse>(TError(
+                        NHydra::EErrorCode::InvalidState,
+                        "Leader has not yet recovered"));
+                }
 
-        if (activeLeader) {
-            return epochContext->LeaderCommitter->Commit(request);
-        } else {
-            return epochContext->FollowerCommitter->Forward(request);
+                if (!LeaderLease_->IsValid()) {
+                    Restart(epochContext);
+                    return MakeFuture<TMutationResponse>(TError(
+                        NHydra::EErrorCode::InvalidState,
+                        "Leader lease is no longer valid"));
+                }
+
+                return epochContext->LeaderCommitter->Commit(request);
+
+            case EPeerState::Following:
+                if (!FollowerRecovered_) {
+                    return MakeFuture<TMutationResponse>(TError(
+                        NHydra::EErrorCode::InvalidState,
+                        "Follower has not yet recovered"));
+                }
+
+                if (!request.AllowLeaderForwarding) {
+                    return MakeFuture<TMutationResponse>(TError(
+                        NHydra::EErrorCode::InvalidState,
+                        "Leader mutation forwarding is not allowed"));
+                }
+
+                return epochContext->FollowerCommitter->Forward(request);
+
+            default:
+                return MakeFuture<TMutationResponse>(TError(
+                    NHydra::EErrorCode::InvalidState,
+                    "Peer is in %Qlv state",
+                    state));
         }
     }
 
@@ -850,8 +876,9 @@ private:
     bool Restart(TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+        
         bool expected = false;
-        if (epochContext->Restarted.compare_exchange_strong(expected, true)) {
+        if (!epochContext->Restarting.compare_exchange_strong(expected, true)) {
             return false;
         }
 
@@ -1243,7 +1270,7 @@ private:
 
         Participate();
 
-        SystemLockGuard_ = TSystemLockGuard();
+        SystemLockGuard_.Release();
     }
 
     void CheckForInitialPing(TVersion version)

@@ -449,7 +449,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
-        ContainsRegex("Column \"k\" occurs both in main and joined tables"));
+        ContainsRegex("Column .* occurs both in main and joined tables"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2081,7 +2081,6 @@ class TWriterMock
     : public ISchemafulWriter
 {
 public:
-    MOCK_METHOD2(Open, TFuture<void>(const TTableSchema&, const TKeyColumns&));
     MOCK_METHOD0(Close, TFuture<void>());
     MOCK_METHOD1(Write, bool(const std::vector<TUnversionedRow>&));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
@@ -2222,6 +2221,12 @@ protected:
             EValueType::Int64,
             EValueType::Int64,
             testUdfImplementations);
+        SeventyFiveUdf_ = New<TUserDefinedFunction>(
+            "seventyfive",
+            std::vector<TType>{},
+            EValueType::Uint64,
+            testUdfImplementations,
+            ECallingConvention::Simple);
     }
 
     virtual void TearDown() override
@@ -2345,12 +2350,6 @@ protected:
         {
             testing::InSequence s;
 
-            ON_CALL(*WriterMock_, Open(_, _))
-                .WillByDefault(Return(WrapVoidInFuture()));
-            if (failureLocation != EFailureLocation::Codegen) {
-                EXPECT_CALL(*WriterMock_, Open(_, _));
-            }
-
             for (auto& result : results) {
                 EXPECT_CALL(*WriterMock_, Write(result))
                     .WillOnce(Return(true));
@@ -2420,6 +2419,7 @@ protected:
     IFunctionDescriptorPtr TolowerUdf_;
     IFunctionDescriptorPtr IsNullUdf_;
     IFunctionDescriptorPtr SumUdf_;
+    IFunctionDescriptorPtr SeventyFiveUdf_;
 };
 
 std::vector<TOwningRow> BuildRows(std::initializer_list<const char*> rowsData, const TDataSplit& split)
@@ -3791,6 +3791,38 @@ TEST_F(TQueryEvaluateTest, TestUdf)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestZeroArgumentUdf)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Uint64},
+    });
+
+    std::vector<Stroka> source = {
+        "a=1u",
+        "a=2u",
+        "a=75u",
+        "a=10u",
+        "a=75u",
+        "a=10u",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "a=75u",
+        "a=75u"
+    }, resultSplit);
+
+    auto registry = New<StrictMock<TFunctionRegistryMock>>();
+    registry->WithFunction(SeventyFiveUdf_);
+
+    Evaluate("a FROM [//t] where a = seventyfive()", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, TestInvalidUdfImpl)
 {
     auto split = MakeSplit({
@@ -4535,97 +4567,6 @@ TEST_F(TQueryEvaluateTest, TestUdfException)
     registry->WithFunction(throwUdf);
 
     EvaluateExpectingError("throw_if_negative_udf(a) from [//t]", split, source, EFailureLocation::Execution, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
-}
-
-TEST_F(TQueryEvaluateTest, TestRegexMatch)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::String},
-    });
-
-    std::vector<Stroka> source = {
-        "a=\"abc1efg\"",
-        "a=\"bac1efg\"",
-        "a=\"abc\"",
-        "a=\"abc4\"",
-        "",
-        "a=\"abc9ccc\"",
-    };
-
-    auto resultSplit = MakeSplit({
-        {"r", EValueType::Boolean},
-    });
-
-    auto result = BuildRows({
-        "r=%true",
-        "r=%false",
-        "r=%false",
-        "r=%true",
-        "",
-        "r=%true",
-    }, resultSplit);
-
-    Evaluate("regex_match(a, \"abc[0-9]\") as r from [//t]", split, source, result);
-}
-
-TEST_F(TQueryEvaluateTest, TestRegexGetGroup)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::String},
-        {"b", EValueType::Uint64},
-    });
-
-    std::vector<Stroka> source = {
-        "a=\"a123bc456defg\";b=2u",
-        "a=\"bacdefg\";b=1",
-        "a=\"123\";b=1",
-        "a=\"abcd\";b=0",
-        "",
-        "a=\"abcdccc\"",
-    };
-
-    auto resultSplit = MakeSplit({
-        {"r", EValueType::String},
-    });
-
-    auto result = BuildRows({
-        "r=\"123\"",
-        "r=\"bacdefg\"",
-        "r=\"\"",
-        "r=\"abcd\"",
-        "",
-        "",
-    }, resultSplit);
-
-    Evaluate("regex_get_group(a, \"([a-z]*)([0-9]*)\", b) as r from [//t]", split, source, result, std::numeric_limits<i64>::max());
-}
-
-TEST_F(TQueryEvaluateTest, TestGetSuffix)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::String},
-        {"b", EValueType::Uint64},
-    });
-
-    std::vector<Stroka> source = {
-        "a=\"abcdefghijk\";b=3u",
-        "a=\"abc\";b=0u",
-        "b=5u",
-        "a=\"a\"",
-    };
-
-    auto resultSplit = MakeSplit({
-        {"r", EValueType::String},
-    });
-
-    auto result = BuildRows({
-        "r=\"ijk\"",
-        "r=\"\"",
-        "",
-        "",
-    }, resultSplit);
-
-    Evaluate("get_suffix(a, b) as r from [//t]", split, source, result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

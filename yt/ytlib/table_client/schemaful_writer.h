@@ -19,10 +19,6 @@ namespace NTableClient {
 struct ISchemafulWriter
     : public virtual TRefCounted
 {
-    virtual TFuture<void> Open(
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns = TKeyColumns()) = 0;
-
     virtual TFuture<void> Close() = 0;
 
     /*!

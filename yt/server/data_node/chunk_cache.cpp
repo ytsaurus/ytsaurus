@@ -392,11 +392,10 @@ private:
         try {
             TSessionCounterGuard sessionCounterGuard(location);
 
-            auto options = New<TRemoteReaderOptions>();
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
-                options,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower),
+                New<TRemoteReaderOptions>(),
+                Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
                 chunkId,
@@ -490,7 +489,7 @@ private:
         auto reader = CreateFileMultiChunkReader(
             New<TFileReaderConfig>(),
             New<TMultiChunkReaderOptions>(),
-            Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap_->GetMasterClient(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
             chunkSpecs);
@@ -542,7 +541,7 @@ private:
         auto reader = CreateSchemalessSequentialMultiChunkReader(
             New<TTableReaderConfig>(),
             New<TMultiChunkReaderOptions>(),
-            Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+            Bootstrap_->GetMasterClient(),
             Bootstrap_->GetBlockCache(),
             nodeDirectory,
             chunkSpecs,

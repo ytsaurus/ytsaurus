@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/lukyan/yt/src/yt/ytlib/query_client/parser.hpp
+ ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -776,7 +776,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     // Tables.
   // YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
   // STATE-NUM.
-  static const signed char yypact_[];
+  static const short int yypact_[];
 
   // YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
   // Performed when YYTABLE does not specify something else to do.  Zero
@@ -794,7 +794,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const short int yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -909,7 +909,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 165,     ///< Last index in yytable_.
+      yylast_ = 176,     ///< Last index in yytable_.
       yynnts_ = 38,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 37, ///< Termination state number.
@@ -931,4 +931,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

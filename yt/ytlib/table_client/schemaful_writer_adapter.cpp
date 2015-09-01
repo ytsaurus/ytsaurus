@@ -23,17 +23,9 @@ class TSchemafulWriterAdapter
     : public ISchemafulWriter
 {
 public:
-    explicit TSchemafulWriterAdapter(TSchemalessWriterFactory createWriter)
-        : CreateWriter_(createWriter)
+    explicit TSchemafulWriterAdapter(ISchemalessWriterPtr underlyingWriter)
+        : UnderlyingWriter_(underlyingWriter)
     { }
-
-    virtual TFuture<void> Open(const TTableSchema& schema, const TKeyColumns& keyColumns = TKeyColumns()) override
-    {
-        YCHECK(!UnderlyingWriter_);
-        auto nameTable = TNameTable::FromSchema(schema);
-        UnderlyingWriter_ = CreateWriter_(nameTable);
-        return UnderlyingWriter_->Open();
-    }
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override
     {
@@ -52,14 +44,13 @@ public:
 
 private:
     ISchemalessWriterPtr UnderlyingWriter_;
-    TSchemalessWriterFactory CreateWriter_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulWriterAdapter)
 
-ISchemafulWriterPtr CreateSchemafulWriterAdapter(TSchemalessWriterFactory createWriter)
+ISchemafulWriterPtr CreateSchemafulWriterAdapter(ISchemalessWriterPtr underlyingWriter)
 {
-    return New<TSchemafulWriterAdapter>(createWriter);
+    return New<TSchemafulWriterAdapter>(underlyingWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

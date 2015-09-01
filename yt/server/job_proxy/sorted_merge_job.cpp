@@ -50,7 +50,7 @@ public:
             auto reader = CreateSchemalessSequentialMultiChunkReader(
                 config->JobIO->TableReader,
                 New<TMultiChunkReaderOptions>(),
-                host->GetMasterChannel(),
+                host->GetClient(),
                 host->GetBlockCache(),
                 host->GetNodeDirectory(),
                 std::move(chunkSpecs),
@@ -75,7 +75,7 @@ public:
             nameTable,
             keyColumns,
             TOwningKey(),
-            host->GetMasterChannel(),
+            host->GetClient(),
             transactionId,
             chunkListId,
             false); // Value reordering not required.

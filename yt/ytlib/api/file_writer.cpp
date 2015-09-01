@@ -136,8 +136,7 @@ private:
 
         LOG_INFO("Opening file");
 
-        auto masterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(masterChannel);
+        TObjectServiceProxy proxy(Client_->GetMasterChannel(EMasterChannelKind::Leader));
 
         auto batchReq = proxy.ExecuteBatch();
 
@@ -209,7 +208,7 @@ private:
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
             writerOptions,
-            masterChannel,
+            Client_,
             UploadTransaction_->GetId(),
             chunkListId);
 

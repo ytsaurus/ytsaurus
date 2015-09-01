@@ -29,6 +29,12 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, ChunkCount);
     Persist(context, PartitionCount);
     Persist(context, StoreCount);
+    // COMPAT(sandello)
+    if (context.IsSave() || context.LoadContext().GetVersion() >= 122) {
+        Persist(context, StorePreloadPendingCount);
+        Persist(context, StorePreloadCompletedCount);
+        Persist(context, StorePreloadFailedCount);
+    }
 }
 
 TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
@@ -40,7 +46,10 @@ TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.DiskSpace += rhs.DiskSpace;
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.PartitionCount += rhs.PartitionCount;
-    lhs.StoreCount += lhs.PartitionCount;
+    lhs.StoreCount += rhs.StoreCount;
+    lhs.StorePreloadPendingCount += rhs.StorePreloadPendingCount;
+    lhs.StorePreloadCompletedCount += rhs.StorePreloadCompletedCount;
+    lhs.StorePreloadFailedCount += rhs.StorePreloadFailedCount;
     return lhs;
 }
 
@@ -60,7 +69,10 @@ TTabletStatistics& operator -=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.DiskSpace -= rhs.DiskSpace;
     lhs.ChunkCount -= rhs.ChunkCount;
     lhs.PartitionCount -= rhs.PartitionCount;
-    lhs.StoreCount -= lhs.PartitionCount;
+    lhs.StoreCount -= rhs.StoreCount;
+    lhs.StorePreloadPendingCount -= rhs.StorePreloadPendingCount;
+    lhs.StorePreloadCompletedCount -= rhs.StorePreloadCompletedCount;
+    lhs.StorePreloadFailedCount -= rhs.StorePreloadFailedCount;
     return lhs;
 }
 
@@ -83,6 +95,9 @@ void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consum
             .Item("chunk_count").Value(statistics.ChunkCount)
             .Item("partition_count").Value(statistics.PartitionCount)
             .Item("store_count").Value(statistics.StoreCount)
+            .Item("store_preload_pending_count").Value(statistics.StorePreloadPendingCount)
+            .Item("store_preload_completed_count").Value(statistics.StorePreloadCompletedCount)
+            .Item("store_preload_failed_count").Value(statistics.StorePreloadFailedCount)
         .EndMap();
 }
 

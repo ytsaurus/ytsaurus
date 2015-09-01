@@ -101,6 +101,7 @@ udf_bc(
   ${BASE}/udf/test_udfs.c
   SRCS
   SYMBOLS
+    seventyfive
     strtol_udf
     exp_udf
     tolower_udf

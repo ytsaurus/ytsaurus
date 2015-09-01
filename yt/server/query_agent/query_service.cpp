@@ -81,7 +81,8 @@ private:
             Logger,
             [&] () {
                 TWireProtocolWriter protocolWriter;
-                auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter();
+                auto rowsetWriter = protocolWriter.CreateSchemafulRowsetWriter(
+                    planFragment->Query->GetTableSchema());
 
                 auto executor = Bootstrap_->GetQueryExecutor();
                 auto result = WaitFor(executor->Execute(planFragment, rowsetWriter))

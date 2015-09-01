@@ -319,7 +319,7 @@ public:
     double ChunkListAllocationMultiplier;
 
     //! Maximum number of chunks per single fetch.
-    int MaxChunkCountPerFetch;
+    int MaxChunksPerFetch;
 
     //! Maximum number of chunk stripes per job.
     int MaxChunkStripesPerJob;
@@ -442,7 +442,7 @@ public:
             .Default(2.0)
             .GreaterThan(1.0);
 
-        RegisterParameter("max_chunk_count_per_fetch", MaxChunkCountPerFetch)
+        RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
             .Default(100000)
             .GreaterThan(0);
 

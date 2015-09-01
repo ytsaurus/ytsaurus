@@ -15,6 +15,8 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/table_client/helpers.h>
+#include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/schemaless_writer.h>
 #include <ytlib/table_client/table_consumer.h>
 #include <ytlib/table_client/schemaless_chunk_reader.h>
 #include <ytlib/table_client/schemaless_chunk_writer.h>
@@ -355,7 +357,7 @@ private:
 
         ErrorOutput_.reset(new TErrorOutput(
             Config_->JobIO->ErrorFileWriter,
-            host->GetMasterChannel(),
+            host->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
 
@@ -412,7 +414,7 @@ private:
         for (int index = 0; index < contexts.size(); ++index) {
             TErrorOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
-                host->GetMasterChannel(),
+                host->GetClient(),
                 transactionId);
 
             const auto& context = contexts[index];
@@ -603,26 +605,29 @@ private:
             THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
         }
 
-        auto writerFactory = [=] (TNameTablePtr nameTable) {
-            auto writer = CreateSchemalessWriterForFormat(
-                format,
-                nameTable,
-                asyncOutput,
-                true,
-                false,
-                0);
-
-            FormatWriters_.push_back(writer);
-
-            return writer;
-        };
-
         auto readerFactory = JobIO_->GetReaderFactory();
 
         InputActions_.push_back(BIND([=] () {
             try {
-                auto writer = CreateSchemafulWriterAdapter(writerFactory);
                 auto query = FromProto(spec.query());
+
+                auto resultSchema = query->GetTableSchema();
+                auto resultNameTable = TNameTable::FromSchema(resultSchema);
+                auto schemalessWriter = CreateSchemalessWriterForFormat(
+                    format,
+                    resultNameTable,
+                    asyncOutput,
+                    true,
+                    false,
+                    0);
+
+                FormatWriters_.push_back(schemalessWriter);
+
+                WaitFor(schemalessWriter->Open())
+                    .ThrowOnError();
+
+                auto writer = CreateSchemafulWriterAdapter(schemalessWriter);
+
                 std::vector<TUdfDescriptorPtr> descriptors;
                 for (const auto& descriptor : FromProto<Stroka>(spec.udf_descriptors())) {
                     descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
@@ -1027,7 +1032,7 @@ private:
         auto servicedIOs = BlockIO_.GetIOServiced();
 
         for (const auto& item : servicedIOs) {
-            LOG_DEBUG("%v %v operation for %v device", item.Value, item.Type, item.DeviceId);
+            LOG_DEBUG("Serviced %v IO operations (OperationType: %v, DeviceId: %v)", item.Value, item.Type, item.DeviceId);
 
             auto previousItemIt = std::find_if(
                 LastServicedIOs_.begin(),
@@ -1042,7 +1047,7 @@ private:
             }
 
             if (deltaOperations < 0) {
-                LOG_WARNING("%v < 0 operations were serviced for %v device since the last check",
+                LOG_WARNING("%v < 0 IO operations were serviced since the last check (DeviceId: %v)",
                     deltaOperations,
                     item.DeviceId);
             }
