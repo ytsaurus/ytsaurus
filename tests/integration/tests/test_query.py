@@ -12,17 +12,6 @@ from random import shuffle
 ##################################################################
 
 
-def find_file(file_name):
-    from distutils.spawn import find_executable
-    ytserver_path = find_executable("ytserver")
-    assert ytserver_path is not None
-    unittests_path = os.path.join(os.path.dirname(ytserver_path), "..", "yt", "unittests")
-    assert os.path.exists(unittests_path)
-    result_path = os.path.join(unittests_path, file_name)
-    assert os.path.exists(result_path)
-    return result_path
-
-
 @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
 class TestQuery(YTEnvSetup):
     NUM_MASTERS = 3
@@ -498,8 +487,8 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "unversioned_value"}})
 
-        abs_impl_path = find_file("test_udfs.bc")
-        sum_impl_path = find_file("sum_udf2.bc")
+        abs_impl_path = self._find_ut_file("test_udfs.bc")
+        sum_impl_path = self._find_ut_file("sum_udf2.bc")
         write_local_file(abs_path, abs_impl_path)
         write_local_file(sum_path, sum_impl_path)
 
@@ -527,7 +516,7 @@ class TestQuery(YTEnvSetup):
                     "value": "double"},
                 "calling_convention": "unversioned_value"}})
 
-        local_implementation_path = find_file("test_udfs.bc")
+        local_implementation_path = self._find_ut_file("test_udfs.bc")
         write_local_file(avg_path, local_implementation_path)
 
         self._sample_data(path="//tmp/ua")
@@ -599,7 +588,7 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        abs_impl_path = find_file("test_udfs_o.o")
+        abs_impl_path = self._find_ut_file("test_udfs_o.o")
         write_local_file(abs_path, abs_impl_path)
 
         self._sample_data(path="//tmp/sou")
