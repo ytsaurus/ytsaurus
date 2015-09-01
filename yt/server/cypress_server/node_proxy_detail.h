@@ -438,8 +438,6 @@ public:
         NRpc::IServiceContextPtr context) override;
 
 private:
-    class TDoesNotExistService;
-
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;

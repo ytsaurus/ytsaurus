@@ -1495,59 +1495,6 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLinkNodeProxy::TDoesNotExistService
-    : public TYPathServiceBase
-    , public TSupportsExists
-{
-private:
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(Exists);
-        return TYPathServiceBase::DoInvoke(context);
-    }
-
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr /*context*/) override
-    {
-        return TResolveResult::Here(path);
-    }
-
-    virtual void ExistsSelf(
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context) override
-    {
-        ExistsAny(context);
-    }
-
-    virtual void ExistsRecursive(
-        const TYPath& /*path*/,
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context) override
-    {
-        ExistsAny(context);
-    }
-
-    virtual void ExistsAttribute(
-        const TYPath& /*path*/,
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context) override
-    {
-        ExistsAny(context);
-    }
-
-    void ExistsAny(TCtxExistsPtr context)
-    {
-        context->SetRequestInfo();
-        Reply(context, false);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TLinkNodeProxy::TLinkNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
@@ -1569,10 +1516,9 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     auto propagate = [&] () -> TResolveResult {
         if (method == "Exists") {
             auto proxy = FindTargetProxy();
-            static const auto doesNotExistService = New<TDoesNotExistService>();
             return proxy
                 ? TResolveResult::There(proxy, path)
-                : TResolveResult::There(doesNotExistService, path);
+                : TResolveResult::There(TNonexistingService::Get(), path);
         } else {
             return TResolveResult::There(GetTargetProxy(), path);
         }
