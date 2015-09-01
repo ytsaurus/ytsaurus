@@ -605,6 +605,11 @@ int TObjectManager::RefObject(TObjectBase* object)
         object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
+
+    if (refCounter == 1) {
+        GarbageCollector_->UnregisterZombie(object);
+    }
+
     return refCounter;
 }
 
@@ -622,6 +627,7 @@ int TObjectManager::UnrefObject(TObjectBase* object, int count)
     if (refCounter == 0) {
         const auto& handler = GetHandler(object);
         handler->ZombifyObject(object);
+
         GarbageCollector_->RegisterZombie(object);
 
         if (Bootstrap_->IsPrimaryMaster()) {
@@ -1254,19 +1260,8 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         const auto& handler = GetHandler(type);
         auto* object = handler->FindObject(id);
 
-        if (!object) {
-            LOG_DEBUG("Object is already destroyed (Type: %v, Id: %v)",
-                type,
-                id);
+        if (!object || object->GetObjectRefCounter() > 0)
             continue;
-        }
-
-        if (object->GetObjectRefCounter() > 0) {
-            LOG_DEBUG("Object resurrected (Type: %v, Id: %v)",
-                type,
-                id);
-            continue;
-        }
 
         if (IsForeign(object) && object->GetImportRefCounter() > 0) {
             auto& request = unrefRequestMap[CellTagFromId(id)];
