@@ -29,7 +29,7 @@ message TReqRegisterNode
 {
     required TAddressMap addresses = 1;
     required TNodeStatistics statistics = 2;
-    required NYT.NProto.TGuid lease_transaction_id = 3;
+    optional NYT.NProto.TGuid lease_transaction_id = 3;
     optional int32 node_id = 4;
 }
 

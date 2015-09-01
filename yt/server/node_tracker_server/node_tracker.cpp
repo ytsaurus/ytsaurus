@@ -610,13 +610,18 @@ private:
         auto addresses = FromProto<TAddressMap>(request.addresses());
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request.statistics();
-        auto leaseTransactionId = FromProto<TTransactionId>(request.lease_transaction_id());
+        auto leaseTransactionId = request.has_lease_transaction_id()
+            ? FromProto<TTransactionId>(request.lease_transaction_id())
+            : NullTransactionId;
 
         // Check lease transaction.
-        auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
-        if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
-            leaseTransaction->ThrowInvalidState();
+        TTransaction* leaseTransaction = nullptr;
+        if (leaseTransactionId) {
+            auto transactionManager = Bootstrap_->GetTransactionManager();
+            leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
+            if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
+                leaseTransaction->ThrowInvalidState();
+            }
         }
 
         // Kick-out any previous incarnation.
@@ -1054,8 +1059,10 @@ private:
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
 
-            node->SetLeaseTransaction(leaseTransaction);
-            RegisterLeaseTransaction(node);
+            if (leaseTransaction) {
+                node->SetLeaseTransaction(leaseTransaction);
+                RegisterLeaseTransaction(node);
+            }
 
             try {
                 // Create Cypress node.
@@ -1257,7 +1264,9 @@ private:
             request.set_node_id(node->GetId());
             ToProto(request.mutable_addresses(), node->GetAddresses());
             *request.mutable_statistics() = node->Statistics();
-            ToProto(request.mutable_lease_transaction_id(), node->GetLeaseTransaction()->GetId());
+            if (node->GetLeaseTransaction()) {
+                ToProto(request.mutable_lease_transaction_id(), node->GetLeaseTransaction()->GetId());
+            }
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, cellTag);
