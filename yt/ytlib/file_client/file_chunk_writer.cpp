@@ -207,7 +207,7 @@ IFileChunkWriterPtr CreateFileChunkWriter(
 IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     IThroughputThrottlerPtr throttler,
@@ -228,7 +228,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     return New<TFileMultiChunkWriter>(
         config, 
         options, 
-        masterChannel, 
+        client, 
         transactionId, 
         parentChunkListId, 
         createChunkWriter,

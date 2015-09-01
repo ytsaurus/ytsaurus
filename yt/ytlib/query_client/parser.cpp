@@ -1662,7 +1662,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   case 23:
     {
             head->As<TQuery>().OrderFields = yystack_[1].value.as< TIdentifierList > ();
-            head->As<TQuery>().IsOrderDesc = yystack_[0].value.as< bool > ();
+            head->As<TQuery>().IsDescendingOrder = yystack_[0].value.as< bool > ();
         }
     break;
 

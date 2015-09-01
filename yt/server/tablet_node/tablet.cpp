@@ -626,6 +626,26 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
         auto partitionSnapshot = partition->RebuildSnapshot();
         Snapshot_->Partitions.push_back(partitionSnapshot);
         Snapshot_->StoreCount += partitionSnapshot->Stores.size();
+        for (const auto& store : partitionSnapshot->Stores) {
+            auto chunkStore = store->AsChunk();
+            if (chunkStore) {
+                auto preloadState = chunkStore->GetPreloadState();
+                switch (preloadState) {
+                    case EStorePreloadState::Scheduled:
+                    case EStorePreloadState::Running:
+                        ++Snapshot_->StorePreloadPendingCount;
+                        break;
+                    case EStorePreloadState::Complete:
+                        ++Snapshot_->StorePreloadCompletedCount;
+                        break;
+                    case EStorePreloadState::Failed:
+                        ++Snapshot_->StorePreloadFailedCount;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
     }
     Snapshot_->RowKeyComparer = RowKeyComparer_;
     Snapshot_->PerformanceCounters = PerformanceCounters_;

@@ -517,7 +517,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = """cat >/dev/null; k1="$YT_JOB_INDEX"0; k2="$YT_JOB_INDEX"1; echo "{key=$k1; value=one}; {key=$k2; value=two}" """
+        command = """cat >/dev/null; 
+           if [ "$YT_JOB_INDEX" = "0" ]; then
+               k1=0; k2=1; 
+           else
+               k1=0; k2=0; 
+           fi
+           echo "{key=$k1; value=one}; {key=$k2; value=two}" 
+        """
 
         map(in_="//tmp/t1",
             out="<sorted_by=[key];append=true>//tmp/t2",
@@ -526,7 +533,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@sorted")
         assert get("//tmp/t2/@sorted_by") == ["key"]
-        assert read_table("//tmp/t2") == [{"key":0 , "value":"one"}, {"key":1, "value":"two"}, {"key":10, "value":"one"}, {"key":11, "value":"two"}]
+        assert read_table("//tmp/t2") == [{"key":0 , "value":"one"}, {"key":0, "value":"two"}, {"key":0, "value":"one"}, {"key":1, "value":"two"}]
 
     def test_sorted_output_overlap(self):
         create("table", "//tmp/t1")
@@ -542,6 +549,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 out="<sorted_by=[key]>//tmp/t2",
                 command=command,
                 spec={"job_count": 2})
+            print read("//tmp/t2")
 
     def test_sorted_output_job_failure(self):
         create("table", "//tmp/t1")

@@ -47,13 +47,8 @@ void TReadTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto readerOptions = New<TRemoteReaderOptions>();
-    readerOptions->NetworkName = Context_->GetConfig()->NetworkName;
-
     auto options = TTableReaderOptions();
     options.Config = config;
-    options.RemoteReaderOptions = readerOptions;
-
     options.TransactionId = Request_->TransactionId;
     options.Ping = true;
     options.PingAncestors = Request_->PingAncestors;
@@ -102,22 +97,17 @@ void TWriteTableCommand::DoExecute()
         config,
         Request_->GetOptions());
 
-    auto options = New<TTableWriterOptions>();
-    // NB: Other options are ignored.
-    options->NetworkName = Context_->GetConfig()->NetworkName;
-
     auto keyColumns = Request_->Path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
     auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
     auto writer = CreateSchemalessTableWriter(
         config,
-        options,
+        New<TTableWriterOptions>(),
         Request_->Path,
         nameTable,
         keyColumns,
-        Context_->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
-        AttachTransaction(false),
-        Context_->GetClient()->GetTransactionManager());
+        Context_->GetClient(),
+        AttachTransaction(false));
 
     WaitFor(writer->Open())
         .ThrowOnError();
@@ -364,8 +354,12 @@ void TLookupRowsCommand::DoExecute()
     if (Request_->ColumnNames) {
         options.ColumnFilter.All = false;
         for (const auto& name : *Request_->ColumnNames) {
-            int id = nameTable->GetId(name);
-            options.ColumnFilter.Indexes.push_back(id);
+            auto maybeIndex = nameTable->FindId(name);
+            if (!maybeIndex) {
+                THROW_ERROR_EXCEPTION("No such column %Qv",
+                    name);
+            }
+            options.ColumnFilter.Indexes.push_back(*maybeIndex);
         }
     }
 

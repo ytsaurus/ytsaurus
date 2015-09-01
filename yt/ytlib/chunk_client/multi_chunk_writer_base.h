@@ -6,6 +6,8 @@
 #include "data_statistics.h"
 #include "multi_chunk_writer.h"
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/node_tracker_client/public.h>
 
 #include <ytlib/transaction_client/public.h>
@@ -28,7 +30,7 @@ public:
     TNontemplateMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         NConcurrency::IThroughputThrottlerPtr throttler,
@@ -81,6 +83,7 @@ private:
 
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;
+    const NApi::IClientPtr Client_;
     const NRpc::IChannelPtr MasterChannel_;
     const NTransactionClient::TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
@@ -133,7 +136,7 @@ public:
     TMultiChunkWriterBase(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
@@ -142,7 +145,7 @@ public:
         : TNontemplateMultiChunkWriterBase(
             config, 
             options, 
-            masterChannel, 
+            client, 
             transactionId, 
             parentChunkListId,
             throttler,

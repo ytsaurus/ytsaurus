@@ -334,7 +334,7 @@ private:
                 writerOptions,
                 schema,
                 keyColumns,
-                Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
+                Bootstrap_->GetMasterClient(),
                 transaction->GetId(),
                 NullChunkId,
                 GetUnlimitedThrottler(),

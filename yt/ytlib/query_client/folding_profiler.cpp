@@ -201,7 +201,7 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
             orderClause->OrderColumns,
             schema,
             std::move(codegenSource),
-            orderClause->IsDesc);
+            orderClause->IsDescending);
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {

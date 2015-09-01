@@ -5,6 +5,8 @@
 #include "config.h"
 #include "chunk_meta_extensions.h"
 
+#include <ytlib/api/client.h>
+
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_spec.h>
@@ -266,7 +268,7 @@ public:
     TFileMultiChunkReader(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         const std::vector<TChunkSpec>& chunkSpecs,
@@ -274,7 +276,7 @@ public:
         : TSequentialMultiChunkReaderBase(
             config,
             options,
-            masterChannel,
+            client,
             blockCache,
             nodeDirectory,
             chunkSpecs,
@@ -352,7 +354,7 @@ private:
 IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
     const std::vector<TChunkSpec>& chunkSpecs,
@@ -361,7 +363,7 @@ IFileMultiChunkReaderPtr CreateFileMultiChunkReader(
     return New<TFileMultiChunkReader>(
         config, 
         options, 
-        masterChannel, 
+        client,
         blockCache,
         nodeDirectory, 
         chunkSpecs,
