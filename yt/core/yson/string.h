@@ -14,7 +14,7 @@ class TYsonString
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(Stroka, Data);
-    DEFINE_BYVAL_RO_PROPERTY(NYson::EYsonType, Type);
+    DEFINE_BYVAL_RO_PROPERTY(EYsonType, Type);
 
 public:
     TYsonString();
