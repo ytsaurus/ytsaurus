@@ -215,9 +215,13 @@ class YTEnv(object):
         list_ports(node_name, 2 * nodes_count)
         list_ports(proxy_name, 2)
 
-        logger.info("Setting up configuration with %d masters, %d nodes, %d schedulers, %d secondary master cells, %d proxies",
-                     masters_count, nodes_count, schedulers_count, secondary_master_cell_count, int(has_proxy))
-        logger.info("YT working dir is %s", self.path_to_run)
+        logger.info("Staring up cluster instance as follows:")
+        logger.info("  masters          %d", masters_count)
+        logger.info("  nodes            %d", nodes_count)
+        logger.info("  schedulers       %d", schedulers_count)
+        logger.info("  secondary cells  %d", secondary_master_cell_count)
+        logger.info("  proxies          %d", int(has_proxy))
+        logger.info("  working dir      %s", self.path_to_run)
 
         if masters_count == 0:
             logger.info("Do nothing, because we have 0 masters")
