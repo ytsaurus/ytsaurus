@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "node_detail.h"
-
 #include "convert.h"
 #include "ypath_detail.h"
 #include "ypath_service.h"
@@ -9,6 +8,7 @@
 #include "ypath_client.h"
 
 #include <core/misc/protobuf_helpers.h>
+#include <core/misc/singleton.h>
 
 #include <core/yson/writer.h>
 #include <core/yson/async_writer.h>
@@ -16,8 +16,6 @@
 
 #include <core/ypath/token.h>
 #include <core/ypath/tokenizer.h>
-
-#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NYTree {
@@ -435,6 +433,58 @@ void TListNodeMixin::SetChild(
     }
 
     AddChild(child, beforeIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYPathServicePtr TNonexistingService::Get()
+{
+    return RefCountedSingleton<TNonexistingService>();
+}
+
+bool TNonexistingService::DoInvoke(IServiceContextPtr context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(Exists);
+    return TYPathServiceBase::DoInvoke(context);
+}
+
+IYPathService::TResolveResult TNonexistingService::Resolve(
+    const TYPath& path,
+    IServiceContextPtr /*context*/)
+{
+    return TResolveResult::Here(path);
+}
+
+void TNonexistingService::ExistsSelf(
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    TCtxExistsPtr context)
+{
+    ExistsAny(context);
+}
+
+void TNonexistingService::ExistsRecursive(
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    TCtxExistsPtr context)
+{
+    ExistsAny(context);
+}
+
+void TNonexistingService::ExistsAttribute(
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    TCtxExistsPtr context)
+{
+    ExistsAny(context);
+}
+
+void TNonexistingService::ExistsAny(TCtxExistsPtr context)
+{
+    context->SetRequestInfo();
+    Reply(context, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

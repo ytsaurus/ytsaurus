@@ -14,6 +14,7 @@
 #include <core/erasure/public.h>
 
 #include <core/ytree/exception_helpers.h>
+#include <core/ytree/node_detail.h>
 
 #include <core/profiling/profile_manager.h>
 #include <core/profiling/scoped_timer.h>
@@ -274,8 +275,12 @@ private:
                 if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
                     proxy = objectManager->CreateRemoteProxy(objectId);
                 } else {
-                    auto* object = objectManager->GetObjectOrThrow(objectId);
-                    proxy = objectManager->GetProxy(object, transaction);
+                    auto* object = (context->GetMethod() == "Exists")
+                        ? objectManager->FindObject(objectId)
+                        : objectManager->GetObjectOrThrow(objectId);
+                    proxy = IsObjectAlive(object)
+                        ? objectManager->GetProxy(object, transaction)
+                        : TNonexistingService::Get();
                 }
                 return TResolveResult::There(proxy, tokenizer.GetSuffix());
             }

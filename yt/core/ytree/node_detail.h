@@ -151,6 +151,42 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNonexistingService
+    : public TYPathServiceBase
+    , public TSupportsExists
+{
+public:
+    static IYPathServicePtr Get();
+
+private:
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context);
+
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        NRpc::IServiceContextPtr /*context*/);
+
+    virtual void ExistsSelf(
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context);
+
+    virtual void ExistsRecursive(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context);
+
+    virtual void ExistsAttribute(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context);
+
+    void ExistsAny(TCtxExistsPtr context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define YTREE_NODE_TYPE_OVERRIDES(key) \
 public: \
     virtual ::NYT::NYTree::ENodeType GetType() const override \
