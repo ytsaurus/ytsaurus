@@ -136,6 +136,16 @@ class YTEnvSetup(YTEnv):
         for rack in racks:
             yt_commands.remove_rack(rack)
 
+    def _find_ut_file(file_name):
+        from distutils.spawn import find_executable
+        ytserver_path = find_executable("ytserver")
+        assert ytserver_path is not None
+        unittests_path = os.path.join(os.path.dirname(ytserver_path), "..", "yt", "unittests")
+        assert os.path.exists(unittests_path)
+        result_path = os.path.join(unittests_path, file_name)
+        assert os.path.exists(result_path)
+        return result_path
+
 # decorator form
 ATTRS = [
     'NUM_MASTERS',
