@@ -37,6 +37,8 @@ public:
     TFuture<TYsonString> Finish();
 
 private:
+    const EYsonType Type_;
+    
     TStringStream Stream_;
     TYsonWriter SyncWriter_;
 
