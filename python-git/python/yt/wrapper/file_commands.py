@@ -200,10 +200,15 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
                 raise
             broken = False
 
-        if link_exists and broken:
-            logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
-            remove(destination, client=client)
-            link_exists = False
+        if link_exists:
+            if broken:
+                logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
+                remove(destination, client=client)
+                link_exists = False
+            else:
+                # Touch file and link to update modification time
+                set(destination + "/@touched", "true")
+                set(destination + "&/@touched", "true")
         if not link_exists:
             real_destination = find_free_subpath(prefix, client=client)
             upload_with_check(real_destination)
