@@ -223,45 +223,49 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
 
 ISchemafulWriterPtr CreateSchemafulWriterForYson(
     const IAttributeDictionary& attributes,
+    const TTableSchema& schema,
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
 
-    return New<TSchemafulWriter>(output, [&] (TOutputStream* buffer) {
+    return New<TSchemafulWriter>(output, schema, [&] (TOutputStream* buffer) {
         return std::make_unique<NYson::TYsonWriter>(buffer, config->Format, EYsonType::ListFragment);
     });
 }
 
 ISchemafulWriterPtr CreateSchemafulWriterForJson(
     const IAttributeDictionary& attributes,
+    const TTableSchema& schema,
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TJsonFormatConfigPtr>(&attributes);
 
-    return New<TSchemafulWriter>(output, [&] (TOutputStream* buffer) {
+    return New<TSchemafulWriter>(output, schema, [&] (TOutputStream* buffer) {
         return CreateJsonConsumer(buffer, EYsonType::ListFragment, config);
     });
 }
 
 ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const IAttributeDictionary& attributes,
+    const TTableSchema& schema,
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
-    return New<TSchemafulDsvWriter>(output, config);
+    return CreateSchemafulDsvWriter(output, schema, config);
 }
 
 ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& format,
+    const TTableSchema& schema,
     IAsyncOutputStreamPtr output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
-            return CreateSchemafulWriterForYson(format.Attributes(), output);
+            return CreateSchemafulWriterForYson(format.Attributes(), schema, output);
         case EFormatType::Json:
-            return CreateSchemafulWriterForJson(format.Attributes(), output);
+            return CreateSchemafulWriterForJson(format.Attributes(), schema, output);
         case EFormatType::SchemafulDsv:
-            return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), output);
+            return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, output);
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv",
                 format.GetType());

@@ -3,9 +3,11 @@
 #include "public.h"
 #include "client_block_cache.h"
 
-#include <core/concurrency/throughput_throttler.h>
+#include <ytlib/api/public.h>
 
 #include <ytlib/node_tracker_client/public.h>
+
+#include <core/concurrency/throughput_throttler.h>
 
 #include <core/rpc/public.h>
 
@@ -20,7 +22,7 @@ IChunkWriterPtr CreateReplicationWriter(
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     IBlockCachePtr blockCache = GetNullBlockCache(),
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 

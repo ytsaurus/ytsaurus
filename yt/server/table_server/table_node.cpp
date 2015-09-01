@@ -70,7 +70,7 @@ void TTableNode::Load(TLoadContext& context)
         Load(context, Tablets_);
     }
     // COMPAT(babenko)
-    if (context.GetVersion() >= 120) {
+    if (context.GetVersion() >= 121) {
         Load(context, Atomicity_);
     }
 }

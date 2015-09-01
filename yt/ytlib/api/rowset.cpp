@@ -89,18 +89,14 @@ class TSchemafulRowsetWriter
     , public ISchemafulWriter
 {
 public:
+    TSchemafulRowsetWriter(const TTableSchema& schema)
+    {
+        Schema_ = schema;
+    }
+
     TFuture<IRowsetPtr> GetResult() const
     {
         return Result_.ToFuture();
-    }
-
-    // ISchemafulWriter implementation.
-    virtual TFuture<void> Open(
-        const TTableSchema& schema,
-        const TKeyColumns& /*keyColumns*/) override
-    {
-        Schema_ = schema;
-        return VoidFuture;
     }
 
     virtual TFuture<void> Close() override
@@ -129,9 +125,9 @@ private:
 
 };
 
-std::tuple<ISchemafulWriterPtr, TFuture<IRowsetPtr>> CreateSchemafulRowsetWriter()
+std::tuple<ISchemafulWriterPtr, TFuture<IRowsetPtr>> CreateSchemafulRowsetWriter(const TTableSchema& schema)
 {
-    auto writer = New<TSchemafulRowsetWriter>();
+    auto writer = New<TSchemafulRowsetWriter>(schema);
     return std::make_tuple(writer, writer->GetResult());
 }
 

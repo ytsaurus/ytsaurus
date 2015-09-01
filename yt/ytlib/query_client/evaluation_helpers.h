@@ -46,7 +46,7 @@ struct TExpressionContext
 #endif
     const TTableSchema* Schema;
 
-    std::vector<TSharedRange<TRow>>* LiteralRows;
+    const std::vector<TSharedRange<TRow>>* LiteralRows;
     
     TRowBufferPtr IntermediateBuffer;
     
@@ -62,7 +62,7 @@ struct TExecutionContext
     TRowBufferPtr OutputBuffer;
 
     // TODO(babenko): TSharedRange?
-    std::vector<TRow>* OutputBatchRows;
+    std::vector<TRow>* OutputRowsBatch;
 
     TQueryStatistics* Statistics;
 

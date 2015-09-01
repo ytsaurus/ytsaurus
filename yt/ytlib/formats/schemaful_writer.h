@@ -24,14 +24,12 @@ public:
     template <class TMakeWriter>
     explicit TSchemafulWriter(
         NConcurrency::IAsyncOutputStreamPtr stream,
+        const NTableClient::TTableSchema& schema,
         TMakeWriter&& makeWriter)
         : Stream_(stream)
+        , Schema_(schema)
         , Writer_(makeWriter(&Buffer_))
     { }
-
-    virtual TFuture<void> Open(
-        const NTableClient::TTableSchema& schema,
-        const NTableClient::TKeyColumns& keyColumns) override;
 
     virtual TFuture<void> Close() override;
 
@@ -42,10 +40,10 @@ public:
 private:
     NConcurrency::IAsyncOutputStreamPtr Stream_;
 
+    NTableClient::TTableSchema Schema_;
+
     TBlobOutput Buffer_;
     std::unique_ptr<NYson::TYsonConsumerBase> Writer_;
-
-    NTableClient::TTableSchema Schema_;
 
     TFuture<void> Result_;
 };

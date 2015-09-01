@@ -50,9 +50,6 @@ static const int MaxEditListCapacity = 256;
 static const int TabletReaderPoolSize = 16 * 1024;
 static const int SnapshotRowsPerRead = 1024;
 
-static const ui32 UncommittedRevision = 0;
-static const ui32 MaxRevision = std::numeric_limits<ui32>::max();
-
 struct TDynamicMemoryStoreReaderPoolTag
 { };
 
@@ -1525,7 +1522,6 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
-    // Lookup reader does not support snapshotting.
     YCHECK(timestamp != AllCommittedTimestamp);
     return New<TLookupReader>(
         this,

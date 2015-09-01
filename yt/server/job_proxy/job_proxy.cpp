@@ -33,6 +33,9 @@
 
 #include <core/ytree/public.h>
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+
 #include <ytlib/scheduler/public.h>
 
 #include <ytlib/cgroup/cgroup.h>
@@ -52,6 +55,7 @@ using namespace NScheduler;
 using namespace NExecAgent;
 using namespace NBus;
 using namespace NRpc;
+using namespace NApi;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkClient;
@@ -158,11 +162,18 @@ void TJobProxy::RetrieveJobSpec()
 
 void TJobProxy::Run()
 {
-    auto result = BIND(&TJobProxy::DoRun, Unretained(this))
+    auto resultOrError = BIND(&TJobProxy::DoRun, Unretained(this))
         .AsyncVia(JobThread_->GetInvoker())
         .Run()
-        .Get()
-        .ValueOrThrow();
+        .Get();
+
+    TJobResult result;
+    if (!resultOrError.IsOK()) {
+        LOG_ERROR(resultOrError, "Job failed");
+        ToProto(result.mutable_error(), resultOrError);
+    } else {
+        result = resultOrError.Value();
+    }
 
     if (HeartbeatExecutor_) {
         HeartbeatExecutor_->Stop();
@@ -278,9 +289,11 @@ TJobResult TJobProxy::DoRun()
     SupervisorProxy_.reset(new TSupervisorServiceProxy(supervisorChannel));
     SupervisorProxy_->SetDefaultTimeout(Config_->SupervisorRpcTimeout);
 
-    MasterChannel_ = CreateAuthenticatedChannel(
-        CreateBusChannel(supervisorClient),
-        NSecurityClient::JobUserName);
+    auto clusterConnection = CreateConnection(Config_->ClusterConnection);
+
+    TClientOptions clientOptions;
+    clientOptions.User = NSecurityClient::JobUserName;
+    Client_ = clusterConnection->CreateClient(clientOptions);
 
     RetrieveJobSpec();
 
@@ -302,32 +315,24 @@ TJobResult TJobProxy::DoRun()
             Config_->MemoryWatchdogPeriod);
     }
 
-    try {
-        if (schedulerJobSpecExt.has_user_job_spec()) {
-            auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-            JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
-            Job_ = CreateUserJob(
-                this, 
-                userJobSpec, 
-                JobId_, 
-                CreateUserJobIO());
-        } else {
-            Job_ = CreateBuiltinJob();
-        }
-
-        if (MemoryWatchdogExecutor_) {
-            MemoryWatchdogExecutor_->Start();
-        }
-        HeartbeatExecutor_->Start();
-
-        return Job_->Run();
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Job failed");
-
-        TJobResult result;
-        ToProto(result.mutable_error(), TError(ex));
-        return result;
+    if (schedulerJobSpecExt.has_user_job_spec()) {
+        auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+        JobProxyMemoryLimit_ -= userJobSpec.memory_reserve();
+        Job_ = CreateUserJob(
+            this,
+            userJobSpec,
+            JobId_,
+            CreateUserJobIO());
+    } else {
+        Job_ = CreateBuiltinJob();
     }
+
+    if (MemoryWatchdogExecutor_) {
+        MemoryWatchdogExecutor_->Start();
+    }
+    HeartbeatExecutor_->Start();
+
+    return Job_->Run();
 }
 
 void TJobProxy::ReportResult(const TJobResult& result)
@@ -386,9 +391,9 @@ void TJobProxy::ReleaseNetwork()
     SetResourceUsage(usage);
 }
 
-IChannelPtr TJobProxy::GetMasterChannel() const
+NApi::IClientPtr TJobProxy::GetClient() const
 {
-    return MasterChannel_;
+    return Client_;
 }
 
 IBlockCachePtr TJobProxy::GetBlockCache() const

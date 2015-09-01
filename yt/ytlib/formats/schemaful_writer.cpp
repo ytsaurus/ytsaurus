@@ -13,14 +13,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TSchemafulWriter::Open(
-    const TTableSchema& schema,
-    const TKeyColumns& /*keyColumns*/)
-{
-    Schema_ = schema;
-    return VoidFuture;
-}
-
 TFuture<void> TSchemafulWriter::Close()
 {
     return VoidFuture;

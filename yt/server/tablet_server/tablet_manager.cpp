@@ -381,6 +381,9 @@ public:
         TTabletStatistics tabletStatistics;
         tabletStatistics.PartitionCount = nodeStatistics.partition_count();
         tabletStatistics.StoreCount = nodeStatistics.store_count();
+        tabletStatistics.StorePreloadPendingCount = nodeStatistics.store_preload_pending_count();
+        tabletStatistics.StorePreloadCompletedCount = nodeStatistics.store_preload_completed_count();
+        tabletStatistics.StorePreloadFailedCount = nodeStatistics.store_preload_failed_count();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;
@@ -392,7 +395,7 @@ public:
                 tabletStatistics.MemorySize = tabletStatistics.UncompressedDataSize;
                 break;
             case EInMemoryMode::None:
-                // MemorySize remains 0.
+                tabletStatistics.MemorySize = 0;
                 break;
             default:
                 YUNREACHABLE();

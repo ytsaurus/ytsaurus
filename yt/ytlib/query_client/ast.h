@@ -109,6 +109,15 @@ struct TFunctionExpression
     TExpressionPtr Arguments;
 };
 
+struct TEmptyExpression
+    : public TExpression
+{
+    TEmptyExpression(
+        const TSourceLocation& sourceLocation)
+        : TExpression(sourceLocation)
+    { }
+};
+
 struct TUnaryOpExpression
     : public TExpression
 {
@@ -222,8 +231,10 @@ struct TQuery
     TExpressionPtr WherePredicate;
     TNullableNamedExpressionList GroupExprs;
     TExpressionPtr HavingPredicate;
+
     TNullableIdentifierList OrderFields;
-    bool IsOrderDesc = false;
+    bool IsDescendingOrder = false;
+
     i64 Limit = 0;
 };
 

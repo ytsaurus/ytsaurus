@@ -84,13 +84,10 @@ class TSchemafulDsvWriter
     : public NTableClient::ISchemafulWriter
 {
 public:
-    explicit TSchemafulDsvWriter(
+    TSchemafulDsvWriter(
         NConcurrency::IAsyncOutputStreamPtr stream,
+        std::vector<int> columnIdMapping,
         TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
-
-    virtual TFuture<void> Open(
-        const NTableClient::TTableSchema& schema,
-        const NTableClient::TKeyColumns& keyColumns) override;
 
     virtual TFuture<void> Close() override;
 
@@ -107,13 +104,20 @@ private:
     void WriteRaw(char ch);
 
     NConcurrency::IAsyncOutputStreamPtr Stream_;
+    std::vector<int> ColumnIdMapping_;
     TSchemafulDsvFormatConfigPtr Config_;
 
-    std::vector<int> ColumnIdMapping_;
     TBlob Buffer_;
 
     TFuture<void> Result_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
+    NConcurrency::IAsyncOutputStreamPtr stream,
+    const NTableClient::TTableSchema& schema,
+    TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
 
 ////////////////////////////////////////////////////////////////////////////////
 

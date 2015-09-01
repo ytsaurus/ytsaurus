@@ -15,6 +15,8 @@
 #include <core/concurrency/scheduler.h>
 
 #include <ytlib/api/config.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
 
 #include <ytlib/chunk_client/chunk_writer.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
@@ -45,16 +47,16 @@ using namespace NApi;
 TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const NObjectClient::TTransactionId& transactionId)
     : Config(config)
     , Options(options)
-    , MasterChannel(masterChannel)
+    , Client(client)
     , TransactionId(transactionId)
     , Logger(FileClientLogger)
 {
     YCHECK(config);
-    YCHECK(masterChannel);
+    YCHECK(client);
 }
 
 void TFileChunkOutput::Open()
@@ -65,7 +67,8 @@ void TFileChunkOutput::Open()
         Options->ReplicationFactor,
         Config->UploadReplicationFactor);
     
-    auto rspOrError = CreateChunk(MasterChannel, Config, Options, EObjectType::Chunk, TransactionId).Get();
+    auto channel = Client->GetMasterChannel(EMasterChannelKind::Leader);
+    auto rspOrError = CreateChunk(channel, Config, Options, EObjectType::Chunk, TransactionId).Get();
     if (!rspOrError.IsOK()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::ChunkCreationFailed,
@@ -87,7 +90,7 @@ void TFileChunkOutput::Open()
         ChunkId,
         TChunkReplicaList(),
         nodeDirectory,
-        MasterChannel);
+        Client);
 
     auto error = ChunkWriter->Open().Get();
     THROW_ERROR_EXCEPTION_IF_FAILED(error)
@@ -133,7 +136,8 @@ void TFileChunkOutput::DoFinish()
     auto writtenReplicas = ChunkWriter->GetWrittenChunkReplicas();
     YCHECK(!writtenReplicas.empty());
     {
-        TObjectServiceProxy proxy(MasterChannel);
+        auto channel = Client->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
 
         auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
         *req->mutable_chunk_info() = ChunkWriter->GetChunkInfo();
