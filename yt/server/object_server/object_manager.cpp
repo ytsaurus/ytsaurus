@@ -271,8 +271,17 @@ private:
                         objectIdString);
                 }
 
+                bool suppressRedirect = false;
+                if (tokenizer.Advance() == NYPath::ETokenType::Ampersand) {
+                    suppressRedirect = true;
+                    tokenizer.Advance();
+                }
+
                 IYPathServicePtr proxy;
-                if (Bootstrap_->IsPrimaryMaster() && CellTagFromId(objectId) != Bootstrap_->GetCellTag()) {
+                if (!suppressRedirect &&
+                    CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
+                    Bootstrap_->IsPrimaryMaster())
+                {
                     proxy = objectManager->CreateRemoteProxy(objectId);
                 } else {
                     auto* object = (context->GetMethod() == "Exists")
@@ -282,7 +291,7 @@ private:
                         ? objectManager->GetProxy(object, transaction)
                         : TNonexistingService::Get();
                 }
-                return TResolveResult::There(proxy, tokenizer.GetSuffix());
+                return TResolveResult::There(proxy, tokenizer.GetInput());
             }
 
             default:
