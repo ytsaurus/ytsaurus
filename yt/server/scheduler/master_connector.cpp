@@ -1347,7 +1347,7 @@ private:
                 auto req = TYPathProxy::Set(operationPath + "/@progress");
                 req->set_value(BuildYsonStringFluently()
                     .BeginMap()
-                    .Do(BIND(&IOperationController::BuildProgress, controller))
+                        .Do(BIND(&IOperationController::BuildProgress, controller))
                     .EndMap().Data());
                 batchReq->AddRequest(req, "update_op_node");
 
@@ -1357,7 +1357,7 @@ private:
                 auto req = TYPathProxy::Set(operationPath + "/@brief_progress");
                 req->set_value(BuildYsonStringFluently()
                     .BeginMap()
-                    .Do(BIND(&IOperationController::BuildBriefProgress, controller))
+                        .Do(BIND(&IOperationController::BuildBriefProgress, controller))
                     .EndMap().Data());
                 batchReq->AddRequest(req, "update_op_node");
             }
