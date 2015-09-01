@@ -28,6 +28,7 @@
 #include <server/chunk_server/chunk_manager.h>
 
 #include <server/cell_master/multicell_manager.pb.h>
+#include <server/cell_master/world_initializer.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -384,6 +385,10 @@ private:
         YCHECK(Bootstrap_->IsSecondaryMaster());
 
         if (RegisteredAtPrimaryMaster_)
+            return;
+
+        auto worldInitializer = Bootstrap_->GetWorldInitializer();
+        if (!worldInitializer->CheckInitialized())
             return;
 
         NProto::TReqRegisterAtPrimaryMaster request;
