@@ -32,6 +32,8 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("chunk_manager", ChunkManager)
         .DefaultNew();
+    RegisterParameter("journal_manager", JournalManager)
+        .DefaultNew();
     RegisterParameter("object_manager", ObjectManager)
         .DefaultNew();
     RegisterParameter("cypress_manager", CypressManager)

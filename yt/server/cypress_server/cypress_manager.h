@@ -139,14 +139,6 @@ public:
         TCypressNodeBase* trunkNode);
 
 
-    //! Marks the journal as sealed and updates its snapshot statistics.
-    //! If #statistics is |nullptr| then computes one from chunk lists.
-    //! For secondary masters, this call also notifies the primary.
-    void SealJournal(
-        NJournalServer::TJournalNode* trunkNode,
-        const NChunkClient::NProto::TDataStatistics* statistics);
-
-
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNodeBase, TVersionedNodeId);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock, TLockId);
 

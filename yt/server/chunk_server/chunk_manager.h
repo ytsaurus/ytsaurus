@@ -146,8 +146,9 @@ public:
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
-    void SealChunk(TChunk* chunk, const NChunkClient::NProto::TMiscExt& info);
-    TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(TChunk* chunk);
+    //! Computes misc extension of a given journal chunk
+    //! by querying a quorum of replicas (if the chunk is not sealed).
+    TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(NChunkServer::TChunk* chunk);
 
 private:
     class TImpl;

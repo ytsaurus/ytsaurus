@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "journal_node.h"
 #include "journal_node_proxy.h"
+#include "journal_manager.h"
 #include "private.h"
 
 #include <server/chunk_server/chunk_owner_type_handler.h>
@@ -8,7 +9,6 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
-#include <server/cell_master/multicell_manager.h>
 
 #include <ytlib/journal_client/journal_ypath_proxy.h>
 
@@ -321,8 +321,8 @@ protected:
                     chunkManager->MaybeScheduleChunkSeal(trailingChunk);
                 }
             } else {
-                auto cypressManager = Bootstrap_->GetCypressManager();
-                cypressManager->SealJournal(trunkNode, nullptr);
+                auto journalManager = Bootstrap_->GetJournalManager();
+                journalManager->SealJournal(trunkNode, nullptr);
             }
         }
     }

@@ -32,7 +32,6 @@
 #include <server/transaction_server/transaction_manager.h>
 
 #include <server/cell_master/multicell_manager.h>
-
 #include <server/cell_master/config.h>
 
 namespace NYT {
@@ -107,12 +106,12 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
-    TChunkManagerConfigPtr Config_;
-    TChunkList* ChunkList_;
-    TCtxFetchPtr Context_;
-    TChannel Channel_;
-    bool FetchParityReplicas_;
+    NCellMaster::TBootstrap* const Bootstrap_;
+    const TChunkManagerConfigPtr Config_;
+    TChunkList* const ChunkList_;
+    const TCtxFetchPtr Context_;
+    const TChannel Channel_;
+    const bool FetchParityReplicas_;
 
     std::vector<TReadRange> Ranges_;
     int CurrentRangeIndex_ = 0;

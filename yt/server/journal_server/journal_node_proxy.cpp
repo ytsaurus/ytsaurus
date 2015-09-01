@@ -1,12 +1,13 @@
 #include "stdafx.h"
 #include "journal_node_proxy.h"
 #include "journal_node.h"
+#include "journal_manager.h"
 #include "private.h"
 
 #include <server/chunk_server/chunk_owner_node_proxy.h>
-#include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
+#include <server/chunk_server/chunk_manager.h>
 
 #include <ytlib/journal_client/journal_ypath_proxy.h>
 
@@ -151,8 +152,8 @@ private:
         auto* journal = GetThisTypedImpl();
         YCHECK(journal->IsTrunk());
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SealJournal(journal->GetTrunkNode(), &request->statistics());
+        auto journalManager = Bootstrap_->GetJournalManager();
+        journalManager->SealJournal(journal->GetTrunkNode(), &request->statistics());
 
         context->Reply();
     }

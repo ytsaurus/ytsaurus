@@ -82,6 +82,7 @@
 #include <server/table_server/table_node.h>
 
 #include <server/journal_server/journal_node.h>
+#include <server/journal_server/journal_manager.h>
 
 #include <server/orchid/cypress_integration.h>
 
@@ -250,6 +251,11 @@ TObjectManagerPtr TBootstrap::GetObjectManager() const
 TChunkManagerPtr TBootstrap::GetChunkManager() const
 {
     return ChunkManager_;
+}
+
+NJournalServer::TJournalManagerPtr TBootstrap::GetJournalManager() const
+{
+    return JournalManager_;
 }
 
 TSecurityManagerPtr TBootstrap::GetSecurityManager() const
@@ -451,6 +457,8 @@ void TBootstrap::DoInitialize()
     CypressManager_ = New<TCypressManager>(Config_->CypressManager, this);
 
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
+
+    JournalManager_ = New<NJournalServer::TJournalManager>(Config_->JournalManager, this);
 
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 

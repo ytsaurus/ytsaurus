@@ -853,72 +853,6 @@ public:
     }
 
 
-    void SealChunk(TChunk* chunk, const TMiscExt& info)
-    {
-        if (!chunk->IsJournal()) {
-            THROW_ERROR_EXCEPTION("Not a journal chunk");
-        }
-
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
-        }
-
-        if (chunk->IsSealed()) {
-            THROW_ERROR_EXCEPTION("Chunk is already sealed");
-        }
-
-        chunk->Seal(info);
-
-        // Go upwards and apply delta.
-        YCHECK(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
-
-        TChunkTreeStatistics statisticsDelta;
-        statisticsDelta.Sealed = true;
-        statisticsDelta.RowCount = info.row_count();
-        statisticsDelta.UncompressedDataSize = info.uncompressed_data_size();
-        statisticsDelta.CompressedDataSize = info.compressed_data_size();
-        statisticsDelta.RegularDiskSpace = info.compressed_data_size();
-
-        VisitUniqueAncestors(
-            chunkList,
-            [&] (TChunkList* current) {
-                ++statisticsDelta.Rank;
-                current->Statistics().Accumulate(statisticsDelta);
-            });
-
-        bool hasUpdates = false;
-        TJournalNode* trunkOwningNode = nullptr;
-        auto owningNodes = GetOwningNodes(chunk);
-        for (auto* node : owningNodes) {
-            YCHECK(node->GetType() == EObjectType::Journal);
-            auto* journalNode = static_cast<TJournalNode*>(node);
-            if (journalNode->GetUpdateMode() != EUpdateMode::None) {
-                hasUpdates = true;
-            }
-            if (trunkOwningNode) {
-                YCHECK(journalNode->GetTrunkNode() == trunkOwningNode);
-            } else {
-                trunkOwningNode = journalNode->GetTrunkNode();
-            }
-        }
-
-        if (!hasUpdates && IsObjectAlive(trunkOwningNode)) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            cypressManager->SealJournal(trunkOwningNode, nullptr);
-        }
-
-        if (IsLeader()) {
-            ScheduleChunkRefresh(chunk);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            chunk->GetId(),
-            info.row_count(),
-            info.uncompressed_data_size(),
-            info.compressed_data_size());
-    }
-
     TFuture<TMiscExt> GetChunkQuorumInfo(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
@@ -1980,11 +1914,6 @@ int TChunkManager::GetTotalReplicaCount()
 EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
 {
     return Impl_->ComputeChunkStatus(chunk);
-}
-
-void TChunkManager::SealChunk(TChunk* chunk, const TMiscExt& info)
-{
-    Impl_->SealChunk(chunk, info);
 }
 
 TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
