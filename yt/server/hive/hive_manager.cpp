@@ -688,14 +688,18 @@ private:
     TFuture<void> OnSyncPingResponse(const TCellId& cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Sync ping to cell %v has failed",
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Failed to synchronize with cell %v",
                 cellId)
-                    << rspOrError;
+                << rspOrError;
         }
 
         auto* mailbox = GetMailboxOrThrow(cellId);
         if (!mailbox->GetConnected()) {
-            THROW_ERROR_EXCEPTION("Mailbox %v is not connected",
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Unable to synchronize with cell %v since it is not connected",
                 cellId);
         }
 
