@@ -7,7 +7,8 @@ namespace NYson {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAsyncYsonWriter::TAsyncYsonWriter(EYsonType type)
-    : SyncWriter_(
+    : Type_(type)
+    , SyncWriter_(
         &Stream_,
         EYsonFormat::Binary,
         type,
@@ -105,7 +106,7 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
     YASSERT(!SyncWriter_.IsNodeExpected());
     FlushCurrentSegment();
 
-    return Combine(AsyncSegments_).Apply(BIND([] (const std::vector<TYsonString>& segments) {
+    return Combine(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<TYsonString>& segments) {
         size_t length = 0;
         for (const auto& segment : segments) {
             length += segment.Data().length();
@@ -117,7 +118,7 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
             result.append(segment.Data());
         }
 
-        return TYsonString(result);
+        return TYsonString(result, type);
     }));
 }
 
