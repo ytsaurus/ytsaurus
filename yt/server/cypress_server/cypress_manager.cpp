@@ -230,7 +230,7 @@ public:
                 }
                 attributes->Remove("cell_tag");
             } else {
-                cellTag = multicellManager->GetLeastLoadedSecondaryMaster();
+                cellTag = multicellManager->PickCellForNode();
                 if (cellTag == InvalidCellTag) {
                     THROW_ERROR_EXCEPTION("No secondary masters registered");
                 }
