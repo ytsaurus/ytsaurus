@@ -2,6 +2,10 @@
 #include "stderr_output.h"
 #include "private.h"
 
+#include <ytlib/api/config.h>
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+
 #include <ytlib/file_client/config.h>
 #include <ytlib/file_client/file_chunk_output.h>
 
@@ -24,11 +28,11 @@ static const auto& Logger = JobProxyLogger;
 
 TErrorOutput::TErrorOutput(
     TFileWriterConfigPtr config,
-    IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const TTransactionId& transactionId,
     i64 maxSize)
     : Config(config)
-    , MasterChannel(masterChannel)
+    , Client(client)
     , TransactionId(transactionId)
     , MaxSize(maxSize)
     , IsClosed(false)
@@ -36,11 +40,11 @@ TErrorOutput::TErrorOutput(
 
 TErrorOutput::TErrorOutput(
     TFileWriterConfigPtr config,
-    IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     const TTransactionId& transactionId)
     : TErrorOutput(
         config,
-        masterChannel,
+        client,
         transactionId,
         std::numeric_limits<i64>::max())
 { }
@@ -62,7 +66,7 @@ void TErrorOutput::DoWrite(const void* buf, size_t len)
         FileWriter.reset(new TFileChunkOutput(
             Config,
             options,
-            MasterChannel,
+            Client,
             TransactionId));
         FileWriter->Open();
 

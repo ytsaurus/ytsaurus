@@ -4,6 +4,8 @@
 
 #include "schemaless_reader.h"
 
+#include <ytlib/api/public.h>
+
 #include <ytlib/chunk_client/chunk_reader_base.h>
 #include <ytlib/chunk_client/multi_chunk_reader.h>
 #include <ytlib/chunk_client/read_limit.h>
@@ -77,7 +79,7 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
     TTableReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
@@ -91,7 +93,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiChunkReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TTableReaderConfigPtr config,
     NChunkClient::TMultiChunkReaderOptionsPtr options,
-    NRpc::IChannelPtr masterChannel,
+    NApi::IClientPtr client,
     NChunkClient::IBlockCachePtr blockCache,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,

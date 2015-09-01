@@ -26,12 +26,12 @@ class TErrorOutput
 public:
     TErrorOutput(
         NApi::TFileWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         const NTransactionClient::TTransactionId& transactionId);
 
     TErrorOutput(
         NApi::TFileWriterConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         const NTransactionClient::TTransactionId& transactionId,
         i64 maxSize);
 
@@ -45,7 +45,7 @@ private:
 
 private:
     NApi::TFileWriterConfigPtr Config;
-    NRpc::IChannelPtr MasterChannel;
+    NApi::IClientPtr Client;
     NTransactionClient::TTransactionId TransactionId;
     const i64 MaxSize;
 

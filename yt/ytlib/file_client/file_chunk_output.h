@@ -36,7 +36,7 @@ public:
     TFileChunkOutput(
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         const NObjectClient::TTransactionId& transactionId);
 
     ~TFileChunkOutput() throw();
@@ -62,7 +62,7 @@ private:
 
     bool IsOpen = false;
 
-    NRpc::IChannelPtr MasterChannel;
+    NApi::IClientPtr Client;
     NObjectClient::TTransactionId TransactionId;
 
     NChunkClient::TChunkId ChunkId;

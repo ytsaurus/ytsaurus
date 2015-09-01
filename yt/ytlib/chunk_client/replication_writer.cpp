@@ -11,6 +11,10 @@
 #include "block_cache.h"
 #include "private.h"
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/config.h>
+#include <ytlib/api/connection.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <core/concurrency/async_semaphore.h>
@@ -34,6 +38,7 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
+using namespace NApi;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -140,7 +145,7 @@ public:
         const TChunkId& chunkId,
         const TChunkReplicaList& initialTargets,
         TNodeDirectoryPtr nodeDirectory,
-        IChannelPtr masterChannel,
+        IClientPtr client,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache);
 
@@ -166,10 +171,12 @@ private:
     const TRemoteWriterOptionsPtr Options_;
     const TChunkId ChunkId_;
     const TChunkReplicaList InitialTargets_;
-    const IChannelPtr MasterChannel_;
+    const IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
+
+    Stroka NetworkName_;
 
     TAsyncStreamState State_;
 
@@ -445,17 +452,18 @@ TReplicationWriter::TReplicationWriter(
     const TChunkId& chunkId,
     const TChunkReplicaList& initialTargets,
     TNodeDirectoryPtr nodeDirectory,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
     : Config_(config)
     , Options_(options)
     , ChunkId_(chunkId)
     , InitialTargets_(initialTargets)
-    , MasterChannel_(masterChannel)
+    , Client_(client)
     , NodeDirectory_(nodeDirectory)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
+    , NetworkName_(client->GetConnection()->GetConfig()->NetworkName)
     , WindowSlots_(config->SendWindowSize)
     , UploadReplicationFactor_(Config_->UploadReplicationFactor)
     , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
@@ -481,13 +489,14 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
 {
     VERIFY_THREAD_AFFINITY(WriterThread);
 
-    if (!MasterChannel_) {
+    if (!Options_->AllowAllocatingNewTargetNodes) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::MasterCommunicationFailed, 
-            "Cannnot allocate more targets, no master channel provided");
+            "Allocating new target nodes is disabled");
     }
 
-    TChunkServiceProxy proxy(MasterChannel_);
+    auto masterChannel = Client_->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+    TChunkServiceProxy proxy(masterChannel);
 
     auto req = proxy.AllocateWriteTargets();
     int activeTargets = Nodes_.size();
@@ -537,7 +546,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
     VERIFY_THREAD_AFFINITY(WriterThread);
 
     auto nodeDescriptor = NodeDirectory_->GetDescriptor(target);
-    auto address = nodeDescriptor.GetAddressOrThrow(Options_->NetworkName);
+    auto address = nodeDescriptor.GetAddressOrThrow(NetworkName_);
     LOG_DEBUG("Starting write session (Address: %v)", address);
 
     TDataNodeServiceProxy proxy(LightNodeChannelFactory->CreateChannel(nodeDescriptor.GetInterconnectAddress()));
@@ -596,7 +605,7 @@ void TReplicationWriter::DoOpen()
             JoinToString(Nodes_),
             Config_->PopulateCache,
             Options_->SessionType,
-            Options_->NetworkName);
+            NetworkName_);
 
         IsOpen_ = true;
     } catch (const std::exception& ex) {
@@ -1025,7 +1034,7 @@ IChunkWriterPtr CreateReplicationWriter(
     const TChunkId& chunkId,
     const TChunkReplicaList& targets,
     TNodeDirectoryPtr nodeDirectory,
-    IChannelPtr masterChannel,
+    IClientPtr client,
     IBlockCachePtr blockCache,
     IThroughputThrottlerPtr throttler)
 {
@@ -1035,7 +1044,7 @@ IChunkWriterPtr CreateReplicationWriter(
         chunkId,
         targets,
         nodeDirectory,
-        masterChannel,
+        client,
         throttler,
         blockCache);
 }

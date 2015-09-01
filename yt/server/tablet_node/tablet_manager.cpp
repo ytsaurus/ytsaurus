@@ -617,8 +617,9 @@ private:
 
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
-        std::vector<std::pair<TOwningKey, int>> chunkBoundaries;
+        std::vector<std::tuple<TOwningKey, int, int>> chunkBoundaries;
 
+        int descriptorIndex = 0;
         for (const auto& descriptor : request.chunk_stores()) {
             auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(descriptor.chunk_meta().extensions());
             if (miscExt.has_max_timestamp()) {
@@ -628,9 +629,10 @@ private:
                 auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(descriptor.chunk_meta().extensions());
                 auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumns.size());
                 auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumns.size());
-                chunkBoundaries.push_back(std::make_pair(minKey, -1));
-                chunkBoundaries.push_back(std::make_pair(maxKey, 1));
+                chunkBoundaries.push_back(std::make_tuple(minKey, -1, descriptorIndex));
+                chunkBoundaries.push_back(std::make_tuple(maxKey, 1, descriptorIndex));
             }
+            ++descriptorIndex;
         }
 
         if (!chunkBoundaries.empty()) {
@@ -638,10 +640,10 @@ private:
             std::vector<TOwningKey> pivots{pivotKey};
             int depth = 0;
             for (const auto& boundary : chunkBoundaries) {
-                if (boundary.second == -1 && depth == 0 && boundary.first > pivotKey) {
-                    pivots.push_back(boundary.first);
+                if (std::get<1>(boundary) == -1 && depth == 0 && std::get<0>(boundary) > pivotKey) {
+                    pivots.push_back(std::get<0>(boundary));
                 }
-                depth -= boundary.second;
+                depth -= std::get<1>(boundary);
             }
             YCHECK(tablet->Partitions().size() == 1);
             tablet->SplitPartition(0, pivots);

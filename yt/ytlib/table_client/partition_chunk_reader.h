@@ -86,7 +86,7 @@ public:
     TPartitionMultiChunkReader(
         NChunkClient::TMultiChunkReaderConfigPtr config,
         NChunkClient::TMultiChunkReaderOptionsPtr options,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr client,
         NChunkClient::IBlockCachePtr blockCache,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,

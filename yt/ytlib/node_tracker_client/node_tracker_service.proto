@@ -64,6 +64,9 @@ message TTabletStatistics
 {
     required int32 partition_count = 1;
     required int32 store_count = 2;
+    optional int32 store_preload_pending_count = 3 [default = 0];
+    optional int32 store_preload_completed_count = 4 [default = 0];
+    optional int32 store_preload_failed_count = 5 [default = 0];
 }
 
 message TTabletPerformanceCounters
