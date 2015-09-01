@@ -1029,8 +1029,9 @@ class TestJobQuery(YTEnvSetup):
         create("map_node", registry_path)
 
         abs_path = os.path.join(registry_path, "abs_udf")
-        create("file", abs_path,
-            attributes = { "function_descriptor": {
+        create(
+            "file", abs_path,
+            attributes={"function_descriptor": {
                 "name": "abs_udf",
                 "argument_types": [{
                     "tag": "concrete_type",
@@ -1040,8 +1041,8 @@ class TestJobQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        local_bitcode_path = find_executable("test_udfs.bc")
-        write_local_file(abs_path, local_bitcode_path)
+        abs_impl_path = self._find_ut_file("test_udfs.bc")
+        write_local_file(abs_path, abs_impl_path)
 
     def test_query_simple(self):
         create("table", "//tmp/t1")
