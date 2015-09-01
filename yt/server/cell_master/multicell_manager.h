@@ -65,10 +65,10 @@ public:
     //! in a stable order.
     std::vector<NObjectClient::TCellTag> GetRegisteredSecondaryMasterCellTags();
 
-    //! Returns the cell tag of the secondary master with the smallest
-    //! number of chunks. If no secondary masater is registered then
-    //! returns #InvalidCellTag.
-    NObjectClient::TCellTag GetLeastLoadedSecondaryMaster();
+    //! Picks a random (but deterministically chosen) secondary cell for
+    //! a new chunk owner. Cells with less-than-average number of chunks are preferred.
+    //! If no secondary cells are registered then #InvalidCellTag is returned.
+    NObjectClient::TCellTag PickCellForNode();
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
 

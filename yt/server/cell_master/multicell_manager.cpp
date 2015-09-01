@@ -165,21 +165,40 @@ public:
         return GetKeys(RegisteredSecondaryCellMap_);
     }
 
-    TCellTag GetLeastLoadedSecondaryMaster()
+    TCellTag PickCellForNode()
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
-        auto bestCellTag = InvalidCellTag;
-        int minChunkCount = std::numeric_limits<int>::max();
+        if (RegisteredSecondaryCellMap_.empty()) {
+            return InvalidCellTag;
+        }
+
+        // Compute the average number of chunks.
+        int chunkCountSum = 0;
         for (const auto& pair : RegisteredSecondaryCellMap_) {
             const auto& entry = pair.second;
-            if (entry.Statistics.chunk_count() < minChunkCount) {
-                minChunkCount = entry.Statistics.chunk_count();
-                bestCellTag = pair.first;
+            chunkCountSum += entry.Statistics.chunk_count();
+        }
+
+        int avgChunkCount = chunkCountSum / RegisteredSecondaryCellMap_.size();
+
+        // Construct PickCellList_ by putting each secondary cell
+        // * once if the number of chunks there is at least the average
+        // * twice otherwise
+        PickCellList_.reserve(RegisteredSecondaryCellMap_.size() * 2);
+        PickCellList_.clear();
+        for (const auto& pair : RegisteredSecondaryCellMap_) {
+            auto cellTag = pair.first;
+            const auto& entry = pair.second;
+            PickCellList_.push_back(cellTag);
+            if (entry.Statistics.chunk_count() < avgChunkCount) {
+                PickCellList_.push_back(cellTag);
             }
         }
 
-        return bestCellTag;
+        // Sample PickCellList_ uniformly.
+        auto* mutationContext = GetCurrentMutationContext();
+        return PickCellList_[mutationContext->RandomGenerator().Generate<size_t>() % PickCellList_.size()];
     }
 
 
@@ -209,6 +228,9 @@ private:
 
     TPeriodicExecutorPtr RegisterAtPrimaryMasterExecutor_;
     TPeriodicExecutorPtr CellStatiticsGossipExecutor_;
+
+    //! A temporary buffer used in PickCellForNode.
+    std::vector<TCellTag> PickCellList_;
 
 
     virtual void OnAfterSnapshotLoaded()
@@ -562,9 +584,9 @@ std::vector<NObjectClient::TCellTag> TMulticellManager::GetRegisteredSecondaryMa
     return Impl_->GetRegisteredSecondaryMasterCellTags();
 }
 
-TCellTag TMulticellManager::GetLeastLoadedSecondaryMaster()
+TCellTag TMulticellManager::PickCellForNode()
 {
-    return Impl_->GetLeastLoadedSecondaryMaster();
+    return Impl_->PickCellForNode();
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), SecondaryMasterRegistered, *Impl_);
