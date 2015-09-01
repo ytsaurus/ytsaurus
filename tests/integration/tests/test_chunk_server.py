@@ -43,6 +43,12 @@ class TestChunkServer(YTEnvSetup):
         assert len(nodes) == 3
 
     def _test_decommission(self, path, replica_count):
+        def id_to_hash(id):
+            return id.split('-')[3]
+
+        def node_has_chunk(node, id):
+            return id_to_hash(id) in [id_to_hash(id) for id in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]
+
         sleep(2) # wait for background replication
 
         chunk_ids = get(path + "/@chunk_ids")
@@ -53,14 +59,14 @@ class TestChunkServer(YTEnvSetup):
         assert len(nodes) == replica_count
 
         node_to_decommission = nodes[0]
-        assert get("//sys/nodes/%s/@statistics/total_stored_chunk_count" % node_to_decommission) == 1
+        assert node_has_chunk(node_to_decommission, chunk_id)
 
         print "Decommissioning node", node_to_decommission
         set("//sys/nodes/%s/@decommissioned" % node_to_decommission, True)
 
         sleep(2) # wait for background replication
 
-        assert get("//sys/nodes/%s/@statistics/total_stored_chunk_count" % node_to_decommission) == 0
+        assert not node_has_chunk(node_to_decommission, chunk_id)
         assert len(get("#%s/@stored_replicas" % chunk_id)) == replica_count
 
     def test_decommission_regular(self):
@@ -87,7 +93,7 @@ class TestChunkServerMulticell(TestChunkServer):
     NUM_SCHEDULERS = 1
 
     def test_owning_nodes3(self):
-        create("table", "//tmp/t0", attributes={"cell_tag": 0})
+        create("table", "//tmp/t0", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"cell_tag": 1})
         create("table", "//tmp/t2", attributes={"cell_tag": 2})
 
