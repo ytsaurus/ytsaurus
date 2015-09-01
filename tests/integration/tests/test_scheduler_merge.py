@@ -446,5 +446,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         remove("//tmp/t1")
 
         gc_collect()
+        multicell_sleep()
         assert not exists("//sys/chunks/" + chunk_id)
 
