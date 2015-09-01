@@ -89,3 +89,21 @@ message TRspImportChunks
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetChunkOwningNodes
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+}
+
+message TRspGetChunkOwningNodes
+{
+    message TOwningNode
+    {
+        required NYT.NProto.TGuid node_id = 1;
+        optional NYT.NProto.TGuid transaction_id = 2;
+    }
+
+    repeated TOwningNode nodes = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

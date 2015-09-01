@@ -19,6 +19,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +90,7 @@ private:
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto cypressManager = Bootstrap_->GetCypressManager();
 
-        const auto* chunkList = GetThisTypedImpl();
+        auto* chunkList = GetThisTypedImpl();
 
         if (key == "children_ids") {
             BuildYsonFluently(consumer)
@@ -116,19 +117,22 @@ private:
         }
 
         if (key == "tree") {
-            TraverseTree(const_cast<TChunkList*>(chunkList), consumer);
-            return true;
-        }
-
-        if (key == "owning_nodes") {
-            SerializeOwningNodesPaths(
-                cypressManager,
-                const_cast<TChunkList*>(chunkList),
-                consumer);
+            TraverseTree(chunkList, consumer);
             return true;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    {
+        auto* chunkList = GetThisTypedImpl();
+
+        if (key == "owning_nodes") {
+            return GetMulticellOwningNodes(Bootstrap_, chunkList);
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override

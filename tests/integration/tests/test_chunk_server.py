@@ -84,4 +84,28 @@ class TestChunkServer(YTEnvSetup):
 @mark_multicell
 class TestChunkServerMulticell(TestChunkServer):
     NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1
 
+    def test_owning_nodes3(self):
+        create("table", "//tmp/t0", attributes={"cell_tag": 0})
+        create("table", "//tmp/t1", attributes={"cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"cell_tag": 2})
+
+        write_table("//tmp/t1", {"a" : "b"})
+
+        merge(mode="ordered", in_="//tmp/t1", out="//tmp/t0")
+        merge(mode="ordered", in_="//tmp/t1", out="//tmp/t2")
+
+        chunk_ids0 = get("//tmp/t0/@chunk_ids")
+        chunk_ids1 = get("//tmp/t1/@chunk_ids")
+        chunk_ids2 = get("//tmp/t2/@chunk_ids")
+
+        assert chunk_ids0 == chunk_ids1
+        assert chunk_ids1 == chunk_ids2
+        chunk_ids = chunk_ids0
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        self.assertItemsEqual( \
+            get("#" + chunk_id + "/@owning_nodes"), \
+            ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
