@@ -1437,8 +1437,8 @@ private:
                     attributes->Set(
                         "description", BuildYsonStringFluently()
                         .BeginMap()
-                        .Item("type").Value(file.DescriptionType)
-                        .Item("job_id").Value(file.JobId)
+                            .Item("type").Value(file.DescriptionType)
+                            .Item("job_id").Value(file.JobId)
                         .EndMap());
                     ToProto(req->mutable_node_attributes(), *attributes);
 
