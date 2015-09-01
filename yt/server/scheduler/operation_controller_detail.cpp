@@ -752,6 +752,7 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
+    options->ChunksMovable = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
@@ -1558,10 +1559,9 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     RemoveJoblet(job);
 
-    if (abortReason == EAbortReason::FailedChunks) {
-        const auto& result = job->Result();
+    const auto& result = job->Result();
+    if (result.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
         const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
         for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
@@ -3614,9 +3614,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Cache blocks on nodes.
     config->TableWriter->PopulateCache = true;
-
-    // Don't move intermediate chunks.
-    config->TableWriter->ChunksMovable = false;
 
     // Don't sync intermediate chunks.
     config->TableWriter->SyncOnClose = false;
