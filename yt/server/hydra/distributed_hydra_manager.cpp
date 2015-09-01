@@ -1405,10 +1405,10 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (!rspOrError.IsOK()) {
-            if (Restart(epochContext)) {
-                LOG_ERROR(rspOrError, "Failed to synchronize with leader");
-            }
-            return;
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::Unavailable,
+                "Failed to synchronize with leader")
+                << rspOrError;
         }
 
         const auto& rsp = rspOrError.Value();
