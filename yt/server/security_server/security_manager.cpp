@@ -1697,7 +1697,7 @@ protected:
 
             for (auto* group : subject->MemberOf()) {
                 if (!group->IsBuiltin()) {
-                    auto req = TGroupYPathProxy::AddMember(GetGroupPath(group->GetName()));
+                    auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
                     req->set_name(subject->GetName());
                     multicellManager->PostToMaster(req, cellTag);
                 }
