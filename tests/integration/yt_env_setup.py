@@ -136,7 +136,7 @@ class YTEnvSetup(YTEnv):
         for rack in racks:
             yt_commands.remove_rack(rack)
 
-    def _find_ut_file(file_name):
+    def _find_ut_file(self, file_name):
         from distutils.spawn import find_executable
         ytserver_path = find_executable("ytserver")
         assert ytserver_path is not None
