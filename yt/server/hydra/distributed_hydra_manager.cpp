@@ -1405,10 +1405,11 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (!rspOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION(
+            epochContext->LeaderSyncPromise.Set(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Failed to synchronize with leader")
-                << rspOrError;
+                << rspOrError);
+            return;
         }
 
         const auto& rsp = rspOrError.Value();
@@ -1426,7 +1427,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (!epochContext->ActiveUpstreamSyncPromise || !epochContext->LeaderSyncVersion)
+        if (!epochContext->LeaderSyncPromise || !epochContext->LeaderSyncVersion)
             return;
 
         auto neededCommittedVersion = *epochContext->LeaderSyncVersion;
