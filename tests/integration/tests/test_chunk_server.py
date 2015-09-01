@@ -85,6 +85,11 @@ class TestChunkServer(YTEnvSetup):
         write_journal("//tmp/j", [{"data" : "payload" + str(i)} for i in xrange(0, 10)])
         self._test_decommission("//tmp/j", 3)
 
+    def test_list_chunk_owners(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+        ls("//sys/chunks", attributes=["owning_nodes"])
+
 ##################################################################
 
 class TestChunkServerMulticell(TestChunkServer):
