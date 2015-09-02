@@ -2962,9 +2962,9 @@ void TOperationControllerBase::InitQuerySpec(
     const TTableSchema& schema)
 {
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
-    auto ast = PrepareJobQueryAst(queryString);
+    auto parsedQueryInfo = PrepareJobQueryAst(queryString);
     auto registry = CreateBuiltinFunctionRegistry();
-    auto externalFunctions = GetExternalFunctions(ast, registry);
+    auto externalFunctions = GetExternalFunctions(parsedQueryInfo, registry);
     bool fetchUdfs = externalFunctions.size() > 0;
 
     std::vector<TUserFile> udfFiles;
@@ -3000,7 +3000,7 @@ void TOperationControllerBase::InitQuerySpec(
         registry = CreateJobFunctionRegistry(descriptors, Null, std::move(registry));
     }
 
-    auto query = PrepareJobQuery(queryString, std::move(ast), schema, registry);
+    auto query = PrepareJobQuery(queryString, std::move(parsedQueryInfo), schema, registry);
 
     if (fetchUdfs) {
         FetchFileObjects(&udfFiles);

@@ -404,12 +404,9 @@ TEST_F(TQueryPrepareTest, BigQuery)
 
 TEST_F(TQueryPrepareTest, ResultSchemaCollision)
 {
-    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
-        .WillOnce(Return(WrapInFuture(MakeSimpleSplit("//t"))));
-
     ExpectPrepareThrowsWithDiagnostics(
         "a as x, b as x FROM [//t] WHERE k > 3",
-        ContainsRegex("Duplicate column .*"));
+        ContainsRegex("Alias \"x\" has been already used"));
 }
 
 TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
@@ -2754,6 +2751,40 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, ComplexWithAliases)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<Stroka> source = {
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64},
+        {"t", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "x=0;t=200",
+        "x=1;t=241"
+    }, resultSplit);
+
+    Evaluate("a % 2 as x, sum(b) + x as t FROM [//t] where a > 1 group by x", split, source, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, Complex)
 {
     auto split = MakeSplit({
@@ -3128,7 +3159,8 @@ TEST_F(TQueryEvaluateTest, TestIf)
         "x=a;t=201."
     }, resultSplit);
     
-    Evaluate("if(x = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as x", split, source, result);
+    Evaluate("if(q = 4, \"a\", \"b\") as x, double(sum(b)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, 4, 5) as"
+                 " q", split, source, result);
 
     SUCCEED();
 }
@@ -3211,7 +3243,8 @@ TEST_F(TQueryEvaluateTest, TestOutputRowLimit2)
     std::vector<TOwningRow> result;
     result.push_back(BuildRow(Stroka() + "x=" + ToString(10000), resultSplit, false));
 
-    Evaluate("sum(1) as x FROM [//t] group by 0 as x", split, source, result, std::numeric_limits<i64>::max(), 100);
+    Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, result, std::numeric_limits<i64>::max(),
+             100);
 
     SUCCEED();
 }
@@ -3245,7 +3278,8 @@ TEST_F(TQueryEvaluateTest, TestTypeInference)
         "x=a;t=201."
     }, resultSplit);
     
-    Evaluate("if(int64(x) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if(a % 2 = 0, double(4u), 5.0) as x", split, source, result);
+    Evaluate("if(int64(q) = 4, \"a\", \"b\") as x, double(sum(uint64(b) * 1u)) + 1.0 as t FROM [//t] group by if"
+                 "(a % 2 = 0, double(4u), 5.0) as q", split, source, result);
 
     SUCCEED();
 }

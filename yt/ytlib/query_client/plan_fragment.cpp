@@ -153,11 +153,6 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
     return JoinToString(clauses, Stroka(" "));
 }
 
-Stroka TExpression::GetName() const
-{
-    return Stroka();
-}
-
 EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TStringBuf& source)
 {
     switch (opCode) {
@@ -353,7 +348,8 @@ public:
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
-        IFunctionRegistry* functionRegistry)
+        IFunctionRegistry* functionRegistry,
+        const NAst::TAliasMap& aliasMap)
     {
         auto& resultColumns = TableSchema_->Columns();
         auto it = Lookup_.find(MakePair(Stroka(subexprName), Stroka()));
@@ -366,7 +362,8 @@ public:
             arguments,
             subexprName,
             source,
-            functionRegistry);
+            functionRegistry,
+            aliasMap);
 
         auto index = resultColumns.size();
         Lookup_.insert(MakePair(MakePair(Stroka(subexprName), Stroka()), index));
@@ -377,51 +374,76 @@ public:
     virtual void Finish()
     { }
 
-    std::vector<TConstExpressionPtr> BuildTypedExpression(
+    struct TNamedExpression
+    {
+        TConstExpressionPtr Expr;
+        TNullable<Stroka> Name;
+
+        TNamedExpression(const TConstExpressionPtr& expr, const TNullable<Stroka>& name = TNullable<Stroka>())
+            : Expr(expr)
+            , Name(name)
+        { }
+    };
+
+    TConstExpressionPtr BuildTypedExpression(
         const NAst::TExpression* expr,
         const Stroka& source,
-        IFunctionRegistry* functionRegistry)
+        IFunctionRegistry* functionRegistry,
+        const NAst::TAliasMap& aliasMap)
     {
-        auto expressions = DoBuildTypedExpression(expr, source, functionRegistry);
-
-        for (auto& expr : expressions) {
-            expr = PropagateNotExpression(std::move(expr));
-        }
-
-        return expressions;
+        std::set<Stroka> usedAliases;
+        return PropagateNotExpression(
+            DoBuildTypedExpression(expr, source, functionRegistry, aliasMap, usedAliases));
     }
 
     DEFINE_BYVAL_RO_PROPERTY(TTableSchema*, TableSchema);
 
+
+
 protected:
-    std::vector<TConstExpressionPtr> DoBuildTypedExpression(
+    TConstExpressionPtr DoBuildTypedExpression(
         const NAst::TExpression* expr,
         const Stroka& source,
-        IFunctionRegistry* functionRegistry)
+        IFunctionRegistry* functionRegistry,
+        const NAst::TAliasMap& aliasMap,
+        std::set<Stroka>& usedAliases)
     {
-        std::vector<TConstExpressionPtr> result;
-        if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
-            auto typedLhsExprs = DoBuildTypedExpression(commaExpr->Lhs.Get(), source, functionRegistry);
-            auto typedRhsExprs = DoBuildTypedExpression(commaExpr->Rhs.Get(), source, functionRegistry);
-
-            result.insert(result.end(), typedLhsExprs.begin(), typedLhsExprs.end());
-            result.insert(result.end(), typedRhsExprs.begin(), typedRhsExprs.end());
-        } else if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
+        if (auto literalExpr = expr->As<NAst::TLiteralExpression>()) {
             const auto& literalValue = literalExpr->Value;
 
-            result.push_back(New<TLiteralExpression>(
+            return New<TLiteralExpression>(
                 GetType(literalValue),
-                GetValue(literalValue)));
+                GetValue(literalValue));
         } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
             const auto* column = GetColumnPtr(referenceExpr->ColumnName, referenceExpr->TableName);
             if (!column) {
+                if (referenceExpr->TableName.empty()) {
+                    auto columnName = referenceExpr->ColumnName;
+                    auto found = aliasMap.find(columnName);
+
+                    if (found != aliasMap.end()) {
+                        if (usedAliases.count(columnName)) {
+                            THROW_ERROR_EXCEPTION("Recursive usage of alias %Qv", columnName);
+                        }
+
+                        usedAliases.insert(columnName);
+                        auto aliasExpr = DoBuildTypedExpression(
+                            found->second.Get(),
+                            source,
+                            functionRegistry,
+                            aliasMap,
+                            usedAliases);
+
+                        usedAliases.erase(columnName);
+                        return aliasExpr;
+                    }
+                }
+
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv",
                     FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
             }
 
-            result.push_back(New<TReferenceExpression>(
-                column->Type,
-                column->Name));
+            return New<TReferenceExpression>(column->Type, column->Name);
         } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
             auto functionName = functionExpr->FunctionName;
             auto aggregateFunction = GetAggregate(functionName, functionRegistry);
@@ -430,64 +452,82 @@ protected:
                 auto subexprName = InferName(functionExpr);
 
                 try {
+                    if (functionExpr->Arguments.size() != 1) {
+                        THROW_ERROR_EXCEPTION(
+                            "Aggregate function %Qv must have exactly one argument",
+                            aggregateFunction);
+                    }
+
                     const auto* aggregateColumn = GetAggregateColumnPtr(
                         aggregateFunction.Get(),
-                        functionExpr->Arguments.Get(),
+                        functionExpr->Arguments.front().Get(),
                         subexprName,
                         source,
-                        functionRegistry);
+                        functionRegistry,
+                        aliasMap);
 
-                    result.push_back(New<TReferenceExpression>(
+                    return New<TReferenceExpression>(
                         aggregateColumn->Type,
-                        aggregateColumn->Name));
+                        aggregateColumn->Name);
 
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Error creating aggregate")
                         << TErrorAttribute("source", functionExpr->GetSource(source))
                         << ex;
                 }
-
             } else {
-                auto typedOperands = DoBuildTypedExpression(functionExpr->Arguments.Get(), source, functionRegistry);
-
                 std::vector<EValueType> types;
-                for (const auto& typedOperand : typedOperands) {
-                    types.push_back(typedOperand->Type);
+                std::vector<TConstExpressionPtr> typedOperands;
+                for (const auto& argument : functionExpr->Arguments) {
+                    auto typedArgument = DoBuildTypedExpression(
+                        argument.Get(),
+                        source,
+                        functionRegistry,
+                        aliasMap,
+                        usedAliases);
+                    types.push_back(typedArgument->Type);
+                    typedOperands.push_back(typedArgument);
                 }
 
-                result.push_back(New<TFunctionExpression>(
+                return New<TFunctionExpression>(
                     InferFunctionExprType(functionName, types, functionExpr->GetSource(source), functionRegistry),
                     functionName,
-                    typedOperands));
+                    typedOperands);
             }
         } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
-            auto typedOperandExpr = DoBuildTypedExpression(unaryExpr->Operand.Get(), source, functionRegistry);
+            if (unaryExpr->Operand.size() != 1) {
+                THROW_ERROR_EXCEPTION(
+                    "Unary operator %Qv must have exactly one argument",
+                    unaryExpr->Opcode);
+            }
 
-            for (const auto& operand : typedOperandExpr) {
-                if (auto foldedExpr = FoldConstants(unaryExpr, operand)) {
-                    result.push_back(foldedExpr);
-                } else {
-                    result.push_back(New<TUnaryOpExpression>(
-                        InferUnaryExprType(
-                            unaryExpr->Opcode,
-                            operand->Type,
-                            unaryExpr->GetSource(source)),
+            auto typedOperand = DoBuildTypedExpression(
+                unaryExpr->Operand.front().Get(),
+                source,
+                functionRegistry,
+                aliasMap,
+                usedAliases);
+
+            if (auto foldedExpr = FoldConstants(unaryExpr, typedOperand)) {
+                return foldedExpr;
+            } else {
+                return New<TUnaryOpExpression>(
+                    InferUnaryExprType(
                         unaryExpr->Opcode,
-                        operand));
-                }
+                        typedOperand->Type,
+                        unaryExpr->GetSource(source)),
+                    unaryExpr->Opcode,
+                    typedOperand);
             }
         } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-            auto typedLhsExpr = DoBuildTypedExpression(binaryExpr->Lhs.Get(), source, functionRegistry);
-            auto typedRhsExpr = DoBuildTypedExpression(binaryExpr->Rhs.Get(), source, functionRegistry);
-
             auto makeBinaryExpr = [&] (EBinaryOp op, TConstExpressionPtr lhs, TConstExpressionPtr rhs) -> TConstExpressionPtr {
                 auto type = InferBinaryExprType(
                     op,
                     lhs->Type,
                     rhs->Type,
                     binaryExpr->GetSource(source),
-                    lhs->GetName(),
-                    rhs->GetName());
+                    InferName(lhs),
+                    InferName(rhs));
                 if (auto foldedExpr = FoldConstants(binaryExpr, lhs, rhs)) {
                     return foldedExpr;
                 } else {
@@ -496,24 +536,37 @@ protected:
             };
 
             std::function<TConstExpressionPtr(int, int, EBinaryOp)> gen = [&] (int offset, int keySize, EBinaryOp op) -> TConstExpressionPtr {
+                auto typedLhs = DoBuildTypedExpression(
+                    binaryExpr->Lhs[offset].Get(),
+                    source,
+                    functionRegistry,
+                    aliasMap,
+                    usedAliases);
+                auto typedRhs = DoBuildTypedExpression(
+                    binaryExpr->Rhs[offset].Get(),
+                    source,
+                    functionRegistry,
+                    aliasMap,
+                    usedAliases);
+
                 if (offset + 1 < keySize) {
                     auto next = gen(offset + 1, keySize, op);
                     auto eq = MakeAndExpression(
-                            makeBinaryExpr(EBinaryOp::Equal, typedLhsExpr[offset], typedRhsExpr[offset]),
+                            makeBinaryExpr(EBinaryOp::Equal, typedLhs, typedRhs),
                             next);
                     if (op == EBinaryOp::Less || op == EBinaryOp::LessOrEqual) {
                         return MakeOrExpression(
-                            makeBinaryExpr(EBinaryOp::Less, typedLhsExpr[offset], typedRhsExpr[offset]),
+                            makeBinaryExpr(EBinaryOp::Less, typedLhs, typedRhs),
                             eq);
                     } else if (op == EBinaryOp::Greater || op == EBinaryOp::GreaterOrEqual)  {
                         return MakeOrExpression(
-                            makeBinaryExpr(EBinaryOp::Greater, typedLhsExpr[offset], typedRhsExpr[offset]),
+                            makeBinaryExpr(EBinaryOp::Greater, typedLhs, typedRhs),
                             eq);
                     } else {
                         return eq;
                     }                  
                 } else {
-                    return makeBinaryExpr(op, typedLhsExpr[offset], typedRhsExpr[offset]);
+                    return makeBinaryExpr(op, typedLhs, typedRhs);
                 }
             };
 
@@ -523,36 +576,57 @@ protected:
                 || binaryExpr->Opcode == EBinaryOp::GreaterOrEqual
                 || binaryExpr->Opcode == EBinaryOp::Equal) {
 
-                if (typedLhsExpr.size() != typedRhsExpr.size()) {
+                if (binaryExpr->Lhs.size() != binaryExpr->Rhs.size()) {
                     THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
-                        typedLhsExpr.size(),
-                        typedRhsExpr.size())
+                        binaryExpr->Lhs.size(),
+                        binaryExpr->Rhs.size())
                         << TErrorAttribute("source", binaryExpr->GetSource(source));
                 }
 
-                int keySize = typedLhsExpr.size();
-                result.push_back(gen(0, keySize, binaryExpr->Opcode));
+                int keySize = binaryExpr->Lhs.size();
+                return gen(0, keySize, binaryExpr->Opcode);
             } else {
-                if (typedLhsExpr.size() != 1) {
+                if (binaryExpr->Lhs.size() != 1) {
                     THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                        << TErrorAttribute("source", binaryExpr->Lhs->GetSource(source));
+                        << TErrorAttribute("source", InferName(binaryExpr->Lhs));
                 }
 
-                if (typedRhsExpr.size() != 1) {
+                if (binaryExpr->Rhs.size() != 1) {
                     THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                        << TErrorAttribute("source", binaryExpr->Rhs->GetSource(source));
+                        << TErrorAttribute("source", InferName(binaryExpr->Rhs));
                 }
 
-                result.push_back(makeBinaryExpr(binaryExpr->Opcode, typedLhsExpr.front(), typedRhsExpr.front()));
+                auto typedLhs = DoBuildTypedExpression(
+                    binaryExpr->Lhs.front().Get(),
+                    source,
+                    functionRegistry,
+                    aliasMap,
+                    usedAliases);
+                auto typedRhs = DoBuildTypedExpression(
+                    binaryExpr->Rhs.front().Get(),
+                    source,
+                    functionRegistry,
+                    aliasMap,
+                    usedAliases);
+
+                return makeBinaryExpr(binaryExpr->Opcode, typedLhs, typedRhs);
             }
         } else if (auto inExpr = expr->As<NAst::TInExpression>()) {
-            auto inExprOperands = DoBuildTypedExpression(inExpr->Expr.Get(), source, functionRegistry);
-
+            std::vector<TConstExpressionPtr> typedArguments;
             std::unordered_set<Stroka> references;
             std::vector<EValueType> argTypes;
-            for (const auto& arg : inExprOperands) {
-                argTypes.push_back(arg->Type);
-                if (auto reference = arg->As<TReferenceExpression>()) {
+
+            for (const auto& argument : inExpr->Expr) {
+                auto typedArgument = DoBuildTypedExpression(
+                    argument.Get(),
+                    source,
+                    functionRegistry,
+                    aliasMap,
+                    usedAliases);
+
+                typedArguments.push_back(typedArgument);
+                argTypes.push_back(typedArgument->Type);
+                if (auto reference = typedArgument->As<TReferenceExpression>()) {
                     if (references.find(reference->ColumnName) != references.end()) {
                         THROW_ERROR_EXCEPTION("IN operator has multiple references to column %Qv", reference->ColumnName)
                             << TErrorAttribute("source", source);
@@ -563,12 +637,10 @@ protected:
             }
 
             auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, inExpr->GetSource(source));
-            result.push_back(New<TInOpExpression>(
-                std::move(inExprOperands),
-                std::move(capturedRows)));
+            return New<TInOpExpression>(std::move(typedArguments), std::move(capturedRows));
         }
 
-        return result;
+        YUNREACHABLE();
     }
 
     TConstExpressionPtr PropagateNotExpression(TConstExpressionPtr expr)
@@ -666,7 +738,8 @@ protected:
         const NAst::TExpression* arguments,
         Stroka subexprName,
         Stroka source,
-        IFunctionRegistry* functionRegistry)
+        IFunctionRegistry* functionRegistry,
+        const NAst::TAliasMap& aliasMap)
     {
         THROW_ERROR_EXCEPTION(
             "Misuse of aggregate function %v",
@@ -1125,33 +1198,29 @@ public:
 
     virtual TColumnSchema AddAggregateColumnPtr(
         const Stroka& aggregateFunction,
-        const NAst::TExpression* arguments,
+        const NAst::TExpression* argument,
         Stroka subexprName,
         Stroka source,
-        IFunctionRegistry* functionRegistry) override
+        IFunctionRegistry* functionRegistry,
+        const NAst::TAliasMap& aliasMap) override
     {
-        auto typedOperands = Base_->BuildTypedExpression(
-            arguments,
+        auto typedOperand = Base_->BuildTypedExpression(
+            argument,
             source,
-            functionRegistry);
-
-        if (typedOperands.size() != 1) {
-            THROW_ERROR_EXCEPTION(
-                "Aggregate function %Qv must have exactly one argument",
-                aggregateFunction);
-        }
+            functionRegistry,
+            aliasMap);
 
         auto descriptor = functionRegistry
             ->GetAggregateFunction(aggregateFunction);
         auto stateType = descriptor
-            ->GetStateType(typedOperands.front()->Type);
+            ->GetStateType(typedOperand->Type);
         auto resultType = descriptor
-            ->InferResultType(typedOperands.front()->Type, source);
+            ->InferResultType(typedOperand->Type, source);
 
-        CheckExpressionDepth(typedOperands.front());
+        CheckExpressionDepth(typedOperand);
 
         AggregateItems_->emplace_back(
-            typedOperands.front(),
+            typedOperand,
             aggregateFunction,
             subexprName,
             stateType,
@@ -1167,64 +1236,60 @@ private:
 };
 
 TConstExpressionPtr BuildWhereClause(
-    NAst::TExpressionPtr& expressionAst,
+    const NAst::TExpressionList& expressionAst,
     const Stroka& source,
     const TSchemaProxyPtr& schemaProxy,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistry* functionRegistry,
+    const NAst::TAliasMap& aliasMap)
 {
-    auto typedPredicate = schemaProxy->BuildTypedExpression(
-        expressionAst.Get(),
-        source,
-        functionRegistry);
-
-    if (typedPredicate.size() != 1) {
+    if (expressionAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", expressionAst->GetSource(source));
+            << TErrorAttribute("source", InferName(expressionAst));
     }
 
-    auto predicate = typedPredicate.front();
+    auto typedPredicate = schemaProxy->BuildTypedExpression(
+        expressionAst.front().Get(),
+        source,
+        functionRegistry,
+        aliasMap);
 
-    CheckExpressionDepth(predicate);
+    CheckExpressionDepth(typedPredicate);
 
-    auto actualType = predicate->Type;
+    auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("WHERE-clause is not a boolean expression")
-            << TErrorAttribute("source", expressionAst->GetSource(source))
+            << TErrorAttribute("source", InferName(expressionAst))
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
     }
 
-    return predicate;
+    return typedPredicate;
 }
 
 TConstGroupClausePtr BuildGroupClause(
-    NAst::TNullableNamedExpressionList& expressionsAst,
+    const NAst::TExpressionList& expressionsAst,
     const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistry* functionRegistry,
+    const NAst::TAliasMap& aliasMap)
 {
     auto groupClause = New<TGroupClause>();
     groupClause->IsMerge = false;
     groupClause->IsFinal = true;
-    TTableSchema& tableSchema = groupClause->GroupedTableSchema;
 
-    for (const auto& expr : expressionsAst.Get()) {
-        auto typedExprs = schemaProxy->BuildTypedExpression(
-            expr.first.Get(),
+    for (const auto& expressionAst : expressionsAst) {
+        auto typedExpr = schemaProxy->BuildTypedExpression(
+            expressionAst.Get(),
             source,
-            functionRegistry);
+            functionRegistry,
+            aliasMap);
 
-        if (typedExprs.size() != 1) {
-            THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                << TErrorAttribute("source", expr.first->GetSource(source));
-        }
-
-        CheckExpressionDepth(typedExprs.front());
-        groupClause->GroupItems.emplace_back(typedExprs.front(), expr.second);
-        tableSchema.Columns().emplace_back(expr.second, typedExprs.front()->Type);
+        CheckExpressionDepth(typedExpr);
+        groupClause->AddGroupItem(typedExpr, InferName(expressionAst.Get()));
     }
 
+    TTableSchema& tableSchema = groupClause->GroupedTableSchema;
     ValidateTableSchema(tableSchema);
     schemaProxy = New<TGroupSchemaProxy>(&tableSchema, std::move(schemaProxy), &groupClause->AggregateItems);
 
@@ -1232,26 +1297,26 @@ TConstGroupClausePtr BuildGroupClause(
 }
 
 TConstExpressionPtr BuildHavingClause(
-    NAst::TExpressionPtr& expressionAst,
+    const NAst::TExpressionList& expressionsAst,
     const Stroka& source,
     const TSchemaProxyPtr& schemaProxy,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistry* functionRegistry,
+    const NAst::TAliasMap& aliasMap)
 {
-    auto typedPredicate = schemaProxy->BuildTypedExpression(
-        expressionAst.Get(),
-        source,
-        functionRegistry);
-
-    if (typedPredicate.size() != 1) {
+    if (expressionsAst.size() != 1) {
         THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", expressionAst->GetSource(source));
+            << TErrorAttribute("source", InferName(expressionsAst));
     }
 
-    auto predicate = typedPredicate.front();
+    auto typedPredicate = schemaProxy->BuildTypedExpression(
+        expressionsAst.front().Get(),
+        source,
+        functionRegistry,
+        aliasMap);
 
-    CheckExpressionDepth(predicate);
+    CheckExpressionDepth(typedPredicate);
 
-    auto actualType = predicate->Type;
+    auto actualType = typedPredicate->Type;
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("HAVING-clause is not a boolean expression")
@@ -1259,32 +1324,27 @@ TConstExpressionPtr BuildHavingClause(
             << TErrorAttribute("expected_type", expectedType);
     }
 
-    return predicate;
+    return typedPredicate;
 }
 
 TConstProjectClausePtr BuildProjectClause(
-    NAst::TNullableNamedExpressionList& expressionsAst,
+    const NAst::TExpressionList& expressionsAst,
     const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistry* functionRegistry,
+    const NAst::TAliasMap& aliasMap)
 {
     auto projectClause = New<TProjectClause>();
 
-    for (const auto& expr : expressionsAst.Get()) {
-        auto typedExprs = schemaProxy->BuildTypedExpression(
-            expr.first.Get(),
+    for (const auto& expressionAst : expressionsAst) {
+        auto typedExpr = schemaProxy->BuildTypedExpression(
+            expressionAst.Get(),
             source,
-            functionRegistry);
+            functionRegistry,
+            aliasMap);
 
-        if (typedExprs.size() != 1) {
-            THROW_ERROR_EXCEPTION("Expecting scalar expression")
-                << TErrorAttribute("source", expr.first->GetSource(source));
-        }
-
-        CheckExpressionDepth(typedExprs.front());
-
-        projectClause->AddProjection(typedExprs.front(), expr.second);
-
+        CheckExpressionDepth(typedExpr);
+        projectClause->AddProjection(typedExpr, InferName(expressionAst.Get()));
     }
 
     ValidateTableSchema(projectClause->ProjectTableSchema);
@@ -1295,24 +1355,39 @@ TConstProjectClausePtr BuildProjectClause(
 
 void PrepareQuery(
     const TQueryPtr& query,
-    NAst::TQuery& ast,
+    const NAst::TQuery& ast,
     const Stroka& source,
     TSchemaProxyPtr& schemaProxy,
-    IFunctionRegistry* functionRegistry)
+    IFunctionRegistry* functionRegistry,
+    const NAst::TAliasMap& aliasMap)
 {
     if (ast.WherePredicate) {
-        query->WhereClause = BuildWhereClause(ast.WherePredicate, source, schemaProxy, functionRegistry);
+        query->WhereClause = BuildWhereClause(
+            ast.WherePredicate.Get(),
+            source, schemaProxy,
+            functionRegistry,
+            aliasMap);
     }
 
     if (ast.GroupExprs) {
-        query->GroupClause = BuildGroupClause(ast.GroupExprs, source, schemaProxy, functionRegistry);
+        query->GroupClause = BuildGroupClause(
+            ast.GroupExprs.Get(),
+            source,
+            schemaProxy,
+            functionRegistry,
+            aliasMap);
     }
 
     if (ast.HavingPredicate) {
         if (!query->GroupClause) {
             THROW_ERROR_EXCEPTION("Expected GROUP BY before HAVING");
         }
-        query->HavingClause = BuildHavingClause(ast.HavingPredicate, source, schemaProxy, functionRegistry);
+        query->HavingClause = BuildHavingClause(
+            ast.HavingPredicate.Get(),
+            source,
+            schemaProxy,
+            functionRegistry,
+            aliasMap);
     }
 
     if (ast.OrderFields) {
@@ -1332,7 +1407,12 @@ void PrepareQuery(
     }
 
     if (ast.SelectExprs) {
-        query->ProjectClause = BuildProjectClause(ast.SelectExprs, source, schemaProxy, functionRegistry);
+        query->ProjectClause = BuildProjectClause(
+            ast.SelectExprs.Get(),
+            source,
+            schemaProxy,
+            functionRegistry,
+            aliasMap);
     }
 
     schemaProxy->Finish();
@@ -1362,13 +1442,13 @@ TPlanFragmentPtr PreparePlanFragment(
     i64 outputRowLimit,
     TTimestamp timestamp)
 {
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
+    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
     ParseYqlString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseQuery);
 
-    auto& ast = astHead.As<NAst::TQuery>();
+    auto& ast = astHead.first.As<NAst::TQuery>();
     
     TDataSplit selfDataSplit;
 
@@ -1440,15 +1520,31 @@ TPlanFragmentPtr PreparePlanFragment(
             joinClause->JoinedTableSchema.Columns().push_back(*selfColumn);
         }
 
-        auto leftEquations = schemaProxy->BuildTypedExpression(join.Left.Get(), source, functionRegistry.Get());
-        auto rightEquations = foreignSourceProxy->BuildTypedExpression(join.Right.Get(), source, functionRegistry.Get());
+        std::vector<TConstExpressionPtr> leftEquations;
+        std::vector<TConstExpressionPtr> rightEquations;
+
+        for (const auto& argument : join.Left) {
+            leftEquations.push_back(schemaProxy->BuildTypedExpression(
+                argument.Get(),
+                source,
+                functionRegistry.Get(),
+                astHead.second));
+        }
+
+        for (const auto& argument : join.Right) {
+            rightEquations.push_back(foreignSourceProxy->BuildTypedExpression(
+                argument.Get(),
+                source,
+                functionRegistry.Get(),
+                astHead.second));
+        }
 
         if (leftEquations.size() != rightEquations.size()) {
             THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
                 leftEquations.size(),
                 rightEquations.size())
-                << TErrorAttribute("lhs_source", join.Left->GetSource(source))
-                << TErrorAttribute("rhs_source", join.Right->GetSource(source));
+                << TErrorAttribute("lhs_source", InferName(join.Left))
+                << TErrorAttribute("rhs_source", InferName(join.Right));
         }
 
         for (size_t index = 0; index < leftEquations.size(); ++index) {
@@ -1471,7 +1567,7 @@ TPlanFragmentPtr PreparePlanFragment(
         query->JoinClauses.push_back(std::move(joinClause));
     }
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get());
+    PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get(), astHead.second);
 
     auto planFragment = New<TPlanFragment>(source);
 
@@ -1500,15 +1596,15 @@ TPlanFragmentPtr PreparePlanFragment(
     return planFragment;
 }
 
-NAst::TQuery PrepareJobQueryAst(const Stroka& source)
+TParsedQueryInfo PrepareJobQueryAst(const Stroka& source)
 {
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>()};
+    NAst::TAstHead astHead{TVariantTypeTag<NAst::TQuery>(), NAst::TAliasMap()};
     ParseYqlString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseJobQuery);
 
-    auto& ast = astHead.As<NAst::TQuery>();
+    auto& ast = astHead.first.As<NAst::TQuery>();
 
     if (ast.Limit) {
         THROW_ERROR_EXCEPTION("LIMIT is not supported in map-reduce queries");
@@ -1518,54 +1614,68 @@ NAst::TQuery PrepareJobQueryAst(const Stroka& source)
         THROW_ERROR_EXCEPTION("GROUP BY is not supported in map-reduce queries");
     }
 
-    return ast;
+    return std::make_pair(ast, astHead.second);
+}
+
+void GetExternalFunctions(
+    const NAst::TNullableExpressionList& exprs,
+    IFunctionRegistryPtr builtinRegistry,
+    std::vector<Stroka>* externalFunctions);
+
+void GetExternalFunctions(
+    const NAst::TExpressionPtr& expr,
+    IFunctionRegistryPtr builtinRegistry,
+    std::vector<Stroka>* externalFunctions)
+{
+    if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
+        const auto& name = functionExpr->FunctionName;
+        if (!builtinRegistry->FindFunction(name) &&
+            !builtinRegistry->FindAggregateFunction(name))
+        {
+            externalFunctions->push_back(name);
+        }
+        GetExternalFunctions(functionExpr->Arguments, builtinRegistry, externalFunctions);
+    } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
+        GetExternalFunctions(unaryExpr->Operand, builtinRegistry, externalFunctions);
+    } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
+        GetExternalFunctions(binaryExpr->Lhs, builtinRegistry, externalFunctions);
+        GetExternalFunctions(binaryExpr->Rhs, builtinRegistry, externalFunctions);
+    } else if (expr->As<NAst::TInExpression>()) {
+    } else if (expr->As<NAst::TLiteralExpression>()) {
+    } else if (expr->As<NAst::TReferenceExpression>()) {
+    } else {
+        YUNREACHABLE();
+    }
+}
+
+void GetExternalFunctions(
+    const NAst::TNullableExpressionList& exprs,
+    IFunctionRegistryPtr builtinRegistry,
+    std::vector<Stroka>* externalFunctions)
+{
+    if (!exprs) {
+        return;
+    }
+
+    for (const auto& expr : exprs.Get()) {
+        GetExternalFunctions(expr, builtinRegistry, externalFunctions);
+    }
 }
 
 std::vector<Stroka> GetExternalFunctions(
-    const NAst::TQuery& ast,
+    const TParsedQueryInfo& parsedQueryInfo,
     IFunctionRegistryPtr builtinRegistry)
 {
     std::vector<Stroka> externalFunctions;
 
-    std::function<void(const NAst::TExpressionPtr&)> getExternalFunctions = [&] (const NAst::TExpressionPtr& expr) {
-        if (!expr) {
-            return;
-        } else if (auto commaExpr = expr->As<NAst::TCommaExpression>()) {
-            getExternalFunctions(commaExpr->Lhs);
-            getExternalFunctions(commaExpr->Rhs);
-        } else if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-            const auto& name = functionExpr->FunctionName;
-            if (!builtinRegistry->FindFunction(name) &&
-                !builtinRegistry->FindAggregateFunction(name))
-            {
-                externalFunctions.push_back(name);
-            }
-            getExternalFunctions(functionExpr->Arguments);
-        } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
-            getExternalFunctions(unaryExpr->Operand);
-        } else if (auto binaryExpr = expr->As<NAst::TBinaryOpExpression>()) {
-            getExternalFunctions(binaryExpr->Lhs);
-            getExternalFunctions(binaryExpr->Rhs);
-        } else if (expr->As<NAst::TInExpression>()) {
-        } else if (expr->As<NAst::TLiteralExpression>()) {
-        } else if (expr->As<NAst::TReferenceExpression>()) {
-        } else {
-            YUNREACHABLE();
-        }
-    };
+    GetExternalFunctions(parsedQueryInfo.first.WherePredicate, builtinRegistry, &externalFunctions);
+    GetExternalFunctions(parsedQueryInfo.first.HavingPredicate, builtinRegistry, &externalFunctions);
+    GetExternalFunctions(parsedQueryInfo.first.SelectExprs, builtinRegistry, &externalFunctions);
+    GetExternalFunctions(parsedQueryInfo.first.GroupExprs, builtinRegistry, &externalFunctions);
 
-    std::function<void(const NAst::TNullableNamedExpressionList&)> getExternalFunctionsFromList = [&] (const NAst::TNullableNamedExpressionList& exprList) {
-        if (exprList) {
-            for (const auto& expr: exprList.Get()) {
-                getExternalFunctions(expr.first);
-            }
-        }
-    };
-
-    getExternalFunctions(ast.WherePredicate);
-    getExternalFunctions(ast.HavingPredicate);
-    getExternalFunctionsFromList(ast.SelectExprs);
-    getExternalFunctionsFromList(ast.GroupExprs);
+    for (const auto& aliasedExpression : parsedQueryInfo.second) {
+        GetExternalFunctions(aliasedExpression.second.Get(), builtinRegistry, &externalFunctions);
+    }
 
     std::sort(externalFunctions.begin(), externalFunctions.end());
     externalFunctions.erase(
@@ -1577,7 +1687,7 @@ std::vector<Stroka> GetExternalFunctions(
 
 TQueryPtr PrepareJobQuery(
     const Stroka& source,
-    NAst::TQuery ast,
+    const TParsedQueryInfo& parsedQueryInfo,
     const TTableSchema& tableSchema,
     IFunctionRegistryPtr functionRegistry)
 {
@@ -1590,7 +1700,13 @@ TQueryPtr PrepareJobQuery(
         &query->TableSchema,
         tableSchema);
 
-    PrepareQuery(query, ast, source, schemaProxy, functionRegistry.Get());
+    PrepareQuery(
+        query,
+        parsedQueryInfo.first,
+        source,
+        schemaProxy,
+        functionRegistry.Get(),
+        parsedQueryInfo.second);
 
     return query;
 }
@@ -1600,24 +1716,21 @@ TConstExpressionPtr PrepareExpression(
     TTableSchema tableSchema,
     IFunctionRegistryPtr functionRegistry)
 {
-    NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>()};
+    NAst::TAstHead astHead{TVariantTypeTag<NAst::TExpressionPtr>(), NAst::TAliasMap()};
     ParseYqlString(
         &astHead,
         source,
         NAst::TParser::token::StrayWillParseExpression);
 
-    auto& expr = astHead.As<NAst::TExpressionPtr>();
+    auto& expr = astHead.first.As<NAst::TExpressionPtr>();
 
     auto schemaProxy = New<TSchemaProxy>(&tableSchema);
 
-    auto typedExprs = schemaProxy->BuildTypedExpression(expr.Get(), source, functionRegistry.Get());
-
-    if (typedExprs.size() != 1) {
-        THROW_ERROR_EXCEPTION("Expecting scalar expression")
-            << TErrorAttribute("source", expr->GetSource(source));
-    }
-
-    return typedExprs.front();
+    return schemaProxy->BuildTypedExpression(
+        expr.Get(),
+        source,
+        functionRegistry.Get(),
+        astHead.second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
