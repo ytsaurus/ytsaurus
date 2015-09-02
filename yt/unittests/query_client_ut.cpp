@@ -4209,33 +4209,6 @@ TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestSimpleHash)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::String},
-        {"c", EValueType::Boolean}
-    });
-
-    std::vector<Stroka> source = {
-        "a=3;b=\"hello\";c=%true",
-        "a=54;c=%false"
-    };
-
-    auto resultSplit = MakeSplit({
-        {"x", EValueType::Uint64}
-    });
-
-    auto result = BuildRows({
-        "x=14233899715629335710u",
-        "x=5934953485792485966u"
-    }, resultSplit);
-
-    Evaluate("simple_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
-
-    SUCCEED();
-}
-
 TEST_F(TQueryEvaluateTest, TestFarmHash)
 {
     auto split = MakeSplit({

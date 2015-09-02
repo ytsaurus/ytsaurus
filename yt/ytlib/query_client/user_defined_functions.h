@@ -1,7 +1,6 @@
 #pragma once
 
 #include "functions.h"
-#include "builtin_functions.h"
 #include "udf_descriptor.h"
 
 namespace NYT {
@@ -69,11 +68,48 @@ public:
         EValueType resultType) const override;
 };
 
+ICallingConventionPtr GetCallingConvention(
+    ECallingConvention callingConvention,
+    int repeatedArgIndex,
+    TType repeatedArgType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExternallyDefinedFunction
+    : public virtual IFunctionDescriptor
+{
+public:
+    TExternallyDefinedFunction(
+        const Stroka& functionName,
+        const Stroka& symbolName,
+        TSharedRef implementationFile,
+        ICallingConventionPtr callingConvention)
+        : FunctionName_(functionName)
+        , SymbolName_(symbolName)
+        , ImplementationFile_(implementationFile)
+        , CallingConvention_(callingConvention)
+    { }
+
+    virtual TCodegenExpression MakeCodegenExpr(
+        std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const Stroka& name) const override;
+
+private:
+    Stroka FunctionName_;
+    Stroka SymbolName_;
+    TSharedRef ImplementationFile_;
+    ICallingConventionPtr CallingConvention_;
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserDefinedFunction
     : public TTypedFunction
     , public TUniversalRangeFunction
+    , public TExternallyDefinedFunction
 {
 public:
     TUserDefinedFunction(
@@ -100,20 +136,7 @@ public:
         TType resultType,
         TSharedRef implementationFile);
 
-    virtual TCodegenExpression MakeCodegenExpr(
-        std::vector<TCodegenExpression> codegenArgs,
-        std::vector<EValueType> argumentTypes,
-        EValueType type,
-        const Stroka& name) const override;
-
 private:
-    Stroka FunctionName_;
-    Stroka SymbolName_;
-    TSharedRef ImplementationFile_;
-    TType ResultType_;
-    std::vector<TType> ArgumentTypes_;
-    ICallingConventionPtr CallingConvention_;
-
     TUserDefinedFunction(
         const Stroka& functionName,
         const Stroka& symbolName,

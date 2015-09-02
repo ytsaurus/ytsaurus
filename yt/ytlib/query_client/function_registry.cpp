@@ -11,7 +11,6 @@
 #include "udf/is_null.h"
 #include "udf/is_substr.h"
 #include "udf/lower.h"
-#include "udf/simple_hash.h"
 #include "udf/sleep.h"
 #include "udf/uint64.h"
 #include "udf/min.h"
@@ -156,17 +155,6 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
         EValueType::Uint64,
         EValueType::Boolean,
         EValueType::String};
-
-    registry->RegisterFunction(New<TUserDefinedFunction>(
-        "simple_hash",
-        std::unordered_map<TTypeArgument, TUnionType>(),
-        std::vector<TType>{},
-        hashTypes,
-        EValueType::Uint64,
-        TSharedRef(
-            simple_hash_bc,
-            simple_hash_bc_len,
-            nullptr)));
 
     registry->RegisterFunction(New<TUserDefinedFunction>(
         "farm_hash",
