@@ -196,8 +196,8 @@ TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionP
             lhs->Type,
             rhs->Type,
             "",
-            lhs->GetName(),
-            rhs->GetName()),
+            InferName(lhs),
+            InferName(rhs)),
         EBinaryOp::And,
         lhs,
         rhs);
@@ -225,8 +225,8 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
             lhs->Type,
             rhs->Type,
             "",
-            lhs->GetName(),
-            rhs->GetName()),
+            InferName(lhs),
+            InferName(rhs)),
         EBinaryOp::Or,
         lhs,
         rhs);
