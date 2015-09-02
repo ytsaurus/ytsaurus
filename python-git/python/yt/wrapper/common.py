@@ -1,6 +1,6 @@
 """Some common useful misc"""
 
-from yt.common import require, flatten, update, which, YtError, update_from_env
+from yt.common import require, flatten, update, which, YtError, update_from_env, unlist
 import yt.yson as yson
 
 import sys
@@ -16,12 +16,6 @@ def compose(*args):
     def compose_two(f, g):
         return lambda x: f(g(x))
     return reduce(compose_two, args)
-
-def unlist(l):
-    try:
-        return l[0] if len(l) == 1 else l
-    except TypeError: # cannot calculate len
-        return l
 
 def parse_bool(word):
     """convert 'true' and 'false' and something like this to Python bool
