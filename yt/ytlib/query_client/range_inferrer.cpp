@@ -415,8 +415,8 @@ void EnrichKeyRange(
     const TColumnEvaluator& evaluator,
     const std::vector<TColumnSchema>& columns,
     TRowBuffer* buffer,
-    std::pair<TRow, TRow>& range,
-    std::vector<std::pair<TRow, TRow>>& ranges,
+    TRowRange& range,
+    std::vector<TRowRange>& ranges,
     size_t keySize,
     ui64* rangeExpansionLeft)
 {

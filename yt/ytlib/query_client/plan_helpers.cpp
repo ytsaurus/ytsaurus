@@ -698,8 +698,8 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
         MakeUnversionedBooleanValue(true));
 }
 
-std::vector<std::pair<TRow, TRow>> MergeOverlappingRanges(
-    std::vector<std::pair<TRow, TRow>> ranges)
+std::vector<TRowRange> MergeOverlappingRanges(
+    std::vector<TRowRange> ranges)
 {
     int lastIndex = ranges.empty() ? -1 : 0;
     std::sort(ranges.begin(), ranges.end());
