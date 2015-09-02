@@ -115,10 +115,6 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    void UpdateJobStatistics(const TJobPtr& job);
-
-    void BuildJobStatistics(NYson::IYsonConsumer* consumer) const;
-
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -131,7 +127,6 @@ public:
         bool suspended = false);
 
 private:
-    TAggregatedStatistics JobStatistics;
     TPromise<void> StartedPromise;
     TPromise<void> FinishedPromise;
 

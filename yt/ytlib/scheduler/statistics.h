@@ -9,6 +9,7 @@
 #include <core/actions/callback.h>
 
 #include <core/misc/property.h>
+#include <core/misc/phoenix.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -19,16 +20,18 @@ template <class T>
 class TBaseStatistics
 {
 protected:
-    typedef yhash_map<NYPath::TYPath, T> THash;
+    typedef yhash_map<NYPath::TYPath, T> TStatisticsMap;
 
 public:
     T Get(const NYPath::TYPath& name) const;
 
-    typename THash::const_iterator begin() const;
-    typename THash::const_iterator end() const;
+    typename TStatisticsMap::const_iterator begin() const;
+    typename TStatisticsMap::const_iterator end() const;
+
+    void Persist(NPhoenix::TPersistenceContext& context);
 
 protected:
-    THash Data_;
+    TStatisticsMap Data_;
 
     template <class U>
     friend void Serialize(const TBaseStatistics<U>& statistics, NYson::IYsonConsumer* consumer);
@@ -101,7 +104,10 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, Min);
     DEFINE_BYVAL_RO_PROPERTY(i64, Max);
 
+    void Persist(NPhoenix::TPersistenceContext& context);
+
     friend void Deserialize(TSummary& value, NYTree::INodePtr node);
+
 };
 
 void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer);

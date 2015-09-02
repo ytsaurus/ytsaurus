@@ -874,10 +874,15 @@ private:
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
 
+    //! Aggregates job statistics.
+    TAggregatedStatistics JobStatistics;
+    
 
     NApi::IClientPtr CreateClient();
 
     static const NProto::TUserJobResult* FindUserJobResult(TJobletPtr joblet);
+
+    void UpdateJobStatistics(const TJobPtr& job);
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
         const NObjectClient::TTransactionId& transactionId);
