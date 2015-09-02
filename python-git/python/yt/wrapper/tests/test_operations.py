@@ -402,7 +402,7 @@ class TestOperations(object):
             time.sleep(2.5)
             assert op.get_state() == "running"
             op.resume()
-            time.sleep(2.5)
+            op.wait(timeout=10)
             assert op.get_state() == "completed"
         finally:
             if op.get_state() not in ["completed", "failed", "aborted"]:
