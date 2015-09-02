@@ -421,31 +421,48 @@ class YTEnv(object):
 
         self._run_ytserver("master", master_name)
         def masters_ready():
-            last_good_marker = "Leader recovery complete"
-            good_markers = [last_good_marker, "World initialization completed"]
+            changelog_rotated_marker = "Initial changelog rotated"
+            world_init_completed_marker = "World initialization completed"
+
             bad_markers = ["Logging started", "Stopped leading"]
 
+            secondary_master_registered = re.compile(r"Secondary master registered.*CellTag: {0}"\
+                    .format(self._master_cell_tags[master_name]))
 
-            found_good_markers = 0
-            has_last_good_marker = False
+            world_initialization_done = False
+            initial_changelog_rotation_done = False
+
             ok = False
+
             master_id = 0
+
             for logging_file in self.log_paths[master_name]:
                 if not os.path.exists(logging_file):
                     continue
+
                 if ok:
                     break
 
+                restart_occured_and_not_ready = False
+
                 for line in reversed(open(logging_file).readlines()):
-                    if any([bad_marker in line for bad_marker in bad_markers]) and not has_last_good_marker: break
-                    if last_good_marker in line:
-                        has_last_good_marker = True
-                    if any([good_marker in line for good_marker in good_markers]):
+                    if any([bad_marker in line for bad_marker in bad_markers]) and \
+                            not initial_changelog_rotation_done:
+                        restart_occured_and_not_ready = True
+
+                    if world_init_completed_marker in line:
+                        world_initialization_done = True
+
+                    if changelog_rotated_marker in line \
+                            and not restart_occured_and_not_ready:
+                        initial_changelog_rotation_done = True
                         self.leader_log = logging_file
                         self.leader_id = master_id
-                        found_good_markers += 1
-                        if found_good_markers == len(good_markers):
-                            ok = True
+
+                    if initial_changelog_rotation_done and world_initialization_done:
+                        ok = True
+                        break
+
                 master_id += 1
 
             if not ok:
@@ -455,11 +472,14 @@ class YTEnv(object):
                 ok = False
                 primary_master_name = self._primary_masters[master_name]
                 for logging_file in self.log_paths[primary_master_name]:
-                    if not os.path.exists(logging_file): continue
-                    if ok: break
+                    if not os.path.exists(logging_file):
+                        continue
+
+                    if ok:
+                        break
 
                     for line in reversed(open(logging_file).readlines()):
-                        if "Secondary master registered" in line and str(self._master_cell_tags[master_name]) in line:
+                        if secondary_master_registered.search(line):
                             ok = True
                             break
 
