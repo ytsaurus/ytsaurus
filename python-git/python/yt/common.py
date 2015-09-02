@@ -92,6 +92,12 @@ def which(name, flags=os.X_OK):
             result.append(path)
     return result
 
+def unlist(l):
+    try:
+        return l[0] if len(l) == 1 else l
+    except TypeError: # cannot calculate len
+        return l
+
 def require(condition, exception):
     if not condition: raise exception
 

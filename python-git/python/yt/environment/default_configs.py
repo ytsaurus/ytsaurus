@@ -67,16 +67,6 @@ def get_master_config():
         default_transaction_timeout = 300000;
     };
 
-    hydra_manager = {
-        leader_lease_check_period = 100;
-        leader_lease_timeout = 200;
-        disable_leader_lease_grace_delay = %true;
-        response_keeper = {
-            expiration_time = 25000;
-            warmup_time = 30000;
-        };
-    };
-
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 10;
@@ -219,7 +209,6 @@ def get_node_config():
     };
 
     data_node = {
-        cache_locations = [];
         store_locations = [];
         split_changelog = {
             flush_period = 10;
@@ -228,6 +217,8 @@ def get_node_config():
     };
 
     exec_agent = {
+        slot_manager = {};
+
         scheduler_connector = {
             heartbeat_period = 200;
         };
@@ -248,10 +239,6 @@ def get_node_config():
         };
 
         enable_cgroups = %false;
-
-        slot_manager = {
-            paths = [];
-        };
 
         job_proxy_logging = {
             rules = [
@@ -367,7 +354,7 @@ def get_proxy_config():
 {
     "port" : -1,
     "log_port" : -1,
-    "address" : "localhost",
+    "address" : "::",
     "number_of_workers" : 1,
     "memory_limit" : 33554432,
     "thread_limit" : 64,
