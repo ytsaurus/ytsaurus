@@ -193,16 +193,13 @@ public:
             attributes = attributeHolder.get();
         }
 
-        auto externalizationMode = Config_->ExternalizationMode;
         bool isExternal = false;
         auto multicellManager = Bootstrap_->GetMulticellManager();
         if (attributes->Contains("external")) {
             isExternal = attributes->Get<bool>("external");
             attributes->Remove("external");
         } else {
-            isExternal =
-                externalizationMode == EExternalizationMode::Automatic &&
-                Bootstrap_->IsPrimaryMaster() &&
+            isExternal = Bootstrap_->IsPrimaryMaster() &&
                 !multicellManager->GetRegisteredSecondaryMasterCellTags().empty() &&
                 handler->IsExternalizable();
         }
@@ -211,10 +208,6 @@ public:
         if (isExternal) {
             if (!Bootstrap_->IsPrimaryMaster()) {
                 THROW_ERROR_EXCEPTION("External nodes are only created at primary masters");
-            }
-
-            if (externalizationMode == EExternalizationMode::Disabled) {
-                THROW_ERROR_EXCEPTION("External nodes are disabled");
             }
 
             if (!handler->IsExternalizable()) {
