@@ -82,7 +82,9 @@ default_config = {
         "framework": "dill",
         # Check that python version on local machine is the same as on cluster nodes.
         # Turn it off at your own risk.
-        "check_python_version": False
+        "check_python_version": False,
+        # Path to python binary that would be used in jobs.
+        "python_binary": "python"
     },
 
     "yamr_mode": {
