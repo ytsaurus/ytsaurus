@@ -59,8 +59,8 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
     TConstExpressionPtr expr,
     const TTableSchema& tableSchema);
 
-std::vector<std::pair<TRow, TRow>> MergeOverlappingRanges(
-    std::vector<std::pair<TRow, TRow>> ranges);
+std::vector<TRowRange> MergeOverlappingRanges(
+    std::vector<TRowRange> ranges);
 
 ////////////////////////////////////////////////////////////////////////////////
 

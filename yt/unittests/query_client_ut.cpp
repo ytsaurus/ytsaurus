@@ -48,11 +48,6 @@ void PrintTo(const TOwningKey& key, ::std::ostream* os)
     *os << KeyToYson(key.Get());
 }
 
-void PrintTo(const TKey& key, ::std::ostream* os)
-{
-    *os << KeyToYson(key);
-}
-
 void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
 {
     *os << ToString(value);
@@ -576,7 +571,7 @@ TEST(TKeyRangeTest, Unite)
 {
     auto k1 = BuildKey("1"); auto k2 = BuildKey("2");
     auto k3 = BuildKey("3"); auto k4 = BuildKey("4");
-    auto mp = [] (const TKey& a, const TKey& b) {
+    auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
         return std::make_pair(a, b);
     };
 
@@ -592,7 +587,7 @@ TEST(TKeyRangeTest, Intersect)
 {
     auto k1 = BuildKey("1"); auto k2 = BuildKey("2");
     auto k3 = BuildKey("3"); auto k4 = BuildKey("4");
-    auto mp = [] (const TKey& a, const TKey& b) {
+    auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
         return std::make_pair(a, b);
     };
 
@@ -615,7 +610,7 @@ TEST(TKeyRangeTest, Intersect)
 TEST(TKeyRangeTest, IsEmpty)
 {
     auto k1 = BuildKey("1"); auto k2 = BuildKey("2");
-    auto mp = [] (const TKey& a, const TKey& b) {
+    auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
         return std::make_pair(a, b);
     };
 
@@ -681,7 +676,7 @@ TKeyRange RefineKeyRange(
     if (result.empty()) {
         return std::make_pair(EmptyKey(), EmptyKey());
     } else if (result.size() == 1) {
-        return TKeyRange(TKey(result[0].first), TKey(result[0].second));
+        return TKeyRange(TOwningKey(result[0].first), TOwningKey(result[0].second));
     } else {
         return keyRange;
     }
@@ -700,22 +695,22 @@ struct TRefineKeyRangeTestCase
     const char* ResultingLeftBoundAsYson;
     const char* ResultingRightBoundAsYson;
 
-    TKey GetInitialLeftBound() const
+    TOwningKey GetInitialLeftBound() const
     {
         return BuildKey(InitialLeftBoundAsYson);
     }
 
-    TKey GetInitialRightBound() const
+    TOwningKey GetInitialRightBound() const
     {
         return BuildKey(InitialRightBoundAsYson);
     }
 
-    TKey GetResultingLeftBound() const
+    TOwningKey GetResultingLeftBound() const
     {
         return BuildKey(ResultingLeftBoundAsYson);
     }
 
-    TKey GetResultingRightBound() const
+    TOwningKey GetResultingRightBound() const
     {
         return BuildKey(ResultingRightBoundAsYson);
     }
@@ -1946,7 +1941,7 @@ protected:
     { }
 
     TConstExpressionPtr Refine(
-        std::vector<TKey>& lookupKeys,
+        std::vector<TOwningKey>& lookupKeys,
         TConstExpressionPtr expr,
         const TKeyColumns& keyColumns)
     {
@@ -1978,7 +1973,7 @@ TEST_P(TRefineLookupPredicateTest, Simple)
     Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
     Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
 
-    std::vector<TKey> keys;
+    std::vector<TOwningKey> keys;
     Stroka keysString;
     for (const auto& keyString : keyStrings) {
         keys.push_back(BuildKey(keyString));
@@ -4918,7 +4913,7 @@ private:
 
         for (const auto& group : groupedRanges) {
             for (const auto& range : group) {
-                ranges.push_back(TKeyRange(TKey(range.first), TKey(range.second)));
+                ranges.push_back(TKeyRange(TOwningKey(range.first), TOwningKey(range.second)));
             }
         }
 
