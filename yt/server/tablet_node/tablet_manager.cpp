@@ -1000,7 +1000,7 @@ private:
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
                 YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
-                BackoffStore(store, EStoreState::RemoveFailed);
+                RecoverFromStoreRemovalError(store);
             }
             return;
         }
@@ -1643,15 +1643,37 @@ private:
     }
 
 
-    void BackoffStore(IStorePtr store, EStoreState state)
+    void RecoverFromStoreRemovalError(IStorePtr store)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        store->SetStoreState(state);
+        store->SetRemovalState(EStoreRemovalState::Failed);
 
         auto callback = BIND([=, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(AutomatonThread);
-            store->SetStoreState(store->GetPersistentStoreState());
+            if (store->GetRemovalState() == EStoreRemovalState::Failed) {
+                store->SetRemovalState(EStoreRemovalState::None);
+            }
+            if (store->GetStoreState() == EStoreState::RemoveCommitting) {
+                switch (store->GetType()) {
+                    case EStoreType::DynamicMemory: {
+                        store->SetStoreState(EStoreState::PassiveDynamic);
+                        auto dynamicMemoryStore = store->AsDynamicMemory();
+                        if (dynamicMemoryStore->GetFlushState() == EStoreFlushState::Complete) {
+                            dynamicMemoryStore->SetFlushState(EStoreFlushState::None);
+                        }
+                        break;
+                    }
+                    case EStoreType::Chunk: {
+                        store->SetStoreState(EStoreState::Persistent);
+                        auto chunkStore = store->AsChunk();
+                        if (chunkStore->GetCompactionState() == EStoreCompactionState::Complete) {
+                            chunkStore->SetCompactionState(EStoreCompactionState::None);
+                        }
+                        break;
+                    }
+                }
+            }
         });
 
         if (IsLeader()) {

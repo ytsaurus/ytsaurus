@@ -574,6 +574,10 @@ private:
             LOG_INFO("Eden partitioning completed (RowCount: %v)",
                 readRowCount);
 
+            for (const auto& store : stores) {
+                storeManager->EndStoreCompaction(store);
+            }
+
             tablet->SetLastPartitioningTime(TInstant::Now());
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
@@ -731,7 +735,6 @@ private:
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
-                store->SetStoreState(EStoreState::Removing);
             }
 
             TReqCommitTabletStoresUpdate hydraRequest;

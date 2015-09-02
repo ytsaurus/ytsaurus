@@ -97,9 +97,7 @@ DEFINE_ENUM(EStoreState,
 
     ((Persistent)           (2)) // stored in a chunk
 
-    ((Removing)             (6)) // transient, UpdateTabletStores mutation is being committed by node
     ((RemoveCommitting)     (7)) // UpdateTabletStores request sent to master
-    ((RemoveFailed)         (8)) // transient, waiting for back off to complete
 
     ((Orphaned)             (9)) // belongs to a forcefully removed tablet
     ((Removed)             (10)) // removed by rotation but still locked
@@ -115,6 +113,13 @@ DEFINE_ENUM(EStoreFlushState,
 DEFINE_ENUM(EStoreCompactionState,
     (None)
     (Running)
+    (Complete)
+    (Failed)
+);
+
+DEFINE_ENUM(EStoreRemovalState,
+    (None)
+    (Pending)
     (Failed)
 );
 

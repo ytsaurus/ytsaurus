@@ -359,7 +359,6 @@ private:
             SwitchTo(automatonInvoker);
 
             storeManager->EndStoreFlush(store);
-            store->SetStoreState(EStoreState::Removing);
 
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
