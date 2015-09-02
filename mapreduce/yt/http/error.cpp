@@ -85,8 +85,19 @@ TErrorResponse::TErrorResponse(int httpCode, const Stroka& requestId)
     , RequestId_(requestId)
 { }
 
+const char* TErrorResponse::what() const throw ()
+{
+    return ~RawError_;
+}
+
+void TErrorResponse::SetRawError(const Stroka& rawError)
+{
+    RawError_ = rawError;
+}
+
 void TErrorResponse::ParseFromJsonError(const Stroka& jsonError)
 {
+    RawError_ = jsonError;
     Error_.ParseFrom(jsonError);
 }
 
