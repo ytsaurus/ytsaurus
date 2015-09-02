@@ -292,7 +292,7 @@ public:
 
         auto cellMapNodeProxy = GetCellMapNode();
         auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
-        auto cypressCellNodeProxy = dynamic_cast<ICypressNodeProxy*>(cellNodeProxy.Get());
+        auto cypressCellNodeProxy = ICypressNodeProxy::FromNode(cellNodeProxy);
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto locks = cypressManager->ListSubtreeLocks(cypressCellNodeProxy->GetTrunkNode(), nullptr, true);
