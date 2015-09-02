@@ -34,6 +34,7 @@ class YtTestEnvironment(object):
         self.env.NUM_NODES = 5
         self.env.NUM_SCHEDULERS = 1
         self.env.START_PROXY = True
+        self.env.START_SECONDARY_MASTER_CELLS = False
 
         self.env.DELTA_NODE_CONFIG = {
             "exec_agent" : {
@@ -62,7 +63,7 @@ class YtTestEnvironment(object):
         self.config = update(get_default_config(), config)
         self.config["operation_tracker"]["poll_period"] = 100
         self.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
-        self.config["proxy"]["url"] = "localhost:%d" % self.env._ports["proxy"][0]
+        self.config["proxy"]["url"] = self.env.get_proxy_address()
         self.config["enable_token"] = False
         self.config["clear_local_temp_files"] = True
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
