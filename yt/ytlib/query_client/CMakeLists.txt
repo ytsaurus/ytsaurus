@@ -45,6 +45,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_fragment_compiler.cpp
     ${BASE}/folding_profiler.cpp
     ${BASE}/evaluation_helpers.cpp
+    ${BASE}/functions.cpp
     ${BASE}/builtin_functions.cpp
     ${BASE}/user_defined_functions.cpp
     ${BASE}/function_registry.cpp
@@ -102,8 +103,8 @@ udf_bc( ${BASE}/udf/double_cast.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/int64.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_null.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_substr.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/is_prefix.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/lower.c YT_SOURCE_FILES )
-udf_bc( ${BASE}/udf/simple_hash.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/sleep.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/uint64.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/min.c YT_SOURCE_FILES )
