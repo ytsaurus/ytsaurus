@@ -477,13 +477,13 @@ public:
     TYPathResolver(
         TBootstrap* bootstrap,
         TTransaction* transaction)
-        : Bootstrap(bootstrap)
+        : Bootstrap_(bootstrap)
         , Transaction_(transaction)
     { }
 
     virtual INodePtr ResolvePath(const TYPath& path) override
     {
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         auto* resolver = objectManager->GetObjectResolver();
         auto objectProxy = resolver->ResolvePath(path, Transaction_);
         auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(objectProxy.Get());
@@ -497,21 +497,27 @@ public:
 
     virtual TYPath GetPath(INodePtr node) override
     {
+        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(node.Get());
+        YCHECK(nodeProxy);
+
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        if (!cypressManager->IsAlive(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction())) {
+            return FromObjectId(nodeProxy->GetId());
+        }
+
         INodePtr root;
         auto path = GetNodeYPath(node, &root);
 
         auto* rootProxy = dynamic_cast<ICypressNodeProxy*>(root.Get());
         YCHECK(rootProxy);
 
-        auto cypressManager = Bootstrap->GetCypressManager();
-        auto rootId = cypressManager->GetRootNode()->GetId();
-        return rootProxy->GetId() == rootId
+        return rootProxy->GetId() == cypressManager->GetRootNode()->GetId()
             ? "/" + path
             : "?" + path;
     }
 
 private:
-    TBootstrap* const Bootstrap;
+    TBootstrap* const Bootstrap_;
     TTransaction* const Transaction_;
 
 };
