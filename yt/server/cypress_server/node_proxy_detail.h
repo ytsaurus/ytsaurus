@@ -146,8 +146,6 @@ protected:
 
 
     ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
-    static TIntrusivePtr<ICypressNodeProxy>ToProxy(NYTree::INodePtr node);
-    static TIntrusivePtr<const ICypressNodeProxy> ToProxy(NYTree::IConstNodePtr node);
 
     virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes() override;
     

@@ -281,6 +281,7 @@ public:
         const auto& id = proxy->GetId();
         if (IsVersionedType(TypeFromId(id))) {
             auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(proxy.Get());
+            YASSERT(nodeProxy);
             auto resolver = nodeProxy->GetResolver();
             return resolver->GetPath(nodeProxy);
         } else {
@@ -1027,9 +1028,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
                 << ex;
         }
 
-        auto* cypressNodeProxy = dynamic_cast<ICypressNodeProxy*>(nodeProxy.Get());
-        YCHECK(cypressNodeProxy);
-
+        auto* cypressNodeProxy = ICypressNodeProxy::FromNode(nodeProxy.Get());
         auto* node = cypressNodeProxy->GetTrunkNode();
         if (node->GetRevision() != revision) {
             THROW_ERROR_EXCEPTION(
