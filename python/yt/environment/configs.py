@@ -85,7 +85,6 @@ def get_master_config():
 
     cypress_manager = {
         statistics_flush_period = 10;
-        externalization_mode = automatic;
     };
 
     security_manager = {

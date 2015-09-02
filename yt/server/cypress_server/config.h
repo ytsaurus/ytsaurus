@@ -15,7 +15,6 @@ class TCypressManagerConfig
 public:
     TDuration StatisticsFlushPeriod;
     TNullable<int> MaxNodeChildCount;
-    EExternalizationMode ExternalizationMode;
 
     TCypressManagerConfig()
     {
@@ -25,8 +24,6 @@ public:
         RegisterParameter("max_node_child_count", MaxNodeChildCount)
             .GreaterThan(20)
             .Default(50000);
-        RegisterParameter("externalization_mode", ExternalizationMode)
-            .Default(EExternalizationMode::Manual);
     }
 };
 
