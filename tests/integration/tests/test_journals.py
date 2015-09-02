@@ -62,6 +62,7 @@ class TestJournals(YTEnvSetup):
         assert read_journal("//tmp/j[#200:]") == []
 
     def test_resource_usage(self):
+        multicell_sleep()
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
 
