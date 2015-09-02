@@ -1638,7 +1638,7 @@ TEST_F(TMultiLockDynamicMemoryStoreTest, OutOfOrderWrites)
     EXPECT_EQ(ts2, GetLastCommitTimestamp(row, 2));
 
     {
-        auto reader = Store_->CreateReader(MinKey(), MaxKey(), AllCommittedTimestamp, TColumnFilter());
+        auto reader = Store_->CreateSnapshotReader();
         reader->Open()
             .Get()
             .ThrowOnError();
