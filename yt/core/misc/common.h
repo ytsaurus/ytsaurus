@@ -103,7 +103,7 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 }
 #endif
 
-#if !defined(__clang__)
+#if defined(__GLIBCXX__) && __GLIBCXX__ < 20150422
 
 // As of now, GCC does not have std::aligned_union.
 template <typename... _Types>
