@@ -21,6 +21,7 @@
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <server/cypress_server/cypress_manager.h>
 #include <server/cypress_server/node_proxy.h>
@@ -276,6 +277,7 @@ TYsonString DoGetMulticellOwningNodes(
         auto batchReq = proxy.ExecuteBatch();
         for (const auto& versionedId : nodeIds) {
             auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");
+            SetTransactionId(req, versionedId.TransactionId);
             batchReq->AddRequest(req, "get_path");
         }
 
