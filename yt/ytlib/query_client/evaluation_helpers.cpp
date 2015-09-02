@@ -24,7 +24,7 @@ static const auto& Logger = QueryClientLogger;
 const i64 PoolChunkSize = 32 * 1024;
 const i64 BufferLimit = 32 * PoolChunkSize;
 
-TTopCollector::TTopCollector(i64 limit, NDetail::TComparerFunc comparer)
+TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer)
     : Comparer_(comparer)
 {
     Rows_.reserve(limit);
@@ -186,8 +186,8 @@ TJoinEvaluator GetJoinEvaluator(
 
     return [=] (
         TExecutionContext* context,
-        ui64 (*groupHasher)(TRow),
-        char (*groupComparer)(TRow, TRow),
+        THasherFunction* groupHasher,
+        TComparerFunction* groupComparer,
         const std::vector<TRow>& keys,
         const std::vector<TRow>& allRows,
         std::vector<TRow>* joinedRows)

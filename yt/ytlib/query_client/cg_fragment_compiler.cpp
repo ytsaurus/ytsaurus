@@ -229,7 +229,7 @@ Function* CodegenGroupComparerFunction(
     const std::vector<EValueType>& types,
     const TCGModule& module)
 {
-    return MakeFunction<char(TRow, TRow)>(module.GetModule(), "GroupComparer", [&] (
+    return MakeFunction<TComparerFunction>(module.GetModule(), "GroupComparer", [&] (
         TCGIRBuilder& builder,
         Value* lhsRow,
         Value* rhsRow
@@ -318,7 +318,7 @@ Function* CodegenGroupHasherFunction(
     const std::vector<EValueType>& types,
     const TCGModule& module)
 {
-    return MakeFunction<ui64(TRow)>(module.GetModule(), "GroupHasher", [&] (
+    return MakeFunction<THasherFunction>(module.GetModule(), "GroupHasher", [&] (
         TCGIRBuilder& builder,
         Value* row
     ) {
@@ -412,7 +412,7 @@ Function* CodegenTupleComparerFunction(
     const TCGModule& module,
     bool isDesc = false)
 {
-    return MakeFunction<char(TRow, TRow)>(module.GetModule(), "RowComparer", [&] (
+    return MakeFunction<TComparerFunction>(module.GetModule(), "RowComparer", [&] (
         TCGIRBuilder& builder,
         Value* lhsRow,
         Value* rhsRow
