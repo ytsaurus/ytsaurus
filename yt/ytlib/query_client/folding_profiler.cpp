@@ -257,7 +257,7 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
                 std::move(codegenArgs),
                 std::move(argumentTypes),
                 functionExpr->Type,
-                "{" + functionExpr->Name + "}");
+                "{" + InferName(functionExpr, true) + "}");
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::UnaryOpExpr));
         Fold(static_cast<int>(unaryOp->Opcode));
@@ -266,7 +266,7 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
             unaryOp->Opcode,
             Profile(unaryOp->Operand, schema),
             unaryOp->Type,
-            "{" + unaryOp->Name + "}");
+            "{" + InferName(unaryOp, true) + "}");
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::BinaryOpExpr));
         Fold(static_cast<int>(binaryOp->Opcode));
@@ -276,7 +276,7 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
             Profile(binaryOp->Lhs, schema),
             Profile(binaryOp->Rhs, schema),
             binaryOp->Type,
-            "{" + binaryOp->Name + "}");
+            "{" + InferName(binaryOp, true) + "}");
     } else if (auto inOp = expr->As<TInOpExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::InOpExpr));
 
