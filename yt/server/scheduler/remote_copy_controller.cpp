@@ -258,6 +258,9 @@ private:
                 ? Operation->GetUserTransaction()->GetId()
                 : TTransactionId();
             StartOutputTransaction(userTransactionId);
+        } else {
+            InputTransactionId = Operation->GetInputTransaction()->GetId();
+            OutputTransactionId = Operation->GetOutputTransaction()->GetId();
         }
     }
 
@@ -310,7 +313,7 @@ private:
             TObjectServiceProxy proxy(channel);
 
             auto req = TObjectYPathProxy::Get(path + "/@");
-            SetTransactionId(req, Operation->GetInputTransaction());
+            SetTransactionId(req, InputTransactionId);
 
             auto rsp = WaitFor(proxy.Execute(req));
             if (!rsp.IsOK()) {
@@ -334,7 +337,7 @@ private:
             for (auto key : attributeKeys) {
                 auto req = TYPathProxy::Set(path + "/@" + key);
                 req->set_value(ConvertToYsonString(attributes->GetChild(key)).Data());
-                SetTransactionId(req, Operation->GetOutputTransaction());
+                SetTransactionId(req, OutputTransactionId);
                 batchReq->AddRequest(req);
             }
 
@@ -481,8 +484,7 @@ private:
             TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(),
-            Operation->GetOutputTransaction()->GetId());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).Data());
 
         auto clusterDirectory = Host->GetClusterDirectory();

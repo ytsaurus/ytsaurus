@@ -170,6 +170,12 @@ protected:
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
 
+    // Operation transactions ids are stored here to avoid their retrieval from
+    // potentially dangling Operation pointer.
+    NObjectClient::TTransactionId AsyncSchedulerTransactionId;
+    NObjectClient::TTransactionId SyncSchedulerTransactionId;
+    NObjectClient::TTransactionId InputTransactionId;
+    NObjectClient::TTransactionId OutputTransactionId;
 
     struct TUserTableBase
     {
