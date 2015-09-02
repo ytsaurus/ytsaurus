@@ -176,8 +176,8 @@ void SaveJoinRow(
 void JoinOpHelper(
     TExecutionContext* context,
     int index,
-    ui64 (*groupHasher)(TRow),
-    char (*groupComparer)(TRow, TRow),
+    THasherFunction* groupHasher,
+    TComparerFunction* groupComparer,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
     void** consumeRowsClosure,
@@ -222,8 +222,8 @@ void JoinOpHelper(
 
 void GroupOpHelper(
     TExecutionContext* context,
-    ui64 (*groupHasher)(TRow),
-    char (*groupComparer)(TRow, TRow),
+    THasherFunction* groupHasher,
+    TComparerFunction* groupComparer,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* lookupRows),
     void** consumeRowsClosure,
@@ -308,7 +308,7 @@ void AddRow(TTopCollector* topN, TRow row)
 
 void OrderOpHelper(
     TExecutionContext* context,
-    char (*comparer)(TRow, TRow),
+    TComparerFunction* comparer,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topN),
     void** consumeRowsClosure,
@@ -386,7 +386,7 @@ char* ToLower(
 
 char IsRowInArray(
     TExpressionContext* context,
-    char (*comparer)(TRow, TRow),
+    TComparerFunction* comparer,
     TRow row,
     int index)
 {
