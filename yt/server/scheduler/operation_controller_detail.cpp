@@ -3058,7 +3058,6 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
         for (const auto& chunkSpec : table.Chunks) {
-            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Skip:
