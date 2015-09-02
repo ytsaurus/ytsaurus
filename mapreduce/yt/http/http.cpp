@@ -324,23 +324,24 @@ THttpInput* THttpRequest::GetResponseStream()
 
     TErrorResponse errorResponse(httpCode, RequestId);
 
+    auto logAndSetError = [&] (const Stroka& rawError) {
+        LOG_ERROR(
+            "RSP %s - HTTP %d - %s",
+            ~RequestId, httpCode, ~rawError);
+        errorResponse.SetRawError(rawError);
+    };
+
     switch (httpCode) {
         case 401:
-            LOG_ERROR(
-                "RSP %s - HTTP %d - authentication error",
-                ~RequestId, httpCode);
+            logAndSetError("authentication error");
             break;
 
         case 500:
-            LOG_ERROR(
-                "RSP %s - HTTP %d - internal error in proxy %s",
-                ~RequestId, httpCode, ~HostName);
+            logAndSetError(Sprintf("internal error in proxy %s", ~HostName));
             break;
 
         case 503:
-            LOG_ERROR(
-                "RSP %s - HTTP %d - proxy %s is unavailable",
-                ~RequestId, httpCode, ~HostName);
+            logAndSetError(Sprintf("proxy %s is unavailable", ~HostName));
             break;
 
         default: {

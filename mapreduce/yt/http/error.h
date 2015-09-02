@@ -40,6 +40,9 @@ class TErrorResponse
 public:
     TErrorResponse(int httpCode, const Stroka& requestId);
 
+    virtual const char* what() const throw ();
+
+    void SetRawError(const Stroka& rawError);
     void ParseFromJsonError(const Stroka& jsonError);
     int GetHttpCode() const;
     Stroka GetRequestId() const;
@@ -50,6 +53,7 @@ public:
 private:
     int HttpCode_;
     Stroka RequestId_;
+    Stroka RawError_;
     TError Error_;
 };
 
