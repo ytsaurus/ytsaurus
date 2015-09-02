@@ -162,7 +162,13 @@ public:
         const TListOptions& options) override
     {
         THttpHeader header("GET", "list");
-        header.AddPath(AddPathPrefix(path));
+
+        // FIXME: ugly but quick empty path special case
+        if (path.empty() && TConfig::Get()->Prefix == "//") {
+            header.AddPath("/");
+        } else {
+            header.AddPath(AddPathPrefix(path));
+        }
         header.AddTransactionId(TransactionId_);
 
         if (options.AttributeFilter_) {
