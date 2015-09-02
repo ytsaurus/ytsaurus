@@ -18,15 +18,23 @@ T TBaseStatistics<T>::Get(const NYPath::TYPath& name) const
 }
 
 template <class T>
-typename TBaseStatistics<T>::THash::const_iterator TBaseStatistics<T>::begin() const
+typename TBaseStatistics<T>::TStatisticsMap::const_iterator TBaseStatistics<T>::begin() const
 {
     return Data_.begin();
 }
 
 template <class T>
-typename TBaseStatistics<T>::THash::const_iterator TBaseStatistics<T>::end() const
+typename TBaseStatistics<T>::TStatisticsMap::const_iterator TBaseStatistics<T>::end() const
 {
     return Data_.end();
+}
+
+template <class T>
+void TBaseStatistics<T>::Persist(NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Data_);
 }
 
 template <class T>

@@ -10,6 +10,7 @@ namespace NScheduler {
 
 using namespace NYTree;
 using namespace NYPath;
+using namespace NPhoenix;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -124,6 +125,15 @@ void TSummary::AddSample(i64 value)
     Count_ += 1;
     Min_ = std::min(Min_, value);
     Max_ = std::max(Max_, value);
+}
+
+void TSummary::Persist(NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Sum_);
+    Persist(context, Count_);
+    Persist(context, Min_);
+    Persist(context, Max_);
 }
 
 void Serialize(const TSummary& summary, NYson::IYsonConsumer* consumer)

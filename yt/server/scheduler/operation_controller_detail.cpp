@@ -1603,7 +1603,7 @@ void TOperationControllerBase::OnJobCompleted(TJobPtr job)
 
     JobCounter.Completed(1);
 
-    Operation->UpdateJobStatistics(job);
+    UpdateJobStatistics(job);
 
     const auto& schedulerResultEx = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
@@ -1635,7 +1635,7 @@ void TOperationControllerBase::OnJobFailed(TJobPtr job)
 
     JobCounter.Failed(1);
 
-    Operation->UpdateJobStatistics(job);
+    UpdateJobStatistics(job);
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobFailed(joblet);
@@ -1667,7 +1667,7 @@ void TOperationControllerBase::OnJobAborted(TJobPtr job)
 
     JobCounter.Aborted(1, abortReason);
 
-    Operation->UpdateJobStatistics(job);
+    UpdateJobStatistics(job);
 
     auto joblet = GetJoblet(job);
     joblet->Task->OnJobAborted(joblet);
@@ -3477,7 +3477,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("job_statistics").Do(BIND(&TOperation::BuildJobStatistics, Operation))
+        .Item("job_statistics").Value(JobStatistics)
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
             .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
@@ -3746,6 +3746,20 @@ const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJoble
     }
 }
 
+void TOperationControllerBase::UpdateJobStatistics(const TJobPtr& job)
+{
+    Stroka suffix;
+    if (job->GetRestarted()) {
+        suffix = Format("/$/lost/%lv", job->GetType());
+    } else {
+        suffix = Format("/$/%lv/%lv", job->GetState(), job->GetType());
+    }
+
+    auto statistics = job->Statistics();
+    statistics.AddSuffixToNames(suffix);
+    JobStatistics.AddSample(statistics);
+}
+
 void TOperationControllerBase::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -3787,6 +3801,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, JobletMap);
 
     Persist(context, JobIndexGenerator);
+
+    Persist(context, JobStatistics);
 
     // NB: Scheduler snapshots need not be stable.
     Persist<
