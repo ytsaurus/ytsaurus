@@ -124,8 +124,9 @@ private:
 
     void OnScanSlot(TTabletSlotPtr slot)
     {
-        if (slot->GetAutomatonState() != EPeerState::Leading)
+        if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
+        }
 
         auto tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
@@ -234,12 +235,14 @@ private:
 
     void ScanStore(TTablet* tablet, const IStorePtr& store)
     {
-        if (!TStoreManager::IsStoreFlushable(store))
+        if (!TStoreManager::IsStoreFlushable(store)) {
             return;
+        }
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
-        if (!guard)
+        if (!guard) {
             return;
+        }
 
         auto dynamicStore = store->AsDynamicMemory();
         auto storeManager = tablet->GetStoreManager();
@@ -300,6 +303,7 @@ private:
             ITransactionPtr transaction;
             {
                 LOG_INFO("Creating store flush transaction");
+
                 TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
@@ -308,22 +312,14 @@ private:
                     tabletId));
                 options.Attributes = std::move(attributes);
 
-                auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(
+                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartTransaction(
                     NTransactionClient::ETransactionType::Master,
-                    options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
+                    options);
+                transaction = WaitFor(asyncTransaction)
+                    .ValueOrThrow();
 
-                transaction = transactionOrError.Value();
                 LOG_INFO("Store flush transaction created (TransactionId: %v)",
                     transaction->GetId());
-            }
-
-            TReqCommitTabletStoresUpdate hydraRequest;
-            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
-            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            {
-                auto* descriptor = hydraRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
             auto inMemoryManager = Bootstrap_->GetInMemoryManager();
@@ -340,10 +336,8 @@ private:
                 GetUnlimitedThrottler(),
                 blockCache);
 
-            {
-                auto result = WaitFor(writer->Open());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(writer->Open())
+                .ThrowOnError();
         
             std::vector<TVersionedRow> rows;
             rows.reserve(MaxRowsPerRead);
@@ -354,14 +348,25 @@ private:
                 if (rows.empty())
                     break;
                 if (!writer->Write(rows)) {
-                    auto result = WaitFor(writer->GetReadyEvent());
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                    WaitFor(writer->GetReadyEvent())
+                        .ThrowOnError();
                 }
             }
 
+            WaitFor(writer->Close())
+                .ThrowOnError();
+
+            SwitchTo(automatonInvoker);
+
+            storeManager->EndStoreFlush(store);
+            store->SetStoreState(EStoreState::Removing);
+
+            TReqCommitTabletStoresUpdate hydraRequest;
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
             {
-                auto result = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                auto* descriptor = hydraRequest.add_stores_to_remove();
+                ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
             std::vector<TChunkId> chunkIds;
@@ -372,11 +377,6 @@ private:
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
                 ToProto(descriptor->mutable_backing_store_id(), store->GetId());
             }
-
-            SwitchTo(automatonInvoker);
-
-            storeManager->EndStoreFlush(store);
-            store->SetStoreState(EStoreState::Removing);
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit()

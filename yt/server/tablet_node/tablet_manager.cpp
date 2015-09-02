@@ -154,8 +154,7 @@ public:
 
         auto* tablet = FindTablet(id);
         if (!tablet) {
-            THROW_ERROR_EXCEPTION("No such tablet %v",
-                id);
+            THROW_ERROR_EXCEPTION("No such tablet %v", id);
         }
         return tablet;
     }
@@ -295,13 +294,15 @@ public:
         int lockIndex)
     {
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         const auto& lock = row.BeginLocks(tablet->GetKeyColumnCount())[lockIndex];
         const auto* transaction = lock.Transaction;
-        if (!transaction)
+        if (!transaction) {
             return;
+        }
 
         LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TabletId: %v, TransactionId: %v)",
             RowToKey(tablet->Schema(), tablet->KeyColumns(), row),
@@ -317,8 +318,9 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& storeManager = tablet->GetStoreManager();
-        if (!storeManager->IsRotationPossible())
+        if (!storeManager->IsRotationPossible()) {
             return;
+        }
 
         storeManager->ScheduleRotation();
 
@@ -684,8 +686,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         if (request.force()) {
             LOG_INFO_UNLESS(IsRecovery(), "Tablet is forcefully unmounted (TabletId: %v)",
@@ -699,7 +702,7 @@ private:
             }
 
             const auto& storeManager = tablet->GetStoreManager();
-            for (auto store : storeManager->GetLockedStores()) {
+            for (const auto& store : storeManager->GetLockedStores()) {
                 SetStoreOrphaned(tablet, store);
             }
 
@@ -740,8 +743,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
@@ -766,8 +770,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         auto requestedState = ETabletState(request.state());
 
@@ -846,8 +851,9 @@ private:
         const TSharedRef& recordData)
     {
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
@@ -867,6 +873,7 @@ private:
     void HydraFollowerExecuteWrite(const TReqExecuteWrite& request) noexcept
     {
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto atomicity = AtomicityFromTransactionId(transactionId);
 
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = GetTablet(tabletId);
@@ -879,7 +886,6 @@ private:
         TWireProtocolReader reader(recordData);
         int rowCount = 0;
 
-        auto atomicity = AtomicityFromTransactionId(transactionId);
         switch (atomicity) {
             case EAtomicity::Full: {
                 auto transactionManager = Slot_->GetTransactionManager();
@@ -918,8 +924,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet || tablet->GetState() != ETabletState::Mounted)
+        if (!tablet || tablet->GetState() != ETabletState::Mounted) {
             return;
+        }
 
         RotateStores(tablet, true);
         UpdateTabletSnapshot(tablet);
@@ -930,8 +937,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(commitRequest.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         std::vector<TStoreId> storeIdsToAdd;
         for (const auto& descriptor : commitRequest.stores_to_add()) {
@@ -979,8 +987,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(response.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         if (response.has_error()) {
             auto error = FromProto<TError>(response.error());
@@ -1060,8 +1069,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         auto partitionId = FromProto<TPartitionId>(request.partition_id());
         auto* partition = tablet->GetPartitionById(partitionId);
@@ -1102,8 +1112,9 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         auto firstPartitionId = FromProto<TPartitionId>(request.partition_id());
         auto* firstPartition = tablet->GetPartitionById(firstPartitionId);
@@ -1145,13 +1156,15 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
         auto* tablet = FindTablet(tabletId);
-        if (!tablet)
+        if (!tablet) {
             return;
+        }
 
         auto partitionId = FromProto<TPartitionId>(request.partition_id());
         auto* partition = tablet->FindPartitionById(partitionId);
-        if (!partition)
+        if (!partition) {
             return;
+        }
 
         auto sampleKeys = New<TKeyList>();
         sampleKeys->Keys = FromProto<TOwningKey>(request.sample_keys());
@@ -1253,12 +1266,15 @@ private:
 
     void SetStoreOrphaned(TTablet* tablet, IStorePtr store)
     {
-        if (store->GetStoreState() == EStoreState::Orphaned)
+        if (store->GetStoreState() == EStoreState::Orphaned) {
             return;
+        }
+
         store->SetStoreState(EStoreState::Orphaned);
 
-        if (store->GetType() != EStoreType::DynamicMemory)
+        if (store->GetType() != EStoreType::DynamicMemory) {
             return;
+        }
         
         auto dynamicStore = store->AsDynamicMemory();
         int lockCount = dynamicStore->GetLockCount();
@@ -1512,11 +1528,13 @@ private:
 
     void CheckIfFullyUnlocked(TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::WaitingForLocks)
+        if (tablet->GetState() != ETabletState::WaitingForLocks) {
             return;
+        }
 
-        if (tablet->GetStoreManager()->HasActiveLocks())
+        if (tablet->GetStoreManager()->HasActiveLocks()) {
             return;
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet locks released (TabletId: %v)",
             tablet->GetTabletId());
@@ -1537,11 +1555,13 @@ private:
 
     void CheckIfFullyFlushed(TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::Flushing)
+        if (tablet->GetState() != ETabletState::Flushing) {
             return;
+        }
 
-        if (tablet->GetStoreManager()->HasUnflushedStores())
+        if (tablet->GetStoreManager()->HasUnflushedStores()) {
             return;
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "All tablet stores flushed (TabletId: %v)",
             tablet->GetTabletId());
@@ -1722,8 +1742,6 @@ private:
                 return EMemoryCategory::TabletDynamic;
             case EStoreType::Chunk:
                 return EMemoryCategory::TabletStatic;
-            default:
-                YUNREACHABLE();
         }
     }
 

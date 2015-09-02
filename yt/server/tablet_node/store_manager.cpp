@@ -99,8 +99,7 @@ bool TStoreManager::HasUnflushedStores() const
 {
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
-        auto state = store->GetStoreState();
-        if (state != EStoreState::Persistent) {
+        if (store->GetStoreState() != EStoreState::Persistent) {
             return true;
         }
     }
@@ -541,8 +540,9 @@ void TStoreManager::ScheduleStorePreload(TChunkStorePtr store)
     auto state = store->GetPreloadState();
     YCHECK(state != EStorePreloadState::Disabled);
 
-    if (state != EStorePreloadState::None && state != EStorePreloadState::Failed)
+    if (state != EStorePreloadState::None && state != EStorePreloadState::Failed) {
         return;
+    }
 
     Tablet_->PreloadStoreIds().push_back(store->GetId());
     store->SetPreloadState(EStorePreloadState::Scheduled);
@@ -618,8 +618,9 @@ void TStoreManager::EndStorePreload(TChunkStorePtr store)
 
 void TStoreManager::BackoffStorePreload(TChunkStorePtr store)
 {
-    if (store->GetPreloadState() != EStorePreloadState::Running)
+    if (store->GetPreloadState() != EStorePreloadState::Running) {
         return;
+    }
 
     store->SetPreloadState(EStorePreloadState::Failed);
     store->SetPreloadFuture(TFuture<void>());
