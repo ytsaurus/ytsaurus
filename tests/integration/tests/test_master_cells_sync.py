@@ -93,19 +93,6 @@ class TestMasterCellsSync(YTEnvSetup):
                     get("//sys/accounts/tst/@attr{0}".format(i), driver=driver) == "value"
                     for i in xrange(10)]))
 
-        create("map_node", "//testing", attributes={"account": "tst"})
-        create("table", "//testing/table")
-
-        multicell_sleep()
-
-        self._check_true_for_secondary(
-                lambda driver: get("//sys/accounts/tst/@resource_usage/node_count", driver=driver) == 2 \
-                        and get("//sys/accounts/tst/@resource_usage/chunk_count", driver=driver) == 0)
-
-        remove("//testing", recursive=True)
-
-        multicell_sleep()
-
         remove_account("tst")
         self._check_true_for_secondary(
                 lambda driver: "tst" not in ls("//sys/accounts", driver=driver))
