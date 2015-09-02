@@ -130,7 +130,8 @@ def extract_unbalanced_spans(tablets, desired_size):
             yield Span(
                 first_index=first_index,
                 last_index=len(tablets) - 1,
-                size=accumulated_size)
+                size=accumulated_size,
+                pivot_keys=None)
 
     return list(_impl())
 
