@@ -149,7 +149,7 @@ def strace_job(job_id, **kwargs):
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
-    return execute_command('lock', kwargs).replace('"', '').strip('\n')
+    return yson.loads(execute_command('lock', kwargs))
 
 def remove(path, **kwargs):
     kwargs["path"] = path
@@ -172,22 +172,22 @@ def set(path, value, is_raw=False, **kwargs):
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
-    return execute_command("create", kwargs)
+    return yson.loads(execute_command("create", kwargs))
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return execute_command("copy", kwargs)
+    return yson.loads(execute_command("copy", kwargs))
 
 def move(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return execute_command("move", kwargs)
+    return yson.loads(execute_command("move", kwargs))
 
 def link(target_path, link_path, **kwargs):
     kwargs["target_path"] = target_path
     kwargs["link_path"] = link_path
-    return execute_command("link", kwargs)
+    return yson.loads(execute_command("link", kwargs))
 
 def exists(path, **kwargs):
     kwargs["path"] = path
