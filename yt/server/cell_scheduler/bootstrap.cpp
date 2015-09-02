@@ -117,15 +117,9 @@ void TBootstrap::DoRun()
         LocalAddress_,
         JoinToString(Config_->ClusterConnection->Master->Addresses));
 
-    auto isRetriableError = BIND([] (const TError& error) -> bool {
-        auto code = error.GetCode();
-        if (code == NSecurityClient::EErrorCode::RequestRateLimitExceeded) {
-            return true;
-        }
-        return IsRetriableError(error);
-    });
-
-    auto connection = CreateConnection(Config_->ClusterConnection, isRetriableError);
+    TConnectionOptions connectionOptions;
+    connectionOptions.RetryRequestRateLimitExceeded = true;
+    auto connection = CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;
     clientOptions.User = NSecurityClient::SchedulerUserName;
