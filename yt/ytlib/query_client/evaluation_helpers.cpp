@@ -188,16 +188,15 @@ TJoinEvaluator GetJoinEvaluator(
         TExecutionContext* context,
         THasherFunction* groupHasher,
         TComparerFunction* groupComparer,
-        const std::vector<TRow>& keys,
-        const std::vector<TRow>& allRows,
+        TSharedRange<TRow> keys,
+        TSharedRange<TRow> allRows,
         std::vector<TRow>* joinedRows)
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
 
         subquery->WhereClause = New<TInOpExpression>(
             joinKeyExprs,
-            // TODO(babenko): fixme
-            TSharedRange<TRow>(MakeRange(keys), nullptr));
+            keys);
 
         if (foreignPredicate) {
             subquery->WhereClause = MakeAndExpression(
@@ -237,7 +236,7 @@ TJoinEvaluator GetJoinEvaluator(
         // Join rowsets.
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
-        for (auto row : allRows) {
+        for (auto row : allRows.ToVector()) {
             auto equalRange = foreignLookup.equal_range(row);
             for (auto it = equalRange.first; it != equalRange.second; ++it) {
                 rowBuilder.Reset();
