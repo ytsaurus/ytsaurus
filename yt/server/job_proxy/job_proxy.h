@@ -11,6 +11,7 @@
 #include <ytlib/api/public.h>
 
 #include <ytlib/job_tracker_client/public.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <core/concurrency/public.h>
 
@@ -49,9 +50,12 @@ private:
     
     NApi::IClientPtr Client_;
 
+    std::atomic<bool> EnableJobProxyMemoryControl_ = { false };
+
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
     i64 JobProxyMemoryLimit_;
+    std::atomic<i64> MaxMemoryUsage_ = { 0 };
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
@@ -71,6 +75,8 @@ private:
 
     void RetrieveJobSpec();
     void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
+
+    NJobTrackerClient::TStatistics GetStatistics() const;
 
     std::unique_ptr<IUserJobIO> CreateUserJobIO();
     IJobPtr CreateBuiltinJob();

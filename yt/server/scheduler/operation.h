@@ -13,7 +13,6 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
-#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/hydra/public.h>
 

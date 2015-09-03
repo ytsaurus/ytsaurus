@@ -22,6 +22,8 @@ using namespace NVersionedTableClient;
 using namespace NYTree;
 using namespace NScheduler;
 
+using NJobTrackerClient::TStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = JobProxyProfiler;
@@ -113,8 +115,9 @@ std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const
 TStatistics TSimpleJobBase::GetStatistics() const
 {
     TStatistics result;
-    result.AddComplex("/data/input", Reader_->GetDataStatistics());
-    result.AddComplex(
+    result.AddSample("/data/input", Reader_->GetDataStatistics());
+    
+    result.AddSample(
         "/data/output/" + NYPath::ToYPathLiteral(0),
         Writer_->GetDataStatistics());
 

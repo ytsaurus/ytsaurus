@@ -47,6 +47,8 @@ using namespace NJobTrackerClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NApi;
 
+using NJobTrackerClient::TStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobProxyLogger;
@@ -122,8 +124,8 @@ public:
     virtual TStatistics GetStatistics() const override
     {
         TStatistics result;
-        result.AddComplex("/data/input", DataStatistics_);
-        result.AddComplex(
+        result.AddSample("/data/input", DataStatistics_);
+        result.AddSample(
             "/data/output/" + NYPath::ToYPathLiteral(0),
             DataStatistics_);
 

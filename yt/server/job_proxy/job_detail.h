@@ -47,7 +47,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
-    virtual NScheduler::TStatistics GetStatistics() const override;
+    virtual NJobTrackerClient::TStatistics GetStatistics() const override;
 
 protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;

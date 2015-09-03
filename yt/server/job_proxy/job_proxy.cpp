@@ -46,8 +46,6 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/scheduler/statistics.h>
-
 namespace NYT {
 namespace NJobProxy {
 
@@ -64,6 +62,8 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NCGroup;
+
+using NJobTrackerClient::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,7 +114,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(Job_->GetProgress());
-    ToProto(req->mutable_statistics(), NYTree::ConvertToYsonString(Job_->GetStatistics()).Data());
+    ToProto(req->mutable_statistics(), GetStatistics());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -196,23 +196,9 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        TStatistics jobStatistics = Job_->GetStatistics();
-
-        if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
-            auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
-            auto cpuStatistics = cpuAccounting.GetStatistics();
-            jobStatistics.AddComplex("/job_proxy/cpu", cpuStatistics);
-        }
-
-        if (Config_->IsCGroupSupported(TBlockIO::Name)) {
-            auto blockIO = GetCurrentCGroup<TBlockIO>();
-            auto blockIOStatistics = blockIO.GetStatistics();
-            jobStatistics.AddComplex("/job_proxy/block_io", blockIOStatistics);
-        }
-
-        ToProto(result.mutable_statistics(), NYTree::ConvertToYsonString(jobStatistics).Data());
+        ToProto(result.mutable_statistics(), GetStatistics());
     } else {
-        ToProto(result.mutable_statistics(), SerializedEmptyStatistics.Data());
+        result.mutable_statistics();
     }
 
     ReportResult(result);
@@ -296,6 +282,7 @@ TJobResult TJobProxy::DoRun()
 
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
+    EnableJobProxyMemoryControl_ = schedulerJobSpecExt.enable_job_proxy_memory_control();
 
     NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
     NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());
@@ -305,12 +292,10 @@ TJobResult TJobProxy::DoRun()
         BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod);
 
-    if (schedulerJobSpecExt.enable_job_proxy_memory_control()) {
-        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
-            GetSyncInvoker(),
-            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-            Config_->MemoryWatchdogPeriod);
-    }
+    MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
+        GetSyncInvoker(),
+        BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+        Config_->MemoryWatchdogPeriod);
 
     if (schedulerJobSpecExt.has_user_job_spec()) {
         auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
@@ -324,9 +309,7 @@ TJobResult TJobProxy::DoRun()
         Job_ = CreateBuiltinJob();
     }
 
-    if (MemoryWatchdogExecutor_) {
-        MemoryWatchdogExecutor_->Start();
-    }
+    MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
 
     return Job_->Run();
@@ -343,6 +326,29 @@ void TJobProxy::ReportResult(const TJobResult& result)
         LOG_ERROR(rspOrError, "Failed to report job result");
         Exit(EJobProxyExitCode::ResultReportFailed);
     }
+}
+
+TStatistics TJobProxy::GetStatistics() const
+{
+    YCHECK(Job_);
+    auto statistics = Job_->GetStatistics();
+
+    if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
+        auto cpuAccounting = GetCurrentCGroup<TCpuAccounting>();
+        auto cpuStatistics = cpuAccounting.GetStatistics();
+        statistics.AddSample("/job_proxy/cpu", cpuStatistics);
+    }
+
+    if (Config_->IsCGroupSupported(TBlockIO::Name)) {
+        auto blockIO = GetCurrentCGroup<TBlockIO>();
+        auto blockIOStatistics = blockIO.GetStatistics();
+        statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
+    }
+
+    statistics.AddSample("/job_proxy/max_memory", MaxMemoryUsage_);
+    statistics.AddSample("/job_proxy/memory_hog", MaxMemoryUsage_ > JobProxyMemoryLimit_ ? 1 : 0);
+
+    return statistics;
 }
 
 TJobProxyConfigPtr TJobProxy::GetConfig()
@@ -406,6 +412,7 @@ TNodeDirectoryPtr TJobProxy::GetNodeDirectory() const
 void TJobProxy::CheckMemoryUsage()
 {
     auto memoryUsage = GetProcessRss();
+    MaxMemoryUsage_ = std::max(MaxMemoryUsage_.load(), memoryUsage);
 
     LOG_DEBUG("Job proxy memory check (MemoryUsage: %v, MemoryLimit: %v)",
         memoryUsage,
@@ -418,7 +425,7 @@ void TJobProxy::CheckMemoryUsage()
         NLFAlloc::GetCurrentUsed(),
         NLFAlloc::GetCurrentMmapped());
 
-    if (memoryUsage > JobProxyMemoryLimit_) {
+    if (EnableJobProxyMemoryControl_ && memoryUsage > JobProxyMemoryLimit_) {
         LOG_FATAL("Job proxy memory limit exceeded (MemoryUsage: %v, MemoryLimit: %v, RefCountedTracker: %v)",
             memoryUsage,
             JobProxyMemoryLimit_,

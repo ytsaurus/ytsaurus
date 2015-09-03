@@ -182,7 +182,7 @@ public:
         Progress_ = value;
     }
 
-    virtual void SetStatistics(const NYTree::TYsonString& /*statistics*/) override
+    virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& /*statistics*/) override
     {
         YUNREACHABLE();
     }
