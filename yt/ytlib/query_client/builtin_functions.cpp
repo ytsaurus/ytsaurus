@@ -1,7 +1,7 @@
 #include "builtin_functions.h"
 
 #include "cg_fragment_compiler.h"
-#include "plan_helpers.h"
+#include "helpers.h"
 #include "plan_fragment.h"
 #include "private.h"
 
