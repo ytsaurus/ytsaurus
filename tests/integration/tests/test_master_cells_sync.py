@@ -1,6 +1,8 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+##################################################################
+
 def _create_drivers(environment):
     driver_names = ["driver_secondary_{0}".format(i)
                     for i in xrange(environment.NUM_SECONDARY_MASTER_CELLS)]
@@ -116,6 +118,8 @@ class TestMasterCellsSync(YTEnvSetup):
             return ok
 
         self._check_true_for_secondary(lambda driver: check(driver))
+
+##################################################################
 
 class TestMasterCellsSyncDelayed(TestMasterCellsSync):
     START_SECONDARY_MASTER_CELLS = False
