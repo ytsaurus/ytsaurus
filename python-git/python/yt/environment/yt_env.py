@@ -635,8 +635,12 @@ class YTEnv(object):
         self.log_paths[proxy_name] = os.path.join(current, "http_application.log")
 
     def _start_proxy_from_package(self, proxy_name):
-        proxy_binary_path = "/usr/lib/node_modules/yt/bin/yt_http_proxy"
-        if not os.path.exists(proxy_binary_path):
+        node_path = os.environ.get("NODE_PATH", "").split(":")
+        for path in node_path + ["/usr/lib/node_modules"]:
+            proxy_binary_path = os.path.join(path, "yt", "bin", "yt_http_proxy")
+            if os.path.exists(proxy_binary_path):
+                break
+        else:
             raise YtError("Failed to find YT http proxy binary. "
                           "Make sure you installed yandex-yt-http-proxy package")
 
