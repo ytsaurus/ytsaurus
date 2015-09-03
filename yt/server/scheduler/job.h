@@ -8,10 +8,11 @@
 #include <core/actions/callback.h>
 
 #include <ytlib/job_tracker_client/job.pb.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
-#include <ytlib/scheduler/statistics.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -55,7 +56,7 @@ public:
     void SetResult(const NJobTrackerClient::NProto::TJobResult& result);
 
     // Custom and builtin job statistics.
-    DEFINE_BYREF_RO_PROPERTY(TStatistics, Statistics);
+    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TStatistics, Statistics);
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);

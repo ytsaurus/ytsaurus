@@ -9,6 +9,7 @@ namespace NScheduler {
 
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -34,17 +35,16 @@ TJob::TJob(
     , Preemptable_(false)
 { }
 
-
 void TJob::FinalizeJob(const TInstant& finishTime)
 {
     FinishTime_ = finishTime;
-    Statistics_.Add("/time/total", GetDuration().MilliSeconds());
+    Statistics_.AddSample("/time/total", GetDuration().MilliSeconds());
     if (Result().has_prepare_time()) {
-        Statistics_.Add("/time/prepare", Result().prepare_time());
+        Statistics_.AddSample("/time/prepare", Result().prepare_time());
     }
 
     if (Result().has_exec_time()) {
-        Statistics_.Add("/time/exec", Result().exec_time());
+        Statistics_.AddSample("/time/exec", Result().exec_time());
     }
 }
 
@@ -56,11 +56,10 @@ TDuration TJob::GetDuration() const
 void TJob::SetResult(const NJobTrackerClient::NProto::TJobResult& result)
 {
     Result_ = result;
-    Statistics_ = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(Result_.statistics()));
+    Statistics_ = FromProto<TStatistics>(Result_.statistics());
 }
 
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
 } // namespace NYT
-

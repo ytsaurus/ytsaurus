@@ -1504,7 +1504,7 @@ private:
 
         job->SetState(EJobState::Aborted);
         ToProto(job->Result().mutable_error(), error);
-        ToProto(job->Result().mutable_statistics(), SerializedEmptyStatistics.Data());
+        job->Result().mutable_statistics();
 
         OnJobFinished(job);
 
@@ -2040,15 +2040,7 @@ private:
 
         switch (state) {
             case EJobState::Completed: {
-                if (jobStatus->has_result()) {
-                    auto statistics = ConvertTo<TStatistics>(TYsonString(jobStatus->result().statistics()));
-
-                    LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v})",
-                        GetTotalInputDataStatistics(statistics),
-                        GetTotalOutputDataStatistics(statistics));
-                } else {
-                    LOG_INFO("Job completed, removal scheduled");
-                }
+                LOG_INFO("Job completed, removal scheduled");
                 OnJobCompleted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
@@ -2073,11 +2065,7 @@ private:
             case EJobState::Running:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
-                    LOG_INFO("Aborting job (Address: %v, JobType: %v, JobId: %v, OperationId: %v)",
-                        jobAddress,
-                        job->GetType(),
-                        jobId,
-                        operation->GetId());
+                    LOG_INFO("Aborting job");
                     ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
                     switch (state) {

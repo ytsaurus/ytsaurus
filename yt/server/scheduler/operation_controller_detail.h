@@ -37,7 +37,7 @@
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/scheduler/statistics.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <server/chunk_server/public.h>
 
@@ -875,8 +875,8 @@ private:
     TIdGenerator JobIndexGenerator;
 
     //! Aggregates job statistics.
-    TAggregatedStatistics JobStatistics;
-    
+    NJobTrackerClient::TStatistics JobStatistics;
+
 
     NApi::IClientPtr CreateClient();
 

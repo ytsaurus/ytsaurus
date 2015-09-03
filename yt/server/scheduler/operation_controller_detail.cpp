@@ -3748,6 +3748,18 @@ const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(TJoble
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobPtr& job)
 {
+    auto statistics = job->Statistics();
+
+    try {
+        LOG_INFO("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
+            job->GetId(),
+            GetTotalInputDataStatistics(statistics),
+            GetTotalOutputDataStatistics(statistics));
+    } catch (const std::exception& ex) {
+        // This happens to failed or aborted jobs, if failure occured during startup phase.
+        LOG_INFO(ex, "Job doesn't have data statistics (JobId: %v)", job->GetId());
+    }
+
     Stroka suffix;
     if (job->GetRestarted()) {
         suffix = Format("/$/lost/%lv", job->GetType());
@@ -3755,9 +3767,8 @@ void TOperationControllerBase::UpdateJobStatistics(const TJobPtr& job)
         suffix = Format("/$/%lv/%lv", job->GetState(), job->GetType());
     }
 
-    auto statistics = job->Statistics();
     statistics.AddSuffixToNames(suffix);
-    JobStatistics.AddSample(statistics);
+    JobStatistics.Update(statistics);
 }
 
 void TOperationControllerBase::Persist(TPersistenceContext& context)

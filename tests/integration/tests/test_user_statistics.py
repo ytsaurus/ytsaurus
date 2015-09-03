@@ -49,7 +49,8 @@ class TestUserStatistics(YTEnvSetup):
 
         statistics = get("//sys/operations/{0}/@progress/job_statistics".format(op_id))
         assert get_statistics(statistics, "custom.cpu.k1.$.completed.map.max") == 4
-        assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 1
+        assert get_statistics(statistics, "custom.k2.$.completed.map.count") == 2
+        assert get_statistics(statistics, "custom.k2.$.completed.map.max") == 1
 
     def test_name_is_too_long(self):
         create("table", "//tmp/t1")
