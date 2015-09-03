@@ -44,6 +44,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${SRCS}
     ${BASE}/cg_routines.cpp
     ${BASE}/cg_ir_builder.cpp
+    ${BASE}/cg_helpers.cpp
     ${BASE}/cg_fragment_compiler.cpp
     ${BASE}/folding_profiler.cpp
     ${BASE}/evaluation_helpers.cpp
@@ -59,6 +60,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_types.h
     ${BASE}/cg_routines.h
     ${BASE}/cg_ir_builder.h
+    ${BASE}/cg_helpers.h
     ${BASE}/cg_fragment_compiler.h
     ${BASE}/folding_profiler.h
     ${BASE}/evaluation_helpers.h
