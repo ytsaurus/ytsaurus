@@ -10,7 +10,9 @@
 #include <ytlib/table_client/chunk_meta.pb.h>
 
 // TODO(sandello): Refine this dependencies.
+// TODO(lukyan): Remove this dependencies.
 #include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/query_preparer.h>
 #include <ytlib/query_client/folding_profiler.h>
 
 namespace NYT {

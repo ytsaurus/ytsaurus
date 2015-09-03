@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/ast.cpp
   ${BASE}/plan_fragment.cpp
   ${BASE}/plan_fragment_common.cpp
+  ${BASE}/query_preparer.cpp
   ${BASE}/query_statistics.cpp  
   ${BASE}/evaluator.cpp
   ${BASE}/column_evaluator.cpp
@@ -31,6 +32,7 @@ set( HDRS
   ${BASE}/ast.h
   ${BASE}/plan_fragment.h
   ${BASE}/plan_fragment_common.h
+  ${BASE}/query_preparer.h
   ${BASE}/query_statistics.h
   ${BASE}/evaluator.h
   ${BASE}/column_evaluator.h
