@@ -129,7 +129,7 @@ std::vector<TChunkDescriptor> TLocation::Scan()
     } catch (const std::exception& ex) {
         auto error = TError("Location scan failed") << ex;
         LOG_ERROR(error);
-        MakeDisabled();
+        MarkAsDisabled(ex);
     }
 
     return result;
@@ -145,7 +145,7 @@ void TLocation::Start()
     } catch (const std::exception& ex) {
         auto error = TError("Location startup failed") << ex;
         LOG_ERROR(error);
-        MakeDisabled();
+        MarkAsDisabled(ex);
     }
 }
 
@@ -332,11 +332,6 @@ void TLocation::CheckLockFile()
         }
     }
 
-    auto masterConnector = Bootstrap_->GetMasterConnector();
-    masterConnector->RegisterAlert(TError("Location at %v is disabled",
-        GetPath())
-        << error);
-
     THROW_ERROR error;
 }
 
@@ -346,8 +341,12 @@ void TLocation::OnHealthCheckFailed(const TError& error)
     YUNREACHABLE(); // Disable() exits the process.
 }
 
-void TLocation::MakeDisabled()
+void TLocation::MarkAsDisabled(const std::exception& ex)
 {
+    auto alert = TError("Location at %v is disabled", GetPath()) << ex;
+    auto masterConnector = Bootstrap_->GetMasterConnector();
+    masterConnector->RegisterAlert(alert);
+
     Enabled_.store(false);
 
     AvailableSpace_ = 0;
