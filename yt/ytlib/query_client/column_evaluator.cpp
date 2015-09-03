@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include "cg_fragment_compiler.h"
+#include "query_preparer.h"
 #include "query_statistics.h"
 #include "folding_profiler.h"
 

@@ -26,6 +26,7 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/query_preparer.h>
 #include <ytlib/query_client/udf_descriptor.h>
 
 #include <core/erasure/codec.h>

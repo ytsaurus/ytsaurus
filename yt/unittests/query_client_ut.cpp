@@ -13,6 +13,7 @@
 
 #include <ytlib/query_client/config.h>
 #include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/query_preparer.h>
 #include <ytlib/query_client/callbacks.h>
 #include <ytlib/query_client/helpers.h>
 #include <ytlib/query_client/coordinator.h>
