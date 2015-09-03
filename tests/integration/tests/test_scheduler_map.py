@@ -1025,6 +1025,25 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
+    def test_concurrent_fail(self):
+        create("table", "//tmp/input")
+
+        testing_options = {"scheduling_delay": 250}
+
+        job_count = 1000
+        original_data = [{"index": i} for i in xrange(job_count)]
+        write_table("//tmp/input", original_data)
+
+        create("table", "//tmp/output")
+        op_id = map(command="sleep 0.250; exit 1",
+            in_="//tmp/input",
+            out="//tmp/output",
+            spec={"data_size_per_job": 1, "max_failed_job_count": 10, "testing": testing_options},
+            dont_track=True)
+
+        with pytest.raises(YtError):
+            track_op(op_id)
+
     def test_many_parallel_operations(self):
         create("table", "//tmp/input")
 
