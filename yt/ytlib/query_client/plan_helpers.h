@@ -14,11 +14,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize);
-
-//! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName);
-
 //! Descends down to conjuncts and disjuncts and extract all constraints.
 TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
