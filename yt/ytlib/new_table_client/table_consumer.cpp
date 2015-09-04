@@ -151,7 +151,7 @@ void TTableConsumer::OnBooleanScalar(bool value)
     if (Depth_ == 0) {
         ThrowMapExpected();
     } else if (Depth_ == 1) {
-        CurrentValueConsumer_->OnValue(MakeBooleanValue<TUnversionedValue>(value, ColumnIndex_));
+        CurrentValueConsumer_->OnValue(MakeUnversionedBooleanValue(value, ColumnIndex_));
     } else {
         ValueWriter_.OnBooleanScalar(value);
     }
@@ -177,12 +177,12 @@ void TTableConsumer::OnEntity()
             YUNREACHABLE();
     }
 
-
     if (Depth_ == 0) {
         ThrowMapExpected();
+    } else if (Depth_ == 1) {
+        CurrentValueConsumer_->OnValue(MakeUnversionedSentinelValue(EValueType::Null, ColumnIndex_));
     } else {
         ValueWriter_.OnEntity();
-        FlushCurrentValueIfCompleted();
     }
 }
 
