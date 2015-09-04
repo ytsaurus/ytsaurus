@@ -390,12 +390,8 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
-
         if (oldAccount) {
-            if (isAccountingEnabled) {
-                UpdateAccountResourceUsage(node, oldAccount, -1);
-            }
+            UpdateAccountResourceUsage(node, oldAccount, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
@@ -403,9 +399,8 @@ public:
 
         UpdateNodeCachedResourceUsage(node);
 
-        if (isAccountingEnabled) {
-            UpdateAccountResourceUsage(node, account, +1);
-        }
+        UpdateAccountResourceUsage(node, account, +1);
+
         objectManager->RefObject(account);
     }
 
@@ -415,17 +410,12 @@ public:
         if (!account)
             return;
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-
-        bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
-
-        if (isAccountingEnabled) {
-            UpdateAccountResourceUsage(node, account, -1);
-        }
+        UpdateAccountResourceUsage(node, account, -1);
 
         node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
 
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(account);
     }
 
@@ -452,9 +442,6 @@ public:
         if (!account)
             return;
 
-        if (!IsUncommittedAccountingEnabled(node))
-            return;
-
         UpdateAccountResourceUsage(node, account, -1);
 
         UpdateNodeCachedResourceUsage(node);
@@ -462,12 +449,20 @@ public:
         UpdateAccountResourceUsage(node, account, +1);
     }
 
+    void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
+    {
+        if (node->GetAccountingEnabled() != enable) {
+            node->SetAccountingEnabled(enable);
+            UpdateAccountNodeUsage(node);
+        }
+    }
+
     void UpdateAccountStagingUsage(
         TTransaction* transaction,
         TAccount* account,
         const TClusterResources& delta)
     {
-        if (!IsStagedAccountingEnabled(transaction))
+        if (!transaction->GetAccountingEnabled())
             return;
 
         account->ClusterStatistics().ResourceUsage += delta;
@@ -1022,24 +1017,14 @@ private:
     TUser* AuthenticatedUser_ = nullptr;
 
 
-    static bool IsUncommittedAccountingEnabled(TCypressNodeBase* node)
-    {
-        auto* transaction = node->GetTransaction();
-        return !transaction || transaction->GetUncommittedAccountingEnabled();
-    }
-
-    static bool IsStagedAccountingEnabled(TTransaction* transaction)
-    {
-        return transaction->GetStagedAccountingEnabled();
-    }
-
-
     void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
-        if (!node->IsExternal()) {
+        if (!node->IsExternal() && node->GetAccountingEnabled()) {
             auto cypressManager = Bootstrap_->GetCypressManager();
             auto handler = cypressManager->GetHandler(node);
             node->CachedResourceUsage() = handler->GetAccountingResourceUsage(node);
+        } else {
+            node->CachedResourceUsage() = TClusterResources();
         }
     }
 
@@ -1875,6 +1860,11 @@ void TSecurityManager::RenameAccount(TAccount* account, const Stroka& newName)
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
 {
     Impl_->UpdateAccountNodeUsage(node);
+}
+
+void TSecurityManager::SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable)
+{
+    Impl_->SetNodeResourceAccounting(node, enable);
 }
 
 void TSecurityManager::UpdateAccountStagingUsage(

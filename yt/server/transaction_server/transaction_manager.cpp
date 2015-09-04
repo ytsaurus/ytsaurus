@@ -94,8 +94,7 @@ private:
         descriptors->push_back("state");
         descriptors->push_back(TAttributeDescriptor("timeout")
             .SetPresent(transaction->GetTimeout().HasValue()));
-        descriptors->push_back("uncommitted_accounting_enabled");
-        descriptors->push_back("staged_accounting_enabled");
+        descriptors->push_back("accounting_enabled");
         descriptors->push_back("parent_id");
         descriptors->push_back("start_time");
         descriptors->push_back("nested_transaction_ids");
@@ -126,15 +125,9 @@ private:
             return true;
         }
 
-        if (key == "uncommitted_accounting_enabled") {
+        if (key == "accounting_enabled") {
             BuildYsonFluently(consumer)
-                .Value(transaction->GetUncommittedAccountingEnabled());
-            return true;
-        }
-
-        if (key == "staged_accounting_enabled") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetStagedAccountingEnabled());
+                .Value(transaction->GetAccountingEnabled());
             return true;
         }
 
@@ -1041,10 +1034,7 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
 {
     const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
     auto timeout = TDuration::MilliSeconds(requestExt.timeout());
-    auto* transaction = Owner_->StartTransaction(parent, timeout, hintId);
-    transaction->SetUncommittedAccountingEnabled(requestExt.enable_uncommitted_accounting());
-    transaction->SetStagedAccountingEnabled(requestExt.enable_staged_accounting());
-    return transaction;
+    return Owner_->StartTransaction(parent, timeout, hintId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

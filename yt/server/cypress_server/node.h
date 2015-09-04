@@ -36,6 +36,10 @@ public:
     //! was delegated to. For non-external nodes, this is #NotReplicatedCellTag.
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag);
 
+    //! If |false| then resource accounting ignores this node completely.
+    //! Used by upload transactions, live preview etc.
+    DEFINE_BYVAL_RW_PROPERTY(bool, AccountingEnabled);
+
     typedef yhash_map<NTransactionServer::TTransaction*, TTransactionLockState> TLockStateMap;
     DEFINE_BYREF_RW_PROPERTY(TLockStateMap, LockStateMap);
 

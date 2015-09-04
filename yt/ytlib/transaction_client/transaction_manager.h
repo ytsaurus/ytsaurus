@@ -18,19 +18,6 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactionStartOptions
-    : public NApi::TTransactionStartOptions
-{
-    TTransactionStartOptions() = default;
-    TTransactionStartOptions(const TTransactionStartOptions& other) = default;
-    TTransactionStartOptions(const NApi::TTransactionStartOptions& other)
-        : NApi::TTransactionStartOptions(other)
-    { }
-
-    bool EnableUncommittedAccounting = true;
-    bool EnableStagedAccounting = true;
-};
-
 struct TTransactionAttachOptions
 {
     bool AutoAbort = false;
@@ -39,6 +26,7 @@ struct TTransactionAttachOptions
     bool PingAncestors = false;
 };
 
+using TTransactionStartOptions = NApi::TTransactionStartOptions;
 using TTransactionCommitOptions = NApi::TTransactionCommitOptions;
 using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
 

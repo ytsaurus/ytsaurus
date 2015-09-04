@@ -103,6 +103,9 @@ public:
     //! Updates the account to accommodate recent changes in #node resource usage.
     void UpdateAccountNodeUsage(NCypressServer::TCypressNodeBase* node);
 
+    //! Enables or disables accounting for a given node updating account usage appropriately.
+    void SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable);
+
     //! Updates the staging resource usage for a given account.
     void UpdateAccountStagingUsage(
         NTransactionServer::TTransaction* transaction,

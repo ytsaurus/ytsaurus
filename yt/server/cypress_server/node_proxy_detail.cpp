@@ -383,6 +383,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back("external");
     descriptors->push_back(TAttributeDescriptor("cell_tag")
         .SetPresent(isExternal));
+    descriptors->push_back("accounting_enabled");
     descriptors->push_back("locks");
     descriptors->push_back("lock_mode");
     descriptors->push_back(TAttributeDescriptor("path")
@@ -428,6 +429,12 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     if (key == "cell_tag" && isExternal) {
         BuildYsonFluently(consumer)
             .Value(node->GetExternalCellTag());
+        return true;
+    }
+
+    if (key == "accounting_enabled") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetAccountingEnabled());
         return true;
     }
 
@@ -902,6 +909,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     factory->Commit();
 
     auto* newNode = newProxy->GetTrunkNode();
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->SetNodeResourceAccounting(newNode, request->enable_accounting());
+
     const auto& newNodeId = newNode->GetId();
     auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
         ? Bootstrap_->GetCellTag()

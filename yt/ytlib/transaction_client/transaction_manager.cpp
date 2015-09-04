@@ -573,8 +573,6 @@ private:
         }
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
-        reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
         reqExt->set_timeout(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
         if (options.ParentId) {
