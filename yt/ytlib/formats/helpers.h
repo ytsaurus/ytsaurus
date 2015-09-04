@@ -5,6 +5,8 @@
 #include <core/yson/consumer.h>
 #include <core/yson/parser.h>
 
+#include <core/misc/blob_output.h>
+
 namespace NYT {
 namespace NFormats {
 
@@ -21,6 +23,32 @@ public:
 
 private:
     NYson::TStatelessYsonParser Parser;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TContextSavingMixin
+{
+protected:
+    explicit TContextSavingMixin(
+        bool enableContextSaving,
+        std::unique_ptr<TOutputStream> output);
+
+    TOutputStream* GetOutputStream();
+
+    TBlob GetContext() const;
+
+    void TryFlushBuffer();
+
+    void Close();
+
+private:
+    bool EnableContextSaving_;
+    TBlobOutput CurrentBuffer_;
+    TBlobOutput PreviousBuffer_;
+    std::unique_ptr<TOutputStream> Output_;
+
+    void DoFlushBuffer(bool force);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
