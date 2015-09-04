@@ -27,6 +27,7 @@ message TReqCreate
     optional NYT.NYTree.NProto.TAttributes node_attributes = 2;
     optional bool recursive = 3 [default = false];
     optional bool ignore_existing = 4 [default = false];
+    optional bool enable_accounting = 5 [default = true];
 }
 
 message TRspCreate

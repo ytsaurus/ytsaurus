@@ -1193,8 +1193,6 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
-        reqExt->set_enable_uncommitted_accounting(false);
-        reqExt->set_enable_staged_accounting(false);
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Scheduler async for operation %v", OperationId));
@@ -1326,7 +1324,6 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
         auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
-        reqExt->set_enable_uncommitted_accounting(false);
         reqExt->set_timeout(Config->OperationTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();

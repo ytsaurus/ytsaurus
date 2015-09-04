@@ -791,7 +791,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         Transaction,
         uploadTransactionTimeout,
         uploadTransactionIdHint);
-    uploadTransaction->SetUncommittedAccountingEnabled(false);
+
+    auto* node = GetThisTypedImpl<TChunkOwnerBase>();
+    uploadTransaction->SetAccountingEnabled(node->GetAccountingEnabled());
 
     auto attributes = CreateEphemeralAttributes();
     if (uploadTransactionTitle) {
@@ -800,10 +802,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
     objectManager->FillAttributes(uploadTransaction, *attributes);
 
-    auto* node = static_cast<TChunkOwnerBase*>(cypressManager->LockNode(
+    auto* lockedNode = static_cast<TChunkOwnerBase*>(cypressManager->LockNode(
         TrunkNode,
         uploadTransaction,
         lockMode));
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->SetNodeResourceAccounting(lockedNode, false);
 
     switch (updateMode) {
         case EUpdateMode::Append: {
@@ -811,16 +816,16 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                 LOG_DEBUG_UNLESS(
                     IsRecovery(),
                     "Node is switched to \"append\" mode (NodeId: %v)",
-                    node->GetId());
+                    lockedNode->GetId());
 
             } else {
-                auto* snapshotChunkList = node->GetChunkList();
+                auto* snapshotChunkList = lockedNode->GetChunkList();
 
                 auto* newChunkList = chunkManager->CreateChunkList();
-                YCHECK(newChunkList->OwningNodes().insert(node).second);
+                YCHECK(newChunkList->OwningNodes().insert(lockedNode).second);
 
-                YCHECK(snapshotChunkList->OwningNodes().erase(node) == 1);
-                node->SetChunkList(newChunkList);
+                YCHECK(snapshotChunkList->OwningNodes().erase(lockedNode) == 1);
+                lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);
 
                 chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
@@ -849,13 +854,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     "Node is switched to \"overwrite\" mode (NodeId: %v)",
                     node->GetId());
             } else {
-                auto* oldChunkList = node->GetChunkList();
-                YCHECK(oldChunkList->OwningNodes().erase(node) == 1);
+                auto* oldChunkList = lockedNode->GetChunkList();
+                YCHECK(oldChunkList->OwningNodes().erase(lockedNode) == 1);
                 objectManager->UnrefObject(oldChunkList);
 
                 auto* newChunkList = chunkManager->CreateChunkList();
-                YCHECK(newChunkList->OwningNodes().insert(node).second);
-                node->SetChunkList(newChunkList);
+                YCHECK(newChunkList->OwningNodes().insert(lockedNode).second);
+                lockedNode->SetChunkList(newChunkList);
                 objectManager->RefObject(newChunkList);
 
                 LOG_DEBUG_UNLESS(
@@ -871,7 +876,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             YUNREACHABLE();
     }
 
-    node->BeginUpload(updateMode);
+    lockedNode->BeginUpload(updateMode);
 
     const auto& uploadTransactionId = uploadTransaction->GetId();
     ToProto(response->mutable_upload_transaction_id(), uploadTransactionId);

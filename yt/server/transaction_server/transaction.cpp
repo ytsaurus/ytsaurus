@@ -17,8 +17,7 @@ using namespace NCellMaster;
 
 TTransaction::TTransaction(const TTransactionId& id)
     : TNonversionedObjectBase(id)
-    , UncommittedAccountingEnabled_(true)
-    , StagedAccountingEnabled_(true)
+    , AccountingEnabled_(true)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
@@ -31,8 +30,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, GetPersistentState());
     Save(context, Timeout_);
-    Save(context, UncommittedAccountingEnabled_);
-    Save(context, StagedAccountingEnabled_);
+    Save(context, AccountingEnabled_);
     Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
@@ -57,8 +55,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, State_);
     Load(context, Timeout_);
-    Load(context, UncommittedAccountingEnabled_);
-    Load(context, StagedAccountingEnabled_);
+    Load(context, AccountingEnabled_);
     Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);

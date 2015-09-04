@@ -20,6 +20,7 @@ using namespace NCellMaster;
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : TObjectBase(id.ObjectId)
     , ExternalCellTag_(NotReplicatedCellTag)
+    , AccountingEnabled_(true)
     , LockMode_(ELockMode::None)
     , TrunkNode_(nullptr)
     , Transaction_(nullptr)
@@ -93,6 +94,7 @@ void TCypressNodeBase::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, ExternalCellTag_);
+    Save(context, AccountingEnabled_);
     Save(context, LockStateMap_);
     Save(context, AcquiredLocks_);
     Save(context, PendingLocks_);
@@ -116,6 +118,7 @@ void TCypressNodeBase::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 200) {
         Load(context, ExternalCellTag_);
+        Load(context, AccountingEnabled_);
     }
     Load(context, LockStateMap_);
     Load(context, AcquiredLocks_);
