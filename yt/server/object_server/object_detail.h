@@ -96,6 +96,18 @@ protected:
     virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
+    //! Called before attribute #key is updated (added, removed or changed).
+    virtual void ValidateCustomAttributeUpdate(
+        const Stroka& key,
+        const TNullable<NYson::TYsonString>& oldValue,
+        const TNullable<NYson::TYsonString>& newValue);
+
+    //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
+    void GuardedValidateCustomAttributeUpdate(
+        const Stroka& key,
+        const TNullable<NYson::TYsonString>& oldValue,
+        const TNullable<NYson::TYsonString>& newValue);
+
     void DeclareMutating();
     void DeclareNonMutating();
 

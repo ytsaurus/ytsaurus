@@ -220,21 +220,6 @@ protected:
         TRspRemove* response,
         TCtxRemovePtr context) override;
 
-    //! Called before attribute #key is updated (added, removed or changed).
-    virtual void ValidateCustomAttributeUpdate(
-        const Stroka& key,
-        const TNullable<NYson::TYsonString>& oldValue,
-        const TNullable<NYson::TYsonString>& newValue);
-
-    //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
-    void GuardedValidateCustomAttributeUpdate(
-        const Stroka& key,
-        const TNullable<NYson::TYsonString>& oldValue,
-        const TNullable<NYson::TYsonString>& newValue);
-
-    //! Called after some custom attributes are changed.
-    virtual void OnCustomAttributesUpdated();
-
 private:
     TFuture<NYson::TYsonString> DoFindAttribute(const Stroka& key);
 
