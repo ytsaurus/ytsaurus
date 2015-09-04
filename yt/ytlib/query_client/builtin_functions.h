@@ -14,10 +14,10 @@ class TCodegenFunction
     : public virtual IFunctionDescriptor
 {
     virtual TCGValue CodegenValue(
+        TCGContext& builder,
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         const Stroka& name,
-        TCGContext& builder,
         Value* row) const = 0;
 
     virtual TCodegenExpression MakeCodegenExpr(
@@ -38,10 +38,10 @@ public:
     TIfFunction();
 
     virtual TCGValue CodegenValue(
+        TCGContext& builder,
         std::vector<TCodegenExpression> codegenArgs,
         EValueType type,
         const Stroka& name,
-        TCGContext& builder,
         Value* row) const override;
 };
 
