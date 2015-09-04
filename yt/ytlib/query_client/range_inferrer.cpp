@@ -510,7 +510,7 @@ void EnrichKeyRange(
             rangeCount * estimation <= *rangeExpansionLeft)
         {
             rangeCount *= estimation;
-        } else {
+        } else if (estimation > 1) {
             break;
         }
 
