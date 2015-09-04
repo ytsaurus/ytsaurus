@@ -345,5 +345,5 @@ TEST(TTskvWriterTest, EscapingOfCustomSeparator)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NDriver
+} // namespace NFormats
 } // namespace NYT
