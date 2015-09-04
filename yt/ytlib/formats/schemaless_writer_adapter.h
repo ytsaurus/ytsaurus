@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "format.h"
+#include "helpers.h"
 
 #include <ytlib/new_table_client/public.h>
 #include <ytlib/new_table_client/schemaless_writer.h>
@@ -9,8 +10,6 @@
 #include <core/yson/public.h>
 
 #include <core/concurrency/public.h>
-
-#include <core/misc/blob_output.h>
 
 #include <memory>
 
@@ -21,6 +20,7 @@ namespace NFormats {
 
 class TSchemalessWriterAdapter
     : public ISchemalessFormatWriter
+    , public TContextSavingMixin
 {
 public:
     TSchemalessWriterAdapter(
@@ -55,12 +55,6 @@ private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
     NVersionedTableClient::TNameTablePtr NameTable_;
 
-    std::unique_ptr<TOutputStream> Output_;
-
-    bool EnableContextSaving_;
-    TBlobOutput CurrentBuffer_;
-    TBlobOutput PreviousBuffer_;
-
     bool EnableKeySwitch_;
     NVersionedTableClient::TOwningKey LastKey_;
     NVersionedTableClient::TKey CurrentKey_;
@@ -76,7 +70,6 @@ private:
         T value);
 
     void ConsumeRow(const NVersionedTableClient::TUnversionedRow& row);
-    void FlushBuffer();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

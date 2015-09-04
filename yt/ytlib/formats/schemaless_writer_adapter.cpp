@@ -22,9 +22,6 @@ using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 
-////////////////////////////////////////////////////////////////////////////////
-
-static const size_t BufferSize = 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,18 +32,12 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
-    : NameTable_(nameTable)
-    , Output_(CreateSyncAdapter(std::move(output)))
-    , EnableContextSaving_(enableContextSaving)
+    : TContextSavingMixin(enableContextSaving, CreateSyncAdapter(std::move(output)))
+    , NameTable_(nameTable)
     , EnableKeySwitch_(enableKeySwitch)
     , KeyColumnCount_(keyColumnCount)
 {
-    CurrentBuffer_.Reserve(BufferSize);
-    Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
-
-    if (EnableContextSaving_) {
-        PreviousBuffer_.Reserve(BufferSize);
-    }
+    Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
 TFuture<void> TSchemalessWriterAdapter::Open()
@@ -71,16 +62,10 @@ bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
             }
 
             ConsumeRow(row);
-
-            if (CurrentBuffer_.Size() >= BufferSize) {
-                FlushBuffer();
-            }
+            TryFlushBuffer();
         }
 
-        if (!EnableContextSaving_ && CurrentBuffer_.Size() > 0) {
-            // If context saving is not enabled, flush buffer asap.
-            FlushBuffer();
-        }
+        TryFlushBuffer();
 
         if (EnableKeySwitch_ && CurrentKey_) {
             LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
@@ -102,8 +87,7 @@ TFuture<void> TSchemalessWriterAdapter::GetReadyEvent()
 TFuture<void> TSchemalessWriterAdapter::Close()
 {
     try {
-        FlushBuffer();
-        Output_->Finish();
+        TContextSavingMixin::Close();
     } catch (const std::exception& ex) {
         Error_ = TError(ex);
     }
@@ -121,6 +105,11 @@ bool TSchemalessWriterAdapter::IsSorted() const
     return false;
 }
 
+TBlob TSchemalessWriterAdapter::GetContext() const
+{
+    return TContextSavingMixin::GetContext();
+}
+
 void TSchemalessWriterAdapter::WriteTableIndex(int tableIndex)
 {
     WriteControlAttribute(EControlAttribute::TableIndex, tableIndex);
@@ -134,14 +123,6 @@ void TSchemalessWriterAdapter::WriteRangeIndex(i32 rangeIndex)
 void TSchemalessWriterAdapter::WriteRowIndex(i64 rowIndex)
 {
     WriteControlAttribute(EControlAttribute::RowIndex, rowIndex);
-}
-
-TBlob TSchemalessWriterAdapter::GetContext() const
-{
-    TBlob result;
-    result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
-    result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
-    return result;
 }
 
 template <class T>
@@ -192,17 +173,6 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
         }
     }
     Consumer_->OnEndMap();
-}
-
-void TSchemalessWriterAdapter::FlushBuffer()
-{
-    const auto& buffer = CurrentBuffer_.Blob();
-    Output_->Write(buffer.Begin(), buffer.Size());
-
-    if (EnableContextSaving_) {
-        std::swap(PreviousBuffer_, CurrentBuffer_);
-    }
-    CurrentBuffer_.Clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
