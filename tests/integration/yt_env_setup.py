@@ -3,15 +3,17 @@ import yt_commands
 from yt.environment import YTEnv
 import yt_driver_bindings
 
+import pytest
+
 import gc
 import os
 import logging
 import uuid
-import pytest
-
+import shutil
 from time import sleep
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
+SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 TOOLS_ROOTDIR = os.path.abspath('tools')
 
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
@@ -48,6 +50,7 @@ class YTEnvSetup(YTEnv):
 
         if test_name is None:
             test_name = cls.__name__
+        cls.test_name = test_name
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running parallel
@@ -68,6 +71,16 @@ class YTEnvSetup(YTEnv):
         cls.Env.clear_environment()
         yt_commands.driver = None
         gc.collect()
+
+        if SANDBOX_STORAGE_ROOTDIR is not None:
+            if not os.path.exists(SANDBOX_STORAGE_ROOTDIR):
+                os.makedirs(SANDBOX_STORAGE_ROOTDIR)
+            
+            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
+            if os.path.exists(destination_path):
+                shutil.rmtree(destination_path)
+
+            shutil.move(cls.path_to_test, os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name))
 
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
