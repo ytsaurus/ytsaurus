@@ -4,8 +4,8 @@
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/yson/public.h>
 
-struct TInputStream;
-struct TOutputStream;
+class TInputStream;
+class TOutputStream;
 
 namespace NYT {
 
