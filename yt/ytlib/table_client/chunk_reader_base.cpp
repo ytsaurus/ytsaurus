@@ -279,8 +279,9 @@ int TChunkReaderBase::ApplyUpperKeyLimit(const TBlockMetaExt& blockMeta) const
 TDataStatistics TChunkReaderBase::GetDataStatistics() const
 {
     if (!SequentialReader_) {
-        return ZeroDataStatistics();
+        return TDataStatistics();
     }
+
     TDataStatistics dataStatistics;
     dataStatistics.set_chunk_count(1);
     dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());

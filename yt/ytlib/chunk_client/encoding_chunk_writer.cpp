@@ -81,7 +81,7 @@ double TEncodingChunkWriter::GetCompressionRatio() const
 
 NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 {
-    NProto::TDataStatistics result = NChunkClient::NProto::ZeroDataStatistics();
+    NProto::TDataStatistics result;
     if (CurrentBlockIndex_ > 0) {
         result.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
         result.set_compressed_data_size(EncodingWriter_->GetCompressedSize());

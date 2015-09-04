@@ -66,24 +66,6 @@ bool operator != (const TDataStatistics& lhs, const TDataStatistics& rhs)
     return !(lhs == rhs);
 }
 
-TDataStatistics GetZeroDataStatistics()
-{
-    TDataStatistics dataStatistics;
-    dataStatistics.set_chunk_count(0);
-    dataStatistics.set_row_count(0);
-    dataStatistics.set_uncompressed_data_size(0);
-    dataStatistics.set_compressed_data_size(0);
-    dataStatistics.set_regular_disk_space(0);
-    dataStatistics.set_erasure_disk_space(0);
-    return dataStatistics;
-}
-
-const TDataStatistics& ZeroDataStatistics()
-{
-    static const TDataStatistics dataStatistics = GetZeroDataStatistics();
-    return dataStatistics;
-}
-
 void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
