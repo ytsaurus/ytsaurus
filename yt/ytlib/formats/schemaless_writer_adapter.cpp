@@ -164,11 +164,6 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
     for (auto* it = row.Begin(); it != row.End(); ++it) {
         auto& value = *it;
 
-        if (value.Type == EValueType::Null) {
-            // Simply skip null values.
-            continue;
-        }
-
         Consumer_->OnKeyedItem(NameTable_->GetName(value.Id));
         switch (value.Type) {
             case EValueType::Int64:
@@ -185,6 +180,9 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
                 break;
             case EValueType::String:
                 Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                break;
+            case EValueType::Null:
+                Consumer_->OnEntity();
                 break;
             case EValueType::Any:
                 Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
