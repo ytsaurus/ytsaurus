@@ -363,6 +363,9 @@ describe("YtCommand - command descriptors", function() {
             'write_journal',
             'write_table',
             '_discover_versions',
+            '_list_operations',
+            '_get_operation',
+            '_get_scheduling_information',
         ];
         ask("GET", "/v3", {},
         function(rsp) {
