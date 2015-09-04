@@ -79,7 +79,6 @@ T TStatistics::GetComplex(const NYPath::TYPath& path) const
     return result;
  }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

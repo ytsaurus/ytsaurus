@@ -25,8 +25,6 @@ bool operator != (const TDataStatistics& lhs, const TDataStatistics& rhs);
 void Serialize(const TDataStatistics& statistics, NYson::IYsonConsumer* consumer);
 void Deserialize(TDataStatistics& value, NYTree::INodePtr node);
 
-const TDataStatistics& ZeroDataStatistics();
-
 Stroka ToString(const TDataStatistics& statistics);
 
 } // namespace NProto

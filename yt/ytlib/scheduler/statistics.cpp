@@ -68,7 +68,7 @@ TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics)
 {
     auto outputStatistics = statistics.GetComplex<yhash_map<Stroka, TDataStatistics>>("/data/output");
 
-    TDataStatistics result = ZeroDataStatistics();
+    TDataStatistics result;
     for (const auto& pair : outputStatistics) {
         result += pair.second;
     }
