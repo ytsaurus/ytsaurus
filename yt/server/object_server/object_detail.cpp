@@ -622,6 +622,32 @@ bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
     return false;
 }
 
+void TObjectProxyBase::ValidateCustomAttributeUpdate(
+    const Stroka& /*key*/,
+    const TNullable<TYsonString>& /*oldValue*/,
+    const TNullable<TYsonString>& /*newValue*/)
+{ }
+
+void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
+    const Stroka& key,
+    const TNullable<TYsonString>& oldValue,
+    const TNullable<TYsonString>& newValue)
+{
+    try {
+        ValidateCustomAttributeUpdate(key, oldValue, newValue);
+    } catch (const std::exception& ex) {
+        if (newValue) {
+            THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
+                ToYPathLiteral(key))
+                    << ex;
+        } else {
+            THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
+                ToYPathLiteral(key))
+                    << ex;
+        }
+    }
+}
+
 void TObjectProxyBase::DeclareMutating()
 {
     YCHECK(NHydra::HasMutationContext());

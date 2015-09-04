@@ -606,8 +606,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
 
         std::vector<TFuture<void>> asyncResults;
 
-        bool customChanged = false;
-
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::EndOfStream: {
@@ -627,7 +625,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
                             permissionValidator.Validate(EPermission::Write);
 
                             YCHECK(customAttributes->Remove(key));
-                            customChanged = true;
                         }
                     }
 
@@ -639,7 +636,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
                             permissionValidator.Validate(EPermission::Write);
 
                             customAttributes->SetYson(key, newAttributes->GetYson(key));
-                            customChanged = true;
 
                             YCHECK(newAttributes->Remove(key));
                         }
@@ -735,7 +731,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
 
                     if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                         customAttributes->SetYson(key, newYson);
-                        customChanged = true;
                     } else {
                         auto oldWholeYson = customAttributes->FindYson(key);
                         if (!oldWholeYson) {
@@ -747,7 +742,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
                         auto newWholeYson = ConvertToYsonStringStable(wholeNode);
 
                         customAttributes->SetYson(key, newWholeYson);
-                        customChanged = true;
                     }
                 }
 
@@ -756,10 +750,6 @@ TFuture<void> TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYso
 
             default:
                 tokenizer.ThrowUnexpected();
-        }
-
-        if (customChanged) {
-            OnCustomAttributesUpdated();
         }
 
         return Combine(asyncResults);
@@ -796,8 +786,6 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
 
         std::vector<TFuture<void>> asyncResults;
 
-        bool customChanged = false;
-
         NYPath::TTokenizer tokenizer(path);
         switch (tokenizer.Advance()) {
             case NYPath::ETokenType::Asterisk: {
@@ -827,7 +815,6 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         permissionValidator.Validate(EPermission::Write);
 
                         YCHECK(customAttributes->Remove(key));
-                        customChanged = true;
                     }
                 }
                 break;
@@ -841,7 +828,6 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         permissionValidator.Validate(EPermission::Write);
 
                         YCHECK(customAttributes->Remove(key));
-                        customChanged = true;
                     } else {
                         if (!builtinAttributeProvider) {
                             ThrowNoSuchCustomAttribute(key);
@@ -873,7 +859,6 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                         auto updatedCustomYson = ConvertToYsonStringStable(customNode);
 
                         customAttributes->SetYson(key, updatedCustomYson);
-                        customChanged = true;
                     } else {
                         if (!builtinAttributeProvider) {
                             ThrowNoSuchBuiltinAttribute(key);
@@ -912,10 +897,6 @@ TFuture<void> TSupportsAttributes::DoRemoveAttribute(const TYPath& path)
                 break;
         }
 
-        if (customChanged) {
-            OnCustomAttributesUpdated();
-        }
-
         return Combine(asyncResults);
     } catch (const std::exception& ex) {
         return MakeFuture(TError(ex));
@@ -933,15 +914,6 @@ void TSupportsAttributes::RemoveAttribute(
     auto result = DoRemoveAttribute(path);
     context->ReplyFrom(result);
 }
-
-void TSupportsAttributes::ValidateCustomAttributeUpdate(
-    const Stroka& /*key*/,
-    const TNullable<TYsonString>& /*oldValue*/,
-    const TNullable<TYsonString>& /*newValue*/)
-{ }
-
-void TSupportsAttributes::OnCustomAttributesUpdated()
-{ }
 
 IAttributeDictionary* TSupportsAttributes::GetCustomAttributes()
 {
@@ -1001,26 +973,6 @@ TFuture<void> TSupportsAttributes::GuardedRemoveBuiltinAttribute(const Stroka& k
     // NB: Async removal is not currently supported.
 
     return Null;
-}
-
-void TSupportsAttributes::GuardedValidateCustomAttributeUpdate(
-    const Stroka& key,
-    const TNullable<TYsonString>& oldValue,
-    const TNullable<TYsonString>& newValue)
-{
-    try {
-        ValidateCustomAttributeUpdate(key, oldValue, newValue);
-    } catch (const std::exception& ex) {
-        if (newValue) {
-            THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
-                ToYPathLiteral(key))
-                << ex;
-        } else {
-            THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
-                ToYPathLiteral(key))
-                << ex;
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
