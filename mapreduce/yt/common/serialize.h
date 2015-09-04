@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IYsonConsumer;
+struct IYsonConsumer;
 
 void Serialize(const Stroka& value, IYsonConsumer* consumer);
 void Serialize(const TStringBuf& value, IYsonConsumer* consumer);
