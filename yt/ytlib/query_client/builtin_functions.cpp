@@ -27,10 +27,10 @@ TCodegenExpression TCodegenFunction::MakeCodegenExpr(
         name
     ] (TCGContext& builder, Value* row) {
         return CodegenValue(
+            builder,
             codegenArgs,
             type,
             name,
-            builder,
             row);
     };
 }
@@ -45,10 +45,10 @@ TIfFunction::TIfFunction() : TTypedFunction(
 { }
 
 TCGValue TIfFunction::CodegenValue(
+    TCGContext& builder,
     std::vector<TCodegenExpression> codegenArgs,
     EValueType type,
     const Stroka& name,
-    TCGContext& builder,
     Value* row) const
 {
     auto nameTwine = Twine(name.c_str());
