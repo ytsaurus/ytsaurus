@@ -531,6 +531,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=No
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
         return StringIO() if raw else EMPTY_GENERATOR
     attributes = get(table.name + "/@", client=client)
+    if attributes.get("type") != "table":
+        raise YtError("Command read is supported only for tables")
     if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] / attributes["chunk_count"] < MB:
         logger.info("Table chunks are too small; consider running the following command to improve read performance: "
                     "yt merge --proxy {1} --src {0} --dst {0} "
