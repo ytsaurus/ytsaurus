@@ -1,4 +1,5 @@
 from yt.wrapper.table import TablePath, TempTable
+from yt.wrapper.client import Yt
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, check, get_temp_dsv_records
@@ -378,4 +379,33 @@ class TestTableCommands(object):
             assert yt.get_attribute(table, "locks") == []
         finally:
             yt.config.TRANSACTION = "0-0-0-0"
+
+    def _set_banned(self, value):
+        # NB: we cannot unban proxy using proxy, so we must using client for that.
+        client = Yt(config={"backend": "native", "driver_config": yt.config["driver_config"]})
+        proxy = "//sys/proxies/" + client.list("//sys/proxies")[0]
+        client.set(proxy + "/@banned".format(proxy), value)
+        time.sleep(1)
+
+    def test_banned_proxy(self):
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+
+        self._set_banned("true")
+
+        old_request_retry_count = yt.config["proxy"]["request_retry_count"]
+        yt.config["proxy"]["request_retry_count"] = 1
+        try:
+            with pytest.raises(yt.YtProxyUnavailable):
+                yt.get(table)
+
+            try:
+                yt.get(table)
+            except yt.YtProxyUnavailable as err:
+                assert "banned" in str(err)
+
+        finally:
+            yt.config["proxy"]["request_retry_count"] = old_request_retry_count
+            self._set_banned("false")
+
 
