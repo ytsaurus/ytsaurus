@@ -56,6 +56,11 @@ private:
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
         auto scheduler = Bootstrap->GetScheduler();
         auto node = scheduler->GetOrRegisterNode(addresses);
+        if (node->GetBanned()) {
+            context->Reply(TError("Node is banned"));
+            return;
+        }
+
         scheduler->ProcessHeartbeat(node, context);
     }
 

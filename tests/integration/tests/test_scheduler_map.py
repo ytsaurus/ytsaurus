@@ -519,13 +519,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for i in xrange(2):
             write("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = """cat >/dev/null; 
+        command = """cat >/dev/null;
            if [ "$YT_JOB_INDEX" = "0" ]; then
-               k1=0; k2=1; 
+               k1=0; k2=1;
            else
-               k1=0; k2=0; 
+               k1=0; k2=0;
            fi
-           echo "{key=$k1; value=one}; {key=$k2; value=two}" 
+           echo "{key=$k1; value=one}; {key=$k2; value=two}"
         """
 
         map(in_="//tmp/t1",
@@ -967,7 +967,7 @@ print row + table_index
         map(in_="//tmp/t1", out="//tmp/t2", command="head -1",
             spec={"mapper": {"input_format" : "dsv", "output_format" : "dsv"}})
 
-        assert read("//tmp/t2") == [{"foo": "bar"}] 
+        assert read("//tmp/t2") == [{"foo": "bar"}]
 
 
     def test_live_preview(self):
@@ -1013,3 +1013,24 @@ print row + table_index
         actual_rate = len(new_data_t2) * 1.0 / len(original_data)
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
+
+    def _set_banned(self, value):
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{0}/@banned".format(node), value)
+
+    def test_banned_node(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write("//tmp/in", [{"key": "value"}])
+
+        try:
+            op_id = map(dont_track=True, in_="//tmp/in", out="//tmp/out", command="cat; sleep 3")
+            time.sleep(2.5)
+            self._set_banned("true")
+            self._set_banned("false")
+            track_op(op_id)
+            assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) > 0
+            assert [{"key": "value"}] == read("//tmp/in")
+        finally:
+            self._set_banned("false")
+

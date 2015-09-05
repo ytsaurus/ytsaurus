@@ -927,7 +927,7 @@ private:
         LOG_INFO("Updating nodes information");
 
         auto req = TYPathProxy::Get("//sys/nodes");
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags"});
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags", "banned"});
         ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_nodes");
     }
@@ -945,13 +945,20 @@ private:
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
-                auto node = child.second;
-                auto schedulingTags = node->Attributes().Find<std::vector<Stroka>>("scheduling_tags");
-                if (!schedulingTags) {
-                    continue;
-                }
                 if (AddressToNode_.find(address) == AddressToNode_.end()) {
                     LOG_WARNING("Node %v is not registered in scheduler", address);
+                    continue;
+                }
+
+                auto node = child.second;
+                auto banned = node->Attributes().Get<bool>("banned");
+                AddressToNode_[address]->SetBanned(banned);
+                if (banned) {
+                    AbortJobsOnNode(AddressToNode_[address], "banned");
+                }
+
+                auto schedulingTags = node->Attributes().Find<std::vector<Stroka>>("scheduling_tags");
+                if (!schedulingTags) {
                     continue;
                 }
 
@@ -1293,6 +1300,22 @@ private:
         return node;
     }
 
+    void AbortJobsOnNode(TExecNodePtr node, Stroka reason)
+    {
+        // Make a copy, the collection will be modified.
+        auto jobs = node->Jobs();
+        const auto& address = node->GetDefaultAddress();
+        for (auto job : jobs) {
+            LOG_INFO("Aborting job on an %v node %v (JobId: %v, OperationId: %v)",
+                reason,
+                address,
+                job->GetId(),
+                job->GetOperation()->GetId());
+            AbortJob(job, TError("Node %v", reason));
+            UnregisterJob(job);
+        }
+    }
+
     void UnregisterNode(TExecNodePtr node)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1302,18 +1325,7 @@ private:
         TotalResourceLimits_ -= node->ResourceLimits();
         TotalResourceUsage_ -= node->ResourceUsage();
 
-        // Make a copy, the collection will be modified.
-        auto jobs = node->Jobs();
-        const auto& address = node->GetDefaultAddress();
-        for (auto job : jobs) {
-            LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
-                address,
-                job->GetId(),
-                job->GetOperation()->GetId());
-            AbortJob(job, TError("Node offline"));
-            UnregisterJob(job);
-        }
-        YCHECK(AddressToNode_.erase(address) == 1);
+        AbortJobsOnNode(node, "offline");
 
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] -= node->ResourceLimits();
@@ -1617,7 +1629,7 @@ private:
         auto jobFailed = job->GetState() == EJobState::Failed;
         const auto& schedulerResultExt = job->Result().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id() 
+        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id()
             ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
             : NullChunkId;
 
