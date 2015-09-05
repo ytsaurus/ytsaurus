@@ -22,6 +22,107 @@ using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 
+////////////////////////////////////////////////////////////////////////////////
+
+const i64 ContextBufferSize = (i64) 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
+    TNameTablePtr nameTable,
+    bool enableContextSaving,
+    IAsyncOutputStreamPtr output)
+    : EnableContextSaving_(enableContextSaving)
+    , Output_(CreateSyncAdapter(output))
+    , NameTable_(nameTable)
+{
+    CurrentBuffer_.Reserve(ContextBufferSize);
+
+    if (EnableContextSaving_) {
+        PreviousBuffer_.Reserve(ContextBufferSize);
+    }
+}
+
+TFuture<void> TSchemalessFormatWriterBase::Open()
+{
+    return VoidFuture;
+}
+
+TFuture<void> TSchemalessFormatWriterBase::GetReadyEvent()
+{
+    return MakeFuture(Error_);
+}
+
+TFuture<void> TSchemalessFormatWriterBase::Close()
+{
+    try {
+        DoFlushBuffer(true);
+        Output_->Finish();
+    } catch (const std::exception& ex) {
+        Error_ = TError(ex);
+    }
+
+    return MakeFuture(Error_);
+}
+
+bool TSchemalessFormatWriterBase::IsSorted() const 
+{
+    return false;
+}
+
+TNameTablePtr TSchemalessFormatWriterBase::GetNameTable() const
+{
+    return NameTable_;
+}
+
+TOutputStream* TSchemalessFormatWriterBase::GetOutputStream()
+{
+    return &CurrentBuffer_;
+}
+
+TBlob TSchemalessFormatWriterBase::GetContext() const
+{
+    TBlob result;
+    result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
+    result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
+    return result;
+}
+
+void TSchemalessFormatWriterBase::TryFlushBuffer()
+{
+    DoFlushBuffer(false);
+}
+
+void TSchemalessFormatWriterBase::DoFlushBuffer(bool force)
+{
+    if (CurrentBuffer_.Size() == 0) {
+        return;
+    }
+
+    if (!force && CurrentBuffer_.Size() < ContextBufferSize && EnableContextSaving_) {
+        return;
+    }
+
+    const auto& buffer = CurrentBuffer_.Blob();
+    Output_->Write(buffer.Begin(), buffer.Size());
+
+    if (EnableContextSaving_) {
+        std::swap(PreviousBuffer_, CurrentBuffer_);
+    }
+    CurrentBuffer_.Clear();
+}
+
+bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows)
+{
+    try {
+        DoWrite(rows);
+    } catch (const std::exception& ex) {
+        Error_ = TError(ex);
+        return false;
+    }
+
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,82 +133,38 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
-    : TContextSavingMixin(enableContextSaving, CreateSyncAdapter(std::move(output)))
-    , NameTable_(nameTable)
+    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
     , EnableKeySwitch_(enableKeySwitch)
     , KeyColumnCount_(keyColumnCount)
 {
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
-TFuture<void> TSchemalessWriterAdapter::Open()
+void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
-    return VoidFuture;
-}
-
-bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
-{
-    try {
-        for (const auto& row : rows) {
-            if (EnableKeySwitch_) {
-                try {
-                    if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                        WriteControlAttribute(EControlAttribute::KeySwitch, true);
-                    }
-                    CurrentKey_ = row;
-                } catch (const std::exception& ex) {
-                    // COMPAT(psushin): composite values are not comparable anymore.
-                    THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
+    for (const auto& row : rows) {
+        if (EnableKeySwitch_) {
+            try {
+                if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
+                    WriteControlAttribute(EControlAttribute::KeySwitch, true);
                 }
+                CurrentKey_ = row;
+            } catch (const std::exception& ex) {
+                // COMPAT(psushin): composite values are not comparable anymore.
+                THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
             }
-
-            ConsumeRow(row);
-            TryFlushBuffer();
         }
 
+        ConsumeRow(row);
         TryFlushBuffer();
-
-        if (EnableKeySwitch_ && CurrentKey_) {
-            LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
-            CurrentKey_ = LastKey_.Get();
-        }
-    } catch (const std::exception& ex) {
-        Error_ = TError(ex);
-        return false;
     }
 
-    return true;
-}
+    TryFlushBuffer();
 
-TFuture<void> TSchemalessWriterAdapter::GetReadyEvent()
-{
-    return MakeFuture(Error_);
-}
-
-TFuture<void> TSchemalessWriterAdapter::Close()
-{
-    try {
-        TContextSavingMixin::Close();
-    } catch (const std::exception& ex) {
-        Error_ = TError(ex);
+    if (EnableKeySwitch_ && CurrentKey_) {
+        LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
+        CurrentKey_ = LastKey_.Get();
     }
-
-    return MakeFuture(Error_);
-}
-
-TNameTablePtr TSchemalessWriterAdapter::GetNameTable() const
-{
-    return NameTable_;
-}
-
-bool TSchemalessWriterAdapter::IsSorted() const
-{
-    return false;
-}
-
-TBlob TSchemalessWriterAdapter::GetContext() const
-{
-    return TContextSavingMixin::GetContext();
 }
 
 void TSchemalessWriterAdapter::WriteTableIndex(int tableIndex)
@@ -140,12 +197,13 @@ void TSchemalessWriterAdapter::WriteControlAttribute(
 
 void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
 {
+    auto nameTable = GetNameTable();
     Consumer_->OnListItem();
     Consumer_->OnBeginMap();
     for (auto* it = row.Begin(); it != row.End(); ++it) {
         auto& value = *it;
 
-        Consumer_->OnKeyedItem(NameTable_->GetName(value.Id));
+        Consumer_->OnKeyedItem(nameTable->GetName(value.Id));
         switch (value.Type) {
             case EValueType::Int64:
                 Consumer_->OnInt64Scalar(value.Data.Int64);

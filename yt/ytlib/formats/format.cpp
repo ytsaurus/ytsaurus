@@ -142,12 +142,10 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
 {
     auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
     switch (dataType) {
-        case EDataType::Tabular:
-            return std::unique_ptr<IYsonConsumer>(new TDsvTabularConsumer(output, config));
-
         case EDataType::Structured:
-            return std::unique_ptr<IYsonConsumer>(new TDsvNodeConsumer(output, config));            
+            return std::unique_ptr<IYsonConsumer>(new TDsvNodeConsumer(output, config));
 
+        case EDataType::Tabular:
         case EDataType::Binary:
         case EDataType::Null:
             THROW_ERROR_EXCEPTION("Data type %Qv is not supported by DSV",
@@ -155,7 +153,6 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
 
         default:
             YUNREACHABLE();
-
     };
 }
 
@@ -272,6 +269,22 @@ ISchemafulWriterPtr CreateSchemafulWriterForFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
+    const IAttributeDictionary& attributes,
+    TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int /* keyColumnCount */)
+{
+    if (enableKeySwitch) {
+        THROW_ERROR_EXCEPTION("Dsv format doesn't support key switches");
+    }
+
+    auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
+    return New<TSchemalessDsvWriter>(nameTable, enableContextSaving, output, config);
+}
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
@@ -280,13 +293,25 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     bool enableKeySwitch,
     int keyColumnCount)
 {
-    return New<TSchemalessWriterAdapter>(
-        format,
-        nameTable,
-        std::move(output),
-        enableContextSaving,
-        enableKeySwitch,
-        keyColumnCount);
+    switch (format.GetType()) {
+        case EFormatType::Dsv:
+            return CreateSchemalessWriterForDsv(
+                format.Attributes(),
+                nameTable,
+                std::move(output),
+                enableContextSaving,
+                enableKeySwitch,
+                keyColumnCount);
+
+        default:
+            return New<TSchemalessWriterAdapter>(
+                format,
+                nameTable,
+                std::move(output),
+                enableContextSaving,
+                enableKeySwitch,
+                keyColumnCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
