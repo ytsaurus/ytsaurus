@@ -1929,7 +1929,7 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -1945,7 +1945,7 @@ private:
         {
             auto* schedulerJobSpecExt = sortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -1971,7 +1971,7 @@ private:
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -1983,7 +1983,7 @@ private:
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).Data());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2425,7 +2425,7 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
@@ -2445,7 +2445,7 @@ private:
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
             if (Spec->ReduceCombiner) {
@@ -2472,7 +2472,7 @@ private:
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2491,7 +2491,7 @@ private:
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);

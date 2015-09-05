@@ -64,6 +64,16 @@ void TStoreBase::SetStoreState(EStoreState state)
     StoreState_ = state;
 }
 
+EStoreRemovalState TStoreBase::GetRemovalState() const
+{
+    return RemovalState_;
+}
+
+void TStoreBase::SetRemovalState(EStoreRemovalState state)
+{
+    RemovalState_ = state;
+}
+
 TPartition* TStoreBase::GetPartition() const
 {
     return Partition_;
@@ -113,7 +123,7 @@ TOwningKey TStoreBase::RowToKey(TDynamicRow row)
 void TStoreBase::Save(TSaveContext& context) const
 {
     using NYT::Save;
-    Save(context, GetPersistentStoreState());
+    Save(context, StoreState_);
 }
 
 void TStoreBase::Load(TLoadContext& context)
