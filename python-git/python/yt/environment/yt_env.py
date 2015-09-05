@@ -63,8 +63,6 @@ class YTEnv(object):
     START_PROXY = False
     USE_PROXY_FROM_PACKAGE = False
 
-    CONFIGS_PROVIDER = None
-
     DELTA_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
@@ -112,6 +110,8 @@ class YTEnv(object):
         self._process_to_kill = defaultdict(list)
         self._all_processes = {}
         self._kill_previously_run_services()
+
+        self._ytserver_version = _get_ytserver_version()
 
         self._run_all(self.NUM_MASTERS,
                       self.NUM_SECONDARY_MASTER_CELLS,
@@ -185,13 +185,10 @@ class YTEnv(object):
         console_driver_name = "console_driver" + instance_id
         proxy_name = "proxy" + instance_id
 
-        self._ytserver_version = "0.18"
-
         if start_secondary_master_cells and versions_cmp(self._ytserver_version, "0.18") < 0:
             raise YtError("Multicell is not supported for ytserver version < 0.18")
 
-        if self.CONFIGS_PROVIDER is None:
-            self.CONFIGS_PROVIDER = ConfigsProvider.create_for_version("0.18")
+        self._configs_provider = ConfigsProvider.create_for_version(self._ytserver_version)
 
         logger.info("Starting up cluster instance as follows:")
         logger.info("  masters          %d", masters_count)
@@ -333,7 +330,7 @@ class YTEnv(object):
                          for i in xrange(masters_count)])
             map(_makedirp, dirs[cell_index])
 
-        configs, addresses = self.CONFIGS_PROVIDER.\
+        configs, addresses = self._configs_provider.\
                 get_master_configs(masters_count, dirs, secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -465,7 +462,7 @@ class YTEnv(object):
                 for i in xrange(nodes_count)]
         map(_makedirp, dirs)
 
-        configs, addresses = self.CONFIGS_PROVIDER.get_node_configs(nodes_count, dirs)
+        configs, addresses = self._configs_provider.get_node_configs(nodes_count, dirs)
 
         for i, config in enumerate(configs):
             current_path = os.path.join(self.path_to_run, node_name, str(i))
@@ -547,7 +544,7 @@ class YTEnv(object):
                 for i in xrange(schedulers_count)]
         map(_makedirp, dirs)
 
-        configs, addresses = self.CONFIGS_PROVIDER.get_scheduler_configs(schedulers_count, dirs)
+        configs, addresses = self._configs_provider.get_scheduler_configs(schedulers_count, dirs)
 
         for i, config in enumerate(configs):
             current_path = os.path.join(self.path_to_run, scheduler_name, str(i))
@@ -600,7 +597,7 @@ class YTEnv(object):
         self.start_schedulers(scheduler_name)
 
     def _prepare_driver(self, driver_name, secondary_master_cell_count):
-        configs = self.CONFIGS_PROVIDER.get_driver_configs()
+        configs = self._configs_provider.get_driver_configs()
         for cell_index, config in enumerate(configs):
             if cell_index == 0:
                 current_driver_name = driver_name
@@ -633,7 +630,7 @@ class YTEnv(object):
         proxy_dir = os.path.join(self.path_to_run, proxy_name)
         _makedirp(proxy_dir)
 
-        proxy_config, proxy_address = self.CONFIGS_PROVIDER.get_proxy_config(proxy_dir)
+        proxy_config, proxy_address = self._configs_provider.get_proxy_config(proxy_dir)
 
         self.modify_proxy_config(proxy_config)
         update(proxy_config, self.DELTA_PROXY_CONFIG)
