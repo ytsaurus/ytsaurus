@@ -4,6 +4,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "dsv_table.h"
+#include "schemaless_writer_adapter.h"
 
 #include <ytlib/new_table_client/public.h>
 
@@ -14,70 +15,47 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDsvConsumerBase
-    : public virtual TFormatsConsumerBase
+class TDsvWriterBase
 {
 public:
-    explicit TDsvConsumerBase(
-        TOutputStream* stream,
-        TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
+    explicit TDsvWriterBase(TDsvFormatConfigPtr config);
 
 protected:
-    TOutputStream* Stream;
-    TDsvFormatConfigPtr Config;
+    TDsvFormatConfigPtr Config_;
+    TDsvTable Table_;
 
-    TDsvTable Table;
-
-    void EscapeAndWrite(const TStringBuf& string, bool inKey);
-
+    void EscapeAndWrite(const TStringBuf& string, bool inKey, TOutputStream* stream);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EDsvTabularConsumerState,
-    (None)
-    (ExpectAttributeName)
-    (ExpectAttributeValue)
-    (ExpectEntity)
-    (ExpectColumnName)
-    (ExpectFirstColumnName)
-    (ExpectColumnValue)
-);
-
-class TDsvTabularConsumer
-    : public TDsvConsumerBase
+class TSchemalessDsvWriter
+    : public TSchemalessFormatWriterBase
+    , public TDsvWriterBase
 {
 public:
-    explicit TDsvTabularConsumer(
-        TOutputStream* stream,
+    TSchemalessDsvWriter(
+        NVersionedTableClient::TNameTablePtr nameTable,
+        bool enableContextSaving,
+        NConcurrency::IAsyncOutputStreamPtr output,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
-    ~TDsvTabularConsumer();
 
-    // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
+    virtual void DoWrite(const std::vector<NVersionedTableClient::TUnversionedRow>& rows) override;
+
+    virtual void WriteTableIndex(int tableIndex) override;
+
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+
+    virtual void WriteRowIndex(i64 rowIndex) override;
 
 private:
-    using EState = EDsvTabularConsumerState;
+    int TableIndex_ = 0;
 
-    NVersionedTableClient::EControlAttribute ControlAttribute;
-
-    EState State;
-    int TableIndex;
-
+    void WriteValue(const NVersionedTableClient::TUnversionedValue& value);
+    void FinalizeRow(bool firstValue);
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchemalessDsvWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,13 +64,13 @@ private:
 //  * Items in map are separated with FieldSeparator
 //  * Key and Values in map are separated with KeyValueSeparator
 class TDsvNodeConsumer
-    : public TDsvConsumerBase
+    : public TDsvWriterBase
+    , public TFormatsConsumerBase
 {
 public:
     explicit TDsvNodeConsumer(
         TOutputStream* stream,
         TDsvFormatConfigPtr config = New<TDsvFormatConfig>());
-    ~TDsvNodeConsumer();
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(const TStringBuf& value) override;
@@ -111,12 +89,13 @@ public:
     virtual void OnEndAttributes() override;
 
 private:
-    bool AllowBeginList;
-    bool AllowBeginMap;
+    bool AllowBeginList_;
+    bool AllowBeginMap_;
 
-    bool BeforeFirstMapItem;
-    bool BeforeFirstListItem;
+    bool BeforeFirstMapItem_;
+    bool BeforeFirstListItem_;
 
+    TOutputStream* Stream_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
