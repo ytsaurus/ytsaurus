@@ -927,9 +927,33 @@ private:
         LOG_INFO("Updating nodes information");
 
         auto req = TYPathProxy::Get("//sys/nodes");
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags", "banned"});
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags", "state"});
         ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_nodes");
+    }
+
+    void HandleSchedulingTags(const Stroka& address, const std::vector<Stroka>& schedulingTags)
+    {
+        yhash_set<Stroka> tags;
+        for (const auto& tag : schedulingTags) {
+            tags.insert(tag);
+            if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
+                SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
+            }
+        }
+
+        auto oldTags = AddressToNode_[address]->SchedulingTags();
+        for (const auto& oldTag : oldTags) {
+            if (tags.find(oldTag) == tags.end()) {
+                SchedulingTagResources_[oldTag] -= AddressToNode_[address]->ResourceLimits();
+            }
+        }
+        for (const auto& tag : tags) {
+            if (oldTags.find(tag) == oldTags.end()) {
+                SchedulingTagResources_[tag] += AddressToNode_[address]->ResourceLimits();
+            }
+        }
+        AddressToNode_[address]->SchedulingTags() = tags;
     }
 
     void HandleNodesAttributes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -951,37 +975,16 @@ private:
                 }
 
                 auto node = child.second;
-                auto banned = node->Attributes().Get<bool>("banned");
-                AddressToNode_[address]->SetBanned(banned);
-                if (banned) {
-                    AbortJobsOnNode(AddressToNode_[address], "banned");
+                auto state = node->Attributes().Get<Stroka>("state");
+                AddressToNode_[address]->SetMasterState(state);
+                if (state != "online") {
+                    AbortJobsAtNode(AddressToNode_[address]);
                 }
 
                 auto schedulingTags = node->Attributes().Find<std::vector<Stroka>>("scheduling_tags");
-                if (!schedulingTags) {
-                    continue;
+                if (schedulingTags) {
+                    HandleSchedulingTags(address, *schedulingTags);
                 }
-
-                yhash_set<Stroka> tags;
-                for (const auto& tag : *schedulingTags) {
-                    tags.insert(tag);
-                    if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
-                        SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
-                    }
-                }
-
-                auto oldTags = AddressToNode_[address]->SchedulingTags();
-                for (const auto& oldTag : oldTags) {
-                    if (tags.find(oldTag) == tags.end()) {
-                        SchedulingTagResources_[oldTag] -= AddressToNode_[address]->ResourceLimits();
-                    }
-                }
-                for (const auto& tag : tags) {
-                    if (oldTags.find(tag) == oldTags.end()) {
-                        SchedulingTagResources_[tag] += AddressToNode_[address]->ResourceLimits();
-                    }
-                }
-                AddressToNode_[address]->SchedulingTags() = tags;
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating nodes information");
@@ -1300,18 +1303,17 @@ private:
         return node;
     }
 
-    void AbortJobsOnNode(TExecNodePtr node, Stroka reason)
+    void AbortJobsAtNode(TExecNodePtr node)
     {
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         const auto& address = node->GetDefaultAddress();
         for (auto job : jobs) {
-            LOG_INFO("Aborting job on an %v node %v (JobId: %v, OperationId: %v)",
-                reason,
+            LOG_INFO("Aborting job on an offline node %v (JobId: %v, OperationId: %v)",
                 address,
                 job->GetId(),
                 job->GetOperation()->GetId());
-            AbortJob(job, TError("Node %v", reason));
+            AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
     }
@@ -1325,7 +1327,7 @@ private:
         TotalResourceLimits_ -= node->ResourceLimits();
         TotalResourceUsage_ -= node->ResourceUsage();
 
-        AbortJobsOnNode(node, "offline");
+        AbortJobsAtNode(node);
 
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] -= node->ResourceLimits();

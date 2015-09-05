@@ -45,8 +45,8 @@ class TExecNode
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
 
-    //! Banned flag from attributes in master.
-    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
+    //! State of node at master.
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, MasterState);
 
 public:
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
