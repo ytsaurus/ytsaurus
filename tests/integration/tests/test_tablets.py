@@ -629,6 +629,9 @@ class TestTablets(YTEnvSetup):
 
         self.wait_for_cells()
 
+        # Wait for make all tablets are up
+        time.sleep(3.0)
+
         keys = [{"key": i} for i in xrange(100)]
         actual = lookup_rows("//tmp/t", keys);
         self.assertItemsEqual(actual, rows);
