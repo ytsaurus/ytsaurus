@@ -26,7 +26,7 @@ class TExecNode
 
     //! Resource limits, as reported by the node.
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
-    
+
     //! A set of scheduling tags assigned to this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, SchedulingTags);
 
@@ -44,6 +44,9 @@ class TExecNode
 
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
+
+    //! Banned flag from attributes in master.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
 
 public:
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
