@@ -47,6 +47,29 @@ TEST(TYamredDsvWriterTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYamredDsvWriterTest, RowIndex)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Lenval = true;
+    TYamredDsvConsumer consumer(&outputStream, config);
+
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+        consumer.OnKeyedItem("row_index");
+        consumer.OnInt64Scalar(10);
+    consumer.OnEndAttributes();
+    consumer.OnEntity();
+
+    Stroka output(
+        "\xfc\xff\xff\xff" "\x0a\x00\x00\x00" "\x00\x00\x00\x00",
+        4 + 4 + 4);
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TYamredDsvWriterTest, TestLiveConditions)
 {
     TStringStream outputStream;

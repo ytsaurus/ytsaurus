@@ -40,6 +40,7 @@ void TYamredDsvConsumer::OnInt64Scalar(i64 value)
 
     YASSERT(State == EState::ExpectAttributeValue);
 
+    // ToDo(psushin): eliminate copy-paste from yamr_writer.cpp
     switch (ControlAttribute) {
         case EControlAttribute::TableIndex:
             if (!Config->EnableTableIndex) {
@@ -54,6 +55,22 @@ void TYamredDsvConsumer::OnInt64Scalar(i64 value)
                 Stream->Write(ToString(value));
                 Stream->Write(Config->RecordSeparator);
             }
+            break;
+
+        case EControlAttribute::RangeIndex:
+            if (!Config->Lenval) {
+                THROW_ERROR_EXCEPTION("Range indexes are not supported in text YAMRed DSV");
+            }
+            WritePod(*Stream, static_cast<ui32>(-3));
+            WritePod(*Stream, static_cast<ui32>(value));
+            break;
+
+        case EControlAttribute::RowIndex:
+            if (!Config->Lenval) {
+                 THROW_ERROR_EXCEPTION("Row indexes are not supported in text YAMRed DSV");
+            }
+            WritePod(*Stream, static_cast<ui32>(-4));
+            WritePod(*Stream, static_cast<ui64>(value));
             break;
 
         default:
