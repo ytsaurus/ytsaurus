@@ -282,7 +282,7 @@ TYsonString DoGetMulticellOwningNodes(
         }
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error requesting owning node paths");
+        THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error requesting owning nodes paths");
         const auto& batchRsp = batchRspOrError.Value();
 
         auto rsps = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>("get_path");
@@ -293,8 +293,15 @@ TYsonString DoGetMulticellOwningNodes(
         writer.OnBeginList();
 
         for (int index = 0; index < rsps.size(); ++index) {
-            const auto& rsp = rsps[index].Value();
+            const auto& rspOrError = rsps[index];
             const auto& versionedId = nodeIds[index];
+            if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError)
+                continue;
+
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting path for node %v",
+                versionedId);
+            const auto& rsp = rspOrError.Value();
+
             writer.OnListItem();
             if (versionedId.TransactionId) {
                 writer.OnBeginAttributes();
