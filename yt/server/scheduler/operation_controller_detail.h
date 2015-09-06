@@ -67,6 +67,13 @@ DEFINE_ENUM(EJobReinstallReason,
     (Aborted)
 );
 
+DEFINE_ENUM(EControllerState,
+    (Preparing)
+    (Running)
+    (Finished)
+);
+
+
 class TOperationControllerBase
     : public IOperationController
     , public NPhoenix::IPersistent
@@ -145,20 +152,7 @@ protected:
     IInvokerPtr Invoker;
     IInvokerPtr CancelableInvoker;
 
-
-    //! Becomes |true| when the controller is prepared.
-    /*!
-     *  Preparation happens in a background thread.
-     *  The state must not be touched from the control thread
-     *  while this flag is |false|.
-     */
-    std::atomic<bool> Prepared;
-
-    //! Remains |true| as long as the operation can schedule new jobs.
-    std::atomic<bool> Running;
-
-    //! Becomes |true| when operation completion event is scheduled to control invoker.
-    std::atomic<bool> Finished;
+    EControllerState State;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount;
@@ -727,6 +721,20 @@ protected:
     virtual void OnOperationFailed(const TError& error);
 
     virtual bool IsCompleted() const = 0;
+
+    //! Returns |true| when the controller is prepared.
+    /*!
+     *  Preparation happens in a controller thread.
+     *  The state must not be touched from the control thread
+     *  while this function returns |false|.
+     */
+    virtual bool IsPrepared() const;
+
+    //! Returns |true| as long as the operation can schedule new jobs.
+    virtual bool IsRunning() const;
+
+    //! Returns |true| when operation completion event is scheduled to control invoker.
+    virtual bool IsFinished() const;
 
 
     // Unsorted helpers.

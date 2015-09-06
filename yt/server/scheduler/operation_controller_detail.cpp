@@ -879,9 +879,7 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
     , Invoker(Host->CreateOperationControllerInvoker())
     , CancelableInvoker(CancelableContext->CreateInvoker(Invoker))
-    , Prepared(false)
-    , Running(false)
-    , Finished(false)
+    , State(EControllerState::Preparing)
     , TotalEstimatedInputChunkCount(0)
     , TotalEstimatedInputDataSize(0)
     , TotalEstimatedInputRowCount(0)
@@ -1029,8 +1027,7 @@ void TOperationControllerBase::Prepare()
 
     CheckTimeLimitExecutor->Start();
 
-    Prepared = true;
-    Running = true;
+    State = EControllerState::Running;
 }
 
 void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
@@ -1067,8 +1064,7 @@ void TOperationControllerBase::Revive()
 
     CheckTimeLimitExecutor->Start();
 
-    Prepared = true;
-    Running = true;
+    State = EControllerState::Running;
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1807,8 +1803,7 @@ void TOperationControllerBase::Abort()
 
     LOG_INFO("Aborting operation");
 
-    Running = false;
-    Finished = true;
+    State = EControllerState::Finished;
 
     CancelableContext->Cancel();
 
@@ -1842,7 +1837,7 @@ TJobId TOperationControllerBase::ScheduleJob(
         Sleep(Spec->TestingOperationOptions->SchedulingDelay);
     }
 
-    if (!Running) {
+    if (!IsRunning()) {
         LOG_TRACE("Operation is not running, scheduling request ignored");
         return NullJobId;
     }
@@ -2072,7 +2067,7 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
             bestTask = task;
         }
 
-        if (!Running) {
+        if (!IsRunning()) {
             return NullJobId;
         }
 
@@ -2175,7 +2170,7 @@ TJobId TOperationControllerBase::DoScheduleNonLocalJob(
                     continue;
                 }
 
-                if (!Running) {
+                if (!IsRunning()) {
                     return NullJobId;
                 }
 
@@ -2244,13 +2239,13 @@ int TOperationControllerBase::GetPendingJobCount() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     // Avoid accessing the state while not prepared.
-    if (!Prepared) {
+    if (!IsPrepared()) {
         return 0;
     }
 
     // NB: For suspended operations we still report proper pending job count
     // but zero demand.
-    if (!Running) {
+    if (!IsRunning()) {
         return 0;
     }
 
@@ -2262,7 +2257,7 @@ int TOperationControllerBase::GetTotalJobCount() const
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     // Avoid accessing the state while not prepared.
-    if (!Prepared) {
+    if (!IsPrepared()) {
         return 0;
     }
 
@@ -2290,15 +2285,13 @@ void TOperationControllerBase::OnOperationCompleted()
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     // This can happen if operation failed during completion in derived class (e.x. SortController).
-    if (Finished) {
-        YCHECK(!Running);
+    if (IsFinished()) {
         return;
     }
 
     LOG_INFO("Operation completed");
 
-    Running = false;
-    Finished = true;
+    State = EControllerState::Finished;
 
     Host->OnOperationCompleted(Operation);
 }
@@ -2308,15 +2301,28 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
     VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
     // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
-    if (Finished) {
-        YCHECK(!Running);
+    if (IsFinished()) {
         return;
     }
 
-    Running = false;
-    Finished = true;
+    State = EControllerState::Finished;
 
     Host->OnOperationFailed(Operation, error);
+}
+
+bool TOperationControllerBase::IsPrepared() const
+{
+    return State != EControllerState::Preparing;
+}
+
+bool TOperationControllerBase::IsRunning() const
+{
+    return State == EControllerState::Running;
+}
+
+bool TOperationControllerBase::IsFinished() const
+{
+    return State == EControllerState::Finished;
 }
 
 void TOperationControllerBase::CreateLivePreviewTables()
