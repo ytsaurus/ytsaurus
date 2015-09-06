@@ -276,10 +276,16 @@ private:
     {
         TClientOptions options;
         options.User = Operation->GetAuthenticatedUser();
-        AuthenticatedInputMasterClient = Host
-            ->GetClusterDirectory()
-            ->GetConnectionOrThrow(Spec_->ClusterName)
-            ->CreateClient(options);
+
+        if (Spec_->ClusterConnection) {
+            auto connection = NApi::CreateConnection(*Spec_->ClusterConnection);
+            AuthenticatedInputMasterClient = connection->CreateClient(options);
+        } else {
+            AuthenticatedInputMasterClient = Host
+                ->GetClusterDirectory()
+                ->GetConnectionOrThrow(*Spec_->ClusterName)
+                ->CreateClient(options);
+        }
 
         TOperationControllerBase::Essentiate();
     }
@@ -492,7 +498,7 @@ private:
         if (Spec_->ClusterConnection) {
             connectionConfig = *Spec_->ClusterConnection;
         } else {
-            auto connection = clusterDirectory->GetConnectionOrThrow(Spec_->ClusterName);
+            auto connection = clusterDirectory->GetConnectionOrThrow(*Spec_->ClusterName);
             connectionConfig = CloneYsonSerializable(connection->GetConfig());
         }
         if (Spec_->NetworkName) {
