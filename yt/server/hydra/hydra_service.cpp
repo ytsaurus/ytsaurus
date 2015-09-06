@@ -20,7 +20,7 @@ THydraServiceBase::THydraServiceBase(
     const NLogging::TLogger& logger,
     int protocolVersion)
     : TServiceBase(
-        hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
+        automatonInvoker,
         serviceId,
         logger,
         protocolVersion)

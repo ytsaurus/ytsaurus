@@ -60,7 +60,7 @@ public:
         ITimestampProviderPtr timestampProvider)
         : THydraServiceBase(
             hydraManager,
-            automatonInvoker,
+            hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             TServiceId(TTransactionSupervisorServiceProxy::GetServiceName(), hiveManager->GetSelfCellId()),
             HiveLogger)
         , TCompositeAutomatonPart(
