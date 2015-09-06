@@ -35,6 +35,8 @@
 #include <ytlib/query_client/query_preparer.h>
 #include <ytlib/query_client/udf_descriptor.h>
 
+#include <core/concurrency/action_queue.h>
+
 #include <core/erasure/codec.h>
 
 #include <core/misc/fs.h>
@@ -878,7 +880,8 @@ TOperationControllerBase::TOperationControllerBase(
     , CancelableContext(New<TCancelableContext>())
     , CancelableControlInvoker(CancelableContext->CreateInvoker(Host->GetControlInvoker()))
     , Invoker(Host->CreateOperationControllerInvoker())
-    , CancelableInvoker(CancelableContext->CreateInvoker(Invoker))
+    , SuspendableInvoker(CreateSuspendableInvoker(Invoker))
+    , CancelableInvoker(CancelableContext->CreateInvoker(SuspendableInvoker))
     , State(EControllerState::Preparing)
     , TotalEstimatedInputChunkCount(0)
     , TotalEstimatedInputDataSize(0)
@@ -2231,7 +2234,21 @@ IInvokerPtr TOperationControllerBase::GetInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Invoker;
+    return SuspendableInvoker;
+}
+
+TFuture<void> TOperationControllerBase::Suspend()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    return SuspendableInvoker->Suspend();
+}
+
+void TOperationControllerBase::Resume()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    SuspendableInvoker->Resume();
 }
 
 int TOperationControllerBase::GetPendingJobCount() const

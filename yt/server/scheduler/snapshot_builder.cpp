@@ -24,6 +24,8 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Profiler = SchedulerProfiler;
+
 static const size_t LocalWriteBufferSize  = (size_t) 1024 * 1024;
 static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 
@@ -55,6 +57,8 @@ TFuture<void> TSnapshotBuilder::Run()
         return MakeFuture(TError(ex));
     }
 
+    std::vector<TFuture<void>> operationSuspendFutures;
+
     // Capture everything needed in Build.
     for (auto operation : Scheduler_->GetOperations()) {
         if (operation->GetState() != EOperationState::Running)
@@ -66,13 +70,30 @@ TFuture<void> TSnapshotBuilder::Run()
         job.TempFileName = job.FileName + NFS::TempFileSuffix;
         Jobs_.push_back(job);
 
+        operationSuspendFutures.push_back(operation->GetController()->Suspend());
+
         LOG_INFO("Snapshot job registered (OperationId: %v)",
             operation->GetId());
     }
 
-    return Fork().Apply(
-        BIND(&TSnapshotBuilder::OnBuilt, MakeStrong(this))
-            .AsyncVia(Scheduler_->GetSnapshotIOInvoker()));
+    PROFILE_TIMING ("/controllers_suspend_time") {
+        WaitFor(Combine(operationSuspendFutures));
+    }
+
+    LOG_INFO("Controllers suspended");
+
+    auto forkFuture = VoidFuture;
+    PROFILE_TIMING ("/fork_time") {
+        forkFuture = Fork().Apply(
+            BIND(&TSnapshotBuilder::OnBuilt, MakeStrong(this))
+                .AsyncVia(Scheduler_->GetSnapshotIOInvoker()));
+    }
+
+    for (const auto& job : Jobs_) {
+        job.Operation->GetController()->Resume();
+    }
+
+    return forkFuture;
 }
 
 TDuration TSnapshotBuilder::GetTimeout() const

@@ -109,6 +109,9 @@ public:
     virtual IInvokerPtr GetCancelableInvoker() const override;
     virtual IInvokerPtr GetInvoker() const override;
 
+    virtual TFuture<void> Suspend() override;
+    virtual void Resume() override;
+
     virtual int GetPendingJobCount() const override;
     virtual int GetTotalJobCount() const override;
     virtual NNodeTrackerClient::NProto::TNodeResources GetNeededResources() const override;
@@ -150,6 +153,7 @@ protected:
     TCancelableContextPtr CancelableContext;
     IInvokerPtr CancelableControlInvoker;
     IInvokerPtr Invoker;
+    ISuspendableInvokerPtr SuspendableInvoker;
     IInvokerPtr CancelableInvoker;
 
     EControllerState State;

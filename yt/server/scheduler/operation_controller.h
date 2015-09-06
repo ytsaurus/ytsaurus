@@ -174,6 +174,20 @@ struct IOperationController
     virtual IInvokerPtr GetInvoker() const = 0;
 
     /*!
+     *  Suspends contoller invoker and returns future that is set after last action in invoker is executed.
+     *
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual TFuture<void> Suspend() = 0;
+
+    /*!
+     *  Resumes execution in controller invoker.
+     *
+     *  \note Invoker affinity: Control invoker
+     */
+    virtual void Resume() = 0;
+
+    /*!
      *  \note Thread affinity: any
      */
     //! Returns the number of jobs the controller still needs to start right away.
