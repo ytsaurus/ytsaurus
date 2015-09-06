@@ -673,5 +673,116 @@ IInvokerPtr CreateBoundedConcurrencyInvoker(
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TSuspendableInvoker
+    : public TInvokerWrapper
+    , public virtual ISuspendableInvoker
+{
+public:
+    explicit TSuspendableInvoker(IInvokerPtr underlyingInvoker)
+        : TInvokerWrapper(std::move(underlyingInvoker))
+    { }
+
+    virtual void Invoke(const TClosure& callback) override
+    {
+        Queue_.Enqueue(callback);
+        if (!Suspended_) {
+            ScheduleMore();
+        }
+    }
+
+    TFuture<void> Suspend() override
+    {
+        if (!Suspended_.exchange(true)) {
+            FreeEvent_ = NewPromise<void>();
+            if (ActiveInvocationCount_ == 0) {
+                FreeEvent_.Set();
+            }
+        }
+        return FreeEvent_;
+    }
+
+    void Resume() override
+    {
+        if (Suspended_.exchange(false)) {
+            FreeEvent_.Reset();
+            ScheduleMore();
+        }
+    }
+
+private:
+    std::atomic<bool> Suspended_ = {false};
+    std::atomic<int> ActiveInvocationCount_ = {0};
+
+    TLockFreeQueue<TClosure> Queue_;
+
+    TPromise<void> FreeEvent_;
+
+    // TODO(acid): Think how to merge this class with implementation in other invokers.
+    class TInvocationGuard
+    {
+    public:
+        explicit TInvocationGuard(TIntrusivePtr<TSuspendableInvoker> owner)
+            : Owner_(std::move(owner))
+        { }
+
+        TInvocationGuard(TInvocationGuard&& other) = default;
+        TInvocationGuard(const TInvocationGuard& other) = delete;
+
+        ~TInvocationGuard()
+        {
+            if (Owner_) {
+                Owner_->OnFinished();
+            }
+        }
+
+    private:
+        TIntrusivePtr<TSuspendableInvoker> Owner_;
+
+    };
+
+
+    void RunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
+    {
+        // Avoid deadlock caused by WaitFor in callback invoked in suspended invoker.
+        TCurrentInvokerGuard guard(UnderlyingInvoker_);
+        callback.Run();
+    }
+
+    void OnFinished()
+    {
+        YCHECK(ActiveInvocationCount_ > 0);
+
+        if (--ActiveInvocationCount_ == 0 && Suspended_ && FreeEvent_) {
+            FreeEvent_.Set();
+        }
+    }
+
+    void ScheduleMore()
+    {
+        while (!Suspended_) {
+            ++ActiveInvocationCount_;
+            TInvocationGuard guard(this);
+
+            TClosure callback;
+            if (Suspended_ || !Queue_.Dequeue(&callback)) {
+                break;
+            }
+
+            UnderlyingInvoker_->Invoke(BIND(
+               &TSuspendableInvoker::RunCallback,
+               MakeStrong(this),
+               Passed(std::move(callback)),
+               Passed(std::move(guard))));
+        }
+    }
+};
+
+ISuspendableInvokerPtr CreateSuspendableInvoker(IInvokerPtr underlyingInvoker)
+{
+    return New<TSuspendableInvoker>(underlyingInvoker);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NConcurrency
 } // namespace NYT

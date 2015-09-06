@@ -50,6 +50,32 @@ DEFINE_REFCOUNTED_TYPE(IPrioritizedInvoker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ISuspendableInvoker
+    : public virtual IInvoker
+{
+    using IInvoker::Invoke;
+
+    //! Puts invoker into suspended mode.
+    /*
+     *  Warning: This function is not thread-safe.
+     *  When all currently executing callbacks will be finished, returned future will be set.
+     *  All incoming callbacks will be queued until Resume is called.
+     */
+    virtual TFuture<void> Suspend() = 0;
+
+    //! Puts invoker out of suspended mode.
+    /*
+     *  Warning: This function is not thread-safe.
+     *  All queued callbacks will be at once submitted to the underlying invoker.
+     *  All incoming callbacks will be at once propagated to underlying invoker.
+     */
+    virtual void Resume() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ISuspendableInvoker)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define INVOKER_INL_H_
