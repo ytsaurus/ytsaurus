@@ -706,7 +706,7 @@ class TRemoteCopyOperationSpec
     : public TOperationSpecBase
 {
 public:
-    Stroka ClusterName;
+    TNullable<Stroka> ClusterName;
     TNullable<Stroka> NetworkName;
     TNullable<NApi::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
@@ -720,7 +720,8 @@ public:
 
     TRemoteCopyOperationSpec()
     {
-        RegisterParameter("cluster_name", ClusterName);
+        RegisterParameter("cluster_name", ClusterName)
+            .Default();
         RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
         RegisterParameter("output_table_path", OutputTablePath);
@@ -750,6 +751,10 @@ public:
 
         InputTablePaths = NYPath::Normalize(InputTablePaths);
         OutputTablePath = OutputTablePath.Normalize();
+
+        if (!ClusterName && !ClusterConnection) {
+            THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
+        }
     }
 };
 
