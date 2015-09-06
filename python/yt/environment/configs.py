@@ -399,7 +399,7 @@ def get_proxy_config():
     },
 
     "coordination" : {
-        "enable" : true,
+        "enable" : false,
         "heartbeat_interval" : 500
     },
 
