@@ -34,6 +34,8 @@ TEST(TYamredDsvWriterTest, Simple)
         consumer.OnStringScalar("2");
         consumer.OnKeyedItem("subkey");
         consumer.OnStringScalar("3");
+        consumer.OnKeyedItem("null");
+        consumer.OnEntity();
         consumer.OnKeyedItem("key_a");
         consumer.OnStringScalar("xxx");
     consumer.OnEndMap();
