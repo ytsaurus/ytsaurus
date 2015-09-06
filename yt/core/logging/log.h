@@ -36,10 +36,10 @@ struct TLogEvent
 class TLogger
 {
 public:
-    explicit TLogger(const Stroka& category = "");
+    explicit TLogger(const char* category = nullptr);
     TLogger(const TLogger& other) = default;
 
-    const Stroka& GetCategory() const;
+    const char* GetCategory() const;
     bool IsEnabled(ELogLevel level) const;
     void Write(TLogEvent&& event) const;
 
@@ -48,7 +48,7 @@ public:
     void AddTag(const char* format, const TArgs&... args);
 
 private:
-    Stroka Category_;
+    const char* Category_;
     Stroka Context_;
     int Version_ = -1;
     mutable TLogManager* LogManager_ = nullptr;
