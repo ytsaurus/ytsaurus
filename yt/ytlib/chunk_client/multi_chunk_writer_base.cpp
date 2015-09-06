@@ -195,6 +195,8 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 Throttler_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
+            // We don't ask master for new erasure replicas.
+            Options_->AllowAllocatingNewTargetNodes = false;
             auto writers = CreateErasurePartWriters(
                 Config_,
                 Options_,
