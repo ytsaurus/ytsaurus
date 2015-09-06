@@ -56,23 +56,23 @@ bool TPtrWithIndex<T>::operator != (TPtrWithIndex other) const
 template <class T>
 bool TPtrWithIndex<T>::operator < (TPtrWithIndex other) const
 {
-    auto thisId = GetPtr()->GetId();
-    auto otherId = other.GetPtr()->GetId();
-    if (thisId != otherId) {
-        return thisId < otherId;
+    int thisIndex = GetIndex();
+    int otherIndex = other.GetIndex();
+    if (thisIndex != otherIndex) {
+        return thisIndex < otherIndex;
     }
-    return GetIndex() < other.GetIndex();
+    return GetPtr()->GetId() < other.GetPtr()->GetId();
 }
 
 template <class T>
 bool TPtrWithIndex<T>::operator <= (TPtrWithIndex other) const
 {
-    auto thisId = GetPtr()->GetId();
-    auto otherId = other.GetPtr()->GetId();
-    if (thisId != otherId) {
-        return thisId < otherId;
+    int thisIndex = GetIndex();
+    int otherIndex = other.GetIndex();
+    if (thisIndex != otherIndex) {
+        return thisIndex < otherIndex;
     }
-    return GetIndex() <= other.GetIndex();
+    return GetPtr()->GetId() <= other.GetPtr()->GetId();
 }
 
 template <class T>
