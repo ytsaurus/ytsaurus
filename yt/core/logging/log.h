@@ -19,7 +19,7 @@ struct TLogEvent
 {
     static const int InvalidLine = -1;
 
-    Stroka Category;
+    const char* Category = nullptr;
     ELogLevel Level;
     Stroka Message;
     TInstant DateTime;

@@ -86,7 +86,7 @@ void TStreamLogWriter::Write(const TLogEvent& event)
     buffer->AppendChar('\t');
     FormatLevel(buffer, event.Level);
     buffer->AppendChar('\t');
-    buffer->AppendString(~event.Category);
+    buffer->AppendString(event.Category);
     buffer->AppendChar('\t');
     FormatMessage(buffer, event.Message);
     buffer->AppendChar('\t');
