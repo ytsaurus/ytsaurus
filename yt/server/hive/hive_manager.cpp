@@ -778,7 +778,7 @@ THiveManager::THiveManager(
     : Impl_(New<TImpl>(
         config,
         cellDirectory,
-    selfCellId,
+        selfCellId,
         automatonInvoker,
         hydraManager,
         automaton))
