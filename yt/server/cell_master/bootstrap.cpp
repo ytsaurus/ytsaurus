@@ -333,7 +333,7 @@ void TBootstrap::DoInitialize()
         Config_->HiveManager,
         CellDirectory_,
         GetCellId(),
-        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::RpcService),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
 
@@ -365,7 +365,7 @@ void TBootstrap::DoInitialize()
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
-        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::RpcService),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),
