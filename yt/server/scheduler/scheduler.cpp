@@ -1329,6 +1329,8 @@ private:
 
         AbortJobsAtNode(node);
 
+        YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
+
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] -= node->ResourceLimits();
         }
