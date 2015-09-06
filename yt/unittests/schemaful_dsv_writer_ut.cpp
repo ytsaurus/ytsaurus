@@ -30,6 +30,8 @@ TEST(TSchemafulDsvWriterTest, Simple)
     consumer.OnBeginMap();
         consumer.OnKeyedItem("a");
         consumer.OnStringScalar("10");
+        consumer.OnKeyedItem("b");
+        consumer.OnEntity();
     consumer.OnEndMap();
 
     consumer.OnListItem();
@@ -117,6 +119,14 @@ TEST(TSchemafulDsvWriterTest, FailMode)
         consumer.OnBeginMap();
             consumer.OnKeyedItem("b");
             consumer.OnStringScalar("10");
+        consumer.OnEndMap();
+    );
+
+    EXPECT_ANY_THROW(
+        consumer.OnListItem();
+        consumer.OnBeginMap();
+            consumer.OnKeyedItem("b");
+            consumer.OnEntity();
         consumer.OnEndMap();
     );
 }

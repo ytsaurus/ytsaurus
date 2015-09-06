@@ -133,10 +133,12 @@ void TYamredDsvConsumer::OnStringScalar(const TStringBuf& value)
 void TYamredDsvConsumer::OnEntity()
 {
     if (State == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Entities are not supported by YAMRed DSV");
+        // Skip null values.
+        State = EState::ExpectColumnName;
+    } else {
+        YASSERT(State == EState::ExpectEntity);
+        State = EState::None;
     }
-    YASSERT(State == EState::ExpectEntity);
-    State = EState::None;
 }
 
 void TYamredDsvConsumer::OnBeginList()

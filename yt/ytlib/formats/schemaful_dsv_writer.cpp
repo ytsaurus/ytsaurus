@@ -33,7 +33,7 @@ TSchemafulDsvConsumer::TSchemafulDsvConsumer(
 void TSchemafulDsvConsumer::OnUint64Scalar(ui64 value)
 {
     if (State_ == EState::None) {
-        return;         
+        return;
     }
 
     if (State_ == EState::ExpectValue) {
@@ -119,11 +119,7 @@ void TSchemafulDsvConsumer::OnBeginMap()
 
 void TSchemafulDsvConsumer::OnEntity()
 {
-    if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Entities are not supported by schemaful DSV");
-    }
-
-    YASSERT(State_ == EState::ExpectEntity);
+    YASSERT(State_ == EState::ExpectEntity || State_ == EState::ExpectValue || State_ == EState::None);
     State_ = EState::None;
 }
 
