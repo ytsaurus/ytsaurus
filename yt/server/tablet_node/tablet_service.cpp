@@ -51,7 +51,7 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetHydraManager(),
-            slot->GetAutomatonInvoker(),
+            slot->GetGuardedAutomatonInvoker(),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellId()),
             TabletNodeLogger,
             TTabletServiceProxy::GetProtocolVersion())
