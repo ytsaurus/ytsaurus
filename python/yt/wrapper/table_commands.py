@@ -80,6 +80,11 @@ from copy import deepcopy
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
+def _add_spec_option(spec, name, value):
+    if value is not None:
+        spec[name] = value
+    return spec
+
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
     if isinstance(stream, str):
         stream = StringIO(stream)
@@ -1325,8 +1330,9 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "reduce"
     return _run_operation(binary, source_table, destination_table, **kwargs)
 
-def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, copy_attributes=False, remote_cluster_token=None, strategy=None, sync=True, client=None):
+def run_remote_copy(source_table, destination_table,
+                    cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
+                    spec=None, strategy=None, sync=True, client=None):
     """Copy source table from remote cluster to destination table on current cluster.
 
     :param source_table: (list of string or `TablePath`)
@@ -1357,33 +1363,14 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None,
                                                            client=client))
-
-    # TODO(ignat): provide atomicity of attribute copying
-    if copy_attributes:
-        if len(source_table) != 1:
-            raise YtError("Cannot copy attributes of multiple source tables")
-
-        remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name), client=client)
-        current_proxy = get_config(client)["proxy"]["url"]
-        current_token = get_config(client)["token"]
-
-        get_config(client)["proxy"]["url"] = remote_proxy
-        get_config(client)["token"] = get_value(remote_cluster_token, get_config(client)["token"])
-        src_attributes = get(source_table[0] + "/@")
-
-        get_config(client)["proxy"]["url"] = current_proxy
-        get_config(client)["token"] = current_token
-        attributes = src_attributes.get("user_attribute_keys", []) + \
-                     ["compression_codec", "erasure_codec", "replication_factor"]
-        for attribute in attributes:
-            set_attribute(destination_table, attribute, src_attributes[attribute], client=client)
-
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: update({"network_name": network_name}, _) if network_name is not None else _,
+        lambda _: _add_spec_option(_, "network_name", network_name),
+        lambda _: _add_spec_option(_, "cluster_name", cluster_name),
+        lambda _: _add_spec_option(_, "cluster_connection", cluster_connection),
+        lambda _: _add_spec_option(_, "copy_attributes", copy_attributes),
         lambda _: update({"input_table_paths": map(get_input_name, source_table),
-                          "output_table_path": destination_table.to_yson_type(),
-                          "cluster_name": cluster_name},
+                          "output_table_path": destination_table.to_yson_type()},
                           _),
         lambda _: get_value(spec, {})
     )(spec)
