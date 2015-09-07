@@ -1191,7 +1191,7 @@ class Application(object):
 
             try:
                 json.dumps(description)
-            except json.UnicodeDecodeError:
+            except UnicodeDecodeError:
                 logger.warning("Cannot decode in JSON struct '%s'", repr(description))
                 continue
 
