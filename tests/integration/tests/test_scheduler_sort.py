@@ -33,20 +33,20 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
 
     def test_large_values(self):
-        a = "".join(["a"] * 1024 * 1024)
-        b = "".join(["b"] * 1024 * 1024)
+        a = "".join(["a"] * 10 * 1024)
+        b = "".join(["b"] * 100 * 1024)
         v1 = {"key" : b, "subkey" : b}
         v2 = {"key" : a, "subkey" : a}
 
         create("table", "//tmp/t_in")
         write("//tmp/t_in", v1)
-        write("//tmp/t_in", v2)
+        write("<append=true>//tmp/t_in", v2)
 
         create("table", "//tmp/t_out")
 
         sort(in_="//tmp/t_in",
              out="//tmp/t_out",
-             sort_by="[key; subkey]")
+             sort_by=["key", "subkey"])
 
         assert read("//tmp/t_out") == [v2, v1]
         assert get("//tmp/t_out/@sorted") ==  True
