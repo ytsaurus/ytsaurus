@@ -208,7 +208,7 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
     return result;
 }
 
-TKeyTriePtr TKeyTrie::FromLowerBound(const TKey& bound)
+TKeyTriePtr TKeyTrie::FromLowerBound(const TOwningKey& bound)
 {
     auto result = TKeyTrie::Universal();
 
@@ -238,7 +238,7 @@ TKeyTriePtr TKeyTrie::FromLowerBound(const TKey& bound)
     return result;
 }
 
-TKeyTriePtr TKeyTrie::FromUpperBound(const TKey& bound)
+TKeyTriePtr TKeyTrie::FromUpperBound(const TOwningKey& bound)
 {
     auto result = TKeyTrie::Universal();
 
@@ -374,7 +374,7 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 void GetRangesFromTrieWithinRangeImpl(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    std::vector<std::pair<TRow, TRow>>* result,
+    std::vector<TRowRange>* result,
     TRowBufferPtr rowBuffer,
     bool insertUndefined,
     std::vector<TValue> prefix = std::vector<TValue>(),
@@ -425,7 +425,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 false,
                 false);
         } else {
-            std::pair<TRow, TRow> range;
+            TRowRange range;
             for (size_t i = 0; i < offset; ++i) {
                 builder.AddValue(prefix[i]);
             }
@@ -493,7 +493,7 @@ void GetRangesFromTrieWithinRangeImpl(
             }
         }
 
-        std::pair<TRow, TRow> range;
+        TRowRange range;
         for (size_t j = 0; j < offset; ++j) {
             builder.AddValue(prefix[j]);
         }

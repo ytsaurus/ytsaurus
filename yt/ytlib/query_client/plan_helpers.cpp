@@ -23,27 +23,6 @@ using ::ToString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize)
-{
-    TKeyColumns keyColumns;
-    keySize = std::min(keySize, schema.Columns().size());
-    for (size_t i = 0; i < keySize; ++ i) {
-        keyColumns.push_back(schema.Columns()[i].Name);
-    }
-    return keyColumns;
-}
-
-//! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
-{
-    for (int index = 0; index < keyColumns.size(); ++index) {
-        if (keyColumns[index] == columnName) {
-            return index;
-        }
-    }
-    return -1;
-}
-
 TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
     const TKeyColumns& keyColumns,
@@ -196,8 +175,8 @@ TConstExpressionPtr MakeAndExpression(TConstExpressionPtr lhs, TConstExpressionP
             lhs->Type,
             rhs->Type,
             "",
-            lhs->GetName(),
-            rhs->GetName()),
+            InferName(lhs),
+            InferName(rhs)),
         EBinaryOp::And,
         lhs,
         rhs);
@@ -225,8 +204,8 @@ TConstExpressionPtr MakeOrExpression(TConstExpressionPtr lhs, TConstExpressionPt
             lhs->Type,
             rhs->Type,
             "",
-            lhs->GetName(),
-            rhs->GetName()),
+            InferName(lhs),
+            InferName(rhs)),
         EBinaryOp::Or,
         lhs,
         rhs);
@@ -698,8 +677,8 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
         MakeUnversionedBooleanValue(true));
 }
 
-std::vector<std::pair<TRow, TRow>> MergeOverlappingRanges(
-    std::vector<std::pair<TRow, TRow>> ranges)
+std::vector<TRowRange> MergeOverlappingRanges(
+    std::vector<TRowRange> ranges)
 {
     int lastIndex = ranges.empty() ? -1 : 0;
     std::sort(ranges.begin(), ranges.end());

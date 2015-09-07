@@ -109,29 +109,21 @@ private:
             Rows_.reserve(BufferCapacity);
         }
 
-        bool NextRow()
+        TVersionedRow FetchRow()
         {
             ++RowIndex_;
-            return RowIndex_ < Rows_.size();
-        }
-
-        TVersionedRow GetRow() const
-        {
-            return Rows_[RowIndex_];
-        }
-
-        void Refill() 
-        {
-            RowIndex_ = 0;
-            while (true) {
-                YCHECK(Reader_->Read(&Rows_));
-                if (!Rows_.empty()) {
-                    break;
+            if (RowIndex_ >= Rows_.size()) {
+                RowIndex_ = 0;
+                while (true) {
+                    YCHECK(Reader_->Read(&Rows_));
+                    if (!Rows_.empty()) {
+                        break;
+                    }
+                    WaitFor(Reader_->GetReadyEvent())
+                        .ThrowOnError();
                 }
-
-                WaitFor(Reader_->GetReadyEvent())
-                    .ThrowOnError();
             }
+            return Rows_[RowIndex_];
         }
 
     private:
@@ -144,6 +136,7 @@ private:
     TChunkedMemoryPool MemoryPool_;
     TSharedRange<TUnversionedRow> LookupKeys_;
     std::vector<TReadSession> EdenSessions_;
+    std::vector<TReadSession> PartitionSessions_;
 
     TTabletSnapshotPtr TabletSnapshot_;
     TTimestamp Timestamp_;
@@ -178,7 +171,8 @@ private:
         }
 
         if (!asyncFutures.empty()) {
-            WaitFor(Combine(asyncFutures)).ThrowOnError();
+            WaitFor(Combine(asyncFutures))
+                .ThrowOnError();
         }
     }
 
@@ -191,6 +185,8 @@ private:
             return;
         }
 
+        CreateReadSessions(&PartitionSessions_, partitionSnapshot, keys);
+
         TSchemafulRowMerger merger(
             &MemoryPool_,
             SchemaColumnCount_,
@@ -199,19 +195,12 @@ private:
 
         auto processSessions = [&] (std::vector<TReadSession>& sessions) {
             for (auto& session : sessions) {
-                if (!session.NextRow()) {
-                    session.Refill();
-                }
-
-                merger.AddPartialRow(session.GetRow());
+                merger.AddPartialRow(session.FetchRow());
             }
         };
 
-        std::vector<TReadSession> sessions;
-        CreateReadSessions(&sessions, partitionSnapshot, keys);
-
         for (int index = 0; index < keys.Size(); ++index) {
-            processSessions(sessions);
+            processSessions(PartitionSessions_);
             processSessions(EdenSessions_);
 
             auto mergedRow = merger.BuildMergedRow();
@@ -226,6 +215,7 @@ private:
         TPartitionSnapshotPtr currentPartitionSnapshot;
         int currentPartitionStartOffset = 0;
         for (int index = 0; index < LookupKeys_.Size(); ++index) {
+            YASSERT(index == 0 || LookupKeys_[index] >= LookupKeys_[index - 1]);
             auto key = LookupKeys_[index];
             ValidateServerKey(key, KeyColumnCount_, TabletSnapshot_->Schema);
             auto partitionSnapshot = TabletSnapshot_->FindContainingPartition(key);

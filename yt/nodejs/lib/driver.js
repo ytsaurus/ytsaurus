@@ -2,6 +2,7 @@ var util = require("util");
 
 var buffertools = require("buffertools");
 var Q = require("bluebird");
+var _ = require("underscore");
 
 var YtError = require("./error").that;
 var YtReadableStream = require("./readable_stream").that;
@@ -94,6 +95,16 @@ function promisinglyPipe(source, destination)
 
         destination.emit("pipe", source);
     });
+}
+
+function parseJsonRows(rowData) {
+    // Last row is in fact empty string
+    var rows = rowData
+        .split('\n')
+        .slice(0, -1);
+
+    rows = _.map(rows, JSON.parse);
+    return rows;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,13 +211,17 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     parameters.input_format = "json";
     parameters.output_format = "json";
 
+    var descriptor = this.find_command_descriptor(name);
+
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
         binding.CreateV8Node(parameters), null, pause, function(){})
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
-        if (body.length) {
+        if (descriptor.output_type === "tabular") {
+            return parseJsonRows(body.toString());
+        } else if (body.length) {
             return JSON.parse(body);
         }
     });
