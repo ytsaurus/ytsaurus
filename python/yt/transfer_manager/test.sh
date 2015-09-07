@@ -114,7 +114,7 @@ test_copy_from_plato_to_quine() {
 
     check \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)" \
-        "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
+        "$(yt2 read //tmp/test_table_from_plato --proxy quine.yt.yandex.net --format yamr)"
 
     check "true" "$(yt2 exists //tmp/test_table_from_plato/@sorted --proxy quine.yt.yandex.net)"
 }
@@ -180,6 +180,19 @@ test_copy_to_yamr_table_with_spaces_in_name() {
     wait_task $id
 }
 
+test_recursive_path_creation() {
+    echo "Test recursive path creation at destination"
+
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy plato.yt.yandex.net
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test/table/from/plato", "destination_cluster": "quine", "pool": "ignat"}')
+    wait_task $id
+
+    check \
+        "$(yt2 read //tmp/test_table --proxy quine.yt.yandex.net --format yamr)" \
+        "$(yt2 read //tmp/test/table/from/plato --proxy quine.yt.yandex.net --format yamr)"
+}
+
 test_copy_from_smith_to_cedar
 test_copy_from_cedar_to_redwood
 test_copy_from_redwood_to_plato
@@ -189,3 +202,4 @@ test_copy_from_cedar_to_plato
 test_abort_restart_task
 test_copy_table_attributes
 test_copy_to_yamr_table_with_spaces_in_name
+test_recursive_path_creation
