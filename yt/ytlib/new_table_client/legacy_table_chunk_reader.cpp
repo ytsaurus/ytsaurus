@@ -7,6 +7,7 @@
 #include "legacy_channel_reader.h"
 #include "name_table.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <ytlib/chunk_client/sequential_reader.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -28,31 +29,6 @@ using NChunkClient::TChannel;
 using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// NB: not using TYsonString here to avoid copying.
-TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, TStatelessLexer& lexer)
-{
-    TToken token;
-    lexer.GetToken(ysonString, &token);
-    YCHECK(!token.IsEmpty());
-
-    switch (token.GetType()) {
-        case ETokenType::Int64:
-            return MakeUnversionedInt64Value(token.GetInt64Value(), id);
-
-        case ETokenType::Uint64:
-            return MakeUnversionedUint64Value(token.GetUint64Value(), id);
-
-        case ETokenType::String:
-            return MakeUnversionedStringValue(token.GetStringValue(), id);
-
-        case ETokenType::Double:
-            return MakeUnversionedDoubleValue(token.GetDoubleValue(), id);
-
-        default:
-            return MakeUnversionedAnyValue(ysonString, id);
-    }
-}
 
 TChannel MakeChannel(const TColumnFilter& columnFilter, TNameTablePtr nameTable)
 {

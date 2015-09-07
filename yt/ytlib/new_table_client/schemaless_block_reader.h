@@ -5,6 +5,8 @@
 #include "chunk_meta_extensions.h"
 #include "unversioned_row.h"
 
+#include <core/yson/lexer.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -49,6 +51,7 @@ private:
 
     TOwningKey Key_;
 
+    NYson::TStatelessLexer Lexer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

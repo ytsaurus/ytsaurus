@@ -1,6 +1,7 @@
 #include "stdafx.h"
 
 #include "schemaless_block_reader.h"
+#include "helpers.h"
 #include "private.h"
 
 namespace NYT {
@@ -78,6 +79,13 @@ TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* mem
 
         if (IdMapping_[value.Id] >= 0) {
             value.Id = IdMapping_[value.Id];
+            if (value.Type == EValueType::Any) {
+                // Try to unpack any value.
+                value = MakeUnversionedValue(
+                    TStringBuf(value.Data.String, value.Length), 
+                    value.Id, 
+                    Lexer_);
+            }
             row[valueCount] = value;
             ++valueCount;
         }
