@@ -148,8 +148,10 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
             sampleResponse.keys_size(),
             requestedChunkIndexes[index]);
 
-        for (const auto& sample : sampleResponse.keys()) {
-            Samples_.push_back(FromProto<TOwningKey>(sample));
+        for (const auto& protoSample : sampleResponse.keys()) {
+            auto sample = FromProto<TOwningKey>(protoSample);
+            YCHECK(sample.GetCount() == KeyColumns_.size());
+            Samples_.push_back(sample);
         }
     }
 }
