@@ -174,6 +174,12 @@ test_copy_table_attributes() {
     unset -f check_attribute
 }
 
+test_copy_to_yamr_table_with_spaces_in_name() {
+    echo "Importing from Smith to Cedar (test spaces in destination table name)"
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test table", "destination_cluster": "cedar"}')
+    wait_task $id
+}
+
 test_copy_from_smith_to_cedar
 test_copy_from_cedar_to_redwood
 test_copy_from_redwood_to_plato
@@ -182,3 +188,4 @@ test_copy_from_plato_to_quine
 test_copy_from_cedar_to_plato
 test_abort_restart_task
 test_copy_table_attributes
+test_copy_to_yamr_table_with_spaces_in_name

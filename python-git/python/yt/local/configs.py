@@ -150,6 +150,11 @@ def get_node_config():
     data_node = {
         cache_locations = [];
         store_locations = [];
+
+        cache_location = {
+            path = "";
+        };
+
         multiplexed_changelog = {
             path = "";
         };
@@ -183,6 +188,7 @@ def get_node_config():
 
         slot_manager = {
             paths = [];
+            path = "";
         };
 
         job_proxy_logging = { };
@@ -247,7 +253,6 @@ def get_proxy_config():
 {
     "port" : -1,
     "log_port" : -1,
-    "address" : "localhost",
     "number_of_workers" : 1,
     "memory_limit" : 33554432,
     "thread_limit" : 64,

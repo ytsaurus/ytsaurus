@@ -72,7 +72,7 @@ class YtHttpResponseError(YtResponseError):
         self.url = url
         self.headers = deepcopy(headers)
         self.message = "Received response with error. Requested {0} with headers {1}"\
-            .format(url, json.dumps(hide_token(self.headers), indent=4, sort_keys=True))
+            .format(url, json.dumps(hide_token(dict(self.headers)), indent=4, sort_keys=True))
 
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
@@ -90,7 +90,7 @@ class YtProxyUnavailable(YtError):
         attributes = {
             "url": response.url,
             "headers": response.request_headers}
-        super(YtProxyUnavailable, self).__init__(message="Proxy is under heavy load.", attributes=attributes)
+        super(YtProxyUnavailable, self).__init__(message="Proxy is unavailable", attributes=attributes, inner_errors=[response.json()])
         #self.message = "Proxy is under heavy load. Requested {0} with headers {1}"\
         #    .format(response.url, json.dumps(hide_token(response.request_headers), indent=4, sort_keys=True))
 
