@@ -132,7 +132,7 @@ class TestQuery(YTEnvSetup):
             for i in xrange(0, 100)]
         insert_rows("//tmp/o1", data)
 
-        expected = [{col: v for col, v in row.iteritems() if col in ['k', 'v']} for row in data if row['u'] > 500]
+        expected = [dict([(col, v) for col, v in row.iteritems() if col in ['k', 'v']]) for row in data if row['u'] > 500]
         expected = sorted(expected, cmp=lambda x, y: x['v'] - y['v'])[0:10]
 
         actual = select_rows("k, v from [//tmp/o1] where u > 500 order by v limit 10")
