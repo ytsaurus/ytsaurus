@@ -84,12 +84,8 @@ class YTEnvSetup(YTEnv):
 
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
-<<<<<<< HEAD
             self.transactions_at_start = set(yt_commands.get_transactions())
             self.wait_for_nodes()
-=======
-            self._wait_nodes()
->>>>>>> origin/master
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
@@ -116,7 +112,6 @@ class YTEnvSetup(YTEnv):
 
             yt_commands.gc_collect()
 
-<<<<<<< HEAD
     def set_node_banned(self, address, flag):
         yt_commands.set("//sys/nodes/%s/@banned" % address, flag)
         # Give it enough time to register or unregister the node
@@ -132,21 +127,6 @@ class YTEnvSetup(YTEnv):
         _wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
 
     def wait_for_cells(self):
-=======
-    def _wait_nodes(self):
-        for attempt in xrange(1, 100):
-            while True:
-                if yt_commands.get("//sys/nodes/@offline"):
-                    sleep(0.1)
-                else:
-                    break
-
-    def _sync_create_cells(self, size, count):
-        ids = []
-        for _ in xrange(count):
-            ids.append(yt_commands.create_tablet_cell(size))
-
->>>>>>> origin/master
         print "Waiting for tablet cells to become healthy..."
         _wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
 
@@ -174,7 +154,6 @@ class YTEnvSetup(YTEnv):
         print "Waiting for tablets to become unmounted..."
         _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
 
-<<<<<<< HEAD
     def _abort_transactions(self, txs):
         for tx in txs:
             try:
@@ -188,8 +167,6 @@ class YTEnvSetup(YTEnv):
             if node.attributes["banned"]:
                 yt_commands.set("//sys/nodes/%s/@banned" % str(node), False)
 
-=======
->>>>>>> origin/master
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])
         for account in accounts:
@@ -218,8 +195,6 @@ class YTEnvSetup(YTEnv):
         for rack in racks:
             yt_commands.remove_rack(rack)
 
-<<<<<<< HEAD
-=======
     def _find_ut_file(self, file_name):
         from distutils.spawn import find_executable
         ytserver_path = find_executable("ytserver")
@@ -229,28 +204,3 @@ class YTEnvSetup(YTEnv):
         result_path = os.path.join(unittests_path, file_name)
         assert os.path.exists(result_path)
         return result_path
-
-# decorator form
-ATTRS = [
-    'NUM_MASTERS',
-    'NUM_NODES',
-    'NUM_SCHEDULERS',
-    'DELTA_MASTER_CONFIG',
-    'DELTA_NODE_CONFIG',
-    'DELTA_SCHEDULER_CONFIG']
-
-def ytenv(**attrs):
-    def make_decorator(f):
-        @wraps(f)
-        def wrapped(*args, **kw):
-            env = YTEnv()
-            for i in ATTRS:
-                if i in attrs:
-                    setattr(env, i, attrs.get(i))
-            working_dir = _working_dir(f.__name__)
-            env.setUp(working_dir)
-            f(*args, **kw)
-            env.tearDown()
-        return wrapped
-    return make_decorator
->>>>>>> origin/master
