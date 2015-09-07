@@ -210,10 +210,9 @@ def get_node_config():
 
     data_node = {
         store_locations = [];
-<<<<<<< HEAD:python/yt/environment/default_configs.py
         split_changelog = {
             flush_period = 10;
-=======
+        };
 
         cache_location = {
             path = "";
@@ -221,7 +220,6 @@ def get_node_config():
 
         multiplexed_changelog = {
             path = "";
->>>>>>> origin/master:python/yt/environment/configs.py
         };
         incremental_heartbeat_period = 100;
     };
@@ -248,16 +246,12 @@ def get_node_config():
             };
         };
 
-<<<<<<< HEAD:python/yt/environment/default_configs.py
         enable_cgroups = %false;
-=======
-        enable_cgroups = false;
 
         slot_manager = {
             paths = [];
             path = "";
         };
->>>>>>> origin/master:python/yt/environment/configs.py
 
         job_proxy_logging = {
             rules = [
@@ -373,10 +367,7 @@ def get_proxy_config():
 {
     "port" : -1,
     "log_port" : -1,
-<<<<<<< HEAD:python/yt/environment/default_configs.py
     "address" : "::",
-=======
->>>>>>> origin/master:python/yt/environment/configs.py
     "number_of_workers" : 1,
     "memory_limit" : 33554432,
     "thread_limit" : 64,
