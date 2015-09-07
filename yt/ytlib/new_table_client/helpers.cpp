@@ -47,6 +47,18 @@ void TTableOutput::DoFinish()
 
 //////////////////////////////////////////////////////////////////////////////////
 
+void ValidateKeyColumns(const TKeyColumns& keyColumns)
+{
+    yhash_set<Stroka> columnSet(keyColumns.begin(), keyColumns.end());
+    if (columnSet.size() < keyColumns.size()) {
+        THROW_ERROR_EXCEPTION(
+            "Invalid key columns: duplicate names (KeyColumns: [%v])", 
+            JoinToString(keyColumns));
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 void PipeReaderToWriter(
     ISchemalessReaderPtr reader,
     ISchemalessWriterPtr writer,

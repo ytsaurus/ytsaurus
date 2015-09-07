@@ -257,6 +257,18 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert read('//tmp/out') == []
 
+    def test_empty_in(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+
+        reduce(
+            in_ = '//tmp/in',
+            out = '//tmp/out',
+            command = 'cat',
+            reduce_by=["a", "b", "a"])
+
+        assert read('//tmp/out') == []
+
     def test_unsorted_input(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')
