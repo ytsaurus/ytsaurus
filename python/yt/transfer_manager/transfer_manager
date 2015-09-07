@@ -600,7 +600,7 @@ class Application(object):
     @staticmethod
     def _has_write_permission_on_yt(client, user, dir):
         while not client.exists(dir):
-            dir = dir.rsplit("/")[0]
+            dir = dir.rsplit("/", 1)[0]
         return client.check_permission(user, "write", dir)["action"] == "allow"
 
     def _check_permission(self, id, headers, action_name):
