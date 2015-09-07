@@ -5,6 +5,7 @@
 #include <ytlib/formats/format.h>
 
 #include <core/yson/public.h>
+#include <core/yson/lexer.h>
 
 namespace NYT {
 namespace NVersionedTableClient {
@@ -48,6 +49,11 @@ void PipeInputToOutput(
     TInputStream* input,
     TOutputStream* output,
     i64 bufferBlockSize);
+
+//////////////////////////////////////////////////////////////////////////////////
+
+// NB: not using TYsonString here to avoid copying.
+TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, NYson::TStatelessLexer& lexer);
 
 //////////////////////////////////////////////////////////////////////////////////
 
