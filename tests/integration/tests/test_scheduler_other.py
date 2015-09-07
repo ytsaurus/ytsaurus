@@ -594,3 +594,31 @@ class TestSchedulerPools(YTEnvSetup):
         create("map_node", "//sys/pools/test_pool_2/test_pool_1")
 
         track_op(op_id)
+
+class TestSchedulerSnapshots(YTEnvSetup):
+    NUM_MASTERS = 3
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "snapshot_period": 1000
+        }
+    }
+
+    def test_snapshots(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(10)])
+        create("table", "//tmp/out")
+
+        testing_options = {"scheduling_delay": 500}
+
+        op_id = map(
+            dont_track=True,
+            command="cat; sleep 1",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={"data_size_per_job": 1, "testing": testing_options})
+        time.sleep(1)
+
+        track_op(op_id)
