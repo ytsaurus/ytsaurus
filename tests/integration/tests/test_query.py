@@ -1,15 +1,16 @@
 import pytest
 
 import os
+import os.path
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 from random import randint
 from random import shuffle
-from distutils.spawn import find_executable
 
 ##################################################################
+
 
 @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
 class TestQuery(YTEnvSetup):
@@ -66,7 +67,7 @@ class TestQuery(YTEnvSetup):
         write_table("<sorted_by=[a; b]>" + path, data)
         with pytest.raises(YtError):
             result = select_rows("a, b from [{0}] where b=b".format(path), verbose=False)
-            print result
+            print >>sys.stderr, result
 
     def test_project1(self):
         self._sample_data(path="//tmp/t")
@@ -486,10 +487,10 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "unversioned_value"}})
 
-        local_bitcode_path = find_executable("test_udfs.bc")
-        local_bitcode_path2 = find_executable("sum_udf2.bc")
-        write_local_file(abs_path, local_bitcode_path)
-        write_local_file(sum_path, local_bitcode_path2)
+        abs_impl_path = self._find_ut_file("test_udfs.bc")
+        sum_impl_path = self._find_ut_file("sum_udf2.bc")
+        write_local_file(abs_path, abs_impl_path)
+        write_local_file(sum_path, sum_impl_path)
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
@@ -515,7 +516,7 @@ class TestQuery(YTEnvSetup):
                     "value": "double"},
                 "calling_convention": "unversioned_value"}})
 
-        local_implementation_path = find_executable("test_udfs.bc")
+        local_implementation_path = self._find_ut_file("test_udfs.bc")
         write_local_file(avg_path, local_implementation_path)
 
         self._sample_data(path="//tmp/ua")
@@ -587,8 +588,8 @@ class TestQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        local_bitcode_path = find_executable("test_udfs_o.o")
-        write_local_file(abs_path, local_bitcode_path)
+        abs_impl_path = self._find_ut_file("test_udfs_o.o")
+        write_local_file(abs_path, abs_impl_path)
 
         self._sample_data(path="//tmp/sou")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "store_detail.h"
 #include "dynamic_memory_store_bits.h"
 #include "dynamic_memory_store_comparer.h"
@@ -60,6 +60,7 @@ public:
         TTablet* tablet);
 
     ~TDynamicMemoryStore();
+
 
     //! Returns the cached instance of row key comparer
     //! (obtained by calling TTablet::GetRowKeyComparer).

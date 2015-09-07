@@ -1,7 +1,7 @@
 #!/bin/bash -eux
 
 clean() {
-    rm -rf docs/ yt/wrapper/tests/sandbox/*
+    rm -rf docs/ yt/wrapper/tests.sandbox/*
     python setup.py clean
     sudo make -f debian/rules clean
 }

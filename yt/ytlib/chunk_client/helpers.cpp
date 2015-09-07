@@ -55,7 +55,7 @@ NChunkClient::TChunkId CreateChunk(
 
     auto* reqExt = req->mutable_extensions()->MutableExtension(NProto::TChunkCreationExt::chunk_creation_ext);
     reqExt->set_replication_factor(options->ReplicationFactor);
-    reqExt->set_movable(config->ChunksMovable);
+    reqExt->set_movable(options->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
     reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
 

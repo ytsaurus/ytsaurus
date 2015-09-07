@@ -284,7 +284,7 @@ struct TOrderClause
     : public TIntrinsicRefCounted
 {
     std::vector<Stroka> OrderColumns;
-    bool IsDesc = false;
+    bool IsDescending = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderClause)

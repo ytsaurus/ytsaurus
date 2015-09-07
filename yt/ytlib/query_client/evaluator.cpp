@@ -90,13 +90,6 @@ public:
 
                 LOG_DEBUG("Evaluating plan fragment");
 
-                LOG_DEBUG("Opening writer");
-                {
-                    NProfiling::TAggregatingTimingGuard timingGuard(&statistics.AsyncTime);
-                    WaitFor(writer->Open(query->GetTableSchema()))
-                        .ThrowOnError();
-                }
-
                 auto permanentBuffer = New<TRowBuffer>();
                 auto outputBuffer = New<TRowBuffer>();
                 auto intermediateBuffer = New<TRowBuffer>();
@@ -113,7 +106,7 @@ public:
                 executionContext.OutputBuffer = outputBuffer;
                 executionContext.IntermediateBuffer = intermediateBuffer;
                 executionContext.Writer = writer;
-                executionContext.OutputBatchRows = &outputBatchRows;
+                executionContext.OutputRowsBatch = &outputBatchRows;
                 executionContext.Statistics = &statistics;
                 executionContext.InputRowLimit = query->InputRowLimit;
                 executionContext.OutputRowLimit = query->OutputRowLimit;

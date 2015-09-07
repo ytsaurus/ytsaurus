@@ -19,6 +19,7 @@ public:
     typedef TypeBuilder<ui64, Cross> TUint64;
     typedef TypeBuilder<double, Cross> TDouble;
     typedef TypeBuilder<const char*, Cross> TString;
+    typedef TypeBuilder<const char*, Cross> TAny;
 
     static Type* get(LLVMContext& context)
     {
@@ -39,6 +40,8 @@ public:
                 return TDouble::get(context);
             case EValueType::String:
                 return TString::get(context);
+            case EValueType::Any:
+                return TAny::get(context);
             default:
                 YUNREACHABLE();
         }

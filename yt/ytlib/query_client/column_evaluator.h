@@ -25,19 +25,19 @@ public:
     void EvaluateKey(
         TRow fullRow,
         const TRowBufferPtr& buffer,
-        int index);
+        int index) const;
 
     void EvaluateKeys(
         TRow fullRow,
-        const TRowBufferPtr& buffer);
+        const TRowBufferPtr& buffer) const;
 
     TRow EvaluateKeys(
         TRow partialRow,
         const TRowBufferPtr& buffer,
-        const NTableClient::TNameTableToSchemaIdMapping& idMapping);
+        const NTableClient::TNameTableToSchemaIdMapping& idMapping) const;
 
-    const std::vector<int>& GetReferenceIds(int index);
-    TConstExpressionPtr GetExpression(int index);
+    const std::vector<int>& GetReferenceIds(int index) const;
+    TConstExpressionPtr GetExpression(int index) const;
 
     void PrepareEvaluator();
 

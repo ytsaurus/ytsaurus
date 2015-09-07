@@ -27,6 +27,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NHydra;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NNodeTrackerServer;
@@ -60,6 +61,8 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+
         context->SetRequestInfo("ChunkCount: %v",
             request->chunk_ids_size());
 

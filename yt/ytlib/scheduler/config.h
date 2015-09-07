@@ -420,7 +420,7 @@ public:
     EMergeMode Mode;
     bool CombineChunks;
     bool ForceTransform;
-    TNullable< std::vector<Stroka> > MergeBy;
+    NTableClient::TKeyColumns MergeBy;
 
     TMergeOperationSpec()
     {
@@ -488,7 +488,7 @@ public:
     TUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
-    TNullable< std::vector<Stroka> > ReduceBy;
+    NTableClient::TKeyColumns ReduceBy;
 
     TReduceOperationSpec()
     {

@@ -98,7 +98,7 @@ private:
     class TTransactionTypeHandler;
     class TTransactionProxy;
 
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
     // ITransactionManager overrides
     virtual void PrepareTransactionCommit(

@@ -300,7 +300,7 @@ private:
         TOperationControllerBase::CustomPrepare();
 
         if (InputTables.size() == 1) {
-            OutputTables[0].KeyColumns = InputTables[0].SortedBy;
+            OutputTables[0].KeyColumns = InputTables[0].KeyColumns;
         }
 
         LOG_INFO("Processing inputs");

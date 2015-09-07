@@ -40,8 +40,9 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     const TKeyColumns& keyColumns,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
-    NLogging::TLogger& logger)
-    : TFetcherBase(config, nodeDirectory, invoker, logger)
+    TScrapeChunksCallback scraperCallback,
+    const NLogging::TLogger& logger)
+    : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, logger)
     , ChunkSliceSize_(chunkSliceSize)
     , KeyColumns_(keyColumns)
 {

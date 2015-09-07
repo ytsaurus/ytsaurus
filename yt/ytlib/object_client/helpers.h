@@ -25,12 +25,6 @@ bool IsVersionedType(EObjectType type);
 //! Checks if the given type is user, i.e. regular users are allowed to create its instances.
 bool IsUserType(EObjectType type);
 
-//! Checks if the nodes of the given type derive from TMapNode. 
-bool IsMapLikeType(EObjectType type);
-
-//! Checks if the nodes of the given type derive from TListNode. 
-bool IsListLikeType(EObjectType type);
-
 //! Extracts the type component from #id.
 EObjectType TypeFromId(const TObjectId& id);
 

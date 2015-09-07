@@ -6,6 +6,15 @@
 #include "chunk_meta_extensions.h"
 #include "replication_writer.h"
 
+#include <ytlib/object_client/helpers.h>
+
+#include <ytlib/api/client.h>
+
+#include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <ytlib/chunk_client/chunk_info.pb.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/parallel_awaiter.h>
 
@@ -14,19 +23,6 @@
 #include <core/misc/address.h>
 
 #include <core/ytree/yson_serializable.h>
-
-#include <ytlib/api/client.h>
-
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-#include <ytlib/chunk_client/chunk_info.pb.h>
-
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NChunkClient {

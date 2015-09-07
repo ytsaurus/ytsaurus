@@ -64,7 +64,7 @@ class TestErasure(YTEnvSetup):
         for r in replicas:
             replica_index = r.attributes["index"]
             address = str(r)
-            print "Banning node %s containing replica %d" % (address, replica_index)
+            print >>sys.stderr, "Banning node %s containing replica %d" % (address, replica_index)
             self.set_node_banned(address, True)
 
             ok = False

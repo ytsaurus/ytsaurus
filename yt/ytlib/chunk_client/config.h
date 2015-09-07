@@ -320,8 +320,6 @@ public:
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
 
-    bool ChunksMovable;
-
     bool SyncChunkSwitch;
 
     NErasure::ECodec ErasureCodec;
@@ -335,8 +333,6 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual((i64) 64 * 1024 * 1024)
             .Default((i64) 30 * 1024 * 1024);
-        RegisterParameter("chunks_movable", ChunksMovable)
-            .Default(true);
         RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
             .Default(true);
     }
@@ -354,6 +350,7 @@ public:
     int ReplicationFactor;
     Stroka Account;
     bool ChunksVital;
+    bool ChunksMovable;
 
     NErasure::ECodec ErasureCodec;
 
@@ -365,6 +362,8 @@ public:
         RegisterParameter("account", Account)
             .NonEmpty();
         RegisterParameter("chunks_vital", ChunksVital)
+            .Default(true);
+        RegisterParameter("chunks_movable", ChunksMovable)
             .Default(true);
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);
@@ -467,6 +466,31 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
+class TChunkScraperConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TDuration ChunkScratchPeriod;
+
+    //! Number of chunks scratched per one LocateChunks.
+    int MaxChunksPerScratch;
+
+    TChunkScraperConfig()
+    {
+        RegisterParameter("chunk_scratch_period", ChunkScratchPeriod)
+            .Default(TDuration::Seconds(10));
+
+        RegisterParameter("max_chunks_per_scratch", MaxChunksPerScratch)
+            .Default(1000)
+            .GreaterThan(0)
+            .LessThan(100000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkScraperConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 

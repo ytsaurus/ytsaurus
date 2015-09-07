@@ -9,6 +9,7 @@
 #include "job_resources.h"
 #include "helpers.h"
 
+#include <ytlib/chunk_client/chunk_scraper.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -885,8 +886,8 @@ private:
         // If the input is sorted then the output chunk tree must also be marked as sorted.
         const auto& inputTable = InputTables[0];
         auto& outputTable = OutputTables[0];
-        if (inputTable.SortedBy) {
-            outputTable.KeyColumns = inputTable.SortedBy;
+        if (!inputTable.KeyColumns.empty()) {
+            outputTable.KeyColumns = inputTable.KeyColumns;
         }
     }
 
@@ -903,8 +904,8 @@ private:
         // If the input is sorted then the output must also be sorted.
         // To produce sorted output a job needs key columns.
         const auto& table = InputTables[0];
-        if (table.SortedBy) {
-            ToProto(jobSpecExt->mutable_key_columns(), *table.SortedBy);
+        if (!table.KeyColumns.empty()) {
+            ToProto(jobSpecExt->mutable_key_columns(), table.KeyColumns);
         }
     }
 
@@ -1033,7 +1034,7 @@ protected:
     int PartitionTag;
 
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() = 0;
+    virtual TKeyColumns GetSpecKeyColumns() = 0;
 
     virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
     {
@@ -1051,7 +1052,7 @@ protected:
 
         auto specKeyColumns = GetSpecKeyColumns();
         LOG_INFO("Spec key columns are %v",
-            specKeyColumns ? ConvertToYsonString(*specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
+            !specKeyColumns.empty() ? ConvertToYsonString(specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
         LOG_INFO("Adjusted key columns are %v",
@@ -1059,12 +1060,24 @@ protected:
 
         CalculateSizes();
 
+        TScrapeChunksCallback scraperCallback;
+        if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
+            scraperCallback = CreateScrapeChunksSessionCallback(
+                Config,
+                Host->GetBackgroundInvoker(),
+                Host->GetChunkLocationThrottler(),
+                AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
+                InputNodeDirectory,
+                Logger);
+        }
+
         ChunkSplitsFetcher = New<TChunkSplitsFetcher>(
             Config->Fetcher,
             ChunkSliceSize,
             KeyColumns,
             InputNodeDirectory,
             Host->GetBackgroundInvoker(),
+            scraperCallback,
             Logger);
 
         ProcessInputs();
@@ -1412,7 +1425,7 @@ private:
         table.LockMode = ELockMode::Exclusive;
     }
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
+    virtual TKeyColumns GetSpecKeyColumns() override
     {
         return Spec->MergeBy;
     }
@@ -1774,7 +1787,7 @@ private:
         return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
     }
 
-    virtual TNullable< std::vector<Stroka> > GetSpecKeyColumns() override
+    virtual TKeyColumns GetSpecKeyColumns() override
     {
         return Spec->ReduceBy;
     }
@@ -1830,17 +1843,15 @@ private:
 
     TKeyColumns GetSortingKeyColumns()
     {
-        auto sortBy = *InputTables[0].SortedBy;
+        auto sortBy = InputTables[0].KeyColumns;
         for (const auto& table : InputTables) {
-            if (table.SortedBy->size() < sortBy.size()) {
-                sortBy.erase(sortBy.begin() + table.SortedBy->size(), sortBy.end());
+            if (table.KeyColumns.size() < sortBy.size()) {
+                sortBy.erase(sortBy.begin() + table.KeyColumns.size(), sortBy.end());
             }
 
             int i = 0;
-            for (; i < sortBy.size(); ++i) {
-                if (sortBy[i] != table.SortedBy->at(i)) {
-                    break;
-                }
+            while (i < sortBy.size() && sortBy[i] == table.KeyColumns[i]) {
+              	++i;
             }
             sortBy.erase(sortBy.begin() + i, sortBy.end());
         }

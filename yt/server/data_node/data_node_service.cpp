@@ -787,7 +787,6 @@ private:
             sampleRequest->sample_count());
         samples.erase(samples.begin() + count, samples.end());
 
-        
         for (int i = 0; i < samples.size(); ++i) {
             YCHECK(samples[i].GetCount() == chunkKeyColumns.size());
             samples[i] = WidenKey(samples[i], keyColumns.size());

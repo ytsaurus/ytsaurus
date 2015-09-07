@@ -521,6 +521,11 @@ public:
         : TCypressNodeBase(id)
     { }
 
+    virtual ENodeType GetNodeType() const override
+    {
+        return ENodeType::Entity;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////

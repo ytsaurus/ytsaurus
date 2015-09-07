@@ -7,10 +7,19 @@ import yt.wrapper as yt
 from helpers import TEST_DIR
 
 import os
+import uuid
 from copy import deepcopy
 import shutil
 import logging
 import pytest
+
+TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
+TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
+
+def pytest_ignore_collect(path, config):
+    path = str(path)
+    return path.startswith(TESTS_SANDBOX) or \
+            path.startswith(os.path.join(TESTS_LOCATION, "__pycache__"))
 
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
@@ -24,10 +33,10 @@ class YtTestEnvironment(object):
         if config is None:
             config = {}
 
-        logging.basicConfig(level=logging.WARNING)
+        logging.getLogger("Yt.local").setLevel(logging.INFO)
         logger.LOGGER.setLevel(logging.WARNING)
 
-        dir = os.path.join(os.environ.get("TESTS_SANDBOX", "tests/sandbox"), self.test_name)
+        dir = os.path.join(TESTS_SANDBOX, self.test_name, "run_" + uuid.uuid4().hex[:8])
 
         self.env = YTEnv()
         self.env.NUM_MASTERS = 1
@@ -121,6 +130,20 @@ def test_environment_for_yamr(request):
 
     return environment
 
+def test_method_teardown():
+    assert yt.config["proxy"]["url"].startswith("localhost")
+
+    for tx in yt.list("//sys/transactions", attributes=["title"]):
+        title = tx.attributes.get("title", "")
+        if "Scheduler lock" in title or "Lease for node" in title:
+            continue
+        try:
+            yt.abort_transaction(tx)
+        except:
+            pass
+
+    yt.remove(TEST_DIR, recursive=True, force=True)
+
 @pytest.fixture(scope="function")
 def yt_env(request, test_environment):
     """ YT cluster fixture.
@@ -129,7 +152,7 @@ def yt_env(request, test_environment):
     """
     test_environment.check_liveness()
     yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
+    request.addfinalizer(test_method_teardown)
     return test_environment
 
 @pytest.fixture(scope="function")
@@ -148,6 +171,6 @@ def yt_env_for_yamr(request, test_environment_for_yamr):
     """
     test_environment_for_yamr.check_liveness()
     yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(lambda: yt.remove(TEST_DIR, recursive=True, force=True))
+    request.addfinalizer(test_method_teardown)
     return test_environment_for_yamr
 

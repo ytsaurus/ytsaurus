@@ -261,35 +261,35 @@ struct TCypressScalarTypeTraits
 
 template <>
 struct TCypressScalarTypeTraits<Stroka>
-    : NYTree::NDetail::TScalarTypeTraits<Stroka>
+    : public NYTree::NDetail::TScalarTypeTraits<Stroka>
 {
     static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<i64>
-    : NYTree::NDetail::TScalarTypeTraits<i64>
+    : public NYTree::NDetail::TScalarTypeTraits<i64>
 {
     static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<ui64>
-    : NYTree::NDetail::TScalarTypeTraits<ui64>
+    : public NYTree::NDetail::TScalarTypeTraits<ui64>
 {
     static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<double>
-    : NYTree::NDetail::TScalarTypeTraits<double>
+    : public NYTree::NDetail::TScalarTypeTraits<double>
 {
     static const NObjectClient::EObjectType ObjectType;
 };
 
 template <>
 struct TCypressScalarTypeTraits<bool>
-    : NYTree::NDetail::TScalarTypeTraits<bool>
+    : public NYTree::NDetail::TScalarTypeTraits<bool>
 {
     static const NObjectClient::EObjectType ObjectType;
 };
@@ -310,6 +310,11 @@ public:
         : TCypressNodeBase(id)
         , Value_()
     { }
+
+    virtual NYTree::ENodeType GetNodeType() const override
+    {
+        return NDetail::TCypressScalarTypeTraits<TValue>::NodeType;
+    }
 
     virtual void Save(NCellMaster::TSaveContext& context) const override
     {
@@ -338,7 +343,7 @@ typedef TScalarNode<bool>   TBooleanNode;
 
 template <class TValue>
 class TScalarNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase< TScalarNode<TValue> >
+    : public TCypressNodeTypeHandlerBase<TScalarNode<TValue>>
 {
 public:
     explicit TScalarNodeTypeHandler(NCellMaster::TBootstrap* bootstrap)
@@ -356,7 +361,7 @@ public:
     }
 
 protected:
-    typedef TCypressNodeTypeHandlerBase< TScalarNode<TValue> > TBase;
+    typedef TCypressNodeTypeHandlerBase<TScalarNode<TValue>> TBase;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
         TScalarNode<TValue>* trunkNode,
@@ -415,6 +420,8 @@ public:
 public:
     explicit TMapNode(const TVersionedNodeId& id);
 
+    virtual NYTree::ENodeType GetNodeType() const override;
+
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
@@ -470,6 +477,8 @@ public:
 public:
     explicit TListNode(const TVersionedNodeId& id);
 
+    virtual NYTree::ENodeType GetNodeType() const override;
+
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
@@ -520,6 +529,8 @@ public:
 
 public:
     explicit TLinkNode(const TVersionedNodeId& id);
+
+    virtual NYTree::ENodeType GetNodeType() const override;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
@@ -575,6 +586,8 @@ public:
 
 public:
     explicit TDocumentNode(const TVersionedNodeId& id);
+
+    virtual NYTree::ENodeType GetNodeType() const override;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;

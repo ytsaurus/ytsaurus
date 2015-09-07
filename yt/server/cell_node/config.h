@@ -91,8 +91,7 @@ public:
             .Default(9000);
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
-        RegisterParameter("cluster_connection", ClusterConnection)
-            .DefaultNew();
+        RegisterParameter("cluster_connection", ClusterConnection);
         RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
             .DefaultNew();
         RegisterParameter("data_node", DataNode)

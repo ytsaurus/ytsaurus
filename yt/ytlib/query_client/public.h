@@ -100,12 +100,12 @@ using NNodeTrackerClient::TNodeDirectoryPtr;
 
 typedef NTableClient::TUnversionedRow TRow;
 typedef NTableClient::TUnversionedRowHeader TRowHeader;
-typedef NTableClient::TUnversionedValue TValue;
-typedef NTableClient::TUnversionedOwningValue TOwningValue;
-typedef NTableClient::TUnversionedValueData TValueData;
-typedef NTableClient::TUnversionedOwningRow TOwningRow;
 typedef NTableClient::TUnversionedRowBuilder TRowBuilder;
+typedef NTableClient::TUnversionedOwningRow TOwningRow;
 typedef NTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
+typedef NTableClient::TUnversionedValue TValue;
+typedef NTableClient::TUnversionedValueData TValueData;
+typedef NTableClient::TUnversionedOwningValue TOwningValue;
 typedef NTableClient::TOwningKey TKey;
 
 typedef std::pair<TKey, TKey> TKeyRange;

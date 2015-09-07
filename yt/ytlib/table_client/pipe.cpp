@@ -124,13 +124,6 @@ public:
         : Data_(std::move(data))
     { }
 
-    virtual TFuture<void> Open(
-        const TTableSchema& schema,
-        const TNullable<TKeyColumns>& /*keyColumns*/) override
-    {
-        return VoidFuture;
-    }
-
     virtual TFuture<void> Close() override
     {
         TPromise<void> readerReadyEvent;

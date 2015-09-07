@@ -242,14 +242,6 @@ public:
         : Writer_(std::move(writer))
     { }
 
-    virtual TFuture<void> Open(
-        const TTableSchema& schema,
-        const TNullable<TKeyColumns>& /*keyColumns*/) override
-    {
-        Writer_->WriteTableSchema(schema);
-        return VoidFuture;
-    }
-
     virtual TFuture<void> Close() override
     {
         Writer_->WriteCommand(EWireProtocolCommand::EndOfRowset);
@@ -323,8 +315,10 @@ void TWireProtocolWriter::WriteUnversionedRowset(
     Impl_->WriteUnversionedRowset(rowset, idMapping);
 }
 
-ISchemafulWriterPtr TWireProtocolWriter::CreateSchemafulRowsetWriter()
+ISchemafulWriterPtr TWireProtocolWriter::CreateSchemafulRowsetWriter(
+    const NTableClient::TTableSchema& schema)
 {
+    WriteTableSchema(schema);
     return New<TSchemafulRowsetWriter>(Impl_);
 }
 

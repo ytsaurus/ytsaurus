@@ -11,7 +11,7 @@ namespace NTableClient {
 
 typedef std::function<ISchemalessWriterPtr(TNameTablePtr)> TSchemalessWriterFactory;
 
-ISchemafulWriterPtr CreateSchemafulWriterAdapter(TSchemalessWriterFactory createWriter);
+ISchemafulWriterPtr CreateSchemafulWriterAdapter(ISchemalessWriterPtr underlyingWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

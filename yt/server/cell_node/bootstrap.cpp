@@ -33,6 +33,7 @@
 
 #include <core/profiling/profile_manager.h>
 
+#include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_service_proxy.h>
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
@@ -100,6 +101,7 @@ namespace NYT {
 namespace NCellNode {
 
 using namespace NBus;
+using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkServer;
@@ -285,7 +287,7 @@ void TBootstrap::DoRun()
     auto localInterconnectAddress = GetInterconnectAddress(localAddresses);
 
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
-
+    
     JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
 
     auto patchMasterRedirectorConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
@@ -603,7 +605,7 @@ NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
     return QueryExecutor;
 }
 
-const TGuid& TBootstrap::GetCellId() const
+const TCellId& TBootstrap::GetCellId() const
 {
     return Config->ClusterConnection->PrimaryMaster->CellId;
 }
