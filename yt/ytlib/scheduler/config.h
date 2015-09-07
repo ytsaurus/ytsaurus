@@ -7,7 +7,7 @@
 #include <ytlib/api/config.h>
 
 #include <ytlib/new_table_client/config.h>
-#include <ytlib/new_table_client/helpers.h>
+#include <ytlib/new_table_client/schema.h>
 
 #include <ytlib/formats/format.h>
 
@@ -442,7 +442,7 @@ public:
         });
 
         RegisterValidator([&] () {
-            if (ReduceBy) {
+            if (ReduceBy && !ReduceBy->empty()) {
                 NVersionedTableClient::ValidateKeyColumns(*ReduceBy);
             }
         });
@@ -692,7 +692,9 @@ public:
             validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
             validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
 
-            NVersionedTableClient::ValidateKeyColumns(ReduceBy);
+            if (!ReduceBy.empty()) {
+                NVersionedTableClient::ValidateKeyColumns(ReduceBy);
+            }
         });
     }
 
