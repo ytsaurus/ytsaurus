@@ -36,3 +36,5 @@ class MessageWriter(object):
         message = pickle.dumps(obj)
         self.stream.write(struct.pack("i", len(message)))
         self.stream.write(message)
+        if hasattr(self.stream, "flush"):
+            self.stream.flush()
