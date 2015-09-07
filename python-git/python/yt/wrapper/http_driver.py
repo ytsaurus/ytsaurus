@@ -66,6 +66,7 @@ def make_request(command_name, params,
                  retry_unavailable_proxy=True,
                  response_should_be_json=False,
                  use_heavy_proxy=False,
+                 timeout=None,
                  client=None):
     """
     Makes request to yt proxy. Command name is the name of command in YT API.
@@ -181,6 +182,7 @@ def make_request(command_name, params,
             data=data,
             stream=stream,
             response_should_be_json=response_should_be_json,
+            timeout=timeout,
             client=client)
     except YtProxyUnavailable:
         ban_host(proxy, client=client)

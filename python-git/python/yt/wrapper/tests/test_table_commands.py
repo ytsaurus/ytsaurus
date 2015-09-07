@@ -1,4 +1,5 @@
-from yt.wrapper.table import TablePath
+from yt.wrapper.table import TablePath, TempTable
+from yt.wrapper.client import Yt
 import yt.wrapper as yt
 
 from helpers import TEST_DIR, check, get_temp_dsv_records
@@ -38,7 +39,7 @@ class TestTableCommands(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
-    def test_read_write(self):
+    def _test_read_write(self):
         table = TEST_DIR + "/table"
         yt.create_table(table)
         check([], yt.read_table(table))
@@ -80,6 +81,22 @@ class TestTableCommands(object):
         finally:
             yt.config["tabular_data_format"] = yt.format.DsvFormat()
 
+    def test_read_write_with_retries(self):
+        old_value = yt.config["write_retries"]["enable"]
+        yt.config["write_retries"]["enable"] = True
+        try:
+            self._test_read_write()
+        finally:
+            yt.config["write_retries"]["enable"] = old_value
+
+    def test_read_write_without_retries(self):
+        old_value = yt.config["write_retries"]["enable"]
+        yt.config["write_retries"]["enable"] = False
+        try:
+            self._test_read_write()
+        finally:
+            yt.config["write_retries"]["enable"] = old_value
+
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
         table = dir + "/table"
@@ -109,6 +126,10 @@ class TestTableCommands(object):
 
         table = yt.create_temp_table(path=TEST_DIR, prefix="prefix")
         assert table.startswith(TEST_DIR + "/prefix")
+
+        with TempTable() as table:
+            assert yt.exists(table)
+        assert not yt.exists(table)
 
     def test_write_many_chunks(self):
         yt.config.WRITE_BUFFER_SIZE = 1
@@ -358,4 +379,33 @@ class TestTableCommands(object):
             assert yt.get_attribute(table, "locks") == []
         finally:
             yt.config.TRANSACTION = "0-0-0-0"
+
+    def _set_banned(self, value):
+        # NB: we cannot unban proxy using proxy, so we must using client for that.
+        client = Yt(config={"backend": "native", "driver_config": yt.config["driver_config"]})
+        proxy = "//sys/proxies/" + client.list("//sys/proxies")[0]
+        client.set(proxy + "/@banned".format(proxy), value)
+        time.sleep(1)
+
+    def _DISABLED_test_banned_proxy(self):
+        table = TEST_DIR + "/table"
+        yt.create_table(table)
+
+        self._set_banned("true")
+
+        old_request_retry_count = yt.config["proxy"]["request_retry_count"]
+        yt.config["proxy"]["request_retry_count"] = 1
+        try:
+            with pytest.raises(yt.YtProxyUnavailable):
+                yt.get(table)
+
+            try:
+                yt.get(table)
+            except yt.YtProxyUnavailable as err:
+                assert "banned" in str(err)
+
+        finally:
+            yt.config["proxy"]["request_retry_count"] = old_request_retry_count
+            self._set_banned("false")
+
 

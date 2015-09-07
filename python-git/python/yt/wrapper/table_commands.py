@@ -49,7 +49,7 @@ import config
 from config import get_config, get_option
 import py_wrapper
 from common import flatten, require, unlist, update, parse_bool, is_prefix, get_value, \
-                   compose, bool_to_string, chunk_iter_lines, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
+                   compose, bool_to_string, chunk_iter_stream, get_version, MB, EMPTY_GENERATOR
 from errors import YtIncorrectResponse, YtError, YtOperationFailedError
 from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
@@ -80,22 +80,35 @@ from copy import deepcopy
 
 DEFAULT_EMPTY_TABLE = TablePath("//sys/empty_yamr_table", simplify=False)
 
-def _split_rows(stream, format, raw):
+def _add_spec_option(spec, name, value):
+    if value is not None:
+        spec[name] = value
+    return spec
+
+def _to_chunk_stream(stream, format, raw, split_rows, chunk_size):
     if isinstance(stream, str):
         stream = StringIO(stream)
 
-    if hasattr(stream, "read"):
-        if not raw:
-            raise YtError("Passing raw=False and stream as input forbidden")
-        for row in format.load_rows(stream, raw=True):
-            yield row
-    else:
-        for row in stream:
-            if raw:
-                yield row
-            else:
-                yield format.dumps_row(row)
+    is_iterable = any([isinstance(stream, type) for type in [types.ListType, types.GeneratorType]]) or hasattr(stream, "next")
+    is_filelike = hasattr(stream, "read")
 
+    if not is_iterable and not is_filelike:
+        raise YtError("Cannot split stream into chunks")
+
+    if raw:
+        if is_filelike:
+            if split_rows:
+                stream = format.load_rows(stream, raw=True)
+            else:
+                stream = chunk_iter_stream(stream, chunk_size)
+        for chunk in stream:
+            yield chunk
+    else:
+        if is_filelike:
+            raise YtError("Incorrect input type, it must be generator or list")
+        # is_iterable
+        for row in stream:
+            yield format.dumps_row(row)
 
 def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None):
     result = [to_table(table, client=client) for table in flatten(tables)]
@@ -482,13 +495,10 @@ def write_table(table, input_stream, format=None, table_writer=None,
 
     can_split_input = isinstance(input_stream, types.ListType) or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and can_split_input and "sorted_by" not in table.attributes
-    if enable_retries:
-        input_stream = chunk_iter_lines(_split_rows(input_stream, format, raw), get_config(client)["write_retries"]["chunk_size"])
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
-
     if get_config(client)["write_retries"]["enable"] and not can_split_input:
         logger.warning("Cannot split input into rows. Write is processing by one request.")
+
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=enable_retries, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     make_write_request(
         "write" if get_api_version(client=client) == "v2" else "write_table",
@@ -526,6 +536,8 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=No
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table.name, client=client):
         return StringIO() if raw else EMPTY_GENERATOR
     attributes = get(table.name + "/@", client=client)
+    if attributes.get("type") != "table":
+        raise YtError("Command read is supported only for tables")
     if  attributes["chunk_count"] > 100 and attributes["compressed_data_size"] / attributes["chunk_count"] < MB:
         logger.info("Table chunks are too small; consider running the following command to improve read performance: "
                     "yt merge --proxy {1} --src {0} --dst {0} "
@@ -833,10 +845,7 @@ def lookup_rows(table, input_stream, format=None, raw=None, client=None):
     params["input_format"] = format.to_yson_type()
     params["output_format"] = format.to_yson_type()
 
-    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
-        input_stream = _split_rows(input_stream, format, raw)
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     response = _make_transactional_request(
         "lookup_rows",
@@ -871,10 +880,7 @@ def insert_rows(table, input_stream, format=None, raw=None, client=None):
     params["path"] = table.to_yson_type()
     params["input_format"] = format.to_yson_type()
 
-    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
-        input_stream = _split_rows(input_stream, format, raw)
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     _make_transactional_request(
         "insert_rows",
@@ -903,10 +909,7 @@ def delete_rows(table, input_stream, format=None, raw=None, client=None):
     params["path"] = table.to_yson_type()
     params["input_format"] = format.to_yson_type()
 
-    if isinstance(input_stream, types.ListType) or format.is_raw_load_supported():
-        input_stream = _split_rows(input_stream, format, raw)
-    elif isinstance(input_stream, file) or hasattr(input_stream, "read"):
-        input_stream = chunk_iter_stream(input_stream, MB)
+    input_stream = _to_chunk_stream(input_stream, format, raw, split_rows=False, chunk_size=get_config(client)["write_retries"]["chunk_size"])
 
     _make_transactional_request(
         "delete_rows",
@@ -1061,7 +1064,8 @@ class Finalizer(object):
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
         if get_config(self.client)["auto_merge_output"]["action"] == "merge":
-            table = TablePath(table, append=False)
+            table = TablePath(table)
+            table.attributes.clear()
             try:
                 run_merge(source_table=table, destination_table=table, mode=mode,
                           spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
@@ -1326,8 +1330,9 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "reduce"
     return _run_operation(binary, source_table, destination_table, **kwargs)
 
-def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, copy_attributes=False, remote_cluster_token=None, strategy=None, sync=True, client=None):
+def run_remote_copy(source_table, destination_table,
+                    cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
+                    spec=None, strategy=None, sync=True, client=None):
     """Copy source table from remote cluster to destination table on current cluster.
 
     :param source_table: (list of string or `TablePath`)
@@ -1358,33 +1363,14 @@ def run_remote_copy(source_table, destination_table, cluster_name,
 
     destination_table = unlist(_prepare_destination_tables(destination_table, None, None,
                                                            client=client))
-
-    # TODO(ignat): provide atomicity of attribute copying
-    if copy_attributes:
-        if len(source_table) != 1:
-            raise YtError("Cannot copy attributes of multiple source tables")
-
-        remote_proxy = get("//sys/clusters/{0}/proxy".format(cluster_name), client=client)
-        current_proxy = get_config(client)["proxy"]["url"]
-        current_token = get_config(client)["token"]
-
-        get_config(client)["proxy"]["url"] = remote_proxy
-        get_config(client)["token"] = get_value(remote_cluster_token, get_config(client)["token"])
-        src_attributes = get(source_table[0] + "/@")
-
-        get_config(client)["proxy"]["url"] = current_proxy
-        get_config(client)["token"] = current_token
-        attributes = src_attributes.get("user_attribute_keys", []) + \
-                     ["compression_codec", "erasure_codec", "replication_factor"]
-        for attribute in attributes:
-            set_attribute(destination_table, attribute, src_attributes[attribute], client=client)
-
     spec = compose(
         lambda _: _configure_spec(_, client),
-        lambda _: update({"network_name": network_name}, _) if network_name is not None else _,
+        lambda _: _add_spec_option(_, "network_name", network_name),
+        lambda _: _add_spec_option(_, "cluster_name", cluster_name),
+        lambda _: _add_spec_option(_, "cluster_connection", cluster_connection),
+        lambda _: _add_spec_option(_, "copy_attributes", copy_attributes),
         lambda _: update({"input_table_paths": map(get_input_name, source_table),
-                          "output_table_path": destination_table.to_yson_type(),
-                          "cluster_name": cluster_name},
+                          "output_table_path": destination_table.to_yson_type()},
                           _),
         lambda _: get_value(spec, {})
     )(spec)

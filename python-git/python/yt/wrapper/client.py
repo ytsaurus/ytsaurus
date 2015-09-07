@@ -14,6 +14,7 @@ from transaction_commands import start_transaction, abort_transaction, commit_tr
 from http import get_user_name
 from transaction import Transaction, PingableTransaction, PingTransaction
 from lock import lock
+from table import TempTable
 
 # XXX(ignat): rename?
 class Yt(object):
@@ -219,3 +220,6 @@ class Yt(object):
 
     def PingTransaction(self, *args, **kwargs):
         return PingTransaction(*args, client=self, **kwargs)
+
+    def TempTable(self, *args, **kwargs):
+        return TempTable(*args, client=self, **kwargs)
