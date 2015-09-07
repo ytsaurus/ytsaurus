@@ -1313,6 +1313,7 @@ private:
             for (const auto& pair : nodeTracker->Nodes()) {
                 auto* node = pair.second;
                 ChunkReplicator_->OnNodeRegistered(node);
+                ChunkPlacement_->OnNodeRegistered(node);
             }
 
             for (const auto& pair : ChunkMap_) {
@@ -1336,7 +1337,6 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        ChunkPlacement_->Start();
         ChunkReplicator_->Start();
         ChunkSealer_->Start();
     }
@@ -1345,10 +1345,7 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        if (ChunkPlacement_) {
-            ChunkPlacement_->Stop();
-            ChunkPlacement_.Reset();
-        }
+        ChunkPlacement_.Reset();
 
         if (ChunkReplicator_) {
             ChunkReplicator_->Stop();

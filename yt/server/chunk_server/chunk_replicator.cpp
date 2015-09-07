@@ -406,12 +406,8 @@ void TChunkReplicator::ScheduleJobs(
         jobsToAbort);
 }
 
-void TChunkReplicator::OnNodeRegistered(TNode* node)
-{
-    node->ClearChunkRemovalQueue();
-    node->ClearChunkReplicationQueues();
-    node->ClearChunkSealQueue();
-}
+void TChunkReplicator::OnNodeRegistered(TNode* /*node*/)
+{ }
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
@@ -420,7 +416,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
             job,
             EJobUnregisterFlags(EJobUnregisterFlags::UnregisterFromChunk | EJobUnregisterFlags::ScheduleChunkRefresh));
     }
-    node->Jobs().clear();
+    node->Reset();
 }
 
 void TChunkReplicator::OnNodeRemoved(TNode* node)

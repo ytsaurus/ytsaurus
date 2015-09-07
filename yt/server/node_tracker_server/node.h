@@ -147,17 +147,14 @@ public:
 
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
-    void ClearChunkRemovalQueue();
 
     void AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority);
     void RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica);
-    void ClearChunkReplicationQueues();
 
     void AddToChunkSealQueue(TChunk* chunk);
     void RemoveFromChunkSealQueue(TChunk* chunk);
-    void ClearChunkSealQueue();
 
-    void ResetSessionHints();
+    void ClearSessionHints();
     
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
 
@@ -172,6 +169,8 @@ public:
     void DetachTabletCell(const NTabletServer::TTabletCell* cell);
 
     void ShrinkHashTables();
+
+    void Reset();
 
     static ui64 GenerateVisitMark();
 

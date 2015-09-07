@@ -107,47 +107,16 @@ TChunkPlacement::TChunkPlacement(
     : Config_(config)
     , Bootstrap_(bootstrap)
 {
-    YCHECK(config);
-    YCHECK(bootstrap);
-}
-
-void TChunkPlacement::Start()
-{
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& pair : nodeTracker->Nodes()) {
-        auto* node = pair.second;
-        switch (node->GetLocalState()) {
-            case ENodeState::Registered:
-            case ENodeState::Online:
-                OnNodeRegistered(node);
-                break;
-            case ENodeState::Unregistered:
-                // Some nodes may be in "unregistered" state on leader startup;
-                // these will be pushed to removed state soon.
-                break;
-            default:
-                YUNREACHABLE();
-        }
-    }
-}
-
-void TChunkPlacement::Stop()
-{
-    auto nodeTracker = Bootstrap_->GetNodeTracker();
-    for (const auto& pair : nodeTracker->Nodes()) {
-        auto* node = pair.second;
-        // NB: Mostly equivalent to OnNodeUnregistered but runs faster.
-        node->SetLoadRank(-1);
-        node->SetFillFactorIterator(Null);
-    }
-
-    // NB: This is redundant since the instance is never reused.
-    LoadRankToNode_.clear();
-    FillFactorToNode_.clear();
+    YCHECK(Config_);
+    YCHECK(Bootstrap_);
 }
 
 void TChunkPlacement::OnNodeRegistered(TNode* node)
 {
+    if (node->GetLocalState() != ENodeState::Registered &&
+        node->GetLocalState() != ENodeState::Online)
+        return;
+
     InsertToLoadRankList(node);
 
     if (node->GetSessionCount(EWriteSessionType::Replication) < Config_->MaxReplicationWriteSessions) {
@@ -164,7 +133,7 @@ void TChunkPlacement::OnNodeUnregistered(TNode* node)
 
 void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
-    node->ResetSessionHints();
+    node->ClearSessionHints();
 
     OnNodeUnregistered(node);
     OnNodeRegistered(node);

@@ -112,6 +112,12 @@ private:
 
     virtual void DoZombifyObject(TNode* node) override;
 
+    virtual void DoResetObject(TNode* node) override
+    {
+        TObjectTypeHandlerWithMapBase::DoResetObject(node);
+        node->Reset();
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -896,15 +902,6 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         Profiler.SetEnabled(false);
-
-        // Reset runtime info.
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
-            node->ResetSessionHints();
-            node->ClearChunkRemovalQueue();
-            node->ClearChunkReplicationQueues();
-            node->ClearChunkSealQueue();
-        }
     }
 
     virtual void OnRecoveryComplete() override
