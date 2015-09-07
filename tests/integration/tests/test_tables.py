@@ -1,11 +1,11 @@
-import pytest
-
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+
 from yt.yson import to_yson_type
+from yt.environment.helpers import assert_items_equal
 
 from time import sleep
-
+import pytest
 
 ##################################################################
 
@@ -361,7 +361,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table", tx=inner_tx) == [v1, v2, v4]
 
         commit_transaction(inner_tx)
-        self.assertItemsEqual(read_table("//tmp/table", tx=outer_tx), [v1, v2, v4, v3]) # order is not specified
+        assert_items_equal(read_table("//tmp/table", tx=outer_tx), [v1, v2, v4, v3])
 
         commit_transaction(outer_tx)
 

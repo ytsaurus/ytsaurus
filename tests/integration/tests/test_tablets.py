@@ -3,6 +3,8 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from yt.environment.helpers import assert_items_equal
+
 from time import sleep
 
 ##################################################################
@@ -112,14 +114,14 @@ class TestTablets(YTEnvSetup):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
         actual = lookup_rows("//tmp/t", keys);
-        self.assertItemsEqual(actual, rows);
+        assert actual == rows
 
         self._sync_unmount_table("//tmp/t")
         with pytest.raises(YtError): lookup_rows("//tmp/t", keys)
 
         self._sync_mount_table("//tmp/t")
-        actual = lookup_rows("//tmp/t", keys);
-        self.assertItemsEqual(actual, rows);
+        actual = lookup_rows("//tmp/t", keys)
+        assert actual == rows
 
     def test_reshard_unmounted(self):
         self._sync_create_cells(1, 1)
@@ -203,20 +205,20 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key1": 1, "value": "2"}])
         expected = [{"key1": 1, "key2": 103, "value": "2"}]
         actual = select_rows("* from [//tmp/t]")
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
         insert_rows("//tmp/t", [{"key1": 2, "value": "2"}])
         expected = [{"key1": 1, "key2": 103, "value": "2"}]
         actual = lookup_rows("//tmp/t", [{"key1" : 1}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = lookup_rows("//tmp/t", [{"key1": 2}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
         delete_rows("//tmp/t", [{"key1": 1}])
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = select_rows("* from [//tmp/t]")
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
         with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": "3"}])
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
@@ -224,11 +226,11 @@ class TestTablets(YTEnvSetup):
 
         expected = []
         actual = lookup_rows("//tmp/t", [{"key1": 3}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = select_rows("* from [//tmp/t]")
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_hash(self):
@@ -240,18 +242,18 @@ class TestTablets(YTEnvSetup):
         row1 = [{"key": 1, "value": "2"}]
         insert_rows("//tmp/t", row1)
         actual = select_rows("key, value from [//tmp/t]")
-        self.assertItemsEqual(actual, row1)
+        assert actual == row1
 
         row2 = [{"key": 2, "value": "2"}]
         insert_rows("//tmp/t", row2)
         actual = lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "value"])
-        self.assertItemsEqual(actual, row1)
+        assert actual == row1
         actual = lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "value"])
-        self.assertItemsEqual(actual, row2)
+        assert actual == row2
 
         delete_rows("//tmp/t", [{"key": 1}])
         actual = select_rows("key, value from [//tmp/t]")
-        self.assertItemsEqual(actual, row2)
+        assert actual == row2
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
     def test_computed_column_update_consistency(self):
@@ -271,17 +273,17 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
         expected = [{"key1": 1, "key2": 1, "value1": "2"}]
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
         insert_rows("//tmp/t", [{"key2": 1, "value2": "3"}], update=True)
         expected = [{"key1": 1, "key2": 1, "value1": "2", "value2": "3"}]
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
         insert_rows("//tmp/t", [{"key2": 1, "value1": "4"}], update=True)
         expected = [{"key1": 1, "key2": 1, "value1": "4", "value2": "3"}]
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
     def test_reshard_data(self):
         self._sync_create_cells(1, 1)
@@ -296,16 +298,16 @@ class TestTablets(YTEnvSetup):
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
         insert_rows("//tmp/t1", rows)
-        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
         reshard([[], [1]])
-        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
         reshard([[], [1], [2]])
-        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
         reshard([[]])
-        self.assertItemsEqual(select_rows("* from [//tmp/t1]"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
     def test_no_copy(self):
         self._sync_create_cells(1, 1)
@@ -357,9 +359,9 @@ class TestTablets(YTEnvSetup):
 
         insert_rows("//tmp/t1", rows)
         actual = select_rows("* from [//tmp/t1]")
-        self.assertItemsEqual(actual, rows)
+        assert_items_equal(actual, rows)
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
-        self.assertItemsEqual(actual, rows)
+        assert_items_equal(actual, rows)
 
     def test_swap(self):
         self.test_move_unmounted()
@@ -396,7 +398,7 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         expected = [{"key": 1, "value": "test"}]
         actual = select_rows("* from [//tmp/t]", user="u")
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
     def test_select_denied(self):
         self._prepare_denied("read")
@@ -407,7 +409,7 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         expected = [{"key": 1, "value": "test"}]
         actual = lookup_rows("//tmp/t", [{"key" : 1}], user="u")
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
     def test_lookup_denied(self):
         self._prepare_denied("read")
@@ -419,7 +421,7 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}], user="u")
         expected = [{"key": 1, "value": "test"}]
         actual = lookup_rows("//tmp/t", [{"key" : 1}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
     def test_insert_denied(self):
         self._prepare_denied("write")
@@ -431,7 +433,7 @@ class TestTablets(YTEnvSetup):
         delete_rows("//tmp/t", [{"key": 1}], user="u")
         expected = []
         actual = lookup_rows("//tmp/t", [{"key" : 1}])
-        self.assertItemsEqual(actual, expected)
+        assert actual == expected
 
     def test_delete_denied(self):
         self._prepare_denied("write")
@@ -454,7 +456,7 @@ class TestTablets(YTEnvSetup):
         self._sync_mount_table("//tmp/t")
 
         actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
-        self.assertItemsEqual(actual, rows)
+        assert_items_equal(actual, rows)
 
         rows = [{"key": i, "value": str(i)} for i in xrange(1, 1000, 2)]
         insert_rows("//tmp/t", rows)
@@ -464,7 +466,7 @@ class TestTablets(YTEnvSetup):
 
         rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000)]
         actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
-        self.assertItemsEqual(actual, rows)
+        assert_items_equal(actual, rows)
 
         sleep(1)
         for tablet in xrange(10):
@@ -659,7 +661,7 @@ class TestTablets(YTEnvSetup):
 
         keys = [{"key": i} for i in xrange(100)]
         actual = lookup_rows("//tmp/t", keys);
-        self.assertItemsEqual(actual, rows);
+        assert_items_equal(actual, rows);
 
     def test_atomic_snapshots(self):
         self._test_snapshots("full")

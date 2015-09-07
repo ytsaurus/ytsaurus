@@ -114,7 +114,7 @@ class TestRacks(YTEnvSetup):
             self._set_rack(node, "r")
         for node in nodes:
             assert self._get_rack(node) == "r"
-        self.assertItemsEqual(get("//sys/racks/r/@nodes"), nodes)
+        assert sorted(get("//sys/racks/r/@nodes")) == sorted(nodes)
         
     def test_remove(self):
         create_rack("r")

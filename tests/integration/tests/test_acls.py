@@ -193,7 +193,7 @@ class TestAcls(YTEnvSetup):
 
         set("//tmp/p/@acl/end", self._make_ace("allow", "u", ["read", "write"]))
         set("//tmp/p/a", "b", user="u")
-        self.assertItemsEqual(ls("//tmp/p", user="u"), ["a"])
+        assert ls("//tmp/p", user="u") == ["a"]
         assert get("//tmp/p/a", user="u") == "b"
 
     def test_create_in_tx1(self):
@@ -481,7 +481,7 @@ class TestAcls(YTEnvSetup):
         RWRAC = RWRA + ["create"]
 
         def check(path, permissions):
-            self.assertItemsEqual(get(path + "/@supported_permissions"), permissions)
+            assert sorted(get(path + "/@supported_permissions")) == sorted(permissions)
 
         # cypress node
         check("//tmp", RWRA)
