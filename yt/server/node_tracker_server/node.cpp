@@ -72,7 +72,7 @@ void TNode::Init()
     LocalStatePtr_ = nullptr;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
-    ResetSessionHints();
+    ClearSessionHints();
 }
 
 TNodeId TNode::GetId() const
@@ -266,11 +266,6 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
     ChunkRemovalQueue_.erase(ToGeneric(replica));
 }
 
-void TNode::ClearChunkRemovalQueue()
-{
-    ChunkRemovalQueue_.clear();
-}
-
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
 {
     ChunkReplicationQueues_[priority].insert(ToGeneric(replica));
@@ -284,13 +279,6 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
     }
 }
 
-void TNode::ClearChunkReplicationQueues()
-{
-    for (auto& queue : ChunkReplicationQueues_) {
-        queue.clear();
-    }
-}
-
 void TNode::AddToChunkSealQueue(TChunk* chunk)
 {
     ChunkSealQueue_.insert(chunk);
@@ -301,12 +289,7 @@ void TNode::RemoveFromChunkSealQueue(TChunk* chunk)
     ChunkSealQueue_.erase(chunk);
 }
 
-void TNode::ClearChunkSealQueue()
-{
-    ChunkSealQueue_.clear();
-}
-
-void TNode::ResetSessionHints()
+void TNode::ClearSessionHints()
 {
     HintedUserSessionCount_ = 0;
     HintedReplicationSessionCount_ = 0;
@@ -389,6 +372,19 @@ void TNode::ShrinkHashTables()
     }
     ShrinkHashTable(&ChunkRemovalQueue_);
     ShrinkHashTable(&ChunkSealQueue_);
+}
+
+void TNode::Reset()
+{
+    ClearSessionHints();
+    Jobs_.clear();
+    ChunkRemovalQueue_.clear();
+    for (auto& queue : ChunkReplicationQueues_) {
+        queue.clear();
+    }
+    ChunkSealQueue_.clear();
+    LoadRank_ = -1;
+    FillFactorIterator_ = Null;
 }
 
 ui64 TNode::GenerateVisitMark()
