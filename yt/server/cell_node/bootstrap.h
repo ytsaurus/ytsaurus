@@ -86,7 +86,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
 
-    const TGuid& GetCellId() const;
+    const NObjectClient::TCellId& GetCellId() const;
 
     void Run();
 

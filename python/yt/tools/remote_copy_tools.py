@@ -392,10 +392,7 @@ done"""
         if not yamr_client.supports_read_snapshots:
             yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, job_count=None, force_sort=None, fastbone=True, message_queue=None):
-    if job_count is None:
-        job_count = 200
-
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None, fastbone=True, message_queue=None):
     tmp_dir = tempfile.mkdtemp()
 
     lenval_to_nums_file = _pack_string(
@@ -442,8 +439,13 @@ while True:
 
             command = "python lenval_to_nums.py | bash read_from_yt.sh"
 
+            if parallel_job_count is None:
+                parallel_job_count = 200
+            job_count = len(ranges)
+
             yamr_client.run_map(command, temp_yamr_table, dst, files=files,
-                                opts="-subkey -lenval -jobcount {0} -opt cpu.intensive.mode=1".format(job_count))
+                                opts="-subkey -lenval -jobcount {0} -opt jobcount.throttle={1} -opt cpu.intensive.mode=1"\
+                                     .format(job_count, parallel_job_count))
 
             result_row_count = yamr_client.records_count(dst)
             if row_count != result_row_count:

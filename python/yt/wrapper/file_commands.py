@@ -6,7 +6,7 @@ from common import require, chunk_iter_stream, chunk_iter_string, bool_to_string
 from errors import YtError, YtResponseError
 from http import get_api_version
 from heavy_commands import make_write_request, make_read_request
-from cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute
+from cypress_commands import remove, exists, set_attribute, mkdir, find_free_subpath, create, link, get_attribute, set
 from table import to_table
 
 from yt.yson import to_yson_type
@@ -200,10 +200,15 @@ def smart_upload_file(filename, destination=None, yt_filename=None, placement_st
                 raise
             broken = False
 
-        if link_exists and broken:
-            logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
-            remove(destination, client=client)
-            link_exists = False
+        if link_exists:
+            if broken:
+                logger.debug("Link '%s' of file '%s' exists but is broken", destination, filename)
+                remove(destination, client=client)
+                link_exists = False
+            else:
+                # Touch file and link to update modification time
+                set(destination + "/@touched", "true", client=client)
+                set(destination + "&/@touched", "true", client=client)
         if not link_exists:
             real_destination = find_free_subpath(prefix, client=client)
             upload_with_check(real_destination)

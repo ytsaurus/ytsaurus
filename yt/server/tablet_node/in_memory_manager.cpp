@@ -158,7 +158,6 @@ private:
             store->GetId());
 
         auto storeManager = tablet->GetStoreManager();
-
         try {
             GuardedPreloadStore(tablet, store, Logger);
             storeManager->EndStorePreload(store);
@@ -166,6 +165,9 @@ private:
             LOG_ERROR(ex, "Error preloading tablet store, backing off");
             storeManager->BackoffStorePreload(store);
         }
+
+        auto slotManager = Bootstrap_->GetTabletSlotManager();
+        slotManager->UpdateTabletSnapshot(tablet);
     }
 
     void GuardedPreloadStore(

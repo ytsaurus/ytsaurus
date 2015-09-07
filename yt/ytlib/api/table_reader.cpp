@@ -63,10 +63,7 @@ public:
         TRemoteReaderOptionsPtr options,
         IClientPtr client,
         TTransactionPtr transaction,
-        IBlockCachePtr blockCache,
         const TRichYPath& richPath,
-        TNameTablePtr nameTable,
-        IThroughputThrottlerPtr throttler,
         bool unordered);
 
     virtual TFuture<void> Open() override;
@@ -94,8 +91,6 @@ private:
     const TTransactionPtr Transaction_;
     const IBlockCachePtr BlockCache_;
     const TRichYPath RichPath_;
-    const TNameTablePtr NameTable_;
-    const IThroughputThrottlerPtr Throttler_;
 
     const TTransactionId TransactionId_;
     const bool Unordered_;
@@ -115,26 +110,20 @@ TSchemalessTableReader::TSchemalessTableReader(
     TRemoteReaderOptionsPtr options,
     IClientPtr client,
     TTransactionPtr transaction,
-    IBlockCachePtr blockCache,
     const TRichYPath& richPath,
-    TNameTablePtr nameTable,
-    IThroughputThrottlerPtr throttler,
     bool unordered)
     : Config_(config)
     , Options_(options)
     , Client_(client)
     , Transaction_(transaction)
-    , BlockCache_(blockCache)
+    , BlockCache_(client->GetConnection()->GetBlockCache())
     , RichPath_(richPath)
-    , NameTable_(nameTable)
-    , Throttler_(throttler)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
     , Unordered_(unordered)
 {
     YCHECK(Config_);
     YCHECK(Client_);
     YCHECK(BlockCache_);
-    YCHECK(NameTable_);
 
     Logger.AddTag("Path: %v, TransactionId: %v",
         RichPath_.GetPath(),
@@ -244,10 +233,10 @@ void TSchemalessTableReader::DoOpen()
             Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
             std::move(chunkSpecs),
-            NameTable_,
+            New<TNameTable>(),
             TColumnFilter(),
             TKeyColumns(),
-            Throttler_);
+            NConcurrency::GetUnlimitedThrottler());
         WaitFor(UnderlyingReader_->Open())
             .ThrowOnError();
     }
@@ -300,17 +289,20 @@ i64 TSchemalessTableReader::GetTotalRowCount() const
 
 TNameTablePtr TSchemalessTableReader::GetNameTable() const
 {
-    return NameTable_;
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetNameTable();
 }
 
 TKeyColumns TSchemalessTableReader::GetKeyColumns() const
 {
-    return TKeyColumns();
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetKeyColumns();
 }
 
 int TSchemalessTableReader::GetTableIndex() const
 {
-    return 0;
+    YCHECK(UnderlyingReader_);
+    return UnderlyingReader_->GetTableIndex();
 }
 
 i64 TSchemalessTableReader::GetSessionRowIndex() const
@@ -358,13 +350,10 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
 
     return New<TSchemalessTableReader>(
         options.Config ? options.Config : New<TTableReaderConfig>(),
-        options.RemoteReaderOptions ? options.RemoteReaderOptions : New<TRemoteReaderOptions>(),
+        New<TRemoteReaderOptions>(),
         client,
         transaction,
-        client->GetConnection()->GetBlockCache(),
         path,
-        New<TNameTable>(),
-        NConcurrency::GetUnlimitedThrottler(),
         options.Unordered);
 }
 

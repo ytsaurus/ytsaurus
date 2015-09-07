@@ -394,10 +394,9 @@ private:
         try {
             TSessionCounterGuard sessionCounterGuard(location);
 
-            auto options = New<TRemoteReaderOptions>();
             auto chunkReader = CreateReplicationReader(
                 Config_->CacheRemoteReader,
-                options,
+                New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
                 Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),

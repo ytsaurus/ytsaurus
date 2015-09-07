@@ -23,10 +23,10 @@ using namespace NSecurityServer;
 namespace NDetail {
 
 const EObjectType TCypressScalarTypeTraits<Stroka>::ObjectType = EObjectType::StringNode;
-const EObjectType TCypressScalarTypeTraits<i64>::ObjectType = EObjectType::Int64Node;
-const EObjectType TCypressScalarTypeTraits<ui64>::ObjectType = EObjectType::Uint64Node;
+const EObjectType TCypressScalarTypeTraits<i64>::ObjectType    = EObjectType::Int64Node;
+const EObjectType TCypressScalarTypeTraits<ui64>::ObjectType   = EObjectType::Uint64Node;
 const EObjectType TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
-const EObjectType TCypressScalarTypeTraits<bool>::ObjectType = EObjectType::BooleanNode;
+const EObjectType TCypressScalarTypeTraits<bool>::ObjectType   = EObjectType::BooleanNode;
 
 } // namespace NDetail
 
@@ -158,6 +158,11 @@ TMapNode::TMapNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , ChildCountDelta_(0)
 { }
+
+ENodeType TMapNode::GetNodeType() const
+{
+    return ENodeType::Map;
+}
 
 void TMapNode::Save(NCellMaster::TSaveContext& context) const
 {
@@ -356,6 +361,11 @@ TListNode::TListNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
 
+ENodeType TListNode::GetNodeType() const
+{
+    return ENodeType::List;
+}
+
 void TListNode::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
@@ -484,6 +494,11 @@ TLinkNode::TLinkNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
 { }
 
+ENodeType TLinkNode::GetNodeType() const
+{
+    return ENodeType::Entity;
+}
+
 void TLinkNode::Save(NCellMaster::TSaveContext& context) const
 {
     TCypressNodeBase::Save(context);
@@ -587,6 +602,11 @@ TDocumentNode::TDocumentNode(const TVersionedNodeId& id)
     : TCypressNodeBase(id)
     , Value_(GetEphemeralNodeFactory()->CreateEntity())
 { }
+
+ENodeType TDocumentNode::GetNodeType() const
+{
+    return ENodeType::Entity;
+}
 
 void TDocumentNode::Save(NCellMaster::TSaveContext& context) const
 {

@@ -1,5 +1,10 @@
 #include <yt_udf.h>
 
+uint64_t seventyfive(TExecutionContext* context)
+{
+    return 75;
+}
+
 uint64_t strtol_udf(TExecutionContext* context, const char* string, int length)
 {
     uint64_t result = 0;

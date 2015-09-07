@@ -48,6 +48,9 @@ def start_func(**kwargs):
     kwargs.pop("sync")
     quiet = kwargs.get("quiet", False)
     kwargs.pop("quiet")
+    no_proxy = kwargs.get("no_proxy", False)
+    kwargs.pop("no_proxy")
+    kwargs["start_proxy"] = not no_proxy
 
     if quiet:
         logger.setLevel(logging.WARNING)
@@ -88,9 +91,6 @@ def add_start_subparser(subparsers):
     for service in ["master", "node", "scheduler", "proxy"]:
         parser.add_argument("--{0}-config".format(service), help="{0} config path".format(service))
 
-    parser.add_argument("--no-proxy", action="store_false", default=True, help="do not start proxy",
-                        dest="start_proxy")
-
     parser.add_argument("--sync", action="store_true", default=False,
                         help="start in synchronized mode (hangs up console and prints info there)")
     parser.add_argument("--id", help="local YT id (guid will be generated if not specified)")
@@ -99,20 +99,24 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("-q", "--quiet", action="store_true", default=False,
                         help="decrease verbosity (leave only warnings and errors)")
+
     parser.add_argument("--use-proxy-from-yt-source", action="store_true", default=False,
                         help="Do not start proxy from package, start from YT source tree using run_proxy.sh. "
                              "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
+    parser.add_argument("--no-proxy", action="store_true", default=False, help="do not start proxy")
+    parser.add_argument("--proxy-port", type=int, help="proxy port for http requests")
+
 
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)
-    parser.add_argument("--id", required=True, help="local YT id")
+    parser.add_argument("id", help="local YT id")
     parser.add_argument("--delete", help="remove working directory after stopping", action="store_true",
                         dest="remove_working_dir")
 
 def add_delete_subparser(subparsers):
     parser = subparsers.add_parser("delete", help="Stop local YT with given id and remove its folder",
                                    func=delete)
-    parser.add_argument("--id", required=True, help="local YT id")
+    parser.add_argument("id", help="local YT id")
 
 def get_proxy_func(**kwargs):
     print get_proxy(**kwargs)

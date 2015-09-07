@@ -161,13 +161,14 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
     if function_source_filename:
         shutil.copy(function_source_filename, main_filename)
 
-    return ("python _py_runner.py " + " ".join([
-                os.path.basename(function_filename),
-                os.path.basename(config_filename),
-                os.path.basename(zip_filename),
-                os.path.basename(main_filename),
-                "_main_module",
-                main_module_type]),
+    return (" ".join([get_config(client)["pickling"]["python_binary"],
+                      "_py_runner.py",
+                      os.path.basename(function_filename),
+                      os.path.basename(config_filename),
+                      os.path.basename(zip_filename),
+                      os.path.basename(main_filename),
+                      "_main_module",
+                      main_module_type]),
             os.path.join(LOCATION, "_py_runner.py"),
             [function_filename, config_filename, zip_filename, main_filename])
 

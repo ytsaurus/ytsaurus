@@ -13,6 +13,31 @@ import random
 import logging
 import pytest
 
+class AggregateMapper(object):
+    def __init__(self):
+        self.sum = 0
+
+    def __call__(self, row):
+        self.sum += int(row["x"])
+
+    def finish(self):
+        yield {"sum": self.sum}
+
+class AggregateReducer(object):
+    def __init__(self):
+        self.sum = 0
+
+    def start(self):
+        for i in [1, 2]:
+            yield {"sum": i}
+
+    def __call__(self, key, rows):
+        for row in rows:
+            self.sum += int(row["y"])
+
+    def finish(self):
+        yield {"sum": self.sum}
+
 # Map method for test operations with python entities
 def _change_x(rec):
     if "x" in rec:
@@ -402,7 +427,7 @@ class TestOperations(object):
             time.sleep(2.5)
             assert op.get_state() == "running"
             op.resume()
-            time.sleep(2.5)
+            op.wait(timeout=10)
             assert op.get_state() == "completed"
         finally:
             if op.get_state() not in ["completed", "failed", "aborted"]:
@@ -495,6 +520,19 @@ class TestOperations(object):
             yt.config["memory_limit"] = memory_limit
             yt.config["yamr_mode"]["check_input_fully_consumed"] = check_input_fully_consumed
             yt.config["yamr_mode"]["use_yamr_style_destination_fds"] = use_yamr_descriptors
+
+    @add_failed_operation_stderrs_to_error_message
+    def test_operation_start_finish_methods(self):
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+
+        yt.write_table(table, ["x=1\nx=2\n"])
+        yt.run_map(AggregateMapper(), table, other_table)
+        assert ["sum=3\n"] == list(yt.read_table(other_table))
+        yt.write_table(table, ["x=1\ty=2\n", "x=0\ty=3\n", "x=1\ty=4\n"])
+        yt.run_sort(table, sort_by=["x"])
+        yt.run_reduce(AggregateReducer(), table, other_table, reduce_by=["x"])
+        assert ["sum=1\n", "sum=2\n", "sum=9\n"] == sorted(yt.read_table(other_table))
 
     # TODO(ignat): replace timeout with scheduler-side option
     #def test_wait_strategy_timeout(self):

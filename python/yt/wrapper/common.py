@@ -86,6 +86,7 @@ def get_value(value, default):
         return value
 
 def chunk_iter_lines(lines, chunk_size):
+    """ Unite lines into large chunks """
     size = 0
     chunk = []
     for line in lines:
@@ -133,6 +134,5 @@ def get_version():
         return "unknown"
 
 def get_python_version():
-    version = sys.version_info
-    return (version.major, version.minor, version.micro)
+    return sys.version_info[:3]
 

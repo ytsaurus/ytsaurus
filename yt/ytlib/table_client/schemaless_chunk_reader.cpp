@@ -10,6 +10,9 @@
 #include "schema.h"
 #include "schemaless_block_reader.h"
 
+#include <ytlib/api/client.h>
+#include <ytlib/api/connection.h>
+
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/multi_chunk_reader_base.h>
 

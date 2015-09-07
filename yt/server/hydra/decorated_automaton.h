@@ -42,7 +42,7 @@ struct TEpochContext
     TFollowerCommitterPtr FollowerCommitter;
     TLeaseTrackerPtr LeaseTracker;
 
-    std::atomic<bool> Restarted = {false};
+    std::atomic<bool> Restarting = {false};
 
     TPromise<void> ActiveUpstreamSyncPromise;
     TPromise<void> PendingUpstreamSyncPromise;

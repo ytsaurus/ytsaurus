@@ -60,20 +60,26 @@ def main():
 
     __rows = __input_format.load_rows(sys.stdin, raw=raw)
 
+    __start, __run, __finish = _py_runner_helpers._extract_operation_methods(__operation)
     with _py_runner_helpers.WrappedStreams() as streams:
         if __attributes.get("is_aggregator", False):
-            __result = __operation(__rows)
+            __result = __run(__rows)
         else:
             if __operation_type == "mapper" or raw:
-                __result = itertools.chain.from_iterable(itertools.imap(__operation, __rows))
+                __result = itertools.chain(
+                    __start(),
+                    itertools.chain.from_iterable(itertools.imap(__run, __rows)),
+                    __finish())
             else:
                 if __attributes.get("is_reduce_aggregator"):
-                    __result = __operation(itertools.groupby(__rows, lambda row: extract_key(row, __keys)))
+                    __result = __run(itertools.groupby(__rows, lambda row: extract_key(row, __keys)))
                 else:
-                    __result = \
+                    __result = itertools.chain(
+                        __start(),
                         itertools.chain.from_iterable(
-                            itertools.starmap(__operation,
-                                itertools.groupby(__rows, lambda row: extract_key(row, __keys))))
+                            itertools.starmap(__run,
+                                itertools.groupby(__rows, lambda row: extract_key(row, __keys)))),
+                        __finish())
 
         __output_format.dump_rows(__result, streams.get_original_stdout(), raw=raw)
 

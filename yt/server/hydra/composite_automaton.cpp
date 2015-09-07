@@ -358,8 +358,10 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
         asyncCallbacks.push_back(descriptor.Callback.Run());
     }
 
+    // Hold the parts strongly during the async phase.
+    std::vector<TCompositeAutomatonPartPtr> parts(Parts_.begin(), Parts_.end());
     return
-        BIND([=, this_ = MakeStrong(this)] () {
+        BIND([=, this_ = MakeStrong(this), parts_ = std::move(parts)] () {
             DoSaveSnapshot(
                 writer,
                 // NB: Can yield in async part.
@@ -450,7 +452,7 @@ void TCompositeAutomaton::Clear()
     }
 }
 
-void TCompositeAutomaton::  DoSaveSnapshot(
+void TCompositeAutomaton::DoSaveSnapshot(
     NConcurrency::IAsyncOutputStreamPtr writer,
     ESyncStreamAdapterStrategy strategy,
     const std::function<void()>& callback)

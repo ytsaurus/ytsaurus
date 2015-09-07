@@ -84,7 +84,7 @@ class YTEnv(object):
     def modify_proxy_config(self, config):
         pass
 
-    def start(self, path_to_run, pids_filename, ports=None, supress_yt_output=False):
+    def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False):
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
@@ -111,6 +111,7 @@ class YTEnv(object):
         self._all_processes = {}
         self._kill_previously_run_services()
 
+<<<<<<< HEAD
         self._ytserver_version = _get_ytserver_version()
 
         self._run_all(self.NUM_MASTERS,
@@ -123,6 +124,14 @@ class YTEnv(object):
                       ports=ports)
 
     def get_master_addresses(self):
+=======
+        self._run_all(self.NUM_MASTERS, self.NUM_NODES, self.NUM_SCHEDULERS,
+                      self.START_PROXY, self.USE_PROXY_FROM_PACKAGE, proxy_port=proxy_port)
+
+    def get_master_addresses(self):
+        # XXX(asaitgalin): chain will be removed when different instances
+        # are managed by local YT, not by instance_id parameter in _run_all
+>>>>>>> origin/master
         return list(chain.from_iterable(self._master_addresses.values()))
 
     def get_node_addresses(self):
@@ -134,7 +143,11 @@ class YTEnv(object):
     def get_proxy_address(self):
         if not self.START_PROXY:
             raise YtError("Proxy is not started")
+<<<<<<< HEAD
         return self._proxy_address
+=======
+        return "{0}:{1}".format(self._hostname, self._ports["proxy"][0])
+>>>>>>> origin/master
 
     def kill_service(self, name):
         logger.info("Killing %s", name)
@@ -175,8 +188,18 @@ class YTEnv(object):
                 callback_func(self, args)
                 break
 
+<<<<<<< HEAD
     def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy,
                  use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0, ports=None):
+=======
+    def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, use_proxy_from_package=False,
+                 instance_id="", cell_tag=0, proxy_port=None):
+
+        _get_open_port.busy_ports = set()
+
+        def list_ports(service_name, count):
+            self._ports[service_name] = [_get_open_port() for _ in xrange(count)]
+>>>>>>> origin/master
 
         master_name = "master" + instance_id
         scheduler_name = "scheduler" + instance_id
@@ -185,8 +208,18 @@ class YTEnv(object):
         console_driver_name = "console_driver" + instance_id
         proxy_name = "proxy" + instance_id
 
+<<<<<<< HEAD
         if start_secondary_master_cells and versions_cmp(self._ytserver_version, "0.18") < 0:
             raise YtError("Multicell is not supported for ytserver version < 0.18")
+=======
+        list_ports(master_name, 2 * masters_count)
+        list_ports(scheduler_name, 2 * schedulers_count)
+        list_ports(node_name, 2 * nodes_count)
+        if proxy_port is not None and isinstance(proxy_port, int):
+            self._ports[proxy_name] = [proxy_port, _get_open_port()]
+        else:
+            list_ports(proxy_name, 2)
+>>>>>>> origin/master
 
         self._configs_provider = ConfigsProvider.create_for_version(self._ytserver_version)
 
@@ -458,9 +491,27 @@ class YTEnv(object):
         if nodes_count == 0:
             return
 
+<<<<<<< HEAD
         dirs = [os.path.join(self.path_to_run, node_name, str(i))
                 for i in xrange(nodes_count)]
         map(_makedirp, dirs)
+=======
+            config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(current, "multiplexed")
+            # TODO(asaitgalin): remove code duplication. YT-2670
+            config["data_node"]["cache_location"]["path"] = os.path.join(current, "chunk_cache")
+            config["exec_agent"]["slot_manager"]["path"] = os.path.join(current, "slots")
+
+            config["data_node"]["cache_locations"].append({
+                "path": os.path.join(current, "chunk_cache")
+            })
+            config["data_node"]["store_locations"].append({
+                "path": os.path.join(current, "chunk_store"),
+                "low_watermark": 0,
+                "high_watermark": 0
+            })
+            config["exec_agent"]["slot_manager"]["start_uid"] = current_user
+            config["exec_agent"]["slot_manager"]["paths"].append(os.path.join(current, "slots"))
+>>>>>>> origin/master
 
         configs, addresses = self._configs_provider.get_node_configs(nodes_count, dirs)
 
@@ -630,12 +681,29 @@ class YTEnv(object):
         proxy_dir = os.path.join(self.path_to_run, proxy_name)
         _makedirp(proxy_dir)
 
+<<<<<<< HEAD
         proxy_config, proxy_address = self._configs_provider.get_proxy_config(proxy_dir)
 
         self.modify_proxy_config(proxy_config)
         update(proxy_config, self.DELTA_PROXY_CONFIG)
 
         config_path = os.path.join(proxy_dir, "proxy_config.json")
+=======
+        driver_config = self.CONFIGS_MODULE.get_driver_config()
+        driver_config["master"]["addresses"] = self._master_addresses[proxy_name.replace("proxy", "master", 1)]
+        driver_config["timestamp_provider"]["addresses"] = self._get_cache_addresses(proxy_name.replace("proxy", "", 1))
+
+        proxy_config = self.CONFIGS_MODULE.get_proxy_config()
+        proxy_config["proxy"]["logging"] = self._init_logging(proxy_config["proxy"]["logging"], current, "http_proxy")
+        proxy_config["proxy"]["driver"] = driver_config
+        proxy_config["port"] = self._ports[proxy_name][0]
+        proxy_config["fqdn"] = "{0}:{1}".format(self._hostname, self._ports[proxy_name][0])
+        proxy_config["log_port"] = self._ports[proxy_name][1]
+
+        self.modify_proxy_config(proxy_config)
+        update(proxy_config, self.DELTA_PROXY_CONFIG)
+        config_path = os.path.join(current, "proxy_config.json")
+>>>>>>> origin/master
         _write_config(proxy_config, config_path, format="json")
 
         self.configs[proxy_name] = proxy_config
@@ -644,8 +712,12 @@ class YTEnv(object):
         self._proxy_address = proxy_address
 
     def _start_proxy_from_package(self, proxy_name):
-        proxy_binary_path = "/usr/lib/node_modules/yt/bin/yt_http_proxy"
-        if not os.path.exists(proxy_binary_path):
+        node_path = os.environ.get("NODE_PATH", "").split(":")
+        for path in node_path + ["/usr/lib/node_modules"]:
+            proxy_binary_path = os.path.join(path, "yt", "bin", "yt_http_proxy")
+            if os.path.exists(proxy_binary_path):
+                break
+        else:
             raise YtError("Failed to find YT http proxy binary. "
                           "Make sure you installed yandex-yt-http-proxy package")
 

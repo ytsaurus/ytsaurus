@@ -82,7 +82,9 @@ default_config = {
         "framework": "dill",
         # Check that python version on local machine is the same as on cluster nodes.
         # Turn it off at your own risk.
-        "check_python_version": False
+        "check_python_version": False,
+        # Path to python binary that would be used in jobs.
+        "python_binary": "python"
     },
 
     "yamr_mode": {
@@ -153,6 +155,7 @@ default_config = {
     "read_retries": {
         "enable": False,
         "retry_count": 30,
+        "retry_timeout": 60000,
         "create_transaction_and_take_snapshot_lock": True
     },
 
@@ -160,7 +163,8 @@ default_config = {
     "write_retries": {
         "enable": True,
         # The size of data chunk that retried.
-        "chunk_size": 512 * common.MB
+        "chunk_size": 512 * common.MB,
+        "retry_timeout": 60000
     },
 
     "auto_merge_output": {

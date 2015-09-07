@@ -85,6 +85,7 @@ std::unique_ptr<NYson::IYsonConsumer> CreateConsumerForFormat(
 
 NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
+    const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr output);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(

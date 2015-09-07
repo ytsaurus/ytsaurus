@@ -343,17 +343,9 @@ public:
         return nullptr;
     }
 
-    const TColumnSchema* GetColumnPtr(const TStringBuf& name)
+    const yhash_map<TPair<Stroka, Stroka>, size_t>& GetLookup() const
     {
-        if (auto column = TableSchema_->FindColumn(name)) {
-            return column;
-        } else if (auto original = AddColumnPtr(name)) {
-            auto& resultColumns = TableSchema_->Columns();
-            resultColumns.push_back(*original);
-            resultColumns.back().Name = name;
-            return &resultColumns.back();
-        }
-        return nullptr;
+        return Lookup_;
     }
 
     const TColumnSchema* GetAggregateColumnPtr(
@@ -570,7 +562,7 @@ protected:
                 }
             }
 
-            auto capturedRows = TupleListsToRows(inExpr->Values, argTypes, inExpr->GetSource(source));
+            auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, inExpr->GetSource(source));
             result.push_back(New<TInOpExpression>(
                 std::move(inExprOperands),
                 std::move(capturedRows)));
@@ -668,11 +660,6 @@ protected:
         return nullptr;
     }
 
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name)
-    {
-        return nullptr;
-    }
-
     // NOTE: result must be used before next call
     virtual TColumnSchema AddAggregateColumnPtr(
         const Stroka& aggregateFunction,
@@ -740,7 +727,7 @@ protected:
         }
     }
 
-    static TSharedRange<TRow> TupleListsToRows(
+    static TSharedRange<TRow> LiteralTupleListToRows(
         const NAst::TLiteralValueTupleList& literalTuples,
         const std::vector<EValueType>& argTypes,
         const TStringBuf& source)
@@ -753,15 +740,14 @@ protected:
                 THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
                     << TErrorAttribute("source", source);
             }
-
             for (int i = 0; i < tuple.size(); ++i) {
-                if (GetType(tuple[i]) != argTypes[i]) {
+                auto valueType = GetType(tuple[i]);
+                if (valueType != argTypes[i]) {
                     THROW_ERROR_EXCEPTION("IN operator types mismatch")
                         << TErrorAttribute("source", source)
-                        << TErrorAttribute("expected", argTypes[i])
-                        << TErrorAttribute("actual", GetType(tuple[i]));
+                        << TErrorAttribute("actual_type", valueType)
+                        << TErrorAttribute("expected_type", argTypes[i]);
                 }
-
                 rowBuilder.AddValue(GetValue(tuple[i]));
             }
             rows.push_back(rowBuffer->Capture(rowBuilder.GetRow()));
@@ -1037,9 +1023,7 @@ public:
         , TableName_(tableName)
     {
         const auto& columns = sourceTableSchema.Columns();
-        int count = std::min(
-            keyColumnCount,
-            static_cast<int>(columns.size()));
+        int count = std::min(keyColumnCount, static_cast<int>(columns.size()));
         for (int i = 0; i < count; ++i) {
             GetColumnPtr(columns[i].Name, TableName_);
         }
@@ -1047,6 +1031,10 @@ public:
 
     virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name, const TStringBuf& tableName) override
     {
+        if (tableName != TableName_) {
+            return nullptr;
+        }
+
         auto column = SourceTableSchema_.FindColumn(name);
         if (column) {
             RefinedTableSchema_->Columns().push_back(*column);
@@ -1097,32 +1085,17 @@ public:
         return column;
     }
 
-    virtual const TColumnSchema* AddColumnPtr(const TStringBuf& name) override
-    {
-        const TColumnSchema* column = nullptr;
-
-        if ((column = Self_->GetColumnPtr(name))) {
-            if (Foreign_->GetColumnPtr(name)) {
-                THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables", name);
-            }
-        } else {
-            column = Foreign_->GetColumnPtr(name);
-        }
-
-        return column;
-    }
-
     virtual void Finish() override
     {
         Self_->Finish();
         Foreign_->Finish();
 
-        for (const auto& column : Self_->GetTableSchema()->Columns()) {
-            GetColumnPtr(column.Name);
+        for (const auto& column : Self_->GetLookup()) {
+            GetColumnPtr(column.first.first, column.first.second);
         }
 
-        for (const auto& column : Foreign_->GetTableSchema()->Columns()) {
-            GetColumnPtr(column.Name);
+        for (const auto& column : Foreign_->GetLookup()) {
+            GetColumnPtr(column.first.first, column.first.second);
         }
     }
 
@@ -1217,6 +1190,7 @@ TConstExpressionPtr BuildWhereClause(
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("WHERE-clause is not a boolean expression")
+            << TErrorAttribute("source", expressionAst->GetSource(source))
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
     }
@@ -1343,7 +1317,7 @@ void PrepareQuery(
 
     if (ast.OrderFields) {
         auto orderClause = New<TOrderClause>();
-        orderClause->IsDesc = ast.IsOrderDesc;
+        orderClause->IsDescending = ast.IsDescendingOrder;
         for (const auto& reference : ast.OrderFields.Get()) {
             const auto* column = schemaProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
             if (!column) {
@@ -1867,7 +1841,7 @@ void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
 void ToProto(NProto::TOrderClause* proto, TConstOrderClausePtr original)
 {
     ToProto(proto->mutable_order_columns(), original->OrderColumns);
-    proto->set_is_desc(original->IsDesc);
+    proto->set_is_descending(original->IsDescending);
 }
 
 void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
@@ -2000,7 +1974,7 @@ TOrderClausePtr FromProto(const NProto::TOrderClause& serialized)
 {
     auto result = New<TOrderClause>();
 
-    result->IsDesc = serialized.is_desc();
+    result->IsDescending = serialized.is_descending();
 
     result->OrderColumns.reserve(serialized.order_columns_size());
     for (int i = 0; i < serialized.order_columns_size(); ++i) {

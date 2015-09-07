@@ -4,7 +4,7 @@
 #include "private.h"
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-#include <ytlib/chunk_client/data_node_service.pb.h>
+#include <ytlib/chunk_client/data_statistics.pb.h>
 
 #include <server/cypress_server/public.h>
 #include <server/cypress_server/node.h>
@@ -39,6 +39,8 @@ public:
         const NChunkClient::NProto::TDataStatistics* statistics,
         const std::vector<Stroka>& keyColumns);
     virtual bool IsSorted() const;
+
+    virtual NYTree::ENodeType GetNodeType() const override;
 
     NChunkClient::NProto::TDataStatistics ComputeTotalStatistics() const;
 

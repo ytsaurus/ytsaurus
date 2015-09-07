@@ -61,6 +61,8 @@ Stroka InferName(const TExpression* expr)
             rhsName = "(" + rhsName + ")";
         }
         return Stroka(GetUnaryOpcodeLexeme(unaryExpr->Opcode)) + " " + rhsName;
+    } else if (expr->As<TEmptyExpression>()) {
+        return "";
     } else if (auto binaryExpr = expr->As<TBinaryOpExpression>()) {
         auto lhsName = InferName(binaryExpr->Lhs.Get());
         if (!canOmitParenthesis(binaryExpr->Lhs.Get())) {

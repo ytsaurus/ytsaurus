@@ -59,10 +59,11 @@ class TConnection
     : public IConnection
 {
 public:
-    explicit TConnection(
-        TConnectionConfigPtr config,
-        TCallback<bool(const TError&)> isRetriableError)
+    explicit TConnection(TConnectionConfigPtr config)
         : Config_(config)
+    { }
+
+    void Initialize(TCallback<bool(const TError&)> isRetriableError)
     {
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
@@ -275,7 +276,9 @@ IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
     TCallback<bool(const TError&)> isRetriableError)
 {
-    return New<TConnection>(config, isRetriableError);
+    auto connection = New<TConnection>(config);
+    connection->Initialize(isRetriableError);
+    return connection;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

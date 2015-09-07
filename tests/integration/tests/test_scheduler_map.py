@@ -51,8 +51,8 @@ class TestCGroups(YTEnvSetup):
             track_op(op_id)
 
         for job_desc in ls("//sys/operations/{0}/jobs".format(op_id), attributes=["error"]):
-            print job_desc.attributes
-            print job_desc.attributes["error"]["inner_errors"][0]["message"]
+            print >>sys.stderr, job_desc.attributes
+            print >>sys.stderr, job_desc.attributes["error"]["inner_errors"][0]["message"]
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
 
 
@@ -522,7 +522,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = """cat >/dev/null; k1="$YT_JOB_INDEX"0; k2="$YT_JOB_INDEX"1; echo "{key=$k1; value=one}; {key=$k2; value=two}" """
+        command = """cat >/dev/null; 
+           if [ "$YT_JOB_INDEX" = "0" ]; then
+               k1=0; k2=1; 
+           else
+               k1=0; k2=0; 
+           fi
+           echo "{key=$k1; value=one}; {key=$k2; value=two}" 
+        """
 
         map(in_="//tmp/t1",
             out="<sorted_by=[key];append=true>//tmp/t2",
@@ -531,7 +538,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@sorted")
         assert get("//tmp/t2/@sorted_by") == ["key"]
-        assert read_table("//tmp/t2") == [{"key":0 , "value":"one"}, {"key":1, "value":"two"}, {"key":10, "value":"one"}, {"key":11, "value":"two"}]
+        assert read_table("//tmp/t2") == [{"key":0 , "value":"one"}, {"key":0, "value":"two"}, {"key":0, "value":"one"}, {"key":1, "value":"two"}]
 
     def test_sorted_output_overlap(self):
         create("table", "//tmp/t1")
@@ -547,6 +554,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 out="<sorted_by=[key]>//tmp/t2",
                 command=command,
                 spec={"job_count": 2})
+            print read("//tmp/t2")
 
     def test_sorted_output_job_failure(self):
         create("table", "//tmp/t1")
@@ -1025,8 +1033,9 @@ class TestJobQuery(YTEnvSetup):
         create("map_node", registry_path)
 
         abs_path = os.path.join(registry_path, "abs_udf")
-        create("file", abs_path,
-            attributes = { "function_descriptor": {
+        create(
+            "file", abs_path,
+            attributes={"function_descriptor": {
                 "name": "abs_udf",
                 "argument_types": [{
                     "tag": "concrete_type",
@@ -1036,8 +1045,8 @@ class TestJobQuery(YTEnvSetup):
                     "value": "int64"},
                 "calling_convention": "simple"}})
 
-        local_bitcode_path = find_executable("test_udfs.bc")
-        write_local_file(abs_path, local_bitcode_path)
+        abs_impl_path = self._find_ut_file("test_udfs.bc")
+        write_local_file(abs_path, abs_impl_path)
 
     def test_query_simple(self):
         create("table", "//tmp/t1")

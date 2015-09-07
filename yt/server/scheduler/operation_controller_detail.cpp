@@ -13,6 +13,7 @@
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_scraper.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/helpers.h>
@@ -91,16 +92,16 @@ void TOperationControllerBase::TInputTable::Persist(TPersistenceContext& context
     using NYT::Persist;
     Persist(context, ChunkCount);
     Persist(context, Chunks);
-    Persist(context, SortedBy);
+    Persist(context, KeyColumns);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-void TOperationControllerBase::TEndpoint::Persist(TPersistenceContext& context)
+void TOperationControllerBase::TJobBoundaryKeys::Persist(TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Key);
-    Persist(context, Left);
+    Persist(context, MinKey);
+    Persist(context, MaxKey);
     Persist(context, ChunkTreeKey);
 }
 
@@ -117,7 +118,9 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
     Persist(context, LockMode);
     Persist(context, Options);
     Persist(context, KeyColumns);
+    Persist(context, UploadTransactionId);
     Persist(context, OutputChunkListId);
+    Persist(context, DataStatistics);
     // NB: Scheduler snapshots need not be stable.
     Persist<
         TMultiMapSerializer<
@@ -126,7 +129,7 @@ void TOperationControllerBase::TOutputTable::Persist(TPersistenceContext& contex
             TUnsortedTag
         >
     >(context, OutputChunkTreeIds);
-    Persist(context, Endpoints);
+    Persist(context, BoundaryKeys);
     Persist(context, EffectiveAcl);
 }
 
@@ -237,108 +240,6 @@ void TOperationControllerBase::TInputChunkDescriptor::Persist(TPersistenceContex
     Persist(context, InputStripes);
     Persist(context, ChunkSpecs);
     Persist(context, State);
-}
-
-////////////////////////////////////////////////////////////////////
-
-TOperationControllerBase::TInputChunkScratcher::TInputChunkScratcher(
-    TOperationControllerBase* controller,
-    NRpc::IChannelPtr masterChannel)
-    : Controller(controller)
-    , PeriodicExecutor(New<TPeriodicExecutor>(
-        controller->GetCancelableControlInvoker(),
-        BIND(&TInputChunkScratcher::LocateChunks, MakeWeak(this)),
-        controller->Config->ChunkScratchPeriod))
-    , Proxy(masterChannel)
-    , Started(false)
-    , Logger(controller->Logger)
-{ }
-
-void TOperationControllerBase::TInputChunkScratcher::Start()
-{
-    if (Started)
-        return;
-
-    auto controller = Controller.Lock();
-    if (!controller) {
-        return;
-    }
-
-    Started = true;
-
-    LOG_DEBUG("Starting input chunk scratcher");
-
-    NextChunkIterator = controller->InputChunkMap.begin();
-    PeriodicExecutor->Start();
-}
-
-void TOperationControllerBase::TInputChunkScratcher::LocateChunks()
-{
-    auto controller = Controller.Lock();
-    if (!controller) {
-        return;
-    }
-
-    VERIFY_THREAD_AFFINITY(controller->ControlThread);
-
-    auto startIterator = NextChunkIterator;
-    // XXX(babenko): multicell
-    auto req = Proxy.LocateChunks();
-
-    for (int chunkCount = 0; chunkCount < controller->Config->MaxChunksPerScratch; ++chunkCount) {
-        ToProto(req->add_chunk_ids(), NextChunkIterator->first);
-
-        ++NextChunkIterator;
-        if (NextChunkIterator == controller->InputChunkMap.end()) {
-            NextChunkIterator = controller->InputChunkMap.begin();
-        }
-
-        if (NextChunkIterator == startIterator) {
-            // Total number of chunks is less than MaxChunksPerScratch.
-            break;
-        }
-    }
-
-    WaitFor(controller->Host->GetChunkLocationThrottler()->Throttle(
-        req->chunk_ids_size()));
-
-    LOG_DEBUG("Locating input chunks (Count: %v)", req->chunk_ids_size());
-
-    auto rspOrError = WaitFor(req->Invoke());
-    if (!rspOrError.IsOK()) {
-        LOG_WARNING(rspOrError, "Failed to locate input chunks");
-        return;
-    }
-
-    const auto& rsp = rspOrError.Value();
-    controller->InputNodeDirectory->MergeFrom(rsp->node_directory());
-
-    int availableCount = 0;
-    int unavailableCount = 0;
-    for (const auto& chunkInfo : rsp->chunks()) {
-        auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
-        auto it = controller->InputChunkMap.find(chunkId);
-        YCHECK(it != controller->InputChunkMap.end());
-
-        auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
-
-        auto& descriptor = it->second;
-        YCHECK(!descriptor.ChunkSpecs.empty());
-        auto& chunkSpec = descriptor.ChunkSpecs.front();
-        auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
-
-        if (IsUnavailable(replicas, codecId, controller->NeedsAllChunkParts())) {
-            ++unavailableCount;
-            controller->OnInputChunkUnavailable(chunkId, descriptor);
-        } else {
-            ++availableCount;
-            controller->OnInputChunkAvailable(chunkId, descriptor, replicas);
-        }
-    }
-
-    LOG_DEBUG("Input chunks located (AvailableCount: %v, UnavailableCount: %v)",
-        availableCount,
-        unavailableCount);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -842,8 +743,8 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
         const auto& table = Controller->OutputTables[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(table.Options).Data());
-        if (table.KeyColumns) {
-            ToProto(outputSpec->mutable_key_columns(), *table.KeyColumns);
+        if (!table.KeyColumns.empty()) {
+            ToProto(outputSpec->mutable_key_columns(), table.KeyColumns);
         }
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
     }
@@ -852,7 +753,7 @@ void TOperationControllerBase::TTask::AddFinalOutputSpecs(
 void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     TJobSpec* jobSpec,
     TJobletPtr joblet,
-    TNullable<TKeyColumns> keyColumns)
+    const TKeyColumns& keyColumns)
 {
     YCHECK(joblet->ChunkListIds.size() == 1);
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
@@ -860,12 +761,13 @@ void TOperationControllerBase::TTask::AddIntermediateOutputSpec(
     auto options = New<TTableWriterOptions>();
     options->Account = Controller->Spec->IntermediateDataAccount;
     options->ChunksVital = false;
+    options->ChunksMovable = false;
     options->ReplicationFactor = 1;
     options->CompressionCodec = Controller->Spec->IntermediateCompressionCodec;
     outputSpec->set_table_writer_options(ConvertToYsonString(options).Data());
 
-    if (keyColumns) {
-        ToProto(outputSpec->mutable_key_columns(), *keyColumns);
+    if (!keyColumns.empty()) {
+        ToProto(outputSpec->mutable_key_columns(), keyColumns);
     }
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[0]);
 }
@@ -1012,8 +914,8 @@ void TOperationControllerBase::Initialize()
             table.LockMode = ELockMode::Shared;
         }
 
-        table.KeyColumns = path.Attributes().Find<TKeyColumns>("sorted_by");
-        if (table.KeyColumns) {
+        table.KeyColumns = path.Attributes().Get<TKeyColumns>("sorted_by", TKeyColumns());
+        if (!table.KeyColumns.empty()) {
             if (!IsSortedOutputSupported()) {
                 THROW_ERROR_EXCEPTION("Sorted outputs are not supported");
             }
@@ -1056,10 +958,6 @@ void TOperationControllerBase::Essentiate()
     Operation->SetSchedulingTag(Spec->SchedulingTag);
 
     InitializeTransactions();
-
-    InputChunkScratcher = New<TInputChunkScratcher>(
-        this,
-        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader));
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1120,9 +1018,9 @@ void TOperationControllerBase::DoPrepare()
 
     AddAllTaskPendingHints();
 
-    // Input chunk scratcher initialization should be the last step to avoid races,
-    // because input chunk scratcher works in control thread.
-    InitInputChunkScratcher();
+    // Input chunk scraper initialization should be the last step to avoid races,
+    // because input chunk scraper works in control thread.
+    InitInputChunkScraper();
 }
 
 void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
@@ -1164,8 +1062,8 @@ void TOperationControllerBase::DoRevive()
 
     AddAllTaskPendingHints();
 
-    // Input chunk scratcher initialization should be the last step to avoid races.
-    InitInputChunkScratcher();
+    // Input chunk scraper initialization should be the last step to avoid races.
+    InitInputChunkScraper();
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1398,11 +1296,29 @@ const TOperationControllerBase::TCellData& TOperationControllerBase::GetCellData
     return it->second;
 }
 
-void TOperationControllerBase::InitInputChunkScratcher()
+void TOperationControllerBase::InitInputChunkScraper()
 {
+    yhash_set<TChunkId> chunkIds;
+    for (const auto& pair : InputChunkMap) {
+        chunkIds.insert(pair.first);
+    }
+
+    YCHECK(!InputChunkScraper);
+    InputChunkScraper = New<TChunkScraper>(
+        Config,
+        CancelableBackgroundInvoker,
+        Host->GetChunkLocationThrottler(),
+        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader),
+        InputNodeDirectory,
+        std::move(chunkIds),
+        BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
+            .Via(CancelableBackgroundInvoker),
+        Logger
+    );
+
     if (UnavailableInputChunkCount > 0) {
         LOG_INFO("Waiting for %v unavailable input chunks", UnavailableInputChunkCount);
-        InputChunkScratcher->Start();
+        InputChunkScraper->Start();
     }
 }
 
@@ -1410,7 +1326,7 @@ void TOperationControllerBase::SuspendUnavailableInputStripes()
 {
     YCHECK(UnavailableInputChunkCount == 0);
 
-    for (auto& pair : InputChunkMap) {
+    for (const auto& pair : InputChunkMap) {
         const auto& chunkDescriptor = pair.second;
         if (chunkDescriptor.State == EInputChunkState::Waiting) {
             LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", pair.first);
@@ -1566,33 +1482,30 @@ void TOperationControllerBase::AttachOutputChunks()
                 }
             };
 
-            if (table.KeyColumns && IsSortedOutputSupported()) {
+            if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
                 // Sorted output generated by user operation requires rearranging.
-                YCHECK(table.Endpoints.size() % 2 == 0);
-
-                LOG_DEBUG("Sorting %v endpoints", table.Endpoints.size());
+                LOG_DEBUG("Sorting %v boundary key pairs", table.BoundaryKeys.size());
                 std::sort(
-                    table.Endpoints.begin(),
-                    table.Endpoints.end(),
-                    [ = ](const TEndpoint& lhs, const TEndpoint& rhs) -> bool {
-                        // First sort by keys.
-                        // Then sort by ChunkTreeKeys.
-                        auto keysResult = CompareRows(lhs.Key, rhs.Key);
+                    table.BoundaryKeys.begin(),
+                    table.BoundaryKeys.end(),
+                    [=] (const TJobBoundaryKeys& lhs, const TJobBoundaryKeys& rhs) -> bool {
+                        auto keysResult = CompareRows(lhs.MinKey, rhs.MinKey);
                         if (keysResult != 0) {
                             return keysResult < 0;
                         }
-                        return lhs.ChunkTreeKey < rhs.ChunkTreeKey;
-                    });
+                        return lhs.MaxKey < rhs.MaxKey;
+                });
 
-                int outputCount = table.Endpoints.size() / 2;
-                for (int outputIndex = 0; outputIndex < outputCount; ++outputIndex) {
-                    auto& leftEndpoint = table.Endpoints[2 * outputIndex];
-                    auto& rightEndpoint = table.Endpoints[2 * outputIndex + 1];
-                    if (leftEndpoint.ChunkTreeKey != rightEndpoint.ChunkTreeKey) {
-                        THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges",
-                            table.Path.GetPath());
+                for (auto current = table.BoundaryKeys.begin(); current != table.BoundaryKeys.end(); ++current) {
+                    auto next = current + 1;
+                    if (next != table.BoundaryKeys.end() && next->MinKey < current->MaxKey) {
+                        THROW_ERROR_EXCEPTION("Output table %v is not sorted: job outputs have overlapping key ranges [MinKey %v, MaxKey: %v]",
+                            table.Path.GetPath(),
+                            next->MinKey,
+                            current->MaxKey);
                     }
-                    auto pair = table.OutputChunkTreeIds.equal_range(leftEndpoint.ChunkTreeKey);
+
+                    auto pair = table.OutputChunkTreeIds.equal_range(current->ChunkTreeKey);
                     auto it = pair.first;
                     addChunkTree(it->second);
                     // In user operations each ChunkTreeKey corresponds to a single OutputChunkTreeId.
@@ -1639,15 +1552,15 @@ void TOperationControllerBase::EndUploadOutputTables()
         auto objectIdPath = FromObjectId(table.ObjectId);
         const auto& path = table.Path.GetPath();
 
-        LOG_INFO("Finishing upload to output to table (Path: %v, KeyColumns: %v)",
+        LOG_INFO("Finishing upload to output to table (Path: %v, KeyColumns: [%v])",
             path,
-            table.KeyColumns ? MakeNullable("[" + JoinToString(*table.KeyColumns) + "]") : Null);
+            JoinToString(table.KeyColumns));
 
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = table.DataStatistics;
-            if (table.KeyColumns) {
-                ToProto(req->mutable_key_columns(), *table.KeyColumns);
+            if (!table.KeyColumns.empty()) {
+                ToProto(req->mutable_key_columns(), table.KeyColumns);
             }
             SetTransactionId(req, table.UploadTransactionId);
             GenerateMutationId(req);
@@ -1756,7 +1669,6 @@ void TOperationControllerBase::OnJobAborted(const TAbortedJobSummary& jobSummary
     if (abortReason == EAbortReason::FailedChunks) {
         const auto& result = jobSummary.Result;
         const auto& schedulerResultExt = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-
         for (const auto& chunkId : schedulerResultExt.failed_chunk_ids()) {
             OnChunkFailed(FromProto<TChunkId>(chunkId));
         }
@@ -1775,6 +1687,23 @@ void TOperationControllerBase::OnChunkFailed(const TChunkId& chunkId)
     }
 }
 
+void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, const TChunkReplicaList& replicas)
+{
+    auto it = InputChunkMap.find(chunkId);
+    YCHECK(it != InputChunkMap.end());
+
+    auto& descriptor = it->second;
+    YCHECK(!descriptor.ChunkSpecs.empty());
+    auto& chunkSpec = descriptor.ChunkSpecs.front();
+    auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
+
+    if (IsUnavailable(replicas, codecId, NeedsAllChunkParts())) {
+        OnInputChunkUnavailable(chunkId, descriptor);
+    } else {
+        OnInputChunkAvailable(chunkId, descriptor, replicas);
+    }
+}
+
 void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TInputChunkDescriptor& descriptor, const TChunkReplicaList& replicas)
 {
     if (descriptor.State != EInputChunkState::Waiting)
@@ -1784,6 +1713,10 @@ void TOperationControllerBase::OnInputChunkAvailable(const TChunkId& chunkId, TI
 
     --UnavailableInputChunkCount;
     YCHECK(UnavailableInputChunkCount >= 0);
+
+    if (UnavailableInputChunkCount == 0) {
+        InputChunkScraper->Stop();
+    }
 
     // Update replicas in place for all input chunks with current chunkId.
     for (auto& chunkSpec : descriptor.ChunkSpecs) {
@@ -1843,7 +1776,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 inputStripe.Task->GetChunkPoolInput()->Resume(inputStripe.Cookie, inputStripe.Stripe);
                 AddTaskPendingHint(inputStripe.Task);
             }
-            InputChunkScratcher->Start();
+            InputChunkScraper->Start();
             break;
         }
 
@@ -1855,7 +1788,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                 }
                 ++inputStripe.Stripe->WaitingChunkCount;
             }
-            InputChunkScratcher->Start();
+            InputChunkScraper->Start();
             break;
         }
 
@@ -2705,15 +2638,15 @@ void TOperationControllerBase::FetchInputTables()
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& range : ranges) {
-            for (i64 index = 0; index * Config->MaxChunkCountPerFetch < table.ChunkCount; ++index) {
+            for (i64 index = 0; index * Config->MaxChunksPerFetch < table.ChunkCount; ++index) {
                 auto adjustedRange = range;
-                auto chunkCountLowerLimit = index * Config->MaxChunkCountPerFetch;
+                auto chunkCountLowerLimit = index * Config->MaxChunksPerFetch;
                 if (adjustedRange.LowerLimit().HasChunkIndex()) {
                     chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
                 }
                 adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
-                auto chunkCountUpperLimit = (index + 1) * Config->MaxChunkCountPerFetch;
+                auto chunkCountUpperLimit = (index + 1) * Config->MaxChunksPerFetch;
                 if (adjustedRange.UpperLimit().HasChunkIndex()) {
                     chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
                 }
@@ -2808,14 +2741,14 @@ void TOperationControllerBase::LockInputTables()
                 const auto& attributes = node->Attributes();
 
                 if (attributes.Get<bool>("sorted")) {
-                    table.SortedBy = attributes.Get<TKeyColumns>("sorted_by");
+                    table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
                 }
 
                 table.ChunkCount = attributes.Get<int>("chunk_count");
             }
-            LOG_INFO("Input table locked (Path: %v, SortedBy: %v, ChunkCount: %v)",
+            LOG_INFO("Input table locked (Path: %v, KeyColumns: [%v], ChunkCount: %v)",
                 path,
-                table.SortedBy ? MakeNullable("[" + JoinToString(*table.SortedBy) + "]") : Null,
+                JoinToString(table.KeyColumns),
                 table.ChunkCount);
         }
     }
@@ -3124,12 +3057,12 @@ void TOperationControllerBase::LockUserFiles(
                 }
 
                 i64 chunkCount = attributes.Get<i64>("chunk_count");
-                if (chunkCount > Config->MaxChunkCountPerFetch) {
+                if (chunkCount > Config->MaxChunksPerFetch) {
                     THROW_ERROR_EXCEPTION(
                         "User file %v exceeds chunk count limit: %v > %v",
                         path,
                         chunkCount,
-                        Config->MaxChunkCountPerFetch);
+                        Config->MaxChunksPerFetch);
                 }
 
                 LOG_INFO("User file locked (Path: %v, Stage: %v, FileName: %v)",
@@ -3215,12 +3148,32 @@ void TOperationControllerBase::InitQuerySpec(
 void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
-        for (const auto& chunk : table.Chunks) {
+        for (const auto& chunkSpec : table.Chunks) {
+            if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                switch (Spec->UnavailableChunkStrategy) {
+                    case EUnavailableChunkAction::Fail:
+                        THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
+                            chunkId);
+
+                    case EUnavailableChunkAction::Skip:
+                        LOG_TRACE("Skipping unavailable chunk (ChunkId: %v)",
+                            chunkId);
+                        continue;
+
+                    case EUnavailableChunkAction::Wait:
+                        // Do nothing.
+                        break;
+
+                    default:
+                        YUNREACHABLE();
+                }
+            }
             i64 chunkDataSize;
             i64 chunkRowCount;
             i64 chunkValueCount;
             i64 chunkCompressedDataSize;
-            NChunkClient::GetStatistics(chunk, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
+            NChunkClient::GetStatistics(chunkSpec, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
 
             TotalEstimatedInputDataSize += chunkDataSize;
             TotalEstimatedInputRowCount += chunkRowCount;
@@ -3248,16 +3201,9 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
         for (const auto& chunkSpec : table.Chunks) {
-            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
                 switch (Spec->UnavailableChunkStrategy) {
-                    case EUnavailableChunkAction::Fail:
-                        THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
-                            chunkId);
-
                     case EUnavailableChunkAction::Skip:
-                        LOG_TRACE("Skipping unavailable chunk (ChunkId: %v)",
-                            chunkId);
                         continue;
 
                     case EUnavailableChunkAction::Wait:
@@ -3329,40 +3275,39 @@ std::vector<TChunkStripePtr> TOperationControllerBase::SliceInputChunks(
     return SliceChunks(CollectInputChunks(), maxSliceDataSize, jobCount);
 }
 
-
-TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TNullable<TKeyColumns>& keyColumns)
+TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& keyColumns)
 {
     YCHECK(!InputTables.empty());
 
     for (const auto& table : InputTables) {
-        if (!table.SortedBy) {
+        if (table.KeyColumns.empty()) {
             THROW_ERROR_EXCEPTION("Input table %v is not sorted",
                 table.Path.GetPath());
         }
     }
 
-    if (keyColumns) {
+    if (!keyColumns.empty()) {
         for (const auto& table : InputTables) {
-            if (!CheckKeyColumnsCompatible(*table.SortedBy, *keyColumns)) {
+            if (!CheckKeyColumnsCompatible(table.KeyColumns, keyColumns)) {
                 THROW_ERROR_EXCEPTION("Input table %v is sorted by columns [%v] that are not compatible with the requested columns [%v]",
                     table.Path.GetPath(),
-                    JoinToString(*table.SortedBy),
-                    JoinToString(*keyColumns));
+                    JoinToString(table.KeyColumns),
+                    JoinToString(keyColumns));
             }
         }
-        return *keyColumns;
+        return keyColumns;
     } else {
         const auto& referenceTable = InputTables[0];
         for (const auto& table : InputTables) {
-            if (table.SortedBy != referenceTable.SortedBy) {
+            if (table.KeyColumns != referenceTable.KeyColumns) {
                 THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by [%v] while input table %v is sorted by [%v]",
                     table.Path.GetPath(),
-                    JoinToString(*table.SortedBy),
+                    JoinToString(table.KeyColumns),
                     referenceTable.Path.GetPath(),
-                    JoinToString(*referenceTable.SortedBy));
+                    JoinToString(referenceTable.KeyColumns));
             }
         }
-        return *referenceTable.SortedBy;
+        return referenceTable.KeyColumns;
     }
 }
 
@@ -3436,25 +3381,16 @@ void TOperationControllerBase::RegisterOutput(
         key);
 }
 
-void TOperationControllerBase::RegisterEndpoints(
+void TOperationControllerBase::RegisterBoundaryKeys(
     const TBoundaryKeysExt& boundaryKeys,
     int key,
     TOutputTable* outputTable)
 {
-    {
-        TEndpoint endpoint;
-        FromProto(&endpoint.Key, boundaryKeys.min());
-        endpoint.Left = true;
-        endpoint.ChunkTreeKey = key;
-        outputTable->Endpoints.push_back(endpoint);
-    }
-    {
-        TEndpoint endpoint;
-        FromProto(&endpoint.Key, boundaryKeys.max());
-        endpoint.Left = false;
-        endpoint.ChunkTreeKey = key;
-        outputTable->Endpoints.push_back(endpoint);
-    }
+    TJobBoundaryKeys jobBoundaryKeys;
+    FromProto(&jobBoundaryKeys.MinKey, boundaryKeys.min());
+    FromProto(&jobBoundaryKeys.MaxKey, boundaryKeys.max());
+    jobBoundaryKeys.ChunkTreeKey = key;
+    outputTable->BoundaryKeys.push_back(jobBoundaryKeys);
 }
 
 void TOperationControllerBase::RegisterOutput(
@@ -3464,9 +3400,9 @@ void TOperationControllerBase::RegisterOutput(
 {
     auto& table = OutputTables[tableIndex];
 
-    if (table.KeyColumns && IsSortedOutputSupported()) {
+    if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
         auto boundaryKeys = GetProtoExtension<TBoundaryKeysExt>(chunkSpec->chunk_meta().extensions());
-        RegisterEndpoints(boundaryKeys, key, &table);
+        RegisterBoundaryKeys(boundaryKeys, key, &table);
     }
 
     RegisterOutput(FromProto<TChunkId>(chunkSpec->chunk_id()), key, tableIndex, table);
@@ -3483,10 +3419,10 @@ void TOperationControllerBase::RegisterOutput(
         auto& table = OutputTables[tableIndex];
         RegisterOutput(joblet->ChunkListIds[tableIndex], key, tableIndex, table);
 
-        if (table.KeyColumns && IsSortedOutputSupported()) {
+        if (!table.KeyColumns.empty() && IsSortedOutputSupported()) {
             YCHECK(userJobResult);
             const auto& boundaryKeys = userJobResult->output_boundary_keys(tableIndex);
-            RegisterEndpoints(boundaryKeys, key, &table);
+            RegisterBoundaryKeys(boundaryKeys, key, &table);
         }
     }
 }
@@ -3802,9 +3738,6 @@ void TOperationControllerBase::InitIntermediateOutputConfig(TJobIOConfigPtr conf
 
     // Cache blocks on nodes.
     config->TableWriter->PopulateCache = true;
-
-    // Don't move intermediate chunks.
-    config->TableWriter->ChunksMovable = false;
 
     // Don't sync intermediate chunks.
     config->TableWriter->SyncOnClose = false;

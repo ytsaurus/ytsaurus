@@ -444,6 +444,10 @@ atomic-expr
         {
             $$ = $identifier;
         }
+    | Identifier[name] LeftParenthesis RightParenthesis
+        {
+            $$ = New<TFunctionExpression>(@$, $name, New<TEmptyExpression>(@$));
+        }
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
             $$ = New<TFunctionExpression>(@$, $name, $args);

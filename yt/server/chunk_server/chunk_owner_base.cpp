@@ -11,6 +11,7 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NYTree;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressClient;
@@ -125,6 +126,11 @@ void TChunkOwnerBase::EndUpload(
 bool TChunkOwnerBase::IsSorted() const
 {
     return false;
+}
+
+ENodeType TChunkOwnerBase::GetNodeType() const
+{
+    return ENodeType::Entity;
 }
 
 TDataStatistics TChunkOwnerBase::ComputeTotalStatistics() const
