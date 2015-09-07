@@ -1,14 +1,14 @@
+from yt_env_setup import YTEnvSetup
+from yt_commands import *
+
+from yt.wrapper import format
+from yt.environment.helpers import assert_items_equal
+
 import pytest
 import time
 import __builtin__
 import os
 import tempfile
-
-from yt.wrapper import format
-
-from yt_env_setup import YTEnvSetup
-from yt_commands import *
-from distutils.spawn import find_executable
 
 def get_statistics(statistics, complex_key):
     result = statistics
@@ -929,7 +929,7 @@ print row + table_index
 
         expected = [{"key": "a", "value": "value0"},
                     {"key": "b", "value": "value1"}]
-        self.assertItemsEqual(read_table("//tmp/out"), expected)
+        assert_items_equal(read_table("//tmp/out"), expected)
 
     def test_insane_demand(self):
         create("table", "//tmp/t_in")
@@ -1095,7 +1095,7 @@ class TestJobQuery(YTEnvSetup):
                     {"name": "c", "type": "int64"},
                     {"name": "u", "type": "int64"}]})
 
-        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+        assert_items_equal(read_table("//tmp/t2"), rows)
 
     def test_query_udf(self):
         self._init_udf_registry()

@@ -3,6 +3,8 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from yt.environment.helpers import assert_items_equal
+
 from collections import defaultdict
 
 ##################################################################
@@ -154,9 +156,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         if method != "reduce_combiner_dev_null":
             for word, count in expected.items():
                 output.append( {"word": word, "count": str(count)} )
-            self.assertItemsEqual(read_table("//tmp/t_out"), output)
+            assert_items_equal(read_table("//tmp/t_out"), output)
         else:
-            self.assertItemsEqual(read_table("//tmp/t_out"), output)
+            assert_items_equal(read_table("//tmp/t_out"), output)
 
     @only_linux
     def test_map_sort_reduce(self):
@@ -324,7 +326,7 @@ print "x={0}\ty={1}".format(x, y)
                     {"name": "c", "type": "int64"},
                     {"name": "u", "type": "int64"}]})
 
-        self.assertItemsEqual(read_table("//tmp/t2"), rows)
+        assert_items_equal(read_table("//tmp/t2"), rows)
 
     def test_bad_control_attributes(self):
         create("table", "//tmp/t1")

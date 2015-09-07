@@ -1,5 +1,4 @@
 import configs
-from helpers import unorderable_list_difference, _AssertRaisesContext, Counter
 
 from yt.common import update, YtError
 import yt.yson as yson
@@ -709,49 +708,3 @@ class YTEnv(object):
             current_wait_time += sleep_quantum
         raise YtError("{0} still not ready after {1} seconds".format(name, max_wait_time))
 
-    # Unittest is painfull to integrate, so we simply reimplement some methods
-    def assertItemsEqual(self, actual_seq, expected_seq):
-        # It is simplified version of the same method of unittest.TestCase
-        try:
-            actual = Counter(iter(actual_seq))
-            expected = Counter(iter(expected_seq))
-        except TypeError:
-            # Unsortable items (example: set(), complex(), ...)
-            actual = list(actual_seq)
-            expected = list(expected_seq)
-            missing, unexpected = unorderable_list_difference(expected, actual)
-        else:
-            if actual == expected:
-                return
-            missing = list(expected - actual)
-            unexpected = list(actual - expected)
-
-        assert not missing, "Expected, but missing:\n    %s" % repr(missing)
-        assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
-
-    def assertEqual(self, actual, expected, msg=""):
-        self.assertTrue(actual == expected, msg)
-
-    def assertTrue(self, expr, msg=""):
-        assert expr, msg
-
-    def assertFalse(self, expr, msg=""):
-        assert not expr, msg
-
-    def assertRaises(self, excClass, callableObj=None, *args, **kwargs):
-        context = _AssertRaisesContext(excClass, self)
-        if callableObj is None:
-            return context
-        with context:
-            callableObj(*args, **kwargs)
-
-    def assertAlmostEqual(self, first, second, places=7, msg="", delta=None):
-        """ check equality of float numbers with some precision """
-        if first == second:
-            return
-
-        if delta is not None:
-            assert (abs(first - second) <= delta), msg if msg else "|{0} - {1}| > {2}".format(first, second, delta)
-        else:
-            rounding = round(abs(second - first), places)
-            assert (rounding == 0), msg if msg else "rounding is {0} (not zero!)".format(rounding)

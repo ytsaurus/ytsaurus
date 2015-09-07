@@ -62,25 +62,25 @@ class TestUsers(YTEnvSetup):
         assert get("//sys/users/u/@request_counter") == 0
 
     def test_builtin_init(self):
-        self.assertItemsEqual(get("//sys/groups/everyone/@members"), ["users", "guest"])
-        self.assertItemsEqual(get("//sys/groups/users/@members"), ["superusers"])
-        self.assertItemsEqual(get("//sys/groups/superusers/@members"), ["root", "scheduler", "job"])
+        assert sorted(get("//sys/groups/everyone/@members")) == sorted(["users", "guest"])
+        assert get("//sys/groups/users/@members") == ["superusers"]
+        assert sorted(get("//sys/groups/superusers/@members")) == sorted(["root", "scheduler", "job"])
 
-        self.assertItemsEqual(get("//sys/users/root/@member_of"), ["superusers"])
-        self.assertItemsEqual(get("//sys/users/guest/@member_of"), ["everyone"])
-        self.assertItemsEqual(get("//sys/users/scheduler/@member_of"), ["superusers"])
-        self.assertItemsEqual(get("//sys/users/job/@member_of"), ["superusers"])
+        assert get("//sys/users/root/@member_of") == ["superusers"]
+        assert get("//sys/users/guest/@member_of") == ["everyone"]
+        assert get("//sys/users/scheduler/@member_of") == ["superusers"]
+        assert get("//sys/users/job/@member_of") == ["superusers"]
         
-        self.assertItemsEqual(get("//sys/users/root/@member_of_closure"), ["superusers", "users", "everyone"])
-        self.assertItemsEqual(get("//sys/users/guest/@member_of_closure"), ["everyone"])
-        self.assertItemsEqual(get("//sys/users/scheduler/@member_of_closure"), ["superusers", "users", "everyone"])
-        self.assertItemsEqual(get("//sys/users/job/@member_of_closure"), ["superusers", "users", "everyone"])
+        assert sorted(get("//sys/users/root/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
+        assert get("//sys/users/guest/@member_of_closure") == ["everyone"]
+        assert sorted(get("//sys/users/scheduler/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
+        assert sorted(get("//sys/users/job/@member_of_closure")) == sorted(["superusers", "users", "everyone"])
         
     def test_create_user1(self):
         create_user("max")
         assert get("//sys/users/max/@name") == "max"
         assert "max" in get("//sys/groups/users/@members")
-        self.assertItemsEqual(get("//sys/users/max/@member_of"), ["users"])
+        assert get("//sys/users/max/@member_of") == ["users"]
 
     def test_create_user2(self):
         create_user("max")
@@ -109,7 +109,7 @@ class TestUsers(YTEnvSetup):
         create_group("devs")
         add_member("max", "devs")
         assert get("//sys/groups/devs/@members") == ["max"]
-        self.assertItemsEqual(get("//sys/groups/devs/@members"), ["max"])
+        assert get("//sys/groups/devs/@members") == ["max"]
 
     def test_membership2(self):
         create_user("u1")
@@ -121,25 +121,25 @@ class TestUsers(YTEnvSetup):
         add_member("g2", "g1")
         add_member("u2", "g2")
 
-        self.assertItemsEqual(get("//sys/groups/g1/@members"), ["u1", "g2"])
-        self.assertItemsEqual(get("//sys/groups/g2/@members"), ["u2"])
+        assert sorted(get("//sys/groups/g1/@members")) == sorted(["u1", "g2"])
+        assert get("//sys/groups/g2/@members") == ["u2"]
 
-        self.assertItemsEqual(get("//sys/users/u1/@member_of"), ["g1", "users"])
-        self.assertItemsEqual(get("//sys/users/u2/@member_of"), ["g2", "users"])
+        assert sorted(get("//sys/users/u1/@member_of")) == sorted(["g1", "users"])
+        assert sorted(get("//sys/users/u2/@member_of")) == sorted(["g2", "users"])
 
-        self.assertItemsEqual(get("//sys/users/u1/@member_of_closure"), ["g1", "users", "everyone"])
-        self.assertItemsEqual(get("//sys/users/u2/@member_of_closure"), ["g1", "g2", "users", "everyone"])
+        assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(["g1", "users", "everyone"])
+        assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(["g1", "g2", "users", "everyone"])
 
         remove_member("g2", "g1")
 
-        self.assertItemsEqual(get("//sys/groups/g1/@members"), ["u1"])
-        self.assertItemsEqual(get("//sys/groups/g2/@members"), ["u2"])
+        assert get("//sys/groups/g1/@members") == ["u1"]
+        assert get("//sys/groups/g2/@members") == ["u2"]
 
-        self.assertItemsEqual(get("//sys/users/u1/@member_of"), ["g1", "users"])
-        self.assertItemsEqual(get("//sys/users/u2/@member_of"), ["g2", "users"])
+        assert sorted(get("//sys/users/u1/@member_of")) == sorted(["g1", "users"])
+        assert sorted(get("//sys/users/u2/@member_of")) == sorted(["g2", "users"])
 
-        self.assertItemsEqual(get("//sys/users/u1/@member_of_closure"), ["g1", "users", "everyone"])
-        self.assertItemsEqual(get("//sys/users/u2/@member_of_closure"), ["g2", "users", "everyone"])
+        assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(["g1", "users", "everyone"])
+        assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(["g2", "users", "everyone"])
 
     def test_membership3(self):
         create_group("g1")
@@ -161,9 +161,9 @@ class TestUsers(YTEnvSetup):
         create_user("u")
         create_group("g")
         add_member("u", "g")
-        self.assertItemsEqual(get("//sys/users/u/@member_of"), ["g", "users"])
+        assert sorted(get("//sys/users/u/@member_of")) == sorted(["g", "users"])
         remove_group("g")
-        self.assertItemsEqual(get("//sys/users/u/@member_of"), ["users"])
+        assert get("//sys/users/u/@member_of") == ["users"]
 
     def test_membership6(self):
         create_user("u")
@@ -197,10 +197,10 @@ class TestUsers(YTEnvSetup):
         create_group("g")
         add_member("u", "g")
 
-        self.assertItemsEqual(get("//sys/users/u/@member_of"), ["g", "users"])
-        self.assertItemsEqual(get("//sys/users/u/@member_of_closure"), ["g", "users", "everyone"])
+        assert sorted(get("//sys/users/u/@member_of")) == sorted(["g", "users"])
+        assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["g", "users", "everyone"])
         
         remove_group("g")
         
-        self.assertItemsEqual(get("//sys/users/u/@member_of"), ["users"])
-        self.assertItemsEqual(get("//sys/users/u/@member_of_closure"), ["users", "everyone"])
+        assert get("//sys/users/u/@member_of") == ["users"]
+        assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["users", "everyone"])

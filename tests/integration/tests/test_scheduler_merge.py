@@ -3,6 +3,8 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from yt.environment.helpers import assert_items_equal
+
 
 ##################################################################
 
@@ -40,7 +42,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               in_=[self.t1, self.t2],
               out="//tmp/t_out")
 
-        self.assertItemsEqual(read_table("//tmp/t_out"), self.v1 + self.v2)
+        assert_items_equal(read_table("//tmp/t_out"), self.v1 + self.v2)
         assert get("//tmp/t_out/@chunk_count") == 7
 
     def test_unordered_combine(self):
@@ -51,7 +53,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               in_=[self.t1, self.t2],
               out="//tmp/t_out")
 
-        self.assertItemsEqual(read_table("//tmp/t_out"), self.v1 + self.v2)
+        assert_items_equal(read_table("//tmp/t_out"), self.v1 + self.v2)
         assert get("//tmp/t_out/@chunk_count") == 1
 
     def test_unordered_with_mixed_chunks(self):
@@ -152,7 +154,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(mode="sorted",
               in_=[t1, t2],
               out="//tmp/t_out")
-        self.assertItemsEqual(read_table("//tmp/t_out"), sorted(v + v))
+        assert_items_equal(read_table("//tmp/t_out"), v + v)
 
     def test_sorted_combine(self):
         create("table", "//tmp/t1")
@@ -194,7 +196,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"k" : "b", "s" : 2},
             {"k" : "c", "s" : 0}]
 
-        self.assertItemsEqual(res, expected)
+        assert_items_equal(res, expected)
 
         merge(mode="sorted",
               in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
@@ -202,7 +204,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               merge_by="k")
 
         res = read_table("//tmp/t_out")
-        self.assertItemsEqual(res, expected)
+        assert_items_equal(res, expected)
 
         assert get("//tmp/t_out/@chunk_count") == 3
 
@@ -221,7 +223,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             {"k" : "c", "s" : 0} ]
 
         for i, j in zip(res, expected):
-            self.assertItemsEqual(i, j)
+            assert i == j
 
         assert get("//tmp/t_out/@chunk_count") == 1
 
@@ -275,7 +277,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         result = read_table("//tmp/t_out")
         assert result[:2] == [a1, b1]
-        self.assertItemsEqual(result[2:5], [a2, a3, b2])
+        assert_items_equal(result[2:5], [a2, a3, b2])
         assert result[5] == b3
 
     def test_empty_in(self):
@@ -349,7 +351,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               in_=[self.t1 + "[:#1]", self.t2 + "[#1:#2]"],
               out="//tmp/t_out")
 
-        self.assertItemsEqual(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
+        assert_items_equal(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
 
     @only_linux
