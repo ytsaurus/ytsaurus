@@ -8,6 +8,7 @@ set( SRCS
   ${BASE}/ast.cpp
   ${BASE}/plan_fragment.cpp
   ${BASE}/plan_fragment_common.cpp
+  ${BASE}/query_preparer.cpp
   ${BASE}/query_statistics.cpp  
   ${BASE}/evaluator.cpp
   ${BASE}/column_evaluator.cpp
@@ -31,6 +32,7 @@ set( HDRS
   ${BASE}/ast.h
   ${BASE}/plan_fragment.h
   ${BASE}/plan_fragment_common.h
+  ${BASE}/query_preparer.h
   ${BASE}/query_statistics.h
   ${BASE}/evaluator.h
   ${BASE}/column_evaluator.h
@@ -42,9 +44,11 @@ if (YT_BUILD_ENABLE_LLVM)
     ${SRCS}
     ${BASE}/cg_routines.cpp
     ${BASE}/cg_ir_builder.cpp
+    ${BASE}/cg_helpers.cpp
     ${BASE}/cg_fragment_compiler.cpp
     ${BASE}/folding_profiler.cpp
     ${BASE}/evaluation_helpers.cpp
+    ${BASE}/functions.cpp
     ${BASE}/builtin_functions.cpp
     ${BASE}/user_defined_functions.cpp
     ${BASE}/function_registry.cpp
@@ -56,6 +60,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${BASE}/cg_types.h
     ${BASE}/cg_routines.h
     ${BASE}/cg_ir_builder.h
+    ${BASE}/cg_helpers.h
     ${BASE}/cg_fragment_compiler.h
     ${BASE}/folding_profiler.h
     ${BASE}/evaluation_helpers.h
@@ -102,8 +107,8 @@ udf_bc( ${BASE}/udf/double_cast.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/int64.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_null.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/is_substr.c YT_SOURCE_FILES )
+udf_bc( ${BASE}/udf/is_prefix.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/lower.c YT_SOURCE_FILES )
-udf_bc( ${BASE}/udf/simple_hash.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/sleep.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/uint64.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/min.c YT_SOURCE_FILES )

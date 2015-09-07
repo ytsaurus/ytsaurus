@@ -74,9 +74,16 @@ struct IConnection
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TConnectionOptions
+{
+    bool RetryRequestRateLimitExceeded = false;
+};
+
 IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
-    TCallback<bool(const TError&)> isRetriableError = BIND(&NRpc::IsRetriableError));
+    const TConnectionOptions& options = TConnectionOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -258,7 +258,7 @@ ICompositeNodePtr TNontemplateCypressNodeProxyBase::GetParent() const
 void TNontemplateCypressNodeProxyBase::SetParent(ICompositeNodePtr parent)
 {
     auto* impl = LockThisImpl();
-    impl->SetParent(parent ? ToProxy(INodePtr(parent))->GetTrunkNode() : nullptr);
+    impl->SetParent(parent ? ICypressNodeProxy::FromNode(parent.Get())->GetTrunkNode() : nullptr);
 }
 
 const IAttributeDictionary& TNontemplateCypressNodeProxyBase::Attributes() const
@@ -583,16 +583,6 @@ ICypressNodeProxyPtr TNontemplateCypressNodeProxyBase::GetProxy(TCypressNodeBase
     return cypressManager->GetNodeProxy(trunkNode, Transaction);
 }
 
-TIntrusivePtr<ICypressNodeProxy> TNontemplateCypressNodeProxyBase::ToProxy(INodePtr node)
-{
-    return dynamic_cast<ICypressNodeProxy*>(node.Get());
-}
-
-TIntrusivePtr<const ICypressNodeProxy> TNontemplateCypressNodeProxyBase::ToProxy(IConstNodePtr node)
-{
-    return dynamic_cast<const ICypressNodeProxy*>(node.Get());
-}
-
 std::unique_ptr<IAttributeDictionary> TNontemplateCypressNodeProxyBase::DoCreateCustomAttributes()
 {
     return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
@@ -827,7 +817,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         }
     }
 
-    auto sourceProxy = ToProxy(GetResolver()->ResolvePath(sourcePath));
+    auto sourceProxy = ICypressNodeProxy::FromNode(GetResolver()->ResolvePath(sourcePath));
 
     auto* trunkSourceImpl = sourceProxy->GetTrunkNode();
     auto* sourceImpl = removeSource
@@ -860,7 +850,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     }
 
     auto* account = replace
-        ? ToProxy(INodePtr(parent))->GetTrunkNode()->GetAccount()
+        ? ICypressNodeProxy::FromNode(parent.Get())->GetTrunkNode()->GetAccount()
         : GetThisImpl()->GetAccount();
     auto factory = CreateCypressFactory(account, preserveAccount);
 
@@ -1037,7 +1027,7 @@ bool TMapNodeProxy::AddChild(INodePtr child, const Stroka& key)
     }
 
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
-    auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
+    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
     impl->KeyToChild()[key] = trunkChildImpl;
@@ -1070,7 +1060,7 @@ bool TMapNodeProxy::RemoveChild(const Stroka& key)
 void TMapNodeProxy::RemoveChild(INodePtr child)
 {
     auto key = GetChildKey(child);
-    auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
+    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
@@ -1086,10 +1076,10 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
     auto key = GetChildKey(oldChild);
 
-    auto* oldTrunkChildImpl = ToProxy(oldChild)->GetTrunkNode();
+    auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl, ELockMode::Exclusive, true);
 
-    auto* newTrunkChildImpl = ToProxy(newChild)->GetTrunkNode();
+    auto* newTrunkChildImpl = ICypressNodeProxy::FromNode(newChild.Get())->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
     auto* impl = LockThisTypedImpl(TLockRequest::SharedChild(key));
@@ -1110,7 +1100,7 @@ void TMapNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
 Stroka TMapNodeProxy::GetChildKey(IConstNodePtr child)
 {
-    auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
+    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto cypressManager = Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Transaction, TrunkNode);
@@ -1249,7 +1239,7 @@ void TListNodeProxy::AddChild(INodePtr child, int beforeIndex /*= -1*/)
     auto* impl = LockThisTypedImpl();
     auto& list = impl->IndexToChild();
 
-    auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
+    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
     if (beforeIndex < 0) {
@@ -1310,10 +1300,10 @@ void TListNodeProxy::ReplaceChild(INodePtr oldChild, INodePtr newChild)
 
     auto* impl = LockThisTypedImpl();
 
-    auto* oldTrunkChildImpl = ToProxy(oldChild)->GetTrunkNode();
+    auto* oldTrunkChildImpl = ICypressNodeProxy::FromNode(oldChild.Get())->GetTrunkNode();
     auto* oldChildImpl = LockImpl(oldTrunkChildImpl);
 
-    auto* newTrunkChildImpl = ToProxy(newChild)->GetTrunkNode();
+    auto* newTrunkChildImpl = ICypressNodeProxy::FromNode(newChild.Get())->GetTrunkNode();
     auto* newChildImpl = LockImpl(newTrunkChildImpl);
 
     auto it = impl->ChildToIndex().find(oldTrunkChildImpl);
@@ -1335,7 +1325,7 @@ int TListNodeProxy::GetChildIndex(IConstNodePtr child)
 {
     const auto* impl = GetThisTypedImpl();
 
-    auto* trunkChildImpl = ToProxy(child)->GetTrunkNode();
+    auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
 
     auto it = impl->ChildToIndex().find(trunkChildImpl);
     YCHECK(it != impl->ChildToIndex().end());

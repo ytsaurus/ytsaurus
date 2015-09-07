@@ -403,10 +403,7 @@ public:
     {
         INodePtr root;
         auto path = GetNodeYPath(node, &root);
-
-        auto* rootProxy = dynamic_cast<ICypressNodeProxy*>(root.Get());
-        YCHECK(rootProxy);
-
+        auto* rootProxy = ICypressNodeProxy::FromNode(root.Get());
         auto cypressManager = Bootstrap->GetCypressManager();
         auto rootId = cypressManager->GetRootNode()->GetId();
         return rootProxy->GetId() == rootId

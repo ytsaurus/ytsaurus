@@ -4,6 +4,7 @@ var Q = require("bluebird");
 
 var YtError = require("./error").that;
 var YtApplicationVersions = require("./application_versions").that;
+var YtApplicationOperations = require("./application_operations").that;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,11 +60,23 @@ function YtDriverFacadeV3(driver)
     var application_versions = new YtApplicationVersions(driver); 
  
     defineCustomCommand("_discover_versions", function(output_stream) { 
-        return application_versions.get_versions().then(function(result) { 
-            output_stream.write(JSON.stringify(result));
-        }); 
+        return application_versions.get_versions();
+    });
+
+    var application_operations = new YtApplicationOperations(driver);
+
+    defineCustomCommand("_list_operations", function(parameters) {
+        return application_operations.list(parameters);
+    });
+
+    defineCustomCommand("_get_operation", function(parameters) {
+        return application_operations.get(parameters);
     }); 
- 
+
+    defineCustomCommand("_get_scheduling_information", function(parameters) {
+        return application_operations.get_scheduling_information();
+    });
+
     this.custom_commands = custom_commands;
     this.driver = driver;
 }
@@ -74,8 +87,10 @@ YtDriverFacadeV3.prototype.execute = function(name, user,
     parameters, request_id, pause, response_parameters_consumer)
 {
     if (typeof(this.custom_commands[name]) !== "undefined") {
-        return this.custom_commands[name].execute(output_stream, parameters.Get())
-        .then(function () {
+        return this.custom_commands[name].execute(parameters.Get())
+        .then(function (result) {
+            // TODO(sandello): Serialize to user-requested format.
+            output_stream.write(JSON.stringify(result));
             return [new YtError(), 0, 0];
         }, function (error) {
             return [error, 0, 0];

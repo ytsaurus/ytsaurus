@@ -12,18 +12,18 @@ namespace NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger::TLogger(const Stroka& category)
+TLogger::TLogger(const char* category)
     : Category_(category)
 { }
 
-const Stroka& TLogger::GetCategory() const
+const char* TLogger::GetCategory() const
 {
     return Category_;
 }
 
 bool TLogger::IsEnabled(ELogLevel level) const
 {
-    if (Category_.empty()) {
+    if (!Category_) {
         return false;
     }
 

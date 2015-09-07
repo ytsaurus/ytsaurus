@@ -231,13 +231,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {
       switch (other.type_get ())
     {
-      case 69: // relational-op
-      case 71: // additive-op
-      case 73: // multiplicative-op
+      case 68: // relational-op
+      case 70: // additive-op
+      case 72: // multiplicative-op
         value.copy< EBinaryOp > (other.value);
         break;
 
-      case 76: // unary-op
+      case 75: // unary-op
         value.copy< EUnaryOp > (other.value);
         break;
 
@@ -245,46 +245,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< Stroka > (other.value);
         break;
 
-      case 64: // expression
-      case 65: // or-op-expr
-      case 66: // and-op-expr
-      case 67: // not-op-expr
-      case 68: // relational-op-expr
-      case 70: // additive-op-expr
-      case 72: // multiplicative-op-expr
-      case 74: // comma-expr
-      case 75: // unary-expr
-      case 78: // atomic-expr
-        value.copy< TExpressionPtr > (other.value);
+      case 62: // named-expression
+      case 63: // expression
+      case 64: // or-op-expr
+      case 65: // and-op-expr
+      case 66: // not-op-expr
+      case 67: // relational-op-expr
+      case 69: // additive-op-expr
+      case 71: // multiplicative-op-expr
+      case 73: // comma-expr
+      case 74: // unary-expr
+      case 77: // atomic-expr
+        value.copy< TExpressionList > (other.value);
         break;
 
       case 61: // identifier-list
         value.copy< TIdentifierList > (other.value);
         break;
 
-      case 81: // const-list
-      case 82: // const-tuple
+      case 80: // const-list
+      case 81: // const-tuple
         value.copy< TLiteralValueList > (other.value);
         break;
 
-      case 83: // const-tuple-list
+      case 82: // const-tuple-list
         value.copy< TLiteralValueTupleList > (other.value);
         break;
 
-      case 63: // named-expression
-        value.copy< TNamedExpression > (other.value);
-        break;
-
-      case 62: // named-expression-list
-        value.copy< TNamedExpressionList > (other.value);
-        break;
-
-      case 79: // literal-value
-      case 80: // const-value
+      case 78: // literal-value
+      case 79: // const-value
         value.copy< TNullable<TLiteralValue> > (other.value);
         break;
 
-      case 77: // qualified-identifier
+      case 76: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (other.value);
         break;
 
@@ -329,13 +322,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     (void) v;
       switch (this->type_get ())
     {
-      case 69: // relational-op
-      case 71: // additive-op
-      case 73: // multiplicative-op
+      case 68: // relational-op
+      case 70: // additive-op
+      case 72: // multiplicative-op
         value.copy< EBinaryOp > (v);
         break;
 
-      case 76: // unary-op
+      case 75: // unary-op
         value.copy< EUnaryOp > (v);
         break;
 
@@ -343,46 +336,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< Stroka > (v);
         break;
 
-      case 64: // expression
-      case 65: // or-op-expr
-      case 66: // and-op-expr
-      case 67: // not-op-expr
-      case 68: // relational-op-expr
-      case 70: // additive-op-expr
-      case 72: // multiplicative-op-expr
-      case 74: // comma-expr
-      case 75: // unary-expr
-      case 78: // atomic-expr
-        value.copy< TExpressionPtr > (v);
+      case 62: // named-expression
+      case 63: // expression
+      case 64: // or-op-expr
+      case 65: // and-op-expr
+      case 66: // not-op-expr
+      case 67: // relational-op-expr
+      case 69: // additive-op-expr
+      case 71: // multiplicative-op-expr
+      case 73: // comma-expr
+      case 74: // unary-expr
+      case 77: // atomic-expr
+        value.copy< TExpressionList > (v);
         break;
 
       case 61: // identifier-list
         value.copy< TIdentifierList > (v);
         break;
 
-      case 81: // const-list
-      case 82: // const-tuple
+      case 80: // const-list
+      case 81: // const-tuple
         value.copy< TLiteralValueList > (v);
         break;
 
-      case 83: // const-tuple-list
+      case 82: // const-tuple-list
         value.copy< TLiteralValueTupleList > (v);
         break;
 
-      case 63: // named-expression
-        value.copy< TNamedExpression > (v);
-        break;
-
-      case 62: // named-expression-list
-        value.copy< TNamedExpressionList > (v);
-        break;
-
-      case 79: // literal-value
-      case 80: // const-value
+      case 78: // literal-value
+      case 79: // const-value
         value.copy< TNullable<TLiteralValue> > (v);
         break;
 
-      case 77: // qualified-identifier
+      case 76: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (v);
         break;
 
@@ -447,7 +433,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TExpressionPtr v, const location_type& l)
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TExpressionList v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -469,20 +455,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l)
-    : Base (t)
-    , value (v)
-    , location (l)
-  {}
-
-  template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l)
-    : Base (t)
-    , value (v)
-    , location (l)
-  {}
-
-  template <typename Base>
-  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l)
     : Base (t)
     , value (v)
     , location (l)
@@ -560,13 +532,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     // Type destructor.
     switch (yytype)
     {
-      case 69: // relational-op
-      case 71: // additive-op
-      case 73: // multiplicative-op
+      case 68: // relational-op
+      case 70: // additive-op
+      case 72: // multiplicative-op
         value.template destroy< EBinaryOp > ();
         break;
 
-      case 76: // unary-op
+      case 75: // unary-op
         value.template destroy< EUnaryOp > ();
         break;
 
@@ -574,46 +546,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.template destroy< Stroka > ();
         break;
 
-      case 64: // expression
-      case 65: // or-op-expr
-      case 66: // and-op-expr
-      case 67: // not-op-expr
-      case 68: // relational-op-expr
-      case 70: // additive-op-expr
-      case 72: // multiplicative-op-expr
-      case 74: // comma-expr
-      case 75: // unary-expr
-      case 78: // atomic-expr
-        value.template destroy< TExpressionPtr > ();
+      case 62: // named-expression
+      case 63: // expression
+      case 64: // or-op-expr
+      case 65: // and-op-expr
+      case 66: // not-op-expr
+      case 67: // relational-op-expr
+      case 69: // additive-op-expr
+      case 71: // multiplicative-op-expr
+      case 73: // comma-expr
+      case 74: // unary-expr
+      case 77: // atomic-expr
+        value.template destroy< TExpressionList > ();
         break;
 
       case 61: // identifier-list
         value.template destroy< TIdentifierList > ();
         break;
 
-      case 81: // const-list
-      case 82: // const-tuple
+      case 80: // const-list
+      case 81: // const-tuple
         value.template destroy< TLiteralValueList > ();
         break;
 
-      case 83: // const-tuple-list
+      case 82: // const-tuple-list
         value.template destroy< TLiteralValueTupleList > ();
         break;
 
-      case 63: // named-expression
-        value.template destroy< TNamedExpression > ();
-        break;
-
-      case 62: // named-expression-list
-        value.template destroy< TNamedExpressionList > ();
-        break;
-
-      case 79: // literal-value
-      case 80: // const-value
+      case 78: // literal-value
+      case 79: // const-value
         value.template destroy< TNullable<TLiteralValue> > ();
         break;
 
-      case 77: // qualified-identifier
+      case 76: // qualified-identifier
         value.template destroy< TReferenceExpressionPtr > ();
         break;
 
@@ -655,13 +620,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     super_type::move(s);
       switch (this->type_get ())
     {
-      case 69: // relational-op
-      case 71: // additive-op
-      case 73: // multiplicative-op
+      case 68: // relational-op
+      case 70: // additive-op
+      case 72: // multiplicative-op
         value.move< EBinaryOp > (s.value);
         break;
 
-      case 76: // unary-op
+      case 75: // unary-op
         value.move< EUnaryOp > (s.value);
         break;
 
@@ -669,46 +634,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< Stroka > (s.value);
         break;
 
-      case 64: // expression
-      case 65: // or-op-expr
-      case 66: // and-op-expr
-      case 67: // not-op-expr
-      case 68: // relational-op-expr
-      case 70: // additive-op-expr
-      case 72: // multiplicative-op-expr
-      case 74: // comma-expr
-      case 75: // unary-expr
-      case 78: // atomic-expr
-        value.move< TExpressionPtr > (s.value);
+      case 62: // named-expression
+      case 63: // expression
+      case 64: // or-op-expr
+      case 65: // and-op-expr
+      case 66: // not-op-expr
+      case 67: // relational-op-expr
+      case 69: // additive-op-expr
+      case 71: // multiplicative-op-expr
+      case 73: // comma-expr
+      case 74: // unary-expr
+      case 77: // atomic-expr
+        value.move< TExpressionList > (s.value);
         break;
 
       case 61: // identifier-list
         value.move< TIdentifierList > (s.value);
         break;
 
-      case 81: // const-list
-      case 82: // const-tuple
+      case 80: // const-list
+      case 81: // const-tuple
         value.move< TLiteralValueList > (s.value);
         break;
 
-      case 83: // const-tuple-list
+      case 82: // const-tuple-list
         value.move< TLiteralValueTupleList > (s.value);
         break;
 
-      case 63: // named-expression
-        value.move< TNamedExpression > (s.value);
-        break;
-
-      case 62: // named-expression-list
-        value.move< TNamedExpressionList > (s.value);
-        break;
-
-      case 79: // literal-value
-      case 80: // const-value
+      case 78: // literal-value
+      case 79: // const-value
         value.move< TNullable<TLiteralValue> > (s.value);
         break;
 
-      case 77: // qualified-identifier
+      case 76: // qualified-identifier
         value.move< TReferenceExpressionPtr > (s.value);
         break;
 
@@ -1082,13 +1040,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {
       switch (that.type_get ())
     {
-      case 69: // relational-op
-      case 71: // additive-op
-      case 73: // multiplicative-op
+      case 68: // relational-op
+      case 70: // additive-op
+      case 72: // multiplicative-op
         value.move< EBinaryOp > (that.value);
         break;
 
-      case 76: // unary-op
+      case 75: // unary-op
         value.move< EUnaryOp > (that.value);
         break;
 
@@ -1096,46 +1054,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< Stroka > (that.value);
         break;
 
-      case 64: // expression
-      case 65: // or-op-expr
-      case 66: // and-op-expr
-      case 67: // not-op-expr
-      case 68: // relational-op-expr
-      case 70: // additive-op-expr
-      case 72: // multiplicative-op-expr
-      case 74: // comma-expr
-      case 75: // unary-expr
-      case 78: // atomic-expr
-        value.move< TExpressionPtr > (that.value);
+      case 62: // named-expression
+      case 63: // expression
+      case 64: // or-op-expr
+      case 65: // and-op-expr
+      case 66: // not-op-expr
+      case 67: // relational-op-expr
+      case 69: // additive-op-expr
+      case 71: // multiplicative-op-expr
+      case 73: // comma-expr
+      case 74: // unary-expr
+      case 77: // atomic-expr
+        value.move< TExpressionList > (that.value);
         break;
 
       case 61: // identifier-list
         value.move< TIdentifierList > (that.value);
         break;
 
-      case 81: // const-list
-      case 82: // const-tuple
+      case 80: // const-list
+      case 81: // const-tuple
         value.move< TLiteralValueList > (that.value);
         break;
 
-      case 83: // const-tuple-list
+      case 82: // const-tuple-list
         value.move< TLiteralValueTupleList > (that.value);
         break;
 
-      case 63: // named-expression
-        value.move< TNamedExpression > (that.value);
-        break;
-
-      case 62: // named-expression-list
-        value.move< TNamedExpressionList > (that.value);
-        break;
-
-      case 79: // literal-value
-      case 80: // const-value
+      case 78: // literal-value
+      case 79: // const-value
         value.move< TNullable<TLiteralValue> > (that.value);
         break;
 
-      case 77: // qualified-identifier
+      case 76: // qualified-identifier
         value.move< TReferenceExpressionPtr > (that.value);
         break;
 
@@ -1178,13 +1129,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     state = that.state;
       switch (that.type_get ())
     {
-      case 69: // relational-op
-      case 71: // additive-op
-      case 73: // multiplicative-op
+      case 68: // relational-op
+      case 70: // additive-op
+      case 72: // multiplicative-op
         value.copy< EBinaryOp > (that.value);
         break;
 
-      case 76: // unary-op
+      case 75: // unary-op
         value.copy< EUnaryOp > (that.value);
         break;
 
@@ -1192,46 +1143,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< Stroka > (that.value);
         break;
 
-      case 64: // expression
-      case 65: // or-op-expr
-      case 66: // and-op-expr
-      case 67: // not-op-expr
-      case 68: // relational-op-expr
-      case 70: // additive-op-expr
-      case 72: // multiplicative-op-expr
-      case 74: // comma-expr
-      case 75: // unary-expr
-      case 78: // atomic-expr
-        value.copy< TExpressionPtr > (that.value);
+      case 62: // named-expression
+      case 63: // expression
+      case 64: // or-op-expr
+      case 65: // and-op-expr
+      case 66: // not-op-expr
+      case 67: // relational-op-expr
+      case 69: // additive-op-expr
+      case 71: // multiplicative-op-expr
+      case 73: // comma-expr
+      case 74: // unary-expr
+      case 77: // atomic-expr
+        value.copy< TExpressionList > (that.value);
         break;
 
       case 61: // identifier-list
         value.copy< TIdentifierList > (that.value);
         break;
 
-      case 81: // const-list
-      case 82: // const-tuple
+      case 80: // const-list
+      case 81: // const-tuple
         value.copy< TLiteralValueList > (that.value);
         break;
 
-      case 83: // const-tuple-list
+      case 82: // const-tuple-list
         value.copy< TLiteralValueTupleList > (that.value);
         break;
 
-      case 63: // named-expression
-        value.copy< TNamedExpression > (that.value);
-        break;
-
-      case 62: // named-expression-list
-        value.copy< TNamedExpressionList > (that.value);
-        break;
-
-      case 79: // literal-value
-      case 80: // const-value
+      case 78: // literal-value
+      case 79: // const-value
         value.copy< TNullable<TLiteralValue> > (that.value);
         break;
 
-      case 77: // qualified-identifier
+      case 76: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (that.value);
         break;
 
@@ -1489,13 +1433,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
          when using variants.  */
         switch (yyr1_[yyn])
     {
-      case 69: // relational-op
-      case 71: // additive-op
-      case 73: // multiplicative-op
+      case 68: // relational-op
+      case 70: // additive-op
+      case 72: // multiplicative-op
         yylhs.value.build< EBinaryOp > ();
         break;
 
-      case 76: // unary-op
+      case 75: // unary-op
         yylhs.value.build< EUnaryOp > ();
         break;
 
@@ -1503,46 +1447,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         yylhs.value.build< Stroka > ();
         break;
 
-      case 64: // expression
-      case 65: // or-op-expr
-      case 66: // and-op-expr
-      case 67: // not-op-expr
-      case 68: // relational-op-expr
-      case 70: // additive-op-expr
-      case 72: // multiplicative-op-expr
-      case 74: // comma-expr
-      case 75: // unary-expr
-      case 78: // atomic-expr
-        yylhs.value.build< TExpressionPtr > ();
+      case 62: // named-expression
+      case 63: // expression
+      case 64: // or-op-expr
+      case 65: // and-op-expr
+      case 66: // not-op-expr
+      case 67: // relational-op-expr
+      case 69: // additive-op-expr
+      case 71: // multiplicative-op-expr
+      case 73: // comma-expr
+      case 74: // unary-expr
+      case 77: // atomic-expr
+        yylhs.value.build< TExpressionList > ();
         break;
 
       case 61: // identifier-list
         yylhs.value.build< TIdentifierList > ();
         break;
 
-      case 81: // const-list
-      case 82: // const-tuple
+      case 80: // const-list
+      case 81: // const-tuple
         yylhs.value.build< TLiteralValueList > ();
         break;
 
-      case 83: // const-tuple-list
+      case 82: // const-tuple-list
         yylhs.value.build< TLiteralValueTupleList > ();
         break;
 
-      case 63: // named-expression
-        yylhs.value.build< TNamedExpression > ();
-        break;
-
-      case 62: // named-expression-list
-        yylhs.value.build< TNamedExpressionList > ();
-        break;
-
-      case 79: // literal-value
-      case 80: // const-value
+      case 78: // literal-value
+      case 79: // const-value
         yylhs.value.build< TNullable<TLiteralValue> > ();
         break;
 
-      case 77: // qualified-identifier
+      case 76: // qualified-identifier
         yylhs.value.build< TReferenceExpressionPtr > ();
         break;
 
@@ -1589,20 +1526,21 @@ namespace NYT { namespace NQueryClient { namespace NAst {
             {
   case 7:
     {
-            head->As<TExpressionPtr>() = yystack_[0].value.as< TExpressionPtr > ();
+            if (yystack_[0].value.as< TExpressionList > ().size() != 1) {
+                THROW_ERROR_EXCEPTION("Expected scalar expression, got %Qv", GetSource(yylhs.location, source));
+            }
+            head->first.As<TExpressionPtr>() = yystack_[0].value.as< TExpressionList > ().front();
         }
     break;
 
   case 8:
     {
-            head->As<TQuery>().SelectExprs = yystack_[0].value.as< TNamedExpressionList > ();
+            head->first.As<TQuery>().SelectExprs = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 9:
-    {
-            head->As<TQuery>().SelectExprs = TNullableNamedExpressionList();
-        }
+    { }
     break;
 
   case 10:
@@ -1625,44 +1563,44 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 13:
     {
-            head->As<TQuery>().Table = yystack_[1].value.as< TTableDescriptor > ();
+            head->first.As<TQuery>().Table = yystack_[1].value.as< TTableDescriptor > ();
         }
     break;
 
   case 14:
     {
-            head->As<TQuery>().Joins.emplace_back(yystack_[2].value.as< TTableDescriptor > (), yystack_[0].value.as< TIdentifierList > ());
+            head->first.As<TQuery>().Joins.emplace_back(yystack_[2].value.as< TTableDescriptor > (), yystack_[0].value.as< TIdentifierList > ());
         }
     break;
 
   case 15:
     {
-            head->As<TQuery>().Joins.emplace_back(yystack_[4].value.as< TTableDescriptor > (), yystack_[2].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ());
+            head->first.As<TQuery>().Joins.emplace_back(yystack_[4].value.as< TTableDescriptor > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 17:
     {
-            head->As<TQuery>().WherePredicate = yystack_[0].value.as< TExpressionPtr > ();
+            head->first.As<TQuery>().WherePredicate = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 19:
     {
-            head->As<TQuery>().GroupExprs = yystack_[0].value.as< TNamedExpressionList > ();
+            head->first.As<TQuery>().GroupExprs = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 21:
     {
-            head->As<TQuery>().HavingPredicate = yystack_[0].value.as< TExpressionPtr > ();
+            head->first.As<TQuery>().HavingPredicate = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 23:
     {
-            head->As<TQuery>().OrderFields = yystack_[1].value.as< TIdentifierList > ();
-            head->As<TQuery>().IsDescendingOrder = yystack_[0].value.as< bool > ();
+            head->first.As<TQuery>().OrderFields = yystack_[1].value.as< TIdentifierList > ();
+            head->first.As<TQuery>().IsDescendingOrder = yystack_[0].value.as< bool > ();
         }
     break;
 
@@ -1686,7 +1624,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 28:
     {
-            head->As<TQuery>().Limit = yystack_[0].value.as< i64 > ();
+            head->first.As<TQuery>().Limit = yystack_[0].value.as< i64 > ();
         }
     break;
 
@@ -1705,247 +1643,242 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 32:
     {
-            yylhs.value.as< TNamedExpressionList > ().swap(yystack_[2].value.as< TNamedExpressionList > ());
-            yylhs.value.as< TNamedExpressionList > ().push_back(yystack_[0].value.as< TNamedExpression > ());
+            yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > ();
         }
     break;
 
   case 33:
     {
-            yylhs.value.as< TNamedExpressionList > ().push_back(yystack_[0].value.as< TNamedExpression > ());
+            if (yystack_[2].value.as< TExpressionList > ().size() != 1) {
+                THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(yylhs.location, source));
+            }
+            auto inserted = head->second.insert(MakePair(Stroka(yystack_[0].value.as< TStringBuf > ()), yystack_[2].value.as< TExpressionList > ().front()));
+            if (!inserted.second) {
+                THROW_ERROR_EXCEPTION("Alias %Qv has been already used", yystack_[0].value.as< TStringBuf > ());
+            }
+            yylhs.value.as< TExpressionList > () = MakeExpr<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
         }
     break;
 
   case 34:
-    {
-            yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[0].value.as< TExpressionPtr > (), InferName(yystack_[0].value.as< TExpressionPtr > ().Get()));
-        }
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
   case 35:
     {
-            yylhs.value.as< TNamedExpression > () = TNamedExpression(yystack_[2].value.as< TExpressionPtr > (), Stroka(yystack_[0].value.as< TStringBuf > ()));
+            yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, EBinaryOp::Or, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 36:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
   case 37:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TBinaryOpExpression>(yylhs.location, EBinaryOp::Or, yystack_[2].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 38:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
   case 39:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, yystack_[2].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TUnaryOpExpression>(yylhs.location, EUnaryOp::Not, yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 40:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
   case 41:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TUnaryOpExpression>(yylhs.location, EUnaryOp::Not, yystack_[0].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 42:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
+    {
+            yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, EBinaryOp::And,
+                MakeExpr<TBinaryOpExpression>(yylhs.location, EBinaryOp::GreaterOrEqual, yystack_[4].value.as< TExpressionList > (), yystack_[2].value.as< TExpressionList > ()),
+                MakeExpr<TBinaryOpExpression>(yylhs.location, EBinaryOp::LessOrEqual, yystack_[4].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ()));
+
+        }
     break;
 
   case 43:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TInExpression>(yylhs.location, yystack_[4].value.as< TExpressionList > (), yystack_[1].value.as< TLiteralValueTupleList > ());
         }
     break;
 
   case 44:
-    {
-            yylhs.value.as< TExpressionPtr > () = New<TBinaryOpExpression>(yylhs.location, EBinaryOp::And,
-                New<TBinaryOpExpression>(yylhs.location, EBinaryOp::GreaterOrEqual, yystack_[4].value.as< TExpressionPtr > (), yystack_[2].value.as< TExpressionPtr > ()),
-                New<TBinaryOpExpression>(yylhs.location, EBinaryOp::LessOrEqual, yystack_[4].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ()));
-
-        }
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
   case 45:
-    {
-            yylhs.value.as< TExpressionPtr > () = New<TInExpression>(yylhs.location, yystack_[4].value.as< TExpressionPtr > (), yystack_[1].value.as< TLiteralValueTupleList > ());
-        }
-    break;
-
-  case 46:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
-    break;
-
-  case 47:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Equal; }
     break;
 
-  case 48:
+  case 46:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::NotEqual; }
     break;
 
-  case 49:
+  case 47:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Less; }
     break;
 
-  case 50:
+  case 48:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::LessOrEqual; }
     break;
 
-  case 51:
+  case 49:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Greater; }
     break;
 
-  case 52:
+  case 50:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::GreaterOrEqual; }
     break;
 
-  case 53:
+  case 51:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
-  case 54:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
+  case 52:
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
-  case 55:
+  case 53:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Plus; }
     break;
 
-  case 56:
+  case 54:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Minus; }
     break;
 
-  case 57:
+  case 55:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
-  case 58:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
+  case 56:
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
-  case 59:
+  case 57:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Multiply; }
     break;
 
-  case 60:
+  case 58:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Divide; }
     break;
 
-  case 61:
+  case 59:
     { yylhs.value.as< EBinaryOp > () = EBinaryOp::Modulo; }
+    break;
+
+  case 60:
+    {
+            yylhs.value.as< TExpressionList > () = yystack_[2].value.as< TExpressionList > ();
+            yylhs.value.as< TExpressionList > ().insert(yylhs.value.as< TExpressionList > ().end(), yystack_[0].value.as< TExpressionList > ().begin(), yystack_[0].value.as< TExpressionList > ().end());
+        }
+    break;
+
+  case 61:
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
   case 62:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TCommaExpression>(yylhs.location, yystack_[2].value.as< TExpressionPtr > (), yystack_[0].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TUnaryOpExpression>(yylhs.location, yystack_[1].value.as< EUnaryOp > (), yystack_[0].value.as< TExpressionList > ());
         }
     break;
 
   case 63:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
+    { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
   case 64:
-    {
-            yylhs.value.as< TExpressionPtr > () = New<TUnaryOpExpression>(yylhs.location, yystack_[1].value.as< EUnaryOp > (), yystack_[0].value.as< TExpressionPtr > ());
-        }
-    break;
-
-  case 65:
-    { yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TExpressionPtr > (); }
-    break;
-
-  case 66:
     { yylhs.value.as< EUnaryOp > () = EUnaryOp::Plus; }
     break;
 
-  case 67:
+  case 65:
     { yylhs.value.as< EUnaryOp > () = EUnaryOp::Minus; }
     break;
 
-  case 68:
+  case 66:
     {
             yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
         }
     break;
 
-  case 69:
+  case 67:
     {
             yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > (), yystack_[2].value.as< TStringBuf > ());
         }
     break;
 
+  case 68:
+    {
+            yylhs.value.as< TExpressionList > () = TExpressionList(1, yystack_[0].value.as< TReferenceExpressionPtr > ());
+        }
+    break;
+
+  case 69:
+    {
+            yylhs.value.as< TExpressionList > () = MakeExpr<TFunctionExpression>(yylhs.location, yystack_[2].value.as< TStringBuf > (), TExpressionList());
+        }
+    break;
+
   case 70:
     {
-            yylhs.value.as< TExpressionPtr > () = yystack_[0].value.as< TReferenceExpressionPtr > ();
+            yylhs.value.as< TExpressionList > () = MakeExpr<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > (), yystack_[1].value.as< TExpressionList > ());
         }
     break;
 
   case 71:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TFunctionExpression>(yylhs.location, yystack_[2].value.as< TStringBuf > (), New<TEmptyExpression>(yylhs.location));
+            yylhs.value.as< TExpressionList > () = yystack_[1].value.as< TExpressionList > ();
         }
     break;
 
   case 72:
     {
-            yylhs.value.as< TExpressionPtr > () = New<TFunctionExpression>(yylhs.location, yystack_[3].value.as< TStringBuf > (), yystack_[1].value.as< TExpressionPtr > ());
+            yylhs.value.as< TExpressionList > () = MakeExpr<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 73:
-    {
-            yylhs.value.as< TExpressionPtr > () = yystack_[1].value.as< TExpressionPtr > ();
-        }
-    break;
-
-  case 74:
-    {
-            yylhs.value.as< TExpressionPtr > () = New<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
-        }
-    break;
-
-  case 75:
     { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< i64 > (); }
     break;
 
-  case 76:
+  case 74:
     { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< ui64 > (); }
     break;
 
-  case 77:
+  case 75:
     { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< double > (); }
     break;
 
-  case 78:
+  case 76:
     { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< Stroka > (); }
     break;
 
-  case 79:
+  case 77:
     { yylhs.value.as< TNullable<TLiteralValue> > () = false; }
     break;
 
-  case 80:
+  case 78:
     { yylhs.value.as< TNullable<TLiteralValue> > () = true; }
     break;
 
-  case 81:
+  case 79:
     {
             switch (yystack_[1].value.as< EUnaryOp > ()) {
                 case EUnaryOp::Minus: {
@@ -1970,43 +1903,43 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         }
     break;
 
-  case 82:
+  case 80:
     { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > (); }
     break;
 
-  case 83:
+  case 81:
     {
             yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
             yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
+  case 82:
+    {
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+        }
+    break;
+
+  case 83:
+    {
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+        }
+    break;
+
   case 84:
-    {
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
-        }
-    break;
-
-  case 85:
-    {
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
-        }
-    break;
-
-  case 86:
     {
             yylhs.value.as< TLiteralValueList > () = yystack_[1].value.as< TLiteralValueList > ();
         }
     break;
 
-  case 87:
+  case 85:
     {
             yylhs.value.as< TLiteralValueTupleList > ().swap(yystack_[2].value.as< TLiteralValueTupleList > ());
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
     break;
 
-  case 88:
+  case 86:
     {
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
@@ -2267,110 +2200,110 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -90;
+  const signed char TParser::yypact_ninf_ = -94;
 
   const signed char TParser::yytable_ninf_ = -1;
 
   const short int
   TParser::yypact_[] =
   {
-     141,    22,    22,    72,    10,    86,   -90,   -90,    23,   -90,
-     -90,   -90,   -90,    72,   -90,   -90,   -90,   -90,    15,   -19,
-     -90,     7,     9,    21,   -90,   121,    82,   -13,    54,   128,
-     -90,   -90,   -90,   -90,    37,   -90,   -90,   -90,   121,    57,
-      36,   -90,     0,    41,    37,    72,    42,    72,    72,   -90,
-     -90,   -90,   -90,   -90,   -90,    86,   -90,   -90,    86,   -90,
-     -90,   -90,    86,    86,    63,   -90,    72,   -90,   -90,    27,
-     -90,   -90,    72,    -6,   -90,    40,   -90,   -90,    21,   -90,
-      82,   -90,   -13,   -90,    89,   100,     9,   -90,   -90,    79,
-     -90,   109,    72,   113,    86,   114,    45,   -90,   -90,   -90,
-      55,   -90,    41,   -19,    72,   112,   -90,   -90,    70,   -90,
-     -90,   100,    46,     9,   105,   123,   -90,   114,   -90,   105,
-      86,    96,    -2,   -90,   132,   -90,   -90,   104,   -12,   -90,
-     -90,   105,   -90,   -90,    86,   -90,    82
+     152,    18,    18,    75,     8,    89,   -94,   -94,   -12,   -94,
+     -94,   -94,   -94,    75,   -94,   -94,   -94,   -94,    29,   -94,
+      23,    34,    30,   -94,   110,   -18,   -10,    15,   137,   117,
+     -94,   -94,   -94,   -94,    50,   -94,   -94,   -94,   110,    60,
+      37,    58,    44,    50,    56,    75,    75,   -94,   -94,   -94,
+     -94,   -94,   -94,    89,   -94,   -94,    89,   -94,   -94,   -94,
+      89,    75,    89,    51,   -94,    75,   -94,   -94,    73,   -94,
+     -94,    -1,   -94,    85,   -94,    30,   -94,   -18,   -94,   -10,
+     -94,   -94,    92,   103,    34,   -94,    82,   -94,   111,    75,
+     116,    89,    32,    47,   -94,   -94,   -94,    87,   -94,    44,
+      15,    75,   115,   -94,   -94,   101,   -94,   -94,   103,    10,
+      34,   113,   126,   -94,    32,   -94,   113,    89,   123,    -2,
+     -94,   121,   -94,   -94,   127,    31,   -94,   -94,   113,   -94,
+     -94,    89,   -94,   -18
   };
 
   const unsigned char
   TParser::yydefact_[] =
   {
-       0,     0,     0,     0,     0,     0,    79,    80,    68,    75,
-      76,    77,    78,     0,     9,    66,    67,     2,     0,     8,
-      33,    34,    36,    38,    40,    42,    46,    54,    58,     0,
-      70,    65,    74,     3,    18,     4,     7,     1,    41,     0,
-       0,    63,     0,     0,    18,     0,     0,     0,     0,    49,
-      50,    47,    48,    51,    52,     0,    55,    56,     0,    61,
-      59,    60,     0,     0,     0,    64,     0,     6,    71,     0,
-      69,    73,     0,    12,    16,    20,    32,    35,    37,    39,
-      43,    58,    53,    57,     0,     0,    17,    72,    62,     0,
-      10,    13,     0,    22,     0,     0,     0,    82,    85,    88,
-       0,    11,     0,    19,     0,    24,    44,    84,     0,    81,
-      45,     0,     0,    21,     0,    29,    86,     0,    87,     0,
-       0,    68,    27,    31,     0,     5,    83,    14,     0,    26,
-      25,     0,    23,    28,     0,    30,    15
+       0,     0,     0,     0,     0,     0,    77,    78,    66,    73,
+      74,    75,    76,     0,     9,    64,    65,     2,     0,    61,
+      32,    34,    36,    38,    40,    44,    52,     8,    56,     0,
+      68,    63,    72,     3,    18,     4,     7,     1,    39,     0,
+       0,     0,     0,    18,     0,     0,     0,    47,    48,    45,
+      46,    49,    50,     0,    53,    54,     0,    59,    57,    58,
+       0,     0,     0,     0,    62,     0,     6,    69,     0,    67,
+      71,    12,    16,    20,    33,    35,    37,    41,    56,    51,
+      55,    60,     0,     0,    17,    70,     0,    10,    13,     0,
+      22,     0,     0,     0,    80,    83,    86,     0,    11,     0,
+      19,     0,    24,    42,    82,     0,    79,    43,     0,     0,
+      21,     0,    29,    84,     0,    85,     0,     0,    66,    27,
+      31,     0,     5,    81,    14,     0,    26,    25,     0,    23,
+      28,     0,    30,    15
   };
 
   const short int
   TParser::yypgoto_[] =
   {
-     -90,   -90,   -90,   -90,   -90,   134,    48,   -90,   -90,   124,
-     -90,   -90,   -90,   -90,   -90,    29,    75,   125,    -1,   -62,
-     122,   126,   166,   -90,   -54,   -90,   115,   -90,   133,   -55,
-     -76,   -87,   146,   -80,   -89,   -90,    65,   -90
+     -94,   -94,   -94,   -94,   -94,   160,    65,   -94,   -94,   122,
+     -94,   -94,   -94,   -94,   -94,    52,   105,   164,   -60,   124,
+     125,   165,   -94,   -52,   -94,   118,   -94,    -9,   -53,   -77,
+     -93,   143,   -81,   -82,   -94,    67,   -94
   };
 
   const short int
   TParser::yydefgoto_[] =
   {
-      -1,     4,    17,    33,    35,    18,    74,    44,    91,    67,
-      93,   105,   115,   132,   125,   122,    19,    20,    21,    22,
-      23,    24,    25,    55,    26,    58,    27,    62,    42,    28,
-      29,    30,    31,    32,    98,   108,    99,   100
+      -1,     4,    17,    33,    35,    18,    72,    43,    88,    66,
+      90,   102,   112,   129,   122,   119,    19,    20,    21,    22,
+      23,    24,    53,    25,    56,    26,    60,    27,    28,    29,
+      30,    31,    32,    95,   105,    96,    97
   };
 
   const unsigned char
   TParser::yytable_[] =
   {
-      81,    80,    36,    81,    86,    97,   107,    83,    84,    96,
-      37,    89,    41,   129,   130,    97,   109,    45,    59,    96,
-      90,    60,    43,    56,    46,    57,    61,   123,   126,    47,
-     134,    97,   123,    71,   131,    96,    72,    97,    41,   106,
-      48,    96,   113,     5,   135,    66,     6,     7,     8,     9,
-      10,    11,    12,    92,    13,    39,    14,    15,   119,    16,
-      87,    40,    70,    72,   120,    81,   128,    73,    77,     6,
-       7,    88,     9,    10,    11,    12,    63,    64,     5,    81,
-     136,     6,     7,     8,     9,    10,    11,    12,   110,    13,
-      68,   111,    15,     5,    16,    85,     6,     7,     8,     9,
-      10,    11,    12,   116,    13,   101,   117,    15,    94,    16,
-       6,     7,     8,     9,    10,    11,    12,    56,    13,    57,
-     102,    15,   104,    16,     6,     7,   114,     9,    10,    11,
-      12,   121,    95,   124,    40,    15,    34,    16,     6,     7,
-     131,     9,    10,    11,    12,     1,     2,     3,   127,    15,
-     112,    16,     6,     7,     8,     9,    10,    11,    12,   133,
-      13,    49,    50,    51,    52,    53,    54,   103,    75,    78,
-      76,    38,    69,    82,    79,    65,   118
+      78,    77,    94,    78,    41,    84,    93,    80,    37,    82,
+     104,    94,   106,   126,   127,    93,    86,    54,   120,    55,
+      39,    57,   116,   120,    58,    87,    40,    94,   117,    59,
+      68,    93,   123,    94,   128,   132,    42,    93,   103,     5,
+      44,   110,     6,     7,     8,     9,    10,    11,    12,    46,
+      13,    61,    14,    15,    45,    16,     6,     7,    65,     9,
+      10,    11,    12,    69,    78,   125,    54,    15,    55,    16,
+      71,     6,     7,   131,     9,    10,    11,    12,    78,   133,
+     100,     5,    74,    83,     6,     7,     8,     9,    10,    11,
+      12,    70,    13,    67,    61,    15,     5,    16,    89,     6,
+       7,     8,     9,    10,    11,    12,    85,    13,    98,    61,
+      15,    91,    16,     6,     7,     8,     9,    10,    11,    12,
+     107,    13,    99,   108,    15,   101,    16,     6,     7,   111,
+       9,    10,    11,    12,   113,    92,   121,   114,    15,   118,
+      16,     6,     7,     8,     9,    10,    11,    12,   130,    13,
+      47,    48,    49,    50,    51,    52,     1,     2,     3,    62,
+      63,    40,    34,   128,   109,    73,    81,    36,   124,    75,
+      38,    76,    64,     0,    79,   115
   };
 
-  const unsigned char
+  const short int
   TParser::yycheck_[] =
   {
-      55,    55,     3,    58,    66,    85,    95,    62,    63,    85,
-       0,    17,    13,    15,    16,    95,    96,    36,    31,    95,
-      26,    34,     7,    35,    17,    37,    39,   114,   117,    20,
-      42,   111,   119,    33,    36,   111,    36,   117,    39,    94,
-      19,   117,   104,    21,   131,     8,    24,    25,    26,    27,
-      28,    29,    30,    13,    32,    32,    34,    35,    12,    37,
-      33,    38,    26,    36,    18,   120,   120,    26,    26,    24,
-      25,    72,    27,    28,    29,    30,    22,    23,    21,   134,
-     134,    24,    25,    26,    27,    28,    29,    30,    33,    32,
-      33,    36,    35,    21,    37,    32,    24,    25,    26,    27,
-      28,    29,    30,    33,    32,    26,    36,    35,    19,    37,
-      24,    25,    26,    27,    28,    29,    30,    35,    32,    37,
-      11,    35,     9,    37,    24,    25,    14,    27,    28,    29,
-      30,    26,    32,    10,    38,    35,     2,    37,    24,    25,
-      36,    27,    28,    29,    30,     4,     5,     6,   119,    35,
-     102,    37,    24,    25,    26,    27,    28,    29,    30,    27,
-      32,    40,    41,    42,    43,    44,    45,    92,    44,    47,
-      45,     5,    39,    58,    48,    29,   111
+      53,    53,    83,    56,    13,    65,    83,    60,     0,    62,
+      92,    92,    93,    15,    16,    92,    17,    35,   111,    37,
+      32,    31,    12,   116,    34,    26,    38,   108,    18,    39,
+      39,   108,   114,   114,    36,   128,     7,   114,    91,    21,
+      17,   101,    24,    25,    26,    27,    28,    29,    30,    19,
+      32,    36,    34,    35,    20,    37,    24,    25,     8,    27,
+      28,    29,    30,    26,   117,   117,    35,    35,    37,    37,
+      26,    24,    25,    42,    27,    28,    29,    30,   131,   131,
+      89,    21,    26,    32,    24,    25,    26,    27,    28,    29,
+      30,    33,    32,    33,    36,    35,    21,    37,    13,    24,
+      25,    26,    27,    28,    29,    30,    33,    32,    26,    36,
+      35,    19,    37,    24,    25,    26,    27,    28,    29,    30,
+      33,    32,    11,    36,    35,     9,    37,    24,    25,    14,
+      27,    28,    29,    30,    33,    32,    10,    36,    35,    26,
+      37,    24,    25,    26,    27,    28,    29,    30,    27,    32,
+      40,    41,    42,    43,    44,    45,     4,     5,     6,    22,
+      23,    38,     2,    36,    99,    43,    61,     3,   116,    45,
+       5,    46,    29,    -1,    56,   108
   };
 
   const unsigned char
@@ -2378,18 +2311,18 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {
        0,     4,     5,     6,    47,    21,    24,    25,    26,    27,
       28,    29,    30,    32,    34,    35,    37,    48,    51,    62,
-      63,    64,    65,    66,    67,    68,    70,    72,    75,    76,
-      77,    78,    79,    49,    51,    50,    64,     0,    68,    32,
-      38,    64,    74,     7,    53,    36,    17,    20,    19,    40,
-      41,    42,    43,    44,    45,    69,    35,    37,    71,    31,
-      34,    39,    73,    22,    23,    78,     8,    55,    33,    74,
-      26,    33,    36,    26,    52,    55,    63,    26,    66,    67,
-      70,    75,    72,    75,    75,    32,    65,    33,    64,    17,
-      26,    54,    13,    56,    19,    32,    76,    79,    80,    82,
-      83,    26,    11,    62,     9,    57,    75,    80,    81,    79,
-      33,    36,    52,    65,    14,    58,    33,    36,    82,    12,
-      18,    26,    61,    77,    10,    60,    80,    61,    70,    15,
-      16,    36,    59,    27,    42,    77,    70
+      63,    64,    65,    66,    67,    69,    71,    73,    74,    75,
+      76,    77,    78,    49,    51,    50,    63,     0,    67,    32,
+      38,    73,     7,    53,    17,    20,    19,    40,    41,    42,
+      43,    44,    45,    68,    35,    37,    70,    31,    34,    39,
+      72,    36,    22,    23,    77,     8,    55,    33,    73,    26,
+      33,    26,    52,    55,    26,    65,    66,    69,    74,    71,
+      74,    62,    74,    32,    64,    33,    17,    26,    54,    13,
+      56,    19,    32,    75,    78,    79,    81,    82,    26,    11,
+      73,     9,    57,    74,    79,    80,    78,    33,    36,    52,
+      64,    14,    58,    33,    36,    81,    12,    18,    26,    61,
+      76,    10,    60,    79,    61,    69,    15,    16,    36,    59,
+      27,    42,    76,    69
   };
 
   const unsigned char
@@ -2398,12 +2331,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
        0,    46,    47,    47,    47,    48,    49,    50,    51,    51,
       52,    52,    52,    53,    54,    54,    54,    55,    55,    56,
       56,    57,    57,    58,    58,    59,    59,    59,    60,    60,
-      61,    61,    62,    62,    63,    63,    64,    65,    65,    66,
-      66,    67,    67,    68,    68,    68,    68,    69,    69,    69,
-      69,    69,    69,    70,    70,    71,    71,    72,    72,    73,
+      61,    61,    62,    62,    63,    64,    64,    65,    65,    66,
+      66,    67,    67,    67,    67,    68,    68,    68,    68,    68,
+      68,    69,    69,    70,    70,    71,    71,    72,    72,    72,
       73,    73,    74,    74,    75,    75,    76,    76,    77,    77,
-      78,    78,    78,    78,    78,    79,    79,    79,    79,    79,
-      79,    80,    80,    81,    81,    82,    82,    83,    83
+      77,    77,    77,    78,    78,    78,    78,    78,    78,    79,
+      79,    80,    80,    81,    81,    82,    82
   };
 
   const unsigned char
@@ -2412,12 +2345,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
        0,     2,     2,     2,     2,     7,     2,     1,     1,     1,
        2,     3,     1,     3,     5,     7,     0,     2,     0,     2,
        0,     2,     0,     3,     0,     1,     1,     0,     2,     0,
-       3,     1,     3,     1,     1,     3,     1,     3,     1,     3,
-       1,     2,     1,     3,     5,     5,     1,     1,     1,     1,
-       1,     1,     1,     3,     1,     1,     1,     3,     1,     1,
-       1,     1,     3,     1,     2,     1,     1,     1,     1,     3,
-       1,     3,     4,     3,     1,     1,     1,     1,     1,     1,
-       1,     2,     1,     3,     1,     1,     3,     3,     1
+       3,     1,     1,     3,     1,     3,     1,     3,     1,     2,
+       1,     3,     5,     5,     1,     1,     1,     1,     1,     1,
+       1,     3,     1,     1,     1,     3,     1,     1,     1,     1,
+       3,     1,     2,     1,     1,     1,     1,     3,     1,     3,
+       4,     3,     1,     1,     1,     1,     1,     1,     1,     2,
+       1,     3,     1,     1,     3,     3,     1
   };
 
 
@@ -2444,27 +2377,27 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   "parse-expression", "select-clause", "table-descriptor", "from-clause",
   "join-clause", "where-clause", "group-by-clause", "having-clause",
   "order-by-clause", "is-desc", "limit-clause", "identifier-list",
-  "named-expression-list", "named-expression", "expression", "or-op-expr",
-  "and-op-expr", "not-op-expr", "relational-op-expr", "relational-op",
-  "additive-op-expr", "additive-op", "multiplicative-op-expr",
-  "multiplicative-op", "comma-expr", "unary-expr", "unary-op",
-  "qualified-identifier", "atomic-expr", "literal-value", "const-value",
-  "const-list", "const-tuple", "const-tuple-list", YY_NULLPTR
+  "named-expression", "expression", "or-op-expr", "and-op-expr",
+  "not-op-expr", "relational-op-expr", "relational-op", "additive-op-expr",
+  "additive-op", "multiplicative-op-expr", "multiplicative-op",
+  "comma-expr", "unary-expr", "unary-op", "qualified-identifier",
+  "atomic-expr", "literal-value", "const-value", "const-list",
+  "const-tuple", "const-tuple-list", YY_NULLPTR
   };
 
 #if YT_QL_YYDEBUG
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   149,   149,   150,   151,   155,   159,   163,   170,   174,
+       0,   148,   148,   149,   150,   154,   158,   162,   172,   176,
      181,   185,   189,   196,   203,   207,   211,   215,   219,   223,
      227,   231,   235,   239,   244,   248,   252,   257,   263,   267,
-     271,   276,   283,   288,   295,   299,   306,   311,   315,   320,
-     324,   329,   333,   338,   342,   349,   353,   358,   360,   362,
-     364,   366,   368,   373,   377,   382,   384,   389,   393,   398,
-     400,   402,   407,   411,   416,   420,   425,   427,   432,   436,
-     443,   447,   451,   455,   459,   466,   468,   470,   472,   474,
-     476,   481,   504,   510,   515,   522,   526,   533,   538
+     271,   276,   283,   287,   301,   306,   310,   315,   319,   324,
+     328,   333,   337,   344,   348,   353,   355,   357,   359,   361,
+     363,   368,   372,   377,   379,   384,   388,   393,   395,   397,
+     402,   407,   412,   416,   421,   423,   428,   432,   439,   443,
+     447,   451,   455,   462,   464,   466,   468,   470,   472,   477,
+     500,   506,   511,   518,   522,   529,   534
   };
 
   // Print the state stack on the debug stream.
