@@ -66,7 +66,22 @@ using namespace NVersionedTableClient::NProto;
 static const auto& Profiler = DataNodeProfiler;
 
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
-static const size_t MaxSampleSize = 4 * 1024;
+static const size_t MaxSampleSize = 100 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TrimSample(std::vector<TUnversionedValue>& keyValues)
+{
+    size_t size = 0;
+    for (auto& value : keyValues) {
+        auto valueSize = GetByteSize(value);
+        if (size + valueSize > MaxSampleSize && IsStringLikeType(value.Type)) {
+            value.Length = MaxSampleSize - size;
+            valueSize = value.Length;
+        }
+        size += valueSize;
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -691,13 +706,8 @@ private:
             sampleRequest->sample_count());
 
         for (const auto& sample : samples) {
-            TUnversionedRowBuilder rowBuilder;
-            auto* key = chunkSamples->add_keys();
-            size_t size = 0;
+            std::vector<TUnversionedValue> keyValues;
             for (const auto& column : keyColumns) {
-                if (size >= MaxSampleSize)
-                    break;
-
                 auto it = std::lower_bound(
                     sample.parts().begin(),
                     sample.parts().end(),
@@ -707,7 +717,6 @@ private:
                     });
 
                 auto keyPart = MakeUnversionedSentinelValue(EValueType::Null);
-                size += sizeof(keyPart); // part type
                 if (it != sample.parts().end() && it->column() == column) {
                     switch (ELegacyKeyPartType(it->key_part().type())) {
                         case ELegacyKeyPartType::Composite:
@@ -719,20 +728,17 @@ private:
                         case ELegacyKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                             break;
-                        case ELegacyKeyPartType::String: {
-                            auto partSize = std::min(it->key_part().str_value().size(), MaxSampleSize - size);
-                            auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
-                            keyPart = MakeUnversionedStringValue(value);
-                            size += partSize;
+                        case ELegacyKeyPartType::String:
+                            keyPart = MakeUnversionedStringValue(it->key_part().str_value());
                             break;
-                        }
                         default:
                             YUNREACHABLE();
                     }
                 }
-                rowBuilder.AddValue(keyPart);
+                keyValues.push_back(keyPart);
             }
-            ToProto(key, rowBuilder.GetRow());
+            TrimSample(keyValues);
+            ToProto(chunkSamples->add_keys(), keyValues.data(), keyValues.data() + keyValues.size());
         }
     }
 
@@ -788,13 +794,9 @@ private:
             sampleRequest->sample_count());
         samples.erase(samples.begin() + count, samples.end());
 
-        if (keyColumns.size() > prefixLength) {
-            // Requested key is wider than the keys stored in chunk.
-            std::vector<TUnversionedValue> values(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null, 0));
-            for (int i = 0; i < samples.size(); ++i) {
-                YCHECK(samples[i].GetCount() == chunkKeyColumns.size());
-                samples[i] = WidenKey(samples[i], keyColumns.size());
-            }
+        for (int i = 0; i < samples.size(); ++i) {
+            YCHECK(samples[i].GetCount() == chunkKeyColumns.size());
+            samples[i] = WidenKey(samples[i], keyColumns.size());
         }
 
         ToProto(chunkSamples->mutable_keys(), samples);
@@ -848,19 +850,8 @@ private:
                 size += GetByteSize(value);
             }
 
-            while (size > MaxSampleSize && keyValues.size() > 1) {
-                size -= GetByteSize(keyValues.back());
-                keyValues.pop_back();
-            }
-
-            if (size > MaxSampleSize) {
-                YCHECK(keyValues.size() == 1);
-                YCHECK(keyValues.front().Type == EValueType::String);
-                keyValues.front().Length = MaxSampleSize;
-            }
-
-            auto* key = chunkSamples->add_keys();
-            ToProto(key, keyValues.data(), keyValues.data() + keyValues.size());
+            TrimSample(keyValues);
+            ToProto(chunkSamples->add_keys(), keyValues.data(), keyValues.data() + keyValues.size());
         }
     }
 
