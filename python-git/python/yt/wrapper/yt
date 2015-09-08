@@ -384,7 +384,7 @@ def add_link_parser(add_parser):
     parser.add_argument("target_path", help="address of original node to link, path must exist")
     parser.add_argument("link_path", help="address of resulting link, path must not exist")
     parser.add_argument("-r", "--recursive", action="store_true", help="remove nodes and their subnodes recursively")
-    parser.add_argument("-i", "--ignore-existing", action="store_true", help="overwrite existing link_path")
+    parser.add_argument("-i", "--ignore-existing", action="store_true")
 
 def tablet_args(parser):
     add_ypath_argument(parser)
