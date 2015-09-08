@@ -129,8 +129,11 @@ struct IServiceContext
     //! Sets the response logging info. This info will be logged when the context is replied.
     virtual void SetRawResponseInfo(const Stroka& info) = 0;
 
-    //! Returns the logger associated with the handler.
-    virtual NLogging::TLogger& GetLogger() = 0;
+    //! Returns the logger for request/response messages.
+    virtual const NLogging::TLogger& GetLogger() const = 0;
+
+    //! Returns the logging level for request/response messages.
+    virtual NLogging::ELogLevel GetLogLevel() const = 0;
 
 
     // Extension methods.

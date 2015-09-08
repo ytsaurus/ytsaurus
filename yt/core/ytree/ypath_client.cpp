@@ -309,8 +309,8 @@ void ExecuteVerb(
             IServiceContextPtr underlyingContext)
             : TServiceContextBase(
                 std::move(requestMessage),
-                NLogging::TLogger(),
-                NLogging::ELogLevel::Debug)
+                underlyingContext->GetLogger(),
+                underlyingContext->GetLogLevel())
             , UnderlyingContext_(std::move(underlyingContext))
         { }
 

@@ -66,13 +66,13 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
-    virtual NLogging::TLogger& GetLogger() override;
+    virtual const NLogging::TLogger& GetLogger() const override;
+    virtual NLogging::ELogLevel GetLogLevel() const override;
 
 protected:
     const std::unique_ptr<NProto::TRequestHeader> RequestHeader_;
     const TSharedRefArray RequestMessage_;
-
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
     const NLogging::ELogLevel LogLevel_;
 
     TRequestId RequestId_;
@@ -186,7 +186,8 @@ public:
     virtual void SetRawRequestInfo(const Stroka& info) override;
     virtual void SetRawResponseInfo(const Stroka& info) override;
 
-    virtual NLogging::TLogger& GetLogger() override;
+    virtual const NLogging::TLogger& GetLogger() const override;
+    virtual NLogging::ELogLevel GetLogLevel() const override;
 
 protected:
     const IServiceContextPtr UnderlyingContext_;
