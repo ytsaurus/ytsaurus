@@ -66,6 +66,8 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 
     int maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
 
+    context->SetRequestInfo("Limit: %v", maxSize);
+
     auto keys = GetKeys(maxSize);
     size_t size = GetSize();
 
@@ -102,6 +104,8 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
         : TAttributeFilter::None;
 
     int maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
+
+    context->SetRequestInfo("Limit: %v", maxSize);
 
     auto keys = GetKeys(maxSize);
     size_t size = GetSize();
