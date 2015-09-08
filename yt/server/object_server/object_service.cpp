@@ -186,11 +186,10 @@ private:
                         "Error parsing request header");
                 }
 
-                // Propagate retry flag to the subrequest.
-                if (Context->IsRetry()) {
-                    requestHeader.set_retry(true);
-                    requestMessage = SetRequestHeader(requestMessage, requestHeader);
-                }
+                // Propagate various parameters to the subrequest.
+                requestHeader.set_retry(Context->IsRetry());
+                requestHeader.set_user(user->GetName());
+                auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
                 const auto& ypathExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
                 const auto& path = ypathExt.path();
@@ -210,18 +209,16 @@ private:
                     requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
-                auto requestInfo = Format("RequestId: %v, User: %v, Mutating: %v, TransactionId: %v, RequestPath: %v",
+                auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v",
                     Context->GetRequestId(),
-                    UserName,
                     mutating,
-                    GetTransactionId(requestHeader),
                     path);
                 auto responseInfo = Format("RequestId: %v",
                     Context->GetRequestId());
 
                 auto asyncResponseMessage = ExecuteVerb(
                     rootService,
-                    std::move(requestMessage),
+                    std::move(updatedRequestMessage),
                     ObjectServerLogger,
                     NLogging::ELogLevel::Debug,
                     requestInfo,

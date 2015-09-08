@@ -236,15 +236,6 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
         objectManager->ValidatePrerequisites(prerequiesitesExt);
     }
 
-    auto objectId = GetVersionedId();
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
-        context->GetService(),
-        context->GetMethod(),
-        ypathExt.path(),
-        objectId,
-        ypathExt.mutating(),
-        user->GetName());
-
     NProfiling::TTagIdList tagIds;
     tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
     tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
