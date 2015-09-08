@@ -68,7 +68,7 @@ void TFileChunkOutput::Open()
         Config->UploadReplicationFactor);
     
     auto channel = Client->GetMasterChannel(EMasterChannelKind::Leader);
-    auto rspOrError = CreateChunk(channel, Config, Options, EObjectType::Chunk, TransactionId).Get();
+    auto rspOrError = CreateChunk(channel, Config, Options, EObjectType::Chunk, TransactionId, NullChunkListId).Get();
     if (!rspOrError.IsOK()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,

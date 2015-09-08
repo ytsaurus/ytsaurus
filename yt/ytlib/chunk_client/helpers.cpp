@@ -23,7 +23,8 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     EObjectType chunkType,
-    TTransactionId transactionId)
+    const TTransactionId& transactionId,
+    const TChunkListId& chunkListId)
 {
     auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
     LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
@@ -43,6 +44,9 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     reqExt->set_movable(options->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
     reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
+    if (chunkListId != NullChunkListId) {
+        ToProto(reqExt->mutable_chunk_list_id(), chunkListId);
+    }
 
     return objectProxy.Execute(req);
 }

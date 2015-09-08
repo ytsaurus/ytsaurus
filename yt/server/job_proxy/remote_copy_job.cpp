@@ -195,7 +195,8 @@ private:
                 WriterConfig_,
                 writerOptions,
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
-                transactionId));
+                transactionId,
+                OutputChunkListId_));
 
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 rspOrError,
@@ -203,7 +204,7 @@ private:
                 "Error creating chunk");
 
             const auto& rsp = rspOrError.Value();
-            FromProto(&outputChunkId, rsp->object_ids(0));
+            outputChunkId = FromProto<TChunkId>(rsp->object_ids(0));
         }
 
         // Copy chunk.
@@ -332,18 +333,8 @@ private:
             NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
             auto rspOrError = WaitFor(objectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to confirm chunk");
-        }
-
-        // Attach chunk.
-        LOG_INFO("Attaching output chunk");
-        {
-            auto req = TChunkListYPathProxy::Attach(FromObjectId(OutputChunkListId_));
-            ToProto(req->add_children_ids(), outputChunkId);
-            GenerateMutationId(req);
-
-            auto rspOrError = WaitFor(objectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunk");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to confirm chunk %v",
+                outputChunkId);
         }
     }
 
