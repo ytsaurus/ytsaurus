@@ -25,7 +25,7 @@ private:
     int ActiveReaderCount_ = 0;
     bool HasActiveWriter_ = false;
 
-    std::queue<TPromise<void>> ReaderPromiseQueue_;
+    std::vector<TPromise<void>> ReaderPromiseQueue_;
     std::queue<TPromise<void>> WriterPromiseQueue_;
 
     TSpinLock SpinLock_;
@@ -37,6 +37,7 @@ template <class TOperationTraits>
 class TAsyncReaderWriterLockGuard
     : public TRefCounted
 {
+private:
     using TThis = TAsyncReaderWriterLockGuard;
     using TThisPtr = TIntrusivePtr<TThis>;
 
