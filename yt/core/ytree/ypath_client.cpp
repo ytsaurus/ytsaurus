@@ -334,9 +334,7 @@ void ExecuteVerb(
         }
 
         virtual void LogResponse(const TError& /*error*/) override
-        {
-            YUNREACHABLE();
-        }
+        { }
 
         virtual void DoReply() override
         {
