@@ -31,12 +31,12 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/sandello/yt/source/yt/ytlib/query_client/stack.hh
+ ** \file /home/lukyan/yt/src/yt/ytlib/query_client/stack.hh
  ** Define the NYT::NQueryClient::NAst::stack class.
  */
 
-#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
-# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
 
 # include <vector>
 
@@ -151,4 +151,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 } } } // NYT::NQueryClient::NAst
 
-#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_STACK_HH_INCLUDED

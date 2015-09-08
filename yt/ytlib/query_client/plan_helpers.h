@@ -14,11 +14,6 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize);
-
-//! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName);
-
 //! Descends down to conjuncts and disjuncts and extract all constraints.
 TKeyTriePtr ExtractMultipleConstraints(
     TConstExpressionPtr expr,
@@ -59,8 +54,8 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
     TConstExpressionPtr expr,
     const TTableSchema& tableSchema);
 
-std::vector<std::pair<TRow, TRow>> MergeOverlappingRanges(
-    std::vector<std::pair<TRow, TRow>> ranges);
+std::vector<TRowRange> MergeOverlappingRanges(
+    std::vector<TRowRange> ranges);
 
 ////////////////////////////////////////////////////////////////////////////////
 

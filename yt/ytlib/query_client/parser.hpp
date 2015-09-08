@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
+ ** \file /home/lukyan/yt/src/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -289,6 +289,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // "string literal"
       char dummy3[sizeof(Stroka)];
 
+      // named-expression
       // expression
       // or-op-expr
       // and-op-expr
@@ -299,7 +300,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // comma-expr
       // unary-expr
       // atomic-expr
-      char dummy4[sizeof(TExpressionPtr)];
+      char dummy4[sizeof(TExpressionList)];
 
       // identifier-list
       char dummy5[sizeof(TIdentifierList)];
@@ -311,36 +312,30 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // const-tuple-list
       char dummy7[sizeof(TLiteralValueTupleList)];
 
-      // named-expression
-      char dummy8[sizeof(TNamedExpression)];
-
-      // named-expression-list
-      char dummy9[sizeof(TNamedExpressionList)];
-
       // literal-value
       // const-value
-      char dummy10[sizeof(TNullable<TLiteralValue>)];
+      char dummy8[sizeof(TNullable<TLiteralValue>)];
 
       // qualified-identifier
-      char dummy11[sizeof(TReferenceExpressionPtr)];
+      char dummy9[sizeof(TReferenceExpressionPtr)];
 
       // "identifier"
-      char dummy12[sizeof(TStringBuf)];
+      char dummy10[sizeof(TStringBuf)];
 
       // table-descriptor
-      char dummy13[sizeof(TTableDescriptor)];
+      char dummy11[sizeof(TTableDescriptor)];
 
       // is-desc
-      char dummy14[sizeof(bool)];
+      char dummy12[sizeof(bool)];
 
       // "double literal"
-      char dummy15[sizeof(double)];
+      char dummy13[sizeof(double)];
 
       // "int64 literal"
-      char dummy16[sizeof(i64)];
+      char dummy14[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy17[sizeof(ui64)];
+      char dummy15[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -447,17 +442,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   basic_symbol (typename Base::kind_type t, const Stroka v, const location_type& l);
 
-  basic_symbol (typename Base::kind_type t, const TExpressionPtr v, const location_type& l);
+  basic_symbol (typename Base::kind_type t, const TExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TIdentifierList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TLiteralValueList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
-
-  basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
 
@@ -794,7 +785,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const short int yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -909,8 +900,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 176,     ///< Last index in yytable_.
-      yynnts_ = 38,  ///< Number of nonterminal symbols.
+      yylast_ = 175,     ///< Last index in yytable_.
+      yynnts_ = 37,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 37, ///< Termination state number.
       yyterror_ = 1,
@@ -931,4 +922,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

@@ -106,9 +106,9 @@ typedef NTableClient::TUnversionedOwningRowBuilder TOwningRowBuilder;
 typedef NTableClient::TUnversionedValue TValue;
 typedef NTableClient::TUnversionedValueData TValueData;
 typedef NTableClient::TUnversionedOwningValue TOwningValue;
-typedef NTableClient::TOwningKey TKey;
+typedef NTableClient::TOwningKey TOwningKey;
 
-typedef std::pair<TKey, TKey> TKeyRange;
+typedef std::pair<TOwningKey, TOwningKey> TKeyRange;
 typedef std::pair<TRow, TRow> TRowRange;
 typedef std::vector<TRowRange> TRowRanges;
 

@@ -397,12 +397,7 @@ TUserDefinedFunction::TUserDefinedFunction(
         std::vector<TType>(argumentTypes.begin(), argumentTypes.end()),
         repeatedArgType,
         resultType)
-    , FunctionName_(functionName)
-    , SymbolName_(symbolName)
-    , ImplementationFile_(implementationFile)
-    , ResultType_(resultType)
-    , ArgumentTypes_(argumentTypes)
-    , CallingConvention_(callingConvention)
+    , TExternallyDefinedFunction(functionName, symbolName, implementationFile, callingConvention)
 { }
 
 ICallingConventionPtr GetCallingConvention(
@@ -657,7 +652,7 @@ void LoadLlvmFunctions(
         functionName);
 }
 
-TCodegenExpression TUserDefinedFunction::MakeCodegenExpr(
+TCodegenExpression TExternallyDefinedFunction::MakeCodegenExpr(
     std::vector<TCodegenExpression> codegenArgs,
     std::vector<EValueType> argumentTypes,
     EValueType type,

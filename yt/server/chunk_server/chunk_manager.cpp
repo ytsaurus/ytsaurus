@@ -170,7 +170,7 @@ public:
     virtual void ResetAllObjects() override
     {
         // NB: All chunk type handlers share the same map.
-        // No need to reset chunks multiple types.
+        // No need to reset chunks multiple times.
         if (GetType() == EObjectType::Chunk) {
             TObjectTypeHandlerWithMapBase::ResetAllObjects();
         }

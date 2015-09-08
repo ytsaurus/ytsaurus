@@ -12,6 +12,8 @@
 
 #include <ytlib/shutdown.h>
 
+#include <util/string/escape.h>
+
 extern "C" {
     // XXX(sandello): This is extern declaration of eio's internal functions.
     // -lrt will dynamically bind these symbols. We do this dirty-dirty stuff
@@ -133,6 +135,25 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
 
 } // namespace
 
+Handle<Value> EscapeC(const Arguments& args)
+{
+    THREAD_AFFINITY_IS_V8();
+    HandleScope scope;
+
+    // Validate arguments.
+    YCHECK(args.Length() == 1);
+
+    EXPECT_THAT_IS(args[0], String);
+
+    // Unwrap arguments.
+    String::Utf8Value value(args[0]);
+
+    Stroka unescaped(*value, value.length());
+    Stroka escaped = ::EscapeC(unescaped);
+
+    return scope.Close(String::New(escaped.c_str()));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void InitializeCommon(Handle<Object> target)
@@ -149,6 +170,9 @@ void InitializeCommon(Handle<Object> target)
     target->Set(
         String::NewSymbol("ShutdownSingletons"),
         FunctionTemplate::New(ShutdownSingletons)->GetFunction());
+    target->Set(
+        String::NewSymbol("EscapeC"),
+        FunctionTemplate::New(EscapeC)->GetFunction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
