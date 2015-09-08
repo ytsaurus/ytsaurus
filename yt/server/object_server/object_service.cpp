@@ -187,7 +187,7 @@ private:
                 }
 
                 // Propagate various parameters to the subrequest.
-                requestHeader.set_retry(Context->IsRetry());
+                requestHeader.set_retry(requestHeader.retry() || Context->IsRetry());
                 requestHeader.set_user(user->GetName());
                 auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
