@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "hydra_facade.h"
 #include "master_hydra_service.h"
+#include "hydra_facade.h"
 #include "world_initializer.h"
 #include "bootstrap.h"
 

@@ -11,14 +11,19 @@
 #include "request_tracker.h"
 #include "config.h"
 
-#include <core/ypath/token.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <core/profiling/profile_manager.h>
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/security_client/group_ypath_proxy.h>
+#include <ytlib/security_client/helpers.h>
+
 #include <server/hydra/entity_map.h>
 #include <server/hydra/composite_automaton.h>
+
+#include <server/hive/hive_manager.h>
 
 #include <server/object_server/type_handler_detail.h>
 
@@ -26,19 +31,19 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/serialize.h>
 
 #include <server/transaction_server/transaction.h>
 
-#include <server/cypress_server/node.h>
-
-// COMPAT(babenko)
 #include <server/cypress_server/cypress_manager.h>
-#include <server/transaction_server/transaction_manager.h>
+#include <server/cypress_server/node.h>
+#include <server/cypress_server/type_handler.h>
 
 namespace NYT {
 namespace NSecurityServer {
 
+using namespace NConcurrency;
 using namespace NHydra;
 using namespace NCellMaster;
 using namespace NObjectClient;
@@ -49,6 +54,9 @@ using namespace NYPath;
 using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NObjectServer;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +89,19 @@ class TSecurityManager::TAccountTypeHandler
 public:
     explicit TAccountTypeHandler(TImpl* owner);
 
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::Account;
@@ -94,11 +115,11 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
     virtual EPermissionSet GetSupportedPermissions() const override
     {
@@ -106,7 +127,7 @@ public:
     }
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TAccount* object) override
     {
@@ -132,6 +153,19 @@ class TSecurityManager::TUserTypeHandler
 public:
     explicit TUserTypeHandler(TImpl* owner);
 
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::User;
@@ -145,14 +179,14 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TUser* user) override
     {
@@ -173,6 +207,19 @@ class TSecurityManager::TGroupTypeHandler
 public:
     explicit TGroupTypeHandler(TImpl* owner);
 
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::Group;
@@ -186,14 +233,14 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TGroup* group) override
     {
@@ -235,7 +282,7 @@ public:
             "SecurityManager.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto cellTag = Bootstrap_->GetCellTag();
+        auto cellTag = Bootstrap_->GetPrimaryCellTag();
 
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
@@ -250,7 +297,9 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
 
-        RegisterMethod(BIND(&TImpl::HydraUpdateRequestStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraIncreaseUserStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetUserStatistics, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
     }
 
     void Initialize()
@@ -259,6 +308,9 @@ public:
         objectManager->RegisterHandler(New<TAccountTypeHandler>(this));
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
     }
 
 
@@ -267,7 +319,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup, TGroupId);
 
 
-    TAccount* CreateAccount(const Stroka& name)
+    TAccount* CreateAccount(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Account name cannot be empty");
@@ -281,7 +333,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Account);
+        auto id = objectManager->GenerateId(EObjectType::Account, hintId);
         return DoCreateAccount(id, name);
     }
 
@@ -338,21 +390,17 @@ public:
 
         auto objectManager = Bootstrap_->GetObjectManager();
 
-        bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
-
         if (oldAccount) {
-            if (isAccountingEnabled) {
-                UpdateResourceUsage(node, oldAccount, -1);
-            }
+            UpdateAccountResourceUsage(node, oldAccount, -1);
             objectManager->UnrefObject(oldAccount);
         }
 
         node->SetAccount(account);
-        node->CachedResourceUsage() = node->GetResourceUsage();
 
-        if (isAccountingEnabled) {
-            UpdateResourceUsage(node, account, +1);
-        }
+        UpdateNodeCachedResourceUsage(node);
+
+        UpdateAccountResourceUsage(node, account, +1);
+
         objectManager->RefObject(account);
     }
 
@@ -362,17 +410,12 @@ public:
         if (!account)
             return;
 
-        auto objectManager = Bootstrap_->GetObjectManager();
+        UpdateAccountResourceUsage(node, account, -1);
 
-        bool isAccountingEnabled = IsUncommittedAccountingEnabled(node);
-
-        if (isAccountingEnabled) {
-            UpdateResourceUsage(node, account, -1);
-        }
-
-        node->CachedResourceUsage() = ZeroClusterResources();
+        node->CachedResourceUsage() = TClusterResources();
         node->SetAccount(nullptr);
 
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(account);
     }
 
@@ -399,14 +442,19 @@ public:
         if (!account)
             return;
 
-        if (!IsUncommittedAccountingEnabled(node))
-            return;
+        UpdateAccountResourceUsage(node, account, -1);
 
-        UpdateResourceUsage(node, account, -1);
+        UpdateNodeCachedResourceUsage(node);
 
-        node->CachedResourceUsage() = node->GetResourceUsage();
+        UpdateAccountResourceUsage(node, account, +1);
+    }
 
-        UpdateResourceUsage(node, account, +1);
+    void SetNodeResourceAccounting(TCypressNodeBase* node, bool enable)
+    {
+        if (node->GetAccountingEnabled() != enable) {
+            node->SetAccountingEnabled(enable);
+            UpdateAccountNodeUsage(node);
+        }
     }
 
     void UpdateAccountStagingUsage(
@@ -414,10 +462,11 @@ public:
         TAccount* account,
         const TClusterResources& delta)
     {
-        if (!IsStagedAccountingEnabled(transaction))
+        if (!transaction->GetAccountingEnabled())
             return;
 
-        account->ResourceUsage() += delta;
+        account->ClusterStatistics().ResourceUsage += delta;
+        account->LocalStatistics().ResourceUsage += delta;
 
         auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
         *transactionUsage += delta;
@@ -439,7 +488,7 @@ public:
     }
 
 
-    TUser* CreateUser(const Stroka& name)
+    TUser* CreateUser(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("User name cannot be empty");
@@ -460,7 +509,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::User);
+        auto id = objectManager->GenerateId(EObjectType::User, hintId);
         return DoCreateUser(id, name);
     }
 
@@ -513,7 +562,7 @@ public:
     }
 
 
-    TGroup* CreateGroup(const Stroka& name)
+    TGroup* CreateGroup(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Group name cannot be empty");
@@ -534,7 +583,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Group);
+        auto id = objectManager->GenerateId(EObjectType::Group, hintId);
         return DoCreateGroup(id, name);
     }
 
@@ -862,15 +911,17 @@ public:
                 user->GetName());
         }
 
-        user->SetBanned(banned);
-        if (banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now banned (User: %v)", user->GetName());
-        } else {
-            LOG_INFO_UNLESS(IsRecovery(), "User is now unbanned (User: %v)", user->GetName());
+        if (user->GetBanned() != banned) {
+            user->SetBanned(banned);
+            if (banned) {
+                LOG_INFO_UNLESS(IsRecovery(), "User is banned (User: %v)", user->GetName());
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "User is no longer banned (User: %v)", user->GetName());
+            }
         }
     }
 
-    void ValidateUserAccess(TUser* user, int requestCount)
+    void ValidateUserAccess(TUser* user)
     {
         if (user->GetBanned()) {
             THROW_ERROR_EXCEPTION(
@@ -886,8 +937,19 @@ public:
                 user->GetName())
                 << TErrorAttribute("limit", user->GetRequestRateLimit());
         }
+    }
 
-        RequestTracker_->ChargeUser(user, requestCount);
+    void ChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration readRequestTime,
+        TDuration writeRequestTime)
+    {
+        RequestTracker_->ChargeUser(
+            user,
+            requestCount,
+            readRequestTime,
+            writeRequestTime);
     }
 
     double GetRequestRate(TUser* user)
@@ -905,11 +967,13 @@ private:
 
 
     const TSecurityManagerConfigPtr Config_;
+
     const TRequestTrackerPtr RequestTracker_;
 
-    bool RecomputeResources_ = false;
-    bool SetInitialChunkCountLimits_ = false;
-    bool SetInitialNodeCountLimits_ = false;
+    TPeriodicExecutorPtr AccountStatiticsGossipExecutor_;
+    TPeriodicExecutorPtr UserStatiticsGossipExecutor_;
+
+    bool InitMulticell_ = false;
 
     NHydra::TEntityMap<TAccountId, TAccount> AccountMap_;
     yhash_map<Stroka, TAccount*> AccountNameMap_;
@@ -953,24 +1017,26 @@ private:
     TUser* AuthenticatedUser_ = nullptr;
 
 
-    static bool IsUncommittedAccountingEnabled(TCypressNodeBase* node)
+    void UpdateNodeCachedResourceUsage(TCypressNodeBase* node)
     {
-        auto* transaction = node->GetTransaction();
-        return !transaction || transaction->GetUncommittedAccountingEnabled();
+        if (!node->IsExternal() && node->GetAccountingEnabled()) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            auto handler = cypressManager->GetHandler(node);
+            node->CachedResourceUsage() = handler->GetAccountingResourceUsage(node);
+        } else {
+            node->CachedResourceUsage() = TClusterResources();
+        }
     }
 
-    static bool IsStagedAccountingEnabled(TTransaction* transaction)
-    {
-        return transaction->GetStagedAccountingEnabled();
-    }
-
-    static void UpdateResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
+    static void UpdateAccountResourceUsage(TCypressNodeBase* node, TAccount* account, int delta)
     {
         auto resourceUsage = node->CachedResourceUsage() * delta;
 
-        account->ResourceUsage() += resourceUsage;
+        account->ClusterStatistics().ResourceUsage += resourceUsage;
+        account->LocalStatistics().ResourceUsage += resourceUsage;
         if (node->IsTrunk()) {
-            account->CommittedResourceUsage() += resourceUsage;
+            account->ClusterStatistics().CommittedResourceUsage += resourceUsage;
+            account->LocalStatistics().CommittedResourceUsage += resourceUsage;
         }
 
         auto* transactionUsage = FindTransactionAccountUsage(node);
@@ -994,7 +1060,7 @@ private:
     {
         auto it = transaction->AccountResourceUsage().find(account);
         if (it == transaction->AccountResourceUsage().end()) {
-            auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, ZeroClusterResources()));
+            auto pair = transaction->AccountResourceUsage().insert(std::make_pair(account, TClusterResources()));
             YCHECK(pair.second);
             return &pair.first->second;
         } else {
@@ -1008,12 +1074,14 @@ private:
         auto accountHolder = std::make_unique<TAccount>(id);
         accountHolder->SetName(name);
         // Give some reasonable initial resource limits.
-        accountHolder->ResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
-        accountHolder->ResourceLimits().NodeCount = 1000;
-        accountHolder->ResourceLimits().ChunkCount = 100000;
+        accountHolder->ClusterResourceLimits().DiskSpace = (i64) 1024 * 1024 * 1024; // 1 GB
+        accountHolder->ClusterResourceLimits().NodeCount = 1000;
+        accountHolder->ClusterResourceLimits().ChunkCount = 100000;
 
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
         YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+
+        InitializeAccountStatistics(account);
 
         // Make the fake reference.
         YCHECK(account->RefObject() == 1);
@@ -1043,6 +1111,8 @@ private:
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
         YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+
+        InitializeUserStatistics(user);
 
         YCHECK(user->RefObject() == 1);
         DoAddMember(GetBuiltinGroupForUser(user), user);
@@ -1160,17 +1230,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-
-        RecomputeResources_ = false;
-        SetInitialChunkCountLimits_ = false;
-        SetInitialNodeCountLimits_ = false;
-    }
-
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         AccountMap_.LoadKeys(context);
@@ -1180,15 +1239,6 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        // COMPAT(babenko)
-        if (context.GetVersion() < 101) {
-            RecomputeResources_ = true;
-        }
-        // COMPAT(babenko)
-        if (context.GetVersion() < 104) {
-            SetInitialChunkCountLimits_ = true;
-            SetInitialNodeCountLimits_ = true;
-        }
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
@@ -1198,81 +1248,46 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        // Reconstruct account name map.
         AccountNameMap_.clear();
         for (const auto& pair : AccountMap_) {
             auto* account = pair.second;
+
+            // Reconstruct account name map.
             YCHECK(AccountNameMap_.insert(std::make_pair(account->GetName(), account)).second);
+
+            // Initialize statistics for this cell.
+            // NB: This also provides the necessary data migration for pre-0.18 versions.
+            InitializeAccountStatistics(account);
         }
 
-        // Reconstruct user name map.
         UserNameMap_.clear();
         for (const auto& pair : UserMap_) {
             auto* user = pair.second;
+
+            // Reconstruct user name map.
             YCHECK(UserNameMap_.insert(std::make_pair(user->GetName(), user)).second);
+
+            // Initialize statistics for this cell.
+            // NB: This also provides the necessary data migration for pre-0.18 versions.
+            InitializeUserStatistics(user);
         }
 
-        // Reconstruct group name map.
         GroupNameMap_.clear();
         for (const auto& pair : GroupMap_) {
             auto* group = pair.second;
+
+            // Reconstruct group name map.
             YCHECK(GroupNameMap_.insert(std::make_pair(group->GetName(), group)).second);
         }
 
         InitBuiltins();
         ResetAuthenticatedUser();
-
-        // COMPAT(babenko)
-        if (RecomputeResources_) {
-            LOG_INFO("Recomputing resource usage");
-
-            YCHECK(Bootstrap_->GetTransactionManager()->Transactions().GetSize() == 0);
-
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-                account->ResourceUsage() = ZeroClusterResources();
-                account->CommittedResourceUsage() = ZeroClusterResources();
-            }
-
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            for (const auto& pair : cypressManager->Nodes()) {
-                auto* node = pair.second;
-                auto resourceUsage = node->GetResourceUsage();
-                auto* account = node->GetAccount();
-                if (account) {
-                    if (IsUncommittedAccountingEnabled(node)) {
-                        account->ResourceUsage() += resourceUsage;
-                        if (node->IsTrunk()) {
-                            account->CommittedResourceUsage() += resourceUsage;
-                        }
-                    }
-                    node->CachedResourceUsage() = resourceUsage;
-                } else {
-                    node->CachedResourceUsage() = ZeroClusterResources();
-                }
-            }
-        }
-
-        // COMPAT(babenko)
-        if (SetInitialChunkCountLimits_) {
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-                account->ResourceLimits().ChunkCount = 1000000000;
-            }
-        }
-
-        // COMPAT(babenko)
-        if (SetInitialNodeCountLimits_) {
-            for (const auto& pair : AccountMap_) {
-                auto* account = pair.second;
-                account->ResourceLimits().NodeCount = 1000000;
-            }
-        }
     }
 
-
-    void DoClear()
+    virtual void Clear() override
     {
+        TMasterAutomatonPart::Clear();
+
         AccountMap_.Clear();
         AccountNameMap_.clear();
 
@@ -1281,13 +1296,7 @@ private:
 
         GroupMap_.Clear();
         GroupNameMap_.clear();
-    }
 
-    virtual void Clear() override
-    {
-        TMasterAutomatonPart::Clear();
-
-        DoClear();
         InitBuiltins();
         ResetAuthenticatedUser();
         InitDefaultSchemaAcds();
@@ -1383,7 +1392,7 @@ private:
         if (!SysAccount_) {
             // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: root
             SysAccount_ = DoCreateAccount(SysAccountId_, SysAccountName);
-            SysAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            SysAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -1394,7 +1403,7 @@ private:
         if (!TmpAccount_) {
             // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             TmpAccount_ = DoCreateAccount(TmpAccountId_, TmpAccountName);
-            TmpAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            TmpAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -1405,14 +1414,13 @@ private:
         if (!IntermediateAccount_) {
             // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
             IntermediateAccount_ = DoCreateAccount(IntermediateAccountId_, IntermediateAccountName);
-            IntermediateAccount_->ResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
+            IntermediateAccount_->ClusterResourceLimits() = TClusterResources((i64) 1024 * 1024 * 1024 * 1024, 100000, 1000000000);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
                 EPermission::Use));
         }
     }
-
 
 protected:
     virtual void OnRecoveryComplete() override
@@ -1422,11 +1430,38 @@ protected:
         RequestTracker_->Start();
     }
 
+    virtual void OnLeaderActive() override
+    {
+        TMasterAutomatonPart::OnLeaderActive();
+
+        AccountStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            BIND(&TImpl::OnAccountStatisticsGossip, MakeWeak(this)),
+            Config_->AccountStatisticsGossipPeriod);
+        AccountStatiticsGossipExecutor_->Start();
+
+        UserStatiticsGossipExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+            BIND(&TImpl::OnUserStatisticsGossip, MakeWeak(this)),
+            Config_->UserStatisticsGossipPeriod);
+        UserStatiticsGossipExecutor_->Start();
+    }
+
     virtual void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
 
         RequestTracker_->Stop();
+
+        if (AccountStatiticsGossipExecutor_) {
+            AccountStatiticsGossipExecutor_->Stop();
+            AccountStatiticsGossipExecutor_.Reset();
+        }
+
+        if (UserStatiticsGossipExecutor_) {
+            UserStatiticsGossipExecutor_->Stop();
+            UserStatiticsGossipExecutor_.Reset();
+        }
     }
 
     virtual void OnStopFollowing() override
@@ -1437,43 +1472,227 @@ protected:
     }
 
 
-    void HydraUpdateRequestStatistics(const NProto::TReqUpdateRequestStatistics& request)
+    void InitializeAccountStatistics(TAccount* account)
+    {
+        auto cellTag = Bootstrap_->GetCellTag();
+        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+
+        auto& multicellStatistics = account->MulticellStatistics();
+        if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
+            multicellStatistics[cellTag] = account->ClusterStatistics();
+        }
+
+        for (auto secondaryCellTag : secondaryCellTags) {
+            multicellStatistics[secondaryCellTag];
+        }
+
+        account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
+    }
+
+    void OnAccountStatisticsGossip()
+    {
+        LOG_INFO("Sending account statistics gossip message");
+
+
+        NProto::TReqSetAccountStatistics request;
+        request.set_cell_tag(Bootstrap_->GetCellTag());
+        for (const auto& pair : AccountMap_) {
+            auto* account = pair.second;
+            if (!IsObjectAlive(account))
+                continue;
+
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_account_id(), account->GetId());
+            if (Bootstrap_->IsPrimaryMaster()) {
+                ToProto(entry->mutable_statistics(), account->ClusterStatistics());
+            } else {
+                ToProto(entry->mutable_statistics(), account->LocalStatistics());
+            }
+        }
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (Bootstrap_->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request, false);
+        } else {
+            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
+        }
+    }
+
+    void HydraSetAccountStatistics(const NProto::TReqSetAccountStatistics& request)
+    {
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
+            cellTag);
+
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        for (const auto& entry : request.entries()) {
+            auto accountId = FromProto<TAccountId>(entry.account_id());
+            auto* account = FindAccount(accountId);
+            if (!IsObjectAlive(account))
+                continue;
+
+            auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
+            if (Bootstrap_->IsPrimaryMaster()) {
+                *account->GetCellStatistics(cellTag) = newStatistics;
+                account->ClusterStatistics() = TAccountStatistics();
+                for (const auto& pair : account->MulticellStatistics()) {
+                    account->ClusterStatistics() += pair.second;
+                }
+            } else {
+                account->ClusterStatistics() = newStatistics;
+            }
+        }
+    }
+
+
+    void InitializeUserStatistics(TUser* user)
+    {
+        auto cellTag = Bootstrap_->GetCellTag();
+        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+
+        auto& multicellStatistics = user->MulticellStatistics();
+        if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
+            multicellStatistics[cellTag] = user->ClusterStatistics();
+        }
+
+        for (auto secondaryCellTag : secondaryCellTags) {
+            multicellStatistics[secondaryCellTag];
+        }
+
+        user->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
+    }
+
+    void OnUserStatisticsGossip()
+    {
+        LOG_INFO("Sending user statistics gossip message");
+
+
+        NProto::TReqSetUserStatistics request;
+        request.set_cell_tag(Bootstrap_->GetCellTag());
+        for (const auto& pair : UserMap_) {
+            auto* user = pair.second;
+            if (!IsObjectAlive(user))
+                continue;
+
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_user_id(), user->GetId());
+            if (Bootstrap_->IsPrimaryMaster()) {
+                ToProto(entry->mutable_statistics(), user->ClusterStatistics());
+            } else {
+                ToProto(entry->mutable_statistics(), user->LocalStatistics());
+            }
+        }
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        if (Bootstrap_->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request, false);
+        } else {
+            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
+        }
+    }
+
+    void HydraIncreaseUserStatistics(const NProto::TReqIncreaseUserStatistics& request)
     {
         auto* profilingManager = NProfiling::TProfileManager::Get();
         auto now = TInstant::Now();
-        for (const auto& update : request.updates()) {
-            auto userId = FromProto<TUserId>(update.user_id());
+        for (const auto& entry : request.entries()) {
+            auto userId = FromProto<TUserId>(entry.user_id());
             auto* user = FindUser(userId);
             if (!IsObjectAlive(user))
                 continue;
 
             // Update access time.
-            auto accessTime = TInstant(update.access_time());
-            if (accessTime > user->GetAccessTime()) {
-                user->SetAccessTime(accessTime);
-            }
-
-            // Update request counter.
-            i64 requestCounter = user->GetRequestCounter() + update.request_counter_delta();
-            user->SetRequestCounter(requestCounter);
+            auto statistics = FromProto<TUserStatistics>(entry.statistics());
+            user->LocalStatistics() += statistics;
+            user->ClusterStatistics() += statistics;
 
             NProfiling::TTagIdList tags;
             tags.push_back(profilingManager->RegisterTag("user", user->GetName()));
 
-            Profiler.Enqueue("/user_request_counter", requestCounter, tags);
+            i64 localRequestCounter = user->LocalStatistics().RequestCounter;
+            Profiler.Enqueue("/user_request_counter", localRequestCounter, tags);
 
             // Recompute request rate.
             if (now > user->GetCheckpointTime() + Config_->RequestRateSmoothingPeriod) {
                 if (user->GetCheckpointTime() != TInstant::Zero()) {
                     double requestRate =
-                        static_cast<double>(requestCounter - user->GetCheckpointRequestCounter()) /
+                        static_cast<double>(localRequestCounter - user->GetCheckpointRequestCounter()) /
                         (now - user->GetCheckpointTime()).SecondsFloat();
                     user->SetRequestRate(requestRate);
                     Profiler.Enqueue("/user_request_rate", static_cast<int>(requestRate), tags);
                 }
                 user->SetCheckpointTime(now);
-                user->SetCheckpointRequestCounter(requestCounter);
+                user->SetCheckpointRequestCounter(localRequestCounter);
             }
+        }
+    }
+
+    void HydraSetUserStatistics(const NProto::TReqSetUserStatistics& request)
+    {
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received user statistics gossip message (CellTag: %v)",
+            cellTag);
+
+        YCHECK(Bootstrap_->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
+
+        for (const auto& entry : request.entries()) {
+            auto userId = FromProto<TAccountId>(entry.user_id());
+            auto* user = FindUser(userId);
+            if (!IsObjectAlive(user))
+                continue;
+
+            auto newStatistics = FromProto<TUserStatistics>(entry.statistics());
+            if (Bootstrap_->IsPrimaryMaster()) {
+                user->CellStatistics(cellTag) = newStatistics;
+                user->ClusterStatistics() = TUserStatistics();
+                for (const auto& pair : user->MulticellStatistics()) {
+                    user->ClusterStatistics() += pair.second;
+                }
+            } else {
+                user->ClusterStatistics() = newStatistics;
+            }
+        }
+    }
+
+
+    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    {
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        auto accounts = GetValuesSortedByKey(AccountMap_);
+        for (auto* account : accounts) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(account, cellTag);
+        }
+
+        auto users = GetValuesSortedByKey(UserMap_);
+        for (auto* user : users) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(user, cellTag);
+        }
+
+        auto groups = GetValuesSortedByKey(GroupMap_);
+        for (auto* group : groups) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(group, cellTag);
+        }
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto replicateMembership = [&] (TSubject* subject) {
+            if (subject->IsBuiltin())
+                return;
+
+            for (auto* group : subject->MemberOf()) {
+                if (!group->IsBuiltin()) {
+                    auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
+                    req->set_name(subject->GetName());
+                    multicellManager->PostToMaster(req, cellTag);
+                }
+            }
+        };
+        for (auto* user : users) {
+            replicateMembership(user);
+        }
+        for (auto* group : groups) {
+            replicateMembership(group);
         }
     }
 
@@ -1491,16 +1710,16 @@ TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TAccountTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateAccount(name);
+    return Owner_->CreateAccount(name, hintId);
 }
 
 IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
@@ -1524,16 +1743,16 @@ TSecurityManager::TUserTypeHandler::TUserTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TUserTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateUser(name);
+    return Owner_->CreateUser(name, hintId);
 }
 
 IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
@@ -1557,16 +1776,16 @@ TSecurityManager::TGroupTypeHandler::TGroupTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TSecurityManager::TGroupTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateGroup(name);
+    return Owner_->CreateGroup(name, hintId);
 }
 
 IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
@@ -1641,6 +1860,11 @@ void TSecurityManager::RenameAccount(TAccount* account, const Stroka& newName)
 void TSecurityManager::UpdateAccountNodeUsage(TCypressNodeBase* node)
 {
     Impl_->UpdateAccountNodeUsage(node);
+}
+
+void TSecurityManager::SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable)
+{
+    Impl_->SetNodeResourceAccounting(node, enable);
 }
 
 void TSecurityManager::UpdateAccountStagingUsage(
@@ -1792,9 +2016,18 @@ void TSecurityManager::SetUserBanned(TUser* user, bool banned)
     Impl_->SetUserBanned(user, banned);
 }
 
-void TSecurityManager::ValidateUserAccess(TUser* user, int requestCount)
+void TSecurityManager::ValidateUserAccess(TUser* user)
 {
-    Impl_->ValidateUserAccess(user, requestCount);
+    Impl_->ValidateUserAccess(user);
+}
+
+void TSecurityManager::ChargeUser(
+    TUser* user,
+    int requestCount,
+    TDuration readRequestTime,
+    TDuration writeRequestTime)
+{
+    Impl_->ChargeUser(user, requestCount, readRequestTime, writeRequestTime);
 }
 
 double TSecurityManager::GetRequestRate(TUser* user)

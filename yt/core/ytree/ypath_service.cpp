@@ -8,6 +8,8 @@
 
 #include <core/rpc/dispatcher.h>
 
+#include <core/yson/async_consumer.h>
+#include <core/yson/attribute_consumer.h>
 #include <core/yson/writer.h>
 
 namespace NYT {
@@ -15,6 +17,41 @@ namespace NYTree {
 
 using namespace NYson;
 using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAttributeFilter TAttributeFilter::All(EAttributeFilterMode::All, std::vector<Stroka>());
+TAttributeFilter TAttributeFilter::None(EAttributeFilterMode::None, std::vector<Stroka>());
+
+TAttributeFilter::TAttributeFilter()
+    : Mode(EAttributeFilterMode::None)
+{ }
+
+TAttributeFilter::TAttributeFilter(
+    EAttributeFilterMode mode,
+    const std::vector<Stroka>& keys)
+    : Mode(mode)
+      , Keys(keys)
+{ }
+
+TAttributeFilter::TAttributeFilter(EAttributeFilterMode mode)
+    : Mode(mode)
+{ }
+
+void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter)
+{
+    protoFilter->set_mode(static_cast<int>(filter.Mode));
+    for (const auto& key : filter.Keys) {
+        protoFilter->add_keys(key);
+    }
+}
+
+void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFilter)
+{
+    *filter = TAttributeFilter(
+        EAttributeFilterMode(protoFilter.mode()),
+        NYT::FromProto<Stroka>(protoFilter.keys()));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,6 +245,23 @@ private:
 IYPathServicePtr IYPathService::Cached(TDuration expirationTime)
 {
     return New<TCachedYPathService>(this, expirationTime);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IYPathService::WriteAttributes(
+    IAsyncYsonConsumer* consumer,
+    const TAttributeFilter& filter,
+    bool sortKeys)
+{
+    if (filter.Mode == EAttributeFilterMode::None)
+        return;
+
+    if (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
+        return;
+
+    TAttributeFragmentConsumer attributesConsumer(consumer);
+    WriteAttributesFragment(&attributesConsumer, filter, sortKeys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -31,7 +31,7 @@ struct IBus
 
     //! Returns a YSON representation of the bus' endpoint.
     //! Typically used for constructing error attributes.
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
+    virtual NYson::TYsonString GetEndpointYsonDescription() const = 0;
 
     //! Asynchronously sends a message via the bus.
     /*!

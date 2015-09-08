@@ -12,6 +12,7 @@ namespace NYT {
 namespace NSecurityServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,14 +37,21 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("banned");
-        attributes->push_back("request_rate_limit");
-        attributes->push_back("access_time");
-        attributes->push_back("request_counter");
-        attributes->push_back("request_rate");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(TAttributeDescriptor("banned")
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("request_rate_limit")
+            .SetReplicated(true));
+        descriptors->push_back("access_time");
+        descriptors->push_back("request_counter");
+        descriptors->push_back("read_request_timer");
+        descriptors->push_back("write_request_timer");
+        descriptors->push_back(TAttributeDescriptor("multicell_statistics")
+            .SetOpaque(true));
+        descriptors->push_back("request_rate");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
@@ -65,13 +73,33 @@ private:
 
         if (key == "access_time") {
             BuildYsonFluently(consumer)
-                .Value(user->GetAccessTime());
+                .Value(user->ClusterStatistics().AccessTime);
             return true;
         }
 
         if (key == "request_counter") {
             BuildYsonFluently(consumer)
-                .Value(user->GetRequestCounter());
+                .Value(user->ClusterStatistics().RequestCounter);
+            return true;
+        }
+
+        if (key == "read_request_timer") {
+            BuildYsonFluently(consumer)
+                .Value(user->ClusterStatistics().ReadRequestTimer);
+            return true;
+        }
+
+        if (key == "write_request_timer") {
+            BuildYsonFluently(consumer)
+                .Value(user->ClusterStatistics().WriteRequestTimer);
+            return true;
+        }
+
+        if (key == "multicell_statistics") {
+            BuildYsonFluently(consumer)
+                .DoMapFor(user->MulticellStatistics(), [] (TFluentMap fluent, const std::pair<TCellTag, const TUserStatistics&>& pair) {
+                    fluent.Item(ToString(pair.first)).Value(pair.second);
+                });
             return true;
         }
 

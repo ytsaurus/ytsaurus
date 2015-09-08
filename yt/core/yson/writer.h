@@ -47,31 +47,32 @@ public:
     virtual void OnBeginAttributes();
     virtual void OnEndAttributes();
 
+    using IYsonConsumer::OnRaw;
     virtual void OnRaw(const TStringBuf& yson, EYsonType type = EYsonType::Node);
 
+    void Reset();
+    bool IsNodeExpected() const;
+
 protected:
-    TOutputStream* Stream;
-    EYsonFormat Format;
-    EYsonType Type;
-    bool EnableRaw;
+    TOutputStream* const Stream_;
+    const EYsonFormat Format_;
+    const EYsonType Type_;
+    const bool EnableRaw_;
+    const bool BooleanAsString_;
+    const int IndentSize_;
 
-    int Depth;
-    bool BeforeFirstItem;
-    bool PrintSpace;
+    int Depth_ = 0;
+    bool EmptyCollection_ = true;
+    bool NodeExpected_;
 
-    bool BooleanAsString;
-    const int IndentSize;
 
     void WriteIndent();
     void WriteStringScalar(const TStringBuf& value);
 
-    void BeginScalar();
-
     void BeginCollection(ETokenType beginToken);
-    void CollectionItem(ETokenType separatorToken);
+    void CollectionItem();
     void EndCollection(ETokenType endToken);
 
-    bool IsTopLevelFragmentContext() const;
     void EndNode();
 
 };

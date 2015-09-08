@@ -1,16 +1,19 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <core/yson/consumer-mock.h>
+#include <core/yson/writer.h>
+
 #include <core/ytree/tree_builder.h>
 #include <core/ytree/tree_visitor.h>
-#include <core/yson/writer.h>
 #include <core/ytree/node.h>
 #include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/yson_consumer-mock.h>
 
 namespace NYT {
 namespace NYTree {
 namespace {
+
+using namespace NYson;
 
 using ::testing::Sequence;
 using ::testing::InSequence;

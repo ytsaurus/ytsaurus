@@ -182,7 +182,7 @@ public:
         Progress_ = value;
     }
 
-    virtual void SetStatistics(const NYTree::TYsonString& /*statistics*/) override
+    virtual void SetStatistics(const NYson::TYsonString& /*statistics*/) override
     {
         YUNREACHABLE();
     }
@@ -192,7 +192,7 @@ public:
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");
     }
 
-    virtual NYTree::TYsonString Strace() const override
+    virtual NYson::TYsonString Strace() const override
     {
         THROW_ERROR_EXCEPTION("Stracing is not supported");
     }
@@ -270,7 +270,7 @@ private:
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
-        ToProto(Result_.mutable_statistics(), NYTree::TYsonString().Data());
+        ToProto(Result_.mutable_statistics(), NYson::TYsonString().Data());
         auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();

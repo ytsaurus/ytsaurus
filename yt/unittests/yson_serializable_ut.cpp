@@ -14,6 +14,8 @@ namespace NYT {
 namespace NYTree {
 namespace {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETestEnum,

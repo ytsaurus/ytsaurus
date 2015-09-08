@@ -20,12 +20,20 @@ public:
         return "ChunkService";
     }
 
+    static int GetProtocolVersion()
+    {
+        return 1;
+    }
+
     explicit TChunkServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
+        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, AllocateWriteTargets);
+    DEFINE_RPC_PROXY_METHOD(NProto, ExportChunks);
+    DEFINE_RPC_PROXY_METHOD(NProto, ImportChunks);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetChunkOwningNodes);
 
 };
 

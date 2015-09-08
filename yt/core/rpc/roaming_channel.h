@@ -16,7 +16,7 @@ struct IRoamingChannelProvider
     : public virtual TRefCounted
 {
     virtual Stroka GetEndpointTextDescription() const = 0;
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
+    virtual NYson::TYsonString GetEndpointYsonDescription() const = 0;
     virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) = 0;
 };
 

@@ -16,24 +16,25 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
+using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVirtualChunkMap
-    : public TVirtualMapBase
+    : public TVirtualMulticellMapBase
 {
 public:
-    TVirtualChunkMap(TBootstrap* bootstrap, EObjectType type)
-        : Bootstrap_(bootstrap)
+    TVirtualChunkMap(TBootstrap* bootstrap, INodePtr owningNode, EObjectType type)
+        : TVirtualMulticellMapBase(bootstrap, owningNode)
         , Type_(type)
     { }
 
 private:
-    TBootstrap* Bootstrap_;
-    EObjectType Type_;
+    const EObjectType Type_;
 
 
     const yhash_set<TChunk*>& GetFilteredChunks() const
@@ -61,32 +62,34 @@ private:
         }
     }
 
-    bool CheckFilter(TChunk* chunk) const
+    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
+        if (Type_ == EObjectType::ChunkMap) {
+            auto chunkManager = Bootstrap_->GetChunkManager();
+            return ToObjectIds(GetValues(chunkManager->Chunks(), sizeLimit));
+        } else {
+            const auto& chunks = GetFilteredChunks();
+            // NB: |chunks| contains all the matching chunks, enforce size limit.
+            return ToObjectIds(chunks, sizeLimit);
+        }
+    }
+
+    virtual bool IsValid(TObjectBase* object) const
+    {
+        if (object->GetType() != EObjectType::Chunk) {
+            return false;
+        }
+
         if (Type_ == EObjectType::ChunkMap) {
             return true;
         }
 
+        auto* chunk = static_cast<TChunk*>(object);
         const auto& chunks = GetFilteredChunks();
         return chunks.find(chunk) != chunks.end();
     }
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
-    {
-        std::vector<TObjectId> ids;
-        if (Type_ == EObjectType::ChunkMap) {
-            auto chunkManager = Bootstrap_->GetChunkManager();
-            ids = ToObjectIds(GetValues(chunkManager->Chunks(), sizeLimit));
-        } else {
-            const auto& chunks = GetFilteredChunks();
-            // NB: |chunks| contains all the matching chunks, enforce size limit.
-            ids = ToObjectIds(chunks, sizeLimit);
-        }
-        // NB: No size limit is needed here.
-        return ConvertToStrings(ids);
-    }
-
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
         if (Type_ == EObjectType::ChunkMap) {
             auto chunkManager = Bootstrap_->GetChunkManager();
@@ -96,50 +99,94 @@ private:
         }
     }
 
-    virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
+    virtual NYPath::TYPath GetWellKnownPath() const override
     {
-        auto id = TChunkId::FromString(key);
-
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        auto* chunk = chunkManager->FindChunk(id);
-        if (!IsObjectAlive(chunk)) {
-            return nullptr;
+        switch (Type_) {
+            case EObjectType::ChunkMap:
+                return "//sys/chunks";
+            case EObjectType::LostChunkMap:
+                return "///sys/lost_chunks";
+            case EObjectType::LostVitalChunkMap:
+                return "//sys/lost_vital_chunks";
+            case EObjectType::OverreplicatedChunkMap:
+                return "//sys/overreplicated_chunks";
+            case EObjectType::UnderreplicatedChunkMap:
+                return "//sys/underreplicated_chunks";
+            case EObjectType::DataMissingChunkMap:
+                return "//sys/data_missing_chunks";
+            case EObjectType::ParityMissingChunkMap:
+                return "//sys/parity_missing_chunks";
+            case EObjectType::QuorumMissingChunkMap:
+                return "//sys/quorum_missing_chunks";
+            case EObjectType::UnsafelyPlacedChunkMap:
+                return "//sys/unsafely_placed_chunks";
+            default:
+                YUNREACHABLE();
         }
-
-        if (!CheckFilter(chunk)) {
-            return nullptr;
-        }
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        return objectManager->GetProxy(chunk);
     }
+
 };
 
-INodeTypeHandlerPtr CreateChunkMapTypeHandler(TBootstrap* bootstrap, EObjectType type)
+INodeTypeHandlerPtr CreateChunkMapTypeHandler(
+    TBootstrap* bootstrap,
+    EObjectType type)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualChunkMap>(bootstrap, type);
     return CreateVirtualTypeHandler(
         bootstrap,
         type,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualChunkMap>(bootstrap, owningNode, type);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVirtualChunkListMap
+    : public TVirtualMulticellMapBase
+{
+public:
+    TVirtualChunkListMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMulticellMapBase(bootstrap, owningNode)
+    { }
+
+private:
+    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        return ToObjectIds(GetValues(chunkManager->ChunkLists(), sizeLimit));
+    }
+
+    virtual bool IsValid(TObjectBase* object) const
+    {
+        return object->GetType() == EObjectType::ChunkList;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        return chunkManager->ChunkLists().GetSize();
+    }
+
+    virtual TYPath GetWellKnownPath() const override
+    {
+        return "//sys/chunk_lists";
+    }
+
+};
+
 INodeTypeHandlerPtr CreateChunkListMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = CreateVirtualObjectMap(
-        bootstrap,
-        bootstrap->GetChunkManager()->ChunkLists());
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::ChunkListMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualChunkListMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 

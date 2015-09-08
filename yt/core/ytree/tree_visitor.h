@@ -1,6 +1,8 @@
 #pragma once
 
-#include "attribute_provider.h"
+#include "ypath_service.h"
+
+#include <core/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {
@@ -10,6 +12,13 @@ namespace NYTree {
 void VisitTree(
     INodePtr root,
     NYson::IYsonConsumer* consumer,
+    const TAttributeFilter& attributeFilter = TAttributeFilter::All,
+    bool sortKeys = false,
+    bool ignoreOpaque = false);
+
+void VisitTree(
+    INodePtr root,
+    NYson::IAsyncYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter = TAttributeFilter::All,
     bool sortKeys = false,
     bool ignoreOpaque = false);

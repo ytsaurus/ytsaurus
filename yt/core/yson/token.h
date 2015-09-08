@@ -45,10 +45,6 @@ Stroka TokenTypeToString(ETokenType type);  // YUNREACHABLE for non-special type
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLexerImpl;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TToken
 {
 public:
@@ -71,18 +67,18 @@ public:
     double GetDoubleValue() const;
     bool GetBooleanValue() const;
 
-    void CheckType(ETokenType expectedType) const;
-    void CheckType(const std::vector<ETokenType>& expectedTypes) const;
+    void ExpectType(ETokenType expectedType) const;
+    void ExpectTypes(const std::vector<ETokenType>& expectedTypes) const;
+    void ThrowUnexpected() const;
+
     void Reset();
 
 private:
-    friend class TLexerImpl;
-
-    TStringBuf StringValue;
-    i64 Int64Value;
-    ui64 Uint64Value;
-    double DoubleValue;
-    bool BooleanValue;
+    TStringBuf StringValue_;
+    i64 Int64Value_;
+    ui64 Uint64Value_;
+    double DoubleValue_;
+    bool BooleanValue_;
 };
 
 Stroka ToString(const TToken& token);

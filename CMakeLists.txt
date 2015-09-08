@@ -19,7 +19,6 @@ option(YT_BUILD_ENABLE_NODEJS             "Build NodeJS bindings" FALSE)
 option(YT_BUILD_ENABLE_PYTHON             "Build Python bindings" TRUE)
 option(YT_BUILD_ENABLE_PERL               "Build Perl bindings" FALSE)
 option(YT_BUILD_ENABLE_LLVM               "Build LLVM MCJIT" TRUE)
-option(YT_BUILD_ENABLE_SERIALIZATION_DUMP "Enable dumping snapshots" FALSE)
 option(YT_BUILD_HAVE_RAGEL                "Do you have Ragel 6.8?" FALSE)
 option(YT_BUILD_HAVE_BISON                "Do you have Bison 3.0?" FALSE)
 option(YT_BUILD_YTCORE_SHARED             "Build ytcore as a shared lib" FALSE)
@@ -125,11 +124,6 @@ if(YT_BUILD_ENABLE_LLVM)
   link_directories(${LLVM_LIBRARY_DIRS})
   include_directories(${LLVM_INCLUDE_DIRS})
   add_definitions(-DYT_USE_LLVM)
-endif()
-
-# Serialization dumps.
-if(YT_BUILD_ENABLE_SERIALIZATION_DUMP)
-  add_definitions(-DYT_ENABLE_SERIALIZATION_DUMP)
 endif()
 
 # Check for Ragel.

@@ -13,18 +13,19 @@ class TCellDirectoryConfig
     : public NRpc::TBalancingChannelConfigBase
 {
 public:
-    //! Timeout for RPC requests to cells.
-    TDuration RpcTimeout;
+    //! Timeout for RPC requests in TCellDirectory::Synchronize.
+    TDuration SyncRpcTimeout;
 
     TCellDirectoryConfig()
     {
-        RegisterParameter("rpc_timeout", RpcTimeout)
-            .Default(TDuration::Seconds(15));
+        RegisterParameter("sync_rpc_timeout", SyncRpcTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NHive
 } // namespace NYT

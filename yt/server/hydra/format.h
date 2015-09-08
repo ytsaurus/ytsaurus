@@ -139,27 +139,6 @@ static_assert(sizeof(TSnapshotHeader) == 44, "Binary size of TSnapshotHeader has
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#pragma pack(push, 4)
-
-// COMPAT(babenko)
-struct TSnapshotHeader_0_16
-{
-    static const ui64 ExpectedSignature =  0x3130303053535459ull; // YTSS0001
-
-    ui64 Signature = 0;
-    i32 SnapshotId = 0;
-    TEpochId Epoch;
-    i32 PrevRecordCount = 0;
-    ui64 DataLength = 0;
-    ui64 Checksum = 0;
-};
-
-static_assert(sizeof(TSnapshotHeader_0_16) == 48, "Binary size of TSnapshotHeader_0_16 has changed.");
-
-#pragma pack(pop)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NHydra
 } // namespace NYT
 
@@ -168,4 +147,3 @@ DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader);
 DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexHeader);
 DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexRecord);
 DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader)
-DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader_0_16)

@@ -46,6 +46,9 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NTransactionClient;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
@@ -60,7 +63,9 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , Config_(NYTree::CloneYsonSerializable(config))
     , Options_(options)
     , Client_(client)
-    , MasterChannel_(client->GetMasterChannel(EMasterChannelKind::Leader))
+    , MasterChannel_(client->GetMasterChannel(
+        EMasterChannelKind::Leader,
+        CellTagFromId(parentChunkListId)))
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
@@ -154,7 +159,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
     try {
         TObjectServiceProxy objectProxy(MasterChannel_);
 
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         ToProto(req->mutable_transaction_id(), TransactionId_);
 
         auto type = Options_->ErasureCodec == ECodec::None
@@ -166,7 +171,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         GenerateMutationId(req);
 
         // ToDo(psushin): Use CreateChunk here.
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
+        auto* reqExt = req->mutable_extensions()->MutableExtension(NProto::TChunkCreationExt::chunk_creation_ext);
         reqExt->set_movable(Options_->ChunksMovable);
         reqExt->set_replication_factor(Options_->ReplicationFactor);
         reqExt->set_vital(Options_->ChunksVital);
@@ -179,7 +184,7 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
             "Error creating chunk");
         const auto& rsp = rspOrError.Value();
 
-        NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
+        NextSession_.ChunkId = FromProto<TChunkId>(rsp->object_id());
 
         LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
 
@@ -419,6 +424,9 @@ void TNontemplateMultiChunkWriterBase::DoClose()
             << rspOrError);
         return;
     }
+
+    const auto& rsp = rspOrError.Value();
+    DataStatistics_ = rsp->statistics();
 
     LOG_DEBUG("Chunks attached, chunk sequence writer closed");
     CompletionError_.TrySet(TError());

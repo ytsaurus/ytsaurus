@@ -103,6 +103,9 @@ public:
     //! Updates the account to accommodate recent changes in #node resource usage.
     void UpdateAccountNodeUsage(NCypressServer::TCypressNodeBase* node);
 
+    //! Enables or disables accounting for a given node updating account usage appropriately.
+    void SetNodeResourceAccounting(NCypressServer::TCypressNodeBase* node, bool enable);
+
     //! Updates the staging resource usage for a given account.
     void UpdateAccountStagingUsage(
         NTransactionServer::TTransaction* transaction,
@@ -203,15 +206,19 @@ public:
 
     //! Checks if request handling is possible from a given user.
     /*!
-     *  Enforces bans and rate limits.
-     *  If successful, charges the user for a given number of requests.
-     *  Throws on failure.
+     *  Enforces bans and rate limits. Throws on failure.
      */
-    void ValidateUserAccess(TUser* user, int requestCount);
+    void ValidateUserAccess(TUser* user);
+
+    //! Increments per-user counters.
+    void ChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration readRequestTime,
+        TDuration writeRequestTime);
 
     //! Returns the current request rate from the user.
     double GetRequestRate(TUser* user);
-
 
 private:
     class TImpl;

@@ -23,6 +23,8 @@
 
 #include <server/journal_server/public.h>
 
+#include <server/journal_server/public.h>
+
 #include <server/transaction_server/public.h>
 
 #include <server/cypress_server/public.h>
@@ -45,9 +47,22 @@ public:
 
     ~TBootstrap();
 
-    const NElection::TCellId& GetCellId() const;
-    NObjectClient::TCellTag GetCellTag() const;
     TCellMasterConfigPtr GetConfig() const;
+
+    bool IsPrimaryMaster() const;
+    bool IsSecondaryMaster() const;
+    bool IsMulticell() const;
+
+    const NObjectClient::TCellId& GetCellId() const;
+    NObjectClient::TCellTag GetCellTag() const;
+
+    const NObjectClient::TCellId& GetPrimaryCellId() const;
+    NObjectClient::TCellTag GetPrimaryCellTag() const;
+
+    NObjectClient::TCellId GetSecondaryCellId(NObjectClient::TCellTag cellTag) const;
+    const std::vector<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
+
+    TMulticellManagerPtr GetMulticellManager() const;
     NRpc::IServerPtr GetRpcServer() const;
     NElection::TCellManagerPtr GetCellManager() const;
     NHydra::IChangelogStorePtr GetChangelogStore() const;
@@ -60,6 +75,7 @@ public:
     TWorldInitializerPtr GetWorldInitializer() const;
     NObjectServer::TObjectManagerPtr GetObjectManager() const;
     NChunkServer::TChunkManagerPtr GetChunkManager() const;
+    NJournalServer::TJournalManagerPtr GetJournalManager() const;
     NSecurityServer::TSecurityManagerPtr GetSecurityManager() const;
     NTabletServer::TTabletManagerPtr GetTabletManager() const;
     NHive::THiveManagerPtr GetHiveManager() const;
@@ -74,6 +90,17 @@ private:
     const Stroka ConfigFileName_;
     const TCellMasterConfigPtr Config_;
 
+    bool PrimaryMaster_ = false;
+    bool SecondaryMaster_ = false;
+    bool Multicell_ = false;
+
+    NObjectClient::TCellId CellId_;
+    NObjectClient::TCellTag CellTag_;
+    NObjectClient::TCellId PrimaryCellId_;
+    NObjectClient::TCellTag PrimaryCellTag_;
+    std::vector<NObjectClient::TCellTag> SecondaryCellTags_;
+
+    TMulticellManagerPtr MulticellManager_;
     NRpc::IServerPtr RpcServer_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
@@ -88,12 +115,18 @@ private:
     TWorldInitializerPtr WorldInitializer_;
     NObjectServer::TObjectManagerPtr ObjectManager_;
     NChunkServer::TChunkManagerPtr ChunkManager_;
+    NJournalServer::TJournalManagerPtr JournalManager_;
     NSecurityServer::TSecurityManagerPtr SecurityManager_;
     NTabletServer::TTabletManagerPtr TabletManager_;
     NHive::THiveManagerPtr HiveManager_;
     NHive::TCellDirectoryPtr CellDirectory_;
+    NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
 
+
+    static NElection::TPeerId ComputePeerId(
+        NElection::TCellConfigPtr config,
+        const Stroka& localAddress);
 
     void DoInitialize();
     void DoRun();

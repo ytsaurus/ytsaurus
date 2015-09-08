@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
 
@@ -33,7 +33,7 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     }
 
     #pytest.mark.xfail(run = False, reason = "Set-uid-root before running.")
-    @only_linux
+    @linux_only
     def test_map(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -62,7 +62,7 @@ while True:
         # ToDo: check job error messages.
         check_memory_limit(op_id)
 
-    @only_linux
+    @linux_only
     def test_dirty_sandbox(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})

@@ -9,7 +9,7 @@
 
 #include <core/rpc/service_detail.h>
 
-#include <ytlib/object_client/master_ypath.pb.h>
+#include <ytlib/object_client/public.h>
 
 #include <server/transaction_server/public.h>
 
@@ -32,17 +32,23 @@ DEFINE_ENUM(EObjectAccountMode,
     (Optional)
 );
 
+DEFINE_BIT_ENUM(EObjectReplicationFlags,
+    ((None)                 (0x0000))
+    ((ReplicateCreate)      (0x0001)) // replicate object creation
+    ((ReplicateDestroy)     (0x0002)) // replicate object destructionT
+    ((ReplicateAttributes)  (0x0004)) // replicate object attribute changes
+);
+
 struct TTypeCreationOptions
 {
-    TTypeCreationOptions();
+    TTypeCreationOptions() = default;
 
     TTypeCreationOptions(
         EObjectTransactionMode transactionMode,
         EObjectAccountMode accountMode);
 
-    EObjectTransactionMode TransactionMode;
-    EObjectAccountMode AccountMode;
-
+    EObjectTransactionMode TransactionMode = EObjectTransactionMode::Forbidden;
+    EObjectAccountMode AccountMode = EObjectAccountMode::Forbidden;
 };
 
 // WinAPI is great.
@@ -52,6 +58,14 @@ struct TTypeCreationOptions
 struct IObjectTypeHandler
     : public virtual TRefCounted
 {
+    //! Returns a bunch of flags that control object replication.
+    virtual EObjectReplicationFlags GetReplicationFlags() const = 0;
+
+    //! Returns the tag of the cell where the object was replicated to.
+    //! For objects that are not replicated this is #NotReplicatedCellTag.
+    //! For objects that are replicated througout the cluster this is #AllSecondaryMastersCellTag.
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) = 0;
+
     //! Returns the object type managed by the handler.
     virtual EObjectType GetType() const = 0;
 
@@ -75,25 +89,23 @@ struct IObjectTypeHandler
     //! In the latter case #Create is never called.
     virtual TNullable<TTypeCreationOptions> GetCreationOptions() const = 0;
 
-    typedef NRpc::TTypedServiceRequest<NObjectClient::NProto::TReqCreateObjects> TReqCreateObjects;
-    typedef NRpc::TTypedServiceResponse<NObjectClient::NProto::TRspCreateObjects> TRspCreateObjects;
     //! Creates a new object instance.
     /*!
+     *  \param hintId Id for the new object, if |NullObjectId| then a new id is generated.
      *  \param transaction Transaction that becomes the owner of the newly created object.
-     *  May be |nullptr| if #IsTransactionRequired returns False.
      *  \param request Creation request (possibly containing additional parameters).
      *  \param response Creation response (which may also hold some additional result).
-     *  \returns the id of the newly created object.
+     *  \returns the newly created object.
      *
      *  Once #Create is completed, all request attributes are copied to object attributes.
      *  The handler may alter the request appropriately to control this process.
      */
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         NYTree::IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) = 0;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) = 0;
 
     //! Raised when the strong ref-counter of the object decreases to zero.
     virtual void ZombifyObject(TObjectBase* object) throw() = 0;
@@ -127,6 +139,12 @@ struct IObjectTypeHandler
      *  Among other things, the handler must reset weak ref counters to zero.
      */
     virtual void ResetAllObjects() = 0;
+
+    //! Populates object replication request to be send to a secondary master
+    //! with additional data.
+    virtual void PopulateObjectReplicationRequest(
+        const TObjectBase* object,
+        NObjectServer::NProto::TReqCreateForeignObject* request) = 0;
 
 };
 

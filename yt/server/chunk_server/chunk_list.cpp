@@ -53,9 +53,6 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, Parents_);
     Load(context, OwningNodes_);
     Load(context, Statistics_);
-    if (context.GetVersion() < 100) {
-        Load(context, LegacySortedBy_);
-    }
     Load(context, RowCountSums_);
     Load(context, ChunkCountSums_);
     Load(context, DataSizeSums_);

@@ -10,6 +10,7 @@ namespace NScheduler {
 
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -57,7 +58,7 @@ TDuration TJob::GetDuration() const
 void TJob::SetResult(NJobTrackerClient::NProto::TJobResult&& result)
 {
     Result_ = New<TRefCountedJobResult>(std::move(result));
-    Statistics_ = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(Result_->statistics()));
+    Statistics_ = ConvertTo<TStatistics>(TYsonString(Result_->statistics()));
 }
 
 ////////////////////////////////////////////////////////////////////

@@ -12,6 +12,8 @@
 
 #include <server/object_server/object_manager.h>
 
+#include <server/transaction_server/transaction.h>
+
 namespace NYT {
 namespace NCypressServer {
 

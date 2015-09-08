@@ -101,7 +101,7 @@ public:
     virtual TDataStatistics GetDataStatistics() const override
     {
         YCHECK(SequentialReader_);
-        auto dataStatistics = ZeroDataStatistics();
+        TDataStatistics dataStatistics;
         dataStatistics.set_uncompressed_data_size(SequentialReader_->GetUncompressedDataSize());
         dataStatistics.set_compressed_data_size(SequentialReader_->GetCompressedDataSize());
         return dataStatistics;

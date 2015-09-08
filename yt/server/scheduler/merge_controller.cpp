@@ -146,7 +146,7 @@ protected:
             , TaskIndex(taskIndex)
             , PartitionIndex(partitionIndex)
         {
-            ChunkPool = CreateAtomicChunkPool(Controller->NodeDirectory);
+            ChunkPool = CreateAtomicChunkPool(Controller->InputNodeDirectory);
         }
 
         virtual Stroka GetId() const override
@@ -238,11 +238,6 @@ protected:
                 GetFootprintMemorySize() +
                 Controller->GetAdditionalMemorySize(IsMemoryReserveEnabled()));
             return result;
-        }
-
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return Controller->OutputTables.size();
         }
 
         TChunkStripeStatisticsVector UpdateChunkStripeStatistics(
@@ -685,6 +680,11 @@ private:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMap));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+        if (Spec->InputQuery) {
+            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+        }
+
+        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -693,10 +693,6 @@ private:
             schedulerJobSpecExt->mutable_user_job_spec(),
             Spec->Mapper,
             Files);
-
-        if (Spec->InputQuery) {
-            InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
-        }
     }
 
     virtual void CustomizeJoblet(TJobletPtr joblet) override
@@ -780,13 +776,14 @@ private:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::OrderedMerge));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
-        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
-
         if (Spec->InputQuery) {
             InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
         }
+
+        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
     }
 
 };
@@ -1070,7 +1067,7 @@ protected:
                 Host->GetBackgroundInvoker(),
                 Host->GetChunkLocationThrottler(),
                 AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-                NodeDirectory,
+                InputNodeDirectory,
                 Logger);
         }
 
@@ -1078,7 +1075,7 @@ protected:
             Config->Fetcher,
             ChunkSliceSize,
             KeyColumns,
-            NodeDirectory,
+            InputNodeDirectory,
             Host->GetBackgroundInvoker(),
             scraperCallback,
             Logger);
@@ -1802,6 +1799,7 @@ private:
         JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
+        AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
@@ -1852,10 +1850,8 @@ private:
             }
 
             int i = 0;
-            for (; i < sortBy.size(); ++i) {
-                if (sortBy[i] != table.KeyColumns[i]) {
-                    break;
-                }
+            while (i < sortBy.size() && sortBy[i] == table.KeyColumns[i]) {
+              	++i;
             }
             sortBy.erase(sortBy.begin() + i, sortBy.end());
         }

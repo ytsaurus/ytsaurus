@@ -26,7 +26,7 @@ using namespace NChunkClient;
 using namespace NTransactionClient;
 
 using NChunkClient::NProto::TChunkMeta;
-using NChunkClient::NProto::ZeroDataStatistics;
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,7 +240,7 @@ TEST_F(TSchemalessChunksTest, EmptyRead)
     EXPECT_TRUE(chunkReader->Open().Get().IsOK());
 
     EXPECT_TRUE(chunkReader->GetFetchingCompletedEvent().IsSet());
-    EXPECT_EQ(ZeroDataStatistics(), chunkReader->GetDataStatistics());
+    EXPECT_EQ(TDataStatistics(), chunkReader->GetDataStatistics());
 
     auto it = expected.begin();
 

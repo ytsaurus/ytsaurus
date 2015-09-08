@@ -19,6 +19,7 @@
 namespace NYT {
 namespace NRpc {
 
+using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 

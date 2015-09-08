@@ -36,6 +36,7 @@ using namespace NElection;
 using namespace NObjectClient;
 using namespace NHydra;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

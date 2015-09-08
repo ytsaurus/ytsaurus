@@ -1,8 +1,8 @@
 #include "stdafx.h"
-
 #include "chunk_list.h"
-
 #include "chunk_owner_base.h"
+
+#include <ytlib/chunk_client/data_statistics.h>
 
 #include <server/cell_master/serialize.h>
 
@@ -13,7 +13,9 @@ namespace NChunkServer {
 
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NCypressClient;
+using namespace NCypressClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +36,8 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, UpdateMode_);
     Save(context, ReplicationFactor_);
     Save(context, Vital_);
+    Save(context, SnapshotStatistics_);
+    Save(context, DeltaStatistics_);
 }
 
 void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
@@ -45,41 +49,44 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
     Load(context, ReplicationFactor_);
     Load(context, Vital_);
-}
-
-ENodeType TChunkOwnerBase::GetNodeType() const
-{
-    return ENodeType::Entity;
-}
-
-NSecurityServer::TClusterResources TChunkOwnerBase::GetResourceUsage() const
-{
-    const auto* chunkList = GetUsageChunkList();
-
-    i64 diskSpace = 0;
-    int chunkCount = 0;
-    if (chunkList) {
-        const auto& statistics = chunkList->Statistics();
-        diskSpace =
-            statistics.RegularDiskSpace * GetReplicationFactor() +
-            statistics.ErasureDiskSpace;
-        chunkCount = statistics.ChunkCount;
+    if (context.GetVersion() >= 200) {
+        Load(context, SnapshotStatistics_);
+        Load(context, DeltaStatistics_);
     }
-
-    return NSecurityServer::TClusterResources(diskSpace, 1, chunkCount);
 }
 
-const TChunkList* TChunkOwnerBase::GetUsageChunkList() const
+const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const
 {
     switch (UpdateMode_) {
         case EUpdateMode::None:
-            return Transaction_ ? nullptr : ChunkList_;
+        case EUpdateMode::Overwrite:
+            return ChunkList_;
 
-        case EUpdateMode::Append: {
-            const auto& children = ChunkList_->Children();
-            YCHECK(children.size() == 2);
-            return children[1]->AsChunkList();
-        }
+        case EUpdateMode::Append:
+            if (GetType() == EObjectType::Journal) {
+                return ChunkList_;
+            } else {
+                const auto& children = ChunkList_->Children();
+                YCHECK(children.size() == 2);
+                return children[0]->AsChunkList();
+            }
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
+{
+    switch (UpdateMode_) {
+        case EUpdateMode::Append:
+            if (GetType() == EObjectType::Journal) {
+                return ChunkList_;
+            } else {
+                const auto& children = ChunkList_->Children();
+                YCHECK(children.size() == 2);
+                return children[1]->AsChunkList();
+            }
 
         case EUpdateMode::Overwrite:
             return ChunkList_;
@@ -87,6 +94,48 @@ const TChunkList* TChunkOwnerBase::GetUsageChunkList() const
         default:
             YUNREACHABLE();
     }
+}
+
+void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
+{
+    UpdateMode_ = mode;
+}
+
+void TChunkOwnerBase::EndUpload(
+    const TDataStatistics* statistics,
+    const std::vector<Stroka>& /*keyColumns*/)
+{
+    if (statistics) {
+        switch (UpdateMode_) {
+            case EUpdateMode::Append:
+                YCHECK(IsExternal() || GetDeltaChunkList()->Statistics().ToDataStatistics() == *statistics);
+                DeltaStatistics_ = *statistics;
+                break;
+
+            case EUpdateMode::Overwrite:
+                YCHECK(IsExternal() || GetSnapshotChunkList()->Statistics().ToDataStatistics() == *statistics);
+                SnapshotStatistics_ = *statistics;
+                break;
+
+            default:
+                YUNREACHABLE();
+        }
+    }
+}
+
+bool TChunkOwnerBase::IsSorted() const
+{
+    return false;
+}
+
+ENodeType TChunkOwnerBase::GetNodeType() const
+{
+    return ENodeType::Entity;
+}
+
+TDataStatistics TChunkOwnerBase::ComputeTotalStatistics() const
+{
+    return SnapshotStatistics_ + DeltaStatistics_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

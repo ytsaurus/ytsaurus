@@ -616,3 +616,8 @@ class TestLocks(YTEnvSetup):
         set("//tmp/x", 3, tx = tx2)
         with pytest.raises(YtError): set("//tmp/x", 4, tx = tx1)
 
+##################################################################
+
+class TestLocksMulticell(TestLocks):
+    NUM_SECONDARY_MASTER_CELLS = 2
+

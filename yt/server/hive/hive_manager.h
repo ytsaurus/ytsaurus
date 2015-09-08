@@ -11,14 +11,14 @@
 #include <server/hydra/public.h>
 #include <server/hydra/entity_map.h>
 
-#include <server/hive/hive_manager.pb.h>
-
 namespace NYT {
 namespace NHive {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#undef PostMessage // WinAPI is still with us :)
+// WinAPI is still with us :)
+#undef PostMessage
+#undef SendMessage
 
 class THiveManager
     : public TRefCounted
@@ -43,8 +43,20 @@ public:
     TMailbox* GetMailboxOrThrow(const TCellId& cellId);
     void RemoveMailbox(const TCellId& cellId);
 
-    void PostMessage(TMailbox* mailbox, const NProto::TEncapsulatedMessage& message);
-    void PostMessage(TMailbox* mailbox, const ::google::protobuf::MessageLite& message);
+    //! Posts a message for delivery (either reliable or not).
+    void PostMessage(
+        TMailbox* mailbox,
+        const NProto::TEncapsulatedMessage& message,
+        bool reliable = true);
+    void PostMessage(
+        TMailbox* mailbox,
+        const ::google::protobuf::MessageLite& message,
+        bool reliable = true);
+
+    //! When called at instant T, returns a future which gets set
+    //! when all mutations enqueued at the remote side (represented by #mailbox)
+    //! prior to T, are received and applied.
+    TFuture<void> SyncWith(const TCellId& cellId);
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
@@ -52,7 +64,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

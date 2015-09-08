@@ -451,15 +451,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TTabletAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
     virtual void OnAfterSnapshotLoaded() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -496,18 +487,12 @@ private:
         }
     }
 
-
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::Clear();
 
-        DoClear();
-    }
-
-    void DoClear()
-    {
         TabletMap_.Clear();
         UnmountingTablets_.clear();
         OrphanedStores_.clear();
@@ -1900,7 +1885,7 @@ void TTabletManager::Read(
     TTimestamp timestamp,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
- {
+{
     Impl_->Read(
         std::move(tabletSnapshot),
         timestamp,

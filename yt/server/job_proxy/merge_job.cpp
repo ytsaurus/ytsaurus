@@ -21,6 +21,7 @@ using namespace NScheduler::NProto;
 using namespace NTransactionClient;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +70,7 @@ public:
                 New<TMultiChunkReaderOptions>(),
                 host->GetClient(),
                 host->GetBlockCache(),
-                host->GetNodeDirectory(),
+                host->GetInputNodeDirectory(),
                 std::move(chunkSpecs),
                 nameTable,
                 columnFilter,

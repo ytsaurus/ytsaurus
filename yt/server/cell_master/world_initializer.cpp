@@ -37,11 +37,14 @@
 #include <server/security_server/acl.h>
 #include <server/security_server/group.h>
 
+#include <server/transaction_server/transaction_manager.h>
+
 namespace NYT {
 namespace NCellMaster {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NCypressServer;
 using namespace NCypressClient;
@@ -146,14 +149,12 @@ private:
             CreateNode(
                 "//sys",
                 transactionId,
-                EObjectType::MapNode,
+                EObjectType::SysNode,
                 BuildYsonStringFluently()
                     .BeginMap()
                         .DoIf(Config_->EnableProvisionLock, [&] (TFluentMap fluent) {
                             fluent.Item("provision_lock").Value(true);
                         })
-                        .Item("cell_tag").Value(Bootstrap_->GetCellTag())
-                        .Item("cell_id").Value(Bootstrap_->GetCellId())
                     .EndMap());
 
             CreateNode(
@@ -227,6 +228,7 @@ private:
                 EObjectType::Table,
                 BuildYsonStringFluently()
                     .BeginMap()
+                        .Item("external").Value(false)
                         .Item("key_columns").BeginList()
                             .Item().Value("key")
                             .Item().Value("subkey")
@@ -250,8 +252,11 @@ private:
             CreateNode(
                 "//sys/scheduler/event_log",
                 transactionId,
-                EObjectType::Table);
-
+                EObjectType::Table,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("external").Value(false)
+                    .EndMap());
 
             CreateNode(
                 "//sys/operations",
@@ -274,7 +279,7 @@ private:
             CreateNode(
                 "//sys/nodes",
                 transactionId,
-                EObjectType::CellNodeMap,
+                EObjectType::ClusterNodeMap,
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
@@ -285,31 +290,39 @@ private:
                 transactionId,
                 EObjectType::RackMap);
 
-            CreateNode(
-                "//sys/masters",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
-
-            for (const auto& address : Config_->Master->Addresses) {
-                auto addressPath = "/" + ToYPathLiteral(*address);
-
+            auto createMasters = [&] (const TYPath& rootPath, NElection::TCellConfigPtr cellConfig) {
                 CreateNode(
-                    "//sys/masters" + addressPath,
+                    rootPath,
                     transactionId,
-                    EObjectType::MapNode);
-
-                CreateNode(
-                    "//sys/masters" + addressPath + "/orchid",
-                    transactionId,
-                    EObjectType::Orchid,
+                    EObjectType::MapNode,
                     BuildYsonStringFluently()
                         .BeginMap()
-                            .Item("remote_address").Value(address)
+                            .Item("opaque").Value(true)
                         .EndMap());
+
+                for (const auto& address : cellConfig->Addresses) {
+                    auto addressPath = "/" + ToYPathLiteral(*address);
+
+                    CreateNode(
+                        rootPath + addressPath,
+                        transactionId,
+                        EObjectType::MapNode);
+
+                    CreateNode(
+                        rootPath + addressPath + "/orchid",
+                        transactionId,
+                        EObjectType::Orchid,
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("remote_address").Value(*address)
+                            .EndMap());
+                }
+            };
+
+            createMasters("//sys/primary_masters", Config_->PrimaryMaster);
+            for (auto cellConfig : Config_->SecondaryMasters) {
+                auto cellTag = CellTagFromId(cellConfig->CellId);
+                createMasters("//sys/secondary_masters/" + ToYPathLiteral(cellTag), cellConfig);
             }
 
             CreateNode(
@@ -444,10 +457,10 @@ private:
     TTransactionId StartTransaction()
     {
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
 
-        auto* requestExt = req->MutableExtension(TReqStartTransactionExt::create_transaction_ext);
+        auto* requestExt = req->mutable_extensions()->MutableExtension(TTransactionCreationExt::transaction_creation_ext);
         requestExt->set_timeout(InitTransactionTimeout.MilliSeconds());
 
         auto attributes = CreateEphemeralAttributes();
@@ -456,7 +469,7 @@ private:
 
         auto rsp = WaitFor(ExecuteVerb(service, req))
             .ValueOrThrow();
-        return FromProto<TTransactionId>(rsp->object_ids(0));
+        return FromProto<TTransactionId>(rsp->object_id());
     }
 
     void CommitTransaction(const TTransactionId& transactionId)
@@ -476,6 +489,7 @@ private:
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
         req->set_type(static_cast<int>(type));
+        req->set_recursive(true);
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
         WaitFor(ExecuteVerb(service, req))
             .ThrowOnError();

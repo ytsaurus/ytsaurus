@@ -14,9 +14,10 @@
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
 
-#include <core/ytree/forwarding_yson_consumer.h>
 #include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/null_yson_consumer.h>
+
+#include <core/yson/forwarding_consumer.h>
+#include <core/yson/null_consumer.h>
 
 #include <core/yson/parser.h>
 
@@ -49,10 +50,6 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NTabletClient;
 using namespace NApi;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,16 +155,11 @@ public:
                 request.CommandName));
         }
 
-        LOG_INFO("Command started (Command: %v, User: %v)",
-            request.CommandName,
-            request.AuthenticatedUser);
-
         const auto& entry = it->second;
 
         YCHECK(entry.Descriptor.InputType == EDataType::Null || request.InputStream);
         YCHECK(entry.Descriptor.OutputType == EDataType::Null || request.OutputStream);
 
-        // TODO(babenko): ReadFromFollowers is switched off
         auto context = New<TCommandContext>(
             this,
             entry.Descriptor,
@@ -245,12 +237,7 @@ private:
             command->Execute(context);
         }
 
-        const auto& error = context->GetError();
-        if (error.IsOK()) {
-            LOG_INFO("Command completed (Command: %v)", request.CommandName);
-        } else {
-            LOG_INFO(error, "Command failed (Command: %v)", request.CommandName);
-        }
+        auto error = context->GetError();
 
         WaitFor(context->Terminate());
 
@@ -278,7 +265,6 @@ private:
 
         TFuture<void> Terminate()
         {
-            LOG_DEBUG("Terminating client");
             return Client_->Terminate();
         }
 

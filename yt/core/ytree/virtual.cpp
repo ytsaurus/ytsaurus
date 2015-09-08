@@ -7,7 +7,7 @@
 #include "ephemeral_attribute_owner.h"
 
 #include <core/yson/tokenizer.h>
-#include <core/yson/writer.h>
+#include <core/yson/async_writer.h>
 
 #include <core/ypath/tokenizer.h>
 
@@ -16,13 +16,16 @@ namespace NYTree {
 
 using namespace NRpc;
 using namespace NYson;
+using namespace NYTree;
 using namespace NYPath;
 
-////////////////////////////////////////////////////////////////////////////////
-
-static const size_t DefaultMaxSize = 1000;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TVirtualMapBase::TVirtualMapBase(INodePtr owningNode)
+    : OwningNode_(owningNode)
+{ }
 
 bool TVirtualMapBase::DoInvoke(IServiceContextPtr context)
 {
@@ -36,8 +39,6 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     const TYPath& path,
     IServiceContextPtr context)
 {
-    UNUSED(context);
-
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
     tokenizer.Expect(NYPath::ETokenType::Literal);
@@ -59,61 +60,65 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
 {
     YASSERT(!NYson::TTokenizer(GetRequestYPath(context)).ParseNext());
 
-    auto attributeFilter =
-        request->has_attribute_filter()
-        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
+    auto attributeFilter = request->has_attribute_filter()
+        ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    int maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
+    i64 limit = request->limit();
 
-    auto keys = GetKeys(maxSize);
-    size_t size = GetSize();
+    auto keys = GetKeys(limit);
+    i64 size = GetSize();
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
+    TAsyncYsonWriter writer;
 
+    writer.OnBeginAttributes();
     if (keys.size() != size) {
-        writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
-        writer.OnStringScalar("true");
-        writer.OnEndAttributes();
+        writer.OnBooleanScalar(true);
     }
+    if (OwningNode_) {
+        OwningNode_->WriteAttributesFragment(&writer, attributeFilter, false);
+    }
+    writer.OnEndAttributes();
 
     writer.OnBeginMap();
     for (const auto& key : keys) {
         auto service = FindItemService(key);
         if (service) {
             writer.OnKeyedItem(key);
-            service->SerializeAttributes(&writer, attributeFilter, false);
+            service->WriteAttributes(&writer, attributeFilter, false);
             writer.OnEntity();
         }
     }
     writer.OnEndMap();
 
-    response->set_value(stream.Str());
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    auto attributeFilter =
-        request->has_attribute_filter()
-        ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
+    auto attributeFilter = request->has_attribute_filter()
+        ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    int maxSize = request->has_max_size() ? request->max_size() : DefaultMaxSize;
+    i64 limit = request->limit();
 
-    auto keys = GetKeys(maxSize);
-    size_t size = GetSize();
+    auto keys = GetKeys(limit);
+    i64 size = GetSize();
 
-    TStringStream stream;
-    TYsonWriter writer(&stream, EYsonFormat::Binary);
-    BuildYsonFluently(&writer);
+    TAsyncYsonWriter writer;
 
     if (keys.size() != size) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
-        writer.OnStringScalar("true");
+        writer.OnBooleanScalar(true);
         writer.OnEndAttributes();
     }
 
@@ -122,36 +127,40 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
         auto service = FindItemService(key);
         if (service) {
             writer.OnListItem();
-            service->SerializeAttributes(&writer, attributeFilter, false);
+            service->WriteAttributes(&writer, attributeFilter, false);
             writer.OnStringScalar(key);
         }
     }
     writer.OnEndList();
 
-    response->set_keys(stream.Str());
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
-void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    attributes->push_back("count");
+    descriptors->push_back("count");
 }
 
 bool TVirtualMapBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
     if (key == "count") {
         BuildYsonFluently(consumer)
-            .Value(static_cast<i64>(GetSize()));
+            .Value(GetSize());
         return true;
     }
 
     return false;
 }
 
-TFuture<void> TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer)
+TFuture<TYsonString> TVirtualMapBase::GetBuiltinAttributeAsync(const Stroka& /*key*/)
 {
-    UNUSED(key);
-    UNUSED(consumer);
     return Null;
 }
 
@@ -160,10 +169,18 @@ ISystemAttributeProvider* TVirtualMapBase::GetBuiltinAttributeProvider()
     return this;
 }
 
-bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
+bool TVirtualMapBase::SetBuiltinAttribute(const Stroka& /*key*/, const TYsonString& /*value*/)
 {
-    UNUSED(key);
-    UNUSED(value);
+    return false;
+}
+
+TFuture<void> TVirtualMapBase::SetBuiltinAttributeAsync(const Stroka& /*key*/, const TYsonString& /*value*/)
+{
+    return Null;
+}
+
+bool TVirtualMapBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
+{
     return false;
 }
 
@@ -175,54 +192,54 @@ class TVirtualEntityNode
     , public IEntityNode
     , public TEphemeralAttributeOwner
 {
+public:
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
     explicit TVirtualEntityNode(IYPathServicePtr underlyingService)
-        : UnderlyingService(underlyingService)
+        : UnderlyingService_(underlyingService)
     { }
 
     virtual INodeFactoryPtr CreateFactory() const override
     {
-        YASSERT(Parent);
-        return Parent->CreateFactory();
+        YASSERT(Parent_);
+        return Parent_->CreateFactory();
     }
 
     virtual INodeResolverPtr GetResolver() const override
     {
-        YASSERT(Parent);
-        return Parent->GetResolver();
+        YASSERT(Parent_);
+        return Parent_->GetResolver();
     }
 
     virtual ICompositeNodePtr GetParent() const override
     {
-        return Parent;
+        return Parent_;
     }
 
     virtual void SetParent(ICompositeNodePtr parent) override
     {
-        Parent = parent.Get();
+        Parent_ = parent.Get();
     }
 
     virtual TResolveResult Resolve(
         const TYPath& path,
-        IServiceContextPtr context) override
+        IServiceContextPtr /*context*/) override
     {
-        UNUSED(context);
-
         // TODO(babenko): handle ugly face
-        return TResolveResult::There(UnderlyingService, path);
+        return TResolveResult::There(UnderlyingService_, path);
     }
 
-    virtual void SerializeAttributes(
-        IYsonConsumer* /*consumer*/,
+    virtual void WriteAttributesFragment(
+        IAsyncYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
-        bool /*sortKeys*/)
+        bool /*sortKeys*/) override
     { }
 
 private:
-    IYPathServicePtr UnderlyingService;
-    ICompositeNode* Parent;
+    const IYPathServicePtr UnderlyingService_;
+
+    ICompositeNode* Parent_ = nullptr;
 
     // TSupportsAttributes members
 

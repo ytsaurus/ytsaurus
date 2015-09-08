@@ -161,47 +161,6 @@ private:
                     }
                     FacadeInput_ = CodecInput_ ? CodecInput_.get() : FileInput_.get();
                 }
-            } else if (signature == TSnapshotHeader_0_16::ExpectedSignature) {
-                TSnapshotHeader_0_16 legacyHeader;
-                ReadPod(input, legacyHeader);
-
-                Header_.SnapshotId = legacyHeader.SnapshotId;
-                if (Header_.SnapshotId != SnapshotId_) {
-                    THROW_ERROR_EXCEPTION(
-                        "Invalid snapshot id in header of %v: expected %v, got %v",
-                        FileName_,
-                        SnapshotId_,
-                        Header_.SnapshotId);
-                }
-
-                Header_.CompressedLength = legacyHeader.DataLength + sizeof (legacyHeader);
-                if (Header_.CompressedLength != File_->GetLength()) {
-                    THROW_ERROR_EXCEPTION(
-                        "Invalid compressed length in header of %v: expected %v, got %v",
-                        FileName_,
-                        File_->GetLength(),
-                        Header_.CompressedLength);
-                }
-
-                Meta_.set_prev_record_count(legacyHeader.PrevRecordCount);
-
-                Header_.Checksum = legacyHeader.Checksum;
-                Header_.UncompressedLength = Header_.CompressedLength;
-                Header_.Codec = ECodec::Snappy;
-
-                if (IsRaw_) {
-                    File_->Seek(Offset_, sSet);
-                }
-
-                FileInput_.reset(new TFileInput(*File_));
-
-                if (IsRaw_) {
-                    FacadeInput_ = FileInput_.get();
-                } else {
-                    CodecInput_.reset(new TSnappyDecompress(FileInput_.get()));
-                    FakeCheckpointableInput_ = EscapsulateAsCheckpointableInputStream(CodecInput_.get());
-                    FacadeInput_ = FakeCheckpointableInput_.get();
-                }
             } else {
                 THROW_ERROR_EXCEPTION("Unrecognized snapshot signature %" PRIx64,
                     signature);

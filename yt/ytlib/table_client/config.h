@@ -156,17 +156,16 @@ class TTableReaderConfig
     , public TChunkReaderConfig
 {
 public:
-     bool SuppressAccessTracking;
-     bool IgnoreUnavailableChunks;
+    bool SuppressAccessTracking;
+    bool IgnoreUnavailableChunks;
 
-     TTableReaderConfig()
-     {
-         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
-             .Default(false);
-
-         RegisterParameter("ignore_unavailable_chunks", IgnoreUnavailableChunks)
-             .Default(false);
-     }
+    TTableReaderConfig()
+    {
+        RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+            .Default(false);
+        RegisterParameter("ignore_unavailable_chunks", IgnoreUnavailableChunks)
+            .Default(false);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReaderConfig)

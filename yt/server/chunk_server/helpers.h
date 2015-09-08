@@ -2,11 +2,15 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
-
 #include <server/cypress_server/public.h>
 
+#include <server/security_server/cluster_resources.h>
+
 #include <ytlib/table_client/public.h>
+
+#include <core/yson/public.h>
+
+#include <core/actions/future.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -44,17 +48,15 @@ void AccumulateChildStatistics(
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
+NSecurityServer::TClusterResources GetDiskUsage(
+    const NChunkClient::NProto::TDataStatistics& statistics,
+    int replicationFactor);
+
 std::vector<TChunkOwnerBase*> GetOwningNodes(
     TChunkTree* chunkTree);
-void SerializeOwningNodesPaths(
-    NCypressServer::TCypressManagerPtr cypressManager,
-    TChunkTree* chunkTree,
-    NYson::IYsonConsumer* consumer);
-
-void SerializeOwningNodesPaths(
-    NCypressServer::TCypressManagerPtr cypressManager,
-    TChunkTree* chunkTree,
-    NYson::IYsonConsumer* consumer);
+TFuture<NYson::TYsonString> GetMulticellOwningNodes(
+    NCellMaster::TBootstrap* bootstrap,
+    TChunkTree* chunkTree);
 
 NTableClient::TOwningKey GetMaxKey(const TChunk* chunk);
 NTableClient::TOwningKey GetMaxKey(const TChunkList* chunkList);

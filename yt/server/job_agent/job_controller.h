@@ -5,7 +5,9 @@
 
 #include <core/actions/signal.h>
 
-#include <ytlib/job_tracker_client/job_tracker_service.pb.h>
+#include <ytlib/job_tracker_client/public.h>
+
+#include <ytlib/node_tracker_client/public.h>
 
 #include <server/cell_node/public.h>
 
@@ -69,10 +71,13 @@ public:
     NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = true);
 
     //! Prepares a heartbeat request.
-    void PrepareHeartbeat(NJobTrackerClient::NProto::TReqHeartbeat* request);
+    void PrepareHeartbeatRequest(
+        NObjectClient::TCellTag cellTag,
+        NObjectClient::EObjectType jobObjectType,
+        NJobTrackerClient::NProto::TReqHeartbeat* request);
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    void ProcessHeartbeat(NJobTrackerClient::NProto::TRspHeartbeat* response);
+    void ProcessHeartbeatResponse(NJobTrackerClient::NProto::TRspHeartbeat* response);
 
 private:
     const TJobControllerConfigPtr Config_;
@@ -86,7 +91,6 @@ private:
 
     TJobFactory GetFactory(EJobType type);
     void ScheduleStart();
-    void OnJobFinished(IJobPtr job);
     void OnResourcesUpdated(
         TWeakPtr<IJob> job, 
         const NNodeTrackerClient::NProto::TNodeResources& resourceDelta);

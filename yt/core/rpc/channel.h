@@ -51,7 +51,7 @@ struct IChannel
 
     //! Returns a YSON representation of the channel's endpoint.
     //! Typically used for constructing error attributes.
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
+    virtual NYson::TYsonString GetEndpointYsonDescription() const = 0;
 
     //! Sends a request via the channel.
     /*!

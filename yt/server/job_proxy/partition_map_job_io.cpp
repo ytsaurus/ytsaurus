@@ -72,8 +72,8 @@ public:
 
         YCHECK(Writers_.size() == 1);
         auto& writer = Writers_.front();
-        writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_node_directory());
-        ToProto(schedulerJobResult->mutable_chunks(), writer->GetWrittenChunks());
+        writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_output_node_directory());
+        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunks());
     }
 
 };

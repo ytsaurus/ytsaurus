@@ -8,8 +8,11 @@
 #include <core/misc/string.h>
 #include <core/misc/enum.h>
 
+#include <core/yson/string.h>
+#include <core/yson/async_consumer.h>
+#include <core/yson/attribute_consumer.h>
+
 #include <core/ytree/fluent.h>
-#include <core/ytree/yson_string.h>
 #include <core/ytree/exception_helpers.h>
 
 #include <core/ypath/tokenizer.h>
@@ -29,6 +32,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/config.h>
 #include <server/cell_master/serialize.h>
 
@@ -177,9 +181,24 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
 
     context->SetRequestInfo();
 
-    ToProto(response->mutable_id(), GetId());
-    response->set_type(static_cast<int>(Object_->GetType()));
+    auto permissions = EPermissionSet(request->permissions());
+    for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+        if (Any(permissions & permission)) {
+            ValidatePermission(EPermissionCheckScope::This, permission);
+        }
+    }
 
+    ToProto(response->mutable_object_id(), GetId());
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto handler = objectManager->GetHandler(Object_);
+    auto cellTag = handler->GetReplicationCellTag(Object_);
+    response->set_cell_tag(
+        cellTag == NotReplicatedCellTag || cellTag == AllSecondaryMastersCellTag
+        ? Bootstrap_->GetCellTag()
+        : cellTag);
+
+    context->SetResponseInfo();
     context->Reply();
 }
 
@@ -262,241 +281,16 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     }
 }
 
-void TObjectProxyBase::SerializeAttributes(
-    IYsonConsumer* consumer,
+void TObjectProxyBase::WriteAttributesFragment(
+    IAsyncYsonConsumer* consumer,
     const TAttributeFilter& filter,
     bool sortKeys)
 {
-    if (filter.Mode == EAttributeFilterMode::None)
-        return;
-
-    if (filter.Mode == EAttributeFilterMode::MatchingOnly && filter.Keys.empty())
-        return;
-
-    class TAttributesConsumer
-        : public IYsonConsumer
-    {
-    public:
-        explicit TAttributesConsumer(IYsonConsumer* underlyingConsumer)
-            : UnderlyingConsumer_(underlyingConsumer)
-            , HasAttributes_(false)
-        { }
-
-        ~TAttributesConsumer()
-        {
-            if (HasAttributes_) {
-                UnderlyingConsumer_->OnEndAttributes();
-            }
-        }
-
-        virtual void OnStringScalar(const TStringBuf& value) override
-        {
-            UnderlyingConsumer_->OnStringScalar(value);
-        }
-
-        virtual void OnInt64Scalar(i64 value) override
-        {
-            UnderlyingConsumer_->OnInt64Scalar(value);
-        }
-
-        virtual void OnUint64Scalar(ui64 value) override
-        {
-            UnderlyingConsumer_->OnUint64Scalar(value);
-        }
-
-        virtual void OnDoubleScalar(double value) override
-        {
-            UnderlyingConsumer_->OnDoubleScalar(value);
-        }
-
-        virtual void OnBooleanScalar(bool value) override
-        {
-            UnderlyingConsumer_->OnBooleanScalar(value);
-        }
-
-        virtual void OnEntity() override
-        {
-            UnderlyingConsumer_->OnEntity();
-        }
-
-        virtual void OnBeginList() override
-        {
-            UnderlyingConsumer_->OnBeginList();
-        }
-
-        virtual void OnListItem() override
-        {
-            UnderlyingConsumer_->OnListItem();
-        }
-
-        virtual void OnEndList() override
-        {
-            UnderlyingConsumer_->OnEndList();
-        }
-
-        virtual void OnBeginMap() override
-        {
-            UnderlyingConsumer_->OnBeginMap();
-        }
-
-        virtual void OnKeyedItem(const TStringBuf& key) override
-        {
-            if (!HasAttributes_) {
-                UnderlyingConsumer_->OnBeginAttributes();
-                HasAttributes_ = true;
-            }
-            UnderlyingConsumer_->OnKeyedItem(key);
-        }
-
-        virtual void OnEndMap() override
-        {
-            UnderlyingConsumer_->OnEndMap();
-        }
-
-        virtual void OnBeginAttributes() override
-        {
-            UnderlyingConsumer_->OnBeginAttributes();
-        }
-
-        virtual void OnEndAttributes() override
-        {
-            UnderlyingConsumer_->OnEndAttributes();
-        }
-
-        virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
-        {
-            UnderlyingConsumer_->OnRaw(yson, type);
-        }
-
-    private:
-        IYsonConsumer* const UnderlyingConsumer_;
-        bool HasAttributes_;
-
-    };
-
-    class TAttributeValueConsumer
-        : public IYsonConsumer
-    {
-    public:
-        TAttributeValueConsumer(IYsonConsumer* underlyingConsumer, const Stroka& key)
-            : UnderlyingConsumer_(underlyingConsumer)
-            , Key_(key)
-            , Empty_(true)
-        { }
-
-        virtual void OnStringScalar(const TStringBuf& value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnStringScalar(value);
-        }
-
-        virtual void OnInt64Scalar(i64 value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnInt64Scalar(value);
-        }
-
-        virtual void OnUint64Scalar(ui64 value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnUint64Scalar(value);
-        }
-
-        virtual void OnDoubleScalar(double value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnDoubleScalar(value);
-        }
-
-        virtual void OnBooleanScalar(bool value) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBooleanScalar(value);
-        }
-
-        virtual void OnEntity() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEntity();
-        }
-
-        virtual void OnBeginList() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBeginList();
-        }
-
-        virtual void OnListItem() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnListItem();
-        }
-
-        virtual void OnEndList() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEndList();
-        }
-
-        virtual void OnBeginMap() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBeginMap();
-        }
-
-        virtual void OnKeyedItem(const TStringBuf& key) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnKeyedItem(key);
-        }
-
-        virtual void OnEndMap() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEndMap();
-        }
-
-        virtual void OnBeginAttributes() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnBeginAttributes();
-        }
-
-        virtual void OnEndAttributes() override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnEndAttributes();
-        }
-
-        virtual void OnRaw(const TStringBuf& yson, EYsonType type) override
-        {
-            ProduceKeyIfNeeded();
-            UnderlyingConsumer_->OnRaw(yson, type);
-        }
-
-    private:
-        IYsonConsumer* const UnderlyingConsumer_;
-        const Stroka Key_;
-        bool Empty_;
-
-
-        void ProduceKeyIfNeeded()
-        {
-            if (Empty_) {
-                UnderlyingConsumer_->OnKeyedItem(Key_);
-                Empty_ = false;
-            }
-        }
-
-    };
-
-    TAttributesConsumer attributesConsumer(consumer);
-
     const auto& customAttributes = Attributes();
 
     switch (filter.Mode) {
         case EAttributeFilterMode::All: {
-            std::vector<ISystemAttributeProvider::TAttributeInfo> builtinAttributes;
+            std::vector<ISystemAttributeProvider::TAttributeDescriptor> builtinAttributes;
             ListBuiltinAttributes(&builtinAttributes);
 
             auto userKeys = customAttributes.List();
@@ -510,24 +304,33 @@ void TObjectProxyBase::SerializeAttributes(
                 std::sort(
                     builtinAttributes.begin(),
                     builtinAttributes.end(),
-                    [] (const ISystemAttributeProvider::TAttributeInfo& lhs, const ISystemAttributeProvider::TAttributeInfo& rhs) {
+                    [] (const ISystemAttributeProvider::TAttributeDescriptor& lhs, const ISystemAttributeProvider::TAttributeDescriptor& rhs) {
                         return lhs.Key < rhs.Key;
                     });
             }
 
             for (const auto& key : userKeys) {
-                attributesConsumer.OnKeyedItem(key);
-                attributesConsumer.OnRaw(customAttributes.GetYson(key).Data(), EYsonType::Node);
+                auto value = customAttributes.GetYson(key);
+                consumer->OnKeyedItem(key);
+                consumer->OnRaw(value);
             }
 
-            for (const auto& attribute : builtinAttributes) {
-                if (attribute.IsPresent){
-                    attributesConsumer.OnKeyedItem(attribute.Key);
-                    if (attribute.IsOpaque) {
-                        attributesConsumer.OnEntity();
-                    } else {
-                        YCHECK(GetBuiltinAttribute(attribute.Key, &attributesConsumer));
-                    }
+            for (const auto& descriptor : builtinAttributes) {
+                auto key = Stroka(descriptor.Key);
+                TAttributeValueConsumer attributeValueConsumer(consumer, key);
+
+                if (descriptor.Opaque) {
+                    attributeValueConsumer.OnEntity();
+                    continue;
+                }
+
+                if (GetBuiltinAttribute(descriptor.Key, &attributeValueConsumer))
+                    continue;
+
+                auto asyncValue = GetBuiltinAttributeAsync(key);
+                if (asyncValue) {
+                    attributeValueConsumer.OnRaw(std::move(asyncValue));
+                    continue; // just for the symmetry
                 }
             }
             break;
@@ -541,12 +344,21 @@ void TObjectProxyBase::SerializeAttributes(
             }
 
             for (const auto& key : keys) {
-                TAttributeValueConsumer attributeValueConsumer(&attributesConsumer, key);
-                if (!GetBuiltinAttribute(key, &attributeValueConsumer)) {
-                    auto value = customAttributes.FindYson(key);
-                    if (value) {
-                        attributeValueConsumer.OnRaw(value->Data(), EYsonType::Node);
-                    }
+                TAttributeValueConsumer attributeValueConsumer(consumer, key);
+
+                auto value = customAttributes.FindYson(key);
+                if (value) {
+                    attributeValueConsumer.OnRaw(*value);
+                    continue;
+                }
+
+                if (GetBuiltinAttribute(key, &attributeValueConsumer))
+                    continue;
+
+                auto asyncValue = GetBuiltinAttributeAsync(key);
+                if (asyncValue) {
+                    attributeValueConsumer.OnRaw(std::move(asyncValue));
+                    continue; // just for the symmetry
                 }
             }
 
@@ -570,6 +382,45 @@ bool TObjectProxyBase::DoInvoke(IServiceContextPtr context)
     return TYPathServiceBase::DoInvoke(context);
 }
 
+void TObjectProxyBase::SetAttribute(
+    const NYTree::TYPath& path,
+    TReqSet* request,
+    TRspSet* response,
+    TCtxSetPtr context)
+{
+    TSupportsAttributes::SetAttribute(path, request, response, context);
+    ReplicateAttributeUpdate(context);
+}
+
+void TObjectProxyBase::RemoveAttribute(
+    const NYTree::TYPath& path,
+    TReqRemove* request,
+    TRspRemove* response,
+    TCtxRemovePtr context)
+{
+    TSupportsAttributes::RemoveAttribute(path, request, response, context);
+    ReplicateAttributeUpdate(context);
+}
+
+void TObjectProxyBase::ReplicateAttributeUpdate(IServiceContextPtr context)
+{
+    if (!IsPrimaryMaster())
+        return;
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    auto handler = objectManager->GetHandler(Object_->GetType());
+    auto flags = handler->GetReplicationFlags();
+
+    if (None(flags & EObjectReplicationFlags::ReplicateAttributes))
+        return;
+
+    auto replicationCellTag = handler->GetReplicationCellTag(Object_);
+    if (replicationCellTag == NotReplicatedCellTag)
+        return;
+    
+    PostToMaster(context, replicationCellTag);
+}
+
 IAttributeDictionary* TObjectProxyBase::GetCustomAttributes()
 {
     if (!CustomAttributes_) {
@@ -588,28 +439,45 @@ std::unique_ptr<IAttributeDictionary> TObjectProxyBase::DoCreateCustomAttributes
     return std::unique_ptr<IAttributeDictionary>(new TCustomAttributeDictionary(this));
 }
 
-void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     auto* acd = FindThisAcd();
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
 
-    attributes->push_back("id");
-    attributes->push_back("type");
-    attributes->push_back("builtin");
-    attributes->push_back("ref_counter");
-    attributes->push_back("weak_ref_counter");
-    attributes->push_back(TAttributeInfo("supported_permissions", true, true));
-    attributes->push_back(TAttributeInfo("inherit_acl", hasAcd, false, false, EPermission::Administer));
-    attributes->push_back(TAttributeInfo("acl", hasAcd, true, false, EPermission::Administer));
-    attributes->push_back(TAttributeInfo("owner", hasOwner, false));
-    attributes->push_back(TAttributeInfo("effective_acl", true, true));
+    auto objectManager = Bootstrap_->GetObjectManager();
+    bool isForeign = objectManager->IsForeign(Object_);
+
+    descriptors->push_back("id");
+    descriptors->push_back("type");
+    descriptors->push_back("builtin");
+    descriptors->push_back("ref_counter");
+    descriptors->push_back("weak_ref_counter");
+    descriptors->push_back(TAttributeDescriptor("import_ref_counter")
+        .SetPresent(isForeign));
+    descriptors->push_back("foreign");
+    descriptors->push_back(TAttributeDescriptor("supported_permissions")
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("inherit_acl")
+        .SetPresent(hasAcd)
+        .SetWritePermission(EPermission::Administer)
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor("acl")
+        .SetPresent(hasAcd)
+        .SetWritePermission(EPermission::Administer)
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor("owner")
+        .SetPresent(hasOwner));
+    descriptors->push_back(TAttributeDescriptor("effective_acl")
+        .SetOpaque(true));
 }
 
 bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
     auto securityManager = Bootstrap_->GetSecurityManager();
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    bool isForeign = objectManager->IsForeign(Object_);
 
     if (key == "id") {
         BuildYsonFluently(consumer)
@@ -638,6 +506,18 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     if (key == "weak_ref_counter") {
         BuildYsonFluently(consumer)
             .Value(Object_->GetObjectWeakRefCounter());
+        return true;
+    }
+
+    if (isForeign && key == "import_ref_counter") {
+        BuildYsonFluently(consumer)
+            .Value(Object_->GetImportRefCounter());
+        return true;
+    }
+
+    if (key == "foreign") {
+        BuildYsonFluently(consumer)
+            .Value(objectManager->IsForeign(Object_));
         return true;
     }
 
@@ -679,7 +559,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
     return false;
 }
 
-TFuture<void> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* /*consumer*/)
+TFuture<TYsonString> TObjectProxyBase::GetBuiltinAttributeAsync(const Stroka& /*key*/)
 {
     return Null;
 }
@@ -732,15 +612,40 @@ bool TObjectProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString&
     return false;
 }
 
-TObjectBase* TObjectProxyBase::GetSchema(EObjectType type)
+TFuture<void> TObjectProxyBase::SetBuiltinAttributeAsync(const Stroka& /*key*/, const TYsonString& /*value*/)
 {
-    auto objectManager = Bootstrap_->GetObjectManager();
-    return objectManager->GetSchema(type);
+    return Null;
 }
 
-TObjectBase* TObjectProxyBase::GetThisSchema()
+bool TObjectProxyBase::RemoveBuiltinAttribute(const Stroka& /*key*/)
 {
-    return GetSchema(Object_->GetType());
+    return false;
+}
+
+void TObjectProxyBase::ValidateCustomAttributeUpdate(
+    const Stroka& /*key*/,
+    const TNullable<TYsonString>& /*oldValue*/,
+    const TNullable<TYsonString>& /*newValue*/)
+{ }
+
+void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
+    const Stroka& key,
+    const TNullable<TYsonString>& oldValue,
+    const TNullable<TYsonString>& newValue)
+{
+    try {
+        ValidateCustomAttributeUpdate(key, oldValue, newValue);
+    } catch (const std::exception& ex) {
+        if (newValue) {
+            THROW_ERROR_EXCEPTION("Error setting custom attribute %Qv",
+                ToYPathLiteral(key))
+                    << ex;
+        } else {
+            THROW_ERROR_EXCEPTION("Error removing custom attribute %Qv",
+                ToYPathLiteral(key))
+                    << ex;
+        }
+    }
 }
 
 void TObjectProxyBase::DeclareMutating()
@@ -794,9 +699,36 @@ bool TObjectProxyBase::IsFollower() const
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsFollower();
 }
 
+bool TObjectProxyBase::IsPrimaryMaster() const
+{
+    return Bootstrap_->IsPrimaryMaster();
+}
+
+bool TObjectProxyBase::IsSecondaryMaster() const
+{
+    return Bootstrap_->IsSecondaryMaster();
+}
+
 bool TObjectProxyBase::IsLeaderReadRequired() const
 {
     return false;
+}
+
+void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
+{
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToSecondaryMasters(
+        Object_->GetId(),
+        std::move(context));
+}
+
+void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag)
+{
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToMaster(
+        Object_->GetId(),
+        std::move(context),
+        cellTag);
 }
 
 bool TObjectProxyBase::IsLoggingEnabled() const
@@ -823,10 +755,8 @@ bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr contex
     return TObjectProxyBase::DoInvoke(context);
 }
 
-void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
+void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* /*request*/, TRspGet* response, TCtxGetPtr context)
 {
-    UNUSED(request);
-
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     response->set_value("#");
@@ -838,13 +768,9 @@ void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
     THROW_ERROR_EXCEPTION("Object cannot be removed explicitly");
 }
 
-void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
+void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* /*request*/, TRspRemove* /*response*/, TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
-
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
-
     ValidateRemoval();
 
     if (Object_->GetObjectRefCounter() != 1) {

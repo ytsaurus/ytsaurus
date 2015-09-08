@@ -231,6 +231,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
         "__".join([options.btid, options.build_number, suite_name]))
+    sandbox_storage = "{0}/{1}".format(os.path.expanduser("~/sandbox_storage/"), suite_name)
     working_files_to_archive = ["bin/yt", "bin/ytserver", "lib/*.so"]
 
     mkdirp(sandbox_current)
@@ -252,7 +253,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 env={
                     "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
                     "PYTHONPATH": "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
-                    "TESTS_SANDBOX": sandbox_current
+                    "TESTS_SANDBOX": sandbox_current,
+                    "TESTS_SANDBOX_STORAGE": sandbox_storage
                 })
         except ChildHasNonZeroExitCode:
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
@@ -279,10 +281,10 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     try:
         if failed:
             teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
-                sandbox_current,
+                sandbox_storage,
                 sandbox_archive),
                 status="WARNING")
-            shutil.copytree(sandbox_current, sandbox_archive)
+            shutil.copytree(sandbox_storage, sandbox_archive)
             artifact_path = os.path.join(sandbox_archive, "artifacts")
             core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
             mkdirp(artifact_path)

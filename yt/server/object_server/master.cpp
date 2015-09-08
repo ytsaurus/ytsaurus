@@ -20,6 +20,7 @@ namespace NObjectServer {
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NYTree;
 using namespace NCellMaster;
 
@@ -50,8 +51,9 @@ private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObjects);
+        DISPATCH_YPATH_SERVICE_METHOD(CreateObject);
         DISPATCH_YPATH_SERVICE_METHOD(UnstageObject);
-        return TObjectProxyBase::DoInvoke(context);
+        return TBase::DoInvoke(context);
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObjects)
@@ -79,30 +81,64 @@ private:
             ? securityManager->GetAccountByNameOrThrow(request->account())
             : nullptr;
 
-        auto attributes =
-            request->has_object_attributes()
-            ? FromProto(request->object_attributes())
-            : CreateEphemeralAttributes();
-
         auto objectManager = Bootstrap_->GetObjectManager();
 
         for (int index = 0; index < request->object_count(); ++index) {
             auto* object = objectManager->CreateObject(
+                NullObjectId,
                 transaction,
                 account,
                 type,
-                attributes.get(),
-                request,
-                response);
+                nullptr,
+                TObjectCreationExtensions::default_instance());
             const auto& objectId = object->GetId();
-
             ToProto(response->add_object_ids(), objectId);
-
-            if (index == 0) {
-                context->SetResponseInfo("ObjectId: %v", objectId);
-            }
         }
         
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CreateObject)
+    {
+        DeclareMutating();
+
+        auto transactionId = request->has_transaction_id()
+            ? FromProto<TTransactionId>(request->transaction_id())
+            : NullTransactionId;
+        auto type = EObjectType(request->type());
+
+        context->SetRequestInfo("TransactionId: %v, Type: %v, Account: %v",
+            transactionId,
+            type,
+            request->has_account() ? MakeNullable(request->account()) : Null);
+
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction =  transactionId
+            ? transactionManager->GetTransactionOrThrow(transactionId)
+            : nullptr;
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        auto* account = request->has_account()
+            ? securityManager->GetAccountByNameOrThrow(request->account())
+            : nullptr;
+
+        auto attributes = request->has_object_attributes()
+            ? FromProto(request->object_attributes())
+            : std::unique_ptr<IAttributeDictionary>();
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->CreateObject(
+            NullObjectId,
+            transaction,
+            account,
+            type,
+            attributes.get(),
+            request->extensions());
+
+        const auto& objectId = object->GetId();
+        ToProto(response->mutable_object_id(), objectId);
+
+        context->SetResponseInfo("ObjectId: %v", objectId);
         context->Reply();
     }
 

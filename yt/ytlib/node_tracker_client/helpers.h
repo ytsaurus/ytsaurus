@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/object_client/public.h>
+
 #include <ytlib/node_tracker_client/node.pb.h>
 
 #include <core/profiling/profiler.h>
@@ -54,6 +56,9 @@ NProto::TNodeResources GetAdjustedResourceLimits(
 
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();
+
+NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId, NObjectClient::TCellTag);
+TNodeId NodeIdFromObjectId(const NObjectClient::TObjectId& objectId);
 
 namespace NProto {
 

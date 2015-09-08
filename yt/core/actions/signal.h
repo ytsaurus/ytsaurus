@@ -40,6 +40,12 @@ public:
     //! Returns the vector of currently added callbacks.
     std::vector<TCallback> ToVector() const;
 
+    //! Returns the number of handlers.
+    int Size() const;
+
+    //! Returns |true| if there are no handlers.
+    bool Empty() const;
+
     //! Clears the list of handlers.
     void Clear();
 

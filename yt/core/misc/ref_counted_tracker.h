@@ -3,7 +3,7 @@
 #include "public.h"
 #include "source_location.h"
 
-#include <core/ytree/yson_producer.h>
+#include <core/yson/consumer.h>
 
 #include <core/concurrency/fork_aware_spinlock.h>
 
@@ -46,7 +46,7 @@ public:
     }
 
     Stroka GetDebugInfo(int sortByColumn = -1) const;
-    NYTree::TYsonProducer GetMonitoringProducer() const;
+    NYson::TYsonProducer GetMonitoringProducer() const;
 
     i64 GetObjectsAllocated(TRefCountedTypeKey typeKey);
     i64 GetObjectsAlive(TRefCountedTypeKey typeKey);

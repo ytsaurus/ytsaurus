@@ -55,3 +55,7 @@ class TestRff(YTEnvSetup):
         time.sleep(1.0)
         assert get("//sys/users/u/@request_counter") == 100
 
+##################################################################
+
+class TestRffMulticell(TestRff):
+    NUM_SECONDARY_MASTER_CELLS = 2

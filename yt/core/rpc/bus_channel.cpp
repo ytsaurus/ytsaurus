@@ -19,7 +19,7 @@
 
 #include <core/ypath/token.h>
 
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
 
 #include <core/rpc/rpc.pb.h>
 
@@ -31,6 +31,7 @@ namespace NRpc {
 using namespace NBus;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

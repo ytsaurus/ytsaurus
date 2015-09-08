@@ -16,6 +16,8 @@
 
 #include <server/object_server/config.h>
 
+#include <server/hive/config.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -54,6 +56,9 @@ public:
     //! Node-to-master connection.
     NApi::TConnectionConfigPtr ClusterConnection;
 
+    //! Cell directory synchronization.
+    NHive::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;
 
@@ -87,6 +92,8 @@ public:
         RegisterParameter("monitoring_port", MonitoringPort)
             .Default(10000);
         RegisterParameter("cluster_connection", ClusterConnection);
+        RegisterParameter("cell_directory_synchronizer", CellDirectorySynchronizer)
+            .DefaultNew();
         RegisterParameter("data_node", DataNode)
             .DefaultNew();
         RegisterParameter("exec_agent", ExecAgent)

@@ -58,7 +58,7 @@ public:
             JobIOConfig_->TableReader,
             Host_->GetClient(),
             Host_->GetBlockCache(),
-            Host_->GetNodeDirectory(),
+            Host_->GetInputNodeDirectory(),
             keyColumns,
             nameTable,
             BIND(&IJobHost::ReleaseNetwork, Host_),
@@ -84,8 +84,8 @@ public:
 
         // Partition reduce may come as intermediate job (reduce-combiner),
         // so we return written chunks to scheduler.
-        writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_node_directory());
-        ToProto(schedulerJobResult->mutable_chunks(), writer->GetWrittenChunks());
+        writer->GetNodeDirectory()->DumpTo(schedulerJobResult->mutable_output_node_directory());
+        ToProto(schedulerJobResult->mutable_output_chunks(), writer->GetWrittenChunks());
     }
 
 private:

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <core/yson/string.h>
+
 #include <core/misc/nullable.h>
 
 namespace NYT {
@@ -17,10 +19,10 @@ struct IAttributeDictionary
     virtual std::vector<Stroka> List() const = 0;
 
     //! Returns the value of the attribute (NULL indicates that the attribute is not found).
-    virtual TNullable<TYsonString> FindYson(const Stroka& key) const = 0;
+    virtual TNullable<NYson::TYsonString> FindYson(const Stroka& key) const = 0;
 
     //! Sets the value of the attribute.
-    virtual void SetYson(const Stroka& key, const TYsonString& value) = 0;
+    virtual void SetYson(const Stroka& key, const NYson::TYsonString& value) = 0;
 
     //! Removes the attribute.
     virtual bool Remove(const Stroka& key) = 0;
@@ -31,7 +33,7 @@ struct IAttributeDictionary
     void Clear();
 
     //! Returns the value of the attribute (throws an exception if the attribute is not found).
-    TYsonString GetYson(const Stroka& key) const;
+    NYson::TYsonString GetYson(const Stroka& key) const;
 
     //! Finds the attribute and deserializes its value.
     //! Fails if no such value is found.

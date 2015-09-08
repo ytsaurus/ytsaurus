@@ -21,6 +21,7 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

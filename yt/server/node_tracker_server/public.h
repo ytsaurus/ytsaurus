@@ -34,7 +34,6 @@ using NNodeTrackerClient::TNodeDescriptor;
 DECLARE_REFCOUNTED_CLASS(TNodeTracker)
 
 DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
-DECLARE_REFCOUNTED_CLASS(TNodeConfig)
 
 class TNode;
 typedef SmallVector<TNode*, NChunkClient::TypicalReplicaCount> TNodeList;

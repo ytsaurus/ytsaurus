@@ -18,13 +18,15 @@ INodeTypeHandlerPtr CreateLockMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = CreateVirtualObjectMap(
-        bootstrap,
-        bootstrap->GetCypressManager()->Locks());
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::LockMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return CreateVirtualObjectMap(
+                bootstrap,
+                bootstrap->GetCypressManager()->Locks(),
+                owningNode);
+        }),
         EVirtualNodeOptions::RedirectSelf);
 }
 

@@ -39,6 +39,8 @@
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 #include <ytlib/chunk_client/client_block_cache.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
 
@@ -93,6 +95,8 @@
 
 #include <server/object_server/master_cache_service.h>
 
+#include <server/hive/cell_directory_synchronizer.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -118,6 +122,8 @@ using namespace NTabletNode;
 using namespace NQueryAgent;
 using namespace NApi;
 using namespace NTransactionServer;
+using namespace NHive;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +163,7 @@ void TBootstrap::DoRun()
 
     LOG_INFO("Starting node (LocalAddresses: [%v], MasterAddresses: [%v])",
         JoinToString(GetValues(localAddresses)),
-        JoinToString(Config->ClusterConnection->Master->Addresses));
+        JoinToString(Config->ClusterConnection->PrimaryMaster->Addresses));
 
     MemoryUsageTracker = std::make_unique<TNodeMemoryTracker>(
         Config->ResourceLimits->Memory,
@@ -174,8 +180,16 @@ void TBootstrap::DoRun()
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
     }
 
-    auto clusterConnection = CreateConnection(Config->ClusterConnection);
-    MasterClient = clusterConnection->CreateClient(GetRootClientOptions());
+    MasterConnection = CreateConnection(Config->ClusterConnection);
+
+    TClientOptions clientOptions;
+    clientOptions.User = NSecurityClient::JobUserName;
+    MasterClient = MasterConnection->CreateClient(clientOptions);
+
+    CellDirectorySynchronizer = New<TCellDirectorySynchronizer>(
+        Config->CellDirectorySynchronizer,
+        MasterConnection->GetCellDirectory(),
+        Config->ClusterConnection->PrimaryMaster->CellId);
 
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
@@ -202,22 +216,29 @@ void TBootstrap::DoRun()
         "/ref_counted",
         TRefCountedTracker::Get()->GetMonitoringProducer());
 
-    // NB: No retries, no user overriding.
-    auto directMasterChannel = CreatePeerChannel(
-        Config->ClusterConnection->Master,
-        GetBusChannelFactory(),
-        EPeerKind::Leader);
+    auto createMasterRedirectorService = [&] (TMasterConnectionConfigPtr config) {
+        // NB: No retries, no user overriding.
+        auto directMasterChannel = CreatePeerChannel(
+            config,
+            GetBusChannelFactory(),
+            EPeerKind::Leader);
+        auto masterRedirectorChannel = CreateThrottlingChannel(
+            Config->MasterRedirectorService,
+            directMasterChannel);
 
-    auto masterRedirectorChannel = CreateThrottlingChannel(
-        Config->MasterRedirectorService,
-        directMasterChannel);
-    auto redirectorCellId = ToRedirectorCellId(GetCellId());
-    RpcServer->RegisterService(CreateRedirectorService(
-        TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), redirectorCellId),
-        masterRedirectorChannel));
-    RpcServer->RegisterService(CreateRedirectorService(
-        TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), redirectorCellId),
-        masterRedirectorChannel));
+        auto redirectorCellId = ToRedirectorCellId(config->CellId);
+        RpcServer->RegisterService(CreateRedirectorService(
+            TServiceId(NChunkClient::TChunkServiceProxy::GetServiceName(), redirectorCellId),
+            masterRedirectorChannel));
+        RpcServer->RegisterService(CreateRedirectorService(
+            TServiceId(NObjectClient::TObjectServiceProxy::GetServiceName(), redirectorCellId),
+            masterRedirectorChannel));
+    };
+
+    createMasterRedirectorService(Config->ClusterConnection->PrimaryMaster);
+    for (const auto& config : Config->ClusterConnection->SecondaryMasters) {
+        createMasterRedirectorService(config);
+    }
 
     BlobReaderCache = New<TBlobReaderCache>(Config->DataNode);
 
@@ -263,11 +284,21 @@ void TBootstrap::DoRun()
 
     RpcServer->RegisterService(CreateDataNodeService(Config->DataNode, this));
 
+    auto localInterconnectAddress = GetInterconnectAddress(localAddresses);
+
     JobProxyConfig = New<NJobProxy::TJobProxyConfig>();
     
     JobProxyConfig->ClusterConnection = CloneYsonSerializable(Config->ClusterConnection);
-    JobProxyConfig->ClusterConnection->Master->Addresses = {GetInterconnectAddress(localAddresses)};
-    JobProxyConfig->ClusterConnection->Master->CellId = redirectorCellId;
+
+    auto patchMasterRedirectorConnectionConfig = [&] (TMasterConnectionConfigPtr config) {
+        config->CellId = ToRedirectorCellId(config->CellId);
+        config->Addresses = {localInterconnectAddress};
+    };
+
+    patchMasterRedirectorConnectionConfig(JobProxyConfig->ClusterConnection->PrimaryMaster);
+    for (const auto& config : JobProxyConfig->ClusterConnection->SecondaryMasters) {
+        patchMasterRedirectorConnectionConfig(config);
+    }
 
     JobProxyConfig->MemoryWatchdogPeriod = Config->ExecAgent->MemoryWatchdogPeriod;
     JobProxyConfig->BlockIOWatchdogPeriod = Config->ExecAgent->BlockIOWatchdogPeriod;
@@ -284,7 +315,7 @@ void TBootstrap::DoRun()
 
     JobProxyConfig->AddressResolver = Config->AddressResolver;
     JobProxyConfig->SupervisorConnection = New<NBus::TTcpBusClientConfig>();
-    JobProxyConfig->SupervisorConnection->Address = GetInterconnectAddress(localAddresses);
+    JobProxyConfig->SupervisorConnection->Address = localInterconnectAddress;
     JobProxyConfig->SupervisorRpcTimeout = Config->ExecAgent->SupervisorRpcTimeout;
     // TODO(babenko): consider making this priority configurable
     JobProxyConfig->SupervisorConnection->Priority = 6;
@@ -358,12 +389,19 @@ void TBootstrap::DoRun()
     RpcServer->RegisterService(CreateQueryService(Config->QueryAgent, this));
 
     RpcServer->RegisterService(CreateTimestampProxyService(
-        clusterConnection->GetTimestampProvider()));
+        MasterConnection->GetTimestampProvider()));
+
+    auto directMasterChannel = CreatePeerChannel(
+        Config->ClusterConnection->PrimaryMaster,
+        GetBusChannelFactory(),
+        EPeerKind::Leader);
 
     RpcServer->RegisterService(CreateMasterCacheService(
         Config->MasterCacheService,
         directMasterChannel,
         GetCellId()));
+
+    CellDirectorySynchronizer->Start();
 
     OrchidRoot = GetEphemeralNodeFactory()->CreateMap();
     SetNodeByYPath(
@@ -569,7 +607,7 @@ NQueryClient::IExecutorPtr TBootstrap::GetQueryExecutor() const
 
 const TCellId& TBootstrap::GetCellId() const
 {
-    return Config->ClusterConnection->Master->CellId;
+    return Config->ClusterConnection->PrimaryMaster->CellId;
 }
 
 IThroughputThrottlerPtr TBootstrap::GetReplicationInThrottler() const

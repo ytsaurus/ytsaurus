@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
 
@@ -11,7 +11,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    @only_linux
+    @linux_only
     def test_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
         write_table(
@@ -50,7 +50,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @only_linux
+    @linux_only
     def test_cat(self):
         create('table', '//tmp/in1')
         write_table(
@@ -96,7 +96,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @only_linux
+    @linux_only
     def test_control_attributes_yson(self):
         create('table', '//tmp/in1')
         write_table(
@@ -137,7 +137,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             '<"row_index"=0>#;\n' \
             '{"key"=4;"value"=3};\n'
 
-    @only_linux
+    @linux_only
     def test_cat_teleport(self):
         create('table', '//tmp/in1')
         write_table(
@@ -200,7 +200,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get('//tmp/out1/@sorted')
         assert get('//tmp/out2/@sorted')
 
-    @only_linux
+    @linux_only
     def test_maniac_chunk(self):
         create('table', '//tmp/in1')
         write_table(
@@ -280,7 +280,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 command = 'cat',
                 reduce_by='subkey')
 
-    @only_linux
+    @linux_only
     def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
@@ -400,7 +400,12 @@ echo {v = 2} >&7
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
 
         assert stderr_bytes == \
-            '{"key"="a";"value"=""};\n' \
-            '<"key_switch"=%true>#;\n' \
-            '{"key"="b";"value"=""};\n' \
-            '{"key"="b";"value"=""};\n'
+            '{"key"="a";"value"="";};\n' \
+            '<"key_switch"=%true;>#;\n' \
+            '{"key"="b";"value"="";};\n' \
+            '{"key"="b";"value"="";};\n'
+
+##################################################################
+
+class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2

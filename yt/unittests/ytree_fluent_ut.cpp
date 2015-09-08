@@ -2,15 +2,20 @@
 #include "framework.h"
 
 #include <core/ytree/fluent.h>
-#include <core/ytree/yson_consumer-mock.h>
+
+#include <core/yson/consumer-mock.h>
 
 namespace NYT {
 namespace NYTree {
 namespace {
 
+using namespace NYson;
+
 using ::testing::Types;
 using ::testing::InSequence;
 using ::testing::StrictMock;
+
+////////////////////////////////////////////////////////////////////////////////
 
 // TODO(sandello): Fix this test under clang.
 #ifndef __clang__
@@ -422,6 +427,8 @@ TEST(TYTreeFluentTest, Complex)
 
 ////////////////////////////////////////////////////////////////////////////////
 #endif
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYTree

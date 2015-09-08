@@ -136,7 +136,7 @@ struct ICommandContext
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
 
-    virtual NYTree::TYsonProducer CreateInputProducer() = 0;
+    virtual NYson::TYsonProducer CreateInputProducer() = 0;
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 
     virtual void Reply(const TError& error) = 0;
@@ -167,7 +167,7 @@ protected:
     virtual void Prepare();
 
     void Reply(const TError& error);
-    void Reply(const NYTree::TYsonString& yson);
+    void Reply(const NYson::TYsonString& yson);
     void Reply();
 };
 

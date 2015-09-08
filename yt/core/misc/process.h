@@ -72,7 +72,7 @@ private:
     char* Capture(TStringBuf arg);
 
     void SpawnChild();
-    void ThrowOnChildError();
+    void ValidateSpawnResult();
     void Child();
 
     void Swap(TProcess& other);

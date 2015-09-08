@@ -36,20 +36,13 @@ struct TNonversionedObjectRefSerializer
     static void Load(C& context, T& object)
     {
         typedef typename std::remove_pointer<T>::type TObject;
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 109) {
-            auto key = LoadSuspended<NHydra::TEntitySerializationKey>(context);
-            if (key == NHydra::TEntitySerializationKey()) {
-                object = nullptr;
-                SERIALIZATION_DUMP_WRITE(context, "objref <null>");
-            } else {
-                object = context.template GetEntity<TObject>(key);
-                SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
-            }
+        auto key = LoadSuspended<NHydra::TEntitySerializationKey>(context);
+        if (key == NHydra::TEntitySerializationKey()) {
+            object = nullptr;
+            SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else {
-            typedef typename std::decay<decltype(object->GetId())>::type TId;
-            auto id = NYT::Load<TId>(context);
-            object = (id == TId()) ? nullptr : context.template Get<TObject>(id);
+            object = context.template GetEntity<TObject>(key);
+            SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key.Index);
         }
     }
 };
@@ -80,17 +73,10 @@ struct TVersionedObjectRefSerializer
     static void Load(C& context, T& object)
     {
         typedef typename std::remove_pointer<T>::type TObject;
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 109) {
-            auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
-            object  = (key == NHydra::TEntitySerializationKey())
-                ? nullptr
-                : context.template GetEntity<TObject>(key);
-        } else {
-            typedef typename std::remove_reference<decltype(object->GetVersionedId())>::type TId;
-            auto id = NYT::Load<TId>(context);
-            object = id == TId() ? nullptr : context.template Get<TObject>(id);
-        }
+        auto key = NYT::Load<NHydra::TEntitySerializationKey>(context);
+        object  = (key == NHydra::TEntitySerializationKey())
+            ? nullptr
+            : context.template GetEntity<TObject>(key);
     }
 };
 

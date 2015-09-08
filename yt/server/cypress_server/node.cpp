@@ -10,8 +10,8 @@
 namespace NYT {
 namespace NCypressServer {
 
+using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 
@@ -19,6 +19,8 @@ using namespace NCellMaster;
 
 TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     : TObjectBase(id.ObjectId)
+    , ExternalCellTag_(NotReplicatedCellTag)
+    , AccountingEnabled_(true)
     , LockMode_(ELockMode::None)
     , TrunkNode_(nullptr)
     , Transaction_(nullptr)
@@ -28,7 +30,6 @@ TCypressNodeBase::TCypressNodeBase(const TVersionedNodeId& id)
     , AccessCounter_(0)
     , Revision_(0)
     , Account_(nullptr)
-    , CachedResourceUsage_(ZeroClusterResources())
     , Acd_(this)
     , AccessStatisticsUpdateIndex_(-1)
     , Parent_(nullptr)
@@ -82,11 +83,18 @@ TVersionedNodeId TCypressNodeBase::GetVersionedId() const
     return TVersionedNodeId(Id_, TransactionId_);
 }
 
+bool TCypressNodeBase::IsExternal() const
+{
+    return ExternalCellTag_ >= MinimumValidCellTag && ExternalCellTag_ <= MaximumValidCellTag;
+}
+
 void TCypressNodeBase::Save(TSaveContext& context) const
 {
     TObjectBase::Save(context);
 
     using NYT::Save;
+    Save(context, ExternalCellTag_);
+    Save(context, AccountingEnabled_);
     Save(context, LockStateMap_);
     Save(context, AcquiredLocks_);
     Save(context, PendingLocks_);
@@ -107,6 +115,11 @@ void TCypressNodeBase::Load(TLoadContext& context)
     TObjectBase::Load(context);
 
     using NYT::Load;
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 200) {
+        Load(context, ExternalCellTag_);
+        Load(context, AccountingEnabled_);
+    }
     Load(context, LockStateMap_);
     Load(context, AcquiredLocks_);
     Load(context, PendingLocks_);
@@ -120,30 +133,6 @@ void TCypressNodeBase::Load(TLoadContext& context)
     Load(context, Acd_);
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
-
-    // Reconstruct TrunkNode and Transaction.
-    if (!TransactionId_) {
-        TrunkNode_ = this;
-        Transaction_ = nullptr;
-    } else {
-        TrunkNode_ = context.Get<TCypressNodeBase>(TVersionedNodeId(Id_));
-        Transaction_ = context.Get<TTransaction>(TransactionId_);
-    }
-
-    // Reconstruct iterators from locks to their positions in the lock list.
-    for (auto it = AcquiredLocks_.begin(); it != AcquiredLocks_.end(); ++it) {
-        auto* lock = *it;
-        lock->SetLockListIterator(it);
-    }
-    for (auto it = PendingLocks_.begin(); it != PendingLocks_.end(); ++it) {
-        auto* lock = *it;
-        lock->SetLockListIterator(it);
-    }
-}
-
-TClusterResources TCypressNodeBase::GetResourceUsage() const
-{
-    return TClusterResources(0, 1, 0);
 }
 
 TVersionedObjectId GetObjectId(const TCypressNodeBase* object)

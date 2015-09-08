@@ -97,6 +97,16 @@ public:
         , Type_(type)
     { }
 
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
+
     virtual EObjectType GetType() const override
     {
         return SchemaTypeFromType(Type_);

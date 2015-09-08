@@ -51,8 +51,6 @@ public:
     virtual const NYTree::IAttributeDictionary& Attributes() const override;
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
 
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
-
 protected:
     class TCustomAttributeDictionary;
     class TResourceUsageVisitor;
@@ -74,14 +72,20 @@ protected:
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    TFuture<NYson::TYsonString> GetExternalBuiltinAttributeAsync(const Stroka& key);
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
     virtual void BeforeInvoke(NRpc::IServiceContextPtr context) override;
     virtual void AfterInvoke(NRpc::IServiceContextPtr context) override;
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
+
+    virtual void RemoveSelf(
+        TReqRemove* request,
+        TRspRemove* response,
+        TCtxRemovePtr context) override;
 
     // Suppress access handling in the cases below.
     virtual void GetAttribute(
@@ -165,6 +169,8 @@ protected:
     // Inject other overloads into the scope.
     using TObjectProxyBase::ValidatePermission;
 
+    void ValidateNotExternal();
+
     void SetModified();
     void SuppressModificationTracking();
 
@@ -178,6 +184,7 @@ protected:
         const NYPath::TYPath& path,
         NYTree::INodePtr child,
         bool recursive);
+
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
@@ -202,7 +209,7 @@ protected:
         NTransactionServer::TTransaction* transaction,
         TCypressNodeBase* trunkNode);
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
 
     virtual bool CanHaveChildren() const override;
@@ -431,13 +438,11 @@ public:
         NRpc::IServiceContextPtr context) override;
 
 private:
-    class TDoesNotExistService;
-
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, NYTree::IEntityNode, TLinkNode> TBase;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
     NObjectServer::IObjectProxyPtr FindTargetProxy() const;
     NObjectServer::IObjectProxyPtr GetTargetProxy() const;
@@ -481,9 +486,9 @@ private:
 
     virtual void ExistsRecursive(const NYPath::TYPath& path, TReqExists* request, TRspExists* response, TCtxExistsPtr context) override;
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
 };
 

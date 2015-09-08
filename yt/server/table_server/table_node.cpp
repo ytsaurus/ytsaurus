@@ -22,8 +22,10 @@ using namespace NTableClient;
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NYTree;
+using namespace NYson;
 using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -47,6 +49,29 @@ TTableNode* TTableNode::GetTrunkNode() const
     return static_cast<TTableNode*>(TrunkNode_);
 }
 
+void TTableNode::BeginUpload(EUpdateMode mode)
+{
+    TChunkOwnerBase::BeginUpload(mode);
+    KeyColumns_.clear();
+    Sorted_ = false;
+}
+
+void TTableNode::EndUpload(
+    const TDataStatistics* statistics,
+    const std::vector<Stroka>& keyColumns)
+{
+    TChunkOwnerBase::EndUpload(statistics, keyColumns);
+    if (!keyColumns.empty()) {
+        KeyColumns_ = keyColumns;
+        Sorted_ = true;
+    }
+}
+
+bool TTableNode::IsSorted() const
+{
+    return GetSorted();
+}
+
 void TTableNode::Save(TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);
@@ -63,16 +88,10 @@ void TTableNode::Load(TLoadContext& context)
     TChunkOwnerBase::Load(context);
 
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100) {
-        Load(context, Sorted_);
-        Load(context, KeyColumns_);
-        Load(context, Tablets_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 121) {
-        Load(context, Atomicity_);
-    }
+    Load(context, Sorted_);
+    Load(context, KeyColumns_);
+    Load(context, Tablets_);
+    Load(context, Atomicity_);
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
@@ -116,6 +135,11 @@ bool TTableNode::IsDynamic() const
     return !GetTrunkNode()->Tablets().empty();
 }
 
+bool TTableNode::IsEmpty() const
+{
+    return ComputeTotalStatistics().chunk_count() == 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTableNodeTypeHandler
@@ -128,28 +152,14 @@ public:
         : TBase(bootstrap)
     { }
 
-    virtual void SetDefaultAttributes(
-        IAttributeDictionary* attributes,
-        TTransaction* transaction) override
-    {
-        TBase::SetDefaultAttributes(attributes, transaction);
-
-        if (!attributes->Contains("channels")) {
-            attributes->SetYson("channels", TYsonString("[]"));
-        }
-
-        if (!attributes->Contains("schema")) {
-            attributes->SetYson("schema", TYsonString("[]"));
-        }
-
-        if (!attributes->Contains("compression_codec")) {
-            attributes->Set("compression_codec", NCompression::ECodec::Lz4);
-        }
-    }
-
     virtual EObjectType GetObjectType() override
     {
         return EObjectType::Table;
+    }
+
+    virtual bool IsExternalizable() override
+    {
+        return true;
     }
 
 protected:
@@ -162,6 +172,33 @@ protected:
             Bootstrap_,
             transaction,
             trunkNode);
+    }
+
+    virtual std::unique_ptr<TTableNode> DoCreate(
+        const TVersionedNodeId& id,
+        TCellTag cellTag,
+        TTransaction* transaction,
+        IAttributeDictionary* attributes) override
+    {
+        if (!attributes->Contains("channels")) {
+            attributes->SetYson("channels", TYsonString("[]"));
+        }
+
+        if (!attributes->Contains("schema")) {
+            attributes->SetYson("schema", TYsonString("[]"));
+        }
+
+        if (!attributes->Contains("compression_codec")) {
+            attributes->Set("compression_codec", NCompression::ECodec::Lz4);
+        }
+
+        TBase::InitializeAttributes(attributes);
+
+        return TChunkOwnerTypeHandler::DoCreate(
+            id,
+            cellTag,
+            transaction,
+            attributes);
     }
 
     virtual void DoDestroy(TTableNode* table) override
@@ -197,7 +234,7 @@ protected:
     virtual void DoClone(
         TTableNode* sourceNode,
         TTableNode* clonedNode,
-        NCypressServer::ICypressNodeFactoryPtr factory,
+        ICypressNodeFactoryPtr factory,
         ENodeCloneMode mode) override
     {
         switch (mode) {

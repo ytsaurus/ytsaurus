@@ -4,6 +4,8 @@
 #include <core/ytree/fluent.h>
 #include <core/ytree/yson_serializable.h>
 
+#include <server/security_server/security_manager.pb.h>
+
 #include <server/cell_master/serialize.h>
 
 namespace NYT {
@@ -42,10 +44,23 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, DiskSpace);
     Load(context, NodeCount);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 104) {
-        Load(context, ChunkCount);
-    }
+    Load(context, ChunkCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources)
+{
+    protoResources->set_disk_space(resources.DiskSpace);
+    protoResources->set_chunk_count(resources.ChunkCount);
+    protoResources->set_node_count(resources.NodeCount);
+}
+
+void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources)
+{
+    resources->DiskSpace = protoResources.disk_space();
+    resources->ChunkCount = protoResources.chunk_count();
+    resources->NodeCount = protoResources.node_count();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +70,7 @@ struct TSerializableClusterAttributes
     : public TClusterResources
     , public TYsonSerializableLite
 {
-    TSerializableClusterAttributes(const TClusterResources& other = ZeroClusterResources())
+    TSerializableClusterAttributes(const TClusterResources& other = TClusterResources())
         : TClusterResources(other)
     {
         RegisterParameter("disk_space", DiskSpace)
@@ -83,12 +98,6 @@ void Deserialize(TClusterResources& value, INodePtr node)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const TClusterResources& ZeroClusterResources()
-{
-    static TClusterResources zero;
-    return zero;
-}
 
 TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs)
 {

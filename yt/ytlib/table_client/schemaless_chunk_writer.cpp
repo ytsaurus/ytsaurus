@@ -21,12 +21,15 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/transaction_client/helpers.h>
 #include <ytlib/transaction_client/transaction_listener.h>
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/ypath/rich.h>
+
+#include <ytlib/api/client.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -49,6 +52,8 @@ using namespace NTransactionClient;
 using namespace NNodeTrackerClient;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
+using namespace NApi;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -785,24 +790,23 @@ private:
     const TKeyColumns KeyColumns_;
     const IClientPtr Client_;
     const TTransactionPtr Transaction_;
-    const TTransactionManagerPtr TransactionManager_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
 
     TTransactionId TransactionId_;
+
+    TCellTag CellTag_ = InvalidCellTag;
+    TObjectId ObjectId_;
 
     TTransactionPtr UploadTransaction_;
     TChunkListId ChunkListId_;
 
     TOwningKey LastKey_;
 
-    ISchemalessWriterPtr UnderlyingWriter_;
+    ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
 
 
     void DoOpen();
-    void FetchTableInfo();
-    void CreateUploadTransaction();
-
     void DoClose();
 
 };
@@ -831,6 +835,10 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     , BlockCache_(blockCache)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
 {
+    if (Transaction_) {
+        ListenTransaction(Transaction_);
+    }
+
     Logger.AddTag("Path: %v, TransactionId: %v",
         RichPath_.GetPath(),
         TransactionId_);
@@ -838,8 +846,6 @@ TSchemalessTableWriter::TSchemalessTableWriter(
 
 TFuture<void> TSchemalessTableWriter::Open()
 {
-    LOG_INFO("Opening table writer");
-
     return BIND(&TSchemalessTableWriter::DoOpen, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
@@ -872,50 +878,59 @@ TFuture<void> TSchemalessTableWriter::Close()
         .Run();
 }
 
-void TSchemalessTableWriter::CreateUploadTransaction()
+void TSchemalessTableWriter::DoOpen()
 {
-    LOG_INFO("Creating upload transaction");
-
-    NTransactionClient::TTransactionStartOptions options;
-    options.ParentId = TransactionId_;
-    options.EnableUncommittedAccounting = false;
-
-    auto attributes = CreateEphemeralAttributes();
-    attributes->Set("title", Format("Table upload to %v", RichPath_.GetPath()));
-    options.Attributes = std::move(attributes);
-
-    auto transactionOrError = WaitFor(Client_->GetTransactionManager()->Start(
-        ETransactionType::Master,
-        options));
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        transactionOrError, 
-        "Error creating upload transaction");
-
-    UploadTransaction_ = transactionOrError.Value();
-    ListenTransaction(UploadTransaction_);
-
-    LOG_INFO("Upload transaction created (TransactionId: %v)",
-        UploadTransaction_->GetId());
-}
-
-void TSchemalessTableWriter::FetchTableInfo()
-{
-    LOG_INFO("Requesting table info");
-
-    auto path = RichPath_.GetPath();
+    const auto& path = RichPath_.GetPath();
     bool append = RichPath_.GetAppend();
     bool sorted = !KeyColumns_.empty();
 
-    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
-    TObjectServiceProxy objectProxy(channel);
-    auto batchReq = objectProxy.ExecuteBatch();
+    {
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
+
+        LOG_INFO("Requesting basic table attributes");
+
+        auto req = TTableYPathProxy::GetBasicAttributes(path);
+        req->set_permissions(static_cast<ui32>(EPermission::Write));
+        SetTransactionId(req, Transaction_);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error requesting basic attribues of table %v",
+            path);
+
+        const auto& rsp = rspOrError.Value();
+        ObjectId_ = FromProto<TObjectId>(rsp->object_id());
+        CellTag_ = rsp->cell_tag();
+
+        LOG_INFO("Basic file attributes received (ObjectId: %v, CellTag: %v)",
+            ObjectId_,
+            CellTag_);
+    }
 
     {
-        auto req = TCypressYPathProxy::Get(path);
+        auto type = TypeFromId(ObjectId_);
+        if (type != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                path,
+                EObjectType::Table,
+                type);
+        }
+    }
+
+    auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, CellTag_);
+    auto objectIdPath = FromObjectId(ObjectId_);
+
+    {
+        LOG_INFO("Requesting extended table attributes");
+
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TCypressYPathProxy::Get(objectIdPath);
         SetTransactionId(req, UploadTransaction_);
         TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-        attributeFilter.Keys.push_back("type");
         attributeFilter.Keys.push_back("replication_factor");
         attributeFilter.Keys.push_back("compression_codec");
         attributeFilter.Keys.push_back("erasure_codec");
@@ -928,41 +943,16 @@ void TSchemalessTableWriter::FetchTableInfo()
         }
 
         ToProto(req->mutable_attribute_filter(), attributeFilter);
-        batchReq->AddRequest(req, "get_attributes");
-    }
 
-    {
-        auto req = TTableYPathProxy::PrepareForUpdate(path);
-        SetTransactionId(req, UploadTransaction_);
-        GenerateMutationId(req);
-        req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
-        req->set_lock_mode(static_cast<int>((append && !sorted) ? ELockMode::Shared : ELockMode::Exclusive));
-        if (append && sorted) {
-            req->set_fetch_last_key(true);
-        }
-        batchReq->AddRequest(req, "prepare_for_update");
-    }
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error requesting extended attributes of table %v",
+            path);
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        GetCumulativeError(batchRspOrError), 
-        "Error requesting table info for %v",
-        path);
-    const auto& batchRsp = batchRspOrError.Value();
-
-    {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-        auto node = ConvertToNode(TYsonString(rspOrError.Value()->value()));
+        const auto& rsp = rspOrError.Value();
+        auto node = ConvertToNode(TYsonString(rsp->value()));
         const auto& attributes = node->Attributes();
-
-        auto type = attributes.Get<EObjectType>("type");
-        if (type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION(
-                "Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                type);
-        }
 
         if (append && sorted && attributes.Get<i64>("row_count") > 0) {
             auto tableKeyColumns = attributes.Get<TKeyColumns>("sorted_by", TKeyColumns());
@@ -980,8 +970,8 @@ void TSchemalessTableWriter::FetchTableInfo()
             }
 
             if (!areKeyColumnsCompatible) {
-                THROW_ERROR_EXCEPTION(
-                    "Key columns mismatch while trying to append sorted data into a non-empty table %v", path)
+                THROW_ERROR_EXCEPTION("Key columns mismatch while trying to append sorted data into a non-empty table %v",
+                    path)
                     << TErrorAttribute("append_key_columns", KeyColumns_)
                     << TErrorAttribute("current_key_columns", tableKeyColumns);
             }
@@ -992,29 +982,87 @@ void TSchemalessTableWriter::FetchTableInfo()
         Options_->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
         Options_->Account = attributes.Get<Stroka>("account");
         Options_->ChunksVital = attributes.Get<bool>("vital");
+
+        LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
+            Options_->Account,
+            Options_->CompressionCodec,
+            Options_->ErasureCodec);
     }
 
     {
-        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-        ChunkListId_ = FromProto<TChunkListId>(rspOrError.Value()->chunk_list_id());
+        LOG_INFO("Starting table upload");
 
-        if (append && sorted) {
-            auto lastKey = FromProto<TOwningKey>(rspOrError.Value()->last_key());
-            if (lastKey) {
-                YCHECK(lastKey.GetCount() >= KeyColumns_.size());
-                LastKey_ = TOwningKey(lastKey.Begin(), lastKey.Begin() + KeyColumns_.size());
-            }
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto transactionManager = Client_->GetTransactionManager();
+
+            auto req = TTableYPathProxy::BeginUpload(objectIdPath);
+            req->set_update_mode(static_cast<int>(append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+            req->set_lock_mode(static_cast<int>((append && !sorted) ? ELockMode::Shared : ELockMode::Exclusive));
+            req->set_upload_transaction_title(Format("Upload to %v", path));
+            req->set_upload_transaction_timeout(transactionManager->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+            SetTransactionId(req, Transaction_);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req, "begin_upload");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error starting upload to table %v",
+            path);
+        const auto& batchRsp = batchRspOrError.Value();
+
+        {
+            auto rsp = batchRsp->GetResponse<TTableYPathProxy::TRspBeginUpload>("begin_upload").Value();
+            auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+
+            NTransactionClient::TTransactionAttachOptions options;
+            options.AutoAbort = true;
+
+            auto transactionManager = Client_->GetTransactionManager();
+            UploadTransaction_ = transactionManager->Attach(uploadTransactionId, options);
+            ListenTransaction(UploadTransaction_);
+
+            LOG_INFO("Table upload started (UploadTransactionId: %v)",
+                uploadTransactionId);
         }
     }
 
-    LOG_INFO("Table info received (ChunkListId: %v)",
-        ChunkListId_);
-}
+    {
+        LOG_INFO("Requesting table upload parameters");
 
-void TSchemalessTableWriter::DoOpen()
-{
-    CreateUploadTransaction();
-    FetchTableInfo();
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, CellTag_);
+        TObjectServiceProxy proxy(channel);
+
+        auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
+        if (append && sorted) {
+            req->set_fetch_last_key(true);
+        }
+        SetTransactionId(req, UploadTransaction_);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Error requesting upload parameters for table %v",
+            path);
+
+        const auto& rsp = rspOrError.Value();
+        ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
+        auto lastKey = FromProto<TOwningKey>(rsp->last_key());
+        if (lastKey) {
+            YCHECK(lastKey.GetCount() >= KeyColumns_.size());
+            LastKey_ = TOwningKey(lastKey.Begin(), lastKey.Begin() + KeyColumns_.size());
+        }
+
+        LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
+            ChunkListId_,
+            static_cast<bool>(LastKey_));
+    }
 
     UnderlyingWriter_ = CreateSchemalessMultiChunkWriter(
         Config_,
@@ -1029,59 +1077,47 @@ void TSchemalessTableWriter::DoOpen()
         Throttler_,
         BlockCache_);
 
-    auto error = WaitFor(UnderlyingWriter_->Open());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        error, 
-        "Error opening table chunk writer");
+    WaitFor(UnderlyingWriter_->Open())
+        .ThrowOnError();
 
-    if (Transaction_) {
-        ListenTransaction(Transaction_);
-    }
+    LOG_INFO("Table opened");
 }
 
 void TSchemalessTableWriter::DoClose()
 {
     const auto& path = RichPath_.GetPath();
+    auto objectIdPath = FromObjectId(ObjectId_);
 
-    LOG_INFO("Closing table writer");
+    LOG_INFO("Closing table");
+
     {
         auto error = WaitFor(UnderlyingWriter_->Close());
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
     }
-    LOG_INFO("Chunk writer closed");
 
-    if (!KeyColumns_.empty()) {
-        LOG_INFO("Marking table as sorted by %v",
-            ConvertToYsonString(KeyColumns_, NYson::EYsonFormat::Text).Data());
+    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+    TObjectServiceProxy proxy(channel);
 
-        auto req = TTableYPathProxy::SetSorted(path);
+    auto batchReq = proxy.ExecuteBatch();
+
+    {
+        auto req = TTableYPathProxy::EndUpload(objectIdPath);
+        *req->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
+        ToProto(req->mutable_key_columns(), KeyColumns_);
         SetTransactionId(req, UploadTransaction_);
         GenerateMutationId(req);
-        ToProto(req->mutable_key_columns(), KeyColumns_);
-
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
-        TObjectServiceProxy objectProxy(channel);
-        auto rspOrError = WaitFor(objectProxy.Execute(req));
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, 
-            "Error marking table %v as sorted",
-            path);
-
-        LOG_INFO("Table is marked as sorted");
+        batchReq->AddRequest(req, "end_upload");
     }
 
-    LOG_INFO("Committing upload transaction");
-    {
-        auto error = WaitFor(UploadTransaction_->Commit());
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            error, 
-            "Error committing upload transaction",
-            RichPath_.GetPath());
-    }
-    LOG_INFO("Upload transaction committed");
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error finishing upload to table %v",
+        path);
 
-    LOG_INFO("Table writer closed");
+    UploadTransaction_->Detach();
+
+    LOG_INFO("Table closed");
 }
 
 TNameTablePtr TSchemalessTableWriter::GetNameTable() const

@@ -132,7 +132,7 @@ public:
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(Owner_->Config_->CommitFlushRpcTimeout);
 
-                auto committedVersion = Owner_->DecoratedAutomaton_->GetAutomatonVersion();
+                auto committedVersion = Owner_->DecoratedAutomaton_->GetCommittedVersion();
 
                 auto request = proxy.LogMutations();
                 ToProto(request->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
