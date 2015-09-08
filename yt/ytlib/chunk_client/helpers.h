@@ -1,9 +1,13 @@
 #include "public.h"
 
 #include <core/actions/public.h>
+
 #include <core/rpc/public.h>
 
 #include <ytlib/object_client/master_ypath_proxy.h>
+
+#include <ytlib/transaction_client/public.h>
+
 #include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
@@ -16,7 +20,8 @@ TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NObjectClient::EObjectType chunkType,
-    NObjectClient::TTransactionId transactionId);
+    const NTransactionClient::TTransactionId& transactionId,
+    const NChunkClient::TChunkListId& chunkListId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
