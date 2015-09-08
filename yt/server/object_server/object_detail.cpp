@@ -864,6 +864,7 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* request, TRspGet*
 {
     UNUSED(request);
 
+    context->SetRequestInfo();
     response->set_value("#");
     context->Reply();
 }
@@ -877,6 +878,8 @@ void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* request, TR
 {
     UNUSED(request);
     UNUSED(response);
+
+    context->SetRequestInfo();
 
     ValidateRemoval();
 
