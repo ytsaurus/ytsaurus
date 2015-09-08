@@ -50,7 +50,6 @@ protected:
     virtual void OnBeginAttributes() override;
 
     void ThrowMapExpected();
-    void ThrowCompositesNotSupported();
     void ThrowControlAttributesNotSupported();
     void ThrowInvalidControlAttribute(const Stroka& whatsWrong);
 

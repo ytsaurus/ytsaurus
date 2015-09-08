@@ -34,6 +34,17 @@ TEST(TTableConsumer, EntityAsNull)
     consumer->OnEndMap();
 }
 
+TEST(TTableConsumer, TopLevelAttributes)
+{
+    auto mock = New<StrictMock<TMockValueConsumer>>(New<TNameTable>(), true);
+    EXPECT_CALL(*mock, OnBeginRow());
+
+    std::unique_ptr<IYsonConsumer> consumer(new TTableConsumer(mock));
+    consumer->OnBeginMap();
+        consumer->OnKeyedItem("a");
+        EXPECT_THROW(consumer->OnBeginAttributes(), std::exception);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
