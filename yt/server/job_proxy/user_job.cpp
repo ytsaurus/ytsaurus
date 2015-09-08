@@ -762,6 +762,7 @@ private:
             }
 
             LOG_ERROR(error, "Job input/output error, aborting");
+            CleanupUserProcesses();
 
             for (auto& reader : TablePipeReaders_) {
                 reader->Abort();
