@@ -74,7 +74,9 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
         Options_->ReplicationFactor,
         Config_->UploadReplicationFactor);
 
-    Logger.AddTag("TransactionId: %v", TransactionId_);
+    Logger.AddTag("TransactionId: %v, ChunkListId: %v",
+        TransactionId_,
+        ParentChunkListId_);
 }
 
 TFuture<void> TNontemplateMultiChunkWriterBase::Open()
@@ -161,7 +163,6 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
             ? EObjectType::Chunk
             : EObjectType::ErasureChunk;
         req->set_type(static_cast<int>(type));
-
         req->set_account(Options_->Account);
         GenerateMutationId(req);
 
@@ -171,6 +172,9 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         reqExt->set_replication_factor(Options_->ReplicationFactor);
         reqExt->set_vital(Options_->ChunksVital);
         reqExt->set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
+        if (ParentChunkListId_ != NullChunkListId) {
+            ToProto(reqExt->mutable_chunk_list_id(), ParentChunkListId_);
+        }
 
         auto rspOrError = WaitFor(objectProxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -216,9 +220,8 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
         WaitFor(NextSession_.UnderlyingWriter->Open())
             .ThrowOnError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to start new session") << ex;
-        LOG_WARNING(error);
-        CompletionError_.TrySet(error);
+        CompletionError_.TrySet(TError("Failed to start new session")
+            << ex);
     }
 }
 
@@ -373,7 +376,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
             Options_->ErasureCodec != ECodec::None || 
             CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
                 CurrentSession_.TemplateWriter->GetDataSize(),
                 expectedInputSize,
                 Config_->DesiredChunkSize);
@@ -391,38 +394,9 @@ void TNontemplateMultiChunkWriterBase::DoClose()
     WaitFor(Combine(CloseChunkEvents_))
         .ThrowOnError();
 
-    if (CompletionError_.IsSet()) {
-        return;
-    }
+    LOG_DEBUG("Chunk sequence writer closed (ChunkCount: %v)",
+        WrittenChunks_.size());
 
-    if (ParentChunkListId_ == NullChunkListId) {
-        LOG_DEBUG("Chunk sequence writer closed, no chunks attached");
-        CompletionError_.TrySet(TError());
-        return;
-    }
-
-
-    LOG_DEBUG("Attaching %v chunks", WrittenChunks_.size());
-
-    auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkListId_));
-    GenerateMutationId(req);
-    for (const auto& chunkSpec : WrittenChunks_) {
-        *req->add_children_ids() = chunkSpec.chunk_id();
-    }
-
-    TObjectServiceProxy objectProxy(MasterChannel_);
-    auto rspOrError = WaitFor(objectProxy.Execute(req));
-
-    if (!rspOrError.IsOK()) {
-        CompletionError_.TrySet(TError(
-            EErrorCode::MasterCommunicationFailed, 
-            "Error attaching chunks to chunk list %v",
-            ParentChunkListId_)
-            << rspOrError);
-        return;
-    }
-
-    LOG_DEBUG("Chunks attached, chunk sequence writer closed");
     CompletionError_.TrySet(TError());
 }
 
