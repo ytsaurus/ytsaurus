@@ -349,7 +349,7 @@ void ExecuteVerb(
         std::move(context));
 
     // This should never throw.
-    suffixService->Invoke(invokeContext);
+    suffixService->Invoke(std::move(invokeContext));
 }
 
 TFuture<TYsonString> AsyncYPathGet(

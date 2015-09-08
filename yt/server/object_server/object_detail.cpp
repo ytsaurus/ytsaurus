@@ -61,6 +61,10 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ObjectServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {
@@ -221,7 +225,6 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
 
     // Validate that mutating requests are only being invoked inside mutations or recovery.
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YCHECK(!ypathExt.mutating() || NHydra::HasMutationContext());
 
     auto securityManager = Bootstrap_->GetSecurityManager();
@@ -234,7 +237,6 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
     }
 
     auto objectId = GetVersionedId();
-    const auto& Logger = ObjectServerLogger;
     LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v)",
         context->GetService(),
         context->GetMethod(),
