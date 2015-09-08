@@ -422,7 +422,7 @@ class ConfigsProvider_18(ConfigsProvider):
         proxy_config["port"] = ports[0]
         proxy_config["log_port"] = ports[1]
 
-        self._proxy_address = "{0}:{1}".format(self.fqdn, ports[0])
+        self._proxy_address = "localhost:{0}".format(ports[0])
 
         return proxy_config, self._proxy_address
 
