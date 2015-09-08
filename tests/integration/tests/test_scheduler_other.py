@@ -191,7 +191,7 @@ class TestSchedulerOther(YTEnvSetup):
             out="//tmp/out2",
             spec={'time_limit': 1000})
 
-        time.sleep(0.9)
+        time.sleep(1.2)
         assert get("//sys/operations/{0}/@state".format(op1)) not in ["failing", "failed"]
         assert get("//sys/operations/{0}/@state".format(op2)) in ["failing", "failed"]
 
