@@ -67,7 +67,7 @@ class TestSchedulerOther(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
-        self._set_banned_flag(True)
+        self._set_node_banned(True)
 
         print >>sys.stderr, "Fail strategy"
         with pytest.raises(YtError):
@@ -83,7 +83,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         # Give a chance to scraper to work
         time.sleep(1.0)
-        self._set_banned_flag(False)
+        self._set_node_banned(False)
         track_op(op_id)
 
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
@@ -104,7 +104,7 @@ class TestSchedulerOther(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
-        self._set_banned_flag(True)
+        self._set_node_banned(True)
 
         print >>sys.stderr, "Fail strategy"
         with pytest.raises(YtError):
@@ -120,7 +120,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         # Give a chance for scraper to work
         time.sleep(1.0)
-        self._set_banned_flag(False)
+        self._set_node_banned(False)
         track_op(op_id)
 
         assert read_table("//tmp/t_out") == [{"a": i} for i in range(8)]
