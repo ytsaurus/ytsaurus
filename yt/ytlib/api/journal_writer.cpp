@@ -683,8 +683,7 @@ private:
 
                 auto rspOrError = WaitFor(ObjectProxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(rspOrError), "Error sealing chunk %v",
-                    session->ChunkId)
-                    << rspOrError;
+                    session->ChunkId);
             }
             LOG_INFO("Chunk sealed");
         }
