@@ -387,7 +387,7 @@ class TestTableCommands(object):
         client.set(proxy + "/@banned".format(proxy), value)
         time.sleep(1)
 
-    def _DISABLED_test_banned_proxy(self):
+    def test_banned_proxy(self):
         table = TEST_DIR + "/table"
         yt.create_table(table)
 
