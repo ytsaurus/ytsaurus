@@ -10,6 +10,7 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "erasure_writer.h"
+#include "helpers.h"
 #include "private.h"
 #include "replication_writer.h"
 
@@ -30,6 +31,7 @@
 #include <core/erasure/codec.h>
 
 #include <core/misc/address.h>
+#include <core/misc/finally.h>
 
 #include <core/rpc/channel.h>
 #include <core/rpc/helpers.h>
@@ -81,10 +83,6 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
 
 TFuture<void> TNontemplateMultiChunkWriterBase::Open()
 {
-    ReadyEvent_= BIND(&TNontemplateMultiChunkWriterBase::DoOpen, MakeStrong(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-        .Run();
-
     return ReadyEvent_;
 }
 
@@ -93,16 +91,13 @@ TFuture<void> TNontemplateMultiChunkWriterBase::Close()
     YCHECK(!Closing_);
     Closing_ = true;
 
-    if (CompletionError_.IsSet()) {
-        return CompletionError_.ToFuture();
+    if (!CompletionError_.IsSet()) {
+        FinishSession();
+
+        BIND(&TNontemplateMultiChunkWriterBase::DoClose, MakeWeak(this))
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+            .Run();
     }
-
-    FinishSession(CurrentSession_);
-    CurrentSession_.Reset();
-
-    BIND(&TNontemplateMultiChunkWriterBase::DoClose, MakeWeak(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-        .Run();
 
     ReadyEvent_ = CompletionError_.ToFuture();
     return ReadyEvent_;
@@ -110,8 +105,8 @@ TFuture<void> TNontemplateMultiChunkWriterBase::Close()
 
 TFuture<void> TNontemplateMultiChunkWriterBase::GetReadyEvent()
 {
-    if (CurrentSession_.IsActive()) {
-        return CurrentSession_.TemplateWriter->GetReadyEvent();
+    if (Session_.IsActive()) {
+        return Session_.TemplateWriter->GetReadyEvent();
     } else {
         return ReadyEvent_;
     }
@@ -134,7 +129,7 @@ TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
 
 TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
 {
-    auto writer = CurrentSession_.TemplateWriter;
+    auto writer = Session_.TemplateWriter;
     if (writer) {
         return DataStatistics_ + writer->GetDataStatistics();
     } else {
@@ -142,56 +137,36 @@ TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
     }
 }
 
-void TNontemplateMultiChunkWriterBase::DoOpen()
+void TNontemplateMultiChunkWriterBase::InitSession()
 {
-    CreateNextSession();
-    NextSessionReady_ = VoidFuture;
-    InitCurrentSession();
-}
-
-void TNontemplateMultiChunkWriterBase::CreateNextSession()
-{
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v)", Options_->ReplicationFactor);
-
     try {
-        TObjectServiceProxy objectProxy(MasterChannel_);
-
-        auto req = TMasterYPathProxy::CreateObjects();
-        ToProto(req->mutable_transaction_id(), TransactionId_);
-
-        auto type = Options_->ErasureCodec == ECodec::None
+        auto chunkType = Options_->ErasureCodec == ECodec::None
             ? EObjectType::Chunk
             : EObjectType::ErasureChunk;
-        req->set_type(static_cast<int>(type));
-        req->set_account(Options_->Account);
-        GenerateMutationId(req);
 
-        // ToDo(psushin): Use CreateChunk here.
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
-        reqExt->set_movable(Options_->ChunksMovable);
-        reqExt->set_replication_factor(Options_->ReplicationFactor);
-        reqExt->set_vital(Options_->ChunksVital);
-        reqExt->set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
-        if (ParentChunkListId_ != NullChunkListId) {
-            ToProto(reqExt->mutable_chunk_list_id(), ParentChunkListId_);
-        }
+        auto rspOrError = WaitFor(CreateChunk(
+            MasterChannel_,
+            Options_,
+            chunkType,
+            TransactionId_,
+            ParentChunkListId_));
 
-        auto rspOrError = WaitFor(objectProxy.Execute(req));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError,
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Error creating chunk");
+
         const auto& rsp = rspOrError.Value();
 
-        NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
+        Session_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
 
-        LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
+        LOG_DEBUG("Chunk created (ChunkId: %v)", Session_.ChunkId);
 
         if (Options_->ErasureCodec == ECodec::None) {
-            NextSession_.UnderlyingWriter = CreateReplicationWriter(
+            Session_.UnderlyingWriter = CreateReplicationWriter(
                 Config_,
                 Options_,
-                NextSession_.ChunkId, 
+                Session_.ChunkId, 
                 TChunkReplicaList(),
                 NodeDirectory_,
                 Client_,
@@ -199,148 +174,104 @@ void TNontemplateMultiChunkWriterBase::CreateNextSession()
                 Throttler_);
         } else {
             auto* erasureCodec = GetCodec(Options_->ErasureCodec);
-            // We don't ask master for new erasure replicas.
+            // NB(psushin): we don't ask master for new erasure replicas, 
+            // because we cannot guarantee proper replica placement.
             Options_->AllowAllocatingNewTargetNodes = false;
             auto writers = CreateErasurePartWriters(
                 Config_,
                 Options_,
-                NextSession_.ChunkId, 
+                Session_.ChunkId, 
                 erasureCodec, 
                 NodeDirectory_, 
                 Client_,
                 Throttler_,
                 BlockCache_);
-            NextSession_.UnderlyingWriter = CreateErasureWriter(
+            Session_.UnderlyingWriter = CreateErasureWriter(
                 Config_,
-                NextSession_.ChunkId,
+                Session_.ChunkId,
                 erasureCodec,
                 writers);
         }
 
-        WaitFor(NextSession_.UnderlyingWriter->Open())
+        WaitFor(Session_.UnderlyingWriter->Open())
+            .ThrowOnError();
+
+        Session_.TemplateWriter = CreateTemplateWriter(Session_.UnderlyingWriter);
+
+        WaitFor(Session_.TemplateWriter->Open())
             .ThrowOnError();
     } catch (const std::exception& ex) {
-        CompletionError_.TrySet(TError("Failed to start new session")
+        CompletionError_.TrySet(TError("Failed to initialize new writing session")
             << ex);
     }
 }
 
-void TNontemplateMultiChunkWriterBase::SwitchSession()
+void TNontemplateMultiChunkWriterBase::FinishSession()
 {
-    auto currentSession = CurrentSession_;
-    CurrentSession_.Reset();
-    
     ReadyEvent_ = BIND(
-        &TNontemplateMultiChunkWriterBase::DoSwitchSession,
-        MakeStrong(this),
-        currentSession)
-    .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-    .Run();
-}
-
-void TNontemplateMultiChunkWriterBase::DoSwitchSession(const TSession& session)
-{
-    if (Config_->SyncChunkSwitch) {
-        // Wait until session is finished.
-        WaitFor(FinishSession(session))
-            .ThrowOnError();
-    } else {
-        // Do not wait, fire and move on.
-        FinishSession(session);
-    }
-
-    InitCurrentSession();
-}
-
-TFuture<void> TNontemplateMultiChunkWriterBase::FinishSession(const TSession& session)
-{
-    auto sessionFinishedEvent = BIND(
         &TNontemplateMultiChunkWriterBase::DoFinishSession,
-        MakeWeak(this), 
-        session)
+        MakeStrong(this))
     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
     .Run();
 
-    CloseChunkEvents_.push_back(sessionFinishedEvent);
-
-    return sessionFinishedEvent;
+    CloseChunkEvents_.push_back(ReadyEvent_);
 }
 
-void TNontemplateMultiChunkWriterBase::DoFinishSession(const TSession& session)
+void TNontemplateMultiChunkWriterBase::DoFinishSession()
 {
-    if (session.TemplateWriter->GetDataSize() == 0) {
-        LOG_DEBUG("Canceling empty chunk (ChunkId: %v)", session.ChunkId);
-        return;
-    }
+    try {
+        TFinallyGuard finally([&] () {
+            Session_.Reset();
+        });
 
-    // Reserve next sequential slot in WrittenChunks_.
-    WrittenChunks_.push_back(TChunkSpec());
-    auto& chunkSpec = WrittenChunks_.back();
+        if (!Session_.IsActive()) {
+            return;
+        }
 
-    LOG_DEBUG("Finishing chunk (ChunkId: %v)", session.ChunkId);
+        YCHECK(Session_.TemplateWriter->GetDataSize() > 0);
 
-    auto error = WaitFor(session.TemplateWriter->Close());
+        // Reserve next sequential slot in #WrittenChunks_.
+        WrittenChunks_.push_back(TChunkSpec());
+        auto& chunkSpec = WrittenChunks_.back();
 
-    if (!error.IsOK()) {
-        CompletionError_.TrySet(TError(
+        LOG_DEBUG("Finishing chunk (ChunkId: %v)", Session_.ChunkId);
+
+        auto error = WaitFor(Session_.TemplateWriter->Close());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            error, 
             "Failed to close chunk %v",
-            session.ChunkId)
-            << error);
-        return;
-    }
+            Session_.ChunkId);
 
-    LOG_DEBUG("Chunk closed (ChunkId: %v)", session.ChunkId);
+        LOG_DEBUG("Chunk closed (ChunkId: %v)", Session_.ChunkId);
 
-    auto replicas = session.UnderlyingWriter->GetWrittenChunkReplicas();
-    YCHECK(!replicas.empty());
+        auto replicas = Session_.UnderlyingWriter->GetWrittenChunkReplicas();
+        YCHECK(!replicas.empty());
 
-    *chunkSpec.mutable_chunk_meta() = session.TemplateWriter->GetSchedulerMeta();
-    ToProto(chunkSpec.mutable_chunk_id(), session.ChunkId);
-    NYT::ToProto(chunkSpec.mutable_replicas(), replicas);
+        *chunkSpec.mutable_chunk_meta() = Session_.TemplateWriter->GetSchedulerMeta();
+        ToProto(chunkSpec.mutable_chunk_id(), Session_.ChunkId);
+        NYT::ToProto(chunkSpec.mutable_replicas(), replicas);
 
-    DataStatistics_ += session.TemplateWriter->GetDataStatistics();
+        DataStatistics_ += Session_.TemplateWriter->GetDataStatistics();
 
-    auto req = TChunkYPathProxy::Confirm(FromObjectId(session.ChunkId));
-    GenerateMutationId(req);
-    *req->mutable_chunk_info() = session.UnderlyingWriter->GetChunkInfo();
-    *req->mutable_chunk_meta() = session.TemplateWriter->GetMasterMeta();
-    NYT::ToProto(req->mutable_replicas(), replicas);
+        auto req = TChunkYPathProxy::Confirm(FromObjectId(Session_.ChunkId));
+        GenerateMutationId(req);
+        *req->mutable_chunk_info() = Session_.UnderlyingWriter->GetChunkInfo();
+        *req->mutable_chunk_meta() = Session_.TemplateWriter->GetMasterMeta();
+        NYT::ToProto(req->mutable_replicas(), replicas);
 
-    TObjectServiceProxy objectProxy(MasterChannel_);
-    auto rspOrError = WaitFor(objectProxy.Execute(req));
+        TObjectServiceProxy objectProxy(MasterChannel_);
+        auto rspOrError = WaitFor(objectProxy.Execute(req));
 
-    if (!rspOrError.IsOK()) {
-        CompletionError_.TrySet(TError(
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError, 
             EErrorCode::MasterCommunicationFailed,
             "Failed to confirm chunk %v",
-            session.ChunkId)
-            << rspOrError);
-        return;
+            Session_.ChunkId);
+
+        LOG_DEBUG("Chunk confirmed (ChunkId: %v)", Session_.ChunkId);
+    } catch (const std::exception& ex) {
+        CompletionError_.TrySet(TError(ex));
     }
-
-    LOG_DEBUG("Chunk confirmed (ChunkId: %v)", session.ChunkId);
-}
-
-void TNontemplateMultiChunkWriterBase::InitCurrentSession()
-{
-    WaitFor(NextSessionReady_)
-        .ThrowOnError();
-
-    auto maybeError = CompletionError_.TryGet();
-    if (maybeError) {
-        maybeError->ThrowOnError();
-    }
-
-    CurrentSession_ = NextSession_;
-    NextSession_.Reset();
-
-    CurrentSession_.TemplateWriter = CreateTemplateWriter(CurrentSession_.UnderlyingWriter);
-
-    NextSessionReady_ = BIND(&TNontemplateMultiChunkWriterBase::CreateNextSession, MakeWeak(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-        .Run();
-
-    WaitFor(CurrentSession_.TemplateWriter->Open());
 }
 
 bool TNontemplateMultiChunkWriterBase::VerifyActive()
@@ -352,36 +283,47 @@ bool TNontemplateMultiChunkWriterBase::VerifyActive()
         return false;
     }
 
-    // If #CompletionError is not set, #CurrentSession must be ready.
-    YCHECK(CurrentSession_.IsActive());
+    if (!ReadyEvent_.IsSet()) {
+        return false;
+    }
+
+    if (!Session_.IsActive()) {
+        ReadyEvent_ = BIND(
+            &TNontemplateMultiChunkWriterBase::InitSession,
+            MakeWeak(this))
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .Run();
+        return WaitFor(ReadyEvent_).IsOK();
+    }
+
     return true;
 }
 
-bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
+bool TNontemplateMultiChunkWriterBase::TryFinishSession()
 {
-    if (CurrentSession_.TemplateWriter->GetMetaSize() > Config_->MaxMetaSize) {
+    if (Session_.TemplateWriter->GetMetaSize() > Config_->MaxMetaSize) {
         LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
-            CurrentSession_.TemplateWriter->GetMetaSize());
+            Session_.TemplateWriter->GetMetaSize());
 
-        SwitchSession();
+        FinishSession();
         return true;
     } 
 
-    if (CurrentSession_.TemplateWriter->GetDataSize() > Config_->DesiredChunkSize) {
-        i64 currentDataSize = DataStatistics_.compressed_data_size() + CurrentSession_.TemplateWriter->GetDataSize();
+    if (Session_.TemplateWriter->GetDataSize() > Config_->DesiredChunkSize) {
+        i64 currentDataSize = DataStatistics_.compressed_data_size() + Session_.TemplateWriter->GetDataSize();
         i64 expectedInputSize = static_cast<i64>(currentDataSize * std::max(0.0, 1.0 - Progress_));
 
         if (expectedInputSize > Config_->DesiredChunkSize ||
             // On erasure chunks switch immediately, otherwise we can consume too much memory.
             Options_->ErasureCodec != ECodec::None || 
-            CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
+            Session_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
-                CurrentSession_.TemplateWriter->GetDataSize(),
+            LOG_DEBUG("Switching to next chunk: data is too large (SessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
+                Session_.TemplateWriter->GetDataSize(),
                 expectedInputSize,
                 Config_->DesiredChunkSize);
 
-            SwitchSession();
+            FinishSession();
             return true;
         }
     }

@@ -17,7 +17,6 @@ namespace NChunkClient {
 
 TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     NRpc::IChannelPtr masterChannel,
-    TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     NObjectClient::EObjectType chunkType,
     const NTransactionClient::TTransactionId& transactionId,
