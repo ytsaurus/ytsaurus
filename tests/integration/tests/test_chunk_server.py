@@ -1,6 +1,9 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+
 from yt.yson import to_yson_type
+from yt.environment.helpers import assert_items_equal
+
 from time import sleep
 
 ##################################################################
