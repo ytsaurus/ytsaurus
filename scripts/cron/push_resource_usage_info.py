@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
+from yt.common import YtError
 from yt.wrapper.client import Yt
 import simplejson as json
 
+import logging
 import argparse
 import requests
 from datetime import datetime
@@ -52,6 +54,8 @@ def push_cluster_data(accounts_data, headers):
     r.raise_for_status()
 
 def main():
+    logging.basicConfig(level=logging.INFO, format="%(asctime)-15s\t%(levelname)s\t%(message)s")
+
     parser = argparse.ArgumentParser(description="Pushes accounts resource usage of various "
                                                  "YT clusters to statface.")
 
@@ -65,9 +69,14 @@ def main():
         "StatRobotPassword": args.robot_password
     }
 
-    for cluster in args.clusters:
-        accounts_data = collect_accounts_data_for_cluster(cluster)
-        push_cluster_data(accounts_data, headers)
+    for cluster in args.cluster:
+        logging.info("Fetch account info from %s", cluster)
+        try:
+            accounts_data = collect_accounts_data_for_cluster(cluster)
+            push_cluster_data(accounts_data, headers)
+        except YtError:
+            logging.warning("Failed to fetch account info from %s", cluster)
+
 
 if __name__ == '__main__':
     main()
