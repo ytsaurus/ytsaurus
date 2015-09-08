@@ -682,7 +682,7 @@ private:
                 info->set_compressed_data_size(session->FlushedDataSize);
 
                 auto rspOrError = WaitFor(ObjectProxy_.Execute(req));
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(rspOrError), "Error sealing chunk %v",
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sealing chunk %v",
                     session->ChunkId);
             }
             LOG_INFO("Chunk sealed");
