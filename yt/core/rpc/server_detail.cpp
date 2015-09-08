@@ -294,9 +294,14 @@ void TServiceContextBase::SetRawResponseInfo(const Stroka& info)
     ResponseInfo_ = info;
 }
 
-NLogging::TLogger& TServiceContextBase::GetLogger()
+const NLogging::TLogger& TServiceContextBase::GetLogger() const
 {
     return Logger;
+}
+
+NLogging::ELogLevel TServiceContextBase::GetLogLevel() const
+{
+    return LogLevel_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -444,9 +449,14 @@ void TServiceContextWrapper::SetRawResponseInfo(const Stroka& info)
     UnderlyingContext_->SetRawResponseInfo(info);
 }
 
-NLogging::TLogger& TServiceContextWrapper::GetLogger()
+const NLogging::TLogger& TServiceContextWrapper::GetLogger() const
 {
     return UnderlyingContext_->GetLogger();
+}
+
+NLogging::ELogLevel TServiceContextWrapper::GetLogLevel() const
+{
+    return UnderlyingContext_->GetLogLevel();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
