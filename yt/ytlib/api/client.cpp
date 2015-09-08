@@ -2338,8 +2338,8 @@ private:
 
             std::vector<TSubmittedRow> mergedRows;
             mergedRows.reserve(SubmittedRows_.size());
-            auto merger = TUnversionedRowMerger(
-                RowBuffer_->GetPool(),
+            auto merger = New<TUnversionedRowMerger>(
+                RowBuffer_,
                 SchemaColumnCount_,
                 KeyColumnCount_,
                 NTableClient::TColumnFilter());
@@ -2347,11 +2347,11 @@ private:
             auto addPartialRow = [&] (const TSubmittedRow& submittedRow) {
                 switch (submittedRow.Command) {
                     case EWireProtocolCommand::DeleteRow:
-                        merger.DeletePartialRow(submittedRow.Row);
+                        merger->DeletePartialRow(submittedRow.Row);
                         break;
 
                     case EWireProtocolCommand::WriteRow:
-                        merger.AddPartialRow(submittedRow.Row);
+                        merger->AddPartialRow(submittedRow.Row);
                         break;
 
                     default:
@@ -2371,7 +2371,7 @@ private:
                         ++index;
                         addPartialRow(SubmittedRows_[index]);
                     }
-                    SubmittedRows_[index].Row = merger.BuildMergedRow();
+                    SubmittedRows_[index].Row = merger->BuildMergedRow();
                 }
                 mergedRows.push_back(SubmittedRows_[index]);
                 ++index;
@@ -2391,7 +2391,7 @@ private:
                     Config_->WriteRequestCodec);;
             }
 
-            merger.Reset();
+            merger->Reset();
 
             InvokeChannel_ = channel;
             InvokeNextBatch();

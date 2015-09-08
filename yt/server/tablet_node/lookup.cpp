@@ -15,6 +15,7 @@
 #include <ytlib/tablet_client/wire_protocol.h>
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 #include <ytlib/table_client/row_merger.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <ytlib/table_client/versioned_reader.h>
 
@@ -40,7 +41,7 @@ class TLookupSession
 {
 public:
     TLookupSession()
-        : MemoryPool_(TLookupPoolTag())
+        : RowBuffer_(New<TRowBuffer>(TRefCountedTypeTag<TLookupPoolTag>()))
         , RunCallback_(BIND(&TLookupSession::DoRun, this))
     { }
 
@@ -94,7 +95,7 @@ public:
 
     void Clean()
     {
-        MemoryPool_.Clear();
+        RowBuffer_->Clear();
         LookupKeys_ = TSharedRange<TUnversionedRow>();
         EdenSessions_.clear();
     }
@@ -141,7 +142,7 @@ private:
         int RowIndex_ = -1;
     };
 
-    TChunkedMemoryPool MemoryPool_;
+    TRowBufferPtr RowBuffer_;
     TSharedRange<TUnversionedRow> LookupKeys_;
     std::vector<TReadSession> EdenSessions_;
 
@@ -191,8 +192,8 @@ private:
             return;
         }
 
-        TSchemafulRowMerger merger(
-            &MemoryPool_,
+        auto merger = New<TSchemafulRowMerger>(
+            RowBuffer_,
             SchemaColumnCount_,
             KeyColumnCount_,
             ColumnFilter_);
@@ -203,7 +204,7 @@ private:
                     session.Refill();
                 }
 
-                merger.AddPartialRow(session.GetRow());
+                merger->AddPartialRow(session.GetRow());
             }
         };
 
@@ -214,7 +215,7 @@ private:
             processSessions(sessions);
             processSessions(EdenSessions_);
 
-            auto mergedRow = merger.BuildMergedRow();
+            auto mergedRow = merger->BuildMergedRow();
             writer->WriteUnversionedRow(mergedRow);
         }
     }

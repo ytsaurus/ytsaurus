@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "row_merger.h"
 #include "config.h"
+#include "row_buffer.h"
 
 #include <ytlib/transaction_client/helpers.h>
 
@@ -12,11 +13,11 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemafulRowMerger::TSchemafulRowMerger(
-    TChunkedMemoryPool* pool,
+    TRowBufferPtr rowBuffer,
     int schemaColumnCount,
     int keyColumnCount,
     const TColumnFilter& columnFilter)
-    : Pool_(pool)
+    : RowBuffer_(rowBuffer)
     , SchemaColumnCount_(schemaColumnCount)
     , KeyColumnCount_(keyColumnCount)
 {
@@ -57,7 +58,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 
     if (!Started_) {
         if (!MergedRow_) {
-            MergedRow_ = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
+            MergedRow_ = TUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
         }
 
         const auto* keyBegin = row.BeginKeys();
@@ -136,7 +137,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 void TSchemafulRowMerger::Reset()
 {
     YASSERT(!Started_);
-    Pool_->Clear();
+    RowBuffer_->Clear();
     MergedRow_ = TUnversionedRow();
 }
 
@@ -147,14 +148,16 @@ void TSchemafulRowMerger::Cleanup()
     Started_ = false;
 }
 
+DEFINE_REFCOUNTED_TYPE(TSchemafulRowMerger)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedRowMerger::TUnversionedRowMerger(
-    TChunkedMemoryPool* pool,
+    TRowBufferPtr rowBuffer,
     int schemaColumnCount,
     int keyColumnCount,
     const TColumnFilter& columnFilter)
-    : Pool_(pool)
+    : RowBuffer_(rowBuffer)
     , SchemaColumnCount_(schemaColumnCount)
     , KeyColumnCount_(keyColumnCount)
 {
@@ -187,7 +190,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
     if (!Started_) {
-        MergedRow_ = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
+        MergedRow_ = TUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
 
         for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
             int id = ColumnIds_[index];
@@ -268,7 +271,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
     if (fullRow) {
         mergedRow = MergedRow_;
     } else {
-        mergedRow = TUnversionedRow::Allocate(Pool_, ColumnIds_.size());
+        mergedRow = TUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
         int currentIndex = 0;
         for (int index = 0; index < MergedRow_.GetCount(); ++index) {
             if (ValidValues_[index]) {
@@ -286,7 +289,7 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
 void TUnversionedRowMerger::Reset()
 {
     YASSERT(!Started_);
-    Pool_->Clear();
+    RowBuffer_->Clear();
     MergedRow_ = TUnversionedRow();
 }
 
@@ -295,15 +298,17 @@ void TUnversionedRowMerger::Cleanup()
     Started_ = false;
 }
 
+DEFINE_REFCOUNTED_TYPE(TUnversionedRowMerger)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVersionedRowMerger::TVersionedRowMerger(
-    TChunkedMemoryPool* pool,
+    TRowBufferPtr rowBuffer,
     int keyColumnCount,
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp)
-    : Pool_(pool)
+    : RowBuffer_(rowBuffer)
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
     , CurrentTimestamp_(currentTimestamp)
@@ -487,7 +492,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
     // Construct output row.
     auto row = TVersionedRow::Allocate(
-        Pool_,
+        RowBuffer_->GetPool(),
         KeyColumnCount_,
         MergedValues_.size(),
         WriteTimestamps_.size(),
@@ -510,7 +515,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 void TVersionedRowMerger::Reset()
 {
     YASSERT(!Started_);
-    Pool_->Clear();
+    RowBuffer_->Clear();
 }
 
 void TVersionedRowMerger::Cleanup()
@@ -524,6 +529,8 @@ void TVersionedRowMerger::Cleanup()
 
     Started_ = false;
 }
+
+DEFINE_REFCOUNTED_TYPE(TVersionedRowMerger)
 
 ////////////////////////////////////////////////////////////////////////////////
 

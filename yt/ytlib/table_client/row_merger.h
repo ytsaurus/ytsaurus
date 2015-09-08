@@ -14,10 +14,11 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulRowMerger
+    : public TRefCounted
 {
 public:
     TSchemafulRowMerger(
-        TChunkedMemoryPool* pool,
+        TRowBufferPtr rowBuffer,
         int schemaColumnCount,
         int keyColumnCount,
         const TColumnFilter& columnFilter);
@@ -27,7 +28,7 @@ public:
     void Reset();
 
 private:
-    TChunkedMemoryPool* Pool_;
+    TRowBufferPtr RowBuffer_;
     int SchemaColumnCount_;
     int KeyColumnCount_;
 
@@ -48,10 +49,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedRowMerger
+    : public TRefCounted
 {
 public:
     TUnversionedRowMerger(
-        TChunkedMemoryPool* pool,
+        TRowBufferPtr rowBuffer,
         int schemaColumnCount,
         int keyColumnCount,
         const TColumnFilter& columnFilter);
@@ -62,7 +64,7 @@ public:
     void Reset();
 
 private:
-    TChunkedMemoryPool* Pool_;
+    TRowBufferPtr RowBuffer_;
     int SchemaColumnCount_;
     int KeyColumnCount_;
     bool Started_;
@@ -81,10 +83,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRowMerger
+    : public TRefCounted
 {
 public:
     TVersionedRowMerger(
-        TChunkedMemoryPool* pool,
+        TRowBufferPtr rowBuffer,
         int keyColumnCount,
         TRetentionConfigPtr config,
         TTimestamp currentTimestamp,
@@ -98,7 +101,7 @@ public:
     TTimestamp GetMajorTimestamp() const;
 
 private:
-    TChunkedMemoryPool* Pool_;
+    TRowBufferPtr RowBuffer_;
     int KeyColumnCount_;
     TRetentionConfigPtr Config_;
     TTimestamp CurrentTimestamp_;
