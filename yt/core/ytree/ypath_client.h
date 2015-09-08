@@ -174,7 +174,7 @@ ExecuteVerb(
     IYPathServicePtr service,
     TSharedRefArray requestMessage,
     const Stroka& requestInfo = Stroka(),
-    const Stroka& rawResponseInfo = Stroka());
+    const Stroka& responseInfo = Stroka());
 
 //! Asynchronously executes a request against a given service.
 void ExecuteVerb(
