@@ -56,6 +56,10 @@ private:
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
         auto scheduler = Bootstrap->GetScheduler();
         auto node = scheduler->GetOrRegisterNode(addresses);
+        if (!node->GetMasterState() || *node->GetMasterState() == "offline") {
+            THROW_ERROR_EXCEPTION("Node is offline");
+        }
+
         scheduler->ProcessHeartbeat(node, context);
     }
 
