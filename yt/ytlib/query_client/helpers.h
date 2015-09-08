@@ -44,6 +44,18 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRowRangeFormatter
+{
+    void operator ()(TStringBuilder* builder, const TRowRange& range) const;
+};
+
+struct TDataSourceFormatter
+{
+    void operator ()(TStringBuilder* builder, const TDataSource& source) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NQueryClient
 } // namespace NYT
 

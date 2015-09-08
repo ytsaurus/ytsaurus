@@ -24,9 +24,11 @@ TChunkStorePtr IStore::AsChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TStoreIdFormatter::operator()(const IStorePtr& store) const
+void TStoreIdFormatter::operator()(
+    TStringBuilder* builder,
+    const IStorePtr& store) const
 {
-    return ToString(store->GetId());
+    FormatValue(builder, store->GetId(), STRINGBUF("v"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

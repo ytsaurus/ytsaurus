@@ -1092,16 +1092,14 @@ private:
         auto resultingPartitionIds = JoinToString(ConvertToStrings(
             tablet->Partitions().begin() + partitionIndex,
             tablet->Partitions().begin() + partitionIndex + pivotKeys.size(),
-            [] (const std::unique_ptr<TPartition>& partition) {
-                return ToString(partition->GetId());
-            }));
+            TPartitionIdFormatter()));
 
         LOG_INFO_UNLESS(IsRecovery(), "Splitting partition (TabletId: %v, OriginalPartitionId: %v, ResultingPartitionIds: [%v], DataSize: %v, Keys: %v)",
             tablet->GetTabletId(),
             partitionId,
             resultingPartitionIds,
             partitionDataSize,
-            JoinToString(pivotKeys, Stroka(" .. ")));
+            JoinToString(pivotKeys, " .. "));
 
         // NB: Initial partition is split into new ones with indexes |[partitionIndex, partitionIndex + pivotKeys.size())|.
         SchedulePartitionsSampling(tablet, partitionIndex, partitionIndex + pivotKeys.size());
@@ -1135,9 +1133,7 @@ private:
         auto originalPartitionIds = JoinToString(ConvertToStrings(
             tablet->Partitions().begin() + firstPartitionIndex,
             tablet->Partitions().begin() + lastPartitionIndex + 1,
-            [] (const std::unique_ptr<TPartition>& partition) {
-                return ToString(partition->GetId());
-            }));
+            TPartitionIdFormatter()));
 
         tablet->MergePartitions(firstPartitionIndex, lastPartitionIndex);
 
