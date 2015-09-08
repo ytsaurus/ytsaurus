@@ -168,7 +168,6 @@ private:
                         false,
                         NTracing::TTraceContext(),
                         nullptr,
-                        startTime,
                         TSharedRefArray());
                     NextRequest();
                     continue;
@@ -233,7 +232,6 @@ private:
                         mutating,
                         traceContextGuard.GetContext(),
                         &requestHeader,
-                        startTime,
                         asyncResponseMessage.Get());
                 } else {
                     LastMutationCommitted = asyncResponseMessage.Apply(BIND(
@@ -242,8 +240,7 @@ private:
                         CurrentRequestIndex,
                         mutating,
                         traceContextGuard.GetContext(),
-                        &requestHeader,
-                        startTime));
+                        &requestHeader));
                 }
 
                 NextRequest();
@@ -268,7 +265,6 @@ private:
         bool mutating,
         const NTracing::TTraceContext& traceContext,
         const TRequestHeader* requestHeader,
-        const TInstant startTime,
         const TErrorOr<TSharedRefArray>& responseMessageOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
