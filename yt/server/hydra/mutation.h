@@ -30,7 +30,7 @@ public:
     TMutationPtr SetAllowLeaderForwarding(bool value);
 
 private:
-    IHydraManagerPtr HydraManager_;
+    const IHydraManagerPtr HydraManager_;
 
     TMutationRequest Request_;
 
@@ -40,20 +40,10 @@ DEFINE_REFCOUNTED_TYPE(TMutation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMutationPtr CreateMutation(
-    IHydraManagerPtr hydraManager);
+TMutationPtr CreateMutation(IHydraManagerPtr hydraManager);
 
 template <class TRequest>
-TMutationPtr CreateMutation(
-    IHydraManagerPtr hydraManager,
-    const TRequest& request);
-
-template <class TTarget, class TRequest, class TResponse>
-TMutationPtr CreateMutation(
-    IHydraManagerPtr hydraManager,
-    const TRequest& request,
-    TTarget* target,
-    TResponse (TTarget::* method)(const TRequest& request));
+TMutationPtr CreateMutation(IHydraManagerPtr hydraManager, const TRequest& request);
 
 ////////////////////////////////////////////////////////////////////////////////
 

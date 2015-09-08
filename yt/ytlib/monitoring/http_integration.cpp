@@ -21,10 +21,11 @@
 namespace NYT {
 namespace NMonitoring {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NYTree;
+using namespace NYson;
 using namespace NHttp;
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
@@ -40,7 +41,7 @@ Stroka OnResponse(const TYPathProxy::TErrorOrRspGetPtr& rspOrError)
     TStringStream output;
     try {
         auto writer = NFormats::CreateJsonConsumer(&output);
-        Consume(TYsonString(rsp->value()), writer.get());
+        Serialize(TYsonString(rsp->value()), writer.get());
     } catch (const std::exception& ex) {
         // TODO(sandello): Proper JSON escaping here.
         return FormatInternalServerErrorResponse(ToString(ex.what()).Quote());

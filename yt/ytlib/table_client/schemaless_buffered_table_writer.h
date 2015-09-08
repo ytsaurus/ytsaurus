@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
+#include <ytlib/api/public.h>
 
 #include <ytlib/api/public.h>
 

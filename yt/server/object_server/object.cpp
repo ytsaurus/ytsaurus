@@ -57,6 +57,7 @@ void TObjectBase::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
     Save(context, RefCounter_);
+    Save(context, ImportRefCounter_);
     if (Attributes_) {
         Save(context, true);
         Save(context, *Attributes_);
@@ -70,11 +71,12 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, RefCounter_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 117) {
-        if (Load<bool>(context)) {
-            Attributes_ = std::make_unique<TAttributeSet>();
-            Load(context, *Attributes_);
-        }
+    if (context.GetVersion() >= 200) {
+        Load(context, ImportRefCounter_);
+    }
+    if (Load<bool>(context)) {
+        Attributes_ = std::make_unique<TAttributeSet>();
+        Load(context, *Attributes_);
     }
 }
 

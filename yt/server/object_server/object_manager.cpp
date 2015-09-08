@@ -13,15 +13,22 @@
 
 #include <core/erasure/public.h>
 
+#include <core/ytree/exception_helpers.h>
+#include <core/ytree/node_detail.h>
+
 #include <core/profiling/profile_manager.h>
+#include <core/profiling/scoped_timer.h>
 
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_ypath_proxy.h>
+#include <ytlib/object_client/master_ypath_proxy.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/election/cell_manager.h>
+
+#include <ytlib/hive/cell_directory.h>
 
 #include <server/election/election_manager.h>
 
@@ -31,26 +38,31 @@
 #include <server/transaction_server/transaction.h>
 
 #include <server/cypress_server/cypress_manager.h>
+#include <server/cypress_server/node_proxy.h>
 
 #include <server/chunk_server/chunk_list.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 #include <server/security_server/user.h>
 #include <server/security_server/group.h>
+#include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 
 namespace NYT {
 namespace NObjectServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NHydra;
 using namespace NRpc;
 using namespace NBus;
 using namespace NCypressServer;
 using namespace NCypressClient;
+using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NChunkServer;
@@ -63,6 +75,64 @@ using namespace NConcurrency;
 
 static const auto& Logger = ObjectServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectManager::TRemoteProxy
+    : public IYPathService
+{
+public:
+    TRemoteProxy(TBootstrap* bootstrap, const TObjectId& objectId)
+        : Bootstrap_(bootstrap)
+        , ObjectId_(objectId)
+    { }
+
+    virtual TResolveResult Resolve(const TYPath& path, IServiceContextPtr context) override
+    {
+        const auto& ypathExt = context->RequestHeader().GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+        if (ypathExt.mutating()) {
+            THROW_ERROR_EXCEPTION("Mutating requests to remote cells are not allowed");
+        }
+
+        YCHECK(!HasMutationContext());
+
+        return TResolveResult::Here(path);
+    }
+
+    virtual void Invoke(IServiceContextPtr context) override
+    {
+        auto requestMessage = context->GetRequestMessage();
+        NRpc::NProto::TRequestHeader requestHeader;
+        ParseRequestHeader(requestMessage, &requestHeader);
+
+        auto updatedYPath = FromObjectId(ObjectId_) + GetRequestYPath(context);
+        SetRequestYPath(&requestHeader, updatedYPath);
+        auto updatedMessage = SetRequestHeader(requestMessage, requestHeader);
+
+        auto cellTag = CellTagFromId(ObjectId_);
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto asyncResponseMessage = objectManager->ForwardToLeader(cellTag, updatedMessage);
+        context->ReplyFrom(std::move(asyncResponseMessage));
+    }
+
+    virtual NLogging::TLogger GetLogger() const override
+    {
+        return ObjectServerLogger;
+    }
+
+    virtual void WriteAttributesFragment(
+        IAsyncYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*filter*/,
+        bool /*sortKeys*/) override
+    {
+        YUNREACHABLE();
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+    const TObjectId ObjectId_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -147,9 +217,8 @@ public:
         return ObjectServerLogger;
     }
 
-    // TODO(panin): remove this when getting rid of IAttributeProvider
-    virtual void SerializeAttributes(
-        NYson::IYsonConsumer* /*consumer*/,
+    virtual void WriteAttributesFragment(
+        IAsyncYsonConsumer* /*consumer*/,
         const TAttributeFilter& /*filter*/,
         bool /*sortKeys*/) override
     {
@@ -202,9 +271,27 @@ private:
                         objectIdString);
                 }
 
-                auto* object = objectManager->GetObjectOrThrow(objectId);
-                auto proxy = objectManager->GetProxy(object, transaction);
-                return TResolveResult::There(proxy, tokenizer.GetSuffix());
+                bool suppressRedirect = false;
+                if (tokenizer.Advance() == NYPath::ETokenType::Ampersand) {
+                    suppressRedirect = true;
+                    tokenizer.Advance();
+                }
+
+                IYPathServicePtr proxy;
+                if (!suppressRedirect &&
+                    CellTagFromId(objectId) != Bootstrap_->GetCellTag() &&
+                    Bootstrap_->IsPrimaryMaster())
+                {
+                    proxy = objectManager->CreateRemoteProxy(objectId);
+                } else {
+                    auto* object = (context->GetMethod() == "Exists")
+                        ? objectManager->FindObject(objectId)
+                        : objectManager->GetObjectOrThrow(objectId);
+                    proxy = IsObjectAlive(object)
+                        ? objectManager->GetProxy(object, transaction)
+                        : TNonexistingService::Get();
+                }
+                return TResolveResult::There(proxy, tokenizer.GetInput());
             }
 
             default:
@@ -217,7 +304,9 @@ private:
     void ForwardToLeader(IServiceContextPtr context)
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto asyncResponseMessage = objectManager->ForwardToLeader(context->GetRequestMessage());
+        auto asyncResponseMessage = objectManager->ForwardToLeader(
+            Bootstrap_->GetCellTag(),
+            context->GetRequestMessage());
         context->ReplyFrom(std::move(asyncResponseMessage));
     }
 
@@ -289,7 +378,7 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
 
     IObjectProxyPtr DoResolvePath(
@@ -305,7 +394,7 @@ private:
         // Slow path.
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
         auto rsp = SyncExecuteVerb(proxy, req);
-        auto objectId = FromProto<TObjectId>(rsp->id());
+        auto objectId = FromProto<TObjectId>(rsp->object_id());
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObjectOrThrow(objectId);
@@ -335,10 +424,6 @@ TObjectManager::TObjectManager(
     RegisterLoader(
         "ObjectManager.Values",
         BIND(&TObjectManager::LoadValues, Unretained(this)));
-    // COMPAT(babenko): This part exists only in 0.16.
-    RegisterLoader(
-        "ObjectManager.Schemas",
-        BIND(&TObjectManager::LoadSchemas, Unretained(this)));
 
     RegisterSaver(
         ESyncSerializationPriority::Keys,
@@ -353,12 +438,18 @@ TObjectManager::TObjectManager(
 
     RegisterMethod(BIND(&TObjectManager::HydraExecuteFollower, Unretained(this)));
     RegisterMethod(BIND(&TObjectManager::HydraDestroyObjects, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraCreateForeignObject, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraRemoveForeignObject, Unretained(this)));
+    RegisterMethod(BIND(&TObjectManager::HydraUnrefExportedObjects, Unretained(this)));
 
-    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetCellTag());
+    MasterObjectId_ = MakeWellKnownId(EObjectType::Master, Bootstrap_->GetPrimaryCellTag());
 }
 
 void TObjectManager::Initialize()
 {
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TObjectManager::OnSecondaryMasterRegistered, MakeWeak(this)));
+
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
         BIND(&TObjectManager::OnProfiling, MakeWeak(this)),
@@ -424,13 +515,17 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     auto& entry = TypeToEntry_[type];
     entry.Handler = handler;
     entry.TagId = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
+
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
         auto& schemaEntry = TypeToEntry_[schemaType];
         schemaEntry.Handler = CreateSchemaTypeHandler(Bootstrap_, type);
+
+        auto schemaObjectId = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
+
         LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
             type,
-            MakeSchemaObjectId(type, Bootstrap_->GetCellTag()));
+            schemaObjectId);
     } else {
         LOG_INFO("Type registered (Type: %v)",
             type);
@@ -457,7 +552,7 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
     return handler;
 }
 
-const IObjectTypeHandlerPtr& TObjectManager::GetHandler(TObjectBase* object) const
+const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObjectBase* object) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -471,7 +566,7 @@ const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
     return RegisteredTypes_;
 }
 
-TObjectId TObjectManager::GenerateId(EObjectType type)
+TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -479,11 +574,12 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     auto version = mutationContext->GetVersion();
     auto random = mutationContext->RandomGenerator().Generate<ui64>();
 
-    TObjectId id(
-        random,
-        (Bootstrap_->GetCellTag() << 16) + static_cast<int>(type),
-        version.RecordId,
-        version.SegmentId);
+    auto cellTag = Bootstrap_->GetCellTag();
+
+    auto id = hintId
+        ? hintId
+        : MakeRegularId(type, cellTag, random, version);
+    YASSERT(TypeFromId(id) == type);
 
     ++CreatedObjectCount_;
 
@@ -494,25 +590,36 @@ TObjectId TObjectManager::GenerateId(EObjectType type)
     return id;
 }
 
-void TObjectManager::RefObject(TObjectBase* object)
+bool TObjectManager::IsForeign(const TObjectBase* object)
+{
+    return CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag();
+}
+
+int TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
+
+    if (refCounter == 1) {
+        GarbageCollector_->UnregisterZombie(object);
+    }
+
+    return refCounter;
 }
 
-void TObjectManager::UnrefObject(TObjectBase* object)
+int TObjectManager::UnrefObject(TObjectBase* object, int count)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(object->IsTrunk());
 
-    int refCounter = object->UnrefObject();
-    LOG_TRACE_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
+    int refCounter = object->UnrefObject(count);
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
         object->GetObjectWeakRefCounter());
@@ -520,11 +627,26 @@ void TObjectManager::UnrefObject(TObjectBase* object)
     if (refCounter == 0) {
         const auto& handler = GetHandler(object);
         handler->ZombifyObject(object);
+
         GarbageCollector_->RegisterZombie(object);
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto replicationFlags = handler->GetReplicationFlags();
+            auto replicationCellTag = handler->GetReplicationCellTag(object);
+            if (Any(replicationFlags & EObjectReplicationFlags::ReplicateDestroy) &&
+                replicationCellTag != NotReplicatedCellTag)
+            {
+                NProto::TReqRemoveForeignObject request;
+                ToProto(request.mutable_object_id(), object->GetId());
+                auto multicellManager = Bootstrap_->GetMulticellManager();
+                multicellManager->PostToMaster(request, replicationCellTag);
+            }
+        }
     }
+    return refCounter;
 }
 
-void TObjectManager::WeakRefObject(TObjectBase* object)
+int TObjectManager::WeakRefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!IsRecovery());
@@ -534,9 +656,10 @@ void TObjectManager::WeakRefObject(TObjectBase* object)
     if (weakRefCounter == 1) {
         ++LockedObjectCount_;
     }
+    return weakRefCounter;
 }
 
-void TObjectManager::WeakUnrefObject(TObjectBase* object)
+int TObjectManager::WeakUnrefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YASSERT(!IsRecovery());
@@ -549,6 +672,7 @@ void TObjectManager::WeakUnrefObject(TObjectBase* object)
             GarbageCollector_->DisposeGhost(object);
         }
     }
+    return weakRefCounter;
 }
 
 void TObjectManager::SaveKeys(NCellMaster::TSaveContext& context) const
@@ -562,118 +686,35 @@ void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
     GarbageCollector_->Save(context);
 }
 
-void TObjectManager::OnBeforeSnapshotLoaded()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    DoClear();
-}
-
-void TObjectManager::OnAfterSnapshotLoaded()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    if (PatchSchemasWithRemovePermissions_) {
-        for (const auto& pair : SchemaMap_) {
-            // C.f. InitDefaultSchemasAcl
-            if (IsVersionedType(TypeFromId(pair.first))) {
-                continue;
-            }
-            auto& acd = pair.second->Acd();
-            auto aces = acd.Acl().Entries;
-            acd.ClearEntries();
-            for (auto& ace : aces) {
-                if ((ace.Permissions & EPermission::Write) != NonePermissions) {
-                    ace.Permissions |= EPermission::Remove;
-                }
-                acd.AddEntry(ace);
-            }
-        }
-    }
-}
-
 void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 109) {
-        SchemaMap_.LoadKeys(context);
-    }
-
-    // COMPAT(sandello)
-    if (context.GetVersion() < 120) {
-        PatchSchemasWithRemovePermissions_ = true;
-    }
-
-    // COMPAT(babenko)
-    if (context.GetVersion() < 117) {
-        int n = TSizeSerializer::Load(context);
-        LegacyAttributeIds_.clear();
-        for (int i = 0; i < n; ++i) {
-            LegacyAttributeIds_.push_back(Load<TVersionedObjectId>(context));
-            context.RegisterEntity(nullptr);
-        }
-    }
+    SchemaMap_.LoadKeys(context);
 }
 
 void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 109) {
-        SchemaMap_.LoadValues(context);
-        for (const auto& pair : SchemaMap_) {
-            auto type = TypeFromSchemaType(TypeFromId(pair.first));
-            YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
-            auto& entry = TypeToEntry_[type];
-            entry.SchemaObject = pair.second;
-            entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
-        }
-    }
-
-    // COMPAT(sandello)
-    if (context.GetVersion() < 120) {
-        PatchSchemasWithRemovePermissions_ = true;
-    }
-
-    // COMPAT(babenko)
-    if (context.GetVersion() < 117) {
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        for (const auto& id : LegacyAttributeIds_) {
-            TObjectBase* object;
-            auto type = TypeFromId(id.ObjectId);
-            if (IsVersionedType(type)) {
-                object = cypressManager->GetNode(id);
-            } else {
-                object = GetObject(id.ObjectId);
-            }
-            NYT::Load(context, *object->GetMutableAttributes());
-        }
+    SchemaMap_.LoadValues(context);
+    for (const auto& pair : SchemaMap_) {
+        auto type = TypeFromSchemaType(TypeFromId(pair.first));
+        YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
+        auto& entry = TypeToEntry_[type];
+        entry.SchemaObject = pair.second;
+        entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
     }
 
     GarbageCollector_->Load(context);
 }
 
-// COMPAT(babenko)
-void TObjectManager::LoadSchemas(NCellMaster::TLoadContext& context)
+void TObjectManager::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    while (true) {
-        EObjectType type;
-        Load(context, type);
-        if (type == EObjectType::Null)
-            break;
+    TMasterAutomatonPart::Clear();
 
-        const auto& entry = TypeToEntry_[type];
-        entry.SchemaObject->Load(context);
-    }
-}
-
-void TObjectManager::DoClear()
-{
     MasterObject_.reset(new TMasterObject(MasterObjectId_));
     MasterObject_->RefObject();
 
@@ -686,23 +727,17 @@ void TObjectManager::DoClear()
     LockedObjectCount_ = 0;
 
     SchemaMap_.Clear();
+
     for (auto type : RegisteredTypes_) {
         auto& entry = TypeToEntry_[type];
         if (HasSchema(type)) {
-            auto id = MakeSchemaObjectId(type, Bootstrap_->GetCellTag());
+            auto id = MakeSchemaObjectId(type, Bootstrap_->GetPrimaryCellTag());
             auto schemaObjectHolder = std::make_unique<TSchemaObject>(id);
             entry.SchemaObject = SchemaMap_.Insert(id, std::move(schemaObjectHolder));
             entry.SchemaObject->RefObject();
             entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
         }
     }
-}
-
-void TObjectManager::Clear()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    DoClear();
 }
 
 void TObjectManager::OnRecoveryStarted()
@@ -775,6 +810,11 @@ TObjectBase* TObjectManager::GetObjectOrThrow(const TObjectId& id)
     return object;
 }
 
+IYPathServicePtr TObjectManager::CreateRemoteProxy(const TObjectId& id)
+{
+    return New<TRemoteProxy>(Bootstrap_, id);
+}
+
 IObjectProxyPtr TObjectManager::GetProxy(
     TObjectBase* object,
     TTransaction* transaction)
@@ -825,21 +865,32 @@ void TObjectManager::MergeAttributes(
 
 void TObjectManager::FillAttributes(
     TObjectBase* object,
-    const IAttributeDictionary & attributes)
+    const IAttributeDictionary& attributes)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    YCHECK(!IsVersionedType(object->GetType()));
 
     auto keys = attributes.List();
     if (keys.empty())
         return;
 
     auto proxy = GetProxy(object, nullptr);
-    auto* attributeSet = object->GetMutableAttributes();
+    std::vector<ISystemAttributeProvider::TAttributeDescriptor> systemDescriptors;
+    proxy->ListBuiltinAttributes(&systemDescriptors);
+
+    yhash_set<Stroka> systemAttributeKeys;
+    for (const auto& descriptor : systemDescriptors) {
+        YCHECK(systemAttributeKeys.insert(descriptor.Key).second);
+    }
+
+    std::sort(keys.begin(), keys.end());
     for (const auto& key : keys) {
         auto value = attributes.GetYson(key);
-        if (!proxy->SetBuiltinAttribute(key, value)) {
-            YCHECK(attributeSet->Attributes().insert(std::make_pair(key, value)).second);
+        if (systemAttributeKeys.find(key) == systemAttributeKeys.end()) {
+            proxy->MutableAttributes()->SetYson(key, value);
+        } else {
+            if (!proxy->SetBuiltinAttribute(key, value)) {
+                ThrowCannotSetBuiltinAttribute(key);
+            }
         }
     }
 }
@@ -870,14 +921,20 @@ TFuture<void> TObjectManager::GCCollect()
 }
 
 TObjectBase* TObjectManager::CreateObject(
+    const TObjectId& hintId,
     TTransaction* transaction,
     TAccount* account,
     EObjectType type,
     IAttributeDictionary* attributes,
-    IObjectTypeHandler::TReqCreateObjects* request,
-    IObjectTypeHandler::TRspCreateObjects* response)
+    const NObjectClient::NProto::TObjectCreationExtensions& extensions)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    std::unique_ptr<IAttributeDictionary> attributeHolder;
+    if (!attributes) {
+        attributeHolder = CreateEphemeralAttributes();
+        attributes = attributeHolder.get();
+    }
 
     auto handler = FindHandler(type);
     if (!handler) {
@@ -935,6 +992,11 @@ TObjectBase* TObjectManager::CreateObject(
             YUNREACHABLE();
     }
 
+    auto replicationFlags = handler->GetReplicationFlags();
+    bool replicate =
+        Bootstrap_->IsPrimaryMaster() &&
+        Any(replicationFlags & EObjectReplicationFlags::ReplicateCreate);
+
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
@@ -943,12 +1005,18 @@ TObjectBase* TObjectManager::CreateObject(
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
+    // ITypeHandler::CreateObject may modify the attributes.
+    std::unique_ptr<IAttributeDictionary> replicatedAttributes;
+    if (replicate) {
+        replicatedAttributes = attributes->Clone();
+    }
+
     auto* object = handler->CreateObject(
+        hintId,
         transaction,
         account,
         attributes,
-        request,
-        response);
+        extensions);
 
     FillAttributes(object, *attributes);
 
@@ -966,6 +1034,24 @@ TObjectBase* TObjectManager::CreateObject(
         acd->SetOwner(user);
     }
 
+    if (replicate) {
+        YASSERT(handler->GetReplicationCellTag(object) == AllSecondaryMastersCellTag);
+
+        NProto::TReqCreateForeignObject replicationRequest;
+        ToProto(replicationRequest.mutable_object_id(), object->GetId());
+        if (transaction) {
+            ToProto(replicationRequest.mutable_transaction_id(), transaction->GetId());
+        }
+        replicationRequest.set_type(static_cast<int>(type));
+        ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
+        if (account) {
+            ToProto(replicationRequest.mutable_account_id(), account->GetId());
+        }
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToSecondaryMasters(replicationRequest);
+    }
+
     return object;
 }
 
@@ -974,9 +1060,9 @@ IObjectResolver* TObjectManager::GetObjectResolver()
     return ObjectResolver_.get();
 }
 
-bool TObjectManager::AdviceYield(TInstant startTime) const
+bool TObjectManager::AdviceYield(NProfiling::TCpuInstant startInstant) const
 {
-    return TInstant::Now() > startTime + Config_->YieldTimeout;
+    return NProfiling::GetCpuInstant() > startInstant + NProfiling::DurationToCpuDuration(Config_->YieldTimeout);
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
@@ -1043,20 +1129,19 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 }
 
 TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
+    TCellTag cellTag,
     TSharedRefArray requestMessage,
     TNullable<TDuration> timeout)
 {
-    auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    auto leaderId = hydraManager->GetAutomatonLeaderId();
-
-    LOG_DEBUG("Request forwarding started");
+    LOG_DEBUG("Forwarding request to leader (CellTag: %v)",
+        cellTag);
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto cellManager = Bootstrap_->GetCellManager();
-    auto channel = cellManager->GetPeerChannel(leaderId);
-    YCHECK(channel);
+    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
+    auto cellDirectory = Bootstrap_->GetCellDirectory();
+    auto channel = cellDirectory->GetChannel(cellId, EPeerKind::Leader);
 
     TObjectServiceProxy proxy(std::move(channel));
     proxy.SetDefaultTimeout(timeout.Get(Config_->ForwardingRpcTimeout));
@@ -1075,18 +1160,62 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     }));
 }
 
+void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
+    TObjectBase* object,
+    TCellTag cellTag)
+{
+    if (object->IsBuiltin()) {
+        ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
+        return;
+    }
+
+    NProto::TReqCreateForeignObject request;
+    ToProto(request.mutable_object_id(), object->GetId());
+    request.set_type(static_cast<int>(object->GetType()));
+    ToProto(request.mutable_object_attributes(), *GetReplicatedAttributes(object));
+
+    auto handler = GetHandler(object);
+    handler->PopulateObjectReplicationRequest(object, &request);
+
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToMaster(request, cellTag);
+}
+
+void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
+    TObjectBase* object,
+    TCellTag cellTag)
+{
+    auto req = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
+    req->set_value(ConvertToYsonString(GetReplicatedAttributes(object)->ToMap()).Data());
+
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    multicellManager->PostToMaster(req, cellTag);
+}
+
 void TObjectManager::HydraExecuteLeader(
     const TUserId& userId,
     const TMutationId& mutationId,
     IServiceContextPtr context)
 {
+    NProfiling::TScopedTimer timer;
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+
     try {
-        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->GetUserOrThrow(userId);
         TAuthenticatedUserGuard userGuard(securityManager, user);
         ExecuteVerb(RootService_, context);
     } catch (const std::exception& ex) {
         context->Reply(ex);
+    }
+
+    if (IsLeader()) {
+        auto* user = securityManager->FindUser(userId);
+        if (IsObjectAlive(user)) {
+            // NB: Charge for zero requests here since we've already charged the user for one request
+            // in TObjectService.
+            securityManager->ChargeUser(user, 0, TDuration(), timer.GetElapsed());
+        }
     }
 
     if (mutationId) {
@@ -1121,11 +1250,25 @@ void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
 
 void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)
 {
+    // NB: Ordered map is a must to make the behavior deterministic.
+    std::map<TCellTag, NProto::TReqUnrefExportedObjects> unrefRequestMap;
+
     for (const auto& protoId : request.object_ids()) {
         auto id = FromProto<TObjectId>(protoId);
         auto type = TypeFromId(id);
+
         const auto& handler = GetHandler(type);
-        auto* object = handler->GetObject(id);
+        auto* object = handler->FindObject(id);
+
+        if (!object || object->GetObjectRefCounter() > 0)
+            continue;
+
+        if (IsForeign(object) && object->GetImportRefCounter() > 0) {
+            auto& request = unrefRequestMap[CellTagFromId(id)];
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_object_id(), id);
+            entry->set_import_ref_counter(object->GetImportRefCounter());
+        }
 
         // NB: The order of Dequeue/Destroy/CheckEmpty calls matters.
         // CheckEmpty will raise CollectPromise_ when GC queue becomes empty.
@@ -1139,7 +1282,85 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
             id);
     }
 
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    for (const auto& pair : unrefRequestMap) {
+        auto cellTag = pair.first;
+        const auto& request = pair.second;
+        multicellManager->PostToMaster(request, cellTag);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to unreference imported objects (CellTag: %v, Count: %v)",
+            cellTag,
+            request.entries_size());
+    }
+
     GarbageCollector_->CheckEmpty();
+}
+
+void TObjectManager::HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) noexcept
+{
+    auto objectId = FromProto<TObjectId>(request.object_id());
+    auto transactionId = request.has_transaction_id()
+        ? FromProto<TTransactionId>(request.transaction_id())
+        : NullTransactionId;
+    auto accountId = request.has_account_id()
+        ? FromProto<TAccountId>(request.account_id())
+        : NullObjectId;
+    auto type = EObjectType(request.type());
+
+    auto transactionManager = Bootstrap_->GetTransactionManager();
+    auto* transaction =  transactionId
+        ? transactionManager->GetTransaction(transactionId)
+        : nullptr;
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    auto* account = accountId
+        ? securityManager->GetAccount(accountId)
+        : nullptr;
+
+    auto attributes = request.has_object_attributes()
+        ? FromProto(request.object_attributes())
+        : std::unique_ptr<IAttributeDictionary>();
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Creating foreign object (ObjectId: %v, TransactionId: %v, Type: %v, Account: %v)",
+        objectId,
+        transactionId,
+        type,
+        account ? MakeNullable(account->GetName()) : Null);
+
+    CreateObject(
+        objectId,
+        transaction,
+        account,
+        type,
+        attributes.get(),
+        request.extensions());
+}
+
+void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) noexcept
+{
+    auto objectId = FromProto<TObjectId>(request.object_id());
+
+    auto* object = FindObject(objectId);
+    if (object) {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Removing foreign object (ObjectId: %v, RefCounter: %v)",
+            objectId,
+            object->GetObjectRefCounter());
+        UnrefObject(object);
+    } else {
+        LOG_DEBUG_UNLESS(IsRecovery(), "Attempt to remove a non-existing foreign object (ObjectId: %v)",
+            objectId);
+    }
+}
+
+void TObjectManager::HydraUnrefExportedObjects(const NProto::TReqUnrefExportedObjects& request) noexcept
+{
+    for (const auto& entry : request.entries()) {
+        auto objectId = FromProto<TObjectId>(entry.object_id());
+        auto* object = GetObject(objectId);
+        UnrefObject(object, entry.import_ref_counter());
+    }
+
+    LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (Count: %v)",
+        request.entries_size());
 }
 
 const NProfiling::TProfiler& TObjectManager::GetProfiler()
@@ -1172,6 +1393,53 @@ void TObjectManager::OnProfiling()
     Profiler.Enqueue("/created_object_count", CreatedObjectCount_);
     Profiler.Enqueue("/destroyed_object_count", DestroyedObjectCount_);
     Profiler.Enqueue("/locked_object_count", LockedObjectCount_);
+}
+
+std::unique_ptr<NYTree::IAttributeDictionary> TObjectManager::GetReplicatedAttributes(TObjectBase* object)
+{
+    YCHECK(!IsVersionedType(object->GetType()));
+
+    auto handler = GetHandler(object);
+    auto proxy = handler->GetProxy(object, nullptr);
+
+    auto attributes = CreateEphemeralAttributes();
+    yhash_set<Stroka> replicatedKeys;
+    auto replicateKey = [&] (const Stroka& key, const TYsonString& value) {
+        if (replicatedKeys.insert(key).second) {
+            attributes->SetYson(key, value);
+        }
+    };
+
+    // Check system attributes.
+    std::vector<ISystemAttributeProvider::TAttributeDescriptor> descriptors;
+    proxy->ListBuiltinAttributes(&descriptors);
+    for (const auto& descriptor : descriptors) {
+        if (!descriptor.Replicated)
+            continue;
+
+        auto key = Stroka(descriptor.Key);
+        auto maybeValue = proxy->GetBuiltinAttribute(key);
+        if (maybeValue) {
+            replicateKey(key, *maybeValue);
+        }
+    }
+
+    // Check custom attributes.
+    const auto* customAttributes = object->GetAttributes();
+    if (customAttributes) {
+        for (const auto& pair : object->GetAttributes()->Attributes()) {
+            replicateKey(pair.first, *pair.second);
+        }
+    }
+    return attributes;
+}
+
+void TObjectManager::OnSecondaryMasterRegistered(TCellTag cellTag)
+{
+    auto schemas = GetValuesSortedByKey(SchemaMap_);
+    for (auto* schema : schemas) {
+        ReplicateObjectCreationToSecondaryMaster(schema, cellTag);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

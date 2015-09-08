@@ -1,12 +1,13 @@
 #pragma once
 
 #include "public.h"
-#include <core/yson/consumer.h>
-#include "yson_producer.h"
-#include <core/yson/parser.h>
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "convert.h"
+
+#include <core/yson/consumer.h>
+#include <core/yson/producer.h>
+#include <core/yson/parser.h>
 
 #include <core/actions/callback.h>
 
@@ -53,7 +54,7 @@ private:
     template <class T>
     static void WriteValue(NYson::IYsonConsumer* consumer, const T& value)
     {
-        Consume(value, consumer);
+        Serialize(value, consumer);
     }
 
 public:
@@ -104,15 +105,15 @@ public:
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
-        TDeepThis& Do(TYsonProducer producer)
+        TDeepThis& Do(NYson::TYsonProducer producer)
         {
             producer.Run(this->Consumer);
             return *static_cast<TDeepThis*>(this);
         }
 
-        TDeepThis& Do(TYsonCallback ysonCallback)
+        TDeepThis& Do(NYson::TYsonCallback ysonCallback)
         {
-            return Do(TYsonProducer(ysonCallback));
+            return Do(NYson::TYsonProducer(ysonCallback));
         }
 
         template <class TFunc>
@@ -122,7 +123,7 @@ public:
             return *static_cast<TDeepThis*>(this);
         }
 
-        TDeepThis& DoIf(bool condition, TYsonProducer producer)
+        TDeepThis& DoIf(bool condition, NYson::TYsonProducer producer)
         {
             if (condition) {
                 producer.Run(this->Consumer);
@@ -130,9 +131,9 @@ public:
             return *static_cast<TDeepThis*>(this);
         }
 
-        TDeepThis& DoIf(bool condition, TYsonCallback ysonCallback)
+        TDeepThis& DoIf(bool condition, NYson::TYsonCallback ysonCallback)
         {
-            return DoIf(condition, TYsonProducer(ysonCallback));
+            return DoIf(condition, NYson::TYsonProducer(ysonCallback));
         }
 
         template <class TFunc>
@@ -175,7 +176,7 @@ public:
             : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
-        TUnwrappedParent Do(TYsonProducer producer)
+        TUnwrappedParent Do(NYson::TYsonProducer producer)
         {
             producer.Run(this->Consumer);
             return this->GetUnwrappedParent();
@@ -359,7 +360,7 @@ public:
             for (const auto& key : attributes.List()) {
                 const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
+                this->Consumer->OnRaw(yson);
             }
             return *this;
         }
@@ -443,7 +444,7 @@ public:
             for (const auto& key : attributes.List()) {
                 const auto& yson = attributes.GetYson(key);
                 this->Consumer->OnKeyedItem(key);
-                this->Consumer->OnRaw(yson.Data(), NYson::EYsonType::Node);
+                this->Consumer->OnRaw(yson);
             }
             return *this;
         }
@@ -483,15 +484,15 @@ class TFluentYsonWriterState
     : public TIntrinsicRefCounted
 {
 public:
-    typedef TYsonString TValue;
+    typedef NYson::TYsonString TValue;
 
     explicit TFluentYsonWriterState(NYson::EYsonFormat format)
         : Writer(&Output, format)
     { }
 
-    TYsonString GetValue()
+    NYson::TYsonString GetValue()
     {
-        return TYsonString(Output.Str());
+        return NYson::TYsonString(Output.Str());
     }
 
     NYson::IYsonConsumer* GetConsumer()

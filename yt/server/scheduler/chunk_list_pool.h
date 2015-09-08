@@ -53,6 +53,8 @@ private:
         const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 };
 
+DEFINE_REFCOUNTED_TYPE(TChunkListPool)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

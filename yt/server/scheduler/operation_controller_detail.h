@@ -17,6 +17,10 @@
 
 #include <core/actions/cancelable_context.h>
 
+#include <core/ytree/ypath_client.h>
+
+#include <core/yson/string.h>
+
 #include <core/logging/log.h>
 
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
@@ -27,9 +31,6 @@
 #include <ytlib/file_client/file_ypath_proxy.h>
 
 #include <ytlib/cypress_client/public.h>
-
-#include <core/ytree/ypath_client.h>
-#include <core/ytree/yson_string.h>
 
 #include <ytlib/chunk_client/public.h>
 #include <ytlib/chunk_client/chunk_service_proxy.h>
@@ -48,6 +49,7 @@ namespace NScheduler {
 
 //! Describes which part of the operation needs a particular file.
 DEFINE_ENUM(EOperationStage,
+    (None)
     (Map)
     (ReduceCombiner)
     (Reduce)
@@ -169,13 +171,16 @@ protected:
     // Job counters.
     TProgressCounter JobCounter;
 
-    // Maps node ids seen in fetch responses to node descriptors.
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+    // Maps node ids to descriptors for job input chunks.
+    NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory;
+    // Maps node ids to descriptors for job auxiliary chunks.
+    NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
-    struct TUserTableBase
+    struct TUserObjectBase
     {
         NYPath::TRichYPath Path;
         NObjectClient::TObjectId ObjectId;
+        NObjectClient::TCellTag CellTag;
 
         void Persist(TPersistenceContext& context);
     };
@@ -193,9 +198,9 @@ protected:
     };
 
     struct TInputTable
-        : public TUserTableBase
+        : public TUserObjectBase
     {
-        // Number of chunks in the whole table (without range selectors).
+        //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
         std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
         NTableClient::TKeyColumns KeyColumns;
@@ -217,18 +222,23 @@ protected:
     };
 
     struct TOutputTable
-        : public TUserTableBase
+        : public TUserObjectBase
         , public TLivePreviewTableBase
     {
         bool AppendRequested = false;
         NChunkClient::EUpdateMode UpdateMode = NChunkClient::EUpdateMode::Overwrite;
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
-        NTableClient::TTableWriterOptionsPtr Options =
-            New<NTableClient::TTableWriterOptions>();
+        NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
         NTableClient::TKeyColumns KeyColumns;
+
+        // Server-side upload transaction.
+        NTransactionClient::TTransactionId UploadTransactionId;
 
         // Chunk list for appending the output.
         NChunkClient::TChunkListId OutputChunkListId;
+
+        // Statistics returned by EndUpload call.
+        NChunkClient::NProto::TDataStatistics DataStatistics;
 
         //! Chunk trees comprising the output (the order matters).
         //! Keys are used when the output is sorted (e.g. in sort operations).
@@ -237,7 +247,7 @@ protected:
 
         std::vector<TJobBoundaryKeys> BoundaryKeys;
 
-        NYTree::TYsonString EffectiveAcl;
+        NYson::TYsonString EffectiveAcl;
 
         void Persist(TPersistenceContext& context);
     };
@@ -255,14 +265,15 @@ protected:
 
 
     struct TUserFile
+        : public TUserObjectBase
     {
-        NYPath::TRichYPath Path;
-        EOperationStage Stage;
+        std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
+        EOperationStage Stage = EOperationStage::None;
         Stroka FileName;
-        NChunkClient::NProto::TRspFetch FetchResponse;
-        NObjectClient::EObjectType Type;
-        bool Executable;
-        NYTree::TYsonString Format;
+        std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
+        NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
+        bool Executable = false;
+        NYson::TYsonString Format;
 
         void Persist(TPersistenceContext& context);
     };
@@ -374,7 +385,7 @@ protected:
         virtual NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResources() const;
         NNodeTrackerClient::NProto::TNodeResources GetTotalNeededResourcesDelta();
 
-        virtual int GetChunkListCountPerJob() const = 0;
+        virtual bool IsIntermediateOutput() const;
 
         virtual TDuration GetLocalityTimeout() const = 0;
         virtual i64 GetLocality(const Stroka& address) const;
@@ -476,7 +487,7 @@ protected:
         void AddIntermediateOutputSpec(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
             TJobletPtr joblet,
-            NTableClient::TKeyColumns keyColumns);
+            const NTableClient::TKeyColumns& keyColumns);
 
         static void UpdateInputSpecTotals(
             NJobTrackerClient::NProto::TJobSpec* jobSpec,
@@ -572,26 +583,36 @@ protected:
 
     // Preparation.
     void DoPrepare();
-    void GetInputObjectIds();
-    void GetOutputObjectIds();
-    void ValidateFileTypes();
+    void GetInputTablesBasicAttributes();
+    void GetOutputTablesBasicAttributes();
+    void GetFilesBasicAttributes(std::vector<TUserFile>* files);
     void FetchInputTables();
-    void RequestInputObjects();
-    void RequestOutputObjects();
-    void FetchFileObjects(std::vector<TUserFile>* files);
-    void RequestFileObjects();
+    void LockInputTables();
+    void BeginUploadOutputTables();
+    void GetOutputTablesUploadParams();
+    void FetchUserFiles(std::vector<TUserFile>* files);
+    void LockUserFiles(std::vector<TUserFile>* files, const std::vector<Stroka>& attributeKeys);
     void CreateLivePreviewTables();
     void PrepareLivePreviewTablesForUpdate();
     void CollectTotals();
     virtual void CustomPrepare();
     void AddAllTaskPendingHints();
-    void InitChunkListPool();
     void InitInputChunkScraper();
     void SuspendUnavailableInputStripes();
     void InitQuerySpec(
         NProto::TSchedulerJobSpecExt* schedulerJobSpecExt,
         const Stroka& queryString,
         const NQueryClient::TTableSchema& schema);
+
+    struct TCellData
+    {
+        TChunkListPoolPtr ChunkListPool;
+        int OutputTableCount = 0;
+    };
+
+    void PickIntermediateDataCell();
+    void InitCells();
+    const TCellData& GetCellData(NObjectClient::TCellTag cellTag);
 
     void ValidateKey(const NTableClient::TOwningKey& key);
 
@@ -604,18 +625,18 @@ protected:
 
     // Completion.
     void DoCommit();
-    void CommitResults();
-
+    void TeleportOutputChunks();
+    void AttachOutputChunks();
+    void EndUploadOutputTables();
+    virtual void CustomCommit();
 
     // Revival.
     void DoRevive();
     void ReinstallLivePreview();
     void AbortAllJoblets();
 
-
     void DoSaveSnapshot(TOutputStream* output);
     void DoLoadSnapshot();
-
 
     //! Called to extract input table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
@@ -716,7 +737,6 @@ protected:
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
 
-
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
     bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
     i64 GetMemoryReserve(bool memoryReserveEnabled, TUserJobSpecPtr userJobSpec) const;
@@ -747,8 +767,9 @@ protected:
         TCompletedJobPtr completedJob,
         TChunkStripePtr stripe);
 
-    bool HasEnoughChunkLists(int requestedCount);
-    NChunkClient::TChunkListId ExtractChunkList();
+    bool HasEnoughChunkLists(bool intermediate);
+    NChunkClient::TChunkListId ExtractChunkList(NObjectClient::TCellTag cellTag);
+    void ReleaseChunkLists(const std::vector<NChunkClient::TChunkListId>& ids);
 
     //! Returns the list of all input chunks collected from all input tables.
     std::vector<NChunkClient::TRefCountedChunkSpecPtr> CollectInputChunks() const;
@@ -761,13 +782,13 @@ protected:
     //! list contains less than |jobCount| stripes then |jobCount| is decreased
     //! appropriately.
     std::vector<TChunkStripePtr> SliceChunks(
-            const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& chunkSpecs,
-            i64 maxSliceDataSize,
-            int* jobCount);
+        const std::vector<NChunkClient::TRefCountedChunkSpecPtr>& chunkSpecs,
+        i64 maxSliceDataSize,
+        int* jobCount);
 
     std::vector<TChunkStripePtr> SliceInputChunks(
-            i64 maxSliceDataSize,
-            int* jobCount);
+        i64 maxSliceDataSize,
+        int* jobCount);
 
     int SuggestJobCount(
         i64 totalDataSize,
@@ -809,7 +830,11 @@ private:
     TInputChunkMap InputChunkMap;
 
     TOperationSpecBasePtr Spec;
-    TChunkListPoolPtr ChunkListPool;
+
+    // Multicell-related stuff.
+    NObjectClient::TCellTag IntermediateOutputCellTag;
+    TChunkListPoolPtr IntermediateOutputChunkListPool;
+    yhash_map<NObjectClient::TCellTag, TCellData> CellMap;
 
     int CachedPendingJobCount;
 
@@ -838,11 +863,6 @@ private:
 
     NTransactionClient::TTransactionManagerPtr GetTransactionManagerForTransaction(
         const NObjectClient::TTransactionId& transactionId);
-
-    void DoRequestFileObjects(
-        std::vector<TUserFile>* files,
-        std::function<void(NYTree::TAttributeFilter&)> updateAttributeFilter = nullptr,
-        std::function<void(const TUserFile&, const NYTree::IAttributeDictionary&)> onFileObject = nullptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

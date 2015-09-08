@@ -736,7 +736,7 @@ TLegacyTableChunkReader::TColumnInfo& TLegacyTableChunkReader::GetColumnInfo(int
 
 TDataStatistics TLegacyTableChunkReader::GetDataStatistics() const
 {
-    TDataStatistics result = ZeroDataStatistics();
+    TDataStatistics result;
     result.set_chunk_count(1);
 
     if (SequentialReader_) {

@@ -42,19 +42,23 @@ private:
         return TabletServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* tablet = GetThisTypedImpl();
-        attributes->push_back("state");
-        attributes->push_back("statistics");
-        attributes->push_back(TAttributeInfo("performance_counters", tablet->GetState() == ETabletState::Mounted));
-        attributes->push_back("index");
-        attributes->push_back("table_id");
-        attributes->push_back("pivot_key");
-        attributes->push_back("chunk_list_id");
-        attributes->push_back("in_memory_mode");
-        attributes->push_back(TAttributeInfo("cell_id", tablet->GetCell()));
-        TBase::ListSystemAttributes(attributes);
+
+        descriptors->push_back("state");
+        descriptors->push_back("statistics");
+        descriptors->push_back(TAttributeDescriptor("performance_counters")
+            .SetPresent(tablet->GetState() == ETabletState::Mounted));
+        descriptors->push_back("index");
+        descriptors->push_back("table_id");
+        descriptors->push_back("pivot_key");
+        descriptors->push_back("chunk_list_id");
+        descriptors->push_back("in_memory_mode");
+        descriptors->push_back(TAttributeDescriptor("cell_id")
+            .SetPresent(tablet->GetCell()));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

@@ -107,7 +107,7 @@ void EscapeC(const char* str, size_t len, TOutputStream& output) {
     }
 }
 
-}
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,168 +118,143 @@ TYsonWriter::TYsonWriter(
     bool enableRaw,
     bool booleanAsString,
     int indent)
-    : Stream(stream)
-    , Format(format)
-    , Type(type)
-    , EnableRaw(enableRaw)
-    , Depth(0)
-    , BeforeFirstItem(true)
-    , PrintSpace(false)
-    , BooleanAsString(booleanAsString)
-    , IndentSize(indent)
+    : Stream_(stream)
+    , Format_(format)
+    , Type_(type)
+    , EnableRaw_(enableRaw)
+    , BooleanAsString_(booleanAsString)
+    , IndentSize_(indent)
 {
-    YASSERT(stream);
+    YASSERT(Stream_);
+    Reset();
 }
 
 void TYsonWriter::WriteIndent()
 {
-    for (int i = 0; i < IndentSize * Depth; ++i) {
-        Stream->Write(' ');
+    for (int i = 0; i < IndentSize_ * Depth_; ++i) {
+        Stream_->Write(' ');
     }
-}
-
-bool TYsonWriter::IsTopLevelFragmentContext() const
-{
-    return Depth == 0 && (Type == EYsonType::ListFragment || Type == EYsonType::MapFragment);
 }
 
 void TYsonWriter::EndNode()
 {
-    if (IsTopLevelFragmentContext()) {
-        auto separatorToken =
-            Type == EYsonType::ListFragment
-            ? ListItemSeparatorToken
-            : KeyedItemSeparatorToken;
-        Stream->Write(TokenTypeToChar(separatorToken));
-        if (Format == EYsonFormat::Text || Format == EYsonFormat::Pretty) {
-            Stream->Write('\n');
+    if (Depth_ > 0 || Type_ != EYsonType::Node) {
+        Stream_->Write(TokenTypeToChar(ItemSeparatorToken));
+        if (Depth_ > 0 && Format_ == EYsonFormat::Pretty || Depth_ == 0) {
+            Stream_->Write('\n');
         }
     }
-}
-
-void TYsonWriter::BeginScalar()
-{
-    if (PrintSpace) {
-        Stream->Write(' ');
-    }
-    PrintSpace = false;
+    NodeExpected_ = false;
 }
 
 void TYsonWriter::BeginCollection(ETokenType beginToken)
 {
-    PrintSpace = false;
-    Stream->Write(TokenTypeToChar(beginToken));
-    ++Depth;
-    BeforeFirstItem = true;
+    ++Depth_;
+    EmptyCollection_ = true;
+    NodeExpected_ = false;
+    Stream_->Write(TokenTypeToChar(beginToken));
 }
 
-void TYsonWriter::CollectionItem(ETokenType separatorToken)
+void TYsonWriter::CollectionItem()
 {
-    if (!IsTopLevelFragmentContext()) {
-        if (!BeforeFirstItem) {
-            Stream->Write(TokenTypeToChar(separatorToken));
+    if (Format_ == EYsonFormat::Pretty) {
+        if (EmptyCollection_ && Depth_ > 0) {
+            Stream_->Write('\n');
         }
-
-        if (Format == EYsonFormat::Pretty) {
-            Stream->Write('\n');
-            WriteIndent();
-        }
+        WriteIndent();
     }
-
-    BeforeFirstItem = false;
+    EmptyCollection_ = false;
+    NodeExpected_ = true;
 }
 
 void TYsonWriter::EndCollection(ETokenType endToken)
 {
-    --Depth;
-    if (Format == EYsonFormat::Pretty && !BeforeFirstItem) {
-        Stream->Write('\n');
+    --Depth_;
+    if (Format_ == EYsonFormat::Pretty && !EmptyCollection_) {
         WriteIndent();
     }
-    Stream->Write(TokenTypeToChar(endToken));
-    if (Format == EYsonFormat::Pretty && Depth == 0 && !IsTopLevelFragmentContext()) {
-        Stream->Write('\n');
-    }
-
-    BeforeFirstItem = false;
+    EmptyCollection_ = false;
+    Stream_->Write(TokenTypeToChar(endToken));
 }
 
 void TYsonWriter::WriteStringScalar(const TStringBuf& value)
 {
-    if (Format == EYsonFormat::Binary) {
-        Stream->Write(NDetail::StringMarker);
-        WriteVarInt32(Stream, static_cast<i32>(value.length()));
-        Stream->Write(value.begin(), value.length());
+    if (Format_ == EYsonFormat::Binary) {
+        Stream_->Write(NDetail::StringMarker);
+        WriteVarInt32(Stream_, static_cast<i32>(value.length()));
+        Stream_->Write(value.begin(), value.length());
     } else {
-        Stream->Write('"');
-        EscapeC(value.data(), value.length(), *Stream);
-        Stream->Write('"');
+        Stream_->Write('"');
+        EscapeC(value.data(), value.length(), *Stream_);
+        Stream_->Write('"');
     }
 }
 
 void TYsonWriter::OnStringScalar(const TStringBuf& value)
 {
-    BeginScalar();
+    YASSERT(NodeExpected_);
     WriteStringScalar(value);
     EndNode();
 }
 
 void TYsonWriter::OnInt64Scalar(i64 value)
 {
-    BeginScalar();
-    if (Format == EYsonFormat::Binary) {
-        Stream->Write(NDetail::Int64Marker);
-        WriteVarInt64(Stream, value);
+    YASSERT(NodeExpected_);
+    if (Format_ == EYsonFormat::Binary) {
+        Stream_->Write(NDetail::Int64Marker);
+        WriteVarInt64(Stream_, value);
     } else {
-        Stream->Write(::ToString(value));
+        Stream_->Write(::ToString(value));
     }
     EndNode();
 }
 
 void TYsonWriter::OnUint64Scalar(ui64 value)
 {
-    BeginScalar();
-    if (Format == EYsonFormat::Binary) {
-        Stream->Write(NDetail::Uint64Marker);
-        WriteVarUint64(Stream, value);
+    YASSERT(NodeExpected_);
+    if (Format_ == EYsonFormat::Binary) {
+        Stream_->Write(NDetail::Uint64Marker);
+        WriteVarUint64(Stream_, value);
     } else {
-        Stream->Write(::ToString(value));
-        Stream->Write("u");
+        Stream_->Write(::ToString(value));
+        Stream_->Write("u");
     }
     EndNode();
 }
 
 void TYsonWriter::OnDoubleScalar(double value)
 {
-    BeginScalar();
-    if (Format == EYsonFormat::Binary) {
-        Stream->Write(NDetail::DoubleMarker);
-        Stream->Write(&value, sizeof(double));
+    YASSERT(NodeExpected_);
+    if (Format_ == EYsonFormat::Binary) {
+        Stream_->Write(NDetail::DoubleMarker);
+        Stream_->Write(&value, sizeof(double));
     } else {
-        Stream->Write(::ToString(value));
+        Stream_->Write(::ToString(value));
     }
     EndNode();
 }
 
 void TYsonWriter::OnBooleanScalar(bool value)
 {
-    BeginScalar();
-    if (BooleanAsString) {
+    YASSERT(NodeExpected_);
+
+    if (BooleanAsString_) {
         OnStringScalar(FormatBool(value));
-    } else {
-        if (Format == EYsonFormat::Binary) {
-            Stream->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
-        } else {
-            Stream->Write(value ? STRINGBUF("%true") : STRINGBUF("%false"));
-        }
-        EndNode();
+        return;
     }
+
+    if (Format_ == EYsonFormat::Binary) {
+        Stream_->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
+    } else {
+        Stream_->Write(value ? STRINGBUF("%true") : STRINGBUF("%false"));
+    }
+    EndNode();
 }
 
 void TYsonWriter::OnEntity()
 {
-    BeginScalar();
-    Stream->Write(TokenTypeToChar(EntityToken));
+    YASSERT(NodeExpected_);
+    Stream_->Write(TokenTypeToChar(EntityToken));
     EndNode();
 }
 
@@ -290,7 +265,7 @@ void TYsonWriter::OnBeginList()
 
 void TYsonWriter::OnListItem()
 {
-    CollectionItem(ListItemSeparatorToken);
+    CollectionItem();
 }
 
 void TYsonWriter::OnEndList()
@@ -306,19 +281,17 @@ void TYsonWriter::OnBeginMap()
 
 void TYsonWriter::OnKeyedItem(const TStringBuf& key)
 {
-    CollectionItem(KeyedItemSeparatorToken);
+    CollectionItem();
 
     WriteStringScalar(key);
 
-    if (Format == EYsonFormat::Pretty) {
-        Stream->Write(' ');
+    if (Format_ == EYsonFormat::Pretty) {
+        Stream_->Write(' ');
     }
-    Stream->Write(TokenTypeToChar(KeyValueSeparatorToken));
-    if (Format == EYsonFormat::Pretty) {
-        Stream->Write(' ');
+    Stream_->Write(TokenTypeToChar(KeyValueSeparatorToken));
+    if (Format_ == EYsonFormat::Pretty) {
+        Stream_->Write(' ');
     }
-
-    BeforeFirstItem = false;
 }
 
 void TYsonWriter::OnEndMap()
@@ -335,19 +308,34 @@ void TYsonWriter::OnBeginAttributes()
 void TYsonWriter::OnEndAttributes()
 {
     EndCollection(EndAttributesToken);
-    if (Format == EYsonFormat::Pretty) {
-        PrintSpace = true;
+    if (Format_ == EYsonFormat::Pretty) {
+        Stream_->Write(' ');
     }
+    NodeExpected_ = true;
 }
 
 void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    if (EnableRaw) {
-        Stream->Write(yson);
-        BeforeFirstItem = false;
+    if (EnableRaw_) {
+        Stream_->Write(yson);
+        if (type == EYsonType::Node) {
+            EndNode();
+        }
     } else {
         TYsonConsumerBase::OnRaw(yson, type);
     }
+}
+
+void TYsonWriter::Reset()
+{
+    Depth_ = 0;
+    EmptyCollection_ = true;
+    NodeExpected_ = (Type_ == EYsonType::Node);
+}
+
+bool TYsonWriter::IsNodeExpected() const
+{
+    return NodeExpected_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "rack_proxy.h"
 #include "rack.h"
+#include "node.h"
 #include "node_tracker.h"
 
 #include <core/ytree/fluent.h>
@@ -13,6 +14,7 @@ namespace NYT {
 namespace NNodeTrackerServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,12 +33,14 @@ private:
     virtual void ValidateRemoval() override
     { }
 
-    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("name");
-        attributes->push_back("index");
-        attributes->push_back("nodes");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(TAttributeDescriptor("name")
+            .SetReplicated(true));
+        descriptors->push_back("index");
+        descriptors->push_back("nodes");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
@@ -57,8 +61,11 @@ private:
         }
 
         if (key == "nodes") {
+            auto nodes = nodeTracker->GetRackNodes(rack);
             BuildYsonFluently(consumer)
-                .Value(nodeTracker->GetNodeAddressesByRack(rack));
+                .DoListFor(nodes, [] (TFluentList fluent, const TNode* node) {
+                    fluent.Item().Value(node->GetDefaultAddress());
+                });
             return true;
         }
 

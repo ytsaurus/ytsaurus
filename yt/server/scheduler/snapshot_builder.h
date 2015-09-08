@@ -20,14 +20,14 @@ public:
     TSnapshotBuilder(
         TSchedulerConfigPtr config,
         TSchedulerPtr scheduler,
-        NApi::IClientPtr masterClient);
+        NApi::IClientPtr client);
 
     TFuture<void> Run();
 
 private:
-    const TSchedulerConfigPtr Config;
-    const TSchedulerPtr Scheduler;
-    const NApi::IClientPtr MasterClient;
+    const TSchedulerConfigPtr Config_;
+    const TSchedulerPtr Scheduler_;
+    const NApi::IClientPtr Client_;
 
     struct TJob
     {
@@ -36,7 +36,8 @@ private:
         Stroka FileName;
     };
 
-    std::vector<TJob> Jobs;
+    std::vector<TJob> Jobs_;
+
 
     virtual TDuration GetTimeout() const override;
     virtual void RunChild() override;
@@ -47,6 +48,8 @@ private:
     void UploadSnapshot(const TJob& job);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,6 +4,7 @@
 namespace NYT {
 namespace NDriver {
 
+using namespace NYson;
 using namespace NYTree;
 using namespace NObjectClient;
 using namespace NScheduler;
@@ -35,7 +36,7 @@ void TCommandBase::Reply(const TYsonString& yson)
     YCHECK(!Replied_);
 
     auto consumer = Context_->CreateOutputConsumer();
-    Consume(yson, consumer.get());
+    Serialize(yson, consumer.get());
 
     Context_->Reply(TError());
     Replied_ = true;

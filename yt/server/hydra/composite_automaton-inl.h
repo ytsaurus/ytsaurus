@@ -50,7 +50,16 @@ void TCompositeAutomatonPart::RegisterMethod(
 {
     RegisterMethod(
         TRequest::default_instance().GetTypeName(),
-        BIND(&TMutationActionTraits<TRequest, TResponse>::Run, callback));
+        BIND(&TMutationActionTraits<TRequest, TResponse>::template Run<TCallback<TResponse(const TRequest&)>>, callback));
+}
+
+template <class TRequest, class TResponse>
+void TCompositeAutomatonPart::RegisterMethod(
+    TCallback<TResponse(TRequest&)> callback)
+{
+    RegisterMethod(
+        TRequest::default_instance().GetTypeName(),
+        BIND(&TMutationActionTraits<TRequest, TResponse>::template Run<TCallback<TResponse(TRequest&)>>, callback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

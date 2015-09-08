@@ -29,6 +29,8 @@ message TReqRegisterNode
 {
     required TAddressMap addresses = 1;
     required TNodeStatistics statistics = 2;
+    optional NYT.NProto.TGuid lease_transaction_id = 3;
+    optional int32 node_id = 4;
 }
 
 message TRspRegisterNode
@@ -105,9 +107,6 @@ message TReqIncrementalHeartbeat
     // Tablet Manager stuff.
     repeated TTabletSlotInfo tablet_slots = 6;
     repeated TTabletInfo tablets = 8;
-
-    // Hive Manager stuff.
-    repeated NHive.NProto.TCellInfo hive_cells = 7;
 }
 
 message TCreateTabletSlotInfo
@@ -128,16 +127,6 @@ message TRemoveTabletSlotInfo
     required NYT.NProto.TGuid cell_id = 1;
 }
 
-message TUnregisterHiveCellInfo
-{
-    required NYT.NProto.TGuid cell_id = 1;
-}
-
-message TReconfigureHiveCellInfo
-{
-    required NYT.NHive.NProto.TCellDescriptor cell_descriptor = 1;
-}
-
 message TRspIncrementalHeartbeat
 {
     // Tablet Manager stuff.
@@ -145,22 +134,8 @@ message TRspIncrementalHeartbeat
     repeated TRemoveTabletSlotInfo tablet_slots_to_remove = 2;
     repeated TConfigureTabletSlotInfo tablet_slots_configure = 3;
 
-    // Hive Manager stuff.
-    repeated TUnregisterHiveCellInfo hive_cells_to_unregister = 4;
-    repeated TReconfigureHiveCellInfo hive_cells_to_reconfigure = 5;
-
     // General.
     optional string rack = 6;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqGetRegisteredCells
-{ }
-
-message TRspGetRegisteredCells
-{
-    repeated NYT.NHive.NProto.TCellDescriptor cell_descriptors = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

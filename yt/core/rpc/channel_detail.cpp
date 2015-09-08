@@ -31,7 +31,7 @@ Stroka TChannelWrapper::GetEndpointTextDescription() const
     return UnderlyingChannel_->GetEndpointTextDescription();
 }
 
-NYTree::TYsonString TChannelWrapper::GetEndpointYsonDescription() const
+NYson::TYsonString TChannelWrapper::GetEndpointYsonDescription() const
 {
     return UnderlyingChannel_->GetEndpointYsonDescription();
 }

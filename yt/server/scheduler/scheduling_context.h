@@ -1,7 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "job.h"
+
+#include <ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -43,7 +44,8 @@ struct ISchedulingContext
 std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs);
+    const std::vector<TJobPtr>& runningJobs,
+    NObjectClient::TCellTag cellTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +66,8 @@ public:
     TSchedulingContextBase(
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs);
+        const std::vector<TJobPtr>& runningJobs,
+        NObjectClient::TCellTag cellTag);
 
     virtual Stroka GetAddress() const override;
 
@@ -86,7 +89,8 @@ public:
     virtual TInstant GetNow() const override;
 
 private:
-    TSchedulerConfigPtr Config_;
+    const TSchedulerConfigPtr Config_;
+    const NObjectClient::TCellTag CellTag_;
 
 };
 

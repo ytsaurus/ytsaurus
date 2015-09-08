@@ -23,7 +23,11 @@ IAttributeDictionary* TAttributeConsumer::GetAttributes() const
 void TAttributeConsumer::OnMyKeyedItem(const TStringBuf& key)
 {
     Stroka localKey(key);
-    Writer.reset(new TYsonWriter(&Output));
+    Writer.reset(new TYsonWriter(
+        &Output,
+        EYsonFormat::Binary,
+        EYsonType::Node,
+        true));
     Forward(Writer.get(), BIND([=] () {
         Writer.reset();
         Attributes->SetYson(localKey, TYsonString(Output.Str()));

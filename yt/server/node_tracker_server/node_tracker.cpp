@@ -2,9 +2,11 @@
 #include "node_tracker.h"
 #include "config.h"
 #include "node.h"
+#include "node_proxy.h"
 #include "rack.h"
 #include "rack_proxy.h"
 #include "private.h"
+#include "cypress_integration.h"
 
 #include <core/misc/id_generator.h>
 #include <core/misc/address.h>
@@ -15,17 +17,21 @@
 #include <core/ypath/token.h>
 
 #include <core/concurrency/scheduler.h>
+#include <core/concurrency/periodic_executor.h>
 
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <server/chunk_server/job.h>
 
 #include <server/node_tracker_server/node_tracker.pb.h>
 
 #include <server/cypress_server/cypress_manager.h>
+#include <server/cypress_server/node_proxy.h>
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/transaction.h>
@@ -36,6 +42,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/serialize.h>
 
 #include <deque>
@@ -52,6 +59,7 @@ using namespace NHydra;
 using namespace NHive;
 using namespace NObjectClient;
 using namespace NCypressClient;
+using namespace NCypressServer;
 using namespace NNodeTrackerServer::NProto;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -64,11 +72,74 @@ static const auto& Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNodeTracker::TClusterNodeTypeHandler
+    : public TObjectTypeHandlerWithMapBase<TNode>
+{
+public:
+    explicit TClusterNodeTypeHandler(TImpl* owner);
+
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
+
+    virtual EObjectType GetType() const override
+    {
+        return EObjectType::ClusterNode;
+    }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return Null;
+    }
+
+private:
+    TImpl* const Owner_;
+
+    virtual Stroka DoGetName(TNode* node) override
+    {
+        return Format("node %v", node->GetDefaultAddress());
+    }
+
+    virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* transaction) override;
+
+    virtual void DoZombifyObject(TNode* node) override;
+
+    virtual void DoResetObject(TNode* node) override
+    {
+        TObjectTypeHandlerWithMapBase::DoResetObject(node);
+        node->Reset();
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeTracker::TRackTypeHandler
     : public TObjectTypeHandlerWithMapBase<TRack>
 {
 public:
     explicit TRackTypeHandler(TImpl* owner);
+
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
 
     virtual EObjectType GetType() const override
     {
@@ -83,11 +154,11 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -117,9 +188,10 @@ public:
     {
         RegisterMethod(BIND(&TImpl::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraRemoveNode, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFullHeartbeat, Unretained(this), nullptr));
         RegisterMethod(BIND(&TImpl::HydraIncrementalHeartbeat, Unretained(this), nullptr, nullptr));
+        RegisterMethod(BIND(&TImpl::HydraSetNodeStates, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -136,8 +208,6 @@ public:
             ESyncSerializationPriority::Values,
             "NodeTracker.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
-
-        SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, Unretained(this)));
     }
 
     void Initialize()
@@ -147,7 +217,11 @@ public:
         transactionManager->SubscribeTransactionAborted(BIND(&TImpl::OnTransactionFinished, MakeWeak(this)));
 
         auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RegisterHandler(New<TClusterNodeTypeHandler>(this));
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
     }
 
     bool TryAcquireNodeRegistrationSemaphore()
@@ -175,8 +249,8 @@ public:
             request);
     }
 
-    TMutationPtr CreateRemoveNodeMutation(
-        const TReqRemoveNode& request)
+    TMutationPtr CreateDisposeNodeMutation(
+        const TReqDisposeNode& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
@@ -209,50 +283,40 @@ public:
     }
 
 
-    void RefreshNodeConfig(TNode* node)
-    {
-        auto attributes = FindNodeAttributes(node->GetDefaultAddress());
-        if (!attributes)
-            return;
-
-        if (!ReconfigureYsonSerializable(node->GetConfig(), attributes))
-            return;
-
-        LOG_INFO_UNLESS(IsRecovery(), "Node configuration updated (Address: %v)", node->GetDefaultAddress());
-
-        NodeConfigUpdated_.Fire(node);
-    }
-
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TNodeId);
+    DECLARE_ENTITY_MAP_ACCESSORS(Node, TNode, TObjectId);
     DECLARE_ENTITY_MAP_ACCESSORS(Rack, TRack, TRackId);
 
     DEFINE_SIGNAL(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL(void(TNode* node), NodeUnregistered);
-    DEFINE_SIGNAL(void(TNode* node), NodeRemoved);
-    DEFINE_SIGNAL(void(TNode* node), NodeConfigUpdated);
+    DEFINE_SIGNAL(void(TNode* node), NodeDisposed);
+    DEFINE_SIGNAL(void(TNode* node), NodeBanChanged);
+    DEFINE_SIGNAL(void(TNode* node), NodeDecommissionChanged);
+    DEFINE_SIGNAL(void(TNode* node), NodeRackChanged);
     DEFINE_SIGNAL(void(TNode* node, const TReqFullHeartbeat& request), FullHeartbeat);
     DEFINE_SIGNAL(void(TNode* node, const TReqIncrementalHeartbeat& request, TRspIncrementalHeartbeat* response), IncrementalHeartbeat);
-    DEFINE_SIGNAL(void(std::vector<TCellDescriptor>*), PopulateCellDescriptors);
 
 
-    TNode* FindNodeByAddress(const Stroka& address)
+    void DestroyNode(TNode* node)
     {
-        auto it = AddressToNodeMap_.find(address);
-        return it == AddressToNodeMap_.end() ? nullptr : it->second;
+        auto nodeMapProxy = GetNodeMap();
+        auto nodeNodeProxy = nodeMapProxy->FindChild(ToString(node->GetDefaultAddress()));
+        if (nodeNodeProxy) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->AbortSubtreeTransactions(nodeNodeProxy);
+            nodeMapProxy->RemoveChild(nodeNodeProxy);
+        }
+
+        RemoveFromAddressMaps(node);
     }
 
-    TNode* GetNodeByAddress(const Stroka& address)
+    TNode* FindNode(TNodeId id)
     {
-        auto* node = FindNodeByAddress(address);
-        YCHECK(node);
-        return node;
+        return FindNode(ObjectIdFromNodeId(id));
     }
 
-    TNode* FindNodeByHostName(const Stroka& hostName)
+    TNode* GetNode(TNodeId id)
     {
-        auto it = HostNameToNodeMap_.find(hostName);
-        return it == HostNameToNodeMap_.end() ? nullptr : it->second;
+        return GetNode(ObjectIdFromNodeId(id));
     }
 
     TNode* GetNodeOrThrow(TNodeId id)
@@ -267,34 +331,101 @@ public:
         return node;
     }
 
-    std::vector<Stroka> GetNodeAddressesByRack(const TRack* rack)
+    TNode* FindNodeByAddress(const Stroka& address)
     {
-        auto nodesMap = FindNodesMap();
-        if (!nodesMap) {
-            return std::vector<Stroka>();
+        auto it = AddressToNodeMap_.find(address);
+        return it == AddressToNodeMap_.end() ? nullptr : it->second;
+    }
+
+    TNode* GetNodeByAddress(const Stroka& address)
+    {
+        auto* node = FindNodeByAddress(address);
+        YCHECK(node);
+        return node;
+    }
+
+    TNode* GetNodeByAddressOrThrow(const Stroka& address)
+    {
+        auto* node = FindNodeByAddress(address);
+        if (!node) {
+            THROW_ERROR_EXCEPTION("No such cluster node %v", address);
         }
+        return node;
+    }
 
-        auto allAddresses = nodesMap->GetKeys();
-        // Just in case, to make the behavior fully deterministic.
-        std::sort(allAddresses.begin(), allAddresses.end());
+    TNode* FindNodeByHostName(const Stroka& hostName)
+    {
+        auto it = HostNameToNodeMap_.find(hostName);
+        return it == HostNameToNodeMap_.end() ? nullptr : it->second;
+    }
 
-        std::vector<Stroka> matchingAddresses;
-        for (const auto& address : allAddresses) {
-            auto nodeNode = nodesMap->GetChild(address);
-            auto* nodeAttributes = nodeNode->MutableAttributes();
-            auto nodeRack = nodeAttributes->Find<Stroka>("rack");
-            if (nodeRack && rack && *nodeRack == rack->GetName() ||
-                !nodeRack && !rack)
-            {
-                matchingAddresses.push_back(address);
+    std::vector<TNode*> GetRackNodes(const TRack* rack)
+    {
+        std::vector<TNode*> result;
+        for (const auto& pair : NodeMap_) {
+            auto* node = pair.second;
+            if (!IsObjectAlive(node))
+                continue;
+            if (node->GetRack() == rack) {
+                result.push_back(node);
             }
         }
-
-        return matchingAddresses;
+        return result;
     }
 
 
-    TRack* CreateRack(const Stroka& name)
+    void SetNodeBanned(TNode* node, bool value)
+    {
+        if (node->GetBanned() != value) {
+            node->SetBanned(value);
+            if (value) {
+                LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+                auto state = node->GetLocalState();
+                if (state == ENodeState::Online || state == ENodeState::Registered) {
+                    UnregisterNode(node, true);
+                }
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            }
+            NodeBanChanged_.Fire(node);
+        }
+    }
+
+    void SetNodeDecommissioned(TNode* node, bool value)
+    {
+        if (node->GetDecommissioned() != value) {
+            node->SetDecommissioned(value);
+            if (value) {
+                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            } else {
+                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress());
+            }
+            NodeDecommissionChanged_.Fire(node);
+        }
+    }
+
+    void SetNodeRack(TNode* node, TRack* rack)
+    {
+        if (node->GetRack() != rack) {
+            node->SetRack(rack);
+            LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
+                node->GetId(),
+                node->GetDefaultAddress(),
+                rack ? MakeNullable(rack->GetName()) : Null);
+            NodeRackChanged_.Fire(node);
+        }
+    }
+
+
+    TRack* CreateRack(const Stroka& name, const TObjectId& hintId)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Rack name cannot be empty");
@@ -313,7 +444,7 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Rack);
+        auto id = objectManager->GenerateId(EObjectType::Rack, hintId);
 
         auto rackHolder = std::make_unique<TRack>(id);
         rackHolder->SetName(name);
@@ -331,20 +462,13 @@ public:
     void DestroyRack(TRack* rack)
     {
         // Unbind nodes from this rack.
-        auto addresses = GetNodeAddressesByRack(rack);
-        AssignNodesToRack(addresses, nullptr);
+        for (auto* node : GetRackNodes(rack)) {
+            SetNodeRack(node, nullptr);
+        }
 
         // Remove rack from maps.
         YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
         FreeRackIndex(rack->GetIndex());
-
-        // Notify the subscribers about the node changes.
-        for (const auto& address : addresses) {
-            auto* node = FindNodeByAddress(address);
-            if (node) {
-                RefreshNodeConfig(node);
-            }
-        }
     }
 
     void RenameRack(TRack* rack, const Stroka& newName)
@@ -359,17 +483,10 @@ public:
                 newName);
         }
 
-        // Temporarily unbind nodes from this rack.
-        auto addresses = GetNodeAddressesByRack(rack);
-        AssignNodesToRack(addresses, nullptr);
-
         // Update name.
         YCHECK(NameToRackMap_.erase(rack->GetName()) == 1);
         YCHECK(NameToRackMap_.insert(std::make_pair(newName, rack)).second);
         rack->SetName(newName);
-
-        // Rebind nodes back.
-        AssignNodesToRack(addresses, rack);
     }
 
     TRack* FindRackByName(const Stroka& name)
@@ -391,27 +508,6 @@ public:
     }
 
 
-    TNodeConfigPtr FindNodeConfigByAddress(const Stroka& address)
-    {
-        auto attributes = FindNodeAttributes(address);
-        if (!attributes) {
-            return nullptr;
-        }
-
-        try {
-            return ConvertTo<TNodeConfigPtr>(attributes);
-        } catch (const std::exception& ex) {
-            LOG_WARNING(ex, "Error parsing configuration of node %v, defaults will be used", address);
-            return nullptr;
-        }
-    }
-
-    TNodeConfigPtr GetNodeConfigByAddress(const Stroka& address)
-    {
-        auto config = FindNodeConfigByAddress(address);
-        return config ? config : New<TNodeConfig>();
-    }
-
     TTotalNodeStatistics GetTotalNodeStatistics()
     {
         TTotalNodeStatistics result;
@@ -420,7 +516,7 @@ public:
             const auto& statistics = node->Statistics();
             result.AvailableSpace += statistics.total_available_space();
             result.UsedSpace += statistics.total_used_space();
-            result.ChunkCount += statistics.total_chunk_count();
+            result.ChunkCount += statistics.total_stored_chunk_count();
             result.FullNodeCount += statistics.full() ? 1 : 0;
             result.OnlineNodeCount++;
         }
@@ -437,15 +533,8 @@ public:
         return OnlineNodeCount_;
     }
 
-
-    std::vector<TCellDescriptor> GetCellDescriptors()
-    {
-        std::vector<TCellDescriptor> result;
-        PopulateCellDescriptors_.Fire(&result);
-        return result;
-    }
-
 private:
+    friend class TClusterNodeTypeHandler;
     friend class TRackTypeHandler;
 
     const TNodeTrackerConfigPtr Config_;
@@ -453,7 +542,7 @@ private:
     NProfiling::TProfiler Profiler = NodeTrackerServerProfiler;
 
     TIdGenerator NodeIdGenerator_;
-    NHydra::TEntityMap<TNodeId, TNode> NodeMap_;
+    NHydra::TEntityMap<TObjectId, TNode> NodeMap_;
     NHydra::TEntityMap<TRackId, TRack> RackMap_;
 
     int OnlineNodeCount_ = 0;
@@ -466,11 +555,12 @@ private:
     yhash_map<TTransaction*, TNode*> TransactionToNodeMap_;
     yhash_map<Stroka, TRack*> NameToRackMap_;
 
+    TPeriodicExecutorPtr NodeStatesGossipExecutor_;
 
     int PendingRegisterNodeMutationCount_ = 0;
 
-    std::deque<TNode*> NodeRemovalQueue_;
-    int PendingRemoveNodeMutationCount_ = 0;
+    std::deque<TNode*> NodeDisposalQueue_;
+    int PendingDisposeNodeMutationCount_ = 0;
 
 
     TNodeId GenerateNodeId()
@@ -490,6 +580,12 @@ private:
         return id;
     }
 
+    TObjectId ObjectIdFromNodeId(TNodeId nodeId)
+    {
+        return NNodeTrackerClient::ObjectIdFromNodeId(
+            nodeId,
+            Bootstrap_->GetPrimaryCellTag());
+    }
 
 
     static TYPath GetNodePath(const Stroka& address)
@@ -502,58 +598,92 @@ private:
         return GetNodePath(node->GetDefaultAddress());
     }
 
-
-    IMapNodePtr FindNodesMap()
+    IMapNodePtr GetNodeMap()
     {
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         auto node = resolver->ResolvePath("//sys/nodes");
-        return node ? node->AsMap() : nullptr;
-    }
-
-    IMapNodePtr FindNodeNode(const Stroka& address)
-    {
-        auto nodesMap = FindNodesMap();
-        if (!nodesMap) {
-            return nullptr;
-        }
-        auto nodeNode = nodesMap->FindChild(address);
-        return nodeNode ? nodeNode->AsMap() : nullptr;
-    }
-
-    IMapNodePtr FindNodeAttributes(const Stroka& address)
-    {
-        auto nodeNode = FindNodeNode(address);
-        return nodeNode ? nodeNode->Attributes().ToMap() : nullptr;
+        return node->AsMap();
     }
 
 
     TRspRegisterNode HydraRegisterNode(const TReqRegisterNode& request)
     {
-        auto addresses = FromProto<TAddressMap>(request.addresses());
-        const auto& address = GetDefaultAddress(addresses);
-        const auto& statistics = request.statistics();
-
-        // Kick-out any previous incarnation.
-        {
-            auto* existingNode = FindNodeByAddress(address);
-            if (existingNode) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingId: %v)",
-                    address,
-                    existingNode->GetId());
-                DoUnregisterNode(existingNode, false);
-                DoRemoveNode(existingNode);
-            }
-        }
-
-        if (IsLeader()) {
+        if (Bootstrap_->IsPrimaryMaster() && IsLeader()) {
             YCHECK(--PendingRegisterNodeMutationCount_ >= 0);
         }
 
-        auto* node = DoRegisterNode(addresses, statistics);
+        auto addresses = FromProto<TAddressMap>(request.addresses());
+        const auto& address = GetDefaultAddress(addresses);
+        const auto& statistics = request.statistics();
+        auto leaseTransactionId = request.has_lease_transaction_id()
+            ? FromProto<TTransactionId>(request.lease_transaction_id())
+            : NullTransactionId;
+
+        // Check lease transaction.
+        TTransaction* leaseTransaction = nullptr;
+        if (leaseTransactionId) {
+            auto transactionManager = Bootstrap_->GetTransactionManager();
+            leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
+            if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
+                leaseTransaction->ThrowInvalidState();
+            }
+        }
+
+        // Kick-out any previous incarnation.
+        auto* existingNode = FindNodeByAddress(address);
+        if (IsObjectAlive(existingNode)) {
+            if (existingNode->GetBanned()) {
+                THROW_ERROR_EXCEPTION("Node %v is banned", address);
+            }
+
+            RemoveFromAddressMaps(existingNode);
+
+            auto existingState = existingNode->GetLocalState();
+            if (existingState != ENodeState::Offline) {
+                if (existingState == ENodeState::Registered || existingState == ENodeState::Online) {
+                    UnregisterNode(existingNode, false);
+                }
+                if (existingNode->GetLocalState() == ENodeState::Unregistered) {
+                    DisposeNode(existingNode);
+                }
+                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingNodeId: %v, ExistingNodeState: %v)",
+                    address,
+                    existingNode->GetId(),
+                    existingState);
+            }
+        }
+
+        auto nodeId = request.has_node_id() ? request.node_id() : GenerateNodeId();
+        auto* newNode = RegisterNode(
+            nodeId,
+            addresses,
+            statistics,
+            leaseTransaction);
+
+        if (existingNode) {
+            SetNodeBanned(newNode, existingNode->GetBanned());
+            SetNodeDecommissioned(newNode, existingNode->GetDecommissioned());
+            const auto* newAttributes = newNode->GetAttributes();
+            auto* existingAttributes = existingNode->GetMutableAttributes();
+            if (newAttributes) {
+                existingAttributes->Attributes() = newAttributes->Attributes();
+            } else {
+                existingAttributes->Attributes().clear();
+            }
+            NodeMap_.Remove(ObjectIdFromNodeId(existingNode->GetId()));
+        }
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto replicatedRequest = request;
+            replicatedRequest.set_node_id(nodeId);
+
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMasters(replicatedRequest);
+        }
 
         TRspRegisterNode response;
-        response.set_node_id(node->GetId());
+        response.set_node_id(nodeId);
         return response;
     }
 
@@ -562,29 +692,37 @@ private:
         auto nodeId = request.node_id();
 
         auto* node = FindNode(nodeId);
-        if (!node)
-            return;
-        if (node->GetState() != ENodeState::Registered && node->GetState() != ENodeState::Online)
+        if (!IsObjectAlive(node))
             return;
 
-        DoUnregisterNode(node, true);
+        auto state = node->GetLocalState();
+        if (state != ENodeState::Registered && state != ENodeState::Online)
+            return;
+
+        UnregisterNode(node, true);
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMasters(request);
+        }
     }
 
-    void HydraRemoveNode(const TReqRemoveNode& request)
+    void HydraDisposeNode(const TReqDisposeNode& request)
     {
         auto nodeId = request.node_id();
 
         auto* node = FindNode(nodeId);
-        if (!node)
+        if (!IsObjectAlive(node))
             return;
-        if (node->GetState() != ENodeState::Unregistered)
+
+        if (node->GetLocalState() != ENodeState::Unregistered)
             return;
 
         if (IsLeader()) {
-            YCHECK(--PendingRemoveNodeMutationCount_ >= 0);
+            YCHECK(--PendingDisposeNodeMutationCount_ >= 0);
         }
 
-        DoRemoveNode(node);
+        DisposeNode(node);
     }
 
     void HydraFullHeartbeat(
@@ -594,26 +732,28 @@ private:
         auto nodeId = request.node_id();
         const auto& statistics = request.statistics();
 
-        auto* node = FindNode(nodeId);
-        if (!node)
-            return;
-        if (node->GetState() != ENodeState::Registered)
-            return;
+        auto* node = GetNodeOrThrow(nodeId);
+        if (node->GetLocalState() != ENodeState::Registered) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Cannot process a full heartbeat in %Qlv state",
+                node->GetLocalState());
+        }
 
         PROFILE_TIMING ("/full_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                node->GetState(),
+                node->GetLocalState(),
                 statistics);
 
             UpdateNodeCounters(node, -1);
-            node->SetState(ENodeState::Online);
+            node->SetLocalState(ENodeState::Online);
             UpdateNodeCounters(node, +1);
 
             node->Statistics() = statistics;
 
-            RenewNodeLease(node);
+            UpdateLastSeenTime(node);
 
             LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
@@ -631,29 +771,48 @@ private:
         auto nodeId = request.node_id();
         const auto& statistics = request.statistics();
 
-        auto* node = FindNode(nodeId);
-        if (!node)
-            return;
-        if (node->GetState() != ENodeState::Online)
-            return;
+        auto* node = GetNodeOrThrow(nodeId);
+        if (node->GetLocalState() != ENodeState::Online) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Cannot process an incremental heartbeat in %Qlv state",
+                node->GetLocalState());
+        }
 
         PROFILE_TIMING ("/incremental_heartbeat_time") {
             LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                node->GetState(),
+                node->GetLocalState(),
                 statistics);
 
             node->Statistics() = statistics;
             node->Alerts() = FromProto<TError>(request.alerts());
 
-            RenewNodeLease(node);
+            UpdateLastSeenTime(node);
 
             if (response && node->GetRack()) {
                 response->set_rack(node->GetRack()->GetName());
             }
             
             IncrementalHeartbeat_.Fire(node, request, response);
+        }
+    }
+
+    void HydraSetNodeStates(const TReqSetNodeStates& request)
+    {
+        auto cellTag = request.cell_tag();
+        LOG_INFO_UNLESS(IsRecovery(), "Received node states gossip message (CellTag: %v)",
+            cellTag);
+
+        YCHECK(Bootstrap_->IsPrimaryMaster());
+
+        for (const auto& entry : request.entries()) {
+            auto* node = FindNode(entry.node_id());
+            if (!IsObjectAlive(node))
+                continue;
+
+            node->MulticellStates()[cellTag] = ENodeState(entry.state());
         }
     }
 
@@ -674,21 +833,16 @@ private:
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         NodeMap_.LoadKeys(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 103) {
-            RackMap_.LoadKeys(context);
-        }
+        RackMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
         Load(context, NodeIdGenerator_);
         NodeMap_.LoadValues(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= 103) {
-            RackMap_.LoadValues(context);
-        }
+        RackMap_.LoadValues(context);
     }
+
 
     virtual void Clear() override
     {
@@ -721,17 +875,13 @@ private:
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            const auto& address = node->GetDefaultAddress();
 
-            YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
-            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-
+            InitializeNodeStates(node);
+            InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
-            if (node->GetTransaction()) {
+            if (node->GetLeaseTransaction()) {
                 RegisterLeaseTransaction(node);
-            } else {
-                DoUnregisterNode(node, true);
             }
         }
 
@@ -752,15 +902,6 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         Profiler.SetEnabled(false);
-
-        // Reset runtime info.
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
-            node->ResetSessionHints();
-            node->ClearChunkRemovalQueue();
-            node->ClearChunkReplicationQueues();
-            node->ClearChunkSealQueue();
-        }
     }
 
     virtual void OnRecoveryComplete() override
@@ -774,26 +915,63 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
+        // NB: Node states gossip is one way: secondary-to-primary.
+        if (Bootstrap_->IsSecondaryMaster()) {
+            NodeStatesGossipExecutor_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
+                BIND(&TImpl::OnNodeStatesGossip, MakeWeak(this)),
+                Config_->NodeStatesGossipPeriod);
+            NodeStatesGossipExecutor_->Start();
+        }
+
         PendingRegisterNodeMutationCount_ = 0;
 
-        NodeRemovalQueue_.clear();
-        PendingRemoveNodeMutationCount_ = 0;
+        NodeDisposalQueue_.clear();
+        PendingDisposeNodeMutationCount_ = 0;
 
         for (const auto& pair : NodeMap_) {
             auto* node = pair.second;
-            RefreshNodeConfig(node);
-            if (node->GetState() == ENodeState::Unregistered) {
-                NodeRemovalQueue_.push_back(node);
+            if (node->GetLocalState() == ENodeState::Unregistered) {
+                NodeDisposalQueue_.push_back(node);
             }
         }
 
-        MaybePostRemoveNodeMutations();
+        MaybePostDisposeNodeMutations();
+    }
+
+    virtual void OnStopLeading() override
+    {
+        TMasterAutomatonPart::OnStopLeading();
+
+        if (NodeStatesGossipExecutor_) {
+            NodeStatesGossipExecutor_->Stop();
+            NodeStatesGossipExecutor_.Reset();
+        }
     }
 
 
+    void InitializeNodeStates(TNode* node)
+    {
+        auto cellTag = Bootstrap_->GetCellTag();
+        const auto& secondaryCellTags = Bootstrap_->GetSecondaryCellTags();
+
+        auto& multicellStates = node->MulticellStates();
+        if (multicellStates.find(cellTag) == multicellStates.end()) {
+            multicellStates[cellTag] = ENodeState::Offline;
+        }
+
+        for (auto secondaryCellTag : secondaryCellTags) {
+            if (multicellStates.find(secondaryCellTag) == multicellStates.end()) {
+                multicellStates[secondaryCellTag] = ENodeState::Offline;
+            }
+        }
+
+        node->SetLocalStatePtr(&multicellStates[cellTag]);
+    }
+
     void UpdateNodeCounters(TNode* node, int delta)
     {
-        switch (node->GetState()) {
+        switch (node->GetLocalState()) {
             case ENodeState::Registered:
                 RegisteredNodeCount_ += delta;
                 break;
@@ -808,57 +986,25 @@ private:
 
     void RegisterLeaseTransaction(TNode* node)
     {
-        auto* transaction = node->GetTransaction();
+        auto* transaction = node->GetLeaseTransaction();
         YCHECK(transaction);
         YCHECK(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
     }
 
     TTransaction* UnregisterLeaseTransaction(TNode* node)
     {
-        auto* transaction = node->GetTransaction();
+        auto* transaction = node->GetLeaseTransaction();
         if (transaction) {
             YCHECK(TransactionToNodeMap_.erase(transaction) == 1);
         }
-        node->SetTransaction(nullptr);
+        node->SetLeaseTransaction(nullptr);
         return transaction;
     }
 
-    void RenewNodeLease(TNode* node)
+    void UpdateLastSeenTime(TNode* node)
     {
-        auto* transaction = node->GetTransaction();
-        if (!transaction)
-            return;
-
-        auto timeout = GetNodeLeaseTimeout(node);
-        transaction->SetTimeout(timeout);
-
-        try {
-            auto objectManager = Bootstrap_->GetObjectManager();
-            auto rootService = objectManager->GetRootService();
-            auto nodePath = GetNodePath(node);
-            const auto* mutationContext = GetCurrentMutationContext();
-            auto mutationTimestamp = mutationContext->GetTimestamp();
-            SyncYPathSet(rootService, nodePath + "/@last_seen_time", ConvertToYsonString(mutationTimestamp));
-        } catch (const std::exception& ex) {
-            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating node properties in Cypress");
-        }
-
-        if (IsLeader()) {
-            auto transactionManager = Bootstrap_->GetTransactionManager();
-            transactionManager->PingTransaction(transaction);
-        }
-    }
-
-    TDuration GetNodeLeaseTimeout(TNode* node)
-    {
-        switch (node->GetState()) {
-            case ENodeState::Registered:
-                return Config_->RegisteredNodeTimeout;
-            case ENodeState::Online:
-                return Config_->OnlineNodeTimeout;
-            default:
-                YUNREACHABLE();
-        }
+        const auto* mutationContext = GetCurrentMutationContext();
+        node->SetLastSeenTime(mutationContext->GetTimestamp());
     }
 
     void OnTransactionFinished(TTransaction* transaction)
@@ -868,69 +1014,59 @@ private:
             return;
 
         auto* node = it->second;
-        LOG_INFO_UNLESS(IsRecovery(), "Node lease expired (NodeId: %v, Address: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v)",
             node->GetId(),
             node->GetDefaultAddress());
 
-        DoUnregisterNode(node, true);
+        UnregisterNode(node, true);
     }
 
 
-    TNode* DoRegisterNode(const TAddressMap& addresses, const TNodeStatistics& statistics)
+    TNode* RegisterNode(
+        TNodeId nodeId,
+        const TAddressMap& addresses,
+        const TNodeStatistics& statistics,
+        TTransaction* leaseTransaction)
     {
         PROFILE_TIMING ("/node_register_time") {
             const auto& address = GetDefaultAddress(addresses);
-            auto config = GetNodeConfigByAddress(address);
-            auto nodeId = GenerateNodeId();
+            auto objectId = ObjectIdFromNodeId(nodeId);
 
             const auto* mutationContext = GetCurrentMutationContext();
+            auto registerTime = mutationContext->GetTimestamp();
 
             auto nodeHolder = std::make_unique<TNode>(
-                nodeId,
+                objectId,
                 addresses,
-                config,
-                mutationContext->GetTimestamp());
-            auto* node = NodeMap_.Insert(nodeId, std::move(nodeHolder));
+                registerTime);
 
-            node->SetState(ENodeState::Registered);
+            auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
+
+            // Make the fake reference.
+            YCHECK(node->RefObject() == 1);
+
+            InitializeNodeStates(node);
+            node->SetLocalState(ENodeState::Registered);
             node->Statistics() = statistics;
-            node->SetRack(config->Rack ? FindRackByName(*config->Rack) : nullptr);
 
-            AddressToNodeMap_.insert(std::make_pair(address, node));
-            HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
-            
+            InsertToAddressMaps(node);
             UpdateNodeCounters(node, +1);
 
-            auto transactionManager = Bootstrap_->GetTransactionManager();
             auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
 
-            // Create lease transaction.
-            TTransaction* transaction;
-            {
-                auto timeout = GetNodeLeaseTimeout(node);
-                transaction = transactionManager->StartTransaction(nullptr, timeout);
-                node->SetTransaction(transaction);
+            if (leaseTransaction) {
+                node->SetLeaseTransaction(leaseTransaction);
                 RegisterLeaseTransaction(node);
             }
 
             try {
-                // Set attributes.
-                {
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("title", Format("Lease for node %v", node->GetDefaultAddress()));
-                    objectManager->FillAttributes(transaction, *attributes);
-                }
-
                 // Create Cypress node.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath);
-                    req->set_type(static_cast<int>(EObjectType::CellNode));
+                    req->set_type(static_cast<int>(EObjectType::ClusterNodeNode));
                     req->set_ignore_existing(true);
-
-                    auto defaultAttributes = ConvertToAttributes(New<TNodeConfig>());
-                    ToProto(req->mutable_node_attributes(), *defaultAttributes);
 
                     SyncExecuteVerb(rootService, req);
                 }
@@ -947,24 +1083,12 @@ private:
 
                     SyncExecuteVerb(rootService, req);
                 }
-
-                // Lock Cypress node.
-                {
-                    auto req = TCypressYPathProxy::Lock(nodePath);
-                    req->set_mode(static_cast<int>(ELockMode::Shared));
-                    SetTransactionId(req, transaction->GetId());
-
-                    SyncExecuteVerb(rootService, req);
-                }
             } catch (const std::exception& ex) {
-                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering node in Cypress");
+                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
             }
 
-            // Make the initial lease renewal (and also set "last_seen_time" attribute).
-            RenewNodeLease(node);
-
             LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
-                nodeId,
+                node->GetId(),
                 address,
                 statistics);
 
@@ -974,36 +1098,24 @@ private:
         }
     }
 
-    void DoUnregisterNode(TNode* node, bool scheduleRemoval)
+    void UnregisterNode(TNode* node, bool scheduleDisposal)
     {
         PROFILE_TIMING ("/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
-            if (transaction && transaction->GetPersistentState() == ETransactionState::Active) {
+            if (IsObjectAlive(transaction)) {
                 auto transactionManager = Bootstrap_->GetTransactionManager();
                 // NB: This will trigger OnTransactionFinished, however we've already evicted the
                 // lease so the latter call is no-op.
-                transactionManager->AbortTransaction(transaction, false);
-            }
-
-            const auto& address = node->GetDefaultAddress();
-            YCHECK(AddressToNodeMap_.erase(address) == 1);
-            {
-                auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
-                for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
-                    if (it->second == node) {
-                        HostNameToNodeMap_.erase(it);
-                        break;
-                    }
-                }
+                transactionManager->AbortTransaction(transaction, true);
             }
 
             UpdateNodeCounters(node, -1);
-            node->SetState(ENodeState::Unregistered);
+            node->SetLocalState(ENodeState::Unregistered);
             NodeUnregistered_.Fire(node);
 
-            if (scheduleRemoval && IsLeader()) {
-                NodeRemovalQueue_.push_back(node);
-                MaybePostRemoveNodeMutations();
+            if (scheduleDisposal && IsLeader()) {
+                NodeDisposalQueue_.push_back(node);
+                MaybePostDisposeNodeMutations();
             }
 
             LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
@@ -1012,25 +1124,65 @@ private:
         }
     }
 
-    void DoRemoveNode(TNode* node)
+    void DisposeNode(TNode* node)
     {
-        PROFILE_TIMING ("/node_remove_time") {
-            // Make copies, node will die soon.
-            auto nodeId = node->GetId();
-            auto address = node->GetDefaultAddress();
+        PROFILE_TIMING ("/node_dispose_time") {
+            node->SetLocalState(ENodeState::Offline);
+            NodeDisposed_.Fire(node);
 
-            NodeRemoved_.Fire(node);
-
-            NodeMap_.Remove(nodeId);
-
-            LOG_INFO_UNLESS(IsRecovery(), "Node removed (NodeId: %v, Address: %v)",
-                nodeId,
-                address);
+            LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
 
             if (IsLeader()) {
-                MaybePostRemoveNodeMutations();
+                MaybePostDisposeNodeMutations();
             }
         }
+    }
+
+
+    void InsertToAddressMaps(TNode* node)
+    {
+        const auto& address = node->GetDefaultAddress();
+        YCHECK(AddressToNodeMap_.insert(std::make_pair(address, node)).second);
+        HostNameToNodeMap_.insert(std::make_pair(Stroka(GetServiceHostName(address)), node));
+    }
+
+    void RemoveFromAddressMaps(TNode* node)
+    {
+        const auto& address = node->GetDefaultAddress();
+        YCHECK(AddressToNodeMap_.erase(address) == 1);
+        {
+            auto hostNameRange = HostNameToNodeMap_.equal_range(Stroka(GetServiceHostName(address)));
+            for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
+                if (it->second == node) {
+                    HostNameToNodeMap_.erase(it);
+                    break;
+                }
+            }
+        }
+
+    }
+
+
+    void OnNodeStatesGossip()
+    {
+        LOG_INFO("Sending node states gossip message");
+
+        TReqSetNodeStates request;
+        request.set_cell_tag(Bootstrap_->GetCellTag());
+        for (const auto& pair : NodeMap_) {
+            auto* node = pair.second;
+            if (!IsObjectAlive(node))
+                continue;
+
+            auto* entry = request.add_entries();
+            entry->set_node_id(node->GetId());
+            entry->set_state(static_cast<int>(node->GetLocalState()));
+        }
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
     }
 
 
@@ -1050,66 +1202,29 @@ private:
             }));
     }
 
-    void MaybePostRemoveNodeMutations()
+    void MaybePostDisposeNodeMutations()
     {
         while (
-            !NodeRemovalQueue_.empty() &&
-            PendingRemoveNodeMutationCount_ < Config_->MaxConcurrentNodeUnregistrations)
+            !NodeDisposalQueue_.empty() &&
+            PendingDisposeNodeMutationCount_ < Config_->MaxConcurrentNodeUnregistrations)
         {
-            const auto* node = NodeRemovalQueue_.front();
-            NodeRemovalQueue_.pop_front();
+            const auto* node = NodeDisposalQueue_.front();
+            NodeDisposalQueue_.pop_front();
 
-            TReqRemoveNode request;
+            TReqDisposeNode request;
             request.set_node_id(node->GetId());
 
-            ++PendingRemoveNodeMutationCount_;
+            ++PendingDisposeNodeMutationCount_;
 
-            auto mutation = CreateRemoveNodeMutation(request);
+            auto mutation = CreateDisposeNodeMutation(request);
             BIND(&TMutation::Commit, mutation)
                 .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
                 .Run()
                 .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing node removal mutation");
+                        LOG_ERROR(error, "Error committing node disposal mutation");
                     }
                 }));
-        }
-    }
-
-
-    void OnNodeConfigUpdated(TNode* node)
-    {
-        auto config = node->GetConfig();
-
-        if (config->Banned) {
-            LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
-            if (IsLeader()) {
-                PostUnregisterNodeMutation(node);
-            }
-        }
-
-        if (config->Rack) {
-            auto* rack = FindRackByName(*config->Rack);
-            if (rack) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node rack set (NodeId: %v, Address: %v, Rack: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    *config->Rack);
-            } else {
-                // This should not happen. But let's issue an error instead of crashing.
-                LOG_ERROR_UNLESS(IsRecovery(), "Unknown rack set to node (NodeId: %v, Address: %v, Rack: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress(),
-                    *config->Rack);
-            }
-            node->SetRack(rack);
-        } else {
-            LOG_INFO_UNLESS(IsRecovery(), "Node rack reset (NodeId: %v, Address: %)",
-                node->GetId(),
-                node->GetDefaultAddress());
-            node->SetRack(nullptr);
         }
     }
 
@@ -1135,22 +1250,28 @@ private:
         UsedRackIndexes_ &= ~mask;
     }
 
-    void AssignNodesToRack(const std::vector<Stroka>& addresses, TRack* rack)
+
+    void OnSecondaryMasterRegistered(TCellTag cellTag)
     {
-        for (const auto& address : addresses) {
-            auto node = FindNodeNode(address);
-            YCHECK(node);
-            if (rack) {
-                node->MutableAttributes()->Set("rack", rack->GetName());
-            } else {
-                node->MutableAttributes()->Remove("rack");
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        auto nodes = GetValuesSortedByKey(NodeMap_);
+        for (const auto* node : nodes) {
+            TReqRegisterNode request;
+            request.set_node_id(node->GetId());
+            ToProto(request.mutable_addresses(), node->GetAddresses());
+            *request.mutable_statistics() = node->Statistics();
+            if (node->GetLeaseTransaction()) {
+                ToProto(request.mutable_lease_transaction_id(), node->GetLeaseTransaction()->GetId());
             }
+
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToMaster(request, cellTag);
         }
     }
-
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TNodeId, NodeMap_)
+DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Node, TNode, TObjectId, NodeMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TNodeTracker::TImpl, Rack, TRack, TRackId, RackMap_)
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1169,6 +1290,21 @@ void TNodeTracker::Initialize()
 TNodeTracker::~TNodeTracker()
 { }
 
+TNode* TNodeTracker::FindNode(TNodeId id)
+{
+    return Impl_->FindNode(id);
+}
+
+TNode* TNodeTracker::GetNode(TNodeId id)
+{
+    return Impl_->GetNode(id);
+}
+
+TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
+{
+    return Impl_->GetNodeOrThrow(id);
+}
+
 TNode* TNodeTracker::FindNodeByAddress(const Stroka& address)
 {
     return Impl_->FindNodeByAddress(address);
@@ -1179,34 +1315,39 @@ TNode* TNodeTracker::GetNodeByAddress(const Stroka& address)
     return Impl_->GetNodeByAddress(address);
 }
 
+TNode* TNodeTracker::GetNodeByAddressOrThrow(const Stroka& address)
+{
+    return Impl_->GetNodeByAddressOrThrow(address);
+}
+
 TNode* TNodeTracker::FindNodeByHostName(const Stroka& hostName)
 {
     return Impl_->FindNodeByHostName(hostName);
 }
 
-TNode* TNodeTracker::GetNodeOrThrow(TNodeId id)
+std::vector<TNode*> TNodeTracker::GetRackNodes(const TRack* rack)
 {
-    return Impl_->GetNodeOrThrow(id);
+    return Impl_->GetRackNodes(rack);
 }
 
-std::vector<Stroka> TNodeTracker::GetNodeAddressesByRack(const TRack* rack)
+void TNodeTracker::SetNodeBanned(TNode* node, bool value)
 {
-    return Impl_->GetNodeAddressesByRack(rack);
+    Impl_->SetNodeBanned(node, value);
 }
 
-TNodeConfigPtr TNodeTracker::FindNodeConfigByAddress(const Stroka& address)
+void TNodeTracker::SetNodeDecommissioned(TNode* node, bool value)
 {
-    return Impl_->FindNodeConfigByAddress(address);
+    Impl_->SetNodeDecommissioned(node, value);
 }
 
-TNodeConfigPtr TNodeTracker::GetNodeConfigByAddress(const Stroka& address)
+void TNodeTracker::SetNodeRack(TNode* node, TRack* rack)
 {
-    return Impl_->GetNodeConfigByAddress(address);
+    Impl_->SetNodeRack(node, rack);
 }
 
 TRack* TNodeTracker::CreateRack(const Stroka& name)
 {
-    return Impl_->CreateRack(name);
+    return Impl_->CreateRack(name, NullObjectId);
 }
 
 void TNodeTracker::DestroyRack(TRack* rack)
@@ -1258,11 +1399,6 @@ TMutationPtr TNodeTracker::CreateIncrementalHeartbeatMutation(
     return Impl_->CreateIncrementalHeartbeatMutation(context);
 }
 
-void TNodeTracker::RefreshNodeConfig(TNode* node)
-{
-    return Impl_->RefreshNodeConfig(node);
-}
-
 TTotalNodeStatistics TNodeTracker::GetTotalNodeStatistics()
 {
     return Impl_->GetTotalNodeStatistics();
@@ -1278,21 +1414,39 @@ int TNodeTracker::GetOnlineNodeCount()
     return Impl_->GetOnlineNodeCount();
 }
 
-std::vector<NHive::TCellDescriptor> TNodeTracker::GetCellDescriptors()
-{
-    return Impl_->GetCellDescriptors();
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TNodeId, *Impl_)
+DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Node, TNode, TObjectId, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TNodeTracker, Rack, TRack, TRackId, *Impl_)
 
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRegistered, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeUnregistered, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRemoved, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeConfigUpdated, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDisposed, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeBanChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeDecommissionChanged, *Impl_);
+DELEGATE_SIGNAL(TNodeTracker, void(TNode*), NodeRackChanged, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqFullHeartbeat&), FullHeartbeat, *Impl_);
 DELEGATE_SIGNAL(TNodeTracker, void(TNode*, const TReqIncrementalHeartbeat&, TRspIncrementalHeartbeat*), IncrementalHeartbeat, *Impl_);
-DELEGATE_SIGNAL(TNodeTracker, void(std::vector<TCellDescriptor>*), PopulateCellDescriptors, *Impl_);
+
+///////////////////////////////////////////////////////////////////////////////
+
+TNodeTracker::TClusterNodeTypeHandler::TClusterNodeTypeHandler(TImpl* owner)
+    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->NodeMap_)
+    , Owner_(owner)
+{ }
+
+IObjectProxyPtr TNodeTracker::TClusterNodeTypeHandler::DoGetProxy(
+    TNode* node,
+    TTransaction* /*transaction*/)
+{
+    return CreateClusterNodeProxy(Owner_->Bootstrap_, node);
+}
+
+void TNodeTracker::TClusterNodeTypeHandler::DoZombifyObject(TNode* node)
+{
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(node);
+    // NB: Destroy the cell right away and do not wait for GC to prevent
+    // dangling links from occuring in //sys/tablet_cells.
+    Owner_->DestroyNode(node);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -1302,16 +1456,16 @@ TNodeTracker::TRackTypeHandler::TRackTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TNodeTracker::TRackTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* /*transaction*/,
     TAccount* /*account*/,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    const NObjectClient::NProto::TObjectCreationExtensions& extensions)
 {
     auto name = attributes->Get<Stroka>("name");
     attributes->Remove("name");
 
-    return Owner_->CreateRack(name);
+    return Owner_->CreateRack(name, hintId);
 }
 
 IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(

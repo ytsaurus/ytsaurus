@@ -41,8 +41,8 @@ public:
     virtual NYTree::IAttributeDictionary* MutableAttributes() override;
     virtual TResolveResult Resolve(const NYPath::TYPath& path, NRpc::IServiceContextPtr context) override;
     virtual void Invoke(NRpc::IServiceContextPtr context) override;
-    virtual void SerializeAttributes(
-        NYson::IYsonConsumer* consumer,
+    virtual void WriteAttributesFragment(
+        NYson::IAsyncYsonConsumer* consumer,
         const NYTree::TAttributeFilter& filter,
         bool sortKeys) override;
 
@@ -70,19 +70,43 @@ protected:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     // NYTree::TSupportsAttributes members
+    virtual void SetAttribute(
+        const NYTree::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        TCtxSetPtr context) override;
+    virtual void RemoveAttribute(
+        const NYTree::TYPath& path,
+        TReqRemove* request,
+        TRspRemove* response,
+        TCtxRemovePtr context) override;
+
+    void ReplicateAttributeUpdate(NRpc::IServiceContextPtr context);
+
     virtual NYTree::IAttributeDictionary* GetCustomAttributes() override;
     virtual NYTree::ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes();
 
     // NYTree::ISystemAttributeProvider members
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
+    virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
 
-    TObjectBase* GetSchema(EObjectType type);
-    TObjectBase* GetThisSchema();
+    //! Called before attribute #key is updated (added, removed or changed).
+    virtual void ValidateCustomAttributeUpdate(
+        const Stroka& key,
+        const TNullable<NYson::TYsonString>& oldValue,
+        const TNullable<NYson::TYsonString>& newValue);
+
+    //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
+    void GuardedValidateCustomAttributeUpdate(
+        const Stroka& key,
+        const TNullable<NYson::TYsonString>& oldValue,
+        const TNullable<NYson::TYsonString>& newValue);
 
     void DeclareMutating();
     void DeclareNonMutating();
@@ -104,6 +128,9 @@ protected:
     bool IsLeader() const;
     bool IsFollower() const;
 
+    bool IsPrimaryMaster() const;
+    bool IsSecondaryMaster() const;
+
     //! Returns |true| if reads for this node can only be served at leaders.
     /*!
      *  This flag is checked during YPath resolution so the fallback happens
@@ -111,6 +138,12 @@ protected:
      *  this node.
      */
     virtual bool IsLeaderReadRequired() const;
+
+    //! Posts the request to all secondary masters.
+    void PostToSecondaryMasters(NRpc::IServiceContextPtr context);
+
+    //! Posts the request to a given master, either primary or secondary.
+    void PostToMaster(NRpc::IServiceContextPtr context, TCellTag cellTag);
 
     virtual bool IsLoggingEnabled() const override;
     virtual NLogging::TLogger CreateLogger() const override;

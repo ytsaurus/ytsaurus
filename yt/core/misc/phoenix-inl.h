@@ -110,7 +110,7 @@ struct TSerializer
             const auto* typeInfo = dynamic ? &typeid(*ptr) : nullptr;
             bool saveBody = false;
             ui32 id = context.FindId(basePtr, typeInfo);
-            if (id == NullObjectId) {
+            if (!id) {
                 id = context.GenerateId(basePtr, typeInfo);
                 saveBody = true;
             }
@@ -194,11 +194,11 @@ struct TSerializer
 
             Load(context, *rawPtr);
         } else {
-            if (id == NullObjectId) {
-                rawPtr = nullptr;
-            } else {
-                TBase* basePtr = static_cast<TBase*>(context.GetObject(id));
+            if (id) {
+                auto* basePtr = static_cast<TBase*>(context.GetObject(id));
                 rawPtr = dynamic_cast<T*>(basePtr);
+            } else {
+                rawPtr = nullptr;
             }
         }
     }

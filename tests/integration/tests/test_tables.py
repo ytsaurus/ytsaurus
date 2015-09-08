@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
 from yt.yson import to_yson_type
@@ -379,9 +379,15 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t"]
+
         assert read_table("//tmp/t") == [{"a" : "b"}]
 
         copy("//tmp/t", "//tmp/t2")
+        assert sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["//tmp/t", "//tmp/t2"])
         assert read_table("//tmp/t2") == [{"a" : "b"}]
 
         assert get("//tmp/t2/@resource_usage") == get("//tmp/t/@resource_usage")
@@ -389,12 +395,13 @@ class TestTables(YTEnvSetup):
 
         remove("//tmp/t")
         assert read_table("//tmp/t2") == [{"a" : "b"}]
+        assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t2"]
 
         remove("//tmp/t2")
-        for chunk in get_chunks():
-            nodes = get("#%s/@owning_nodes" % chunk)
-            for t in ["//tmp/t", "//tmp/t2"]:
-                assert t not in nodes
+
+        gc_collect()
+        multicell_sleep()
+        assert not exists("#%s" % chunk_id)
 
     def test_copy_to_the_same_table(self):
         create("table", "//tmp/t")
@@ -406,25 +413,31 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t"]
+        
         tx = start_transaction()
         assert read_table("//tmp/t", tx=tx) == [{"a" : "b"}]
-        copy("//tmp/t", "//tmp/t2", tx=tx)
+        t2_id = copy("//tmp/t", "//tmp/t2", tx=tx)
+        print t2_id
+        assert sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["#%s" % t2_id, "//tmp/t", to_yson_type("//tmp/t2", attributes = {"transaction_id" : tx})])
         assert read_table("//tmp/t2", tx=tx) == [{"a" : "b"}]
 
-        #assert get("//tmp/@recursive_resource_usage") == {"disk_space" : 438}
-        #assert get("//tmp/@recursive_resource_usage", tx=tx) == {"disk_space" : 2 * 438}
         commit_transaction(tx)
 
         assert read_table("//tmp/t2") == [{"a" : "b"}]
 
         remove("//tmp/t")
         assert read_table("//tmp/t2") == [{"a" : "b"}]
+        assert get("#%s/@owning_nodes" % chunk_id) == ["//tmp/t2"]
 
         remove("//tmp/t2")
-        for chunk in get_chunks():
-            nodes = get("#%s/@owning_nodes" % chunk)
-            for t in ["//tmp/t", "//tmp/t2"]:
-                assert t not in nodes
+
+        gc_collect()
+        multicell_sleep()
+        assert not exists("#%s" % chunk_id)
 
     def test_copy_not_sorted(self):
         create("table", "//tmp/t1")
@@ -635,7 +648,7 @@ class TestTables(YTEnvSetup):
         erasure_info = get("//tmp/t/@erasure_statistics")
         assert erasure_info["none"]["chunk_count"] == chunk_count
 
-    @only_linux
+    @linux_only
     def test_statistics2(self):
         tableA = "//tmp/a"
         create("table", tableA)
@@ -659,10 +672,15 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         format = yson.loads("<boolean_as_string=false;format=text>yson")
         write_table("//tmp/t", "{x=%false};{x=%true};{x=false};", input_format=format, is_raw=True)
-        assert '{"x"=%false};\n{"x"=%true};\n{"x"="false"};\n' == read_table("//tmp/t", output_format=format)
+        assert '{"x"=%false;};\n{"x"=%true;};\n{"x"="false";};\n' == read_table("//tmp/t", output_format=format)
 
     def test_uint64(self):
         create("table", "//tmp/t")
         format = yson.loads("<format=text>yson")
         write_table("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
-        assert '{"x"=1u};\n{"x"=4u};\n{"x"=9u};\n' == read_table("//tmp/t", output_format=format)
+        assert '{"x"=1u;};\n{"x"=4u;};\n{"x"=9u;};\n' == read_table("//tmp/t", output_format=format)
+
+##################################################################
+
+class TestTablesMulticell(TestTables):
+    NUM_SECONDARY_MASTER_CELLS = 2

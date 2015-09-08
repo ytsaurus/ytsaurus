@@ -56,23 +56,23 @@ bool TPtrWithIndex<T>::operator != (TPtrWithIndex other) const
 template <class T>
 bool TPtrWithIndex<T>::operator < (TPtrWithIndex other) const
 {
-    auto thisId = GetPtr()->GetId();
-    auto otherId = other.GetPtr()->GetId();
-    if (thisId != otherId) {
-        return thisId < otherId;
+    int thisIndex = GetIndex();
+    int otherIndex = other.GetIndex();
+    if (thisIndex != otherIndex) {
+        return thisIndex < otherIndex;
     }
-    return GetIndex() < other.GetIndex();
+    return GetPtr()->GetId() < other.GetPtr()->GetId();
 }
 
 template <class T>
 bool TPtrWithIndex<T>::operator <= (TPtrWithIndex other) const
 {
-    auto thisId = GetPtr()->GetId();
-    auto otherId = other.GetPtr()->GetId();
-    if (thisId != otherId) {
-        return thisId < otherId;
+    int thisIndex = GetIndex();
+    int otherIndex = other.GetIndex();
+    if (thisIndex != otherIndex) {
+        return thisIndex < otherIndex;
     }
-    return GetIndex() <= other.GetIndex();
+    return GetPtr()->GetId() <= other.GetPtr()->GetId();
 }
 
 template <class T>
@@ -102,13 +102,7 @@ void TPtrWithIndex<T>::Load(C& context)
 {
     using NYT::Load;
     auto* ptr = Load<T*>(context);
-    int index;
-    // COMPAT(babenko)
-    if (context.GetVersion() < 109) {
-        index = Load<int>(context);
-    } else{
-        index = Load<i8>(context);
-    }
+    int index = Load<i8>(context);
     *this = TPtrWithIndex<T>(ptr, index);
 }
 

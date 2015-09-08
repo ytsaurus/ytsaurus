@@ -24,7 +24,6 @@ void ThrowCannotRemoveRoot();
 void ThrowCannotReplaceRoot();
 void ThrowCannotRemoveAttribute(const Stroka& key);
 void ThrowCannotSetBuiltinAttribute(const Stroka& key);
-void ThrowCannotSetOpaqueAttribute(const Stroka& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

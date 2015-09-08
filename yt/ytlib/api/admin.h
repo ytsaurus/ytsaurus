@@ -15,7 +15,7 @@ namespace NApi {
 struct TBuildSnapshotOptions
 {
     //! Refers either to masters or to tablet cells.
-    //! If equal to #NullCellId then masters are assumed.
+    //! If null then the primary master is assumed.
     NElection::TCellId CellId;
     bool SetReadOnly = false;
 };

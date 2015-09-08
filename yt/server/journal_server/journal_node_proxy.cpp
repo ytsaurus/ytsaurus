@@ -1,12 +1,15 @@
 #include "stdafx.h"
 #include "journal_node_proxy.h"
 #include "journal_node.h"
+#include "journal_manager.h"
 #include "private.h"
 
 #include <server/chunk_server/chunk_owner_node_proxy.h>
-#include <server/chunk_server/chunk_manager.h>
 #include <server/chunk_server/chunk.h>
 #include <server/chunk_server/chunk_list.h>
+#include <server/chunk_server/chunk_manager.h>
+
+#include <ytlib/journal_client/journal_ypath_proxy.h>
 
 namespace NYT {
 namespace NJournalServer {
@@ -46,19 +49,28 @@ private:
         return JournalServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("read_quorum");
-        attributes->push_back("write_quorum");
-        attributes->push_back("row_count");
-        attributes->push_back(TAttributeInfo("quorum_row_count", true, true));
-        attributes->push_back("sealed");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        const auto* node = GetThisImpl();
+        auto isExternal = node->IsExternal();
+
+        descriptors->push_back(TAttributeDescriptor("read_quorum")
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("write_quorum")
+            .SetReplicated(true));
+        descriptors->push_back("row_count");
+        descriptors->push_back(TAttributeDescriptor("quorum_row_count")
+            .SetExternal(isExternal)
+            .SetOpaque(true));
+        descriptors->push_back("sealed");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
-        const auto* node = GetThisTypedImpl();
+        auto* node = GetThisTypedImpl();
+        auto statistics = node->ComputeTotalStatistics();
 
         if (key == "read_quorum") {
             BuildYsonFluently(consumer)
@@ -74,81 +86,28 @@ private:
 
         if (key == "row_count") {
             BuildYsonFluently(consumer)
-                .Value(node->GetChunkList()->Statistics().RowCount);
+                .Value(statistics.row_count());
             return true;
         }
 
         if (key == "sealed") {
             BuildYsonFluently(consumer)
-                .Value(node->IsSealed());
+                .Value(node->GetSealed());
             return true;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
-    {
-        if (key == "replication_factor") {
-            // Prevent changing replication factor after construction.
-            ValidateNoTransaction();
-            auto* node = GetThisTypedImpl();
-            YCHECK(node->IsTrunk());
-            if (node->GetReplicationFactor() != 0) {
-                ThrowCannotSetBuiltinAttribute("replication_factor");
-            } else {
-                return TCypressNodeProxyBase::SetBuiltinAttribute(key, value);
-            }
-        }
-
-        if (key == "read_quorum") {
-            int readQuorum = NYTree::ConvertTo<int>(value);
-            if (readQuorum < 1) {
-                THROW_ERROR_EXCEPTION("\"read_quorum\" must be positive");
-            }
-
-            ValidateNoTransaction();
-            auto* node = GetThisTypedImpl();
-            YCHECK(node->IsTrunk());
-
-            // Prevent changing read quorum after construction.
-            if (node->GetReadQuorum() != 0) {
-                ThrowCannotSetBuiltinAttribute("read_quorum");
-            }
-            node->SetReadQuorum(readQuorum);
-            return true;
-        }
-
-        if (key == "write_quorum") {
-            int writeQuorum = NYTree::ConvertTo<int>(value);
-            if (writeQuorum < 1) {
-                THROW_ERROR_EXCEPTION("\"write_quorum\" must be positive");
-            }
-
-            ValidateNoTransaction();
-            auto* node = GetThisTypedImpl();
-            YCHECK(node->IsTrunk());
-
-            // Prevent changing write quorum after construction.
-            if (node->GetWriteQuorum() != 0) {
-                ThrowCannotSetBuiltinAttribute("write_quorum");
-            }
-            node->SetWriteQuorum(writeQuorum);
-            return true;
-        }
-
-        return TBase::SetBuiltinAttribute(key, value);
-    }
-
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, IYsonConsumer* consumer) override
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
     {
         const auto* node = GetThisTypedImpl();
-        if (key == "quorum_row_count") {
+        auto isExternal = node->IsExternal();
+
+        if (key == "quorum_row_count" && !isExternal) {
             const auto* chunkList = node->GetChunkList();
             if (chunkList->Children().empty()) {
-                BuildYsonFluently(consumer)
-                    .Value(0);
-                return VoidFuture;
+                return MakeFuture(ConvertToYsonString(0));
             }
 
             auto* chunk = chunkList->Children().back()->AsChunk();
@@ -158,58 +117,43 @@ private:
             return chunkManager
                 ->GetChunkQuorumInfo(chunk)
                 .Apply(BIND([=] (const TMiscExt& miscExt) {
-                    BuildYsonFluently(consumer)
-                        .Value(penultimateRowCount + miscExt.row_count());
+                    return ConvertToYsonString(penultimateRowCount + miscExt.row_count());
                 }));
         }
 
-        return TBase::GetBuiltinAttributeAsync(key, consumer);
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    virtual void ValidateBeginUpload() override
+    {
+        TBase::ValidateBeginUpload();
+
+        const auto* journal = GetThisTypedImpl();
+        if (!journal->GetSealed()) {
+            THROW_ERROR_EXCEPTION("Journal is not sealed");
+        }
     }
 
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(PrepareForUpdate);
+        DISPATCH_YPATH_SERVICE_METHOD(Seal);
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate)
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal)
     {
+        UNUSED(response);
+
         DeclareMutating();
 
-        auto mode = EUpdateMode(request->update_mode());
-        if (mode != EUpdateMode::Append) {
-            THROW_ERROR_EXCEPTION("Journals only support %Qlv update mode",
-                EUpdateMode::Append);
-        }
+        context->SetRequestInfo();
 
-        ValidateTransaction();
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+        auto* journal = GetThisTypedImpl();
+        YCHECK(journal->IsTrunk());
 
-        auto* node = GetThisTypedImpl();
-        if (!node->IsSealed()) {
-            THROW_ERROR_EXCEPTION("Journal is not properly sealed");
-        }
-
-        ValidatePrepareForUpdate();
-
-        auto* lockedNode = LockThisTypedImpl();
-        auto* chunkList = node->GetChunkList();
-
-        lockedNode->SetUpdateMode(mode);
-
-        SetModified();
-
-        LOG_DEBUG_UNLESS(
-            IsRecovery(),
-            "Node is switched to \"append\" mode (NodeId: %v, ChunkListId: %v)",
-            node->GetId(),
-            chunkList->GetId());
-
-        ToProto(response->mutable_chunk_list_id(), chunkList->GetId());
-
-        context->SetResponseInfo("ChunkListId: %v",
-            chunkList->GetId());
+        auto journalManager = Bootstrap_->GetJournalManager();
+        journalManager->SealJournal(journal->GetTrunkNode(), &request->statistics());
 
         context->Reply();
     }

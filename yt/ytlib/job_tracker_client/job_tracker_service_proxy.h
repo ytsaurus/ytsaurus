@@ -20,8 +20,13 @@ public:
         return "JobTracker";
     }
 
+    static int GetProtocolVersion()
+    {
+        return 1;
+    }
+
     explicit TJobTrackerServiceProxy(NRpc::IChannelPtr channel)
-        : TProxyBase(channel, GetServiceName())
+        : TProxyBase(channel, GetServiceName(), GetProtocolVersion())
     { }
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);

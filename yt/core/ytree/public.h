@@ -9,10 +9,14 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TAttributeFilter;
+
+} // namespace NProto
+
 class TYsonSerializableLite;
 class TYsonSerializable;
-
-class TYsonString;
 
 DECLARE_REFCOUNTED_STRUCT(INode);
 typedef TIntrusivePtr<const INode> IConstNodePtr;
@@ -30,14 +34,11 @@ DECLARE_REFCOUNTED_STRUCT(IEntityNode);
 DECLARE_REFCOUNTED_STRUCT(INodeFactory);
 DECLARE_REFCOUNTED_STRUCT(INodeResolver);
 
-class TYsonProducer;
-
-class TYsonInput;
-class TYsonOutput;
-
 struct IAttributeDictionary;
 
 struct IAttributeOwner;
+
+struct TAttributeFilter;
 
 struct ISystemAttributeProvider;
 

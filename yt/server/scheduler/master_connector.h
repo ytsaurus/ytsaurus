@@ -51,6 +51,11 @@ public:
         const NChunkClient::TChunkId& stderrChunkId,
         const NChunkClient::TChunkId& failContextChunkId);
 
+    void AttachJobContext(
+        const NYPath::TYPath& path,
+        const NChunkClient::TChunkId& chunkId,
+        TJobPtr job);
+
     void AttachToLivePreview(
         TOperationPtr operation,
         const NChunkClient::TChunkListId& chunkListId,
@@ -66,11 +71,6 @@ public:
 
     void AddOperationWatcherRequester(TOperationPtr operation, TWatcherRequester requester);
     void AddOperationWatcherHandler(TOperationPtr operation, TWatcherHandler handler);
-
-    void AttachJobContext(
-        const NYPath::TYPath& directory,
-        const NChunkClient::TChunkId& inputContextChunkId,
-        const TJobId& jobId);
 
     DECLARE_SIGNAL(void(const TMasterHandshakeResult& result), MasterConnected);
     DECLARE_SIGNAL(void(), MasterDisconnected);

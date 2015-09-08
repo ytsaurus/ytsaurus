@@ -4,9 +4,11 @@
 
 #include <core/rpc/public.h>
 
-#include <ytlib/election/public.h>
+#include <core/actions/public.h>
 
-#include <server/hydra/mutation.h>
+#include <ytlib/object_client/public.h>
+
+#include <server/hydra/public.h>
 
 namespace NYT {
 namespace NCellMaster {
@@ -27,7 +29,7 @@ public:
         TBootstrap* bootstrap);
     ~THydraFacade();
 
-    void Start();
+    void Initialize();
     void LoadSnapshot(NHydra::ISnapshotReaderPtr reader, bool dump);
 
     TMasterAutomatonPtr GetAutomaton() const;
@@ -40,7 +42,7 @@ public:
 
 private:
     class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

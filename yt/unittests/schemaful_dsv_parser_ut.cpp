@@ -3,12 +3,14 @@
 
 #include <ytlib/formats/schemaful_dsv_parser.h>
 
-#include <core/ytree/yson_consumer-mock.h>
-#include <core/ytree/null_yson_consumer.h>
+#include <core/yson/consumer-mock.h>
+#include <core/yson/null_consumer.h>
 
 namespace NYT {
 namespace NFormats {
 namespace {
+
+using namespace NYson;
 
 using ::testing::InSequence;
 using ::testing::StrictMock;
@@ -18,7 +20,7 @@ using ::testing::NiceMock;
 
 TEST(TSchemafulDsvParserTest, Simple)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -52,7 +54,7 @@ TEST(TSchemafulDsvParserTest, Simple)
 
 TEST(TSchemafulDsvParserTest, TableIndex)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     EXPECT_CALL(Mock, OnListItem());
@@ -107,12 +109,12 @@ TEST(TSchemafulDsvParserTest, TooManyRows)
     auto config = New<TSchemafulDsvFormatConfig>();
     config->Columns = {"a"};
 
-    EXPECT_THROW({ ParseSchemafulDsv(input, NYTree::GetNullYsonConsumer(), config); }, std::exception);
+    EXPECT_THROW({ ParseSchemafulDsv(input, GetNullYsonConsumer(), config); }, std::exception);
 }
 
 TEST(TSchemafulDsvParserTest, SpecialSymbols)
 {
-    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    StrictMock<TMockYsonConsumer> Mock;
     InSequence dummy;
 
     auto value = Stroka("6\0", 2);

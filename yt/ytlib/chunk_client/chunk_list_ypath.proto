@@ -1,15 +1,29 @@
 package NYT.NChunkClient.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/ytlib/chunk_client/data_statistics.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqAttach
 {
-    repeated NYT.NProto.TGuid children_ids = 2;
+    repeated NYT.NProto.TGuid children_ids = 1;
+    optional bool request_statistics = 2 [default = true];
 }
 
 message TRspAttach
+{
+    optional TDataStatistics statistics = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetStatistics
 { }
+
+message TRspGetStatistics
+{
+    required TDataStatistics statistics = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

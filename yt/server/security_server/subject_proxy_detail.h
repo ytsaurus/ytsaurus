@@ -40,12 +40,14 @@ protected:
         return SecurityServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("name");
-        attributes->push_back("member_of");
-        attributes->push_back("member_of_closure");
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor("name")
+            .SetReplicated(true));
+        descriptors->push_back("member_of");
+        descriptors->push_back("member_of_closure");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
@@ -79,7 +81,7 @@ protected:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override
     {
         auto* subject = this->GetThisTypedImpl();
         auto securityManager = this->Bootstrap_->GetSecurityManager();

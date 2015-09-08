@@ -19,21 +19,25 @@ class TRequestTracker
     : public TRefCounted
 {
 public:
-    explicit TRequestTracker(
+    TRequestTracker(
         TSecurityManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
 
-    void ChargeUser(TUser* user, int requestCount);
+    void ChargeUser(
+        TUser* user,
+        int requestCount,
+        TDuration readRequestTime,
+        TDuration writeRequestTime);
 
 private:
     const TSecurityManagerConfigPtr Config_;
     const NCellMaster::TBootstrap* Bootstrap_;
 
-    NProto::TReqUpdateRequestStatistics UpdateRequestStatisticsRequest_;
-    std::vector<TUser*> UsersWithRequestStatisticsUpdate_;
+    NProto::TReqIncreaseUserStatistics Request_;
+    std::vector<TUser*> UsersWithsEntry_;
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 

@@ -4,19 +4,20 @@
 
 #include "serialize.h"
 #include "tree_builder.h"
-#include "yson_stream.h"
-#include "yson_producer.h"
 #include "attribute_helpers.h"
 
 #include <core/ypath/token.h>
+
 #include <core/yson/tokenizer.h>
 #include <core/yson/parser.h>
-
-#include <util/generic/typehelpers.h>
-#include <util/generic/static_assert.h>
+#include <core/yson/stream.h>
+#include <core/yson/producer.h>
 
 #include <core/misc/preprocessor.h>
 #include <core/misc/small_vector.h>
+
+#include <util/generic/typehelpers.h>
+#include <util/generic/static_assert.h>
 
 namespace NYT {
 namespace NYTree {
@@ -24,49 +25,41 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void Consume(const T& value, NYson::IYsonConsumer* consumer)
-{
-    Serialize(value, consumer);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-TYsonProducer ConvertToProducer(T&& value)
+NYson::TYsonProducer ConvertToProducer(T&& value)
 {
     auto type = GetYsonType(value);
     auto callback = BIND(
         [] (const T& value, NYson::IYsonConsumer* consumer) {
-            Consume(value, consumer);
+            Serialize(value, consumer);
         },
         std::forward<T>(value));
-    return TYsonProducer(std::move(callback), type);
+    return NYson::TYsonProducer(std::move(callback), type);
 }
 
 template <class T>
-TYsonString ConvertToYsonString(const T& value)
+NYson::TYsonString ConvertToYsonString(const T& value)
 {
     return ConvertToYsonString(value, NYson::EYsonFormat::Binary);
 }
 
 template <class T>
-TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format)
+NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format)
 {
     auto type = GetYsonType(value);
     Stroka result;
     TStringOutput stringOutput(result);
     WriteYson(&stringOutput, value, type, format);
-    return TYsonString(result, type);
+    return NYson::TYsonString(result, type);
 }
 
 template <class T>
-TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format, int indent)
+NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format, int indent)
 {
     auto type = GetYsonType(value);
     Stroka result;
     TStringOutput stringOutput(result);
     WriteYson(&stringOutput, value, type, format, indent);
-    return TYsonString(result, type);
+    return NYson::TYsonString(result, type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,7 +85,7 @@ INodePtr ConvertToNode(
             break;
     }
 
-    Consume(value, builder.get());
+    Serialize(value, builder.get());
 
     switch (type) {
         case NYson::EYsonType::ListFragment:
@@ -115,7 +108,7 @@ std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value)
 {
     auto attributes = CreateEphemeralAttributes();
     TAttributeConsumer consumer(attributes.get());
-    Consume(value, &consumer);
+    Serialize(value, &consumer);
     return attributes;
 }
 
@@ -138,7 +131,7 @@ TTo ConvertTo(const TFrom& value)
 const NYson::TToken& SkipAttributes(NYson::TTokenizer* tokenizer);
 
 template <>
-inline i64 ConvertTo(const TYsonString& str)
+inline i64 ConvertTo(const NYson::TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
     const auto& token = SkipAttributes(&tokenizer);
@@ -154,7 +147,7 @@ inline i64 ConvertTo(const TYsonString& str)
 }
 
 template <>
-inline ui64 ConvertTo(const TYsonString& str)
+inline ui64 ConvertTo(const NYson::TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
     const auto& token = SkipAttributes(&tokenizer);
@@ -170,7 +163,7 @@ inline ui64 ConvertTo(const TYsonString& str)
 }
 
 template <>
-inline double ConvertTo(const TYsonString& str)
+inline double ConvertTo(const NYson::TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
     const auto& token = SkipAttributes(&tokenizer);
@@ -188,7 +181,7 @@ inline double ConvertTo(const TYsonString& str)
 }
 
 template <>
-inline Stroka ConvertTo(const TYsonString& str)
+inline Stroka ConvertTo(const NYson::TYsonString& str)
 {
     NYson::TTokenizer tokenizer(str.Data());
     const auto& token = SkipAttributes(&tokenizer);

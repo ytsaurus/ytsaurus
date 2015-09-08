@@ -25,9 +25,9 @@
 #include <core/misc/error.h>
 
 #include <core/yson/writer.h>
+#include <core/yson/forwarding_consumer.h>
 
 #include <core/ytree/fluent.h>
-#include <core/ytree/forwarding_yson_consumer.h>
 
 namespace NYT {
 namespace NFormats {

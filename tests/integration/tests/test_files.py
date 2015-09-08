@@ -1,8 +1,8 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_multicell
 from yt_commands import *
-
+from time import sleep
 
 ##################################################################
 
@@ -26,21 +26,17 @@ class TestFiles(YTEnvSetup):
 
         # check that chunk was deleted
         remove("//tmp/file")
+        sleep(0.2) # for multicell
         assert get_chunks() == []
 
     def test_empty(self):
-        content = ""
         create("file", "//tmp/file")
-        write_file("//tmp/file", content)
-        assert read_file("//tmp/file") == content
+        write_file("//tmp/file", "")
+        assert read_file("//tmp/file") == ""
 
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert get_chunks() == chunk_ids
-        assert get("//tmp/file/@uncompressed_data_size") == len(content)
-
-        # check that chunk was deleted
-        remove("//tmp/file")
+        get("//tmp/file/@chunk_ids")
         assert get_chunks() == []
+        assert get("//tmp/file/@uncompressed_data_size") == 0
 
     def test_read_interval(self):
         content = "".join(["data"] * 100)
@@ -52,14 +48,6 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/file", offset=offset) == content[offset:]
         assert read_file("//tmp/file", length=length) == content[:length]
         assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
-
-        chunk_ids = get("//tmp/file/@chunk_ids")
-        assert get_chunks() == chunk_ids
-        assert get("//tmp/file/@uncompressed_data_size") == len(content)
-
-        # check that chunk was deleted
-        remove("//tmp/file")
-        assert get_chunks() == []
 
     def test_copy(self):
         content = "some_data"
@@ -77,6 +65,7 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/f2") == content
 
         remove("//tmp/f2")
+        sleep(0.2) # for multicell
         assert get_chunks() == []
 
     def test_copy_tx(self):
@@ -96,6 +85,7 @@ class TestFiles(YTEnvSetup):
         assert read_file("//tmp/f2") == content
 
         remove("//tmp/f2")
+        sleep(0.2) # for multicell
         assert get_chunks() == []
 
     def test_replication_factor_attr(self):
@@ -136,3 +126,8 @@ class TestFiles(YTEnvSetup):
         commit_transaction(tx)
 
         assert read_file("//tmp/f") == content
+
+##################################################################
+
+class TestFilesMulticell(TestFiles):
+    NUM_SECONDARY_MASTER_CELLS = 2

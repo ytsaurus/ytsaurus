@@ -32,9 +32,10 @@ private:
 
 
     void SendHeartbeat();
-    void OnHeartbeatResponse(const NJobTrackerClient::TJobTrackerServiceProxy::TErrorOrRspHeartbeatPtr& rspOrError);
 
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)
 
 ////////////////////////////////////////////////////////////////////////////////
 

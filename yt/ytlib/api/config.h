@@ -37,9 +37,6 @@ class TMasterConnectionConfig
     : public NHydra::TPeerConnectionConfig
 {
 public:
-    //! Cell tag.
-    NObjectClient::TCellTag CellTag = 0;
-
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
@@ -55,7 +52,8 @@ class TConnectionConfig
 {
 public:
     Stroka NetworkName;
-    TMasterConnectionConfigPtr Master;
+    TMasterConnectionConfigPtr PrimaryMaster;
+    std::vector<TMasterConnectionConfigPtr> SecondaryMasters;
     TMasterConnectionConfigPtr MasterCache;
     // TODO(babenko): remove once RFF is stable
     bool EnableReadFromFollowers;

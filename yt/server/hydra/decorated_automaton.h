@@ -44,11 +44,13 @@ struct TEpochContext
 
     std::atomic<bool> Restarting = {false};
 
-    TNullable<TVersion> ActiveLeaderSyncVersion;
-    TPromise<void> ActiveLeaderSyncPromise;
-    TPromise<void> PendingLeaderSyncPromise;
-    bool LeaderSyncDeadlineReached = false;
-    
+    TPromise<void> ActiveUpstreamSyncPromise;
+    TPromise<void> PendingUpstreamSyncPromise;
+    bool UpstreamSyncDeadlineReached = false;
+
+    TNullable<TVersion> LeaderSyncVersion;
+    TPromise<void> LeaderSyncPromise;
+
     TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;
     TCancelableContextPtr CancelableContext = New<TCancelableContext>();
@@ -143,7 +145,7 @@ public:
     i64 GetLoggedDataSize() const;
     TInstant GetLastSnapshotTime() const;
 
-    TVersion GetAutomatonVersion() const;
+    TVersion GetCommittedVersion() const;
     void RotateAutomatonVersion(int segmentId);
 
     void Clear();
@@ -199,7 +201,7 @@ private:
     IChangelogPtr Changelog_;
 
     std::atomic<TVersion> LoggedVersion_;
-    std::atomic<TVersion> AutomatonVersion_;
+    std::atomic<TVersion> CommittedVersion_;
 
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;

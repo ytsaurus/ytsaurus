@@ -38,10 +38,13 @@ struct TAttributeDictionaryValueSerializer
 };
 
 //! By-ref binary serializer.
+//! Supports |std::unique_ptr| and |std::shared_ptr|.
 struct TAttributeDictionaryRefSerializer
 {
-    static void Save(TStreamSaveContext& context, const std::unique_ptr<IAttributeDictionary>& obj);
-    static void Load(TStreamLoadContext& context, std::unique_ptr<IAttributeDictionary>& obj);
+    template <class T>
+    static void Save(TStreamSaveContext& context, const T& obj);
+    template <class T>
+    static void Load(TStreamLoadContext& context, T& obj);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +64,12 @@ struct TSerializerTraits<NYTree::IAttributeDictionary, C, void>
 
 template <class C>
 struct TSerializerTraits<std::unique_ptr<NYTree::IAttributeDictionary>, C, void>
+{
+    typedef NYTree::TAttributeDictionaryRefSerializer TSerializer;
+};
+
+template <class C>
+struct TSerializerTraits<std::shared_ptr<NYTree::IAttributeDictionary>, C, void>
 {
     typedef NYTree::TAttributeDictionaryRefSerializer TSerializer;
 };

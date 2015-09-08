@@ -29,41 +29,19 @@ extern const TEnumIndexedVector<Stroka, ESandboxIndex> SandboxDirectoryNames;
 
 extern const Stroka ProxyConfigFileName;
 
-class TJob;
-typedef TIntrusivePtr<TJob> TJobPtr;
+DECLARE_REFCOUNTED_CLASS(TSlotManager)
+DECLARE_REFCOUNTED_CLASS(TSlot)
+DECLARE_REFCOUNTED_CLASS(TEnvironmentManager)
+DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
-class TSlotManager;
-typedef TIntrusivePtr<TSlotManager> TSlotManagerPtr;
+DECLARE_REFCOUNTED_STRUCT(IProxyController)
+DECLARE_REFCOUNTED_STRUCT(IEnvironmentBuilder)
 
-class TSlot;
-typedef TIntrusivePtr<TSlot> TSlotPtr;
-
-struct IProxyController;
-typedef TIntrusivePtr<IProxyController> IProxyControllerPtr;
-
-struct IEnvironmentBuilder;
-typedef TIntrusivePtr<IEnvironmentBuilder> IEnvironmentBuilderPtr;
-
-class TEnvironmentManager;
-typedef TIntrusivePtr<TEnvironmentManager> TEnvironmentManagerPtr;
-
-class TSchedulerConnector;
-typedef TIntrusivePtr<TSchedulerConnector> TSchedulerConnectorPtr;
-
-class TEnvironmentConfig;
-typedef TIntrusivePtr<TEnvironmentConfig> TEnvironmentConfigPtr;
-
-class TEnvironmentManagerConfig;
-typedef TIntrusivePtr<TEnvironmentManagerConfig> TEnvironmentManagerConfigPtr;
-
-class TSlotManagerConfig;
-typedef TIntrusivePtr<TSlotManagerConfig> TSlotManagerConfigPtr;
-
-class TSchedulerConnectorConfig;
-typedef TIntrusivePtr<TSchedulerConnectorConfig> TSchedulerConnectorConfigPtr;
-
-class TExecAgentConfig;
-typedef TIntrusivePtr<TExecAgentConfig> TExecAgentConfigPtr;
+DECLARE_REFCOUNTED_CLASS(TEnvironmentConfig)
+DECLARE_REFCOUNTED_CLASS(TEnvironmentManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)
+DECLARE_REFCOUNTED_CLASS(TExecAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

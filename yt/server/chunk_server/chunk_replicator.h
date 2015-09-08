@@ -138,6 +138,7 @@ private:
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove);
 
+    TJobId GenerateJobId();
     bool CreateReplicationJob(
         TNode* sourceNode,
         TChunkPtrWithIndex chunkWithIndex,
@@ -179,6 +180,7 @@ private:
 
     bool IsReplicaDecommissioned(TNodePtrWithIndex replica);
 
+    bool IsForeign(TChunk* chunk);
     bool HasRunningJobs(TChunk* chunk);
     bool HasRunningJobs(TChunkPtrWithIndex replica);
 

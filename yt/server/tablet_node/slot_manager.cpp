@@ -38,7 +38,6 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-static const auto SlotScanPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,7 +53,7 @@ public:
         , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnScanSlots, Unretained(this)),
-            SlotScanPeriod,
+            Config_->SlotScanPeriod,
             EPeriodicExecutorMode::Automatic))
     { }
 

@@ -31,12 +31,9 @@ void TStagedObject::Load(NCellMaster::TLoadContext& context)
 {
     TNonversionedObjectBase::Load(context);
 
-    // COMPAT(babenko)
-    if (GetType() != EObjectType::ChunkList || context.GetVersion() >= 100) {
-        using NYT::Load;
-        Load(context, StagingTransaction_);
-        Load(context, StagingAccount_);
-    }
+    using NYT::Load;
+    Load(context, StagingTransaction_);
+    Load(context, StagingAccount_);
 }
 
 bool TStagedObject::IsStaged() const

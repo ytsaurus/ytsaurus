@@ -77,7 +77,7 @@ TSharedRef TObjectServiceProxy::TReqExecuteBatch::SerializeBody()
 {
     // Push TPrerequisitesExt down to individual requests.
     if (Header_.HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
-        auto batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+        const auto& batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
         for (auto& innerRequestMessage : InnerRequestMessages) {
             NRpc::NProto::TRequestHeader requestHeader;
             YCHECK(ParseRequestHeader(innerRequestMessage, &requestHeader));
@@ -191,7 +191,7 @@ Stroka TObjectServiceProxy::GetServiceName()
 
 int TObjectServiceProxy::GetProtocolVersion()
 {
-    return 6;
+    return 7;
 }
 
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)

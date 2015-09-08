@@ -41,6 +41,7 @@
 #include <ytlib/tablet_client/wire_protocol.pb.h>
 
 #include <ytlib/security_client/group_ypath_proxy.h>
+#include <ytlib/security_client/helpers.h>
 
 #include <ytlib/driver/dispatcher.h>
 
@@ -81,6 +82,7 @@ namespace NApi {
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NCypressClient;
@@ -111,7 +113,7 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
 {
     for (const auto& name : tableInfo->KeyColumns) {
         if (!nameTable->FindId(name) && !tableInfo->Schema.GetColumnOrThrow(name).Expression) {
-            THROW_ERROR_EXCEPTION("Missing key column %Qv in name table",
+            THROW_ERROR_EXCEPTION("No such key column %Qv",
                 name);
         }
     }
@@ -332,6 +334,7 @@ private:
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
 
+        // XXX(babenko): multicell
         auto req = TTableYPathProxy::Fetch(FromObjectId(tableId));
         ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
         req->set_fetch_all_meta_extensions(true);
@@ -398,6 +401,7 @@ private:
         }
 
         auto cellDirectory = Connection_->GetCellDirectory();
+        const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         std::vector<std::pair<TDataSource, Stroka>> subsources;
         for (const auto& range : ranges) {
@@ -434,14 +438,21 @@ private:
                 subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
                 subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
 
-                auto addresses = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
-                if (addresses.empty()) {
+                auto descriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
+                std::vector<NNodeTrackerClient::TNodeDescriptor> peers;
+                for (const auto& peer : descriptor.Peers) {
+                    if (!peer.IsNull()) {
+                        peers.push_back(peer);
+                    }
+                }
+
+                if (peers.empty()) {
                     THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
                         tabletInfo->TabletId);
                 }
 
-                const auto& address = addresses[RandomNumber(addresses.size())];
-                subsources.emplace_back(std::move(subsource), address);
+                const auto& peer = peers[RandomNumber(peers.size())];
+                subsources.emplace_back(std::move(subsource), peer.GetAddress(networkName));
             }
         }
 
@@ -644,33 +655,42 @@ public:
         , Invoker_(NDriver::TDispatcher::Get()->GetLightInvoker())
         , FunctionRegistry_(Connection_->GetFunctionRegistry())
     {
+        auto wrapChannel = [&] (IChannelPtr channel) {
+            channel = CreateAuthenticatedChannel(channel, options.User);
+            channel = CreateScopedChannel(channel);
+            return channel;
+        };
+        auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
+            factory = CreateAuthenticatedChannelFactory(factory, options.User);
+            return factory;
+        };
+
+        auto initMasterChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
+            // NB: Caching is only possible for the primary master.
+            if (kind == EMasterChannelKind::Cache && cellTag != Connection_->GetPrimaryMasterCellTag())
+                return;
+            MasterChannels_[kind][cellTag] = wrapChannel(Connection_->GetMasterChannel(kind, cellTag));
+        };
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            MasterChannels_[kind] = Connection_->GetMasterChannel(kind);
+            initMasterChannel(kind, Connection_->GetPrimaryMasterCellTag());
+            for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
+                initMasterChannel(kind, cellTag);
+            }
         }
-        SchedulerChannel_ = Connection_->GetSchedulerChannel();
-        NodeChannelFactory_ = Connection_->GetNodeChannelFactory();
+
+        SchedulerChannel_ = wrapChannel(Connection_->GetSchedulerChannel());
+
+        NodeChannelFactory_ = wrapChannelFactory(Connection_->GetNodeChannelFactory());
 
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            MasterChannels_[kind] = CreateAuthenticatedChannel(MasterChannels_[kind], options.User);
+            ObjectProxies_[kind].reset(new TObjectServiceProxy(GetMasterChannel(kind)));
         }
-        SchedulerChannel_ = CreateAuthenticatedChannel(SchedulerChannel_, options.User);
-        NodeChannelFactory_ = CreateAuthenticatedChannelFactory(NodeChannelFactory_, options.User);
-
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            MasterChannels_[kind] = CreateScopedChannel(MasterChannels_[kind]);
-        }
-        SchedulerChannel_ = CreateScopedChannel(SchedulerChannel_);
-
-        for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            ObjectProxies_[kind].reset(new TObjectServiceProxy(MasterChannels_[kind]));
-        }
-        SchedulerProxy_.reset(new TSchedulerServiceProxy(SchedulerChannel_));
-        JobProberProxy_.reset(new TJobProberServiceProxy(SchedulerChannel_));
+        SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
+        JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
 
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
-            Connection_->GetConfig()->Master->CellTag,
-            Connection_->GetConfig()->Master->CellId,
+            Connection_->GetConfig()->PrimaryMaster->CellId,
             GetMasterChannel(EMasterChannelKind::Leader),
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
@@ -690,9 +710,17 @@ public:
         return Connection_;
     }
 
-    virtual IChannelPtr GetMasterChannel(EMasterChannelKind kind) override
+    virtual IChannelPtr GetMasterChannel(
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTag) override
     {
-        return MasterChannels_[kind];
+        const auto& channels = MasterChannels_[kind];
+        auto it = channels.find(cellTag == PrimaryMasterCellTag ? Connection_->GetPrimaryMasterCellTag() : cellTag);
+        if (it == channels.end()) {
+            THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+                cellTag);
+        }
+        return it->second;
     }
 
     virtual IChannelPtr GetSchedulerChannel() override
@@ -721,10 +749,15 @@ public:
 
         auto error = TError("Client terminated");
         std::vector<TFuture<void>> asyncResults;
+
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            asyncResults.push_back(MasterChannels_[kind]->Terminate(error));
+            for (const auto& pair : MasterChannels_[kind]) {
+                auto channel = pair.second;
+                asyncResults.push_back(channel->Terminate(error));
+            }
         }
         asyncResults.push_back(SchedulerChannel_->Terminate(error));
+
         return Combine(asyncResults);
     }
 
@@ -927,7 +960,7 @@ public:
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
-    IChannelPtr GetTabletChannel(const TTabletCellId& cellId)
+    IChannelPtr GetTabletChannelOrThrow(const TTabletCellId& cellId)
     {
         const auto& cellDirectory = Connection_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
@@ -944,7 +977,7 @@ private:
 
     const IFunctionRegistryPtr FunctionRegistry_;
 
-    TEnumIndexedVector<IChannelPtr, EMasterChannelKind> MasterChannels_;
+    TEnumIndexedVector<yhash_map<TCellTag, IChannelPtr>, EMasterChannelKind> MasterChannels_;
     IChannelPtr SchedulerChannel_;
     IChannelFactoryPtr NodeChannelFactory_;
     TTransactionManagerPtr TransactionManager_;
@@ -1273,7 +1306,7 @@ private:
         for (const auto& pair : tabletToSession) {
             const auto& tabletInfo = pair.first;
             const auto& session = pair.second;
-            auto channel = GetTabletChannel(tabletInfo->CellId);
+            auto channel = GetTabletChannelOrThrow(tabletInfo->CellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
@@ -1434,7 +1467,7 @@ private:
 
         ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
-            req->set_max_size(*options.MaxSize);
+            req->set_limit(*options.MaxSize);
         }
         req->set_ignore_opaque(options.IgnoreOpaque);
         if (options.Options) {
@@ -1500,13 +1533,13 @@ private:
 
         ToProto(req->mutable_attribute_filter(), options.AttributeFilter);
         if (options.MaxSize) {
-            req->set_max_size(*options.MaxSize);
+            req->set_limit(*options.MaxSize);
         }
 
         auto* proxy = GetReadProxy(options);
         auto rsp = WaitFor(proxy->Execute(req))
             .ValueOrThrow();
-        return TYsonString(rsp->keys());
+        return TYsonString(rsp->value());
     }
 
     TNodeId DoCreateNode(
@@ -1587,7 +1620,7 @@ private:
             .ValueOrThrow();
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0)
             .ValueOrThrow();
-        return FromProto<TNodeId>(rsp->object_id());
+        return FromProto<TNodeId>(rsp->node_id());
     }
 
     TNodeId DoMoveNode(
@@ -1613,7 +1646,7 @@ private:
             .ValueOrThrow();
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCopy>(0)
             .ValueOrThrow();
-        return FromProto<TNodeId>(rsp->object_id());
+        return FromProto<TNodeId>(rsp->node_id());
     }
 
     TNodeId DoLinkNode(
@@ -1665,7 +1698,7 @@ private:
         auto batchReq = proxy->ExecuteBatch();
         SetPrerequisites(batchReq, options);
 
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         GenerateMutationId(req, options);
         if (options.TransactionId) {
             ToProto(req->mutable_transaction_id(), options.TransactionId);
@@ -1678,16 +1711,11 @@ private:
 
         auto batchRsp = WaitFor(batchReq->Invoke())
             .ValueOrThrow();
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>(0)
+        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
             .ValueOrThrow();
-        return FromProto<TObjectId>(rsp->object_ids(0));
+        return FromProto<TObjectId>(rsp->object_id());
     }
 
-
-    static Stroka GetGroupPath(const Stroka& name)
-    {
-        return "//sys/groups/" + ToYPathLiteral(name);
-    }
 
     void DoAddMember(
         const Stroka& group,
@@ -2528,7 +2556,7 @@ private:
             for (const auto& pair : TabletToSession_) {
                 const auto& tabletInfo = pair.first;
                 const auto& session = pair.second;
-                auto channel = Client_->GetTabletChannel(tabletInfo->CellId);
+                auto channel = Client_->GetTabletChannelOrThrow(tabletInfo->CellId);
                 asyncResults.push_back(session->Invoke(std::move(channel)));
             }
 

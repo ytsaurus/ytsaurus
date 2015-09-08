@@ -147,22 +147,11 @@ void TTablet::Load(TLoadContext& context)
     using NYT::Load;
     Load(context, Index_);
     Load(context, State_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 115) {
-        Load(context, Table_);
-    } else {
-        Load<i32>(context);
-    }
+    Load(context, Table_);
     Load(context, Cell_);
     Load(context, PivotKey_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 111) {
-        Load(context, NodeStatistics_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 119) {
-        Load(context, InMemoryMode_);
-    }
+    Load(context, NodeStatistics_);
+    Load(context, InMemoryMode_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

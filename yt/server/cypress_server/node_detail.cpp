@@ -12,6 +12,7 @@ namespace NYT {
 namespace NCypressServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
@@ -43,6 +44,11 @@ TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 { }
+
+bool TNontemplateCypressNodeTypeHandlerBase::IsExternalizable()
+{
+    return false;
+}
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsLeader() const
 {
@@ -89,6 +95,7 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     branchedNode->SetTrunkNode(originatingNode->GetTrunkNode());
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
+    branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
 
     // Branch user attributes.
     objectManager->BranchAttributes(originatingNode, branchedNode);
@@ -117,13 +124,16 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
 }
 
 TCypressNodeBase* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
-    TCypressNodeBase* sourceNode,
-    ICypressNodeFactoryPtr factory)
+    ICypressNodeFactoryPtr factory,
+    const TNodeId& hintId,
+    TCellTag externalCellTag)
 {
     auto type = GetObjectType();
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto clonedId = objectManager->GenerateId(type);
-    return factory->CreateNode(clonedId);
+    auto clonedId = hintId
+        ? hintId
+        : objectManager->GenerateId(type, NullObjectId);
+    return factory->InstantiateNode(clonedId, externalCellTag);
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
@@ -521,12 +531,23 @@ ENodeType TLinkNodeTypeHandler::GetNodeType()
     return ENodeType::Entity;
 }
 
-void TLinkNodeTypeHandler::SetDefaultAttributes(
-    IAttributeDictionary* attributes,
+ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
+    TLinkNode* trunkNode,
     TTransaction* transaction)
 {
-    TBase::SetDefaultAttributes(attributes, transaction);
+    return New<TLinkNodeProxy>(
+        this,
+        Bootstrap_,
+        transaction,
+        trunkNode);
+}
 
+std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
+    const TVersionedNodeId& id,
+    TCellTag cellTag,
+    TTransaction* transaction,
+    IAttributeDictionary* attributes)
+{
     // Resolve target_path using the appropriate transaction.
     auto targetPath = attributes->Find<Stroka>("target_path");
     if (targetPath) {
@@ -538,17 +559,12 @@ void TLinkNodeTypeHandler::SetDefaultAttributes(
         auto targetProxy = resolver->ResolvePath(*targetPath, transaction);
         attributes->Set("target_id", targetProxy->GetId());
     }
-}
 
-ICypressNodeProxyPtr TLinkNodeTypeHandler::DoGetProxy(
-    TLinkNode* trunkNode,
-    TTransaction* transaction)
-{
-    return New<TLinkNodeProxy>(
-        this,
-        Bootstrap_,
+    return TBase::DoCreate(
+        id,
+        cellTag,
         transaction,
-        trunkNode);
+        attributes);
 }
 
 void TLinkNodeTypeHandler::DoBranch(

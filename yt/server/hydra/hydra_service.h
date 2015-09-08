@@ -20,6 +20,7 @@ protected:
         int protocolVersion = NRpc::TProxyBase::DefaultProtocolVersion);
 
     void ValidatePeer(EPeerKind kind);
+    void SyncWithUpstream();
 
     virtual IHydraManagerPtr GetHydraManager() = 0;
     

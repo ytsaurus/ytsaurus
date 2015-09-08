@@ -12,7 +12,7 @@
 
 #include <ytlib/transaction_client/public.h>
 
-#include <core/rpc/public.h>
+#include <ytlib/api/public.h>
 
 #include <core/concurrency/throughput_throttler.h>
 

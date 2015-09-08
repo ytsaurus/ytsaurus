@@ -3,22 +3,27 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////
 
 TSchedulingContextBase::TSchedulingContextBase(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs)
+    const std::vector<TJobPtr>& runningJobs,
+    TCellTag cellTag)
     : Node_(node)
     , ResourceUsageDiscount_(ZeroNodeResources())
     , RunningJobs_(runningJobs)
     , Config_(config)
+    , CellTag_(cellTag)
 { }
 
 Stroka TSchedulingContextBase::GetAddress() const
@@ -63,8 +68,8 @@ TJobId TSchedulingContextBase::StartJob(
     bool restarted,
     TJobSpecBuilder specBuilder)
 {
-    auto id = TJobId::Create();
     auto startTime = GetNow();
+    auto id = MakeRandomId(EObjectType::SchedulerJob, CellTag_);
     auto job = New<TJob>(
         id,
         type,
@@ -102,8 +107,13 @@ public:
     TSchedulingContext(
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs)
-        : TSchedulingContextBase(config, node, runningJobs)
+        const std::vector<TJobPtr>& runningJobs,
+        TCellTag cellTag)
+        : TSchedulingContextBase(
+            config,
+            node,
+            runningJobs,
+            cellTag)
         , Address_(Node_->GetDefaultAddress())
         , ResourceLimits_(Node_->ResourceLimits())
     { }
@@ -114,12 +124,14 @@ public:
 std::unique_ptr<ISchedulingContext> CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs)
+    const std::vector<TJobPtr>& runningJobs,
+    TCellTag cellTag)
 {
     return std::unique_ptr<ISchedulingContext>(new TSchedulingContext(
         config,
         node,
-        runningJobs));
+        runningJobs,
+        cellTag));
 }
 
 ////////////////////////////////////////////////////////////////////

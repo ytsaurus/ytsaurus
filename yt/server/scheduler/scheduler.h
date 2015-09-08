@@ -66,7 +66,7 @@ public:
     TFuture<void> SuspendOperation(TOperationPtr operation);
     TFuture<void> ResumeOperation(TOperationPtr operation);
 
-    TFuture<NYTree::TYsonString> Strace(const TJobId& jobId);
+    TFuture<NYson::TYsonString> Strace(const TJobId& jobId);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
 
     typedef

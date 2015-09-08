@@ -32,7 +32,6 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterNode);
     DEFINE_RPC_PROXY_METHOD(NProto, FullHeartbeat);
     DEFINE_RPC_PROXY_METHOD(NProto, IncrementalHeartbeat);
-    DEFINE_RPC_PROXY_METHOD(NProto, GetRegisteredCells);
 
 };
 

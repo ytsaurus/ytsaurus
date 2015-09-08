@@ -28,13 +28,15 @@ INodeTypeHandlerPtr CreateTransactionMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = CreateVirtualObjectMap(
-        bootstrap,
-        bootstrap->GetTransactionManager()->Transactions());
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TransactionMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return CreateVirtualObjectMap(
+                bootstrap,
+                bootstrap->GetTransactionManager()->Transactions(),
+                owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
@@ -44,24 +46,25 @@ class TVirtualTopmostTransactionMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualTopmostTransactionMap(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+    TVirtualTopmostTransactionMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
     { }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         auto ids = ToObjectIds(transactionManager->TopmostTransactions(), sizeLimit);
         // NB: No size limit is needed here.
         return ConvertToStrings(ids);
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         return transactionManager->TopmostTransactions().size();
     }
 
@@ -69,7 +72,7 @@ private:
     {
         auto id = TTransactionId::FromString(key);
 
-        auto transactionManager = Bootstrap->GetTransactionManager();
+        auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(id);
         if (!IsObjectAlive(transaction)) {
             return nullptr;
@@ -79,7 +82,7 @@ private:
             return nullptr;
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(transaction);
     }
 };
@@ -88,11 +91,12 @@ INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualTopmostTransactionMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::TopmostTransactionMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualTopmostTransactionMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 

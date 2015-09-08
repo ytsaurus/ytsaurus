@@ -40,22 +40,21 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TError, Error);
 
 public:
-    static TJobPtr CreateForeign(
-        const TJobId& jobId,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
-
     static TJobPtr CreateReplicate(
+        const TJobId& jobId,
         const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const TNodeList& targets,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateRemove(
+        const TJobId& jobId,
         const NChunkClient::TChunkIdWithIndex& chunkIdWithIndex,
         NNodeTrackerServer::TNode* node,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateRepair(
+        const TJobId& jobId,
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
         const TNodeList& targets,
@@ -63,6 +62,7 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);
 
     static TJobPtr CreateSeal(
+        const TJobId& jobId,
         const TChunkId& chunkId,
         NNodeTrackerServer::TNode* node,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage);

@@ -8,6 +8,8 @@
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
 
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NHive {
 
@@ -68,7 +70,7 @@ void TClusterDirectory::RemoveCluster(const Stroka& clusterName)
     auto it = NameToCluster_.find(clusterName);
     if (it == NameToCluster_.end())
         return;
-    auto cellTag = it->second.CellTag;
+    auto cellTag = GetCellTag(it->second);
     NameToCluster_.erase(it);
     YCHECK(CellTagToCluster_.erase(cellTag) == 1);
 }
@@ -78,10 +80,11 @@ void TClusterDirectory::UpdateCluster(
     TConnectionConfigPtr config)
 {
     auto addNewCluster = [&] (const TCluster& cluster) {
-        if (CellTagToCluster_.find(cluster.CellTag) != CellTagToCluster_.end()) {
-            THROW_ERROR_EXCEPTION("Duplicate cell tag %v", cluster.CellTag);
+        auto cellTag = GetCellTag(cluster);
+        if (CellTagToCluster_.find(cellTag) != CellTagToCluster_.end()) {
+            THROW_ERROR_EXCEPTION("Duplicate cell tag %v", cellTag);
         }
-        CellTagToCluster_[cluster.CellTag] = cluster;
+        CellTagToCluster_[cellTag] = cluster;
         NameToCluster_[cluster.Name] = cluster;
     };
 
@@ -93,7 +96,7 @@ void TClusterDirectory::UpdateCluster(
     } else if (!AreNodesEqual(ConvertToNode(*(it->second.Config)), ConvertToNode(*config))) {
         auto cluster = CreateCluster(clusterName, config);
         TGuard<TSpinLock> guard(Lock_);
-        CellTagToCluster_.erase(it->second.CellTag);
+        CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);
         addNewCluster(cluster);
     }
@@ -103,7 +106,7 @@ void TClusterDirectory::UpdateSelf()
 {
     auto cluster = CreateSelfCluster();
     TGuard<TSpinLock> guard(Lock_);
-    CellTagToCluster_[cluster.CellTag] = cluster;
+    CellTagToCluster_[GetCellTag(cluster)] = cluster;
 }
 
 TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
@@ -112,7 +115,6 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(
 {
     TCluster cluster;
     cluster.Name = name;
-    cluster.CellTag = config->Master->CellTag;
     cluster.Config = config;
     cluster.Connection = CreateConnection(config);
     return cluster;
@@ -122,10 +124,14 @@ TClusterDirectory::TCluster TClusterDirectory::CreateSelfCluster() const
 {
     TCluster cluster;
     cluster.Name = "";
-    cluster.CellTag = SelfConnection_->GetConfig()->Master->CellTag;
     cluster.Config = SelfConnection_->GetConfig();
     cluster.Connection = SelfConnection_;
     return cluster;
+}
+
+TCellTag TClusterDirectory::GetCellTag(const TClusterDirectory::TCluster& cluster)
+{
+    return CellTagFromId(cluster.Config->PrimaryMaster->CellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

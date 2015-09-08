@@ -196,7 +196,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             options,
             Host_->GetClient(),
             Host_->GetBlockCache(),
-            Host_->GetNodeDirectory(),
+            Host_->GetInputNodeDirectory(),
             chunkSpecs,
             std::move(nameTable),
             columnFilter);
@@ -206,7 +206,7 @@ ISchemalessMultiChunkReaderPtr TUserJobIOBase::CreateTableReader(
             options,
             Host_->GetClient(),
             Host_->GetBlockCache(),
-            Host_->GetNodeDirectory(),
+            Host_->GetInputNodeDirectory(),
             chunkSpecs,
             std::move(nameTable),
             columnFilter);

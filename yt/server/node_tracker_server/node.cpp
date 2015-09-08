@@ -6,6 +6,8 @@
 
 #include <ytlib/object_client/helpers.h>
 
+#include <ytlib/node_tracker_client/helpers.h>
+
 #include <server/chunk_server/job.h>
 #include <server/chunk_server/chunk.h>
 
@@ -23,9 +25,11 @@ namespace NYT {
 namespace NNodeTrackerServer {
 
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTabletServer;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,21 +44,19 @@ void TNode::TTabletSlot::Persist(NCellMaster::TPersistenceContext& context)
 ////////////////////////////////////////////////////////////////////////////////
 
 TNode::TNode(
-    TNodeId id,
+    const TObjectId& objectId,
     const TAddressMap& addresses,
-    TNodeConfigPtr config,
     TInstant registerTime)
-    : Id_(id)
+    : TObjectBase(objectId)
     , RegisterTime_(registerTime)
+    , LastSeenTime_(registerTime)
     , Addresses_(addresses)
-    , Config_(config)
 {
     Init();
 }
 
-TNode::TNode(TNodeId id)
-    : Id_(id)
-    , Config_(New<TNodeConfig>())
+TNode::TNode(const TObjectId& objectId)
+    : TObjectBase(objectId)
 {
     Init();
 }
@@ -63,12 +65,19 @@ void TNode::Init()
 {
     VisitMark_ = 0;
     LoadRank_ = -1;
+    Banned_ = false;
+    Decommissioned_ = false;
     Rack_ = nullptr;
-    Transaction_ = nullptr;
-    Decommissioned_ = Config_->Decommissioned;
+    LeaseTransaction_ = nullptr;
+    LocalStatePtr_ = nullptr;
     ChunkReplicationQueues_.resize(ReplicationPriorityCount);
     RandomReplicaIt_ = StoredReplicas_.end();
-    ResetSessionHints();
+    ClearSessionHints();
+}
+
+TNodeId TNode::GetId() const
+{
+    return NodeIdFromObjectId(Id_);
 }
 
 const TAddressMap& TNode::GetAddresses() const
@@ -88,21 +97,46 @@ TNodeDescriptor TNode::GetDescriptor() const
         Rack_ ? MakeNullable(Rack_->GetName()) : Null);
 }
 
-const TNodeConfigPtr& TNode::GetConfig() const
+ENodeState TNode::GetLocalState() const
 {
-    return Config_;
+    return *LocalStatePtr_;
+}
+
+ENodeState TNode::GetAggregatedState() const
+{
+    TNullable<ENodeState> result;
+    for (const auto& pair : MulticellStates_) {
+        if (result) {
+            if (*result != pair.second) {
+                result = ENodeState::Mixed;
+            }
+        } else {
+            result = pair.second;
+        }
+    }
+    return *result;
+}
+
+void TNode::SetLocalState(ENodeState state) const
+{
+    *LocalStatePtr_ = state;
 }
 
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
+    TObjectBase::Save(context);
+
     using NYT::Save;
+    Save(context, Banned_);
+    Save(context, Decommissioned_);
     Save(context, Addresses_);
-    Save(context, State_);
+    Save(context, MulticellStates_);
     Save(context, RegisterTime_);
+    Save(context, LastSeenTime_);
     Save(context, Statistics_);
     Save(context, Alerts_);
     Save(context, Rack_);
-    Save(context, Transaction_);
+    Save(context, LeaseTransaction_);
     Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
     Save(context, UnapprovedReplicas_);
@@ -111,25 +145,19 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
 
 void TNode::Load(NCellMaster::TLoadContext& context)
 {
+    TObjectBase::Load(context);
+
     using NYT::Load;
+    Load(context, Banned_);
+    Load(context, Decommissioned_);
     Load(context, Addresses_);
-    Load(context, State_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 102) {
-        Load(context, RegisterTime_);
-    }
+    Load(context, MulticellStates_);
+    Load(context, RegisterTime_);
+    Load(context, LastSeenTime_);
     Load(context, Statistics_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 118) {
-        Load(context, Alerts_);
-    } else {
-        YCHECK(TSizeSerializer::Load(context) == 0);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 106) {
-        Load(context, Rack_);
-    }
-    Load(context, Transaction_);
+    Load(context, Alerts_);
+    Load(context, Rack_);
+    Load(context, LeaseTransaction_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
     Load(context, UnapprovedReplicas_);
@@ -238,11 +266,6 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
     ChunkRemovalQueue_.erase(ToGeneric(replica));
 }
 
-void TNode::ClearChunkRemovalQueue()
-{
-    ChunkRemovalQueue_.clear();
-}
-
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndex replica, int priority)
 {
     ChunkReplicationQueues_[priority].insert(ToGeneric(replica));
@@ -256,13 +279,6 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndex replica)
     }
 }
 
-void TNode::ClearChunkReplicationQueues()
-{
-    for (auto& queue : ChunkReplicationQueues_) {
-        queue.clear();
-    }
-}
-
 void TNode::AddToChunkSealQueue(TChunk* chunk)
 {
     ChunkSealQueue_.insert(chunk);
@@ -273,12 +289,7 @@ void TNode::RemoveFromChunkSealQueue(TChunk* chunk)
     ChunkSealQueue_.erase(chunk);
 }
 
-void TNode::ClearChunkSealQueue()
-{
-    ChunkSealQueue_.clear();
-}
-
-void TNode::ResetSessionHints()
+void TNode::ClearSessionHints()
 {
     HintedUserSessionCount_ = 0;
     HintedReplicationSessionCount_ = 0;
@@ -361,6 +372,19 @@ void TNode::ShrinkHashTables()
     }
     ShrinkHashTable(&ChunkRemovalQueue_);
     ShrinkHashTable(&ChunkSealQueue_);
+}
+
+void TNode::Reset()
+{
+    ClearSessionHints();
+    Jobs_.clear();
+    ChunkRemovalQueue_.clear();
+    for (auto& queue : ChunkReplicationQueues_) {
+        queue.clear();
+    }
+    ChunkSealQueue_.clear();
+    LoadRank_ = -1;
+    FillFactorIterator_ = Null;
 }
 
 ui64 TNode::GenerateVisitMark()

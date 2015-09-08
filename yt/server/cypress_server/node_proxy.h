@@ -37,12 +37,11 @@ struct ICypressNodeFactory
 
     virtual ICypressNodeProxyPtr CreateNode(
         NObjectClient::EObjectType type,
-        NYTree::IAttributeDictionary* attributes,
-        TReqCreate* request,
-        TRspCreate* response) = 0;
+        NYTree::IAttributeDictionary* attributes) = 0;
 
-    virtual TCypressNodeBase* CreateNode(
-        const TNodeId& id) = 0;
+    virtual TCypressNodeBase* InstantiateNode(
+        const TNodeId& id,
+        NObjectClient::TCellTag externalCellTag) = 0;
 
     virtual TCypressNodeBase* CloneNode(
         TCypressNodeBase* sourceNode,
@@ -65,14 +64,6 @@ struct ICypressNodeProxy
 
     //! Returns the trunk node for which the proxy is created.
     virtual TCypressNodeBase* GetTrunkNode() const = 0;
-
-    //! Returns resources used by the object.
-    /*!
-     *  This is displayed in @resource_usage attribute and is not used for accounting.
-     *
-     *  \see #ICypressNode::GetResourceUsage
-     */
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const = 0;
 
     //! "Covariant" extension of NYTree::INode::CreateFactory.
     virtual ICypressNodeFactoryPtr CreateCypressFactory(

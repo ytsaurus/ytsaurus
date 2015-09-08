@@ -228,37 +228,51 @@ bool TCompositeAutomatonPart::IsRecovery() const
 }
 
 void TCompositeAutomatonPart::OnStartLeading()
-{ }
+{
+    StartEpoch();
+}
 
 void TCompositeAutomatonPart::OnLeaderRecoveryComplete()
 { }
 
 void TCompositeAutomatonPart::OnLeaderActive()
-{
-    EpochAutomatonInvoker_ = HydraManager_
-        ->GetAutomatonCancelableContext()
-        ->CreateInvoker(AutomatonInvoker_);
-}
+{ }
 
 void TCompositeAutomatonPart::OnStopLeading()
 {
-    EpochAutomatonInvoker_.Reset();
+    StopEpoch();
 }
 
 void TCompositeAutomatonPart::OnStartFollowing()
-{ }
+{
+    StartEpoch();
+}
 
 void TCompositeAutomatonPart::OnFollowerRecoveryComplete()
 { }
 
 void TCompositeAutomatonPart::OnStopFollowing()
-{ }
+{
+    StopEpoch();
+}
 
 void TCompositeAutomatonPart::OnRecoveryStarted()
 { }
 
 void TCompositeAutomatonPart::OnRecoveryComplete()
 { }
+
+void TCompositeAutomatonPart::StartEpoch()
+{
+    EpochAutomatonInvoker_ = HydraManager_
+        ->GetAutomatonCancelableContext()
+        ->CreateInvoker(AutomatonInvoker_);
+}
+
+void TCompositeAutomatonPart::StopEpoch()
+{
+    EpochAutomatonInvoker_.Reset();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

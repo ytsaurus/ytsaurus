@@ -6,9 +6,6 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypeCreationOptions::TTypeCreationOptions()
-{ }
-
 TTypeCreationOptions::TTypeCreationOptions(
     EObjectTransactionMode transactionMode,
     EObjectAccountMode accountMode)

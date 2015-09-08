@@ -48,34 +48,35 @@ class TVirtualAccountMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualAccountMap(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+    TVirtualAccountMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
     { }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Accounts(), sizeLimit));
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Accounts().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(Stroka(key));
         if (!IsObjectAlive(account)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(account);
     }
 };
@@ -84,11 +85,12 @@ INodeTypeHandlerPtr CreateAccountMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualAccountMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::AccountMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualAccountMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
@@ -98,34 +100,35 @@ class TVirtualUserMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualUserMap(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+    TVirtualUserMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
     { }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Users(), sizeLimit));
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Users().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* user = securityManager->FindUserByName(Stroka(key));
         if (!IsObjectAlive(user)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(user);
     }
 };
@@ -134,11 +137,12 @@ INodeTypeHandlerPtr CreateUserMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualUserMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::UserMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualUserMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
@@ -148,34 +152,35 @@ class TVirtualGroupMap
     : public TVirtualMapBase
 {
 public:
-    explicit TVirtualGroupMap(TBootstrap* bootstrap)
-        : Bootstrap(bootstrap)
+    TVirtualGroupMap(TBootstrap* bootstrap, INodePtr owningNode)
+        : TVirtualMapBase(owningNode)
+        , Bootstrap_(bootstrap)
     { }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* const Bootstrap_;
 
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit) const override
+    virtual std::vector<Stroka> GetKeys(i64 sizeLimit) const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         return ToNames(GetValues(securityManager->Groups(), sizeLimit));
     }
 
-    virtual size_t GetSize() const override
+    virtual i64 GetSize() const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         return securityManager->Groups().GetSize();
     }
 
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const override
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Bootstrap_->GetSecurityManager();
         auto* group = securityManager->FindGroupByName(Stroka(key));
         if (!IsObjectAlive(group)) {
             return nullptr;
         }
 
-        auto objectManager = Bootstrap->GetObjectManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->GetProxy(group);
     }
 };
@@ -184,11 +189,12 @@ INodeTypeHandlerPtr CreateGroupMapTypeHandler(TBootstrap* bootstrap)
 {
     YCHECK(bootstrap);
 
-    auto service = New<TVirtualGroupMap>(bootstrap);
     return CreateVirtualTypeHandler(
         bootstrap,
         EObjectType::GroupMap,
-        service,
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualGroupMap>(bootstrap, owningNode);
+        }),
         EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 

@@ -115,7 +115,7 @@ void TBootstrap::DoRun()
 
     LOG_INFO("Starting scheduler (LocalAddress: %v, MasterAddresses: [%v])",
         LocalAddress_,
-        JoinToString(Config_->ClusterConnection->Master->Addresses));
+        JoinToString(Config_->ClusterConnection->PrimaryMaster->Addresses));
 
     auto isRetriableError = BIND([] (const TError& error) -> bool {
         auto code = error.GetCode();

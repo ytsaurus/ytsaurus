@@ -12,7 +12,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<NYTree::TYsonString(const NYTree::TYsonString&)> TGenericTool;
+typedef std::function<NYson::TYsonString(const NYson::TYsonString&)> TGenericTool;
 
 struct TToolDescription
 {

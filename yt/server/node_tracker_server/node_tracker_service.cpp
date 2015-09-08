@@ -54,7 +54,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetRequestHeavy(true)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::IncrementalHeartbeat)));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetRegisteredCells));
     }
 
 private:
@@ -64,6 +63,10 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, RegisterNode)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        if (!Bootstrap_->IsPrimaryMaster()) {
+            THROW_ERROR_EXCEPTION("Cannot register nodes at secondary master");
+        }
 
         auto worldInitializer = Bootstrap_->GetWorldInitializer();
         if (worldInitializer->CheckProvisionLock()) {
@@ -77,17 +80,14 @@ private:
         auto addresses = FromProto<TAddressMap>(request->addresses());
         const auto& address = GetDefaultAddress(addresses);
         const auto& statistics = request->statistics();
+        auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
 
-        context->SetRequestInfo("Address: %v, %v",
+        context->SetRequestInfo("Address: %v, LeaseTransactionId: %v, %v",
             address,
+            leaseTransactionId,
             statistics);
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        auto config = nodeTracker->FindNodeConfigByAddress(address);
-        if (config && config->Banned) {
-            THROW_ERROR_EXCEPTION("Node %v is banned", address);
-        }
-
         if (!nodeTracker->TryAcquireNodeRegistrationSemaphore()) {
             context->Reply(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -104,6 +104,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
     {
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
@@ -115,14 +116,6 @@ private:
             nodeId,
             node->GetDefaultAddress(),
             statistics);
-
-        if (node->GetState() != ENodeState::Registered) {
-            context->Reply(TError(
-                NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process a full heartbeat in %Qlv state",
-                node->GetState()));
-            return;
-        }
 
         nodeTracker
             ->CreateFullHeartbeatMutation(context)
@@ -133,6 +126,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
     {
         ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
 
         auto nodeId = request->node_id();
         const auto& statistics = request->statistics();
@@ -145,33 +139,10 @@ private:
             node->GetDefaultAddress(),
             statistics);
 
-        if (node->GetState() != ENodeState::Online) {
-            context->Reply(TError(
-                NNodeTrackerClient::EErrorCode::InvalidState,
-                "Cannot process an incremental heartbeat in %Qlv state",
-                node->GetState()));
-            return;
-        }
-
         nodeTracker
             ->CreateIncrementalHeartbeatMutation(context)
             ->Commit()
             .Subscribe(CreateRpcResponseHandler(context));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, GetRegisteredCells)
-    {
-        ValidatePeer(EPeerKind::Leader);
-
-        context->SetRequestInfo();
-
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        ToProto(response->mutable_cell_descriptors(), nodeTracker->GetCellDescriptors());
-
-        context->SetResponseInfo("DescriptorCount: %v",
-            response->cell_descriptors_size());
-
-        context->Reply();
     }
 
 };

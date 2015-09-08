@@ -210,6 +210,12 @@ class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Timeout for lease transactions.
+    TDuration LeaseTransactionTimeout;
+
+    //! Period between consequent lease transaction pings.
+    TDuration LeaseTransactionPingPeriod;
+
     //! Period between consequent incremental heartbeats.
     TDuration IncrementalHeartbeatPeriod;
 
@@ -323,6 +329,10 @@ public:
 
     TDataNodeConfig()
     {
+        RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("lease_transaction_ping_period", LeaseTransactionPingPeriod)
+            .Default(TDuration::Seconds(15));
         RegisterParameter("incremental_heartbeat_period", IncrementalHeartbeatPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)

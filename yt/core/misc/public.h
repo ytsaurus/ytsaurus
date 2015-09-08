@@ -11,6 +11,7 @@ namespace NProto {
 
 class TError;
 class TBloomFilter;
+class TDataStatistics;
 
 }  // namespace NProto
 

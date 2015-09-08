@@ -9,6 +9,8 @@
 
 #include <core/ytree/public.h>
 
+#include <ytlib/hydra/version.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -41,6 +43,12 @@ struct IHydraManager
      */
     virtual EPeerState GetAutomatonState() const = 0;
 
+    //! Returns the current committed version.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual TVersion GetCommittedVersion() const = 0;
+
     //! Returns a wrapper invoker used for accessing the automaton.
     /*!
      *  \note Thread affinity: any
@@ -58,7 +66,7 @@ struct IHydraManager
     //! Returns |true| if the peer is a follower ready to serve reads.
     /*!
      *  Any follower still can lag arbitrarily behind the leader.
-     *  One should use #SyncWithLeader to workaround stale reads.
+     *  One should use #SyncWithUpstream to workaround stale reads.
      *
      *  \note Thread affinity: any
      */
@@ -76,20 +84,31 @@ struct IHydraManager
      */
     virtual TCancelableContextPtr GetAutomatonCancelableContext() const = 0;
 
-    //! Returns the leading peer id, as viewed by the Automaton Thread.
+    //! Synchronizes with the upstream.
     /*!
+     *  Used to prevent stale reads by ensuring that the automaton has seen enough mutations
+     *  from all "upstream" services.
+     *
+     *  Synchronization requests are automatically batched together.
+     *
+     *  Internally, this combines two means of synchronization:
+     *  1) follower-with-leader synchronization
+     *  2) custom synchronization
+     *
+     *  In both cases a certain "synchronizer" is invoked that returns a future that gets
+     *  set when synchronization is complete.
+     *
+     *  Synchronizer (1) ensures that when invoked at follower at instant T,
+     *  completes when the committed version becomes equal to or larger than
+     *  the committed version at leader at T.
+     *
+     *  Synchronizer (1) has no effect at leader.
+     *
+     *  Synchronizers (2) are user-supplied (see UpstreamSync signal).
+     *
      *  \note Thread affinity: AutomatonThread
      */
-    virtual NElection::TPeerId GetAutomatonLeaderId() const = 0;
-
-    //! When called at the leader returns a preset future.
-    //! When called at a follower at instant T returns a future that gets set
-    //! when the committed version at this follower is equal to or larger than
-    //! the committed version at the leader at T.
-    /*!
-     *  \note Thread affinity: AutomatonThread
-     */
-    virtual TFuture<void> SyncWithLeader() = 0;
+    virtual TFuture<void> SyncWithUpstream() = 0;
 
     //! Commits a mutation.
     /*!
@@ -123,7 +142,7 @@ struct IHydraManager
     /*!
      *  \note Thread affinity: any
      */
-    virtual NYTree::TYsonProducer GetMonitoringProducer() = 0;
+    virtual NYson::TYsonProducer GetMonitoringProducer() = 0;
 
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.
@@ -147,10 +166,13 @@ struct IHydraManager
     DECLARE_INTERFACE_SIGNAL(void(), StopFollowing);
 
     //! Raised during periodic leader lease checks.
-    //! The subscriber must start an appropriate check and return a future
+    //! A subscriber must start an appropriate check and return a future
     //! summarizing its outcome.
     DECLARE_INTERFACE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
-
+    //! Raised during upstream sync..
+    //! A subscriber must start an appropriate synchronization process and return a future
+    //! that gets set when sync is reached.
+    DECLARE_INTERFACE_SIGNAL(TFuture<void>(), UpstreamSync);
 
     // Extension methods.
     bool IsLeader() const;

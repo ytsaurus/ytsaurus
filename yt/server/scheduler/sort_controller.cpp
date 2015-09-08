@@ -291,7 +291,7 @@ protected:
             : TTask(controller)
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
-                Controller->NodeDirectory,
+                Controller->InputNodeDirectory,
                 Controller->PartitionJobCounter.GetTotal(),
                 Controller->Config->MaxChunkStripesPerJob))
         { }
@@ -357,9 +357,9 @@ protected:
                 IsMemoryReserveEnabled());
         }
 
-        virtual int GetChunkListCountPerJob() const override
+        virtual bool IsIntermediateOutput() const override
         {
-            return 1;
+            return true;
         }
 
         virtual EJobType GetJobType() const override
@@ -388,7 +388,7 @@ protected:
             Controller->PartitionJobCounter.Completed(1);
 
             auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
+            auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
             RegisterIntermediate(
                 joblet,
@@ -551,16 +551,14 @@ protected:
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
         {
-            return
-                Controller->SimpleSort
+            return Controller->SimpleSort
                 ? Controller->SimpleSortPool.get()
                 : Controller->ShufflePool->GetInput();
         }
 
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
-            return
-                Controller->SimpleSort
+            return Controller->SimpleSort
                 ? Controller->SimpleSortPool.get()
                 : Partition->ChunkPoolOutput;
         }
@@ -599,11 +597,9 @@ protected:
             return GetNeededResourcesForChunkStripe(stat.front(), IsMemoryReserveEnabled());
         }
 
-        virtual int GetChunkListCountPerJob() const override
+        virtual bool IsIntermediateOutput() const override
         {
-            return Controller->IsSortedMergeNeeded(Partition)
-                ? 1
-                : Controller->OutputTables.size();
+            return Controller->IsSortedMergeNeeded(Partition);
         }
 
         virtual EJobType GetJobType() const override
@@ -658,7 +654,7 @@ protected:
                 // Sort outputs in large partitions are queued for further merge.
                 // Construct a stripe consisting of sorted chunks and put it into the pool.
                 auto* resultExt = jobSummary.Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_chunks());
+                auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunks());
 
                 RegisterIntermediate(
                     joblet,
@@ -763,7 +759,7 @@ protected:
 
         virtual i64 GetLocality(const Stroka& address) const override
         {
-            if (Partition->AssignedAddress && Partition->AssignedAddress.Get() == address) {
+            if (Partition->AssignedAddress && *Partition->AssignedAddress == address) {
                 // Handle initially assigned address.
                 return 1;
             } else {
@@ -876,7 +872,7 @@ protected:
 
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-            , ChunkPool(CreateAtomicChunkPool(Controller->NodeDirectory))
+            , ChunkPool(CreateAtomicChunkPool(Controller->InputNodeDirectory))
         { }
 
         virtual Stroka GetId() const override
@@ -937,11 +933,6 @@ protected:
         virtual IChunkPoolOutput* GetChunkPoolOutput() const override
         {
             return ChunkPool.get();
-        }
-
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return Controller->OutputTables.size();
         }
 
         virtual EJobType GetJobType() const override
@@ -1060,11 +1051,6 @@ protected:
         virtual bool HasInputLocality() const override
         {
             return false;
-        }
-
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return 1;
         }
 
         virtual EJobType GetJobType() const override
@@ -1235,7 +1221,7 @@ protected:
     void InitShufflePool()
     {
         ShufflePool = CreateShuffleChunkPool(
-            NodeDirectory,
+            InputNodeDirectory,
             static_cast<int>(Partitions.size()),
             Spec->DataSizePerSortJob);
 
@@ -1247,7 +1233,7 @@ protected:
     void InitSimpleSortPool(int sortJobCount)
     {
         SimpleSortPool = CreateUnorderedChunkPool(
-            NodeDirectory,
+            InputNodeDirectory,
             sortJobCount,
             Config->MaxChunkStripesPerJob);
     }
@@ -1454,10 +1440,10 @@ protected:
         i64 result;
         if (Spec->PartitionDataSize || Spec->PartitionCount) {
             if (Spec->PartitionCount) {
-                result = Spec->PartitionCount.Get();
+                result = *Spec->PartitionCount;
             } else {
                 // NB: Spec->PartitionDataSize is not Null.
-                result = 1 + dataSizeAfterPartition / Spec->PartitionDataSize.Get();
+                result = 1 + dataSizeAfterPartition / *Spec->PartitionDataSize;
             }
         } else {
             result = GetEmpiricalParitionCount(dataSizeAfterPartition);
@@ -1709,7 +1695,7 @@ private:
                     Host->GetBackgroundInvoker(),
                     Host->GetChunkLocationThrottler(),
                     AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-                    NodeDirectory,
+                    InputNodeDirectory,
                     Logger);
             }
 
@@ -1717,7 +1703,7 @@ private:
                 Config->Fetcher,
                 sampleCount,
                 Spec->SortBy,
-                NodeDirectory,
+                InputNodeDirectory,
                 Host->GetBackgroundInvoker(),
                 scraperCallback,
                 Logger);
@@ -2308,20 +2294,20 @@ private:
 
         for (const auto& file : Files) {
             switch (file.Stage) {
-            case EOperationStage::Map:
-                MapperFiles.push_back(file);
-                break;
+                case EOperationStage::Map:
+                    MapperFiles.push_back(file);
+                    break;
 
-            case EOperationStage::ReduceCombiner:
-                ReduceCombinerFiles.push_back(file);
-                break;
+                case EOperationStage::ReduceCombiner:
+                    ReduceCombinerFiles.push_back(file);
+                    break;
 
-            case EOperationStage::Reduce:
-                ReducerFiles.push_back(file);
-                break;
+                case EOperationStage::Reduce:
+                    ReducerFiles.push_back(file);
+                    break;
 
-            default:
-                YUNREACHABLE();
+                default:
+                    YUNREACHABLE();
             }
         }
 
@@ -2408,12 +2394,16 @@ private:
     {
         {
             PartitionJobSpecTemplate.set_type(static_cast<int>(Spec->Mapper ? EJobType::PartitionMap : EJobType::Partition));
+
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-            auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             if (Spec->InputQuery) {
-                InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
+                InitQuerySpec(schedulerJobSpecExt, *Spec->InputQuery, *Spec->InputSchema);
             }
+
+            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
+            auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
 
             ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -2439,6 +2429,8 @@ private:
 
             if (Spec->ReduceCombiner) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
+                AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
                 auto* reduceJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                 ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
                 reduceJobSpecExt->set_reduce_key_column_count(Spec->ReduceBy.size());
@@ -2456,7 +2448,10 @@ private:
 
         {
             FinalSortJobSpecTemplate.set_type(static_cast<int>(EJobType::PartitionReduce));
+
             auto* schedulerJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
@@ -2474,7 +2469,10 @@ private:
 
         {
             SortedMergeJobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
+
             auto* schedulerJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+            AuxNodeDirectory->DumpTo(schedulerJobSpecExt->mutable_aux_node_directory());
+
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());

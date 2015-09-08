@@ -9,6 +9,15 @@ namespace NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TReqCreateForeignObject;
+class TReqRemoveForeignObject;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 using NObjectClient::TObjectId;
 using NObjectClient::TTransactionId;
 using NObjectClient::TVersionedObjectId;

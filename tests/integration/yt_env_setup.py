@@ -3,17 +3,27 @@ import yt_commands
 from yt.environment import YTEnv
 import yt_driver_bindings
 
+import pytest
+
 import gc
 import os
 import logging
 import uuid
-
+import shutil
 from time import sleep
-from functools import wraps
-import pytest
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
+SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 TOOLS_ROOTDIR = os.path.abspath('tools')
+
+linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
+
+def skip_if_multicell(func):
+    def wrapped_func(self, *args, **kwargs):
+        if hasattr(self, "NUM_SECONDARY_MASTER_CELLS") and self.NUM_SECONDARY_MASTER_CELLS > 0:
+            pytest.skip("This test does not support multicell mode")
+        func(self, *args, **kwargs)
+    return wrapped_func
 
 def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
@@ -26,7 +36,7 @@ def _working_dir(test_name):
 
 def _wait(predicate):
     while not predicate():
-        sleep(1)
+        sleep(1.0)
 
 def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
@@ -40,6 +50,7 @@ class YTEnvSetup(YTEnv):
 
         if test_name is None:
             test_name = cls.__name__
+        cls.test_name = test_name
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running parallel
@@ -52,6 +63,7 @@ class YTEnvSetup(YTEnv):
 
         if cls.Env.configs['driver']:
             yt_commands.init_driver(cls.Env.configs['driver'])
+            yt_commands.is_multicell = (cls.Env.NUM_SECONDARY_MASTER_CELLS > 0)
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 
     @classmethod
@@ -60,9 +72,20 @@ class YTEnvSetup(YTEnv):
         yt_commands.driver = None
         gc.collect()
 
+        if SANDBOX_STORAGE_ROOTDIR is not None:
+            if not os.path.exists(SANDBOX_STORAGE_ROOTDIR):
+                os.makedirs(SANDBOX_STORAGE_ROOTDIR)
+            
+            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
+            if os.path.exists(destination_path):
+                shutil.rmtree(destination_path)
+
+            shutil.move(cls.path_to_test, os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name))
+
     def setup_method(self, method):
         if self.Env.NUM_MASTERS > 0:
-            self._wait_nodes()
+            self.transactions_at_start = set(yt_commands.get_transactions())
+            self.wait_for_nodes()
 
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
@@ -80,6 +103,7 @@ class YTEnvSetup(YTEnv):
             yt_commands.gc_collect()
             yt_commands.clear_metadata_caches()
 
+            self._unban_nodes()
             self._remove_accounts()
             self._remove_users()
             self._remove_groups()
@@ -88,52 +112,75 @@ class YTEnvSetup(YTEnv):
 
             yt_commands.gc_collect()
 
-    def _wait_nodes(self):
-        for attempt in xrange(1, 100):
-            while True:
-                if yt_commands.get("//sys/nodes/@offline"):
-                    sleep(0.1)
-                else:
-                    break
+    def set_node_banned(self, address, flag):
+        yt_commands.set("//sys/nodes/%s/@banned" % address, flag)
+        # Give it enough time to register or unregister the node
+        sleep(1.0)
+        if flag:
+            assert yt_commands.get("//sys/nodes/%s/@state" % address) == "offline"
+            print "Node %s is banned" % address
+        else:
+            assert yt_commands.get("//sys/nodes/%s/@state" % address) == "online"
+            print "Node %s is unbanned" % address
 
-    def _sync_create_cells(self, size, count):
-        ids = []
-        for _ in xrange(count):
-            ids.append(yt_commands.create_tablet_cell(size))
+    def wait_for_nodes(self):
+        _wait(lambda: all(n.attributes["state"] == "online" for n in yt_commands.ls("//sys/nodes", attributes=["state"])))
 
+    def wait_for_cells(self):
         print "Waiting for tablet cells to become healthy..."
-        _wait(lambda: all(yt_commands.get("//sys/tablet_cells/" + id + "/@health") == "good" for id in ids))
+        _wait(lambda: all(c.attributes["health"] == "good" for c in yt_commands.ls("//sys/tablet_cells", attributes=["health"])))
 
-    def _wait_for_tablet_state(self, path, states):
+    def sync_create_cells(self, size, count):
+        for _ in xrange(count):
+            yt_commands.create_tablet_cell(size)
+        self.wait_for_cells()
+
+    def wait_for_tablet_state(self, path, states):
         print "Waiting for tablets to become %s..." % ", ".join(str(state) for state in states)
         _wait(lambda: all(any(x["state"] == state for state in states) for x in yt_commands.get(path + "/@tablets")))
 
-    def _sync_mount_table(self, path):
+    def wait_until_sealed(self, path):
+        _wait(lambda: yt_commands.get(path + "/@sealed"))
+
+    def sync_mount_table(self, path):
         yt_commands.mount_table(path)
 
         print "Waiting for tablets to become mounted..."
         _wait(lambda: all(x["state"] == "mounted" for x in yt_commands.get(path + "/@tablets")))
 
-    def _sync_unmount_table(self, path):
+    def sync_unmount_table(self, path):
         yt_commands.unmount_table(path)
 
         print "Waiting for tablets to become unmounted..."
         _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
 
+    def _abort_transactions(self, txs):
+        for tx in txs:
+            try:
+                yt_commands.abort_transaction(tx)
+            except:
+                pass
+
+    def _unban_nodes(self):
+        nodes = yt_commands.ls("//sys/nodes", attributes=["banned"])
+        for node in nodes:
+            if node.attributes["banned"]:
+                yt_commands.set("//sys/nodes/%s/@banned" % str(node), False)
+
     def _remove_accounts(self):
-        accounts = yt_commands.ls('//sys/accounts', attr=['builtin'])
+        accounts = yt_commands.ls('//sys/accounts', attributes=['builtin'])
         for account in accounts:
             if not account.attributes['builtin']:
                 yt_commands.remove_account(str(account))
 
     def _remove_users(self):
-        users = yt_commands.ls('//sys/users', attr=['builtin'])
+        users = yt_commands.ls('//sys/users', attributes=['builtin'])
         for user in users:
             if not user.attributes['builtin']:
                 yt_commands.remove_user(str(user))
 
     def _remove_groups(self):
-        groups = yt_commands.ls('//sys/groups', attr=['builtin'])
+        groups = yt_commands.ls('//sys/groups', attributes=['builtin'])
         for group in groups:
             if not group.attributes['builtin']:
                 yt_commands.remove_group(str(group))
@@ -157,27 +204,3 @@ class YTEnvSetup(YTEnv):
         result_path = os.path.join(unittests_path, file_name)
         assert os.path.exists(result_path)
         return result_path
-
-# decorator form
-ATTRS = [
-    'NUM_MASTERS',
-    'NUM_NODES',
-    'NUM_SCHEDULERS',
-    'DELTA_MASTER_CONFIG',
-    'DELTA_NODE_CONFIG',
-    'DELTA_SCHEDULER_CONFIG']
-
-def ytenv(**attrs):
-    def make_decorator(f):
-        @wraps(f)
-        def wrapped(*args, **kw):
-            env = YTEnv()
-            for i in ATTRS:
-                if i in attrs:
-                    setattr(env, i, attrs.get(i))
-            working_dir = _working_dir(f.__name__)
-            env.setUp(working_dir)
-            f(*args, **kw)
-            env.tearDown()
-        return wrapped
-    return make_decorator

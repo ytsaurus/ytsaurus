@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -160,23 +160,23 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         else:
             assert_items_equal(read_table("//tmp/t_out"), output)
 
-    @only_linux
+    @linux_only
     def test_map_sort_reduce(self):
         self.do_run_test("map_sort_reduce")
 
-    @only_linux
+    @linux_only
     def test_map_reduce(self):
         self.do_run_test("map_reduce")
 
-    @only_linux
+    @linux_only
     def test_map_reduce_1partition(self):
         self.do_run_test("map_reduce_1p")
 
-    @only_linux
+    @linux_only
     def test_map_reduce_reduce_combiner_dev_null(self):
         self.do_run_test("reduce_combiner_dev_null")
 
-    @only_linux
+    @linux_only
     def test_many_output_tables(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out1")
@@ -188,7 +188,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                    reducer_command="cat",
                    spec={"reducer": {"format": "dsv"}})
 
-    @only_linux
+    @linux_only
     def test_reduce_with_sort(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -271,7 +271,7 @@ print "x={0}\ty={1}".format(x, y)
                        in_="//tmp/t1", out="//tmp/t2",
                        sort_by=["foo"], spec={"intermediate_data_acl": acl})
 
-    @only_linux
+    @linux_only
     def test_query_simple(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -282,7 +282,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
+    @linux_only
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -293,7 +293,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @only_linux
+    @linux_only
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -304,7 +304,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
-    @only_linux
+    @linux_only
     def test_query_asterisk(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -338,3 +338,8 @@ print "x={0}\ty={1}".format(x, y)
                        in_="//tmp/t1", out="//tmp/t2",
                        sort_by=["foo"], 
                        spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})
+
+##################################################################
+
+class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2

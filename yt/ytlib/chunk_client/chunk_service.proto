@@ -2,6 +2,8 @@ package NYT.NChunkClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
+import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,6 +54,56 @@ message TRspAllocateWriteTargets
 {
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
     repeated fixed32 replicas = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqExportChunks
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated NYT.NProto.TGuid chunk_ids = 2;
+}
+
+message TChunkTeleportData
+{
+    required NYT.NProto.TGuid id = 1;
+    required NYT.NChunkClient.NProto.TChunkInfo info = 2;
+    required NYT.NChunkClient.NProto.TChunkMeta meta = 3;
+    required int32 erasure_codec = 4; // NErasure::ECodec
+}
+
+message TRspExportChunks
+{
+    repeated TChunkTeleportData chunks = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqImportChunks
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated TChunkTeleportData chunks = 2;
+}
+
+message TRspImportChunks
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetChunkOwningNodes
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+}
+
+message TRspGetChunkOwningNodes
+{
+    message TOwningNode
+    {
+        required NYT.NProto.TGuid node_id = 1;
+        optional NYT.NProto.TGuid transaction_id = 2;
+    }
+
+    repeated TOwningNode nodes = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

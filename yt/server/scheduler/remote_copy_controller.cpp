@@ -19,6 +19,8 @@
 
 #include <ytlib/transaction_client/helpers.h>
 
+#include <core/ytree/attribute_helpers.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -75,6 +77,7 @@ public:
         Persist(context, RemoteCopyTaskGroup_);
         Persist(context, JobIOConfig_);
         Persist(context, JobSpecTemplate_);
+        Persist<TAttributeDictionaryRefSerializer>(context, InputTableAttributes_);
     }
 
 private:
@@ -89,13 +92,12 @@ private:
     public:
         //! For persistence only.
         TRemoteCopyTask()
-            : Controller_(nullptr)
         { }
 
         TRemoteCopyTask(TRemoteCopyController* controller, int index)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateAtomicChunkPool(Controller_->NodeDirectory))
+            , ChunkPool_(CreateAtomicChunkPool(Controller_->InputNodeDirectory))
             , Index_(index)
         { }
 
@@ -143,7 +145,7 @@ private:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0x83b0dfe3);
 
-        TRemoteCopyController* Controller_;
+        TRemoteCopyController* Controller_ = nullptr;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
 
@@ -191,11 +193,6 @@ private:
             return result;
         }
 
-        virtual int GetChunkListCountPerJob() const override
-        {
-            return 1;
-        }
-
         virtual EJobType GetJobType() const override
         {
             return EJobType(Controller_->JobSpecTemplate_.type());
@@ -207,8 +204,8 @@ private:
 
             auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             NNodeTrackerClient::TNodeDirectoryBuilder directoryBuilder(
-                Controller_->NodeDirectory,
-                schedulerJobSpecExt->mutable_node_directory());
+                Controller_->InputNodeDirectory,
+                schedulerJobSpecExt->mutable_input_node_directory());
 
             auto* inputSpec = schedulerJobSpecExt->add_input_specs();
             auto list = joblet->InputStripeList;
@@ -245,6 +242,9 @@ private:
 
     TJobIOConfigPtr JobIOConfig_;
     TJobSpec JobSpecTemplate_;
+
+    std::unique_ptr<IAttributeDictionary> InputTableAttributes_;
+
 
     // Custom bits of preparation pipeline.
     void InitializeTransactions() override
@@ -295,62 +295,6 @@ private:
         return std::vector<TPathWithStage>();
     }
 
-    void CopyAttributes()
-    {
-        if (InputTables.size() > 1) {
-            OnOperationFailed(TError("Attributes can be copied only in case of one input table"));
-            return;
-        }
-
-        IMapNodePtr attributes;
-        {
-            auto path = GetInputTablePaths()[0].GetPath();
-            auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
-            TObjectServiceProxy proxy(channel);
-
-            auto req = TObjectYPathProxy::Get(path + "/@");
-            SetTransactionId(req, Operation->GetInputTransaction());
-
-            auto rsp = WaitFor(proxy.Execute(req));
-            if (!rsp.IsOK()) {
-                OnOperationFailed(TError("Error getting attributes of input table %v", path) << rsp);
-                return;
-            }
-            attributes = ConvertToNode(TYsonString(rsp.Value()->value()))->AsMap();
-        }
-
-        {
-            auto path = GetOutputTablePaths()[0].GetPath();
-            auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
-            TObjectServiceProxy proxy(channel);
-            std::vector<Stroka> attributeKeys;
-            if (Spec_->AttributeKeys) {
-                attributeKeys = *Spec_->AttributeKeys;
-            } else {
-                attributeKeys = ConvertTo<std::vector<Stroka>>(attributes->GetChild("user_attribute_keys"));
-            }
-            auto batchReq = proxy.ExecuteBatch();
-            for (auto key : attributeKeys) {
-                auto req = TYPathProxy::Set(path + "/@" + key);
-                req->set_value(ConvertToYsonString(attributes->GetChild(key)).Data());
-                SetTransactionId(req, Operation->GetOutputTransaction());
-                batchReq->AddRequest(req);
-            }
-
-            auto error = TError("Error setting attributes for output table %v", path);
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            if (!batchRspOrError.IsOK()) {
-                OnOperationFailed(error << batchRspOrError);
-                return;
-            }
-            auto cumulativeError = GetCumulativeError(batchRspOrError);
-            if (!cumulativeError.IsOK()) {
-                OnOperationFailed(error << cumulativeError);
-                return;
-            }
-        }
-    }
-
     virtual void CustomPrepare() override
     {
         TOperationControllerBase::CustomPrepare();
@@ -366,8 +310,7 @@ private:
             if (chunkSpec->has_lower_limit() && !IsTrivial(chunkSpec->lower_limit()) ||
                 chunkSpec->has_upper_limit() && !IsTrivial(chunkSpec->upper_limit()))
             {
-                OnOperationFailed(TError("Remote copy operation does not support non-trivial table limits"));
-                return;
+                THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
             }
             stripes.push_back(New<TChunkStripe>(CreateChunkSlice(chunkSpec)));
         }
@@ -380,15 +323,31 @@ private:
         jobCount = std::min(jobCount, static_cast<int>(stripes.size()));
 
         if (stripes.size() > Spec_->MaxChunkCountPerJob * jobCount) {
-            OnOperationFailed(TError(
-                "Too many chunks per job: actual %v, limit %v; please merge input tables before starting Remote Copy",
+            THROW_ERROR_EXCEPTION("Too many chunks per job: actual %v, limit %v; "
+                "please merge input tables before starting Remote Copy",
                 stripes.size() / jobCount,
-                Spec_->MaxChunkCountPerJob));
-            return;
+                Spec_->MaxChunkCountPerJob);
         }
 
         if (Spec_->CopyAttributes) {
-            CopyAttributes();
+            if (InputTables.size() > 1) {
+                THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
+            }
+
+            const auto& path = Spec_->InputTablePaths[0].GetPath();
+
+            auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto req = TObjectYPathProxy::Get(path + "/@");
+            SetTransactionId(req, Operation->GetInputTransaction());
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of input table %v",
+                path);
+
+            const auto& rsp = rspOrError.Value();
+            InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));
         }
 
         BuildTasks(stripes);
@@ -397,6 +356,33 @@ private:
 
         InitJobIOConfig();
         InitJobSpecTemplate();
+    }
+
+    virtual void CustomCommit() override
+    {
+        TOperationControllerBase::CustomCommit();
+
+        if (Spec_->CopyAttributes) {
+            const auto& path = Spec_->OutputTablePath.GetPath();
+
+            auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto userAttributeKeys = InputTableAttributes_->Get<std::vector<Stroka>>("user_attribute_keys");
+            auto attributeKeys = Spec_->AttributeKeys.Get(userAttributeKeys);
+
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& key : attributeKeys) {
+                auto req = TYPathProxy::Set(path + "/@" + key);
+                req->set_value(InputTableAttributes_->GetYson(key).Data());
+                SetTransactionId(req, Operation->GetOutputTransaction());
+                batchReq->AddRequest(req);
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error setting attributes for output table %v",
+                path);
+        }
     }
 
     void BuildTasks(const std::vector<TChunkStripePtr>& stripes)

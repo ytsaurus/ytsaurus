@@ -57,15 +57,12 @@ void TReadJournalCommand::DoExecute()
         checkLimit(range.LowerLimit());
         checkLimit(range.UpperLimit());
 
-        if (range.LowerLimit().HasRowIndex()) {
-            options.FirstRowIndex = range.LowerLimit().GetRowIndex();
-        } else {
-            options.FirstRowIndex = static_cast<i64>(0);
-        }
+        options.FirstRowIndex = range.LowerLimit().HasRowIndex()
+            ? range.LowerLimit().GetRowIndex()
+            : 0;
 
         if (range.UpperLimit().HasRowIndex()) {
             options.RowCount = range.UpperLimit().GetRowIndex() - *options.FirstRowIndex;
-            options.FirstRowIndex = range.LowerLimit().GetRowIndex();
         }
     }
     options.Config = UpdateYsonSerializable(

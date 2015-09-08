@@ -35,16 +35,20 @@ private:
         return CypressServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* lock = GetThisTypedImpl();
-        attributes->push_back("state");
-        attributes->push_back("transaction_id");
-        attributes->push_back("node_id");
-        attributes->push_back("mode");
-        attributes->push_back(TAttributeInfo("child_key", lock->Request().ChildKey.HasValue()));
-        attributes->push_back(TAttributeInfo("attribute_key", lock->Request().AttributeKey.HasValue()));
-        TBase::ListSystemAttributes(attributes);
+
+        descriptors->push_back("state");
+        descriptors->push_back("transaction_id");
+        descriptors->push_back("node_id");
+        descriptors->push_back("mode");
+        descriptors->push_back(TAttributeDescriptor("child_key")
+            .SetPresent(lock->Request().ChildKey.HasValue()));
+        descriptors->push_back(TAttributeDescriptor("attribute_key")
+            .SetPresent(lock->Request().AttributeKey.HasValue()));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override

@@ -31,7 +31,7 @@ TVersionedObjectId::TVersionedObjectId(
 
 bool TVersionedObjectId::IsBranched() const
 {
-    return TransactionId != NullTransactionId;
+    return TransactionId.operator bool();
 }
 
 TVersionedObjectId TVersionedObjectId::FromString(const TStringBuf& str)
