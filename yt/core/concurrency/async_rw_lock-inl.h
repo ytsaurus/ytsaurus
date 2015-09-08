@@ -20,7 +20,7 @@ TFuture<void> TAsyncReaderWriterLock::AcquireReader()
     }
 
     auto promise = NewPromise<void>();
-    ReaderPromiseQueue_.push(promise);
+    ReaderPromiseQueue_.push_back(promise);
     return promise;
 }
 
@@ -64,13 +64,12 @@ void TAsyncReaderWriterLock::ReleaseWriter()
     if (WriterPromiseQueue_.empty()) {
         // Run all readers.
         if (!ReaderPromiseQueue_.empty()) {
-            std::queue<TPromise<void>> readerPromiseQueue;
+            std::vector<TPromise<void>> readerPromiseQueue;
             readerPromiseQueue.swap(ReaderPromiseQueue_);
             ActiveReaderCount_ += readerPromiseQueue.size();
             guard.Release();
-            while (!readerPromiseQueue.empty()) {
-                readerPromiseQueue.front().Set();
-                readerPromiseQueue.pop();
+            for (auto& promise : readerPromiseQueue) {
+                promise.Set();
             }
         }
     } else {
