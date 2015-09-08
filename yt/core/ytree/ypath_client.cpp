@@ -232,8 +232,11 @@ void ResolveYPath(
     }
 }
 
-TFuture<TSharedRefArray>
-ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
+TFuture<TSharedRefArray>  ExecuteVerb(
+    IYPathServicePtr service,
+    TSharedRefArray requestMessage,
+    const Stroka& requestInfo,
+    const Stroka& rawResponseInfo)
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
@@ -256,7 +259,10 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 
     auto invokeContext = CreateYPathContext(
         std::move(updatedRequestMessage),
-        suffixService->GetLogger());
+        suffixService->GetLogger(),
+        NLogging::ELogLevel::Debug,
+        requestInfo,
+        rawResponseInfo);
 
     // NB: Calling GetAsyncResponseMessage after Invoke is not allowed.
     auto asyncResponseMessage = invokeContext->GetAsyncResponseMessage();

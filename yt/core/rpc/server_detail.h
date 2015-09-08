@@ -116,6 +116,14 @@ protected:
         builder->AppendFormat(format, args...);
     }
 
+    static void AppendInfo(TStringBuilder* builder, const TStringBuf& str)
+    {
+        if (builder->GetLength() > 0) {
+            builder->AppendString(STRINGBUF(", "));
+        }
+        builder->AppendString(str);
+    }
+
 private:
     mutable TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand

@@ -101,8 +101,6 @@ public:
         int requestCount = Context->Request().part_counts_size();
         UserName = Context->GetUser();
 
-        Context->SetRequestInfo("RequestCount: %v", requestCount);
-
         auto* user = GetAuthenticatedUser();
 
         auto securityManager = Bootstrap->GetSecurityManager();
@@ -207,22 +205,26 @@ private:
                     return;
                 }
 
-                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v, TransactionId: %v)",
-                    CurrentRequestIndex,
-                    requestHeader.service(),
-                    requestHeader.method(),
-                    path,
-                    Context->GetRequestId(),
-                    mutating,
-                    GetTransactionId(Context));
-
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
                     requestHeader.service(),
                     requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
-                auto asyncResponseMessage = ExecuteVerb(rootService, std::move(requestMessage));
+                auto requestInfo = Format("RequestId: %v, User: %v, Mutating: %v, TransactionId: %v, RequestPath: %v",
+                    Context->GetRequestId(),
+                    UserName,
+                    mutating,
+                    GetTransactionId(requestHeader),
+                    path);
+                auto responseInfo = Format("RequestId: %v",
+                    Context->GetRequestId());
+
+                auto asyncResponseMessage = ExecuteVerb(
+                    rootService,
+                    std::move(requestMessage),
+                    requestInfo,
+                    responseInfo);
 
                 // Optimize for the (typical) case of synchronous response.
                 if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(startTime)) {
@@ -284,17 +286,6 @@ private:
                 requestHeader->service(),
                 requestHeader->method(),
                 NTracing::ServerSendAnnotation);
-
-            TResponseHeader responseHeader;
-            YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-
-            auto error = FromProto<TError>(responseHeader.error());
-
-            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v, Duration: %v)",
-                requestIndex,
-                error,
-                Context->GetRequestId(),
-                TInstant::Now() - startTime);
         }
 
         ResponseMessages[requestIndex] = std::move(responseMessage);
