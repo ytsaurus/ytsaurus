@@ -176,8 +176,8 @@ void SaveJoinRow(
 void JoinOpHelper(
     TExecutionContext* context,
     int index,
-    ui64 (*groupHasher)(TRow),
-    char (*groupComparer)(TRow, TRow),
+    THasherFunction* groupHasher,
+    TComparerFunction* groupComparer,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* rows, TLookupRows* lookupRows, std::vector<TRow>* allRows),
     void** consumeRowsClosure,
@@ -208,8 +208,8 @@ void JoinOpHelper(
         context,
         groupHasher,
         groupComparer,
-        keys,
-        allRows,
+        TSharedRange<TRow>(MakeRange(keys), context->PermanentBuffer),
+        TSharedRange<TRow>(MakeRange(allRows), context->PermanentBuffer),
         &joinedRows);
 
     LOG_DEBUG("Joined into %v rows",
@@ -222,8 +222,8 @@ void JoinOpHelper(
 
 void GroupOpHelper(
     TExecutionContext* context,
-    ui64 (*groupHasher)(TRow),
-    char (*groupComparer)(TRow, TRow),
+    THasherFunction* groupHasher,
+    TComparerFunction* groupComparer,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, std::vector<TRow>* groupedRows, TLookupRows* lookupRows),
     void** consumeRowsClosure,
@@ -308,7 +308,7 @@ void AddRow(TTopCollector* topN, TRow row)
 
 void OrderOpHelper(
     TExecutionContext* context,
-    char (*comparer)(TRow, TRow),
+    TComparerFunction* comparer,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topN),
     void** consumeRowsClosure,
@@ -347,46 +347,9 @@ char* AllocatePermanentBytes(TExecutionContext* context, size_t byteCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-char IsPrefix(
-    const char* lhsData,
-    ui32 lhsLength,
-    const char* rhsData,
-    ui32 rhsLength)
-{
-    return lhsLength <= rhsLength &&
-        std::mismatch(lhsData, lhsData + lhsLength, rhsData).first == lhsData + lhsLength;
-}
-
-char IsSubstr(
-    const char* patternData,
-    ui32 patternLength,
-    const char* stringData,
-    ui32 stringLength)
-{
-    return std::search(
-        stringData,
-        stringData + stringLength,
-        patternData,
-        patternData + patternLength) != stringData + stringLength;
-}
-
-char* ToLower(
-    TExpressionContext* context,
-    const char* data,
-    ui32 length)
-{
-    char* result = context->IntermediateBuffer->GetPool()->AllocateUnaligned(length);
-
-    for (ui32 index = 0; index < length; ++index) {
-        result[index] = tolower(data[index]);
-    }
-
-    return result;
-}
-
 char IsRowInArray(
     TExpressionContext* context,
-    char (*comparer)(TRow, TRow),
+    TComparerFunction* comparer,
     TRow row,
     int index)
 {
@@ -513,8 +476,6 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AllocateBytes);
     REGISTER_ROUTINE(GetRowsData);
     REGISTER_ROUTINE(GetRowsSize);
-    REGISTER_ROUTINE(IsPrefix);
-    REGISTER_ROUTINE(IsSubstr);
     REGISTER_ROUTINE(IsRowInArray);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);

@@ -23,19 +23,17 @@ namespace NQueryClient {
 
 static const size_t InitialGroupOpHashtableCapacity = 1024;
 
-using THasherFunction = ui64 (*)(TRow);
-using TComparerFunction = char (*)(TRow, TRow);
+using THasherFunction = ui64(TRow);
+using TComparerFunction = char(TRow, TRow);
 
 struct TExecutionContext;
 
 using TJoinEvaluator = std::function<void(
     TExecutionContext* executionContext,
-    THasherFunction hasher,
-    TComparerFunction comparer,
-    // TODO(babenko): TSharedRange?
-    const std::vector<TRow>& keys,
-    // TODO(babenko): TSharedRange?
-    const std::vector<TRow>& allRows,
+    THasherFunction* hasher,
+    TComparerFunction* comparer,
+    TSharedRange<TRow> keys,
+    TSharedRange<TRow> allRows,
     // TODO(babenko): TSharedRange?
     std::vector<TRow>* joinedRows)>;
 
@@ -61,7 +59,7 @@ struct TExecutionContext
     TRowBufferPtr PermanentBuffer;
     TRowBufferPtr OutputBuffer;
 
-    // TODO(babenko): TSharedRange?
+    // Rows stored in OutputBuffer
     std::vector<TRow>* OutputRowsBatch;
 
     TQueryStatistics* Statistics;
@@ -83,12 +81,10 @@ struct TExecutionContext
 };
 
 namespace NDetail {
-
-using THasherFunc = ui64 (*)(TRow);
 struct TGroupHasher
 {
-    THasherFunc Ptr_;
-    TGroupHasher(THasherFunc ptr)
+    THasherFunction* Ptr_;
+    TGroupHasher(THasherFunction* ptr)
         : Ptr_(ptr)
     { }
 
@@ -98,11 +94,10 @@ struct TGroupHasher
     }
 };
 
-using TComparerFunc = char (*)(TRow, TRow);
 struct TRowComparer
 {
 public:
-    TRowComparer(TComparerFunc ptr)
+    TRowComparer(TComparerFunction* ptr)
         : Ptr_(ptr)
     { }
 
@@ -112,9 +107,8 @@ public:
     }
 
 private:
-    NDetail::TComparerFunc Ptr_;
+    TComparerFunction* Ptr_;
 };
-
 } // namespace NDetail
 
 using TLookupRows = google::sparsehash::dense_hash_set<
@@ -132,7 +126,7 @@ class TTopCollector
     class TComparer
     {
     public:
-        explicit TComparer(NDetail::TComparerFunc ptr)
+        explicit TComparer(TComparerFunction* ptr)
             : Ptr_(ptr)
         { }
 
@@ -147,11 +141,11 @@ class TTopCollector
         }
 
     private:
-        const NDetail::TComparerFunc Ptr_;
+        TComparerFunction* const Ptr_;
     };
 
 public:
-    TTopCollector(i64 limit, NDetail::TComparerFunc comparer);
+    TTopCollector(i64 limit, TComparerFunction* comparer);
 
     // TODO(babenko): TSharedRange?
     std::vector<TRow> GetRows() const

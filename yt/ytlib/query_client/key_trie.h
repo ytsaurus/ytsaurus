@@ -72,8 +72,8 @@ struct TKeyTrie
         return nullptr;
     }
 
-    static TKeyTriePtr FromLowerBound(const TKey& bound);
-    static TKeyTriePtr FromUpperBound(const TKey& bound);
+    static TKeyTriePtr FromLowerBound(const TOwningKey & bound);
+    static TKeyTriePtr FromUpperBound(const TOwningKey & bound);
     static TKeyTriePtr FromRange(const TKeyRange& range);
 
     friend TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);

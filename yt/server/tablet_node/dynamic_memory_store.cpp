@@ -581,6 +581,38 @@ TDynamicMemoryStore::~TDynamicMemoryStore()
     LOG_DEBUG("Dynamic memory store destroyed");
 }
 
+void TDynamicMemoryStore::SetStoreState(EStoreState state)
+{
+    if (StoreState_ == EStoreState::ActiveDynamic && state == EStoreState::PassiveDynamic) {
+        YCHECK(FlushRevision_ == InvalidRevision);
+        FlushRevision_ = GetLatestRevision();
+    }
+    TStoreBase::SetStoreState(state);
+}
+
+IVersionedReaderPtr TDynamicMemoryStore::CreateFlushReader()
+{
+    YCHECK(FlushRevision_ != InvalidRevision);
+    return New<TRangeReader>(
+        this,
+        MinKey(),
+        MaxKey(),
+        AllCommittedTimestamp,
+        FlushRevision_,
+        TColumnFilter());
+}
+
+IVersionedReaderPtr TDynamicMemoryStore::CreateSnapshotReader()
+{
+    return New<TRangeReader>(
+        this,
+        MinKey(),
+        MaxKey(),
+        AllCommittedTimestamp,
+        GetLatestRevision(),
+        TColumnFilter());
+}
+
 const TDynamicRowKeyComparer& TDynamicMemoryStore::GetRowKeyComparer() const
 {
     return RowKeyComparer_;
@@ -650,6 +682,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowAtomic(
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
     YASSERT(lockMask != 0);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     TDynamicRow result;
 
@@ -709,6 +742,7 @@ TDynamicRow TDynamicMemoryStore::WriteRowNonAtomic(
     TTimestamp commitTimestamp)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     TDynamicRow result;
 
@@ -764,6 +798,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowAtomic(
     bool prelock)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     TDynamicRow result;
 
@@ -807,6 +842,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
     TTimestamp commitTimestamp)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::None);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     ui32 commitRevision = RegisterRevision(commitTimestamp);
 
@@ -844,6 +880,7 @@ TDynamicRow TDynamicMemoryStore::DeleteRowNonAtomic(
 TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicRow row)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     auto migrateLocksAndValues = [&] (TDynamicRow migratedRow) {
         auto* locks = row.BeginLocks(KeyColumnCount_);
@@ -923,6 +960,7 @@ TDynamicRow TDynamicMemoryStore::MigrateRow(TTransaction* transaction, TDynamicR
 void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     transaction->LockedRows().push_back(TDynamicRowRef(this, row));
 }
@@ -930,6 +968,7 @@ void TDynamicMemoryStore::ConfirmRow(TTransaction* transaction, TDynamicRow row)
 void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     auto prepareTimestamp = transaction->GetPrepareTimestamp();
     YASSERT(prepareTimestamp != NullTimestamp);
@@ -947,6 +986,7 @@ void TDynamicMemoryStore::PrepareRow(TTransaction* transaction, TDynamicRow row)
 void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     auto commitTimestamp = transaction->GetCommitTimestamp();
     ui32 commitRevision = RegisterRevision(commitTimestamp);
@@ -993,6 +1033,7 @@ void TDynamicMemoryStore::CommitRow(TTransaction* transaction, TDynamicRow row)
 void TDynamicMemoryStore::AbortRow(TTransaction* transaction, TDynamicRow row)
 {
     YASSERT(Tablet_->GetAtomicity() == EAtomicity::Full);
+    YASSERT(FlushRevision_ != MaxRevision);
 
     auto* locks = row.BeginLocks(KeyColumnCount_);
 
@@ -1508,12 +1549,13 @@ IVersionedReaderPtr TDynamicMemoryStore::CreateReader(
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
+    YCHECK(timestamp != AllCommittedTimestamp);
     return New<TRangeReader>(
         this,
         std::move(lowerKey),
         std::move(upperKey),
         timestamp,
-        timestamp == AllCommittedTimestamp ? GetLatestRevision() : MaxRevision,
+        MaxRevision,
         columnFilter);
 }
 
@@ -1563,11 +1605,7 @@ void TDynamicMemoryStore::Load(TLoadContext& context)
 
 TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
 {
-    auto tableReader = CreateReader(
-        MinKey(),
-        MaxKey(),
-        AllCommittedTimestamp,
-        TColumnFilter());
+    auto tableReader = CreateSnapshotReader();
 
     return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
         WaitFor(tableReader->Open())
@@ -1667,6 +1705,12 @@ void TDynamicMemoryStore::AsyncLoad(TLoadContext& context)
                 LoadRow(row, &scratchData);
             }
         }
+    }
+
+    if (StoreState_ == EStoreState::PassiveDynamic) {
+        // NB: No more changes are possible after load.
+        YCHECK(FlushRevision_ == InvalidRevision);
+        FlushRevision_ = MaxRevision;
     }
 
     OnMemoryUsageUpdated();

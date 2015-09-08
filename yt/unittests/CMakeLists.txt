@@ -43,7 +43,11 @@ set( SRCS
   ${BASE}/pipes_ut.cpp
   ${BASE}/preprocessor_ut.cpp
   ${BASE}/process_ut.cpp
-  ${BASE}/query_client_ut.cpp
+  ${BASE}/ql_helpers.cpp
+  ${BASE}/ql_range_inference_ut.cpp
+  ${BASE}/ql_expressions_ut.cpp
+  ${BASE}/ql_computed_columns_ut.cpp
+  ${BASE}/ql_query_ut.cpp
   ${BASE}/random_ut.cpp
   ${BASE}/read_limit_ut.cpp
   ${BASE}/ref_counted_tracker_ut.cpp

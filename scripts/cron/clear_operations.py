@@ -6,6 +6,7 @@ import yt.wrapper as yt
 from dateutil.parser import parse
 from collections import namedtuple
 from datetime import datetime, timedelta
+from yt.tools.conversion_tools import get_filter_factors
 
 import argparse
 import logging
@@ -87,8 +88,11 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
             row = {"id": op}
             for key in fields:
                 row[key] = attributes[key]
-            yt.insert_rows("//sys/operations_archive/ordered_by_id", [row], raw=False)
-            yt.insert_rows("//sys/operations_archive/ordered_by_start_time", [{"id": row["id"], "start_time": row["start_time"], "dummy": "null"}], raw=False)
+
+            row["filter_factors"] = get_filter_factors(op, attributes)
+
+            yt.insert_rows("//sys/operations_archive/ordered_by_id", [row])
+            yt.insert_rows("//sys/operations_archive/ordered_by_start_time", [row])
 
         logger.info("Removing operation %s", op)
         yt.remove("//sys/operations/%s" % op, recursive=True)
