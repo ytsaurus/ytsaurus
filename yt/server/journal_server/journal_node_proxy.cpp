@@ -22,6 +22,10 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = JournalServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJournalNodeProxy
     : public TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode>
 {
@@ -40,11 +44,6 @@ public:
 
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode> TBase;
-
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return JournalServerLogger;
-    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
@@ -165,7 +164,6 @@ private:
 
         return TBase::GetBuiltinAttributeAsync(key, consumer);
     }
-
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {

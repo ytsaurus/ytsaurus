@@ -132,11 +132,6 @@ public:
             }));
     }
 
-    virtual NLogging::TLogger GetLogger() const override
-    {
-        return ObjectServerLogger;
-    }
-
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* /*consumer*/,

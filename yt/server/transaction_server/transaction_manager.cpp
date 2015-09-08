@@ -72,11 +72,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TTransaction> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return TransactionServerLogger;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* transaction = GetThisTypedImpl();

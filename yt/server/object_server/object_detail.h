@@ -108,9 +108,6 @@ protected:
     //    NRpc::IServiceContextPtr context,
     //    const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 
-    virtual bool IsLoggingEnabled() const override;
-    virtual NLogging::TLogger CreateLogger() const override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

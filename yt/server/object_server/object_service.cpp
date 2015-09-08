@@ -222,6 +222,8 @@ private:
                 auto asyncResponseMessage = ExecuteVerb(
                     rootService,
                     std::move(requestMessage),
+                    ObjectServerLogger,
+                    NLogging::ELogLevel::Debug,
                     requestInfo,
                     responseInfo);
 

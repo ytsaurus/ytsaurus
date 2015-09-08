@@ -27,11 +27,6 @@ public:
 private:
     typedef TSubjectProxy<TGroup> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return SecurityServerLogger;
-    }
-
     virtual void ValidateRemoval() override
     {
         const auto* group = GetThisTypedImpl();
