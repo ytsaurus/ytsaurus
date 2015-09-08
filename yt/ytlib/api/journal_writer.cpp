@@ -546,6 +546,7 @@ private:
                 TMiscExt miscExt;
                 SetProtoExtension(meta->mutable_extensions(), miscExt);
                 GenerateMutationId(req);
+                batchReq->AddRequest(req, "confirm");
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error confirming chunk %v",
