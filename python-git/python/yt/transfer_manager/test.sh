@@ -189,7 +189,7 @@ test_recursive_path_creation() {
     wait_task $id
 
     check \
-        "$(yt2 read //tmp/test_table --proxy quine.yt.yandex.net --format yamr)" \
+        "$(yt2 read //tmp/test_table --proxy plato.yt.yandex.net --format yamr)" \
         "$(yt2 read //tmp/test/table/from/plato --proxy quine.yt.yandex.net --format yamr)"
 }
 
