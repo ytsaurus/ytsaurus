@@ -410,7 +410,7 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
             id,
             force);
     }
