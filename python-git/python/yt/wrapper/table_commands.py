@@ -1070,7 +1070,7 @@ class Finalizer(object):
                 run_merge(source_table=table, destination_table=table, mode=mode,
                           spec={"combine_chunks": bool_to_string(True), "data_size_per_job": data_size_per_job},
                           client=self.client)
-            except YtOperationFailedError():
+            except YtOperationFailedError:
                 logger.warning("Failed to merge table " + table)
         else:
             logger.info("Chunks of output table {0} are too small. "
