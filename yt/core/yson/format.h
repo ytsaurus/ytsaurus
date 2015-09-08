@@ -22,10 +22,8 @@ const ETokenType BeginAttributesToken = ETokenType::LeftAngle;
 //! Indicates the end of an attribute map.
 const ETokenType EndAttributesToken = ETokenType::RightAngle;
 
-//! Separates items in lists.
-const ETokenType ListItemSeparatorToken = ETokenType::Semicolon;
-//! Separates items in maps, attributes.
-const ETokenType KeyedItemSeparatorToken = ETokenType::Semicolon;
+//! Separates items in maps and lists.
+const ETokenType ItemSeparatorToken = ETokenType::Semicolon;
 //! Separates keys from values in maps.
 const ETokenType KeyValueSeparatorToken = ETokenType::Equals;
 

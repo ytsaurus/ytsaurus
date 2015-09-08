@@ -3,6 +3,8 @@
 
 #include <core/ytree/fluent.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <limits>
 
 namespace NYT {
@@ -10,6 +12,7 @@ namespace NNodeTrackerClient {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NObjectClient;
 using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -225,6 +228,16 @@ const TNodeResources& InfiniteNodeResources()
 {
     static auto result = GetInfiniteResources();
     return result;
+}
+
+TObjectId ObjectIdFromNodeId(TNodeId nodeId, TCellTag cellTag)
+{
+    return MakeId(EObjectType::ClusterNode, cellTag, nodeId, 0);
+}
+
+TNodeId NodeIdFromObjectId(const TObjectId& objectId)
+{
+    return CounterFromId(objectId);
 }
 
 namespace NProto {

@@ -6,7 +6,8 @@
 
 #include <core/misc/shutdownable.h>
 
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
+
 #include <core/ytree/convert.h>
 
 namespace NYT {
@@ -31,7 +32,7 @@ struct TQueuedSample
 struct TTag
 {
     Stroka Key;
-    NYTree::TYsonString Value;
+    NYson::TYsonString Value;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

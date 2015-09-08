@@ -4,20 +4,21 @@ set( SRCS
   ${BASE}/commit.cpp
   ${BASE}/hive_manager.cpp
   ${BASE}/mailbox.cpp
-  ${BASE}/private.cpp
   ${BASE}/public.cpp
+  ${BASE}/helpers.cpp
   ${BASE}/transaction_supervisor.cpp
+  ${BASE}/cell_directory_synchronizer.cpp
 )
 set( HDRS
   ${BASE}/commit.h
   ${BASE}/config.h
   ${BASE}/hive_manager.h
-  ${BASE}/hive_service_proxy.h
   ${BASE}/mailbox.h
-  ${BASE}/private.h
   ${BASE}/public.h
+  ${BASE}/helpers.h
   ${BASE}/transaction_manager.h
   ${BASE}/transaction_supervisor.h
+  ${BASE}/cell_directory_synchronizer.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -25,6 +26,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/hive_service.proto YT_SOURCE_FILES )
 protoc( ${BASE}/hive_manager.proto YT_SOURCE_FILES )
 protoc( ${BASE}/transaction_supervisor.proto YT_SOURCE_FILES )

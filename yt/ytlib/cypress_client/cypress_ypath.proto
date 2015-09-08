@@ -2,6 +2,7 @@ package NYT.NCypressClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/ytree/attributes.proto";
+import "yt/core/ytree/ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,13 +27,13 @@ message TReqCreate
     optional NYT.NYTree.NProto.TAttributes node_attributes = 2;
     optional bool recursive = 3 [default = false];
     optional bool ignore_existing = 4 [default = false];
-
-    extensions 100 to max;
+    optional bool enable_accounting = 5 [default = true];
 }
 
 message TRspCreate
 {
     required NYT.NProto.TGuid node_id = 1;
+    required int32 cell_tag = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +50,27 @@ message TReqCopy
 
 message TRspCopy
 {
-    required NYT.NProto.TGuid object_id = 1;
+    required NYT.NProto.TGuid node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqEnumerate
+{
+    optional NYT.NYTree.NProto.TAttributeFilter attribute_filter = 1;
+    required int64 limit = 2;
+}
+
+message TRspEnumerate
+{
+    message TItem
+    {
+        required bytes key = 1;
+        optional bytes attributes = 2;
+    }
+
+    required bool incomplete = 1;
+    repeated TItem items = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

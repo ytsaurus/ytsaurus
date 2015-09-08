@@ -102,7 +102,7 @@ private:
     TPeriodicExecutorPtr PeriodicExecutor_;
 
     TSpinLock SpinLock_;
-    yhash<Stroka, NYTree::TYsonProducer> PathToProducer_;
+    yhash<Stroka, NYson::TYsonProducer> PathToProducer_;
     INodePtr Root_;
 
     void Update()

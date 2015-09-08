@@ -17,6 +17,8 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <core/concurrency/async_semaphore.h>
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
@@ -39,6 +41,7 @@ using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
 using namespace NApi;
+using namespace NObjectClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -495,8 +498,8 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
             "Allocating new target nodes is disabled");
     }
 
-    auto masterChannel = Client_->GetMasterChannel(NApi::EMasterChannelKind::Leader);
-    TChunkServiceProxy proxy(masterChannel);
+    auto channel = Client_->GetMasterChannel(NApi::EMasterChannelKind::Leader, CellTagFromId(ChunkId_));
+    TChunkServiceProxy proxy(channel);
 
     auto req = proxy.AllocateWriteTargets();
     int activeTargets = Nodes_.size();
@@ -610,8 +613,9 @@ void TReplicationWriter::DoOpen()
         IsOpen_ = true;
     } catch (const std::exception& ex) {
         CancelWriter(true);
-        THROW_ERROR_EXCEPTION("Not enough target nodes to start writing session for chunk %v",
-            ChunkId_)
+        THROW_ERROR_EXCEPTION("Not enough target nodes to write blob chunk")
+            << TErrorAttribute("chunk_id", ChunkId_)
+            << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
             << ex;
     }
 }

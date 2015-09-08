@@ -12,6 +12,13 @@ class TestCypress(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 0
 
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            # See test_map_node_children_limit
+            "max_node_child_count" : 100 
+        }
+    }
+
     def test_root(self):
         # should not crash
         get("//@")
@@ -516,19 +523,21 @@ class TestCypress(YTEnvSetup):
 
     def test_get_with_attributes(self):
         set("//tmp/a", {})
-        assert get("//tmp", attr=["type"]) == to_yson_type({"a": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
+        assert get("//tmp", attributes=["type"]) == to_yson_type({"a": to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"})
 
     def test_list_with_attributes(self):
         set("//tmp/a", {})
-        assert ls("//tmp", attr=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
+        assert ls("//tmp", attributes=["type"]) == [to_yson_type("a", attributes={"type": "map_node"})]
 
-    def test_get_list_with_attributes_virtual_maps(self):
+    def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
+        assert get("//sys/transactions", attributes=["type"]) == to_yson_type(\
+            {tx: to_yson_type(None, attributes={"type": "transaction"})},
+            attributes={"type": "transaction_map"})
 
-        assert get("//sys/transactions", attr=["type"]) == {tx: to_yson_type(None, attributes={"type": "transaction"})}
-        assert ls("//sys/transactions", attr=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
-
-        abort_transaction(tx)
+    def test_list_with_attributes_virtual_maps(self):
+        tx = start_transaction()
+        assert ls("//sys/transactions", attributes=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
 
     def test_exists(self):
         assert exists("//tmp")
@@ -790,19 +799,16 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/my_uint/@type") == "uint64_node"
         assert get("//tmp/my_uint", output_format=yson_format) == 123456
 
-class TestCypressNodeChildrenLimit(YTEnvSetup):
-    NUM_MASTERS = 3
-
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "max_node_child_count" : 50
-        }
-    }
-
     def test_map_node_children_limit(self):
         create("map_node", "//tmp/test_node")
-        for i in xrange(50):
+        for i in xrange(100):
             create("map_node", "//tmp/test_node/" + str(i))
-
         with pytest.raises(YtError):
-            create("map_node", "//tmp/test_node/50")
+            create("map_node", "//tmp/test_node/100")
+
+##################################################################
+
+class TestCypressMulticell(TestCypress):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+ 

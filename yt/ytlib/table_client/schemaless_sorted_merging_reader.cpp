@@ -237,11 +237,12 @@ int TSchemalessSortedMergingReader::GetTableIndex() const
 
 TDataStatistics TSchemalessSortedMergingReader::GetDataStatistics() const
 {
-    auto dataStatistics = ZeroDataStatistics();
+    TDataStatistics dataStatistics;
 
     for (const auto& session : SessionHolder_) {
         dataStatistics += session.Reader->GetDataStatistics();
     }
+
     return dataStatistics;
 }
 

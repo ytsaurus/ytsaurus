@@ -36,6 +36,7 @@ namespace NJobProxy {
 
 using namespace NRpc;
 using namespace NYTree;
+using namespace NYson;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NChunkClient;
@@ -76,19 +77,18 @@ public:
         }
 
         WriterOptionsTemplate_ = ConvertTo<TTableWriterOptionsPtr>(
-                TYsonString(SchedulerJobSpecExt_.output_specs(0).table_writer_options()));
+            TYsonString(SchedulerJobSpecExt_.output_specs(0).table_writer_options()));
         OutputChunkListId_ = FromProto<TChunkListId>(
-                SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
+            SchedulerJobSpecExt_.output_specs(0).chunk_list_id());
 
-        {
-            const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
-            RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
-            RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
-            TClientOptions clientOptions;
-            clientOptions.User = NSecurityClient::JobUserName;
-            RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
-            RemoteNodeDirectory_->MergeFrom(SchedulerJobSpecExt_.node_directory());
-        }
+        const auto& remoteCopySpec = JobSpec_.GetExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
+        RemoteConnectionConfig_ = ConvertTo<TConnectionConfigPtr>(TYsonString(remoteCopySpec.connection_config()));
+
+        RemoteConnection_ = CreateConnection(RemoteConnectionConfig_);
+
+        TClientOptions clientOptions;
+        clientOptions.User = NSecurityClient::JobUserName;
+        RemoteClient_ = RemoteConnection_->CreateClient(clientOptions);
     }
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override
@@ -123,10 +123,7 @@ public:
     {
         TStatistics result;
         result.AddComplex("/data/input", DataStatistics_);
-        result.AddComplex(
-            "/data/output/" + NYPath::ToYPathLiteral(0),
-            DataStatistics_);
-
+        result.AddComplex("/data/output/" + NYPath::ToYPathLiteral(0), DataStatistics_);
         return result;
     }
 
@@ -144,8 +141,6 @@ private:
 
     TChunkListId OutputChunkListId_;
 
-    TNodeDirectoryPtr RemoteNodeDirectory_ = New<TNodeDirectory>();
-
     int CopiedChunks_ = 0;
     double CopiedChunkSize_ = 0.0;
     TNullable<double> TotalChunkSize_;
@@ -162,12 +157,17 @@ private:
             return;
         }
 
+        auto outputCellTag = CellTagFromId(OutputChunkListId_);
+        auto outputMasterChannel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader, outputCellTag);
+        TObjectServiceProxy outputObjectProxy(outputMasterChannel);
+
         CopiedChunkSize_ = 0.0;
 
         auto writerOptions = CloneYsonSerializable(WriterOptionsTemplate_);
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
-        LOG_INFO("Copying chunk %v", inputChunkId);
+        LOG_INFO("Copying input chunk (ChunkId: %v)",
+            inputChunkId);
 
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
         writerOptions->ErasureCodec = erasureCodecId;
@@ -182,33 +182,26 @@ private:
         TChunkId outputChunkId;
         {
             auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-            auto writerNodeDirectory = New<TNodeDirectory>();
 
-            auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
-            auto rspOrError = WaitFor(CreateChunk(
-                channel,
+            outputChunkId = CreateChunk(
+                host->GetClient(),
+                outputCellTag,
                 WriterConfig_,
                 writerOptions,
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
-                transactionId));
-
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
-                NChunkClient::EErrorCode::ChunkCreationFailed,
-                "Error creating chunk");
-
-            const auto& rsp = rspOrError.Value();
-            FromProto(&outputChunkId, rsp->object_ids(0));
+                transactionId,
+                Logger);
         }
 
+        LOG_INFO("Output chunk created (ChunkId: %v)",
+            outputChunkId);
+
         // Copy chunk.
-        LOG_INFO("Copying blocks");
+        LOG_INFO("Copying chunk data");
 
         TChunkInfo chunkInfo;
         TChunkMeta chunkMeta;
         TChunkReplicaList writtenReplicas;
-
-        auto nodeDirectory = New<TNodeDirectory>();
 
         if (isErasure) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
@@ -216,7 +209,7 @@ private:
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 RemoteClient_,
-                RemoteNodeDirectory_,
+                host->GetInputNodeDirectory(),
                 inputChunkId,
                 inputReplicas,
                 erasureCodec,
@@ -229,7 +222,7 @@ private:
                 New<TRemoteWriterOptions>(),
                 outputChunkId,
                 erasureCodec,
-                nodeDirectory,
+                New<TNodeDirectory>(),
                 host->GetClient());
 
             YCHECK(readers.size() == writers.size());
@@ -263,7 +256,7 @@ private:
                 ReaderConfig_,
                 New<TRemoteReaderOptions>(),
                 RemoteClient_,
-                RemoteNodeDirectory_,
+                host->GetInputNodeDirectory(),
                 Null,
                 inputChunkId,
                 TChunkReplicaList(),
@@ -276,7 +269,7 @@ private:
                 New<TRemoteWriterOptions>(),
                 outputChunkId,
                 TChunkReplicaList(),
-                nodeDirectory,
+                New<TNodeDirectory>(),
                 host->GetClient());
 
             auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta.extensions());
@@ -300,10 +293,6 @@ private:
         chunkStatistics.set_chunk_count(1);
         DataStatistics_ += chunkStatistics;
 
-        auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
-        TObjectServiceProxy objectProxy(channel);
-
-
         // Confirm chunk.
         LOG_INFO("Confirming output chunk");
         YCHECK(!writtenReplicas.empty());
@@ -325,8 +314,8 @@ private:
             *req->mutable_chunk_meta() = masterChunkMeta;
             NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
-            auto rspOrError = WaitFor(objectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to confirm chunk");
+            auto rspOrError = WaitFor(outputObjectProxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error confirming chunk");
         }
 
         // Attach chunk.
@@ -336,7 +325,7 @@ private:
             ToProto(req->add_children_ids(), outputChunkId);
             GenerateMutationId(req);
 
-            auto rspOrError = WaitFor(objectProxy.Execute(req));
+            auto rspOrError = WaitFor(outputObjectProxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunk");
         }
     }

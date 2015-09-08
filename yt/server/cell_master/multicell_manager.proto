@@ -1,0 +1,26 @@
+package NYT.NCellMaster.NProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterSecondaryMaster
+{
+    required int32 cell_tag = 1;
+}
+
+message TReqRegisterAtPrimaryMaster
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TCellStatistics
+{
+    required int32 chunk_count = 1;
+}
+
+message TReqSetCellStatistics
+{
+    required int32 cell_tag = 1;
+    required TCellStatistics statistics = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////

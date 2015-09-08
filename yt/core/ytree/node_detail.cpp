@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "node_detail.h"
-
 #include "convert.h"
 #include "ypath_detail.h"
 #include "ypath_service.h"
@@ -9,14 +8,14 @@
 #include "ypath_client.h"
 
 #include <core/misc/protobuf_helpers.h>
+#include <core/misc/singleton.h>
 
 #include <core/yson/writer.h>
+#include <core/yson/async_writer.h>
 #include <core/yson/tokenizer.h>
 
 #include <core/ypath/token.h>
 #include <core/ypath/tokenizer.h>
-
-#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NYTree {
@@ -40,8 +39,7 @@ bool TNodeBase::DoInvoke(IServiceContextPtr context)
 
 void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 {
-    auto attributeFilter =
-        request->has_attribute_filter()
+    auto attributeFilter = request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
@@ -53,8 +51,7 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    TStringStream stream;
-    TYsonWriter writer(&stream);
+    TAsyncYsonWriter writer;
 
     VisitTree(
         this,
@@ -63,15 +60,18 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         false,
         ignoreOpaque);
 
-    response->set_value(stream.Str());
-
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
-void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKeyPtr context)
+void TNodeBase::GetKeySelf(TReqGetKey* /*request*/, TRspGetKey* response, TCtxGetKeyPtr context)
 {
-    UNUSED(request);
-
     context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
@@ -101,10 +101,8 @@ void TNodeBase::GetKeySelf(TReqGetKey* request, TRspGetKey* response, TCtxGetKey
     context->Reply();
 }
 
-void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* response, TCtxRemovePtr context)
+void TNodeBase::RemoveSelf(TReqRemove* request, TRspRemove* /*response*/, TCtxRemovePtr context)
 {
-    UNUSED(response);
-
     context->SetRequestInfo();
 
     auto parent = GetParent();
@@ -146,11 +144,9 @@ IYPathService::TResolveResult TNodeBase::ResolveRecursive(
 void TCompositeNodeMixin::SetRecursive(
     const TYPath& path,
     TReqSet* request,
-    TRspSet* response,
+    TRspSet* /*response*/,
     TCtxSetPtr context)
 {
-    UNUSED(response);
-
     context->SetRequestInfo();
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -166,12 +162,9 @@ void TCompositeNodeMixin::SetRecursive(
 void TCompositeNodeMixin::RemoveRecursive(
     const TYPath& path,
     TSupportsRemove::TReqRemove* request,
-    TSupportsRemove::TRspRemove* response,
+    TSupportsRemove::TRspRemove* /*response*/,
     TSupportsRemove::TCtxRemovePtr context)
 {
-    UNUSED(request);
-    UNUSED(response);
-
     context->SetRequestInfo();
 
     NYPath::TTokenizer tokenizer(path);
@@ -256,44 +249,47 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
-    auto attributeFilter =
-        request->has_attribute_filter()
+    auto attributeFilter = request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    int maxSize = request->has_max_size() ? request->max_size() : std::numeric_limits<int>::max();
+    i64 limit = request->limit();
 
-    TStringStream stream;
-    TYsonWriter writer(&stream);
+    TAsyncYsonWriter writer;
 
     auto children = GetChildren();
-    if (children.size() > maxSize) {
+    if (children.size() > limit) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
-        writer.OnStringScalar("true");
+        writer.OnBooleanScalar(true);
         writer.OnEndAttributes();
     }
 
-    size_t counter = 0;
+    i64 counter = 0;
 
     writer.OnBeginList();
     for (const auto& pair : children) {
         const auto& key = pair.first;
         const auto& node = pair.second;
         writer.OnListItem();
-        node->SerializeAttributes(&writer, attributeFilter, false);
+        node->WriteAttributes(&writer, attributeFilter, false);
         writer.OnStringScalar(key);
 
         counter += 1;
-        if (counter == maxSize) {
+        if (counter == limit) {
             break;
         }
     }
     writer.OnEndList();
 
-    response->set_keys(stream.Str());
-
-    context->Reply();
+    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        if (resultOrError.IsOK()) {
+            response->set_value(resultOrError.Value().Data());
+            context->Reply();
+        } else {
+            context->Reply(resultOrError);
+        }
+    }));
 }
 
 void TMapNodeMixin::SetChild(
@@ -437,6 +433,58 @@ void TListNodeMixin::SetChild(
     }
 
     AddChild(child, beforeIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IYPathServicePtr TNonexistingService::Get()
+{
+    return RefCountedSingleton<TNonexistingService>();
+}
+
+bool TNonexistingService::DoInvoke(IServiceContextPtr context)
+{
+    DISPATCH_YPATH_SERVICE_METHOD(Exists);
+    return TYPathServiceBase::DoInvoke(context);
+}
+
+IYPathService::TResolveResult TNonexistingService::Resolve(
+    const TYPath& path,
+    IServiceContextPtr /*context*/)
+{
+    return TResolveResult::Here(path);
+}
+
+void TNonexistingService::ExistsSelf(
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    TCtxExistsPtr context)
+{
+    ExistsAny(context);
+}
+
+void TNonexistingService::ExistsRecursive(
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    TCtxExistsPtr context)
+{
+    ExistsAny(context);
+}
+
+void TNonexistingService::ExistsAttribute(
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    TCtxExistsPtr context)
+{
+    ExistsAny(context);
+}
+
+void TNonexistingService::ExistsAny(TCtxExistsPtr context)
+{
+    context->SetRequestInfo();
+    Reply(context, false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

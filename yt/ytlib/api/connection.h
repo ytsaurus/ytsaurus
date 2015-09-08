@@ -18,6 +18,8 @@
 
 #include <ytlib/security_client/public.h>
 
+#include <ytlib/object_client/public.h>
+
 namespace NYT {
 namespace NApi {
 
@@ -53,9 +55,17 @@ struct IConnection
     : public virtual TRefCounted
 {
     virtual TConnectionConfigPtr GetConfig() = 0;
-    virtual NRpc::IChannelPtr GetMasterChannel(EMasterChannelKind kind) = 0;
+
+    virtual const NObjectClient::TCellId& GetPrimaryMasterCellId() const = 0;
+    virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
+    virtual const std::vector<NObjectClient::TCellTag>& GetSecondaryMasterCellTags() const = 0;
+
+    virtual NRpc::IChannelPtr GetMasterChannel(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual NRpc::IChannelFactoryPtr GetNodeChannelFactory() = 0;
+
     virtual NChunkClient::IBlockCachePtr GetBlockCache() = 0;
     virtual NTabletClient::TTableMountCachePtr GetTableMountCache() = 0;
     virtual NTransactionClient::ITimestampProviderPtr GetTimestampProvider() = 0;

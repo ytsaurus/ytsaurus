@@ -2,7 +2,11 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_producer.h>
+#include <core/yson/consumer.h>
+
+#include <core/ypath/public.h>
+
+#include <core/ytree/public.h>
 
 namespace NYT {
 namespace NMonitoring {
@@ -10,7 +14,7 @@ namespace NMonitoring {
 ////////////////////////////////////////////////////////////////////////////////
     
 //! Exposes a tree assembled from results returned by a set of
-//! registered NYTree::TYsonProducer-s.
+//! registered NYson::TYsonProducer-s.
 /*!
  *  \note
  *  The results are cached and periodically updated.
@@ -23,7 +27,7 @@ public:
     ~TMonitoringManager();
 
     //! Registers a new #producer for a given #path.
-    void Register(const NYPath::TYPath& path, NYTree::TYsonProducer producer);
+    void Register(const NYPath::TYPath& path, NYson::TYsonProducer producer);
 
     //! Unregisters an existing producer for the specified #path.
     void Unregister(const NYPath::TYPath& path);

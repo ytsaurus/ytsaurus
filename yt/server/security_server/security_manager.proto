@@ -4,16 +4,66 @@ import "yt/core/misc/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TRequestStatisticsUpdate
+message TClusterResources
 {
-    required NYT.NProto.TGuid user_id = 1;
-    required int64 access_time = 2;
-    required int64 request_counter_delta = 3;    
+    required int64 disk_space = 1;
+    required int32 chunk_count = 2;
+    required int32 node_count = 3;
 }
 
-message TReqUpdateRequestStatistics
+message TUserStatistics
 {
-    repeated TRequestStatisticsUpdate updates = 1;
+    required int64 request_counter = 1;
+    required int64 read_request_timer = 2;
+    required int64 write_request_timer = 3;
+    required int64 access_time = 4;
+}
+
+message TAccountStatistics
+{
+    required TClusterResources resource_usage = 1;
+    required TClusterResources committed_resource_usage = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqIncreaseUserStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid user_id = 1;
+        required TUserStatistics statistics = 2;
+    }
+
+    repeated TEntry entries = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetAccountStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid account_id = 1;
+        required TAccountStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetUserStatistics
+{
+    message TEntry
+    {
+        required NYT.NProto.TGuid user_id = 1;
+        required TUserStatistics statistics = 2;
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

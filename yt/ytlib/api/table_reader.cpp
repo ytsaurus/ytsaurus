@@ -6,12 +6,14 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <ytlib/chunk_client/helpers.h>
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 #include <ytlib/transaction_client/helpers.h>
 #include <ytlib/transaction_client/transaction_listener.h>
@@ -46,6 +48,7 @@ using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +88,6 @@ private:
     const TTableReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
     const IClientPtr Client_;
-    const IChannelPtr MasterChannel_;
     const TTransactionPtr Transaction_;
     const IBlockCachePtr BlockCache_;
     const TRichYPath RichPath_;
@@ -113,7 +115,6 @@ TSchemalessTableReader::TSchemalessTableReader(
     : Config_(config)
     , Options_(options)
     , Client_(client)
-    , MasterChannel_(client->GetMasterChannel(NApi::EMasterChannelKind::LeaderOrFollower))
     , Transaction_(transaction)
     , BlockCache_(client->GetConnection()->GetBlockCache())
     , RichPath_(richPath)
@@ -121,7 +122,7 @@ TSchemalessTableReader::TSchemalessTableReader(
     , Unordered_(unordered)
 {
     YCHECK(Config_);
-    YCHECK(MasterChannel_);
+    YCHECK(Client_);
     YCHECK(BlockCache_);
 
     Logger.AddTag("Path: %v, TransactionId: %v",
@@ -142,37 +143,38 @@ void TSchemalessTableReader::DoOpen()
 
     LOG_INFO("Opening table reader");
 
-    TObjectServiceProxy objectProxy(MasterChannel_);
-
-    auto batchReq = objectProxy.ExecuteBatch();
+    auto tableCellTag = InvalidCellTag;
+    TObjectId objectId;
 
     {
-        auto req = TYPathProxy::Get(path + "/@type");
+        LOG_INFO("Requesting basic attributes");
+
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TTableYPathProxy::GetBasicAttributes(path);
+        req->set_permissions(static_cast<ui32>(EPermission::Read));
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-        batchReq->AddRequest(req, "get_type");
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting basic attributes for table %v",
+            path);
+
+        const auto& rsp = rspOrError.Value();
+
+        objectId = FromProto<TObjectId>(rsp->object_id());
+        tableCellTag = rsp->cell_tag();
+
+        LOG_INFO("Basic attributes received (ObjectId: %v, CellTag: %v)",
+            objectId,
+            tableCellTag);
     }
 
+    auto objectIdPath = FromObjectId(objectId);
+
     {
-        auto req = TTableYPathProxy::Fetch(path);
-        InitializeFetchRequest(req.Get(), RichPath_);
-        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-        SetTransactionId(req, Transaction_);
-        SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
-        batchReq->AddRequest(req, "fetch");
-    }
-
-    LOG_INFO("Fetching table info");
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching table info");
-
-    auto batchRsp = batchRspOrError.Value();
-    {
-        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_type");
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting object type");
-        auto rsp = rspOrError.Value();
-
-        auto type = ConvertTo<EObjectType>(TYsonString(rsp->value()));
+        auto type = TypeFromId(objectId);
         if (type != EObjectType::Table) {
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
                 path,
@@ -181,47 +183,60 @@ void TSchemalessTableReader::DoOpen()
         }
     }
 
+    auto nodeDirectory = New<TNodeDirectory>();
+    std::vector<TChunkSpec> chunkSpecs;
+
     {
-        auto rspOrError = batchRsp->GetResponse<TTableYPathProxy::TRspFetch>("fetch");
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table chunks");
-        auto rsp = rspOrError.Value();
+        LOG_INFO("Fetching table chunks");
 
-        auto nodeDirectory = New<TNodeDirectory>();
-        nodeDirectory->MergeFrom(rsp->node_directory());
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, tableCellTag);
+        TObjectServiceProxy proxy(channel);
 
-        std::vector<TChunkSpec> chunkSpecs;
-        for (const auto& chunkSpec : rsp->chunks()) {
-            if (!IsUnavailable(chunkSpec)) {
-                chunkSpecs.push_back(chunkSpec);
-                continue;
+        auto req = TTableYPathProxy::Fetch(objectIdPath);
+        InitializeFetchRequest(req.Get(), RichPath_);
+        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        SetTransactionId(req, Transaction_);
+        SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for table %v",
+            path);
+        const auto& rsp = rspOrError.Value();
+
+        ProcessFetchResponse(
+            Client_,
+            rsp,
+            tableCellTag,
+            nodeDirectory,
+            Config_->MaxChunksPerLocateRequest,
+            Logger,
+            &chunkSpecs);
+    }
+
+    if (!Config_->IgnoreUnavailableChunks) {
+        for (const auto& chunkSpec : chunkSpecs) {
+            if (IsUnavailable(chunkSpec)) {
+                THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
+                    NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
             }
-
-            if (Config_->IgnoreUnavailableChunks) {
-                continue;
-            }
-
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ChunkUnavailable,
-                "Chunk %v is unavailable",
-                NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
+    }
 
-        auto readerFactory = Unordered_
+    {
+        auto factory = Unordered_
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
-
-        UnderlyingReader_ = readerFactory(
+        UnderlyingReader_ = factory(
             Config_,
             New<TMultiChunkReaderOptions>(),
             Client_,
-            BlockCache_,
+            Client_->GetConnection()->GetBlockCache(),
             nodeDirectory,
-            chunkSpecs,
+            std::move(chunkSpecs),
             New<TNameTable>(),
             TColumnFilter(),
             TKeyColumns(),
             NConcurrency::GetUnlimitedThrottler());
-
         WaitFor(UnderlyingReader_->Open())
             .ThrowOnError();
     }
@@ -334,7 +349,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     }
 
     return New<TSchemalessTableReader>(
-        options.Config,
+        options.Config ? options.Config : New<TTableReaderConfig>(),
         New<TRemoteReaderOptions>(),
         client,
         transaction,

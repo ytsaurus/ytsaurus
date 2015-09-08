@@ -16,7 +16,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         erase("//tmp/table[#0:#10]")
         assert read_table("//tmp/table") == []
 
-###############################################################
 
     def _prepare_table(self):
         self.table = "//tmp/t_in"
@@ -71,7 +70,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read_table(self.table) == self.v[:2] + self.v[4:]
         assert get(self.table + "/@chunk_count") == 1
 
-###############################################################
+
 
     def test_by_key_from_non_sorted(self):
         create("table", "//tmp/table")
@@ -80,7 +79,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         with pytest.raises(YtError):
             erase("//tmp/table[:42]")
 
-###############################################################
 
     @pytest.mark.xfail(run = False, reason = "Issue #151")
     def test_by_column(self):
@@ -96,7 +94,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         with pytest.raises(YtError):
             erase("//tmp/table{}")
 
-###############################################################
 
     def _prepare_medium_chunks(self):
         self.table = "//tmp/table"
@@ -129,7 +126,6 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read_table(self.table) == [self.v[0]] + self.v[3:]
         assert get(self.table + "/@chunk_count") == 3 # side chunks are united
 
-###############################################################
 
     def test_by_key(self):
         v = [{"key": -100, "value": 20},
@@ -154,5 +150,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         assert read_table("//tmp/table") == v[4:5]
         assert get("//tmp/table/@sorted") # check that table is still sorted
 
+##################################################################
 
-
+class TestSchedulerEraseCommandsMulticell(TestSchedulerEraseCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2

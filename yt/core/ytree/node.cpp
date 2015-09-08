@@ -2,7 +2,7 @@
 #include "convert.h"
 #include "node_detail.h"
 
-#include <core/yson/writer.h>
+#include <core/yson/async_writer.h>
 
 namespace NYT {
 namespace NYTree {
@@ -69,15 +69,14 @@ void Deserialize(INodePtr& value, INodePtr node)
 
 TYsonString ConvertToYsonStringStable(INodePtr node)
 {
-    Stroka result;
-    TStringOutput output(result);
-    TYsonWriter writer(&output, EYsonFormat::Binary, EYsonType::Node);
+    TStringStream stream;
+    TYsonWriter writer(&stream, EYsonFormat::Binary, EYsonType::Node);
     VisitTree(
         node,
         &writer,
         TAttributeFilter::All,
         true); // truth matters :)
-    return TYsonString(result, EYsonType::Node);
+    return TYsonString(stream.Str(), EYsonType::Node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

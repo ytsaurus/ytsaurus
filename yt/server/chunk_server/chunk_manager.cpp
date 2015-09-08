@@ -29,6 +29,7 @@
 #include <ytlib/chunk_client/chunk_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_list_ypath.pb.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <ytlib/chunk_client/chunk_service.pb.h>
 #include <ytlib/chunk_client/schema.h>
 
 #include <ytlib/journal_client/helpers.h>
@@ -60,6 +61,8 @@
 
 #include <server/object_server/object_manager.h>
 
+#include <server/journal_server/journal_node.h>
+
 namespace NYT {
 namespace NChunkServer {
 
@@ -70,6 +73,7 @@ using namespace NNodeTrackerServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NYTree;
 using namespace NCellMaster;
 using namespace NCypressServer;
@@ -79,6 +83,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJournalClient;
+using namespace NJournalServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,7 +98,7 @@ class TChunkTreeBalancerCallbacks
     : public IChunkTreeBalancerCallbacks
 {
 public:
-    TChunkTreeBalancerCallbacks(NCellMaster::TBootstrap* bootstrap)
+    explicit TChunkTreeBalancerCallbacks(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -152,20 +157,12 @@ class TChunkManager::TChunkTypeHandlerBase
 public:
     explicit TChunkTypeHandlerBase(TImpl* owner);
 
-    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
-    {
-        return TTypeCreationOptions(
-            EObjectTransactionMode::Required,
-            EObjectAccountMode::Required);
-    }
-
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
-
+        const TObjectCreationExtensions& extensions) override;
 
     virtual void ResetAllObjects() override
     {
@@ -174,6 +171,11 @@ public:
         if (GetType() == EObjectType::Chunk) {
             TObjectTypeHandlerWithMapBase::ResetAllObjects();
         }
+    }
+
+    virtual NObjectServer::TObjectBase* FindObject(const TObjectId& id) override
+    {
+        return Map_->Find(DecodeChunkId(id).Id);
     }
 
 protected:
@@ -200,13 +202,20 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager::TChunkTypeHandler
+class TChunkManager::TRegularChunkTypeHandler
     : public TChunkTypeHandlerBase
 {
 public:
-    explicit TChunkTypeHandler(TImpl* owner)
+    explicit TRegularChunkTypeHandler(TImpl* owner)
         : TChunkTypeHandlerBase(owner)
     { }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Required,
+            EObjectAccountMode::Required);
+    }
 
     virtual EObjectType GetType() const override
     {
@@ -227,16 +236,30 @@ class TChunkManager::TErasureChunkTypeHandler
     : public TChunkTypeHandlerBase
 {
 public:
-    explicit TErasureChunkTypeHandler(TImpl* owner)
+    TErasureChunkTypeHandler(TImpl* owner, EObjectType type)
         : TChunkTypeHandlerBase(owner)
+        , Type_(type)
     { }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        if (Type_ == EObjectType::ErasureChunk) {
+            return TTypeCreationOptions(
+                EObjectTransactionMode::Required,
+                EObjectAccountMode::Required);
+        } else {
+            return Null;
+        }
+    }
 
     virtual EObjectType GetType() const override
     {
-        return EObjectType::ErasureChunk;
+        return Type_;
     }
 
 private:
+    const EObjectType Type_;
+
     virtual Stroka DoGetName(TChunk* chunk) override
     {
         return Format("erasure chunk %v", chunk->GetId());
@@ -253,6 +276,13 @@ public:
     explicit TJournalChunkTypeHandler(TImpl* owner)
         : TChunkTypeHandlerBase(owner)
     { }
+
+    virtual TNullable<TTypeCreationOptions> GetCreationOptions() const override
+    {
+        return TTypeCreationOptions(
+            EObjectTransactionMode::Required,
+            EObjectAccountMode::Required);
+    }
 
     virtual EObjectType GetType() const override
     {
@@ -288,11 +318,11 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        const TObjectCreationExtensions& extensions) override;
 
 private:
     TImpl* const Owner_;
@@ -333,7 +363,9 @@ public:
         , AddedChunkReplicaCounter_("/added_chunk_replicas")
         , RemovedChunkReplicaCounter_("/removed_chunk_replicas")
     {
-        RegisterMethod(BIND(&TImpl::UpdateChunkProperties, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateChunkProperties, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraExportChunks, Unretained(this), nullptr, nullptr));
+        RegisterMethod(BIND(&TImpl::HydraImportChunks, Unretained(this), nullptr));
 
         RegisterLoader(
             "ChunkManager.Keys",
@@ -355,16 +387,23 @@ public:
     void Initialize()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TChunkTypeHandler>(this));
-        objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TRegularChunkTypeHandler>(this));
+        objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, EObjectType::ErasureChunk));
+        for (auto type = MinErasureChunkPartType;
+             type <= MaxErasureChunkPartType;
+             type = static_cast<EObjectType>(static_cast<int>(type) + 1))
+        {
+            objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, type));
+        }
         objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
 
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRemoved(BIND(&TImpl::OnNodeRemoved, MakeWeak(this)));
-        nodeTracker->SubscribeNodeConfigUpdated(BIND(&TImpl::OnNodeConfigUpdated, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDisposed(BIND(&TImpl::OnNodeDisposed, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRackChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeDecommissionChanged(BIND(&TImpl::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeFullHeartbeat(BIND(&TImpl::OnFullHeartbeat, MakeWeak(this)));
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
 
@@ -376,14 +415,31 @@ public:
     }
 
 
-    TMutationPtr CreateUpdateChunkPropertiesMutation(
-        const NProto::TReqUpdateChunkProperties& request)
+    TMutationPtr CreateUpdateChunkPropertiesMutation(const NProto::TReqUpdateChunkProperties& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             request,
             this,
-            &TImpl::UpdateChunkProperties);
+            &TImpl::HydraUpdateChunkProperties);
+    }
+
+    TMutationPtr CreateExportChunksMutation(TCtxExportChunksPtr context)
+    {
+        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
+                HydraExportChunks(context, &context->Response(), context->Request());
+            }));
+    }
+
+    TMutationPtr CreateImportChunksMutation(TCtxImportChunksPtr context)
+    {
+        return CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager())
+            ->SetRequestData(context->GetRequestBody(), context->Request().GetTypeName())
+            ->SetAction(BIND([=, this_ = MakeStrong(this)] () {
+                HydraImportChunks(context, context->Request());
+            }));
     }
 
 
@@ -408,7 +464,7 @@ public:
     TChunk* CreateChunk(EObjectType type)
     {
         Profiler.Increment(AddedChunkCounter_);
-        auto id = Bootstrap_->GetObjectManager()->GenerateId(type);
+        auto id = Bootstrap_->GetObjectManager()->GenerateId(type, NullObjectId);
         auto chunkHolder = std::make_unique<TChunk>(id);
         return ChunkMap_.Insert(id, std::move(chunkHolder));
     }
@@ -416,7 +472,7 @@ public:
     TChunkList* CreateChunkList()
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::ChunkList);
+        auto id = objectManager->GenerateId(EObjectType::ChunkList, NullObjectId);
         auto chunkListHolder = std::make_unique<TChunkList>(id);
         return ChunkListMap_.Insert(id, std::move(chunkListHolder));
     }
@@ -535,7 +591,7 @@ public:
 
         for (auto replica : replicas) {
             auto* node = nodeTracker->FindNode(replica.GetNodeId());
-            if (!node) {
+            if (!IsObjectAlive(node)) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at an unknown node %v",
                     id,
                     replica.GetNodeId());
@@ -546,11 +602,11 @@ public:
                 ? TChunkPtrWithIndex(chunk, ActiveChunkReplicaIndex)
                 : TChunkPtrWithIndex(chunk, replica.GetIndex());
 
-            if (node->GetState() != ENodeState::Online) {
+            if (node->GetLocalState() != ENodeState::Online) {
                 LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
                     id,
                     node->GetDefaultAddress(),
-                    node->GetState());
+                    node->GetLocalState());
                 continue;
             }
 
@@ -797,57 +853,6 @@ public:
     }
 
 
-    void SealChunk(TChunk* chunk, const TMiscExt& info)
-    {
-        if (!chunk->IsJournal()) {
-            THROW_ERROR_EXCEPTION("Not a journal chunk");
-        }
-
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
-        }
-
-        if (chunk->IsSealed()) {
-            THROW_ERROR_EXCEPTION("Chunk is already sealed");
-        }
-
-        chunk->Seal(info);
-
-        // Go upwards and apply delta.
-        YCHECK(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
-
-        TChunkTreeStatistics statisticsDelta;
-        statisticsDelta.Sealed = true;
-        statisticsDelta.RowCount = info.row_count();
-        statisticsDelta.UncompressedDataSize = info.uncompressed_data_size();
-        statisticsDelta.CompressedDataSize = info.compressed_data_size();
-        statisticsDelta.RegularDiskSpace = info.compressed_data_size();
-
-        VisitUniqueAncestors(
-            chunkList,
-            [&] (TChunkList* current) {
-                ++statisticsDelta.Rank;
-                current->Statistics().Accumulate(statisticsDelta);
-            });
-
-        auto owningNodes = GetOwningNodes(chunk);
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        for (auto* node : owningNodes) {
-            securityManager->UpdateAccountNodeUsage(node);
-        }
-
-        if (IsLeader()) {
-            ScheduleChunkRefresh(chunk);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            chunk->GetId(),
-            info.row_count(),
-            info.uncompressed_data_size(),
-            info.compressed_data_size());
-    }
-
     TFuture<TMiscExt> GetChunkQuorumInfo(TChunk* chunk)
     {
         if (chunk->IsSealed()) {
@@ -873,7 +878,7 @@ public:
 
 private:
     friend class TChunkTypeHandlerBase;
-    friend class TChunkTypeHandler;
+    friend class TRegularChunkTypeHandler;
     friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
 
@@ -950,9 +955,6 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
-        const auto& config = node->GetConfig();
-        node->SetDecommissioned(config->Decommissioned);
-
         if (ChunkPlacement_) {
             ChunkPlacement_->OnNodeRegistered(node);
         }
@@ -974,7 +976,7 @@ private:
         }
     }
 
-    void OnNodeRemoved(TNode* node)
+    void OnNodeDisposed(TNode* node)
     {
         for (auto replica : node->StoredReplicas()) {
             RemoveChunkReplica(node, replica, false, ERemoveReplicaReason::NodeRemoved);
@@ -993,23 +995,9 @@ private:
         }
     }
 
-    void OnNodeConfigUpdated(TNode* node)
+    void OnNodeChanged(TNode* node)
     {
-        const auto& config = node->GetConfig();
-        if (config->Decommissioned != node->GetDecommissioned()) {
-            if (config->Decommissioned) {
-                LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            } else {
-                LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            }
-            node->SetDecommissioned(config->Decommissioned);
-        }
-
-        if (ChunkReplicator_) {
+        if (ChunkReplicator_ && node->GetLocalState() == ENodeState::Online) {
             ChunkReplicator_->ScheduleNodeRefresh(node);
         }
     }
@@ -1069,7 +1057,7 @@ private:
     }
 
 
-    void UpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
+    void HydraUpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
     {
         for (const auto& update : request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
@@ -1100,6 +1088,69 @@ private:
         }
     }
 
+    void HydraExportChunks(
+        TCtxExportChunksPtr context,
+        TRspExportChunks* response,
+        const TReqExportChunks& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        for (const auto& protoChunkId : request.chunk_ids()) {
+            auto chunkId = FromProto<TChunkId>(protoChunkId);
+            auto* chunk = GetChunkOrThrow(chunkId);
+
+            transactionManager->ExportObject(transaction, chunk);
+
+            if (response) {
+                auto* chunkData = response->add_chunks();
+                ToProto(chunkData->mutable_id(), chunkId);
+                chunkData->mutable_info()->CopyFrom(chunk->ChunkInfo());
+                chunkData->mutable_meta()->CopyFrom(chunk->ChunkMeta());
+                chunkData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+            }
+        }
+
+        LOG_INFO("Chunks exported (TransactionId: %v, ChunkCount: %v)",
+            transactionId,
+            request.chunk_ids_size());
+    }
+
+    void HydraImportChunks(
+        TCtxImportChunksPtr context,
+        TReqImportChunks& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
+
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        for (auto& chunkData : *request.mutable_chunks()) {
+            auto chunkId = FromProto<TChunkId>(chunkData.id());
+            auto* chunk = ChunkMap_.Find(chunkId);
+            if (!chunk) {
+                auto chunkHolder = std::make_unique<TChunk>(chunkId);
+                chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
+                chunk->Confirm(chunkData.mutable_info(), chunkData.mutable_meta());
+                chunk->SetErasureCodec(NErasure::ECodec(chunkData.erasure_codec()));
+            }
+
+            transactionManager->ImportObject(transaction, chunk);
+        }
+
+        LOG_INFO("Chunks imported (TransactionId: %v, ChunkCount: %v)",
+            transactionId,
+            request.chunks_size());
+    }
+
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
@@ -1118,10 +1169,6 @@ private:
     {
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
-        // COMPAT(babenko): required to properly initialize partial sums for chunk lists.
-        if (context.GetVersion() < 100) {
-            ScheduleRecomputeStatistics();
-        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -1266,6 +1313,7 @@ private:
             for (const auto& pair : nodeTracker->Nodes()) {
                 auto* node = pair.second;
                 ChunkReplicator_->OnNodeRegistered(node);
+                ChunkPlacement_->OnNodeRegistered(node);
             }
 
             for (const auto& pair : ChunkMap_) {
@@ -1289,7 +1337,6 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        ChunkPlacement_->Start();
         ChunkReplicator_->Start();
         ChunkSealer_->Start();
     }
@@ -1298,10 +1345,7 @@ private:
     {
         TMasterAutomatonPart::OnStopLeading();
 
-        if (ChunkPlacement_) {
-            ChunkPlacement_->Stop();
-            ChunkPlacement_.Reset();
-        }
+        ChunkPlacement_.Reset();
 
         if (ChunkReplicator_) {
             ChunkReplicator_->Stop();
@@ -1543,11 +1587,11 @@ IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
 }
 
 TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
+    const TObjectId& /*hintId*/,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
-    TReqCreateObjects* request,
-    TRspCreateObjects* /*response*/)
+    const TObjectCreationExtensions& extensions)
 {
     YCHECK(transaction);
     YCHECK(account);
@@ -1558,7 +1602,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     bool isErasure = (chunkType == EObjectType::ErasureChunk);
     bool isJournal = (chunkType == EObjectType::JournalChunk);
 
-    const auto& requestExt = request->GetExtension(TReqCreateChunkExt::create_chunk_ext);
+    const auto& requestExt = extensions.GetExtension(TChunkCreationExt::chunk_creation_ext);
     auto erasureCodecId = isErasure ? NErasure::ECodec(requestExt.erasure_codec()) : NErasure::ECodec::None;
     int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
@@ -1620,11 +1664,11 @@ IObjectProxyPtr TChunkManager::TChunkListTypeHandler::DoGetProxy(
 }
 
 TObjectBase* TChunkManager::TChunkListTypeHandler::CreateObject(
+    const TObjectId& /*hintId*/,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* /*attributes*/,
-    TReqCreateObjects* /*request*/,
-    TRspCreateObjects* /*response*/)
+    const TObjectCreationExtensions& extensions)
 {
     auto* chunkList = Owner_->CreateChunkList();
     chunkList->SetStagingTransaction(transaction);
@@ -1703,6 +1747,18 @@ TMutationPtr TChunkManager::CreateUpdateChunkPropertiesMutation(
     const NProto::TReqUpdateChunkProperties& request)
 {
     return Impl_->CreateUpdateChunkPropertiesMutation(request);
+}
+
+TMutationPtr TChunkManager::CreateExportChunksMutation(
+    TCtxExportChunksPtr context)
+{
+    return Impl_->CreateExportChunksMutation(context);
+}
+
+TMutationPtr TChunkManager::CreateImportChunksMutation(
+    TCtxImportChunksPtr context)
+{
+    return Impl_->CreateImportChunksMutation(context);
 }
 
 TChunk* TChunkManager::CreateChunk(EObjectType type)
@@ -1855,11 +1911,6 @@ int TChunkManager::GetTotalReplicaCount()
 EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
 {
     return Impl_->ComputeChunkStatus(chunk);
-}
-
-void TChunkManager::SealChunk(TChunk* chunk, const TMiscExt& info)
-{
-    Impl_->SealChunk(chunk, info);
 }
 
 TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)

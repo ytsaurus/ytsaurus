@@ -245,3 +245,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
              sort_by="key")
 
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
+
+##################################################################
+
+class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2

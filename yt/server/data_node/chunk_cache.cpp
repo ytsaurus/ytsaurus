@@ -52,6 +52,7 @@ namespace NYT {
 namespace NDataNode {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NFileClient;
@@ -70,6 +71,7 @@ static const auto& Logger = DataNodeLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSessionCounterGuard
+    : private TNonCopyable
 {
 public:
     explicit TSessionCounterGuard(TLocationPtr location)

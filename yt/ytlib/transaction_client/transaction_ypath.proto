@@ -5,21 +5,15 @@ import "yt/ytlib/hive/transaction_supervisor_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartTransactionExt
+message TTransactionCreationExt
 {
-    extend NYT.NObjectClient.NProto.TReqCreateObjects
+    extend NYT.NObjectClient.NProto.TObjectCreationExtensions
     {
-        optional TReqStartTransactionExt create_transaction_ext = 101;
+        optional TTransactionCreationExt transaction_creation_ext = 101;
     }
 
     // Transaction timeout (in ms).
     required int32 timeout = 1;
-
-    // Enable including uncommitted resources into account resource usage.
-    optional bool enable_uncommitted_accounting = 2 [default = true];
-
-    // Enable including staged resources into account resource usage.
-    optional bool enable_staged_accounting = 3 [default = true];
 }
 
 message TReqPingTransactionExt

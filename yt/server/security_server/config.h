@@ -13,16 +13,20 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    TDuration StatisticsFlushPeriod;
+    TDuration UserStatisticsFlushPeriod;
+    TDuration UserStatisticsGossipPeriod;
+    TDuration AccountStatisticsGossipPeriod;
     TDuration RequestRateSmoothingPeriod;
 
     TSecurityManagerConfig()
     {
-        RegisterParameter("statistics_flush_period", StatisticsFlushPeriod)
-            .GreaterThan(TDuration())
+        RegisterParameter("user_statistics_gossip_period", UserStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("user_statistics_flush_period", UserStatisticsFlushPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("account_statistics_gossip_period", AccountStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(10));
         RegisterParameter("request_rate_smoothing_period", RequestRateSmoothingPeriod)
-            .GreaterThan(TDuration())
             .Default(TDuration::Seconds(10));
     }
 };

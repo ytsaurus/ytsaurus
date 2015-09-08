@@ -96,7 +96,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     bool enableKeySwitch,
     int keyColumnCount);
 
-NYTree::TYsonProducer CreateProducerForFormat(
+NYson::TYsonProducer CreateProducerForFormat(
     const TFormat& format,
     EDataType dataType,
     TInputStream* input);

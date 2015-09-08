@@ -15,8 +15,11 @@ class TTransactionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Internal between consecutive transaction pings.
-    TDuration PingPeriod;
+    //! Timeout for all RPC requests to participants.
+    TDuration RpcTimeout;
+
+    //! Default internal between consecutive transaction pings.
+    TDuration DefaultPingPeriod;
 
     //! Default transaction timeout to be used if not given explicitly on
     //! transaction start.
@@ -24,10 +27,18 @@ public:
 
     TTransactionManagerConfig()
     {
-        RegisterParameter("ping_period", PingPeriod)
+        RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("default_ping_period", DefaultPingPeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("default_transaction_timeout", DefaultTransactionTimeout)
             .Default(TDuration::Seconds(15));
+
+        RegisterValidator([&] () {
+            if (DefaultTransactionTimeout <= DefaultPingPeriod) {
+                THROW_ERROR_EXCEPTION("\"default_transaction_timeout\" must be greater than \"default_ping_period\"");
+            }
+        });
     }
 };
 

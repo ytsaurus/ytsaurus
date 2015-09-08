@@ -44,6 +44,12 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() const;
     TTableNode* GetTrunkNode() const;
 
+    virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
+    virtual void EndUpload(
+        const NChunkClient::NProto::TDataStatistics* statistics,
+        const std::vector<Stroka>& keyColumns) override;
+    virtual bool IsSorted() const override;
+
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
@@ -52,6 +58,7 @@ public:
         const NTableClient::TOwningKey& maxKey);
 
     bool IsDynamic() const;
+    bool IsEmpty() const;
     bool HasMountedTablets() const;
 
 };

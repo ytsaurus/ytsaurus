@@ -13,9 +13,8 @@ from cStringIO import StringIO
 
 ###########################################################################
 
-only_linux = pytest.mark.skipif('not sys.platform.startswith("linux")')
-
 driver = None
+is_multicell = None
 
 def get_driver():
     return driver
@@ -54,7 +53,6 @@ def prepare_paths(paths):
 
 def prepare_parameters(parameters):
     change(parameters, "tx", "transaction_id")
-    change(parameters, "attr", "attributes")
     change(parameters, "ping_ancestor_txs", "ping_ancestor_transactions")
     return parameters
 
@@ -134,6 +132,10 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 ###########################################################################
 
+def multicell_sleep():
+    if is_multicell:
+        time.sleep(0.2)
+
 def dump_job_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["path"] = path
@@ -147,7 +149,7 @@ def strace_job(job_id, **kwargs):
 def lock(path, waitable=False, **kwargs):
     kwargs["path"] = path
     kwargs["waitable"] = waitable
-    return execute_command('lock', kwargs).replace('"', '').strip('\n')
+    return yson.loads(execute_command('lock', kwargs))
 
 def remove(path, **kwargs):
     kwargs["path"] = path
@@ -170,22 +172,22 @@ def set(path, value, is_raw=False, **kwargs):
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path
-    return execute_command("create", kwargs)
+    return yson.loads(execute_command("create", kwargs))
 
 def copy(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return execute_command("copy", kwargs)
+    return yson.loads(execute_command("copy", kwargs))
 
 def move(source_path, destination_path, **kwargs):
     kwargs["source_path"] = source_path
     kwargs["destination_path"] = destination_path
-    return execute_command("move", kwargs)
+    return yson.loads(execute_command("move", kwargs))
 
 def link(target_path, link_path, **kwargs):
     kwargs["target_path"] = target_path
     kwargs["link_path"] = link_path
-    return execute_command("link", kwargs)
+    return yson.loads(execute_command("link", kwargs))
 
 def exists(path, **kwargs):
     kwargs["path"] = path

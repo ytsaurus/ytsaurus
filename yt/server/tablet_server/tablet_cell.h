@@ -37,7 +37,7 @@ public:
 
     struct TPeer
     {
-        TNullable<NNodeTrackerClient::TNodeDescriptor> Descriptor;
+        NNodeTrackerClient::TNodeDescriptor Descriptor;
         NNodeTrackerServer::TNode* Node = nullptr;
         TInstant LastSeenTime;
 

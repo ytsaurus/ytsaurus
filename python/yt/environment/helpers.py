@@ -1,3 +1,8 @@
+import re
+import socket
+
+GEN_PORT_ATTEMPTS = 10
+
 try:
     from unittest.util import unorderable_list_difference
 except ImportError:
@@ -64,3 +69,30 @@ def assert_items_equal(actual_seq, expected_seq):
 
     assert not missing, "Expected, but missing:\n    %s" % repr(missing)
     assert not unexpected, "Unexpected, but present:\n    %s" % repr(unexpected)
+
+def get_open_port():
+    if not hasattr(get_open_port, "busy_ports"):
+        get_open_port.busy_ports = set()
+
+    for _ in xrange(GEN_PORT_ATTEMPTS):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(("", 0))
+            sock.listen(1)
+            port = sock.getsockname()[1]
+        finally:
+            sock.close()
+
+        if port in get_open_port.busy_ports:
+            continue
+
+        get_open_port.busy_ports.add(port)
+
+        return port
+
+    raise RuntimeError("Failed to generate random port")
+
+def versions_cmp(version1, version2):
+    def normalize(v):
+        return map(int, v.split("."))
+    return cmp(normalize(version1), normalize(version2))

@@ -24,9 +24,6 @@ public:
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
-    void Start();
-    void Stop();
-
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
     void OnNodeUpdated(TNode* node);

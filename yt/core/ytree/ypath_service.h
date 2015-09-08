@@ -4,8 +4,6 @@
 
 #include <core/yson/consumer.h>
 
-#include <core/ytree/attribute_provider.h>
-
 #include <core/rpc/public.h>
 
 #include <core/misc/property.h>
@@ -19,6 +17,39 @@ namespace NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes an attribute filtering mode.
+DEFINE_ENUM(EAttributeFilterMode,
+    // Accept all attributes.
+    (All)
+    // Don't accept any attribute.
+    (None)
+    // Accept only matching attributes.
+    (MatchingOnly)
+);
+
+//! Describes a filtering criteria for attributes.
+/*!
+ *  If #Mode is |All| or |None| then act accordingly.
+ *  If #Mode is |MatchingOnly| then only accept keys listed in #Keys.
+ */
+struct TAttributeFilter
+{
+    TAttributeFilter();
+    TAttributeFilter(EAttributeFilterMode mode, const std::vector<Stroka>& keys);
+    explicit TAttributeFilter(EAttributeFilterMode mode);
+
+    EAttributeFilterMode Mode;
+    std::vector<Stroka> Keys;
+
+    static TAttributeFilter All;
+    static TAttributeFilter None;
+};
+
+void ToProto(NProto::TAttributeFilter* protoFilter, const TAttributeFilter& filter);
+void FromProto(TAttributeFilter* filter, const NProto::TAttributeFilter& protoFilter);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Represents an abstract way of handling YPath requests.
 /*!
  *  To handle a given YPath request one must first resolve the target.
@@ -29,10 +60,12 @@ namespace NYTree {
  *  as a part of the result.
  *
  *  Once the request is resolved, #Invoke is called for the target service.
+ *
+ *  This interface also provides means for inspecting attributes associated with the service.
+ *
  */
 struct IYPathService
     : public virtual TRefCounted
-    , public virtual IAttributeProvider
 {
     class TResolveResult
     {
@@ -77,6 +110,14 @@ struct IYPathService
     //! to log various details about verb invocation (e.g. request and response infos).
     virtual NLogging::TLogger GetLogger() const = 0;
 
+    //! Writes a map fragment consisting of attributes conforming to #filter into #consumer.
+    /*!
+     *  If #sortKeys is |true| then the implementation must ensure a stable ordering of keys.
+     */
+    virtual void WriteAttributesFragment(
+        NYson::IAsyncYsonConsumer* consumer,
+        const TAttributeFilter& filter,
+        bool sortKeys) = 0;
 
     // Extension methods
 
@@ -85,7 +126,7 @@ struct IYPathService
      *  Each time a request is issued, producer is called, its output is turned in
      *  an ephemeral tree, and the request is forwarded to that tree.
      */
-    static IYPathServicePtr FromProducer(TYsonProducer producer);
+    static IYPathServicePtr FromProducer(NYson::TYsonProducer producer);
 
     //! Creates a wrapper that handles all requests via the given invoker.
     IYPathServicePtr Via(IInvokerPtr invoker);
@@ -93,6 +134,13 @@ struct IYPathService
     //! Creates a wrapper that makes ephemeral snapshots to cache
     //! the underlying service.
     IYPathServicePtr Cached(TDuration expirationTime);
+
+    //! Wraps WriteAttributesFragment by enclosing attributes with angle brackets.
+    //! If WriteAttributesFragment writes nothing then this method also does nothing.
+    void WriteAttributes(
+        NYson::IAsyncYsonConsumer* consumer,
+        const TAttributeFilter& filter,
+        bool sortKeys);
 
 };
 

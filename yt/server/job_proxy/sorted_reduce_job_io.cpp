@@ -60,7 +60,7 @@ public:
                 options,
                 Host_->GetClient(),
                 Host_->GetBlockCache(),
-                Host_->GetNodeDirectory(),
+                Host_->GetInputNodeDirectory(),
                 chunks,
                 nameTable,
                 columnFilter,

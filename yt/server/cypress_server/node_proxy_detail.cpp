@@ -11,6 +11,7 @@
 #include <ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <ytlib/cypress_client/rpc_helpers.h>
 
+#include <core/ytree/ypath_proxy.h> // XXX(babenko): improve
 #include <core/ytree/ypath_detail.h>
 #include <core/ytree/node_detail.h>
 #include <core/ytree/convert.h>
@@ -21,7 +22,12 @@
 
 #include <core/ypath/tokenizer.h>
 
+#include <ytlib/hive/cell_directory.h>
+
+#include <ytlib/object_client/object_service_proxy.h> // XXX(babenko): improve
+
 #include <server/cell_master/config.h>
+#include <server/cell_master/bootstrap.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
@@ -48,22 +54,22 @@ class TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary
 {
 public:
     explicit TCustomAttributeDictionary(TNontemplateCypressNodeProxyBase* proxy)
-        : Proxy(proxy)
+        : Proxy_(proxy)
     { }
 
     virtual std::vector<Stroka> List() const override
     {
         auto keys = ListNodeAttributes(
-            Proxy->Bootstrap_,
-            Proxy->TrunkNode,
-            Proxy->Transaction);
+            Proxy_->Bootstrap_,
+            Proxy_->TrunkNode,
+            Proxy_->Transaction);
         return std::vector<Stroka>(keys.begin(), keys.end());
     }
 
     virtual TNullable<TYsonString> FindYson(const Stroka& name) const override
     {
-        auto cypressManager = Proxy->Bootstrap_->GetCypressManager();
-        auto originators = cypressManager->GetNodeOriginators(Proxy->GetTransaction(), Proxy->GetTrunkNode());
+        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+        auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
         for (const auto* node : originators) {
             const auto* userAttributes = node->GetAttributes();
             if (userAttributes) {
@@ -79,29 +85,29 @@ public:
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
-        auto cypressManager = Proxy->Bootstrap_->GetCypressManager();
+        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
 
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
         auto* node = cypressManager->LockNode(
-            Proxy->TrunkNode,
-            Proxy->Transaction,
+            Proxy_->TrunkNode,
+            Proxy_->Transaction,
             TLockRequest::SharedAttribute(key));
 
         auto* userAttributes = node->GetMutableAttributes();
         userAttributes->Attributes()[key] = value;
 
-        cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
+        cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
     }
 
     virtual bool Remove(const Stroka& key) override
     {
-        auto cypressManager = Proxy->Bootstrap_->GetCypressManager();
-        auto originators = cypressManager->GetNodeReverseOriginators(Proxy->GetTransaction(), Proxy->GetTrunkNode());
+        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
+        auto originators = cypressManager->GetNodeReverseOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
 
         auto oldValue = FindYson(key);
-        Proxy->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
+        Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, Null);
 
         const TTransaction* containingTransaction = nullptr;
         bool contains = false;
@@ -124,24 +130,24 @@ public:
         }
 
         auto* node = cypressManager->LockNode(
-            Proxy->TrunkNode,
-            Proxy->Transaction,
+            Proxy_->TrunkNode,
+            Proxy_->Transaction,
             TLockRequest::SharedAttribute(key));
 
         auto* userAttributes = node->GetMutableAttributes();
-        if (containingTransaction == Proxy->Transaction) {
+        if (containingTransaction == Proxy_->Transaction) {
             YCHECK(userAttributes->Attributes().erase(key) == 1);
         } else {
             YCHECK(!containingTransaction);
             userAttributes->Attributes()[key] = Null;
         }
 
-        cypressManager->SetModified(Proxy->TrunkNode, Proxy->Transaction);
+        cypressManager->SetModified(Proxy_->TrunkNode, Proxy_->Transaction);
         return true;
     }
 
 protected:
-    TNontemplateCypressNodeProxyBase* Proxy;
+    TNontemplateCypressNodeProxyBase* const Proxy_;
 
 };
 
@@ -151,41 +157,41 @@ class TNontemplateCypressNodeProxyBase::TResourceUsageVisitor
     : public ICypressNodeVisitor
 {
 public:
-    explicit TResourceUsageVisitor(NCellMaster::TBootstrap* Bootstrap_, IYsonConsumer* consumer)
-        : Bootstrap_(Bootstrap_)
-        , Consumer(consumer)
-        , Result(NewPromise<void>())
+    explicit TResourceUsageVisitor(NCellMaster::TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
     { }
 
-    TFuture<void> Run(ICypressNodeProxyPtr rootNode)
+    TPromise<TYsonString> Run(ICypressNodeProxyPtr rootNode)
     {
         TraverseCypress(Bootstrap_, rootNode, this);
-        return Result;
+        return Promise_;
     }
 
 private:
-    NCellMaster::TBootstrap* Bootstrap_;
-    IYsonConsumer* Consumer;
+    NCellMaster::TBootstrap* const Bootstrap_;
 
-    TPromise<void> Result;
-    TClusterResources ResourceUsage;
+    TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
+    TClusterResources ResourceUsage_;
 
-    virtual void OnNode(ICypressNodeProxyPtr node) override
+
+    virtual void OnNode(ICypressNodeProxyPtr proxy) override
     {
-        ResourceUsage += node->GetResourceUsage();
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->GetVersionedNode(proxy->GetTrunkNode(), proxy->GetTransaction());
+        auto handler = cypressManager->GetHandler(node);
+        ResourceUsage_ += handler->GetTotalResourceUsage(node);
     }
 
     virtual void OnError(const TError& error) override
     {
         auto wrappedError = TError("Error computing recursive resource usage")
             << error;
-        Result.Set(wrappedError);
+        Promise_.Set(wrappedError);
     }
 
     virtual void OnCompleted() override
     {
-        Consume(ResourceUsage, Consumer);
-        Result.Set(TError());
+        Promise_.Set(ConvertToYsonString(ResourceUsage_));
     }
 
 };
@@ -271,16 +277,68 @@ IAttributeDictionary* TNontemplateCypressNodeProxyBase::MutableAttributes()
     return TObjectProxyBase::MutableAttributes();
 }
 
-TFuture<void> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
-    const Stroka& key,
-    IYsonConsumer* consumer)
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(const Stroka& key)
 {
     if (key == "recursive_resource_usage") {
-        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, consumer);
-        return visitor->Run(const_cast<TNontemplateCypressNodeProxyBase*>(this));
+        auto visitor = New<TResourceUsageVisitor>(Bootstrap_);
+        return visitor->Run(this);
     }
 
-    return TObjectProxyBase::GetBuiltinAttributeAsync(key, consumer);
+    auto asyncResult = GetExternalBuiltinAttributeAsync(key);
+    if (asyncResult) {
+        return asyncResult;
+    }
+
+    return TObjectProxyBase::GetBuiltinAttributeAsync(key);
+}
+
+TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttributeAsync(const Stroka& key)
+{
+    const auto* node = GetThisImpl();
+    if (!node->IsExternal()) {
+        return Null;
+    }
+
+    auto maybeDescriptor = FindBuiltinAttributeDescriptor(key);
+    if (!maybeDescriptor) {
+        return Null;
+    }
+
+    const auto& descriptor = *maybeDescriptor;
+    if (!descriptor.External) {
+        return Null;
+    }
+
+    auto cellTag = node->GetExternalCellTag();
+    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
+
+    auto cellDirectory = Bootstrap_->GetCellDirectory();
+    auto channel = cellDirectory->GetChannelOrThrow(cellId);
+
+    // XXX(babenko): improve
+    TObjectServiceProxy proxy(channel);
+    proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+
+    auto versionedId = GetVersionedId();
+
+    auto req = TYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@" + key);
+    SetTransactionId(req, versionedId.TransactionId);
+
+    return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {
+                return TYsonString();
+            }
+            THROW_ERROR_EXCEPTION("Error requesting attribute %Qv of object %v from cell %v",
+                key,
+                versionedId,
+                cellTag)
+                << rspOrError;
+        }
+
+        const auto& rsp = rspOrError.Value();
+        return TYsonString(rsp->value());
+    }));
 }
 
 bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, const TYsonString& value)
@@ -296,8 +354,10 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(const Stroka& key, co
         ValidatePermission(account, EPermission::Use);
 
         auto* node = LockThisImpl();
-        account->ValidateResourceUsageIncrease(node->GetResourceUsage());
-        securityManager->SetAccount(node, account);
+        if (node->GetAccount() != account) {
+            account->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+            securityManager->SetAccount(node, account);
+        }
 
         return true;
     }
@@ -310,25 +370,39 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
     return TVersionedObjectId(Object_->GetId(), GetObjectId(Transaction));
 }
 
-void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
+    TObjectProxyBase::ListSystemAttributes(descriptors);
+
     const auto* node = GetThisImpl();
     bool hasKey = NodeHasKey(Bootstrap_, node);
-    attributes->push_back(TAttributeInfo("parent_id", node->GetParent()));
-    attributes->push_back("locks");
-    attributes->push_back("lock_mode");
-    attributes->push_back(TAttributeInfo("path", true, true));
-    attributes->push_back(TAttributeInfo("key", hasKey, false));
-    attributes->push_back("creation_time");
-    attributes->push_back("modification_time");
-    attributes->push_back("access_time");
-    attributes->push_back("access_counter");
-    attributes->push_back("revision");
-    attributes->push_back("resource_usage");
-    attributes->push_back(TAttributeInfo("recursive_resource_usage", true, true));
-    attributes->push_back(TAttributeInfo("account", true, false, false, EPermission::Administer));
-    attributes->push_back("user_attribute_keys");
-    TObjectProxyBase::ListSystemAttributes(attributes);
+    bool isExternal = node->IsExternal();
+
+    descriptors->push_back(TAttributeDescriptor("parent_id")
+        .SetPresent(node->GetParent()));
+    descriptors->push_back("external");
+    descriptors->push_back(TAttributeDescriptor("cell_tag")
+        .SetPresent(isExternal));
+    descriptors->push_back("accounting_enabled");
+    descriptors->push_back("locks");
+    descriptors->push_back("lock_mode");
+    descriptors->push_back(TAttributeDescriptor("path")
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("key")
+        .SetPresent(hasKey));
+    descriptors->push_back("creation_time");
+    descriptors->push_back("modification_time");
+    descriptors->push_back("access_time");
+    descriptors->push_back("access_counter");
+    descriptors->push_back("revision");
+    descriptors->push_back(TAttributeDescriptor("resource_usage")
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("recursive_resource_usage")
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor("account")
+        .SetReplicated(true)
+        .SetWritePermission(EPermission::Administer));
+    descriptors->push_back("user_attribute_keys");
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -338,10 +412,29 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     const auto* node = GetThisImpl();
     const auto* trunkNode = node->GetTrunkNode();
     bool hasKey = NodeHasKey(Bootstrap_, node);
+    bool isExternal = node->IsExternal();
 
     if (key == "parent_id" && node->GetParent()) {
         BuildYsonFluently(consumer)
             .Value(node->GetParent()->GetId());
+        return true;
+    }
+
+    if (key == "external") {
+        BuildYsonFluently(consumer)
+            .Value(isExternal);
+        return true;
+    }
+
+    if (key == "cell_tag" && isExternal) {
+        BuildYsonFluently(consumer)
+            .Value(node->GetExternalCellTag());
+        return true;
+    }
+
+    if (key == "accounting_enabled") {
+        BuildYsonFluently(consumer)
+            .Value(node->GetAccountingEnabled());
         return true;
     }
 
@@ -421,8 +514,10 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (key == "resource_usage") {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto handler = cypressManager->GetHandler(node);
         BuildYsonFluently(consumer)
-            .Value(GetResourceUsage());
+            .Value(handler->GetTotalResourceUsage(node));
         return true;
     }
 
@@ -433,14 +528,14 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
     }
 
     if (key == "user_attribute_keys") {
-        std::vector<TAttributeInfo> systemAttributes;
+        std::vector<TAttributeDescriptor> systemAttributes;
         ListSystemAttributes(&systemAttributes);
 
         auto customAttributes = GetCustomAttributes()->List();
         yhash_set<Stroka> customAttributesSet(customAttributes.begin(), customAttributes.end());
 
         for (const auto& attribute : systemAttributes) {
-            if (attribute.IsCustom) {
+            if (attribute.Custom) {
                 customAttributesSet.erase(attribute.Key);
             }
         }
@@ -485,6 +580,23 @@ bool TNontemplateCypressNodeProxyBase::DoInvoke(NRpc::IServiceContextPtr context
     }
 
     return false;
+}
+
+void TNontemplateCypressNodeProxyBase::RemoveSelf(
+    TReqRemove* request,
+    TRspRemove* response,
+    TCtxRemovePtr context)
+{
+    auto* node = GetThisImpl();
+    auto objectManager = Bootstrap_->GetObjectManager();
+    if (objectManager->IsForeign(node)) {
+        YCHECK(node->IsTrunk());
+        YCHECK(node->AcquiredLocks().empty());
+        YCHECK(node->GetObjectRefCounter() == 1);
+        objectManager->UnrefObject(node);
+    } else {
+        TNodeBase::RemoveSelf(request, response, std::move(context));
+    }
 }
 
 void TNontemplateCypressNodeProxyBase::GetAttribute(
@@ -629,6 +741,13 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
+void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
+{
+    if (TrunkNode->IsExternal()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed at an external node");
+    }
+}
+
 void TNontemplateCypressNodeProxyBase::SetModified()
 {
     if (TrunkNode->IsAlive() && !ModificationTrackingSuppressed) {
@@ -667,11 +786,6 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     bool /*recursive*/)
 {
     YUNREACHABLE();
-}
-
-TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
-{
-    return TClusterResources(0, 1, 0);
 }
 
 NLogging::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const
@@ -736,6 +850,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         lockId);
 
     context->Reply();
+
+    const auto* node = GetThisImpl();
+    if (node->IsExternal()) {
+        PostToMaster(context, node->GetExternalCellTag());
+    }
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
@@ -754,7 +873,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     if (path.Empty()) {
         if (ignoreExisting && GetThisImpl()->GetType() == type) {
-            ToProto(response->mutable_node_id(), GetId());
+            auto* node = GetThisImpl();
+            ToProto(response->mutable_node_id(), node->GetId());
+            response->set_cell_tag(node->GetExternalCellTag() == NotReplicatedCellTag
+                ? Bootstrap_->GetCellTag()
+                : node->GetExternalCellTag());
             context->Reply();
             return;
         }
@@ -775,19 +898,32 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
 
     auto attributes = request->has_node_attributes()
         ? FromProto(request->node_attributes())
-        : CreateEphemeralAttributes();
+        : std::unique_ptr<IAttributeDictionary>();
 
     auto newProxy = factory->CreateNode(
         type,
-        attributes.get(),
-        request,
-        response);
+        attributes.get());
 
     SetChildNode(factory, path, newProxy, request->recursive());
 
     factory->Commit();
 
-    context->SetResponseInfo("NodeId: %v", newProxy->GetId());
+    auto* newNode = newProxy->GetTrunkNode();
+
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->SetNodeResourceAccounting(newNode, request->enable_accounting());
+
+    const auto& newNodeId = newNode->GetId();
+    auto newNodeCellTag = newNode->GetExternalCellTag() == NotReplicatedCellTag
+        ? Bootstrap_->GetCellTag()
+        : newNode->GetExternalCellTag();
+
+    ToProto(response->mutable_node_id(), newNode->GetId());
+    response->set_cell_tag(newNodeCellTag);
+
+    context->SetResponseInfo("NodeId: %v, CellTag: %v",
+        newNodeId,
+        newNodeCellTag);
 
     context->Reply();
 }
@@ -882,7 +1018,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         sourceParent->RemoveChild(sourceProxy);
     }
 
-    ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
+    ToProto(response->mutable_node_id(), clonedTrunkImpl->GetId());
 
     context->SetRequestInfo("NodeId: %v", clonedTrunkImpl->GetId());
 
@@ -920,10 +1056,10 @@ TIntrusivePtr<ICompositeNode> TNontemplateCompositeCypressNodeProxyBase::AsCompo
     return this;
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    attributes->push_back("count");
-    TNontemplateCypressNodeProxyBase::ListSystemAttributes(attributes);
+    descriptors->push_back("count");
+    TNontemplateCypressNodeProxyBase::ListSystemAttributes(descriptors);
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -1370,59 +1506,6 @@ IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLinkNodeProxy::TDoesNotExistService
-    : public TYPathServiceBase
-    , public TSupportsExists
-{
-private:
-    virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(Exists);
-        return TYPathServiceBase::DoInvoke(context);
-    }
-
-    virtual TResolveResult Resolve(
-        const TYPath& path,
-        IServiceContextPtr /*context*/) override
-    {
-        return TResolveResult::Here(path);
-    }
-
-    virtual void ExistsSelf(
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context) override
-    {
-        ExistsAny(context);
-    }
-
-    virtual void ExistsRecursive(
-        const TYPath& /*path*/,
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context) override
-    {
-        ExistsAny(context);
-    }
-
-    virtual void ExistsAttribute(
-        const TYPath& /*path*/,
-        TReqExists* /*request*/,
-        TRspExists* /*response*/,
-        TCtxExistsPtr context) override
-    {
-        ExistsAny(context);
-    }
-
-    void ExistsAny(TCtxExistsPtr context)
-    {
-        context->SetRequestInfo();
-        Reply(context, false);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TLinkNodeProxy::TLinkNodeProxy(
     INodeTypeHandlerPtr typeHandler,
     TBootstrap* bootstrap,
@@ -1444,10 +1527,9 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     auto propagate = [&] () -> TResolveResult {
         if (method == "Exists") {
             auto proxy = FindTargetProxy();
-            static const auto doesNotExistService = New<TDoesNotExistService>();
             return proxy
                 ? TResolveResult::There(proxy, path)
-                : TResolveResult::There(doesNotExistService, path);
+                : TResolveResult::There(TNonexistingService::Get(), path);
         } else {
             return TResolveResult::There(GetTargetProxy(), path);
         }
@@ -1474,12 +1556,15 @@ IYPathService::TResolveResult TLinkNodeProxy::Resolve(
     }
 }
 
-void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TLinkNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    TBase::ListSystemAttributes(attributes);
-    attributes->push_back("target_id");
-    attributes->push_back(TAttributeInfo("target_path", true, true));
-    attributes->push_back("broken");
+    TBase::ListSystemAttributes(descriptors);
+
+    descriptors->push_back(TAttributeDescriptor("target_id")
+        .SetReplicated(true));
+    descriptors->push_back(TAttributeDescriptor("target_path")
+        .SetOpaque(true));
+    descriptors->push_back("broken");
 }
 
 bool TLinkNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)
@@ -1705,10 +1790,13 @@ void TDocumentNodeProxy::ExistsRecursive(const TYPath& /*path*/, TReqExists* req
     DelegateInvocation(impl->GetValue(), request, response, context);
 }
 
-void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeInfo>* attributes)
+void TDocumentNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
-    TBase::ListSystemAttributes(attributes);
-    attributes->push_back(TAttributeInfo("value", true, true));
+    TBase::ListSystemAttributes(descriptors);
+
+    descriptors->push_back(TAttributeDescriptor("value")
+        .SetOpaque(true)
+        .SetReplicated(true));
 }
 
 bool TDocumentNodeProxy::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer)

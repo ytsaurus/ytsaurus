@@ -43,6 +43,12 @@ class TestChunkServer(YTEnvSetup):
         assert len(nodes) == 3
 
     def _test_decommission(self, path, replica_count):
+        def id_to_hash(id):
+            return id.split('-')[3]
+
+        def node_has_chunk(node, id):
+            return id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]
+
         sleep(2) # wait for background replication
 
         chunk_ids = get(path + "/@chunk_ids")
@@ -53,14 +59,14 @@ class TestChunkServer(YTEnvSetup):
         assert len(nodes) == replica_count
 
         node_to_decommission = nodes[0]
-        assert get("//sys/nodes/%s/@stored_replica_count" % node_to_decommission) == 1
+        assert node_has_chunk(node_to_decommission, chunk_id)
 
         print >>sys.stderr, "Decommissioning node", node_to_decommission
         set("//sys/nodes/%s/@decommissioned" % node_to_decommission, True)
 
         sleep(2) # wait for background replication
 
-        assert get("//sys/nodes/%s/@stored_replica_count" % node_to_decommission) == 0
+        assert not node_has_chunk(node_to_decommission, chunk_id)
         assert len(get("#%s/@stored_replicas" % chunk_id)) == replica_count
 
     def test_decommission_regular(self):
@@ -78,3 +84,38 @@ class TestChunkServer(YTEnvSetup):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", [{"data" : "payload" + str(i)} for i in xrange(0, 10)])
         self._test_decommission("//tmp/j", 3)
+
+    def test_list_chunk_owners(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": "b"}])
+        ls("//sys/chunks", attributes=["owning_nodes"])
+
+##################################################################
+
+class TestChunkServerMulticell(TestChunkServer):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1
+
+    def test_owning_nodes3(self):
+        create("table", "//tmp/t0", attributes={"external": False})
+        create("table", "//tmp/t1", attributes={"cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"cell_tag": 2})
+
+        write_table("//tmp/t1", {"a" : "b"})
+
+        merge(mode="ordered", in_="//tmp/t1", out="//tmp/t0")
+        merge(mode="ordered", in_="//tmp/t1", out="//tmp/t2")
+
+        chunk_ids0 = get("//tmp/t0/@chunk_ids")
+        chunk_ids1 = get("//tmp/t1/@chunk_ids")
+        chunk_ids2 = get("//tmp/t2/@chunk_ids")
+
+        assert chunk_ids0 == chunk_ids1
+        assert chunk_ids1 == chunk_ids2
+        chunk_ids = chunk_ids0
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+
+        assert_items_equal(
+            get("#" + chunk_id + "/@owning_nodes"),
+            ["//tmp/t0", "//tmp/t1", "//tmp/t2"])

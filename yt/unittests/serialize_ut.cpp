@@ -8,6 +8,8 @@ namespace NYT {
 namespace NYTree {
 namespace {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka RemoveSpaces(const Stroka& str)
@@ -26,8 +28,8 @@ Stroka RemoveSpaces(const Stroka& str)
 TEST(TYTreeSerializationTest, All)
 {
     TYsonString canonicalYson(
-        "<\"acl\"={\"execute\"=[\"*\"]}>"
-        "{\"mode\"=755;\"path\"=\"/home/sandello\"}"
+        "<\"acl\"={\"execute\"=[\"*\";];};>"
+        "{\"mode\"=755;\"path\"=\"/home/sandello\";}"
     );
     auto root = ConvertToNode(canonicalYson);
     auto deserializedYson = ConvertToYsonString(root, NYson::EYsonFormat::Text);

@@ -55,7 +55,7 @@ public:
 
 protected:
     template <class TNode>
-    void DoSetSelf(TNode* node, const TYsonString& value)
+    void DoSetSelf(TNode* node, const NYson::TYsonString& value)
     {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
         ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
@@ -151,6 +151,42 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNonexistingService
+    : public TYPathServiceBase
+    , public TSupportsExists
+{
+public:
+    static IYPathServicePtr Get();
+
+private:
+    virtual bool DoInvoke(NRpc::IServiceContextPtr context);
+
+    virtual TResolveResult Resolve(
+        const TYPath& path,
+        NRpc::IServiceContextPtr /*context*/);
+
+    virtual void ExistsSelf(
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context);
+
+    virtual void ExistsRecursive(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context);
+
+    virtual void ExistsAttribute(
+        const TYPath& /*path*/,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        TCtxExistsPtr context);
+
+    void ExistsAny(TCtxExistsPtr context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define YTREE_NODE_TYPE_OVERRIDES(key) \
 public: \
     virtual ::NYT::NYTree::ENodeType GetType() const override \
@@ -171,7 +207,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSetPtr context) override \
     { \
         UNUSED(response); \
-        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYTree::TYsonString(request->value())); \
+        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
         context->Reply(); \
     }
 

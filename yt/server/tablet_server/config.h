@@ -24,6 +24,9 @@ public:
     //! tablet cell peers are no longer assigned and revoked.
     int SafeOnlineNodeCount;
 
+    //! Internal between tablet cell examinations.
+    TDuration CellScanPeriod;
+
     TTabletManagerConfig()
     {
         RegisterParameter("peer_failover_timeout", PeerFailoverTimeout)
@@ -34,6 +37,8 @@ public:
         RegisterParameter("safe_online_node_count", SafeOnlineNodeCount)
             .GreaterThanOrEqual(0)
             .Default(0);
+        RegisterParameter("cell_scan_period", CellScanPeriod)
+            .Default(TDuration::Seconds(1));
     }
 };
 

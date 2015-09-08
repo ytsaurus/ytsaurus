@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "hydra_facade.h"
 #include "world_initializer.h"
+#include "multicell_manager.h"
 #include "config.h"
 #include "private.h"
 
@@ -33,6 +34,8 @@
 
 #include <ytlib/election/cell_manager.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/transaction_client/timestamp_provider.h>
 #include <ytlib/transaction_client/remote_timestamp_provider.h>
 
@@ -48,11 +51,13 @@
 #include <server/hive/hive_manager.h>
 #include <server/hive/transaction_manager.h>
 #include <server/hive/transaction_supervisor.h>
+#include <server/hive/cell_directory_synchronizer.h>
 
 #include <server/node_tracker_server/node_tracker.h>
 
 #include <server/object_server/object_manager.h>
 #include <server/object_server/object_service.h>
+#include <server/object_server/sys_node.h>
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/cypress_integration.h>
@@ -77,6 +82,7 @@
 #include <server/table_server/table_node.h>
 
 #include <server/journal_server/journal_node.h>
+#include <server/journal_server/journal_manager.h>
 
 #include <server/orchid/cypress_integration.h>
 
@@ -101,6 +107,7 @@ using namespace NTransactionServer;
 using namespace NChunkServer;
 using namespace NJournalServer;
 using namespace NObjectServer;
+using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NMonitoring;
 using namespace NOrchid;
@@ -131,19 +138,59 @@ TBootstrap::TBootstrap(
 TBootstrap::~TBootstrap()
 { }
 
+TCellMasterConfigPtr TBootstrap::GetConfig() const
+{
+    return Config_;
+}
+
+bool TBootstrap::IsPrimaryMaster() const
+{
+    return PrimaryMaster_;
+}
+
+bool TBootstrap::IsSecondaryMaster() const
+{
+    return SecondaryMaster_;
+}
+
+bool TBootstrap::IsMulticell() const
+{
+    return Multicell_;
+}
+
 const TCellId& TBootstrap::GetCellId() const
 {
-    return Config_->Master->CellId;
+    return CellId_;
 }
 
 TCellTag TBootstrap::GetCellTag() const
 {
-    return Config_->Master->CellTag;
+    return CellTag_;
 }
 
-TCellMasterConfigPtr TBootstrap::GetConfig() const
+const TCellId& TBootstrap::GetPrimaryCellId() const
 {
-    return Config_;
+    return PrimaryCellId_;
+}
+
+TCellTag TBootstrap::GetPrimaryCellTag() const
+{
+    return PrimaryCellTag_;
+}
+
+TCellId TBootstrap::GetSecondaryCellId(TCellTag cellTag) const
+{
+    return ReplaceCellTagInId(PrimaryCellId_, cellTag);
+}
+
+const std::vector<TCellTag>& TBootstrap::GetSecondaryCellTags() const
+{
+    return SecondaryCellTags_;
+}
+
+TMulticellManagerPtr TBootstrap::GetMulticellManager() const
+{
+    return MulticellManager_;
 }
 
 IServerPtr TBootstrap::GetRpcServer() const
@@ -206,6 +253,11 @@ TChunkManagerPtr TBootstrap::GetChunkManager() const
     return ChunkManager_;
 }
 
+NJournalServer::TJournalManagerPtr TBootstrap::GetJournalManager() const
+{
+    return JournalManager_;
+}
+
 TSecurityManagerPtr TBootstrap::GetSecurityManager() const
 {
     return SecurityManager_;
@@ -264,13 +316,88 @@ void TBootstrap::TryLoadSnapshot(const Stroka& fileName, bool dump)
     _exit(0);
 }
 
+TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const Stroka& localAddress)
+{
+    for (TPeerId id = 0; id < config->Addresses.size(); ++id) {
+        const auto& peerAddress = config->Addresses[id];
+        if (peerAddress && to_lower(*peerAddress) == to_lower(localAddress)) {
+            return id;
+        }
+    }
+    return InvalidPeerId;
+}
+
 void TBootstrap::DoInitialize()
 {
-    LOG_INFO("Initializing cell master (CellId: %v, CellTag: %v)",
-        GetCellId(),
-        GetCellTag());
+    Config_->PrimaryMaster->ValidateAllPeersPresent();
+    for (auto cellConfig : Config_->SecondaryMasters) {
+        cellConfig->ValidateAllPeersPresent();
+    }
 
-    Config_->Master->ValidateAllPeersPresent();
+    auto localAdddress = BuildServiceAddress(
+        TAddressResolver::Get()->GetLocalHostName(),
+        Config_->RpcPort);
+
+    TCellConfigPtr localCellConfig;
+    TPeerId localPeerId;
+
+    auto primaryId = ComputePeerId(Config_->PrimaryMaster, localAdddress);
+    if (primaryId == InvalidPeerId) {
+        for (auto cellConfig : Config_->SecondaryMasters) {
+            auto secondaryId = ComputePeerId(cellConfig, localAdddress);
+            if (secondaryId != InvalidPeerId) {
+                SecondaryMaster_ = true;
+                localCellConfig = cellConfig;
+                localPeerId = secondaryId;
+                break;
+            }
+        }
+    } else {
+        PrimaryMaster_ = true;
+        localCellConfig = Config_->PrimaryMaster;
+        localPeerId = primaryId;
+    }
+
+    if (!PrimaryMaster_ && !SecondaryMaster_) {
+        THROW_ERROR_EXCEPTION("Local address %v is not recognized as a valid master address",
+            localAdddress);
+    }
+
+    Multicell_ = !Config_->SecondaryMasters.empty();
+
+    CellId_ = localCellConfig->CellId;
+    CellTag_ = CellTagFromId(CellId_);
+
+    PrimaryCellId_ = Config_->PrimaryMaster->CellId;
+    PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
+
+    for (const auto& cellConfig : Config_->SecondaryMasters) {
+        SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
+    }
+
+    if (PrimaryMaster_) {
+        LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: [%v], PeerId: %v)",
+            CellId_,
+            CellTag_,
+            JoinToString(SecondaryCellTags_),
+            localPeerId);
+    } else if (SecondaryMaster_) {
+        LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
+            CellId_,
+            CellTag_,
+            PrimaryCellTag_,
+            localPeerId);
+    }
+
+    CellDirectory_ = New<TCellDirectory>(
+        Config_->CellDirectory,
+        GetBusChannelFactory(),
+        NNodeTrackerClient::InterconnectNetworkName);
+
+    YCHECK(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
+    for (const auto& cellConfig : Config_->SecondaryMasters) {
+        YCHECK(CellDirectory_->ReconfigureCell(cellConfig));
+    }
 
     HttpServer_.reset(new NHttp::TServer(Config_->MonitoringPort));
 
@@ -279,25 +406,10 @@ void TBootstrap::DoInitialize()
 
     RpcServer_ = CreateBusServer(busServer);
 
-    auto selfAddress = BuildServiceAddress(
-        TAddressResolver::Get()->GetLocalHostName(),
-        Config_->RpcPort);
-
-    const auto& addresses = Config_->Master->Addresses;
-
-    auto selfIt = std::find_if(addresses.begin(), addresses.end(), [&] (const TNullable<Stroka>& maybeAddress) {
-        return to_lower(*maybeAddress) == to_lower(selfAddress);
-    });
-    if (selfIt == addresses.end()) {
-        THROW_ERROR_EXCEPTION("Missing self address %Qv is the peer list",
-            selfAddress);
-    }
-    auto selfId = std::distance(addresses.begin(), selfIt);
-
     CellManager_ = New<TCellManager>(
-        Config_->Master,
+        localCellConfig,
         GetBusChannelFactory(),
-        selfId);
+        localPeerId);
 
     ChangelogStore_ = CreateLocalChangelogStore(
         "ChangelogFlush",
@@ -313,18 +425,21 @@ void TBootstrap::DoInitialize()
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
 
+    MulticellManager_ = New<TMulticellManager>(Config_->MulticellManager, this);
+
     WorldInitializer_ = New<TWorldInitializer>(Config_, this);
 
-    CellDirectory_ = New<TCellDirectory>(
-        Config_->CellDirectory,
-        GetBusChannelFactory(),
-        NNodeTrackerClient::InterconnectNetworkName);
-    CellDirectory_->ReconfigureCell(Config_->Master);
+    if (SecondaryMaster_) {
+        CellDirectorySynchronizer_ = New<TCellDirectorySynchronizer>(
+            Config_->CellDirectorySynchronizer,
+            CellDirectory_,
+            PrimaryCellId_);
+    }
 
     HiveManager_ = New<THiveManager>(
         Config_->HiveManager,
         CellDirectory_,
-        GetCellId(),
+        CellId_,
         HydraFacade_->GetAutomatonInvoker(),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
@@ -335,13 +450,15 @@ void TBootstrap::DoInitialize()
 
     SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
 
-    NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
-
     TransactionManager_ = New<TTransactionManager>(Config_->TransactionManager, this);
+
+    NodeTracker_ = New<TNodeTracker>(Config_->NodeTracker, this);
 
     CypressManager_ = New<TCypressManager>(Config_->CypressManager, this);
 
     ChunkManager_ = New<TChunkManager>(Config_->ChunkManager, this);
+
+    JournalManager_ = New<NJournalServer::TJournalManager>(Config_->JournalManager, this);
 
     TabletManager_ = New<TTabletManager>(Config_->TabletManager, this);
 
@@ -368,11 +485,14 @@ void TBootstrap::DoInitialize()
     fileSnapshotStore->Initialize();
     ObjectManager_->Initialize();
     SecurityManager_->Initialize();
-    NodeTracker_->Initialize();
     TransactionManager_->Initialize();
+    NodeTracker_->Initialize();
     CypressManager_->Initialize();
     ChunkManager_->Initialize();
     TabletManager_->Initialize();
+    if (CellDirectorySynchronizer_) {
+        CellDirectorySynchronizer_->Start();
+    }
 
     MonitoringManager_ = New<TMonitoringManager>();
     MonitoringManager_->Register(
@@ -403,12 +523,13 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
     RpcServer_->RegisterService(TransactionSupervisor_->GetRpcService()); // cell realm
-    RpcServer_->RegisterService(New<TLocalSnapshotService>(GetCellId(), fileSnapshotStore)); // cell realm
+    RpcServer_->RegisterService(New<TLocalSnapshotService>(CellId_, fileSnapshotStore)); // cell realm
     RpcServer_->RegisterService(CreateNodeTrackerService(Config_->NodeTracker, this)); // master hydra service
     RpcServer_->RegisterService(CreateObjectService(this)); // master hydra service
     RpcServer_->RegisterService(CreateJobTrackerService(this)); // master hydra service
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
 
+    CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostChunkMap));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::LostVitalChunkMap));
@@ -423,8 +544,8 @@ void TBootstrap::DoInitialize()
     CypressManager_->RegisterHandler(CreateTopmostTransactionMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateLockMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateOrchidTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateCellNodeTypeHandler(this));
-    CypressManager_->RegisterHandler(CreateCellNodeMapTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateClusterNodeNodeTypeHandler(this));
+    CypressManager_->RegisterHandler(CreateClusterNodeMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateRackMapTypeHandler(this));
     CypressManager_->RegisterHandler(CreateFileTypeHandler(this));
     CypressManager_->RegisterHandler(CreateTableTypeHandler(this));
@@ -444,7 +565,7 @@ void TBootstrap::DoInitialize()
 
 void TBootstrap::DoRun()
 {
-    HydraFacade_->Start();
+    HydraFacade_->Initialize();
 
     MonitoringManager_->Start();
 

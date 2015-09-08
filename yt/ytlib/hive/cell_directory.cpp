@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "cell_directory.h"
 #include "config.h"
+#include "hive_service_proxy.h"
+#include "private.h"
 
 #include <core/concurrency/rw_spinlock.h>
 
@@ -24,8 +26,14 @@ using namespace NYTree;
 using namespace NHydra;
 using namespace NElection;
 using namespace NNodeTrackerClient;
+using namespace NRpc;
 
+using NYT::ToProto;
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto& Logger = HiveLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,9 +43,9 @@ TCellConfigPtr TCellDescriptor::ToConfig(const Stroka& networkName) const
     config->CellId = CellId;
     for (const auto& peer : Peers) {
         config->Addresses.push_back(
-            peer
-            ? MakeNullable(peer->GetAddressOrThrow(networkName))
-            : Null);
+            peer.IsNull()
+            ? Null
+            : MakeNullable(peer.GetAddressOrThrow(networkName)));
     }
     return config;
 }
@@ -68,27 +76,20 @@ void ToProto(NProto::TCellDescriptor* protoDescriptor, const TCellDescriptor& de
 {
     ToProto(protoDescriptor->mutable_cell_id(), descriptor.CellId);
     protoDescriptor->set_config_version(descriptor.ConfigVersion);
-    for (const auto& maybePeer : descriptor.Peers) {
-        auto* protoPeer = protoDescriptor->add_peers();
-        ToProto(protoPeer, maybePeer.Get(TNodeDescriptor()));
-    }
+    ToProto(protoDescriptor->mutable_peers(), descriptor.Peers);
 }
 
 void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& protoDescriptor)
 {
     descriptor->CellId = FromProto<TCellId>(protoDescriptor.cell_id());
     descriptor->ConfigVersion = protoDescriptor.config_version();
-    for (const auto& protoPeer : protoDescriptor.peers()) {
-        descriptor->Peers.push_back(
-            protoPeer.addresses().entries_size() == 0
-            ? Null
-            : MakeNullable(FromProto<TNodeDescriptor>(protoPeer)));
-    }
+    descriptor->Peers = FromProto<TNodeDescriptor>(protoDescriptor.peers());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellDirectory::TImpl
+    : public TRefCounted
 {
 public:
     TImpl(
@@ -117,6 +118,13 @@ public:
         return channel;
     }
 
+    IChannelPtr GetChannel(const TCellId& cellId, EPeerKind peerKind)
+    {
+        auto channel = FindChannel(cellId, peerKind);
+        YCHECK(channel);
+        return channel;
+    }
+
     std::vector<TCellInfo> GetRegisteredCells()
     {
         TReaderGuard guard(SpinLock_);
@@ -125,10 +133,23 @@ public:
         for (const auto& pair : RegisteredCellMap_) {
             TCellInfo info;
             info.CellId = pair.first;
-            info.ConfigVersion = pair.second.ConfigVersion;
+            info.ConfigVersion = pair.second.Descriptor.ConfigVersion;
             result.push_back(info);
         }
         return result;
+    }
+
+    TFuture<void> Synchronize(IChannelPtr channel)
+    {
+        LOG_INFO("Synchronizing cell directory");
+
+        THiveServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Config_->SyncRpcTimeout);
+
+        auto req = proxy.SyncCells();
+        ToProto(req->mutable_known_cells(), GetRegisteredCells());
+
+        return req->Invoke().Apply(BIND(&TImpl::OnSynchronized, MakeStrong(this)));
     }
 
     bool IsCellUnregistered(const TCellId& cellId)
@@ -137,25 +158,16 @@ public:
         return UnregisteredCellIds_.find(cellId) != UnregisteredCellIds_.end();
     }
 
-    TNullable<std::vector<Stroka>> FindAddresses(const TCellId& cellId)
+    TNullable<TCellDescriptor> FindDescriptor(const TCellId& cellId)
     {
         TReaderGuard guard(SpinLock_);
         auto it = RegisteredCellMap_.find(cellId);
-        if (it == RegisteredCellMap_.end()) {
-            return Null;
-        }
-        std::vector<Stroka> addresses;
-        for (const auto& maybeAddress : it->second.Config->Addresses) {
-            if (maybeAddress) {
-                addresses.push_back(*maybeAddress);
-            }
-        }
-        return addresses;
+        return it == RegisteredCellMap_.end() ? Null : MakeNullable(it->second.Descriptor);
     }
 
-    std::vector<Stroka> GetAddressesOrThrow(const TCellId& cellId)
+    TCellDescriptor GetDescriptorOrThrow(const TCellId& cellId)
     {
-        auto result = FindAddresses(cellId);
+        auto result = FindDescriptor(cellId);
         if (!result) {
             THROW_ERROR_EXCEPTION("Unknown cell %v",
                 cellId);
@@ -165,24 +177,13 @@ public:
 
     bool ReconfigureCell(TCellConfigPtr config, int configVersion)
     {
-        TWriterGuard guard(SpinLock_);
-        bool result = false;
-        if (UnregisteredCellIds_.find(config->CellId) == UnregisteredCellIds_.end()) {
-            auto it = RegisteredCellMap_.find(config->CellId);
-            auto* entry = (it == RegisteredCellMap_.end()) ? nullptr : &it->second;
-            if (!entry) {
-                auto it = RegisteredCellMap_.insert(std::make_pair(config->CellId, TEntry())).first;
-                entry = &it->second;
-                result = true;
-            }
-            if (entry->ConfigVersion < configVersion) {
-                entry->Config = CloneYsonSerializable(config);
-                entry->ConfigVersion = configVersion;
-                InitChannel(entry);
-                result = true;
-            }
+        TCellDescriptor descriptor;
+        descriptor.CellId = config->CellId;
+        descriptor.ConfigVersion = configVersion;
+        for (const auto& maybeAddress : config->Addresses) {
+            descriptor.Peers.push_back(maybeAddress ? TNodeDescriptor(*maybeAddress) : TNodeDescriptor());
         }
-        return result;
+        return ReconfigureCell(descriptor);
     }
 
     bool ReconfigureCell(TPeerConnectionConfigPtr config, int configVersion)
@@ -197,22 +198,43 @@ public:
 
     bool ReconfigureCell(const TCellDescriptor& descriptor)
     {
-        auto cellConfig = New<TCellConfig>();
-        cellConfig->CellId = descriptor.CellId;
-        for (const auto& peer : descriptor.Peers) {
-            cellConfig->Addresses.push_back(
-                peer
-                ? MakeNullable(peer->GetAddressOrThrow(NetworkName_))
-                : Null);
+        TWriterGuard guard(SpinLock_);
+        bool result = false;
+        if (UnregisteredCellIds_.find(descriptor.CellId) == UnregisteredCellIds_.end()) {
+            auto it = RegisteredCellMap_.find(descriptor.CellId);
+            auto* entry = (it == RegisteredCellMap_.end()) ? nullptr : &it->second;
+            if (!entry) {
+                auto it = RegisteredCellMap_.insert(std::make_pair(descriptor.CellId, TEntry())).first;
+                entry = &it->second;
+                result = true;
+            }
+            if (entry->Descriptor.ConfigVersion < descriptor.ConfigVersion) {
+                entry->Descriptor = descriptor;
+                InitChannel(entry);
+                result = true;
+            }
         }
-        return ReconfigureCell(cellConfig, descriptor.ConfigVersion);
+        if (result) {
+            LOG_INFO("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
+                descriptor.CellId,
+                descriptor.ConfigVersion);
+        }
+        return result;
     }
 
     bool UnregisterCell(const TCellId& cellId)
     {
-        TWriterGuard guard(SpinLock_);
-        UnregisteredCellIds_.insert(cellId);
-        return RegisteredCellMap_.erase(cellId) == 1;
+        bool result;
+        {
+            TWriterGuard guard(SpinLock_);
+            UnregisteredCellIds_.insert(cellId);
+            result = RegisteredCellMap_.erase(cellId) == 1;
+        }
+        if (result) {
+            LOG_INFO("Cell unregistered (CellId: %v)",
+                cellId);
+        }
+        return result;
     }
 
     void Clear()
@@ -228,8 +250,7 @@ private:
 
     struct TEntry
     {
-        TCellConfigPtr Config;
-        int ConfigVersion = -1;
+        TCellDescriptor Descriptor;
         TEnumIndexedVector<IChannelPtr, EPeerKind> Channels;
     };
 
@@ -241,10 +262,10 @@ private:
     void InitChannel(TEntry* entry)
     {
         auto peerConfig = New<TPeerConnectionConfig>();
-        peerConfig->CellId = entry->Config->CellId;
-        for (const auto& maybeAddress : entry->Config->Addresses) {
-            if (maybeAddress) {
-                peerConfig->Addresses.push_back(*maybeAddress);
+        peerConfig->CellId = entry->Descriptor.CellId;
+        for (const auto& peer : entry->Descriptor.Peers) {
+            if (!peer.IsNull()) {
+                peerConfig->Addresses.push_back(peer.GetAddressOrThrow(NetworkName_));
             }
         }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
@@ -252,12 +273,32 @@ private:
         peerConfig->HardBackoffTime = Config_->HardBackoffTime;
 
         for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
-            auto channel = CreatePeerChannel(peerConfig, ChannelFactory_, kind);
-            channel->SetDefaultTimeout(Config_->RpcTimeout);
-            entry->Channels[kind] = channel;
+            entry->Channels[kind] = CreatePeerChannel(peerConfig, ChannelFactory_, kind);
         }
     }
-    
+
+    void OnSynchronized(const THiveServiceProxy::TErrorOrRspSyncCellsPtr& rspOrError)
+    {
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error synchronizing cell directory")
+                << rspOrError;
+        }
+
+        const auto& rsp = rspOrError.Value();
+
+        for (const auto& info : rsp->cells_to_unregister()) {
+            auto cellId = FromProto<TCellId>(info.cell_id());
+            UnregisterCell(cellId);
+        }
+
+        for (const auto& info : rsp->cells_to_reconfigure()) {
+            auto descriptor = FromProto<NHive::TCellDescriptor>(info.cell_descriptor());
+            ReconfigureCell(descriptor);
+        }
+
+        LOG_INFO("Cell directory synchronized");
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,7 +307,7 @@ TCellDirectory::TCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory,
     const Stroka& networkName)
-    : Impl_(new TImpl(
+    : Impl_(New<TImpl>(
         config,
         channelFactory,
         networkName))
@@ -285,19 +326,29 @@ IChannelPtr TCellDirectory::GetChannelOrThrow(const TCellId& cellId, EPeerKind p
     return Impl_->GetChannelOrThrow(cellId, peerKind);
 }
 
-TNullable<std::vector<Stroka>> TCellDirectory::FindAddresses(const TCellId& cellId)
+IChannelPtr TCellDirectory::GetChannel(const TCellId& cellId, EPeerKind peerKind)
 {
-    return Impl_->FindAddresses(cellId);
+    return Impl_->GetChannel(cellId, peerKind);
 }
 
-std::vector<Stroka> TCellDirectory::GetAddressesOrThrow(const TCellId& cellId)
+TNullable<TCellDescriptor> TCellDirectory::FindDescriptor(const TCellId& cellId)
 {
-    return Impl_->GetAddressesOrThrow(cellId);
+    return Impl_->FindDescriptor(cellId);
+}
+
+TCellDescriptor TCellDirectory::GetDescriptorOrThrow(const TCellId& cellId)
+{
+    return Impl_->GetDescriptorOrThrow(cellId);
 }
 
 std::vector<TCellInfo> TCellDirectory::GetRegisteredCells()
 {
     return Impl_->GetRegisteredCells();
+}
+
+TFuture<void> TCellDirectory::Synchronize(NRpc::IChannelPtr channel)
+{
+    return Impl_->Synchronize(channel);
 }
 
 bool TCellDirectory::IsCellUnregistered(const TCellId& cellId)

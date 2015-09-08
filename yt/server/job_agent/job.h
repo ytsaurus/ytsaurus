@@ -51,10 +51,10 @@ struct IJob
     virtual double GetProgress() const = 0;
     virtual void SetProgress(double value) = 0;
 
-    virtual void SetStatistics(const NYTree::TYsonString& statistics) = 0;
+    virtual void SetStatistics(const NYson::TYsonString& statistics) = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContexts() const = 0;
-    virtual NYTree::TYsonString Strace() const = 0;
+    virtual NYson::TYsonString Strace() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

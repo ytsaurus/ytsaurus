@@ -5,6 +5,7 @@ set( SRCS
   ${BASE}/election_service_proxy.cpp
   ${BASE}/private.cpp
   ${BASE}/public.cpp
+  ${BASE}/config.cpp
 )
 set( HDRS
   ${BASE}/cell_manager.h

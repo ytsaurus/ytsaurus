@@ -19,6 +19,7 @@ namespace NYT {
 namespace NChunkServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,14 +40,17 @@ private:
         return ChunkServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        attributes->push_back("children_ids");
-        attributes->push_back("parent_ids");
-        attributes->push_back("statistics");
-        attributes->push_back(TAttributeInfo("tree", true, true));
-        attributes->push_back(TAttributeInfo("owning_nodes", true, true));
-        TBase::ListSystemAttributes(attributes);
+        TBase::ListSystemAttributes(descriptors);
+
+        descriptors->push_back("children_ids");
+        descriptors->push_back("parent_ids");
+        descriptors->push_back("statistics");
+        descriptors->push_back(TAttributeDescriptor("tree")
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("owning_nodes")
+            .SetOpaque(true));
     }
 
     void TraverseTree(TChunkTree* chunkTree, NYson::IYsonConsumer* consumer)
@@ -86,7 +90,7 @@ private:
         auto chunkManager = Bootstrap_->GetChunkManager();
         auto cypressManager = Bootstrap_->GetCypressManager();
 
-        const auto* chunkList = GetThisTypedImpl();
+        auto* chunkList = GetThisTypedImpl();
 
         if (key == "children_ids") {
             BuildYsonFluently(consumer)
@@ -113,34 +117,37 @@ private:
         }
 
         if (key == "tree") {
-            TraverseTree(const_cast<TChunkList*>(chunkList), consumer);
-            return true;
-        }
-
-        if (key == "owning_nodes") {
-            SerializeOwningNodesPaths(
-                cypressManager,
-                const_cast<TChunkList*>(chunkList),
-                consumer);
+            TraverseTree(chunkList, consumer);
             return true;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    {
+        auto* chunkList = GetThisTypedImpl();
+
+        if (key == "owning_nodes") {
+            return GetMulticellOwningNodes(Bootstrap_, chunkList);
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Attach);
+        DISPATCH_YPATH_SERVICE_METHOD(GetStatistics);
         return TBase::DoInvoke(context);
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Attach)
     {
-        UNUSED(response);
-
         DeclareMutating();
 
         auto childrenIds = FromProto<TChunkTreeId>(request->children_ids());
+        bool requestStatistics = request->request_statistics();
 
         context->SetRequestInfo("Children: [%v]", JoinToString(childrenIds));
 
@@ -156,6 +163,22 @@ private:
 
         auto* chunkList = GetThisTypedImpl();
         chunkManager->AttachToChunkList(chunkList, children);
+
+        if (requestStatistics) {
+            *response->mutable_statistics() = chunkList->Statistics().ToDataStatistics();
+        }
+
+        context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetStatistics)
+    {
+        DeclareNonMutating();
+
+        context->SetRequestInfo();
+
+        auto* chunkList = GetThisTypedImpl();
+        *response->mutable_statistics() = chunkList->Statistics().ToDataStatistics();
 
         context->Reply();
     }

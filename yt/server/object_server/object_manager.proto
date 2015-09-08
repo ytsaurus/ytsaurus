@@ -1,6 +1,8 @@
 package NYT.NObjectServer.NProto;
 
 import "yt/core/misc/guid.proto";
+import "yt/core/ytree/attributes.proto";
+import "yt/ytlib/object_client/master_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,3 +21,34 @@ message TReqDestroyObjects
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqCreateForeignObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+    optional NYT.NProto.TGuid transaction_id = 2;
+    required int32 type = 3;
+    optional NYT.NYTree.NProto.TAttributes object_attributes = 4;
+    optional NYT.NProto.TGuid account_id = 5;
+    optional NYT.NObjectClient.NProto.TObjectCreationExtensions extensions = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveForeignObject
+{
+    required NYT.NProto.TGuid object_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnrefExportedObjects
+{
+    message TUnrefEntry
+    {
+        required NYT.NProto.TGuid object_id = 1;
+        required int32 import_ref_counter = 2;
+    }
+
+    repeated TUnrefEntry entries = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

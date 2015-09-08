@@ -17,6 +17,9 @@
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
+#include <ytlib/object_client/helpers.h>
+
+#include <ytlib/hive/cell_directory.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/mutation.h>
@@ -33,6 +36,8 @@
 #include <server/cell_master/serialize.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
+#include <server/cell_master/config.h>
 
 #include <server/security_server/account.h>
 #include <server/security_server/user.h>
@@ -40,11 +45,14 @@
 
 #include <server/hive/transaction_supervisor.h>
 
+#include <server/transaction_server/transaction_manager.pb.h>
+
 namespace NYT {
 namespace NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NHydra;
@@ -77,24 +85,28 @@ private:
         return TransactionServerLogger;
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* transaction = GetThisTypedImpl();
 
-        attributes->push_back("state");
-        attributes->push_back(TAttributeInfo("timeout", transaction->GetTimeout().HasValue()));
-        attributes->push_back("uncommitted_accounting_enabled");
-        attributes->push_back("staged_accounting_enabled");
-        attributes->push_back("parent_id");
-        attributes->push_back("start_time");
-        attributes->push_back("nested_transaction_ids");
-        attributes->push_back("staged_object_ids");
-        attributes->push_back("staged_node_ids");
-        attributes->push_back("branched_node_ids");
-        attributes->push_back("locked_node_ids");
-        attributes->push_back("lock_ids");
-        attributes->push_back("resource_usage");
-        TBase::ListSystemAttributes(attributes);
+        descriptors->push_back("state");
+        descriptors->push_back(TAttributeDescriptor("timeout")
+            .SetPresent(transaction->GetTimeout().HasValue()));
+        descriptors->push_back("accounting_enabled");
+        descriptors->push_back("parent_id");
+        descriptors->push_back("start_time");
+        descriptors->push_back("nested_transaction_ids");
+        descriptors->push_back("staged_object_ids");
+        descriptors->push_back("exported_object_ids");
+        descriptors->push_back("imported_object_ids");
+        descriptors->push_back("staged_node_ids");
+        descriptors->push_back("branched_node_ids");
+        descriptors->push_back("locked_node_ids");
+        descriptors->push_back("lock_ids");
+        descriptors->push_back("resource_usage");
+        descriptors->push_back("multicell_resource_usage");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -113,15 +125,9 @@ private:
             return true;
         }
 
-        if (key == "uncommitted_accounting_enabled") {
+        if (key == "accounting_enabled") {
             BuildYsonFluently(consumer)
-                .Value(transaction->GetUncommittedAccountingEnabled());
-            return true;
-        }
-
-        if (key == "staged_accounting_enabled") {
-            BuildYsonFluently(consumer)
-                .Value(transaction->GetStagedAccountingEnabled());
+                .Value(transaction->GetAccountingEnabled());
             return true;
         }
 
@@ -148,6 +154,22 @@ private:
         if (key == "staged_object_ids") {
             BuildYsonFluently(consumer)
                 .DoListFor(transaction->StagedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
+                    fluent.Item().Value(object->GetId());
+                });
+            return true;
+        }
+
+        if (key == "exported_object_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
+                    fluent.Item().Value(object->GetId());
+                });
+            return true;
+        }
+
+        if (key == "imported_object_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(transaction->ImportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
                     fluent.Item().Value(object->GetId());
                 });
             return true;
@@ -185,17 +207,106 @@ private:
             return true;
         }
 
+        return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override
+    {
         if (key == "resource_usage") {
-            BuildYsonFluently(consumer)
-                .DoMapFor(transaction->AccountResourceUsage(), [=] (TFluentMap fluent, const TTransaction::TAccountResourcesMap::value_type& pair) {
-                    const auto* account = pair.first;
-                    const auto& usage = pair.second;
-                    fluent.Item(account->GetName()).Value(usage);
-                });
-            return true;
+            return GetAggregatedResourceUsageMap().Apply(BIND([] (const TAccountResourcesMap& usageMap) {
+                return BuildYsonStringFluently()
+                    .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                        fluent
+                            .Item(nameAndUsage.first)
+                            .Value(nameAndUsage.second);
+                    });
+            }));
+        }
+        
+        if (key == "multicell_resource_usage") {
+            return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellUsageMap) {
+                return BuildYsonStringFluently()
+                    .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
+                        fluent
+                            .Item(ToString(cellTagAndUsageMap.first))
+                            .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                                fluent
+                                    .Item(nameAndUsage.first)
+                                    .Value(nameAndUsage.second);
+                            });
+                    });
+            }));
+        }
+        
+        return Null;
+    }
+
+    // account name -> cluster resources
+    using TAccountResourcesMap = yhash<Stroka, NSecurityServer::TClusterResources>;
+    // cell tag -> account name -> cluster resources
+    using TMulticellAccountResourcesMap = yhash_map<TCellTag, TAccountResourcesMap>;
+
+    TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
+    {
+        std::vector<TFuture<std::pair<TCellTag, TAccountResourcesMap>>> asyncResults;
+        asyncResults.push_back(GetLocalResourcesMap(Bootstrap_->GetCellTag()));
+        if (Bootstrap_->IsPrimaryMaster()) {
+            for (auto cellTag : Bootstrap_->GetSecondaryCellTags()) {
+                asyncResults.push_back(GetRemoteResourcesMap(cellTag));
+            }
         }
 
-        return TBase::GetBuiltinAttribute(key, consumer);
+        return Combine(asyncResults).Apply(BIND([] (const std::vector<std::pair<TCellTag, TAccountResourcesMap>>& results) {
+            TMulticellAccountResourcesMap multicellMap;
+            for (const auto& pair : results) {
+                YCHECK(multicellMap.insert(pair).second);
+            }
+            return multicellMap;
+        }));
+    }
+
+    TFuture<TAccountResourcesMap> GetAggregatedResourceUsageMap()
+    {
+        return GetMulticellResourceUsageMap().Apply(BIND([] (const TMulticellAccountResourcesMap& multicellMap) {
+            TAccountResourcesMap aggregatedMap;
+            for (const auto& cellTagAndUsageMap : multicellMap) {
+                for (const auto& nameAndUsage : cellTagAndUsageMap.second) {
+                    aggregatedMap[nameAndUsage.first] += nameAndUsage.second;
+                }
+            }
+            return aggregatedMap;
+        }));
+    }
+
+    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetLocalResourcesMap(TCellTag cellTag)
+    {
+        const auto* transaction = GetThisTypedImpl();
+        TAccountResourcesMap result;
+        for (const auto& pair : transaction->AccountResourceUsage()) {
+            YCHECK(result.insert(std::make_pair(pair.first->GetName(), pair.second)).second);
+        }
+        return MakeFuture(std::make_pair(cellTag, result));
+    }
+
+    TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
+    {
+        auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
+        auto cellDirectory = Bootstrap_->GetCellDirectory();
+        auto channel = cellDirectory->GetChannel(cellId);
+
+        TObjectServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+        auto id = GetId();
+        auto req = TYPathProxy::Get(FromObjectId(id) + "/@resource_usage");
+        return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching resource usage of transaction %v from cell %v",
+                id,
+                cellTag);
+            const auto& rsp = rspOrError.Value();
+            return std::make_pair(
+                cellTag,
+                ConvertTo<TAccountResourcesMap>(TYsonString(rsp->value())));
+        }));
     }
 
 };
@@ -207,6 +318,18 @@ class TTransactionManager::TTransactionTypeHandler
 {
 public:
     explicit TTransactionTypeHandler(TImpl* owner);
+
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
 
     virtual EObjectType GetType() const override
     {
@@ -221,14 +344,14 @@ public:
     }
 
     virtual TNonversionedObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* parent,
-        TAccount* /*account*/,
+        TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        const TObjectCreationExtensions& extensions) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
 
     virtual Stroka DoGetName(TTransaction* transaction) override
@@ -246,6 +369,14 @@ private:
         return &transaction->Acd();
     }
 
+    virtual void DoPopulateObjectReplicationRequest(
+        const TTransaction* transaction,
+        NObjectServer::NProto::TReqCreateForeignObject* request) override
+    {
+        if (transaction->GetParent()) {
+            ToProto(request->mutable_transaction_id(), transaction->GetParent()->GetId());
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,6 +407,10 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(), AutomatonThread);
 
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
+
         RegisterLoader(
             "TransactionManager.Keys",
             BIND(&TImpl::LoadKeys, Unretained(this)));
@@ -297,9 +432,15 @@ public:
     {
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
     }
 
-    TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
+    TTransaction* StartTransaction(
+        TTransaction* parent,
+        TNullable<TDuration> timeout,
+        const TTransactionId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -308,13 +449,13 @@ public:
         }
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Transaction);
+        auto transactionId = objectManager->GenerateId(EObjectType::Transaction, hintId);
 
-        auto transactionHolder = std::make_unique<TTransaction>(id);
-        auto* transaction = TransactionMap_.Insert(id, std::move(transactionHolder));
+        auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
 
         // Every active transaction has a fake reference to itself.
-        objectManager->RefObject(transaction);
+        YCHECK(transaction->RefObject() == 1);
 
         if (parent) {
             transaction->SetParent(parent);
@@ -326,37 +467,42 @@ public:
 
         transaction->SetState(ETransactionState::Active);
 
-        auto actualTimeout = timeout
-            ? MakeNullable(std::min(*timeout, Config_->MaxTransactionTimeout))
-            : Null;
-        transaction->SetTimeout(actualTimeout);
+        if (Bootstrap_->IsPrimaryMaster()) {
+            if (timeout) {
+                transaction->SetTimeout(std::min(*timeout, Config_->MaxTransactionTimeout));
+            }
+            if (IsLeader()) {
+                CreateLease(transaction);
+            }
+        }
 
+        // NB: This is not quite correct for replicated transactions but we don't care.
         const auto* mutationContext = GetCurrentMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         transaction->Acd().SetOwner(securityManager->GetRootUser());
 
-        if (IsLeader()) {
-            CreateLease(transaction);
-        }
-
         TransactionStarted_.Fire(transaction);
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
-            id,
+            transactionId,
             GetObjectId(parent),
-            actualTimeout);
+            transaction->GetTimeout());
 
         return transaction;
     }
 
-    void CommitTransaction(TTransaction* transaction)
+    void CommitTransaction(
+        TTransaction* transaction,
+        TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = transaction->GetPersistentState();
-        
+        if (state == ETransactionState::Committed)
+            return;
+
         if (state != ETransactionState::Active &&
             state != ETransactionState::PersistentCommitPrepared)
         {
@@ -364,7 +510,7 @@ public:
         }
 
         // NB: Save it for logging.
-        auto id = transaction->GetId();
+        auto transactionId = transaction->GetId();
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -376,8 +522,9 @@ public:
 
         FinishTransaction(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v)",
-            id);
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %v)",
+            transactionId,
+            commitTimestamp);
     }
 
     void AbortTransaction(TTransaction* transaction, bool force)
@@ -385,14 +532,19 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto state = transaction->GetPersistentState();
-        if (state == ETransactionState::PersistentCommitPrepared && !force) {
+        if (state == ETransactionState::Aborted)
+            return;
+
+        if (state == ETransactionState::PersistentCommitPrepared && !force ||
+            state == ETransactionState::Committed)
+        {
             transaction->ThrowInvalidState();
         }
 
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
-        auto id = transaction->GetId();
+        auto transactionId = transaction->GetId();
 
         auto nestedTransactions = transaction->NestedTransactions();
         for (auto* nestedTransaction : nestedTransactions) {
@@ -411,7 +563,7 @@ public:
         FinishTransaction(transaction);
 
         LOG_INFO_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
-            id,
+            transactionId,
             force);
     }
 
@@ -434,16 +586,16 @@ public:
         }
     }
 
-    TTransaction* GetTransactionOrThrow(const TTransactionId& id)
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindTransaction(id);
+        auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "No such transaction %v",
-                id);
+                transactionId);
         }
         return transaction;
     }
@@ -452,8 +604,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
         YCHECK(transaction->StagedObjects().insert(object).second);
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(object);
     }
 
@@ -473,15 +625,37 @@ public:
         }
     }
 
-    void StageNode(TTransaction* transaction, TCypressNodeBase* node)
+    void StageNode(TTransaction* transaction, TCypressNodeBase* trunkNode)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YASSERT(trunkNode->IsTrunk());
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        transaction->StagedNodes().push_back(trunkNode);
+        objectManager->RefObject(trunkNode);
+    }
+
+    void ImportObject(TTransaction* transaction, TObjectBase* object)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        transaction->ImportedObjects().push_back(object);
         auto objectManager = Bootstrap_->GetObjectManager();
-        transaction->StagedNodes().push_back(node);
-        objectManager->RefObject(node);
+        objectManager->RefObject(object);
+        object->ImportRefObject();
     }
 
+    void ExportObject(TTransaction* transaction, TObjectBase* object)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        transaction->ExportedObjects().push_back(object);
+        auto objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RefObject(object);
+    }
+
+
+    // ITransactionManager implementation.
     void PrepareTransactionCommit(
         const TTransactionId& transactionId,
         bool persistent,
@@ -517,6 +691,14 @@ public:
                 transactionId,
                 persistent);
         }
+
+        if (persistent && Bootstrap_->IsPrimaryMaster()) {
+            NProto::TReqPrepareTransactionCommit request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_prepare_timestamp(prepareTimestamp);
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMasters(request);
+        }
     }
 
     void PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
@@ -539,13 +721,21 @@ public:
 
     void CommitTransaction(
         const TTransactionId& transactionId,
-        TTimestamp /*commitTimestamp*/)
+        TTimestamp commitTimestamp)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (Bootstrap_->IsPrimaryMaster()) {
+            NProto::TReqCommitTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_commit_timestamp(commitTimestamp);
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMasters(request);
+        }
+
         // NB: Transaction must exist.
         auto* transaction = GetTransaction(transactionId);
-        CommitTransaction(transaction);
+        CommitTransaction(transaction, commitTimestamp);
     }
 
     void AbortTransaction(
@@ -554,8 +744,15 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = GetTransactionOrThrow(transactionId);
+        if (Bootstrap_->IsPrimaryMaster()) {
+            NProto::TReqAbortTransaction request;
+            ToProto(request.mutable_transaction_id(), transactionId);
+            request.set_force(force);
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->PostToSecondaryMasters(request);
+        }
 
+        auto* transaction = GetTransactionOrThrow(transactionId);
         AbortTransaction(transaction, force);
     }
 
@@ -577,9 +774,30 @@ private:
     const TTransactionManagerConfigPtr Config_;
 
     NHydra::TEntityMap<TTransactionId, TTransaction> TransactionMap_;
-    yhash_map<TTransactionId, TLease> LeaseMap_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    // Primary-secondary replication only.
+    void HydraPrepareTransactionCommit(const NProto::TReqPrepareTransactionCommit& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto prepareTimestamp = request.prepare_timestamp();
+        PrepareTransactionCommit(transactionId, true, prepareTimestamp);
+    }
+
+    void HydraCommitTransaction(const NProto::TReqCommitTransaction& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        auto commitTimestamp = request.commit_timestamp();
+        CommitTransaction(transactionId, commitTimestamp);
+    }
+
+    void HydraAbortTransaction(const NProto::TReqAbortTransaction& request)
+    {
+        auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+        bool force = request.force();
+        AbortTransaction(transactionId, force);
+    }
 
 
     void FinishTransaction(TTransaction* transaction)
@@ -599,6 +817,21 @@ private:
             objectManager->UnrefObject(node);
         }
         transaction->StagedNodes().clear();
+
+        for (auto* object : transaction->ExportedObjects()) {
+            if (transaction->GetState() == ETransactionState::Aborted) {
+                objectManager->UnrefObject(object);
+            }
+        }
+        transaction->ExportedObjects().clear();
+
+        for (auto* object : transaction->ImportedObjects()) {
+            objectManager->UnrefObject(object);
+            if (transaction->GetState() == ETransactionState::Aborted) {
+                object->ImportUnrefObject();
+            }
+        }
+        transaction->ImportedObjects().clear();
 
         auto* parent = transaction->GetParent();
         if (parent) {
@@ -653,15 +886,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
     void OnAfterSnapshotLoaded()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -676,20 +900,16 @@ private:
         }
     }
 
-    void DoClear()
-    {
-        TransactionMap_.Clear();
-        TopmostTransactions_.clear();
-    }
-
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
-        DoClear();
+        TransactionMap_.Clear();
+        TopmostTransactions_.clear();
     }
+
 
     virtual void OnLeaderActive() override
     {
@@ -741,27 +961,60 @@ private:
         transaction->SetLease(NullLease);
     }
 
-    void OnTransactionExpired(const TTransactionId& id)
+    void OnTransactionExpired(const TTransactionId& transactionId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* transaction = FindTransaction(id);
+        auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction))
             return;
         if (transaction->GetState() != ETransactionState::Active)
             return;
 
-        LOG_DEBUG("Transaction lease expired (TransactionId: %v)", id);
+        LOG_DEBUG("Transaction lease expired (TransactionId: %v)", transactionId);
 
         auto transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
+        transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
-                    id);
+                    transactionId);
             }
         }));
     }
 
+
+    void OnSecondaryMasterRegistered(TCellTag cellTag)
+    {
+        // Run stable BFS to figure out the order in which transactions are to be replicated.
+        auto transactions = SortTransactions(TopmostTransactions_);
+        for (auto* transaction : transactions) {
+            auto nestedTransactions = SortTransactions(transaction->NestedTransactions());
+            transactions.insert(transactions.end(), nestedTransactions.begin(), nestedTransactions.end());
+        }
+
+        // Replicate transactions to the secondary master.
+        auto objectManager = Bootstrap_->GetObjectManager();
+        for (auto* transaction : transactions) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(transaction, cellTag);
+        }
+
+        // TODO(babenko): do we need to replicate prepare requests?
+    }
+
+    static std::vector<TTransaction*> SortTransactions(const yhash_set<TTransaction*>& set)
+    {
+        std::vector<TTransaction*> vector;
+        for (auto* transaction : set) {
+            if (IsObjectAlive(transaction)) {
+                vector.push_back(transaction);
+            }
+        }
+        std::sort(
+            vector.begin(),
+            vector.end(),
+            [] (TTransaction* lhs, TTransaction* rhs) { return lhs->GetId() < rhs->GetId(); });
+        return vector;
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTransactionManager::TImpl, Transaction, TTransaction, TTransactionId, TransactionMap_)
@@ -774,18 +1027,15 @@ TTransactionManager::TTransactionTypeHandler::TTransactionTypeHandler(TImpl* own
 { }
 
 TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* parent,
     TAccount* /*account*/,
-    IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* /*response*/)
+    IAttributeDictionary* /*attributes*/,
+    const TObjectCreationExtensions& extensions)
 {
-    const auto& requestExt = request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
+    const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
     auto timeout = TDuration::MilliSeconds(requestExt.timeout());
-    auto* transaction = Owner_->StartTransaction(parent, timeout);
-    transaction->SetUncommittedAccountingEnabled(requestExt.enable_uncommitted_accounting());
-    transaction->SetStagedAccountingEnabled(requestExt.enable_staged_accounting());
-    return transaction;
+    return Owner_->StartTransaction(parent, timeout, hintId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -801,44 +1051,73 @@ void TTransactionManager::Initialize()
     Impl_->Initialize();
 }
 
-TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
+TTransaction* TTransactionManager::StartTransaction(
+    TTransaction* parent,
+    TNullable<TDuration> timeout,
+    const TTransactionId& hintId)
 {
-    return Impl_->StartTransaction(parent, timeout);
+    return Impl_->StartTransaction(parent, timeout, hintId);
 }
 
-void TTransactionManager::CommitTransaction(TTransaction* transaction)
+void TTransactionManager::CommitTransaction(
+    TTransaction* transaction,
+    TTimestamp commitTimestamp)
 {
-    Impl_->CommitTransaction(transaction);
+    Impl_->CommitTransaction(transaction, commitTimestamp);
 }
 
-void TTransactionManager::AbortTransaction(TTransaction* transaction, bool force)
+void TTransactionManager::AbortTransaction(
+    TTransaction* transaction,
+    bool force)
 {
     Impl_->AbortTransaction(transaction, force);
 }
 
-void TTransactionManager::PingTransaction(TTransaction* transaction, bool pingAncestors)
+void TTransactionManager::PingTransaction(
+    TTransaction* transaction,
+    bool pingAncestors)
 {
     Impl_->PingTransaction(transaction, pingAncestors);
 }
 
-TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& id)
+TTransaction* TTransactionManager::GetTransactionOrThrow(const TTransactionId& transactionId)
 {
-    return Impl_->GetTransactionOrThrow(id);
+    return Impl_->GetTransactionOrThrow(transactionId);
 }
 
-void TTransactionManager::StageObject(TTransaction* transaction, TObjectBase* object)
+void TTransactionManager::StageObject(
+    TTransaction* transaction,
+    TObjectBase* object)
 {
     Impl_->StageObject(transaction, object);
 }
 
-void TTransactionManager::UnstageObject(TObjectBase* object, bool recursive)
+void TTransactionManager::UnstageObject(
+    TObjectBase* object,
+    bool recursive)
 {
     Impl_->UnstageObject(object, recursive);
 }
 
-void TTransactionManager::StageNode(TTransaction* transaction, TCypressNodeBase* node)
+void TTransactionManager::StageNode(
+    TTransaction* transaction,
+    TCypressNodeBase* trunkNode)
 {
-    Impl_->StageNode(transaction, node);
+    Impl_->StageNode(transaction, trunkNode);
+}
+
+void TTransactionManager::ExportObject(
+    TTransaction* transaction,
+    TObjectBase* object)
+{
+    Impl_->ExportObject(transaction, object);
+}
+
+void TTransactionManager::ImportObject(
+    TTransaction* transaction,
+    TObjectBase* object)
+{
+    Impl_->ImportObject(transaction, object);
 }
 
 void TTransactionManager::PrepareTransactionCommit(
@@ -849,7 +1128,9 @@ void TTransactionManager::PrepareTransactionCommit(
     Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
 }
 
-void TTransactionManager::PrepareTransactionAbort(const TTransactionId& transactionId, bool force)
+void TTransactionManager::PrepareTransactionAbort(
+    const TTransactionId& transactionId,
+    bool force)
 {
     Impl_->PrepareTransactionAbort(transactionId, force);
 }

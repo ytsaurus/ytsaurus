@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "yson_string.h"
 #include "ephemeral_node_factory.h"
+
+#include <core/yson/string.h>
 
 namespace NYT {
 namespace NYTree {
@@ -10,22 +11,17 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void Consume(const T& value, NYson::IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
+NYson::TYsonProducer ConvertToProducer(T&& value);
 
 template <class T>
-TYsonProducer ConvertToProducer(T&& value);
+NYson::TYsonString ConvertToYsonString(const T& value);
+
+NYson::TYsonString ConvertToYsonString(const char* value);
+
+NYson::TYsonString ConvertToYsonString(const TStringBuf& value);
 
 template <class T>
-TYsonString ConvertToYsonString(const T& value);
-
-TYsonString ConvertToYsonString(const char* value);
-
-TYsonString ConvertToYsonString(const TStringBuf& value);
-
-template <class T>
-TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format);
+NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format);
 
 template <class T>
 INodePtr ConvertToNode(
@@ -34,12 +30,6 @@ INodePtr ConvertToNode(
 
 template <class T>
 std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value);
-
-// Provide shared instantiations for different TUs for commonly-used types.
-// XXX(babenko): VS does not support this
-//extern template TYsonString ConvertToYsonString<int>(const int&);
-//extern template TYsonString ConvertToYsonString<unsigned long>(const unsigned long&);
-//extern template TYsonString ConvertToYsonString<Stroka>(const Stroka&);
 
 ////////////////////////////////////////////////////////////////////////////////
 

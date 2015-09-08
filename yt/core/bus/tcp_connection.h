@@ -63,7 +63,7 @@ public:
 
     // IBus implementation.
     virtual Stroka GetEndpointTextDescription() const override;
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const override;
+    virtual NYson::TYsonString GetEndpointYsonDescription() const override;
     virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
     virtual void Terminate(const TError& error) override;
 

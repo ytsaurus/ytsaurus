@@ -39,7 +39,7 @@ void TRequestTracker::Start()
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
-        Config_->StatisticsFlushPeriod,
+        Config_->UserStatisticsFlushPeriod,
         EPeriodicExecutorMode::Manual);
     FlushExecutor_->Start();
 }
@@ -58,39 +58,46 @@ void TRequestTracker::Stop()
     Reset();
 }
 
-void TRequestTracker::ChargeUser(TUser* user, int requestCount)
+void TRequestTracker::ChargeUser(
+    TUser* user,
+    int requestCount,
+    TDuration readRequestTime,
+    TDuration writeRequestTime)
 {
     YCHECK(FlushExecutor_);
 
     int index = user->GetRequestStatisticsUpdateIndex();
     if (index < 0) {
-        index = UpdateRequestStatisticsRequest_.updates_size();
+        index = Request_.entries_size();
         user->SetRequestStatisticsUpdateIndex(index);
-        UsersWithRequestStatisticsUpdate_.push_back(user);
+        UsersWithsEntry_.push_back(user);
 
-        auto* update = UpdateRequestStatisticsRequest_.add_updates();
-        ToProto(update->mutable_user_id(), user->GetId());
+        auto* entry = Request_.add_entries();
+        ToProto(entry->mutable_user_id(), user->GetId());
     
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->WeakRefObject(user);
     }
     
     auto now = NProfiling::CpuInstantToInstant(NProfiling::GetCpuInstant());
-    auto* update = UpdateRequestStatisticsRequest_.mutable_updates(index);
-    update->set_access_time(now.MicroSeconds());
-    update->set_request_counter_delta(update->request_counter_delta() + requestCount);
+    auto* entry = Request_.mutable_entries(index);
+    auto* statistics = entry->mutable_statistics();
+    statistics->set_request_counter(statistics->request_counter() + requestCount);
+    statistics->set_read_request_timer(statistics->read_request_timer() + readRequestTime.MicroSeconds());
+    statistics->set_write_request_timer(statistics->write_request_timer() + writeRequestTime.MicroSeconds());
+    statistics->set_access_time(now.MicroSeconds());
 }
 
 void TRequestTracker::Reset()
 {
     auto objectManager = Bootstrap_->GetObjectManager();
-    for (auto* user : UsersWithRequestStatisticsUpdate_) {
+    for (auto* user : UsersWithsEntry_) {
         user->SetRequestStatisticsUpdateIndex(-1);
         objectManager->WeakUnrefObject(user);
     }    
 
-    UpdateRequestStatisticsRequest_.Clear();
-    UsersWithRequestStatisticsUpdate_.clear();
+    Request_.Clear();
+    UsersWithsEntry_.clear();
 }
 
 void TRequestTracker::OnFlush()
@@ -98,26 +105,26 @@ void TRequestTracker::OnFlush()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-    if (UsersWithRequestStatisticsUpdate_.empty() ||
+    if (UsersWithsEntry_.empty() ||
         !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
     {
         FlushExecutor_->ScheduleNext();
         return;
     }
 
-    LOG_DEBUG("Starting request statistics commit for %v users",
-        UpdateRequestStatisticsRequest_.updates_size());
+    LOG_DEBUG("Starting user statistics commit for %v users",
+        Request_.entries_size());
 
     auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto invoker = hydraFacade->GetEpochAutomatonInvoker();
-    CreateMutation(hydraFacade->GetHydraManager(), UpdateRequestStatisticsRequest_)
+    CreateMutation(hydraFacade->GetHydraManager(), Request_)
         ->SetAllowLeaderForwarding(true)
         ->Commit()
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
             } else {
-                LOG_ERROR(error, "Error committing request statistics update mutation");
+                LOG_ERROR(error, "Error committing user statistics update mutation");
             }
             FlushExecutor_->ScheduleNext();
         }).Via(invoker));

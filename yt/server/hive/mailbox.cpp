@@ -6,6 +6,8 @@
 
 #include <core/rpc/channel.h>
 
+#include <ytlib/hive/hive_service.pb.h>
+
 #include <server/hydra/composite_automaton.h>
 
 namespace NYT {

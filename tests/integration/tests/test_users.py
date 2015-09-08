@@ -204,3 +204,9 @@ class TestUsers(YTEnvSetup):
         
         assert get("//sys/users/u/@member_of") == ["users"]
         assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["users", "everyone"])
+
+##################################################################
+
+class TestUsersMulticell(TestUsers):
+    NUM_SECONDARY_MASTER_CELLS = 2
+

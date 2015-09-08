@@ -38,6 +38,7 @@
 
 #include <ytlib/transaction_client/transaction_manager.h>
 #include <ytlib/transaction_client/transaction_listener.h>
+#include <ytlib/transaction_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -49,6 +50,7 @@ namespace NApi {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NYson;
 using namespace NYPath;
 using namespace NRpc;
 using namespace NCypressClient;
@@ -59,6 +61,7 @@ using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
 using namespace NJournalClient;
 using namespace NNodeTrackerClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,9 +110,6 @@ private:
             , Path_(path)
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
-            , MasterChannel_(Client_->GetMasterChannel(EMasterChannelKind::Leader))
-            , ObjectProxy_(MasterChannel_)
-            , ChunkProxy_(MasterChannel_)
         {
             if (Options_.TransactionId) {
                 auto transactionManager = Client_->GetTransactionManager();
@@ -177,10 +177,6 @@ private:
 
         const IInvokerPtr Invoker_ = NChunkClient::TDispatcher::Get()->GetWriterInvoker();
 
-        const IChannelPtr MasterChannel_;
-        TObjectServiceProxy ObjectProxy_;
-        TChunkServiceProxy ChunkProxy_;
-
         NLogging::TLogger Logger = ApiLogger;
 
         struct TBatch
@@ -213,7 +209,9 @@ private:
         int WriteQuorum_ = -1;
         Stroka Account_;
 
+        TObjectId ObjectId_;
         TChunkListId ChunkListId_;
+        IChannelPtr UploadMasterChannel_;
 
         struct TNode
             : public TRefCounted
@@ -331,35 +329,54 @@ private:
 
         void OpenJournal()
         {
-            LOG_INFO("Creating upload transaction");
-    
-            {
-                NTransactionClient::TTransactionStartOptions options;
-                options.ParentId = Transaction_ ? Transaction_->GetId() : NullTransactionId;
-                options.EnableUncommittedAccounting = false;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("title", Format("Journal upload to %v", Path_));
-                options.Attributes = std::move(attributes);
+            auto cellTag = InvalidCellTag;
 
-                auto transactionManager = Client_->GetTransactionManager();
-                auto transactionOrError = WaitFor(transactionManager->Start(
-                    ETransactionType::Master,
-                    options));
-                THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError, "Error creating upload transaction");
-                UploadTransaction_ = transactionOrError.Value();
+            {
+                LOG_INFO("Requesting basic journal attributes");
+
+                auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+                TObjectServiceProxy proxy(channel);
+
+                auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
+                req->set_permissions(static_cast<ui32>(EPermission::Write));
+                SetTransactionId(req, Transaction_);
+
+                auto rspOrError = WaitFor(proxy.Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    rspOrError,
+                    "Error requesting basic attributes of journal %v",
+                    Path_);
+
+                const auto& rsp = rspOrError.Value();
+                ObjectId_ = FromProto<TObjectId>(rsp->object_id());
+                cellTag = rsp->cell_tag();
+
+                LOG_INFO("Basic journal attributes received (ObjectId: %v, CellTag: %v)",
+                    ObjectId_,
+                    cellTag);
             }
 
-            LOG_INFO("Upload transaction created (TransactionId: %v)", UploadTransaction_->GetId());
-            
-            ListenTransaction(UploadTransaction_);
+            {
+                auto type = TypeFromId(ObjectId_);
+                if (type != EObjectType::Journal) {
+                    THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                        Path_,
+                        EObjectType::Journal,
+                        type);
+                }
+            }
 
-            LOG_INFO("Opening journal");
-
-            auto batchReq = CreateMasterBatchRequest();
+            UploadMasterChannel_ = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+            auto objectIdPath = FromObjectId(ObjectId_);
 
             {
-                auto req = TCypressYPathProxy::Get(Path_);
-                SetTransactionId(req, UploadTransaction_->GetId());
+                LOG_INFO("Requesting extended journal attributes");
+
+                auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+                TObjectServiceProxy proxy(channel);
+
+                auto req = TCypressYPathProxy::Get(objectIdPath);
+                SetTransactionId(req, UploadTransaction_);
                 TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
                 attributeFilter.Keys.push_back("type");
                 attributeFilter.Keys.push_back("replication_factor");
@@ -367,65 +384,142 @@ private:
                 attributeFilter.Keys.push_back("write_quorum");
                 attributeFilter.Keys.push_back("account");
                 ToProto(req->mutable_attribute_filter(), attributeFilter);
-                batchReq->AddRequest(req, "get_attributes");
-            }
 
-            {
-                auto req = TJournalYPathProxy::PrepareForUpdate(Path_);
-                req->set_update_mode(static_cast<int>(EUpdateMode::Append));
-                req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
-                GenerateMutationId(req);
-                SetTransactionId(req, UploadTransaction_->GetId());
-                batchReq->AddRequest(req, "prepare_for_update");
-            }
+                auto rspOrError = WaitFor(proxy.Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    rspOrError,
+                    "Error requesting extended attributes of journal %v",
+                    Path_);
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error opening journal");
-            const auto& batchRsp = batchRspOrError.Value();
-
-            {
-                auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_attributes");
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting journal attributes");
-                const auto& rsp = rspOrError.Value();
-
+                auto rsp = rspOrError.Value();
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
-
-                auto type = attributes.Get<EObjectType>("type");
-                if (type != EObjectType::Journal) {
-                    THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                        Path_,
-                        EObjectType::Journal,
-                        type);
-                }
-
                 ReplicationFactor_ = attributes.Get<int>("replication_factor");
                 ReadQuorum_ = attributes.Get<int>("read_quorum");
                 WriteQuorum_ = attributes.Get<int>("write_quorum");
                 Account_ = attributes.Get<Stroka>("account");
+
+                LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v)",
+                    ReplicationFactor_,
+                    WriteQuorum_,
+                    Account_);
             }
 
             {
-                auto rspOrError = batchRsp->GetResponse<TJournalYPathProxy::TRspPrepareForUpdate>("prepare_for_update");
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error preparing journal for update");
-                const auto& rsp = rspOrError.Value();
+                LOG_INFO("Starting journal upload");
 
-                ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
+                auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+                TObjectServiceProxy proxy(channel);
+
+                auto batchReq = proxy.ExecuteBatch();
+
+                {
+                    auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+                    for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                        auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                        ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+                    }
+                }
+
+                {
+                    auto transactionManager = Client_->GetTransactionManager();
+
+                    auto req = TJournalYPathProxy::BeginUpload(objectIdPath);
+                    req->set_update_mode(static_cast<int>(EUpdateMode::Append));
+                    req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+                    req->set_upload_transaction_title(Format("Upload to %v", Path_));
+                    req->set_upload_transaction_timeout(transactionManager->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+                    GenerateMutationId(req);
+                    SetTransactionId(req, Transaction_);
+                    batchReq->AddRequest(req, "begin_upload");
+                }
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    GetCumulativeError(batchRspOrError),
+                    "Error starting upload to journal %v",
+                    Path_);
+                const auto& batchRsp = batchRspOrError.Value();
+
+                {
+                    auto rsp = batchRsp->GetResponse<TJournalYPathProxy::TRspBeginUpload>("begin_upload").Value();
+                    auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+
+                    NTransactionClient::TTransactionAttachOptions options;
+                    options.PingAncestors = Options_.PingAncestors;
+                    options.AutoAbort = true;
+
+                    auto transactionManager = Client_->GetTransactionManager();
+                    UploadTransaction_ = transactionManager->Attach(uploadTransactionId, options);
+                    ListenTransaction(UploadTransaction_);
+
+                    LOG_INFO("Journal upload started (UploadTransactionId: %v)",
+                        uploadTransactionId);
+                }
             }
 
-            LOG_INFO("Journal opened (ReplicationFactor: %v, WriteQuorum: %v, Account: %v, ChunkListId: %v)",
-                ReplicationFactor_,
-                WriteQuorum_,
-                Account_,
-                ChunkListId_);
+            {
+                LOG_INFO("Requesting journal upload parameters");
 
-            LOG_INFO("Journal writer opened");
+                auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+                TObjectServiceProxy proxy(channel);
+
+                auto req = TJournalYPathProxy::GetUploadParams(objectIdPath);
+                SetTransactionId(req, UploadTransaction_);
+
+                auto rspOrError = WaitFor(proxy.Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    rspOrError,
+                    "Error requesting upload parameters for journal %v",
+                    Path_);
+
+                const auto& rsp = rspOrError.Value();
+                ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
+
+                LOG_INFO("Journal upload parameters received (ChunkListId: %v)",
+                    ChunkListId_);
+            }
+
+            LOG_INFO("Journal opened");
             OpenedPromise_.Set(TError());
         }
 
         void CloseJournal()
         {
-            LOG_INFO("Journal writer closed");
+            LOG_INFO("Closing journal");
+
+            auto objectIdPath = FromObjectId(ObjectId_);
+
+            auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+            TObjectServiceProxy proxy(channel);
+
+            auto batchReq = proxy.ExecuteBatch();
+
+            {
+                auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+                for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                    auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                    ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+                }
+            }
+
+            {
+                auto req = TJournalYPathProxy::EndUpload(objectIdPath);
+                SetTransactionId(req, UploadTransaction_);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "end_upload");
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Error finishing upload to journal %v",
+                Path_);
+
+            UploadTransaction_->Detach();
+
+
+            LOG_INFO("Journal closed");
             ClosedPromise_.TrySet(TError());
         }
 
@@ -436,12 +530,14 @@ private:
             LOG_INFO("Creating chunk");
 
             {
-                auto req = TMasterYPathProxy::CreateObjects();
+                TObjectServiceProxy proxy(UploadMasterChannel_);
+
+                auto req = TMasterYPathProxy::CreateObject();
                 req->set_type(static_cast<int>(EObjectType::JournalChunk));
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
 
-                auto* reqExt = req->MutableExtension(TReqCreateChunkExt::create_chunk_ext);
+                auto* reqExt = req->mutable_extensions()->MutableExtension(TChunkCreationExt::chunk_creation_ext);
                 reqExt->set_replication_factor(ReplicationFactor_);
                 reqExt->set_read_quorum(ReadQuorum_);
                 reqExt->set_write_quorum(WriteQuorum_);
@@ -449,11 +545,11 @@ private:
                 reqExt->set_vital(true);
                 reqExt->set_erasure_codec(static_cast<int>(NErasure::ECodec::None));
 
-                auto rspOrError = WaitFor(ObjectProxy_.Execute(req));
+                auto rspOrError = WaitFor(proxy.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error creating chunk");
                 const auto& rsp = rspOrError.Value();
 
-                CurrentSession_->ChunkId = FromProto<TChunkId>(rsp->object_ids(0));
+                CurrentSession_->ChunkId = FromProto<TChunkId>(rsp->object_id());
             }
 
             LOG_INFO("Chunk created (ChunkId: %v)",
@@ -462,7 +558,9 @@ private:
             std::vector<TChunkReplica> replicas;
             std::vector<TNodeDescriptor> targets;
             {
-                auto req = ChunkProxy_.AllocateWriteTargets();
+                TChunkServiceProxy proxy(UploadMasterChannel_);
+
+                auto req = proxy.AllocateWriteTargets();
                 ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
                 ToProto(req->mutable_forbidden_addresses(), GetBannedNodes());
                 if (Config_->PreferLocalHost) {
@@ -530,9 +628,11 @@ private:
                 node->PingExecutor->Start();
             }
 
-            LOG_INFO("Attaching chunk");
             {
-                auto batchReq = CreateMasterBatchRequest();
+                LOG_INFO("Attaching chunk");
+
+                TObjectServiceProxy proxy(UploadMasterChannel_);
+                auto batchReq = proxy.ExecuteBatch();
 
                 {
                     YCHECK(!replicas.empty());
@@ -550,15 +650,17 @@ private:
                 {
                     auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
                     ToProto(req->add_children_ids(), CurrentSession_->ChunkId);
+                    req->set_request_statistics(false);
                     GenerateMutationId(req);
                     batchReq->AddRequest(req, "attach");
                 }
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunk");
+
+                LOG_INFO("Chunk attached");
             }
-            LOG_INFO("Chunk attached");
-        
+
             for (auto batch : PendingBatches_) {
                 EnqueueBatchToSession(batch);
             }
@@ -676,10 +778,13 @@ private:
                 }
             }
 
-            LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
-                session->ChunkId,
-                session->FlushedRowCount);
             {
+                LOG_INFO("Sealing chunk (ChunkId: %v, RowCount: %v)",
+                    session->ChunkId,
+                    session->FlushedRowCount);
+
+                TObjectServiceProxy proxy(UploadMasterChannel_);
+
                 auto req = TChunkYPathProxy::Seal(FromObjectId(session->ChunkId));
                 auto* info = req->mutable_info();
                 info->set_sealed(true);
@@ -687,11 +792,12 @@ private:
                 info->set_uncompressed_data_size(session->FlushedDataSize);
                 info->set_compressed_data_size(session->FlushedDataSize);
 
-                auto rspOrError = WaitFor(ObjectProxy_.Execute(req));
+                auto rspOrError = WaitFor(proxy.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sealing chunk %v",
                     session->ChunkId);
+
+                LOG_INFO("Chunk sealed");
             }
-            LOG_INFO("Chunk sealed");
         }
 
 
@@ -979,19 +1085,6 @@ private:
             command.Session = session;
             EnqueueCommand(command);
         }
-
-
-        TObjectServiceProxy::TReqExecuteBatchPtr CreateMasterBatchRequest()
-        {
-            auto batchReq = ObjectProxy_.ExecuteBatch();
-            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
-            for (const auto& id : Options_.PrerequisiteTransactionIds) {
-                auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
-                ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
-            }
-            return batchReq;
-        }
-
     };
 
 

@@ -3,14 +3,15 @@
 #endif
 
 #include "node.h"
-#include "yson_stream.h"
-#include "yson_string.h"
 #include "yson_serializable.h"
 
 #include <core/misc/nullable.h>
 #include <core/misc/string.h>
 #include <core/misc/error.h>
 #include <core/misc/collection_helpers.h>
+
+#include <core/yson/stream.h>
+#include <core/yson/string.h>
 
 #include <numeric>
 
@@ -36,7 +37,7 @@ void WriteYson(
     int indent)
 {
     NYson::TYsonWriter writer(output, format, type, false, false, indent);
-    Consume(value, &writer);
+    Serialize(value, &writer);
 }
 
 template <class T>
@@ -50,7 +51,7 @@ void WriteYson(
 
 template <class T>
 void WriteYson(
-    const TYsonOutput& output,
+    const NYson::TYsonOutput& output,
     const T& value,
     NYson::EYsonFormat format)
 {

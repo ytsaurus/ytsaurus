@@ -22,7 +22,7 @@ message TFileDescriptor
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
-    // Additional files(tables) to be placed into the sandbox.
+    // Additional files (tables) to be placed into the sandbox.
     repeated TFileDescriptor files = 1;
 
     // Deprecated = 6;
@@ -60,8 +60,6 @@ message TUserJobSpec
 
     optional bool check_input_fully_consumed = 16 [default = false];
 
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 17;
-
     required int64 custom_statistics_count_limit = 18;
 
     optional int32 iops_threshold = 19 [default = 1000];
@@ -83,8 +81,6 @@ message TQuerySpec
     repeated string udf_descriptors = 2;
 
     repeated TFileDescriptor udf_files = 3;
-
-    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,7 +125,13 @@ message TSchedulerJobSpecExt
     repeated TTableOutputSpec output_specs = 4;
 
     // Maps node ids to descriptors for input chunks.
-    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 5;
+    // These nodes may either belong to the local cluster (for most types of jobs)
+    // or to a remote one (for remote copy jobs).
+    required NNodeTrackerClient.NProto.TNodeDirectory input_node_directory = 5;
+
+    // Maps node ids to descriptors for chunks comprising user files, UDFs etc.
+    // These nodes always belong to the local cluster.
+    optional NNodeTrackerClient.NProto.TNodeDirectory aux_node_directory = 14;
 
     // Total input uncompressed data size estimate.
     optional int64 input_uncompressed_data_size = 6 [default = 0];
@@ -159,11 +161,12 @@ message TSchedulerJobResultExt
     }
 
     // Provides node id to descriptor mapping for |chunks|.
-    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+    // These nodes always belong to the local cluster.
+    optional NYT.NNodeTrackerClient.NProto.TNodeDirectory output_node_directory = 2;
 
     // List of output chunks produced by the job.
     // NB: Only filled when necessary.
-    repeated NYT.NChunkClient.NProto.TChunkSpec chunks = 3;
+    repeated NYT.NChunkClient.NProto.TChunkSpec output_chunks = 3;
 
     optional NYT.NProto.TGuid stderr_chunk_id = 4;
 

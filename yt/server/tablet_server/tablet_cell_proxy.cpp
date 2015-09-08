@@ -21,6 +21,7 @@ namespace NYT {
 namespace NTabletServer {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NRpc;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
@@ -67,19 +68,21 @@ private:
         return TBase::ValidateCustomAttributeUpdate(key, oldValue, newValue);
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
+        TBase::ListSystemAttributes(descriptors);
+
         const auto* cell = GetThisTypedImpl();
 
-        attributes->push_back("health");
-        attributes->push_back("peers");
-        attributes->push_back(TAttributeInfo("tablet_ids", true, true));
-        attributes->push_back("tablet_count");
-        attributes->push_back("config_version");
-        attributes->push_back("total_statistics");
-        attributes->push_back(TAttributeInfo("prerequisite_transaction_id", cell->GetPrerequisiteTransaction() != nullptr));
-
-        TBase::ListSystemAttributes(attributes);
+        descriptors->push_back("health");
+        descriptors->push_back("peers");
+        descriptors->push_back(TAttributeDescriptor("tablet_ids")
+            .SetOpaque(true));
+        descriptors->push_back("tablet_count");
+        descriptors->push_back("config_version");
+        descriptors->push_back("total_statistics");
+        descriptors->push_back(TAttributeDescriptor("prerequisite_transaction_id")
+            .SetPresent(cell->GetPrerequisiteTransaction()));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
@@ -95,19 +98,19 @@ private:
         if (key == "peers") {
             BuildYsonFluently(consumer)
                 .DoListFor(cell->Peers(), [&] (TFluentList fluent, const TTabletCell::TPeer& peer) {
-                    if (peer.Descriptor) {
+                    if (peer.Descriptor.IsNull()) {
+                        fluent
+                            .Item().BeginMap()
+                                .Item("state").Value(EPeerState::None)
+                            .EndMap();
+                    } else {
                         const auto* slot = peer.Node ? peer.Node->GetTabletSlot(cell) : nullptr;
                         auto state = slot ? slot->PeerState : EPeerState::None;
                         fluent
                             .Item().BeginMap()
-                                .Item("address").Value(peer.Descriptor->GetDefaultAddress())
+                                .Item("address").Value(peer.Descriptor.GetDefaultAddress())
                                 .Item("state").Value(state)
                                 .Item("last_seen_time").Value(peer.LastSeenTime)
-                            .EndMap();
-                    } else {
-                        fluent
-                            .Item().BeginMap()
-                                .Item("state").Value(EPeerState::None)
                             .EndMap();
                     }
                 });

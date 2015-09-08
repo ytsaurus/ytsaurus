@@ -24,33 +24,30 @@ public:
         NTransactionServer::TTransaction* transaction,
         TChunkOwnerBase* trunkNode);
 
-    virtual NSecurityServer::TClusterResources GetResourceUsage() const override;
-
 protected:
-    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
-        const TNullable<NYTree::TYsonString>& oldValue,
-        const TNullable<NYTree::TYsonString>& newValue) override;
+        const TNullable<NYson::TYsonString>& oldValue,
+        const TNullable<NYson::TYsonString>& newValue) override;
     virtual void ValidateFetchParameters(
         const NChunkClient::TChannel& channel,
         const std::vector<NChunkClient::TReadRange>& ranges);
-    virtual void Clear();
 
-    virtual bool SetBuiltinAttribute(const Stroka& key, const NYTree::TYsonString& value) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
-    virtual void ValidatePrepareForUpdate();
+    void ValidateInUpdate();
+    virtual void ValidateBeginUpload();
     virtual void ValidateFetch();
 
-    virtual bool IsSorted();
-    virtual void ResetSorted();
-
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, PrepareForUpdate);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
+    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
 
 };
 

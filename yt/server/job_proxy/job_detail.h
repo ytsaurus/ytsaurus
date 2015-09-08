@@ -31,7 +31,7 @@ protected:
     TInstant StartTime;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
-    virtual NYTree::TYsonString Strace() override;
+    virtual NYson::TYsonString Strace() override;
 
 };
 

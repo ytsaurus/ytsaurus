@@ -3,11 +3,14 @@
 
 #include <core/ytree/attributes.h>
 #include <core/ytree/convert.h>
-#include <core/ytree/yson_string.h>
+
+#include <core/yson/string.h>
 
 namespace NYT {
 namespace NYTree {
 namespace {
+
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 

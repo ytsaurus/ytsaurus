@@ -10,8 +10,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYsonString DoRunTool(const Stroka& toolName, const NYTree::TYsonString& serializedArgument);
-NYTree::TYsonString DoRunToolInProcess(const Stroka& toolName, const NYTree::TYsonString& serializedArgument);
+NYson::TYsonString DoRunTool(const Stroka& toolName, const NYson::TYsonString& serializedArgument);
+NYson::TYsonString DoRunToolInProcess(const Stroka& toolName, const NYson::TYsonString& serializedArgument);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,11 +21,11 @@ template <
     typename TResult = typename TFunctionTraits<TTool>::TResult>
 TResult RunTool(
     const TArg& arg,
-    std::function<NYTree::TYsonString(const Stroka&, const NYTree::TYsonString&)> invoker = DoRunTool);
+    std::function<NYson::TYsonString(const Stroka&, const NYson::TYsonString&)> invoker = DoRunTool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::TYsonString ExecuteTool(const Stroka& toolName, const NYTree::TYsonString& serializedArgument);
+NYson::TYsonString ExecuteTool(const Stroka& toolName, const NYson::TYsonString& serializedArgument);
 
 ////////////////////////////////////////////////////////////////////////////////
 

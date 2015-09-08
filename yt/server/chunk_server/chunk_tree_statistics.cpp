@@ -11,6 +11,8 @@
 namespace NYT {
 namespace NChunkServer {
 
+using namespace NChunkClient::NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
@@ -25,6 +27,19 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     ChunkListCount += other.ChunkListCount;
     Rank = std::max(Rank, other.Rank);
     Sealed = other.Sealed;
+}
+
+TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
+{
+    TDataStatistics result;
+    result.set_uncompressed_data_size(UncompressedDataSize);
+    result.set_compressed_data_size(CompressedDataSize);
+    result.set_row_count(RowCount);
+    result.set_chunk_count(ChunkCount);
+    result.set_data_weight(DataWeight);
+    result.set_regular_disk_space(RegularDiskSpace);
+    result.set_erasure_disk_space(ErasureDiskSpace);
+    return result;
 }
 
 void TChunkTreeStatistics::Save(NCellMaster::TSaveContext& context) const
@@ -54,10 +69,7 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
     Load(context, ChunkCount);
     Load(context, ChunkListCount);
     Load(context, Rank);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 100) {
-        Load(context, Sealed);
-    }
+    Load(context, Sealed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

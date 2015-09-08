@@ -6,13 +6,15 @@
 
 #include <ytlib/ypath/public.h>
 
+#include <ytlib/hydra/version.h>
+
 namespace NYT {
 namespace NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! |#|-prefix.
-extern TStringBuf ObjectIdPathPrefix;
+extern const TStringBuf ObjectIdPathPrefix;
 
 //! Creates the YPath pointing to an object with a given #id.
 NYPath::TYPath FromObjectId(const TObjectId& id);
@@ -48,11 +50,23 @@ TObjectId MakeId(
     ui64 counter,
     ui32 hash);
 
+//! Creates a random id with given type and cell tag.
+TObjectId MakeRandomId(
+    EObjectType type,
+    TCellTag cellTag);
+
 //! Returns |true| if a given #id is well-known.
 /*
  *  This method checks the highest bit of counter part.
  */
 bool IsWellKnownId(const TObjectId& id);
+
+//! Constructs the id for a regular object.
+TObjectId MakeRegularId(
+    EObjectType type,
+    TCellTag cellTag,
+    ui64 random,
+    NHydra::TVersion version);
 
 //! Constructs the id corresponding to well-known (usually singleton) entities.
 /*

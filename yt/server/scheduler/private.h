@@ -15,25 +15,19 @@ namespace NScheduler {
 
 ////////////////////////////////////////////////////////////////////
 
-struct TChunkStripe;
-typedef TIntrusivePtr<TChunkStripe> TChunkStripePtr;
+DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
+DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
 
-struct TChunkStripeList;
-typedef TIntrusivePtr<TChunkStripeList> TChunkStripeListPtr;
-
-class TChunkListPool;
-typedef TIntrusivePtr<TChunkListPool> TChunkListPoolPtr;
+DECLARE_REFCOUNTED_CLASS(TChunkListPool)
+DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 
 struct IChunkPoolInput;
 struct IChunkPoolOutput;
 struct IChunkPool;
 struct IShuffleChunkPool;
 
-class TSnapshotBuilder;
-typedef TIntrusivePtr<TSnapshotBuilder> TSnapshotBuilderPtr;
-
-class TSnapshotDownloader;
-typedef TIntrusivePtr<TSnapshotDownloader> TSnapshotDownloaderPtr;
+DECLARE_REFCOUNTED_CLASS(TSnapshotBuilder)
+DECLARE_REFCOUNTED_CLASS(TSnapshotDownloader)
 
 class TOperationControllerBase;
 

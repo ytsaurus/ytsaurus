@@ -4,9 +4,9 @@
 
 #include <core/misc/nullable.h>
 
-#include <ytlib/driver/driver.h>
+#include <core/yson/string.h>
 
-#include <core/ytree/yson_string.h>
+#include <ytlib/driver/driver.h>
 
 #include <server/job_proxy/public.h>
 
@@ -30,11 +30,11 @@ private:
     NDriver::IDriverPtr Driver;
     NScheduler::TOperationId OperationId;
     NScheduler::EOperationType OperationType;
-    TNullable<NYTree::TYsonString> PrevProgress;
+    TNullable<NYson::TYsonString> PrevProgress;
 
-    static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const NYTree::TYsonString& progress);
+    static void AppendPhaseProgress(Stroka* out, const Stroka& phase, const NYson::TYsonString& progress);
 
-    Stroka FormatProgress(const NYTree::TYsonString& progress);
+    Stroka FormatProgress(const NYson::TYsonString& progress);
     void DumpProgress();
     void DumpResult();
 

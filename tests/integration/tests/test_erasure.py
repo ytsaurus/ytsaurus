@@ -63,14 +63,9 @@ class TestErasure(YTEnvSetup):
 
         for r in replicas:
             replica_index = r.attributes["index"]
-            port = int(r.rsplit(":", 1)[1])
-            node_index = filter(lambda x: x == port, self.Env._ports["node"])[0]
-            print >>sys.stderr, "Banning node %d containing replica %d" % (node_index, replica_index)
-            set("//sys/nodes/%s/@banned" % r, True)
-
-            # Give it enough time to unregister the node
-            time.sleep(1.0)
-            assert get("//sys/nodes/%s/@state" % r) == "offline"
+            address = str(r)
+            print >>sys.stderr, "Banning node %s containing replica %d" % (address, replica_index)
+            self.set_node_banned(address, True)
 
             ok = False
             for i in xrange(10):
@@ -82,7 +77,7 @@ class TestErasure(YTEnvSetup):
             assert ok
             assert read_table("//tmp/table") == [{"b":"hello"}]
 
-            set("//sys/nodes/%s/@banned" % r, False)
+            self.set_node_banned(r, False)
 
     def test_reed_solomon_repair(self):
         self._test_repair("reed_solomon_6_3", 9, 6)
@@ -121,3 +116,21 @@ class TestErasure(YTEnvSetup):
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
         assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") ==  ["key"]
+
+    def test_part_ids(self):
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 1
+        chunk_id = chunk_ids[0]
+        parts = chunk_id.split("-")
+        for x in xrange(103, 119):
+            part_id = "%s-%s-%s%x-%s" % (parts[0], parts[1], parts[2][:-2], x, parts[3])
+            assert get("#" + part_id + "/@id") == chunk_id
+            
+##################################################################
+
+class TestErasureMulticell(TestErasure):
+    NUM_SECONDARY_MASTER_CELLS = 2
+

@@ -57,8 +57,7 @@ class Master(WinNode, Server):
         config = Template({
                 'master' : {
                     'addresses' : MasterAddresses,
-                    'cell_tag' : 0,
-                    'cell_id' : 'ffffffff-ffffffff-ffffffff-ffffffff'
+                    'cell_id' : 'ffffffff-ffffffff-259-ffffffff'
                 },
                 'timestamp_provider' : {
                     'addresses' : MasterAddresses
@@ -68,10 +67,6 @@ class Master(WinNode, Server):
                 },
                 'changelogs' : {
                     'path' : r'%(work_dir)s\changelogs'
-                },
-                'node_tracker' : {
-                    'registered_node_timeout' : 5000,
-                    'online_node_timeout' : 10000
                 },
                 'tablet_manager' : {
                     'peer_failover_timeout' : 15000
@@ -103,8 +98,7 @@ class Holder(WinNode, Server):
             'cluster_connection' : {
                 'master' : {
                     'addresses' : MasterAddresses,
-                    'cell_tag' : 0,
-                    'cell_id' : 'ffffffff-ffffffff-ffffffff-ffffffff'
+                    'cell_id' : 'ffffffff-ffffffff-259-ffffffff'
                 },
                 'timestamp_provider' : {
                     'addresses' : MasterAddresses
@@ -123,9 +117,6 @@ class Holder(WinNode, Server):
                 'cache_locations' : [{
                     'path' : r'%(work_dir)s\chunk_cache',
                     'quota' : 10 * 1024 * 1024
-                }],
-                'multiplexed_changelog' : {
-                    'path' : r'%(work_dir)s\multiplexed'
                 },
                 'session_timeout' : 10000
             },
@@ -155,7 +146,6 @@ class Holder(WinNode, Server):
         def clean(cls, fd):
                 print >>fd, 'del %s' % cls.log_path
                 print >>fd, 'del %s' % cls.debug_log_path
-                print >>fd, 'rmdir /S /Q %s' % cls.config['data_node']['multiplexed_changelog']['path']
                 for location in cls.config['data_node']['store_locations']:
                         print >>fd, 'rmdir /S /Q   %s' % location['path']
                 for location in cls.config['data_node']['cache_locations']:

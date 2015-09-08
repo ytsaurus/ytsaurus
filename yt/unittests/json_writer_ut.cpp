@@ -434,7 +434,7 @@ TEST(TJsonWriterTest, TestStringLengthLimit)
         writer->OnStringScalar(Stroka(10000, 'A'));
     writer->OnEndMap();
 
-    Stroka output = "{\"hello\":{\"$attributes\":{\"incomplete\":\"true\"},\"$value\":\"AA\"}}";
+    Stroka output = "{\"hello\":{\"$attributes\":{\"incomplete\":true},\"$value\":\"AA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 

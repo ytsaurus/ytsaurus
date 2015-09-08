@@ -75,7 +75,7 @@ protected:
     virtual void DoExecute() override;
     virtual void DoExecute(const TDriverRequest& request);
 
-    NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYTree::TYsonString>& yson);
+    NFormats::TFormat GetFormat(NFormats::EDataType dataType, const TNullable<NYson::TYsonString>& yson);
 
     NYTree::IMapNodePtr GetParameters();
 

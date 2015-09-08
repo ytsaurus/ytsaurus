@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "journal_node.h"
 #include "journal_node_proxy.h"
+#include "journal_manager.h"
 #include "private.h"
 
 #include <server/chunk_server/chunk_owner_type_handler.h>
@@ -9,20 +10,23 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
 
+#include <ytlib/journal_client/journal_ypath_proxy.h>
+
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NJournalServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NTransactionServer;
+using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NChunkServer;
 using namespace NChunkClient;
+using namespace NJournalClient;
+using namespace NObjectClient;
 using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = JournalServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +34,7 @@ TJournalNode::TJournalNode(const TVersionedNodeId& id)
     : TChunkOwnerBase(id)
     , ReadQuorum_(0)
     , WriteQuorum_(0)
+    , Sealed_(true)
 { }
 
 void TJournalNode::Save(NCellMaster::TSaveContext& context) const
@@ -48,6 +53,17 @@ void TJournalNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ReadQuorum_);
     Load(context, WriteQuorum_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 200) {
+        Load(context, Sealed_);
+    }
+}
+
+void TJournalNode::BeginUpload(NChunkClient::EUpdateMode mode)
+{
+    TChunkOwnerBase::BeginUpload(mode);
+
+    GetTrunkNode()->Sealed_ = false;
 }
 
 TChunk* TJournalNode::GetTrailingChunk() const
@@ -63,25 +79,33 @@ TChunk* TJournalNode::GetTrailingChunk() const
     return ChunkList_->Children().back()->AsChunk();
 }
 
-bool TJournalNode::IsSealed() const
-{
-    auto* chunk = GetTrailingChunk();
-    return !chunk || chunk->IsSealed();
-}
-
 TJournalNode* TJournalNode::GetTrunkNode()
 {
     return static_cast<TJournalNode*>(TrunkNode_);
 }
 
+const TJournalNode* TJournalNode::GetTrunkNode() const
+{
+    return static_cast<const TJournalNode*>(TrunkNode_);
+}
+
+bool TJournalNode::GetSealed() const
+{
+    return GetTrunkNode()->Sealed_;
+}
+
+void TJournalNode::SetSealed(bool value)
+{
+    YCHECK(IsTrunk());
+    Sealed_ = value;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalNodeTypeHandler
-    : public TCypressNodeTypeHandlerBase<TJournalNode>
+    : public TChunkOwnerTypeHandler<TJournalNode>
 {
 public:
-    typedef TCypressNodeTypeHandlerBase<TJournalNode> TBase;
-
     explicit TJournalNodeTypeHandler(TBootstrap* bootstrap)
         : TBase(bootstrap)
     { }
@@ -91,31 +115,29 @@ public:
         return EObjectType::Journal;
     }
 
+    virtual bool IsExternalizable() override
+    {
+        return true;
+    }
+
     virtual ENodeType GetNodeType() override
     {
         return ENodeType::Entity;
     }
 
-    virtual void SetDefaultAttributes(
-        IAttributeDictionary* attributes,
-        TTransaction* transaction) override
+    virtual TClusterResources GetTotalResourceUsage(const TCypressNodeBase* node) override
     {
-        TBase::SetDefaultAttributes(attributes, transaction);
+        return TBase::GetTotalResourceUsage(node->GetTrunkNode());
+    }
 
-        if (!attributes->Contains("replication_factor")) {
-            attributes->Set("replication_factor", DefaultReplicationFactor);
-        }
-
-        if (!attributes->Contains("read_quorum")) {
-            attributes->Set("read_quorum", DefaultReadQuorum);
-        }
-
-        if (!attributes->Contains("write_quorum")) {
-            attributes->Set("write_quorum", DefaultWriteQuorum);
-        }
+    virtual TClusterResources GetAccountingResourceUsage(const TCypressNodeBase* node) override
+    {
+        return TBase::GetAccountingResourceUsage(node->GetTrunkNode());
     }
 
 protected:
+    typedef TChunkOwnerTypeHandler<TJournalNode> TBase;
+
     virtual ICypressNodeProxyPtr DoGetProxy(
         TJournalNode* trunkNode,
         TTransaction* transaction) override
@@ -129,30 +151,23 @@ protected:
 
     virtual std::unique_ptr<TJournalNode> DoCreate(
         const TVersionedNodeId& id,
-        INodeTypeHandler::TReqCreate* request,
-        INodeTypeHandler::TRspCreate* response) override
+        TCellTag cellTag,
+        TTransaction* transaction,
+        IAttributeDictionary* attributes) override
     {
-        auto chunkManager = this->Bootstrap_->GetChunkManager();
-        auto objectManager = this->Bootstrap_->GetObjectManager();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
 
-        auto node = TBase::DoCreate(id, request, response);
+        // NB: Don't call TBase::InitializeAttributes; take care of all attributes here.
 
-        // Create an empty chunk list and reference it from the node.
-        auto* chunkList = chunkManager->CreateChunkList();
-        node->SetChunkList(chunkList);
-        YCHECK(chunkList->OwningNodes().insert(node.get()).second);
-        objectManager->RefObject(chunkList);
+        int replicationFactor = attributes->Get<int>("replication_factor", DefaultReplicationFactor);
+        attributes->Remove("replication_factor");
 
-        return node;
-    }
+        int readQuorum = attributes->Get<int>("read_quorum", DefaultReadQuorum);
+        attributes->Remove("read_quorum");
 
-    virtual void DoValidateCreated(TJournalNode* node) override
-    {
-        TBase::DoValidateCreated(node);
-
-        int replicationFactor = node->GetReplicationFactor();
-        int readQuorum = node->GetReadQuorum();
-        int writeQuorum = node->GetWriteQuorum();
+        int writeQuorum = attributes->Get<int>("write_quorum", DefaultWriteQuorum);
+        attributes->Remove("write_quorum");
 
         if (readQuorum > replicationFactor) {
             THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");
@@ -163,48 +178,58 @@ protected:
         if (readQuorum + writeQuorum < replicationFactor + 1) {
             THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum < replication_factor + 1");
         }
-    }
 
-    virtual void DoDestroy(TJournalNode* node) override
-    {
-        TBase::DoDestroy(node);
+        auto nodeHolder = TBase::DoCreate(
+            id,
+            cellTag,
+            transaction,
+            attributes);
+        auto* node = nodeHolder.get();
 
-        auto* chunkList = node->GetChunkList();
-        if (chunkList) {
-            YCHECK(chunkList->OwningNodes().erase(node) == 1);
-            auto objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(chunkList);
+        node->SetReplicationFactor(replicationFactor);
+        node->SetReadQuorum(readQuorum);
+        node->SetWriteQuorum(writeQuorum);
+
+        if (!node->IsExternal()) {
+            // Create an empty chunk list and reference it from the node.
+            auto* chunkList = chunkManager->CreateChunkList();
+            node->SetChunkList(chunkList);
+            YCHECK(chunkList->OwningNodes().insert(node).second);
+            objectManager->RefObject(chunkList);
         }
 
-        if (IsLeader() && !node->IsTrunk()) {
-            ScheduleSeal(node);
-        }
+        return nodeHolder;
     }
 
     virtual void DoBranch(
         const TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        TBase::DoBranch(originatingNode, branchedNode);
-
-        auto* chunkList = originatingNode->GetChunkList();
-
-        branchedNode->SetChunkList(chunkList);
-        YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(branchedNode->GetChunkList());
+        // NB: Don't call TBase::DoBranch.
 
         branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
         branchedNode->SetReadQuorum(originatingNode->GetReadQuorum());
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
         branchedNode->SetVital(originatingNode->GetVital());
 
+        auto* chunkList = originatingNode->GetChunkList();
+        auto chunkListId = GetObjectId(chunkList);
+
+        if (!originatingNode->IsExternal()) {
+            branchedNode->SetChunkList(chunkList);
+            YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
+
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->RefObject(chunkList);
+        }
+
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node branched (BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v)",
-            branchedNode->GetId(),
-            originatingNode->GetChunkList()->GetId(),
+            "Journal node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
+            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v)",
+            originatingNode->GetVersionedId(),
+            branchedNode->GetVersionedId(),
+            chunkListId,
             originatingNode->GetReplicationFactor(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum());
@@ -214,25 +239,47 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        TBase::DoMerge(originatingNode, branchedNode);
+        // NB: Don't call TBase::DoMerge.
 
-        auto* originatingChunkList = originatingNode->GetChunkList();
-        auto* branchedChunkList = branchedNode->GetChunkList();
-        YCHECK(originatingChunkList == branchedChunkList);
-        YCHECK(branchedChunkList->OwningNodes().erase(branchedNode) == 1);
+        YCHECK(originatingNode->GetChunkList() == branchedNode->GetChunkList());
+        auto* chunkList = originatingNode->GetChunkList();
+        auto chunkListId = GetObjectId(chunkList);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(branchedChunkList);
+        if (!originatingNode->IsExternal()) {
+            YCHECK(chunkList->OwningNodes().erase(branchedNode) == 1);
 
-        if (IsLeader()) {
-            ScheduleSeal(originatingNode);
+            auto objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(chunkList);
         }
+
+        HandleTransactionFinished(originatingNode, branchedNode);
 
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
+            "Journal node merged (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
-            branchedNode->GetVersionedId());
+            branchedNode->GetVersionedId(),
+            chunkListId);
+    }
+
+    virtual void DoUnbranch(
+        TJournalNode* originatingNode,
+        TJournalNode* branchedNode) override
+    {
+        // NB: Don't call TBase::DoUnbranch.
+
+        YCHECK(originatingNode->GetChunkList() == branchedNode->GetChunkList());
+        auto* chunkList = originatingNode->GetChunkList();
+        auto chunkListId = GetObjectId(chunkList);
+
+        HandleTransactionFinished(originatingNode, branchedNode);
+
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Journal node unbranched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
+            originatingNode->GetVersionedId(),
+            branchedNode->GetVersionedId(),
+            chunkListId);
     }
 
     virtual void DoClone(
@@ -241,17 +288,12 @@ protected:
         ICypressNodeFactoryPtr factory,
         ENodeCloneMode mode) override
     {
-        switch (mode) {
-            case ENodeCloneMode::Copy:
-                THROW_ERROR_EXCEPTION("Journals cannot be copied");
-                break;
+        if (mode == ENodeCloneMode::Copy) {
+            THROW_ERROR_EXCEPTION("Journals cannot be copied");
+        }
 
-            case ENodeCloneMode::Move:
-                // Moving a journal is OK.
-                break;
-
-            default:
-                YUNREACHABLE();
+        if (!sourceNode->GetSealed()) {
+            THROW_ERROR_EXCEPTION("Journal is not sealed");
         }
 
         clonedNode->SetReadQuorum(sourceNode->GetReadQuorum());
@@ -260,14 +302,29 @@ protected:
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
     }
 
-
-    void ScheduleSeal(TJournalNode* journal)
+    void HandleTransactionFinished(TJournalNode* originatingNode, TJournalNode* branchedNode)
     {
-        if (journal->IsSealed())
+        if (branchedNode->GetUpdateMode() != EUpdateMode::Append)
             return;
 
-        auto chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->MaybeScheduleChunkSeal(journal->GetTrailingChunk());
+        auto* trunkNode = branchedNode->GetTrunkNode();
+        if (!trunkNode->IsExternal()) {
+            auto* trailingChunk = trunkNode->GetTrailingChunk();
+            if (trailingChunk && !trailingChunk->IsSealed()) {
+                LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Waiting for the trailing journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
+                    trunkNode->GetId(),
+                    trailingChunk->GetId());
+                if (IsLeader()) {
+                    auto chunkManager = Bootstrap_->GetChunkManager();
+                    chunkManager->MaybeScheduleChunkSeal(trailingChunk);
+                }
+            } else {
+                auto journalManager = Bootstrap_->GetJournalManager();
+                journalManager->SealJournal(trunkNode, nullptr);
+            }
+        }
     }
 
 };

@@ -36,22 +36,8 @@ TJob::TJob(
     , State_(EJobState::Running)
 { }
 
-TJobPtr TJob::CreateForeign(
-    const TJobId& jobId,
-    const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
-{
-    return New<TJob>(
-        EJobType::Foreign,
-        jobId,
-        TChunkIdWithIndex(NullChunkId, 0),
-        static_cast<TNode*>(nullptr),
-        TNodeList(),
-        TPartIndexList(),
-        TInstant::Zero(),
-        resourceUsage);
-}
-
 TJobPtr TJob::CreateReplicate(
+    const TJobId& jobId,
     const TChunkIdWithIndex& chunkIdWithIndex,
     TNode* node,
     const TNodeList& targets,
@@ -59,7 +45,7 @@ TJobPtr TJob::CreateReplicate(
 {
     return New<TJob>(
         EJobType::ReplicateChunk,
-        TJobId::Create(),
+        jobId,
         chunkIdWithIndex,
         node,
         targets,
@@ -69,13 +55,14 @@ TJobPtr TJob::CreateReplicate(
 }
 
 TJobPtr TJob::CreateRemove(
+    const TJobId& jobId,
     const TChunkIdWithIndex& chunkIdWithIndex,
     NNodeTrackerServer::TNode* node,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage)
 {
     return New<TJob>(
         EJobType::RemoveChunk,
-        TJobId::Create(),
+        jobId,
         chunkIdWithIndex,
         node,
         TNodeList(),
@@ -85,6 +72,7 @@ TJobPtr TJob::CreateRemove(
 }
 
 TJobPtr TJob::CreateRepair(
+    const TJobId& jobId,
     const TChunkId& chunkId,
     NNodeTrackerServer::TNode* node,
     const TNodeList& targets,
@@ -93,7 +81,7 @@ TJobPtr TJob::CreateRepair(
 {
     return New<TJob>(
         EJobType::RepairChunk,
-        TJobId::Create(),
+        jobId,
         TChunkIdWithIndex(chunkId, 0),
         node,
         targets,
@@ -103,13 +91,14 @@ TJobPtr TJob::CreateRepair(
 }
 
 TJobPtr TJob::CreateSeal(
+    const TJobId& jobId,
     const TChunkId& chunkId,
     TNode* node,
     const TNodeResources& resourceUsage)
 {
     return New<TJob>(
         EJobType::SealChunk,
-        TJobId::Create(),
+        jobId,
         TChunkIdWithIndex(chunkId, 0),
         node,
         TNodeList(),

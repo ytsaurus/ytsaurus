@@ -30,11 +30,11 @@ message TRspSeal
 
 // CreateObjects extension.
 
-message TReqCreateChunkExt
+message TChunkCreationExt
 {
-    extend NObjectClient.NProto.TReqCreateObjects
+    extend NObjectClient.NProto.TObjectCreationExtensions
     {
-        optional TReqCreateChunkExt create_chunk_ext = 100;
+        optional TChunkCreationExt chunk_creation_ext = 100;
     }
 
     // Desired number of copies (including those created by background replication).

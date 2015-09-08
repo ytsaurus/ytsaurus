@@ -2,6 +2,8 @@
 #include "hydra_service.h"
 #include "hydra_manager.h"
 
+#include <core/concurrency/scheduler.h>
+
 #include <ytlib/hydra/hydra_service.pb.h>
 
 #include <server/election/election_manager.h>
@@ -9,6 +11,7 @@
 namespace NYT {
 namespace NHydra {
 
+using namespace NConcurrency;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +64,13 @@ void THydraServiceBase::ValidatePeer(EPeerKind kind)
         ->GetAutomatonCancelableContext()
         ->CreateInvoker(GetCurrentInvoker());
     SetCurrentInvoker(std::move(cancelableInvoker));
+}
+
+void THydraServiceBase::SyncWithUpstream()
+{
+    auto hydraManager = GetHydraManager();
+    WaitFor(hydraManager->SyncWithUpstream())
+        .ThrowOnError();
 }
 
 bool THydraServiceBase::IsUp(TCtxDiscoverPtr context)

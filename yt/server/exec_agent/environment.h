@@ -30,6 +30,8 @@ struct IProxyController
     virtual void Kill(const NCGroup::TNonOwningCGroup& group) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IProxyController)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /*!
@@ -46,6 +48,8 @@ struct IEnvironmentBuilder
         const TSlot& slot,
         const Stroka& workingDirectory) = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IEnvironmentBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

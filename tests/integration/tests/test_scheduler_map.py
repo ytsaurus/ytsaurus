@@ -1,7 +1,6 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
-from yt.wrapper import format
 from yt.environment.helpers import assert_items_equal
 
 import pytest
@@ -10,12 +9,17 @@ import __builtin__
 import os
 import tempfile
 
+
+##################################################################
+
 def get_statistics(statistics, complex_key):
     result = statistics
     for part in complex_key.split("."):
         if part:
             result = result[part]
     return result
+
+##################################################################
 
 class TestCGroups(YTEnvSetup):
     NUM_MASTERS = 3
@@ -46,7 +50,7 @@ class TestCGroups(YTEnvSetup):
         with pytest.raises(YtError):
             track_op(op_id)
 
-        for job_desc in ls("//sys/operations/{0}/jobs".format(op_id), attr=["error"]):
+        for job_desc in ls("//sys/operations/{0}/jobs".format(op_id), attributes=["error"]):
             print >>sys.stderr, job_desc.attributes
             print >>sys.stderr, job_desc.attributes["error"]["inner_errors"][0]["message"]
             assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
@@ -162,6 +166,7 @@ class TestJobProber(YTEnvSetup):
                 assert trace['trace'].startswith("Process {0} attached".format(pid))
         track_op(op_id)
 
+##################################################################
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
@@ -175,7 +180,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == []
 
-    @only_linux
+    @linux_only
     def test_one_chunk(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -256,7 +261,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         with pytest.raises(YtError):
             track_op(op_id)
 
-    @only_linux
+    @linux_only
     def test_in_equal_to_out(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})
@@ -273,7 +278,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             assert read_file(jobs_path + "/" + job_id + "/stderr") == expected_content
 
     # check that stderr is captured for successfull job
-    @only_linux
+    @linux_only
     def test_stderr_ok(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -288,7 +293,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         self._check_all_stderrs(op_id, "stderr\n", 1)
 
     # check that stderr is captured for failed jobs
-    @only_linux
+    @linux_only
     def test_stderr_failed(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -304,7 +309,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         self._check_all_stderrs(op_id, "stderr\n", 10)
 
     # check max_stderr_count
-    @only_linux
+    @linux_only
     def test_stderr_limit(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -452,7 +457,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 out="//tmp/t2",
                 spec={"mapper": {"format": "yamr"}})
 
-    @only_linux
+    @linux_only
     def test_fail_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -510,7 +515,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert get("//tmp/input_context/@description/type") == "input_context"
         assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
-    @only_linux
+    @linux_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -566,7 +571,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 spec={"job_count": 2})
 
-    @only_linux
+    @linux_only
     def test_job_count(self):
         create("table", "//tmp/t1")
         for i in xrange(5):
@@ -585,7 +590,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check("//tmp/t2", 3, 3)
         check("//tmp/t3", 10, 5) # number of jobs can"t be more that number of chunks
 
-    @only_linux
+    @linux_only
     def test_with_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -613,7 +618,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
 
-    @only_linux
+    @linux_only
     def test_empty_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -635,7 +640,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/output") == []
 
-    @only_linux
+    @linux_only
     def test_multi_chunk_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -691,7 +696,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}, {"text": "info"}]
 
-    @only_linux
+    @linux_only
     def run_many_output_tables(self, yamr_mode=False):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -719,15 +724,15 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == [{"v": 1}]
         assert read_table(output_tables[2]) == [{"v": 2}]
 
-    @only_linux
+    @linux_only
     def test_many_output_yt(self):
         self.run_many_output_tables()
 
-    @only_linux
+    @linux_only
     def test_many_output_yamr(self):
         self.run_many_output_tables(True)
 
-    @only_linux
+    @linux_only
     def test_output_tables_switch(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -750,7 +755,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[1]) == []
         assert read_table(output_tables[2]) == [{"v": 0}, {"v": 1}]
 
-    @only_linux
+    @linux_only
     def test_tskv_input_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -775,7 +780,7 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @only_linux
+    @linux_only
     def test_tskv_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -784,9 +789,9 @@ print '{hello=world}'
 """
 import sys
 input = sys.stdin.readline().strip('\\n')
-assert input == '<"table_index"=0>#;'
+assert input == '<"table_index"=0;>#;'
 input = sys.stdin.readline().strip('\\n')
-assert input == '{"foo"="bar"};'
+assert input == '{"foo"="bar";};'
 print "tskv" + "\\t" + "hello=world"
 """
         create("file", "//tmp/mapper.sh")
@@ -805,7 +810,7 @@ print "tskv" + "\\t" + "hello=world"
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @only_linux
+    @linux_only
     def test_yamr_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -814,7 +819,7 @@ print "tskv" + "\\t" + "hello=world"
 """
 import sys
 input = sys.stdin.readline().strip('\\n')
-assert input == '{"foo"="bar"};'
+assert input == '{"foo"="bar";};'
 print "key\\tsubkey\\tvalue"
 
 """
@@ -833,7 +838,7 @@ print "key\\tsubkey\\tvalue"
 
         assert read_table("//tmp/t_out") == [{"key": "key", "subkey": "subkey", "value": "value"}]
 
-    @only_linux
+    @linux_only
     def test_yamr_input_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -858,7 +863,7 @@ print '{hello=world}'
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
-    @only_linux
+    @linux_only
     def test_executable_mapper(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -897,7 +902,7 @@ cat > /dev/null; echo {hello=world}
         assert get(path) == "aborted"
 
 
-    @only_linux
+    @linux_only
     def test_table_index(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1011,7 +1016,7 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
-@only_linux
+@linux_only
 class TestJobQuery(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -1082,7 +1087,6 @@ class TestJobQuery(YTEnvSetup):
             {"a": 7, "c": 8}]
         write_table("//tmp/t1", rows)
 
-        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={
                 "input_query": "* where a > 0 or b > 0",
@@ -1121,7 +1125,7 @@ class TestJobQuery(YTEnvSetup):
                 spec={"ordered": True, "data_size_per_job": 1})
 
         track_op(op_id)
-        jobs = get("//sys/operations/" + op_id + "/jobs/@count")
+        get("//sys/operations/" + op_id + "/jobs/@count")
 
         assert get("//sys/operations/" + op_id + "/jobs/@count") == 10
         assert read_table("//tmp/t_output") == original_data
@@ -1145,3 +1149,26 @@ class TestJobQuery(YTEnvSetup):
         assert get("//tmp/t_output/@sorted")
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
+
+##################################################################
+
+class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    def test_multicell_input_fetch(self):
+        create("table", "//tmp/t1", attributes={"cell_tag": 1})
+        write_table("//tmp/t1", [{"a": 1}])
+        create("table", "//tmp/t2", attributes={"cell_tag": 2})
+        write_table("//tmp/t2", [{"a": 2}])
+
+        create("table", "//tmp/t_in", attributes={"external": False})
+        merge(mode="ordered",
+              in_=["//tmp/t1", "//tmp/t2"],
+              out="//tmp/t_in")
+        
+        create("table", "//tmp/t_out")
+        map(in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="cat")
+
+        assert_items_equal(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])

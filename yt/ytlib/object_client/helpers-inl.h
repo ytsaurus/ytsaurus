@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include helpers.h"
 #endif
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace NObjectClient {
 
@@ -37,8 +39,8 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::ChunkListMap ||
         type == EObjectType::TransactionMap ||
         type == EObjectType::TopmostTransactionMap ||
-        type == EObjectType::CellNodeMap ||
-        type == EObjectType::CellNode ||
+        type == EObjectType::ClusterNodeNode ||
+        type == EObjectType::ClusterNodeMap ||
         type == EObjectType::Orchid ||
         type == EObjectType::LostVitalChunkMap ||
         type == EObjectType::AccountMap ||
@@ -48,7 +50,8 @@ inline bool IsVersionedType(EObjectType type)
         type == EObjectType::Document ||
         type == EObjectType::LockMap ||
         type == EObjectType::TabletMap ||
-        type == EObjectType::TabletCellNode;
+        type == EObjectType::TabletCellNode ||
+        type == EObjectType::SysNode;
 }
 
 inline bool IsUserType(EObjectType type)
@@ -126,9 +129,33 @@ inline TObjectId MakeId(
         counter >> 32);
 }
 
+inline TObjectId MakeRandomId(
+    EObjectType type,
+    TCellTag cellTag)
+{
+    return MakeId(
+        type,
+        cellTag,
+        RandomNumber<ui64>(),
+        RandomNumber<ui32>());
+}
+
 inline bool IsWellKnownId(const TObjectId& id)
 {
     return CounterFromId(id) & WellKnownCounterMask;
+}
+
+inline TObjectId MakeRegularId(
+    EObjectType type,
+    TCellTag cellTag,
+    ui64 random,
+    NHydra::TVersion version)
+{
+    return TObjectId(
+        random,
+        (cellTag << 16) + static_cast<int>(type),
+        version.RecordId,
+        version.SegmentId);
 }
 
 inline TObjectId MakeWellKnownId(

@@ -30,6 +30,7 @@ using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NYTree;
+using namespace NYson;
 using namespace NScheduler;
 using namespace NQueryClient;
 using namespace NExecAgent;
@@ -75,7 +76,7 @@ TJobResult TSimpleJobBase::Run()
         auto host = Host.Lock();
         YCHECK(host);
 
-        auto jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        const auto& jobSpec = host->GetJobSpec().GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
         if (jobSpec.has_input_query_spec()) {
 
 
@@ -128,8 +129,8 @@ TJobResult TSimpleJobBase::Run()
 
             // ToDo(psushin): return written chunks only if required.
             auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
-            Writer_->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_node_directory());
-            ToProto(schedulerResultExt->mutable_chunks(), Writer_->GetWrittenChunks());
+            Writer_->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_output_node_directory());
+            ToProto(schedulerResultExt->mutable_output_chunks(), Writer_->GetWrittenChunks());
 
             return result;
         }

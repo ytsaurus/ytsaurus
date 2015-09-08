@@ -24,9 +24,12 @@ public:
 
 public:
     TNodeDescriptor() = default;
+    explicit TNodeDescriptor(const Stroka& defaultAddress);
     explicit TNodeDescriptor(
         const TAddressMap& addresses,
         const TNullable<Stroka>& rack = Null);
+
+    bool IsNull() const;
 
     const Stroka& GetDefaultAddress() const;
     const Stroka& GetInterconnectAddress() const;
