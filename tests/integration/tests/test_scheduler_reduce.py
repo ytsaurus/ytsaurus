@@ -130,12 +130,12 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         job_ids = ls('//sys/operations/{0}/jobs'.format(op_id))
         assert len(job_ids) == 1
         assert read_file('//sys/operations/{0}/jobs/{1}/stderr'.format(op_id, job_ids[0])) == \
-            '<"table_index"=1>#;\n' \
-            '<"row_index"=0>#;\n' \
-            '{"key"=1;"value"=6};\n' \
-            '<"table_index"=0>#;\n' \
-            '<"row_index"=0>#;\n' \
-            '{"key"=4;"value"=3};\n'
+            '<"table_index"=1;>#;\n' \
+            '<"row_index"=0;>#;\n' \
+            '{"key"=1;"value"=6;};\n' \
+            '<"table_index"=0;>#;\n' \
+            '<"row_index"=0;>#;\n' \
+            '{"key"=4;"value"=3;};\n'
 
     @linux_only
     def test_cat_teleport(self):

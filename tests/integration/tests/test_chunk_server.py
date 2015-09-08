@@ -47,7 +47,7 @@ class TestChunkServer(YTEnvSetup):
             return id.split('-')[3]
 
         def node_has_chunk(node, id):
-            return id_to_hash(id) in [id_to_hash(id) for id in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]
+            return id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/nodes/%s/orchid/stored_chunks" % node)]
 
         sleep(2) # wait for background replication
 
@@ -116,6 +116,6 @@ class TestChunkServerMulticell(TestChunkServer):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        self.assertItemsEqual( \
-            get("#" + chunk_id + "/@owning_nodes"), \
+        assert_items_equal(
+            get("#" + chunk_id + "/@owning_nodes"),
             ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
