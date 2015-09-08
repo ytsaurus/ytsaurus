@@ -43,6 +43,8 @@ public:
 
     virtual NJobTrackerClient::NProto::TJobResult Run() override;
 
+    virtual void Abort() override;
+
     virtual double GetProgress() const override;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;

@@ -106,6 +106,9 @@ public:
         return result;
     }
 
+    virtual void Abort() override
+    { }
+
     virtual double GetProgress() const override
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).

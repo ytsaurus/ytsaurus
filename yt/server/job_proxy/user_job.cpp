@@ -130,24 +130,27 @@ public:
 
         Prepare();
 
-        Prepared_ = true;
+        bool expected = false;
+        if (Prepared_.compare_exchange_strong(expected, true)) {
+            Process_.Spawn();
+            LOG_INFO("Job process started");
 
-        Process_.Spawn();
-        LOG_INFO("Job process started");
+            MemoryWatchdogExecutor_->Start();
+            BlockIOWatchdogExecutor_->Start();
 
-        MemoryWatchdogExecutor_->Start();
-        BlockIOWatchdogExecutor_->Start();
+            DoJobIO();
 
-        DoJobIO();
+            if (!JobErrorPromise_.IsSet())  {
+                FinalizeJobIO();
+            }
 
-        if (!JobErrorPromise_.IsSet())  {
-            FinalizeJobIO();
+            CleanupUserProcesses();
+
+            WaitFor(BlockIOWatchdogExecutor_->Stop());
+            WaitFor(MemoryWatchdogExecutor_->Stop());
+        } else {
+            JobErrorPromise_.TrySet(TError("Job aborted"));
         }
-
-        CleanupUserProcesses();
-
-        WaitFor(BlockIOWatchdogExecutor_->Stop());
-        WaitFor(MemoryWatchdogExecutor_->Stop());
 
         auto jobResultError = JobErrorPromise_.TryGet();
 
@@ -166,6 +169,15 @@ public:
         }
 
         return result;
+    }
+
+    virtual void Abort() override
+    {
+        bool expected = false;
+        if (!Prepared_.compare_exchange_strong(expected, true)) {
+            // Job has been prepared.
+            CleanupUserProcesses();
+        }
     }
 
     virtual double GetProgress() const override

@@ -1,3 +1,4 @@
+
 #include "stdafx.h"
 #include "config.h"
 #include "job_proxy.h"
@@ -435,6 +436,9 @@ void TJobProxy::CheckMemoryUsage()
 
 void TJobProxy::Exit(EJobProxyExitCode exitCode)
 {
+    if (Job_) {
+        Job_->Abort();
+    }
     NLogging::TLogManager::Get()->Shutdown();
     _exit(static_cast<int>(exitCode));
 }
