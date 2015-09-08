@@ -9,6 +9,8 @@
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
+#include<server/node_tracker_server/node.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -46,7 +48,7 @@ class TExecNode
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
 
     //! State of node at master.
-    DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, MasterState);
+    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
 public:
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;

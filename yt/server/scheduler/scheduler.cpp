@@ -54,6 +54,7 @@ using namespace NChunkClient;
 using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
 using namespace NVersionedTableClient;
+using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 
@@ -975,9 +976,9 @@ private:
                 }
 
                 auto node = child.second;
-                auto state = node->Attributes().Get<Stroka>("state");
+                auto state = node->Attributes().Get<ENodeState>("state");
                 AddressToNode_[address]->SetMasterState(state);
-                if (state != "online") {
+                if (state != ENodeState::Online) {
                     AbortJobsAtNode(AddressToNode_[address]);
                 }
 
