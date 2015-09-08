@@ -28,7 +28,7 @@ logger = logging.getLogger("Yt.local")
 def _write_config(config, filename, format="yson"):
     with open(filename, "wt") as f:
         if format == "yson":
-            yson.dump(config, f, yson_format="pretty")
+            yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
         else:  # json
             json.dump(config, f, indent=4)
 
