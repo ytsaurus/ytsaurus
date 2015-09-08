@@ -622,7 +622,7 @@ class YTEnv(object):
         proxy_config["proxy"]["logging"] = self._init_logging(proxy_config["proxy"]["logging"], current, "http_proxy")
         proxy_config["proxy"]["driver"] = driver_config
         proxy_config["port"] = self._ports[proxy_name][0]
-        proxy_config["fqdn"] = "{0}:{1}".format(self._hostname, self._ports[proxy_name][0])
+        proxy_config["fqdn"] = "localhost:{0}".format(self._ports[proxy_name][0])
         proxy_config["log_port"] = self._ports[proxy_name][1]
 
         self.modify_proxy_config(proxy_config)
