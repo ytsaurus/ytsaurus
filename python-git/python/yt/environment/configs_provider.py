@@ -103,6 +103,8 @@ class ConfigsProvider_17(ConfigsProvider):
             config["snapshots"]["path"] = os.path.join(master_dirs[i], "snapshots")
             config["logging"] = _init_logging(config["logging"], master_dirs[i], "master-" + str(i))
 
+            config["node_tracker"]["online_node_timeout"] = 1000
+
             configs.append(config)
 
         self._master_addresses["primary"] = addresses
@@ -128,13 +130,17 @@ class ConfigsProvider_17(ConfigsProvider):
             config["cluster_connection"]["master"] = {
                 "addresses": self._master_addresses["primary"],
                 "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-                "cell_tag": self._master_cell_tag
+                "cell_tag": self._master_cell_tag,
+                "rpc_timeout": 5000
             }
             config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
+            config["cluster_connection"]["transaction_manager"]["ping_period"] = 500
 
             config["rpc_port"] = ports[2 * i]
             config["monitoring_port"] = ports[2 * i + 1]
             config["scheduler"]["snapshot_temp_path"] = os.path.join(scheduler_dirs[i], "snapshots")
+
+            config["transaction_manager"]["ping_period"] = 500
 
             config["logging"] = _init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i))
 
@@ -166,7 +172,8 @@ class ConfigsProvider_17(ConfigsProvider):
             config["cluster_connection"]["master"] = {
                 "addresses": self._master_addresses["primary"],
                 "cell_id": "ffffffff-ffffffff-ffffffff-ffffffff",
-                "cell_tag": self._master_cell_tag
+                "cell_tag": self._master_cell_tag,
+                "rpc_timeout": 5000
             }
             config["cluster_connection"]["master_cache"] = {
                 "addresses": self._master_addresses["primary"],
@@ -174,6 +181,7 @@ class ConfigsProvider_17(ConfigsProvider):
                 "cell_tag": self._master_cell_tag
             }
             config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
+            config["cluster_connection"]["transaction_manager"]["ping_period"] = 500
 
             config["data_node"]["multiplexed_changelog"] = {}
             config["data_node"]["multiplexed_changelog"]["path"] = os.path.join(node_dirs[i], "multiplexed")
@@ -229,10 +237,29 @@ class ConfigsProvider_17(ConfigsProvider):
             "cell_tag": self._master_cell_tag
         }
         config["timestamp_provider"]["addresses"] = self._get_cache_addresses()
+        config["transaction_manager"]["ping_period"] = 500
 
         return [config]
 
 class ConfigsProvider_17_3(ConfigsProvider_17):
+    def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
+        configs, addresses = super(ConfigsProvider_17_3, self).\
+            get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
+
+        for cell_index in xrange(secondary_master_cell_count + 1):
+            for config in configs[cell_index]:
+                config["hydra_manager"] = {
+                    "leader_lease_check_period": 100,
+                    "leader_lease_timeout": 200,
+                    "disable_leader_lease_grace_delay": True,
+                    "response_keeper": {
+                        "expiration_time": 25000,
+                        "warmup_time": 30000,
+                    }
+                }
+
+        return configs, addresses
+
     def get_node_configs(self, node_count, node_dirs):
         configs, addresses = super(ConfigsProvider_17_3, self).\
                 get_node_configs(node_count, node_dirs)
@@ -297,12 +324,20 @@ class ConfigsProvider_18(ConfigsProvider):
                     }
                 }
 
+                config["security_manager"]["user_statistics_gossip_period"] = 80
+                config["security_manager"]["account_statistics_gossip_period"] = 80
+
+                config["node_tracker"]["node_states_gossip_period"] = 80
+
                 config["rpc_port"] = ports[cell_index][2 * master_index]
                 config["monitoring_port"] = ports[cell_index][2 * master_index + 1]
 
-                config["primary_master"]["cell_id"] = self._primary_master_cell_id
-                config["primary_master"]["addresses"] = addresses[0]
+                config["primary_master"] = {
+                    "cell_id": self._primary_master_cell_id,
+                    "addresses": addresses[0]
+                }
 
+                config["secondary_masters"] = []
                 for index in xrange(secondary_master_cell_count):
                     config["secondary_masters"].append({})
                     config["secondary_masters"][index]["cell_id"] = self._secondary_masters_cell_ids[index]
@@ -312,6 +347,14 @@ class ConfigsProvider_18(ConfigsProvider):
                 config["changelogs"]["path"] = master_dirs[cell_index][master_index]
                 config["snapshots"]["path"] = master_dirs[cell_index][master_index]
                 config["logging"] = _init_logging(config["logging"], master_dirs[cell_index][master_index], "master-" + str(master_index))
+
+                config["tablet_manager"] = {
+                    "cell_scan_period": 100
+                }
+
+                config["multicell_manager"] = {
+                    "cell_statistics_gossip_period": 80
+                }
 
                 configs.append(config)
 
@@ -333,17 +376,23 @@ class ConfigsProvider_18(ConfigsProvider):
         for i in xrange(scheduler_count):
             config = default_configs.get_scheduler_config()
 
-            config["cluster_connection"]["primary_master"]["addresses"] = self._master_addresses["primary"]
-            config["cluster_connection"]["primary_master"]["cell_id"] = self._primary_master_cell_id
+            config["cluster_connection"]["primary_master"] = {
+                "addresses": self._master_addresses["primary"],
+                "cell_id": self._primary_master_cell_id,
+                "rpc_timeout": 5000
+            }
 
             secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
             config["cluster_connection"]["secondary_masters"] = [{"addresses": addresses, "cell_id": cell_id}
                     for addresses, cell_id in secondary_masters_info]
             config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
+            config["cluster_connection"]["transaction_manager"]["default_ping_period"] = 500
 
             config["rpc_port"] = ports[2 * i]
             config["monitoring_port"] = ports[2 * i + 1]
             config["scheduler"]["snapshot_temp_path"] = os.path.join(scheduler_dirs[i], "snapshots")
+
+            config["transaction_manager"]["default_ping_period"] = 500
 
             config["logging"] = _init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i))
 
@@ -396,17 +445,26 @@ class ConfigsProvider_18(ConfigsProvider):
             config["rpc_port"] = ports[2 * i]
             config["monitoring_port"] = ports[2 * i + 1]
 
+            config["cell_directory_synchronizer"] = {
+                "sync_period": 1000
+            }
+
             config["cluster_connection"]["primary_master"] = {
+                "cell_id": self._primary_master_cell_id,
+                "addresses": self._master_addresses["primary"],
+                "rpc_timeout": 5000
+            }
+
+            config["cluster_connection"]["master_cache"] = {
                 "cell_id": self._primary_master_cell_id,
                 "addresses": self._master_addresses["primary"]
             }
 
-            config["cluster_connection"]["master_cache"]["cell_id"] = self._primary_master_cell_id
-            config["cluster_connection"]["master_cache"]["addresses"] = self._master_addresses["primary"]
             secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
             config["cluster_connection"]["secondary_masters"] = [{"addresses": addresses_, "cell_id": cell_id}
                     for addresses_, cell_id in secondary_masters_info]
             config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
+            config["cluster_connection"]["transaction_manager"]["default_ping_period"] = 500
 
             config["data_node"]["cache_locations"] = []
             config["data_node"]["cache_locations"].append({"path": os.path.join(node_dirs[i], "chunk_cache")})
@@ -442,8 +500,12 @@ class ConfigsProvider_18(ConfigsProvider):
 
         for cell_index in xrange(self._secondary_master_cells_count + 1):
             config = default_configs.get_driver_config()
-            config["primary_master"]["addresses"] = self._master_addresses["primary"]
-            config["primary_master"]["cell_id"] = self._primary_master_cell_id
+
+            config["primary_master"] = {
+                "addresses": self._master_addresses["primary"],
+                "cell_id": self._primary_master_cell_id,
+                "rpc_timeout": 5000
+            }
 
             # Main driver config requires secondary masters
             if cell_index == 0:
@@ -453,6 +515,7 @@ class ConfigsProvider_18(ConfigsProvider):
                     for addresses_, cell_id in secondary_masters_info]
 
             config["timestamp_provider"]["addresses"] = self._get_cache_addresses()
+            config["transaction_manager"]["default_ping_period"] = 500
 
             configs.append(config)
 

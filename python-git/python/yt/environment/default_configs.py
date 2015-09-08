@@ -43,10 +43,6 @@ def get_master_config():
 {
     enable_provision_lock = %false;
 
-    primary_master = { };
-
-    secondary_masters = [ ];
-
     timestamp_provider = {
         soft_backoff_time = 100;
         hard_backoff_time = 100;
@@ -80,14 +76,11 @@ def get_master_config():
     security_manager = {
         statistics_flush_period = 10;
         request_rate_smoothing_period = 60000;
-        user_statistics_gossip_period = 80;
-        account_statistics_gossip_period = 80;
     };
 
     node_tracker = {
         max_concurrent_node_registrations = 100;
         max_concurrent_node_unregistrations = 100;
-        node_states_gossip_period = 80;
     };
 
     object_manager = {
@@ -97,14 +90,6 @@ def get_master_config():
     hive_manager = {
         ping_period = 1000;
         rpc_timeout = 1000;
-    };
-
-    tablet_manager = {
-        cell_scan_period = 100;
-    };
-
-    multicell_manager = {
-        cell_statistics_gossip_period = 80;
     };
 
     logging = { };
@@ -119,20 +104,14 @@ def get_scheduler_config():
 """
 {
     cluster_connection = {
-        enable_read_from_followers = true;
-
-        primary_master = {
-            rpc_timeout = 5000;
-        };
+        enable_read_from_followers = %true;
 
         timestamp_provider = {
             soft_backoff_time = 100;
             hard_backoff_time = 100;
         };
 
-        transaction_manager = {
-            default_ping_period = 500;
-        };
+        transaction_manager = { };
     };
 
     response_keeper = {
@@ -157,9 +136,7 @@ def get_scheduler_config():
         snapshot_timeout = 1000;
     };
 
-    transaction_manager = {
-        default_ping_period = 500;
-    };
+    transaction_manager = { };
 
     logging = { };
 
@@ -174,16 +151,8 @@ def get_node_config():
 {
     orchid_cache_expiration_time = 0;
 
-    cell_directory_synchronizer = {
-        sync_period = 1000;
-    };
-
     cluster_connection = {
         enable_read_from_followers = %true;
-
-        primary_master = {
-            rpc_timeout = 5000;
-        };
 
         master_cache = {
             soft_backoff_time = 100;
@@ -198,7 +167,6 @@ def get_node_config():
 
         transaction_manager = {
             default_transaction_timeout = 1000;
-            default_ping_period = 500;
         };
 
         scheduler = {
@@ -323,20 +291,14 @@ def get_driver_config():
     return yson.loads(
 """
 {
-    enable_read_from_followers = true;
-
-    primary_master = {
-        rpc_timeout = 5000;
-    };
+    enable_read_from_followers = %true;
 
     timestamp_provider = {
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
 
-    transaction_manager = {
-        default_ping_period = 500;
-    };
+    transaction_manager = { };
 
     format_defaults = {
         structured = <
@@ -347,7 +309,7 @@ def get_driver_config():
         > yson
     };
 
-    enable_udf = true;
+    enable_udf = %true;
 }
 """)
 
