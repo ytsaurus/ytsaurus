@@ -20,16 +20,15 @@ static const auto& Logger = ChunkClientLogger;
 
 TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     NRpc::IChannelPtr masterChannel,
-    TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     EObjectType chunkType,
     const TTransactionId& transactionId,
     const TChunkListId& chunkListId)
 {
-    auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
-        options->ReplicationFactor,
-        uploadReplicationFactor);
+    LOG_DEBUG(
+        "Creating chunk (ReplicationFactor: %v, TransactionId: %v)", 
+        options->ReplicationFactor, 
+        transactionId);
 
     TObjectServiceProxy objectProxy(masterChannel);
 

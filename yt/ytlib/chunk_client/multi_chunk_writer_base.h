@@ -57,7 +57,7 @@ protected:
     NLogging::TLogger Logger;
 
     bool VerifyActive();
-    bool TrySwitchSession();
+    bool TryFinishSession();
 
     virtual IChunkWriterBasePtr CreateTemplateWriter(IChunkWriterPtr underlyingWriter) = 0;
 
@@ -93,34 +93,24 @@ private:
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     std::vector<TFuture<void>> CloseChunkEvents_;
 
-    volatile double Progress_ = 0.0;
+    std::atomic<double> Progress_ = { 0.0 };
 
-    TSession CurrentSession_;
-    TSession NextSession_;
-
+    TSession Session_;
     bool Closing_ = false;
 
-    TFuture<void> NextSessionReady_;
     TFuture<void> ReadyEvent_ = VoidFuture;
-
     TPromise<void> CompletionError_ = NewPromise<void>();
 
     NProto::TDataStatistics DataStatistics_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
 
 
-    void DoOpen();
     void DoClose();
 
-    void CreateNextSession();
-    void InitCurrentSession();
+    void InitSession();
 
-    void SwitchSession();
-    void DoSwitchSession(const TSession& session);
-
-    TFuture<void> FinishSession(const TSession& session);
-    void DoFinishSession(const TSession& session);
-
+    void FinishSession();
+    void DoFinishSession();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,8 +152,8 @@ public:
         // Return true if current writer is ready for more data and
         // we didn't switch to the next chunk.
         bool readyForMore = CurrentWriter_->Write(std::forward<TWriteArgs>(args)...);
-        bool switched = TrySwitchSession();
-        return readyForMore && !switched;
+        bool finished = TryFinishSession();
+        return readyForMore && !finished;
     }
 
 protected:

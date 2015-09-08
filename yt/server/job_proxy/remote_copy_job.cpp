@@ -192,7 +192,6 @@ private:
             auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
             auto rspOrError = WaitFor(CreateChunk(
                 channel,
-                WriterConfig_,
                 writerOptions,
                 isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
                 transactionId,

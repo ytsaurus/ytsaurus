@@ -68,19 +68,16 @@ void TFileChunkOutput::Open()
         Config->UploadReplicationFactor);
     
     auto channel = Client->GetMasterChannel(EMasterChannelKind::Leader);
-    auto rspOrError = CreateChunk(channel, Config, Options, EObjectType::Chunk, TransactionId, NullChunkListId).Get();
-    if (!rspOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::MasterCommunicationFailed,
-            "Error creating chunk")
-            << rspOrError;
-    }
+    auto rspOrError = CreateChunk(channel, Options, EObjectType::Chunk, TransactionId, NullChunkListId).Get();
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        rspOrError,
+        NChunkClient::EErrorCode::MasterCommunicationFailed,
+        "Error creating chunk");
 
     const auto& rsp = rspOrError.Value();
     ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
 
     Logger.AddTag("ChunkId: %v", ChunkId);
-
     LOG_INFO("Chunk created");
 
     auto nodeDirectory = New<TNodeDirectory>();
