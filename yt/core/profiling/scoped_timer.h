@@ -15,6 +15,11 @@ public:
         : StartTime_(GetCpuInstant())
     { }
 
+    TInstant GetStart() const
+    {
+        return CpuInstantToInstant(StartTime_);
+    }
+
     TDuration GetElapsed() const
     {
         return CpuDurationToDuration(GetCpuInstant() - StartTime_);

@@ -1,10 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "forwarding_yson_consumer.h"
-#include "yson_stream.h"
 
 #include <core/yson/writer.h>
+#include <core/yson/forwarding_consumer.h>
+#include <core/yson/stream.h>
 
 namespace NYT {
 namespace NYTree {
@@ -12,7 +12,7 @@ namespace NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAttributeConsumer
-    : public TForwardingYsonConsumer
+    : public NYson::TForwardingYsonConsumer
 {
 public:
     explicit TAttributeConsumer(IAttributeDictionary* attributes);

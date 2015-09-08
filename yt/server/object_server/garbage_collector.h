@@ -14,7 +14,6 @@
 #include <server/cell_master/public.h>
 
 #include <set>
-#include <unordered_set>
 
 namespace NYT {
 namespace NObjectServer {
@@ -39,6 +38,7 @@ public:
     TFuture<void> Collect();
 
     void RegisterZombie(TObjectBase* object);
+    void UnregisterZombie(TObjectBase* object);
     void DestroyZombie(TObjectBase* object);
 
     void DisposeGhost(TObjectBase* object);

@@ -20,6 +20,8 @@
 
 #include <server/chunk_server/config.h>
 
+#include <server/journal_server/config.h>
+
 #include <server/cypress_server/config.h>
 
 #include <server/object_server/config.h>
@@ -34,20 +36,6 @@ namespace NYT {
 namespace NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TMasterCellConfig
-    : public NElection::TCellConfig
-{
-public:
-    NObjectClient::TCellTag CellTag = 0;
-
-    TMasterCellConfig()
-    {
-        RegisterParameter("cell_tag", CellTag);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TMasterCellConfig)
 
 class TMasterHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
@@ -70,17 +58,38 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TMasterHydraManagerConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TMulticellManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration CellStatisticsGossipPeriod;
+
+    TMulticellManagerConfig()
+    {
+        RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
+            .Default(TDuration::Seconds(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellMasterConfig
     : public TServerConfig
 {
 public:
-    TMasterCellConfigPtr Master;
+    NElection::TCellConfigPtr PrimaryMaster;
+    std::vector<NElection::TCellConfigPtr> SecondaryMasters;
 
     NHydra::TFileChangelogStoreConfigPtr Changelogs;
     NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
     TMasterHydraManagerConfigPtr HydraManager;
 
     NHive::TCellDirectoryConfigPtr CellDirectory;
+    NHive::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
     NHive::THiveManagerConfigPtr HiveManager;
 
     NNodeTrackerServer::TNodeTrackerConfigPtr NodeTracker;
@@ -88,6 +97,8 @@ public:
     NTransactionServer::TTransactionManagerConfigPtr TransactionManager;
 
     NChunkServer::TChunkManagerConfigPtr ChunkManager;
+
+    NJournalServer::TJournalManagerConfigPtr JournalManager;
 
     NObjectServer::TObjectManagerConfigPtr ObjectManager;
 
@@ -103,6 +114,8 @@ public:
 
     NHive::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
+    TMulticellManagerConfigPtr MulticellManager;
+
     //! RPC interface port number.
     int RpcPort;
 
@@ -112,43 +125,7 @@ public:
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 
-    TCellMasterConfig()
-    {
-        RegisterParameter("master", Master);
-        RegisterParameter("changelogs", Changelogs);
-        RegisterParameter("snapshots", Snapshots);
-        RegisterParameter("hydra_manager", HydraManager)
-            .DefaultNew();
-        RegisterParameter("cell_directory", CellDirectory)
-            .DefaultNew();
-        RegisterParameter("hive_manager", HiveManager)
-            .DefaultNew();
-        RegisterParameter("node_tracker", NodeTracker)
-            .DefaultNew();
-        RegisterParameter("transaction_manager", TransactionManager)
-            .DefaultNew();
-        RegisterParameter("chunk_manager", ChunkManager)
-            .DefaultNew();
-        RegisterParameter("object_manager", ObjectManager)
-            .DefaultNew();
-        RegisterParameter("cypress_manager", CypressManager)
-            .DefaultNew();
-        RegisterParameter("security_manager", SecurityManager)
-            .DefaultNew();
-        RegisterParameter("tablet_manager", TabletManager)
-            .DefaultNew();
-        RegisterParameter("timestamp_manager", TimestampManager)
-            .DefaultNew();
-        RegisterParameter("timestamp_provider", TimestampProvider);
-        RegisterParameter("transaction_supervisor", TransactionSupervisor)
-            .DefaultNew();
-        RegisterParameter("rpc_port", RpcPort)
-            .Default(9000);
-        RegisterParameter("monitoring_port", MonitoringPort)
-            .Default(10000);
-        RegisterParameter("enable_provision_lock", EnableProvisionLock)
-            .Default(true);
-    }
+    TCellMasterConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)

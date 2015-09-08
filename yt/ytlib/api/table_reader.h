@@ -2,7 +2,7 @@
 
 #include <ytlib/table_client/public.h>
 
-#include <ytlib/ypath/rich.h>
+#include <ytlib/ypath/public.h>
 
 namespace NYT {
 namespace NApi {

@@ -26,6 +26,16 @@ public:
         YCHECK(bootstrap);
     }
 
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return EObjectReplicationFlags::None;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* object) override
+    {
+        return NObjectClient::NotReplicatedCellTag;
+    }
+
     virtual Stroka GetName(TObjectBase* object) override
     {
         return DoGetName(static_cast<TObject*>(object));
@@ -44,11 +54,11 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& /*hintId*/,
         NTransactionServer::TTransaction* /*transaction*/,
         NSecurityServer::TAccount* /*account*/,
         NYTree::IAttributeDictionary* /*attributes*/,
-        TReqCreateObjects* /*request*/,
-        TRspCreateObjects* /*response*/) override
+        const NObjectClient::NProto::TObjectCreationExtensions& /*extensions*/) override
     {
         YUNREACHABLE();
     }
@@ -88,6 +98,13 @@ public:
             NYTree::EPermissionSet::Administer;
     }
 
+    virtual void PopulateObjectReplicationRequest(
+        const TObjectBase* object,
+        NObjectServer::NProto::TReqCreateForeignObject* request) override
+    {
+        DoPopulateObjectReplicationRequest(static_cast<const TObject*>(object), request);
+    }
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -122,6 +139,11 @@ protected:
         auto objectManager = Bootstrap_->GetObjectManager();
         return objectManager->FindSchema(GetType());
     }
+
+    virtual void DoPopulateObjectReplicationRequest(
+        const TObject* /*object*/,
+        NObjectServer::NProto::TReqCreateForeignObject* /*request*/)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +163,7 @@ public:
     virtual void DestroyObject(TObjectBase* object) throw() override
     {
         this->DoDestroyObject(static_cast<TObject*>(object));
-    	// Remove the object from the map but keep it alive.
+        // Remove the object from the map but keep it alive.
         Map_->Release(object->GetId()).release();
     }
 
@@ -159,6 +181,10 @@ public:
     }
 
 protected:
+    // We store map by a raw pointer. In most cases this should be OK.
+    TMap* const Map_;
+
+
     virtual void DoDestroyObject(TObject* object)
     {
         // Clear ACD, if any.
@@ -172,10 +198,6 @@ protected:
     {
         object->ResetWeakRefCounter();
     }
-
-private:
-    // We store map by a raw pointer. In most cases this should be OK.
-    TMap* const Map_;
 
 };
 

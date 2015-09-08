@@ -21,14 +21,21 @@ class TestOrchid(YTEnvSetup):
             path_to_orchid = path + "/" + service + "/orchid"
             self._check_service(path_to_orchid, service_name)
 
-    def test_at_masters(self):
-        for i in range(10):
-            self._check_orchid("//sys/masters", self.NUM_MASTERS, "master")
+    def test_at_primary_masters(self):
+        self._check_orchid("//sys/primary_masters", self.NUM_MASTERS, "master")
 
     def test_at_nodes(self):
-        for i in range(10):
-            self._check_orchid("//sys/nodes", self.NUM_NODES, "node")
+        self._check_orchid("//sys/nodes", self.NUM_NODES, "node")
 
     def test_at_scheduler(self):
-        for i in range(10):
-            self._check_service("//sys/scheduler/orchid", "scheduler")
+        self._check_service("//sys/scheduler/orchid", "scheduler")
+
+##################################################################
+
+class TestOrchidMulticell(TestOrchid):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    def test_at_secondary_masters(self):
+        for tag in range(1, self.NUM_SECONDARY_MASTER_CELLS + 1):
+            self._check_orchid("//sys/secondary_masters/" + str(tag) , self.NUM_MASTERS, "master")
+

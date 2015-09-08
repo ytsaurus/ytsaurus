@@ -82,13 +82,13 @@ void TCheckPermissionCommand::DoExecute()
     Reply(BuildYsonStringFluently()
         .BeginMap()
             .Item("action").Value(result.Action)
-            .DoIf(result.ObjectId != NullObjectId, [&] (TFluentMap fluent) {
+            .DoIf(result.ObjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("object_id").Value(result.ObjectId);
             })
             .DoIf(result.ObjectName.HasValue(), [&] (TFluentMap fluent) {
                 fluent.Item("object_name").Value(result.ObjectName);
             })
-            .DoIf(result.SubjectId != NullObjectId, [&] (TFluentMap fluent) {
+            .DoIf(result.SubjectId.operator bool(), [&] (TFluentMap fluent) {
                 fluent.Item("subject_id").Value(result.SubjectId);
             })
             .DoIf(result.SubjectName.HasValue(), [&] (TFluentMap fluent) {

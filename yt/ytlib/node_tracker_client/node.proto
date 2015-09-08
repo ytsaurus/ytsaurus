@@ -33,7 +33,8 @@ message TNodeStatistics
 {
     optional int64 total_available_space = 1;
     optional int64 total_used_space = 2;
-    optional int32 total_chunk_count = 3;
+    optional int32 total_stored_chunk_count = 3;
+    optional int32 total_cached_chunk_count = 16;
     optional int32 total_user_session_count = 4;
     optional int32 total_replication_session_count = 7;
     optional int32 total_repair_session_count = 8;

@@ -62,12 +62,12 @@ public:
             "/@" + path);
     }
 
-    virtual void SerializeAttributes(
-        IYsonConsumer* consumer,
+    virtual void WriteAttributesFragment(
+        IAsyncYsonConsumer* consumer,
         const TAttributeFilter& filter,
         bool sortKeys) override
     {
-        GetTargetProxy()->SerializeAttributes(consumer, filter, sortKeys);
+        GetTargetProxy()->WriteAttributesFragment(consumer, filter, sortKeys);
     }
 
 private:
@@ -91,8 +91,8 @@ class TTabletCellNodeTypeHandler
     : public TMapNodeTypeHandler
 {
 public:
-    explicit TTabletCellNodeTypeHandler(TBootstrap* Bootstrap_)
-        : TMapNodeTypeHandler(Bootstrap_)
+    explicit TTabletCellNodeTypeHandler(TBootstrap* bootstrap)
+        : TMapNodeTypeHandler(bootstrap)
     { }
 
     virtual EObjectType GetObjectType() override
@@ -114,25 +114,58 @@ private:
 
 };
 
-INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* Bootstrap_)
+INodeTypeHandlerPtr CreateTabletCellNodeTypeHandler(TBootstrap* bootstrap)
 {
-    return New<TTabletCellNodeTypeHandler>(Bootstrap_);
+    return New<TTabletCellNodeTypeHandler>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* Bootstrap_)
+class TVirtualTabletMap
+    : public TVirtualMulticellMapBase
 {
-    YCHECK(Bootstrap_);
+public:
+    TVirtualTabletMap(TBootstrap* bootstrap, INodePtr owningProxy)
+        : TVirtualMulticellMapBase(bootstrap, owningProxy)
+    { }
 
-    auto service = CreateVirtualObjectMap(
-        Bootstrap_,
-        Bootstrap_->GetTabletManager()->Tablets());
+private:
+    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        return ToObjectIds(GetValues(tabletManager->Tablets(), sizeLimit));
+    }
+
+    virtual bool IsValid(TObjectBase* object) const
+    {
+        return object->GetType() == EObjectType::Tablet;
+    }
+
+    virtual i64 GetSize() const override
+    {
+        auto tabletManager = Bootstrap_->GetTabletManager();
+        return tabletManager->Tablets().GetSize();
+    }
+
+protected:
+    virtual TYPath GetWellKnownPath() const override
+    {
+        return "//sys/tablets";
+    }
+
+};
+
+INodeTypeHandlerPtr CreateTabletMapTypeHandler(TBootstrap* bootstrap)
+{
+    YCHECK(bootstrap);
+
     return CreateVirtualTypeHandler(
-        Bootstrap_,
+        bootstrap,
         EObjectType::TabletMap,
-        service,
-        EVirtualNodeOptions::RedirectSelf);
+        BIND([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualTabletMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RequireLeader | EVirtualNodeOptions::RedirectSelf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

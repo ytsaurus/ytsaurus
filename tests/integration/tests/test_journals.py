@@ -13,6 +13,10 @@ class TestJournals(YTEnvSetup):
 
     DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
 
+    def _write_and_wait_until_sealed(self, path, data):
+        write_journal(path, data)
+        self.wait_until_sealed(path)
+
     def test_create_success(self):
         create("journal", "//tmp/j")
         assert get("//tmp/j/@replication_factor") == 3
@@ -31,7 +35,7 @@ class TestJournals(YTEnvSetup):
 
     def test_readwrite1(self):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@row_count") == 10
@@ -43,7 +47,7 @@ class TestJournals(YTEnvSetup):
     def test_readwrite2(self):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
-            write_journal("//tmp/j", self.DATA)
+            self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@row_count") == 100
@@ -58,11 +62,12 @@ class TestJournals(YTEnvSetup):
         assert read_journal("//tmp/j[#200:]") == []
 
     def test_resource_usage(self):
+        multicell_sleep()
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
 
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         assert len(chunk_ids) == 1
@@ -74,18 +79,20 @@ class TestJournals(YTEnvSetup):
                 break
             sleep(1)
 
+        get("#" + chunk_id + "/@owning_nodes")
         disk_space_delta = get("//tmp/j/@resource_usage/disk_space")
         assert disk_space_delta > 0
 
         get("//sys/accounts/tmp/@")
 
+        multicell_sleep()
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == disk_space_delta
         assert get("//sys/accounts/tmp/@resource_usage/disk_space") == disk_space_delta
 
         remove("//tmp/j")
 
         gc_collect() # wait for account stats to be updated
-
+        multicell_sleep()
         assert get("//sys/accounts/tmp/@committed_resource_usage/disk_space") == 0
         assert get("//sys/accounts/tmp/@resource_usage/disk_space") == 0
 
@@ -95,4 +102,12 @@ class TestJournals(YTEnvSetup):
 
     def test_move(self):
         create("journal", "//tmp/j1")
+        self._write_and_wait_until_sealed("//tmp/j1", self.DATA)
+
         move('//tmp/j1', '//tmp/j2')
+        assert read_journal("//tmp/j2") == self.DATA
+
+##################################################################
+
+class TestJournalsMulticell(TestJournals):
+    NUM_SECONDARY_MASTER_CELLS = 2

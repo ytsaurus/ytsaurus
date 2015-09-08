@@ -45,9 +45,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TChunkOwnerBase*>, OwningNodes);
 
-    // COMPAT(babenko)
-    DEFINE_BYREF_RW_PROPERTY(std::vector<Stroka>, LegacySortedBy);
-
     // Increases each time the list changes.
     // Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);

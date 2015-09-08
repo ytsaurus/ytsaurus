@@ -25,6 +25,7 @@
 namespace NYT {
 namespace NBus {
 
+using namespace NYson;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,8 +43,7 @@ class TTcpClientBusProxy
     : public IBus
 {
 public:
-    explicit TTcpClientBusProxy(
-        TTcpConnectionPtr connection)
+    explicit TTcpClientBusProxy(TTcpConnectionPtr connection)
         : Connection_(std::move(connection))
     { }
 
@@ -90,7 +90,7 @@ public:
     }
 
 private:
-    TTcpConnectionPtr Connection_;
+    const TTcpConnectionPtr Connection_;
 
 };
 
@@ -158,7 +158,7 @@ public:
     }
 
 private:
-    TTcpBusClientConfigPtr Config_;
+    const TTcpBusClientConfigPtr Config_;
 
 };
 

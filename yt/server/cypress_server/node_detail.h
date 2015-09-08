@@ -3,6 +3,7 @@
 #include "node.h"
 #include "cypress_manager.h"
 #include "helpers.h"
+#include "type_handler.h"
 
 #include <core/misc/serialize.h>
 
@@ -18,6 +19,8 @@
 #include <server/security_server/account.h>
 #include <server/security_server/security_manager.h>
 
+#include <server/transaction_server/transaction.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
 
@@ -31,6 +34,8 @@ class TNontemplateCypressNodeTypeHandlerBase
 {
 public:
     explicit TNontemplateCypressNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
+
+    virtual bool IsExternalizable();
 
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
@@ -52,8 +57,9 @@ protected:
         TCypressNodeBase* branchedNode);
 
     TCypressNodeBase* CloneCorePrologue(
-        TCypressNodeBase* sourceNode,
-        ICypressNodeFactoryPtr factory);
+        ICypressNodeFactoryPtr factory,
+        const TNodeId& hintId,
+        NObjectClient::TCellTag externalCellTag);
 
     void CloneCoreEpilogue(
         TCypressNodeBase* sourceNode,
@@ -80,33 +86,30 @@ public:
         return DoGetProxy(static_cast<TImpl*>(trunkNode), transaction);
     }
 
-    virtual std::unique_ptr<TCypressNodeBase> Instantiate(const TVersionedNodeId& id) override
+    virtual std::unique_ptr<TCypressNodeBase> Instantiate(
+        const TVersionedNodeId& id,
+        NObjectClient::TCellTag externalCellTag) override
     {
-        return std::unique_ptr<TCypressNodeBase>(new TImpl(id));
+        std::unique_ptr<TCypressNodeBase> nodeHolder(new TImpl(id));
+        nodeHolder->SetTrunkNode(nodeHolder.get());
+        nodeHolder->SetExternalCellTag(externalCellTag);
+        return nodeHolder;
     }
 
     virtual std::unique_ptr<TCypressNodeBase> Create(
-        TReqCreate* request,
-        TRspCreate* response) override
+        const TNodeId& hintId,
+        NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransaction* transaction,
+        NYTree::IAttributeDictionary* attributes) override
     {
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = TVersionedNodeId(objectManager->GenerateId(GetObjectType()));
-
-        auto node = DoCreate(id, request, response);
-        node->SetTrunkNode(node.get());
-
-        return std::move(node);
+        auto id = objectManager->GenerateId(GetObjectType(), hintId);
+        return DoCreate(
+            TVersionedNodeId(id),
+            externalCellTag,
+            transaction,
+            attributes);
     }
-
-    virtual void ValidateCreated(TCypressNodeBase* node) override
-    {
-        DoValidateCreated(dynamic_cast<TImpl*>(node));
-    }
-
-    virtual void SetDefaultAttributes(
-        NYTree::IAttributeDictionary* /*attributes*/,
-        NTransactionServer::TTransaction* /*transaction*/) override
-    { }
 
     virtual void Destroy(TCypressNodeBase* node) override
     {
@@ -144,6 +147,14 @@ public:
         return std::move(branchedNode);
     }
 
+    virtual void Unbranch(
+        TCypressNodeBase* originatingNode,
+        TCypressNodeBase* branchedNode) override
+    {
+        // Run custom stuff.
+        DoUnbranch(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
+    }
+
     virtual void Merge(
         TCypressNodeBase* originatingNode,
         TCypressNodeBase* branchedNode) override
@@ -158,10 +169,14 @@ public:
     virtual TCypressNodeBase* Clone(
         TCypressNodeBase* sourceNode,
         ICypressNodeFactoryPtr factory,
+        const TNodeId& hintId,
         ENodeCloneMode mode) override
     {
         // Run core prologue stuff.
-        auto* clonedNode = CloneCorePrologue(sourceNode, factory);
+        auto* clonedNode = CloneCorePrologue(
+            factory,
+            hintId,
+            sourceNode->GetExternalCellTag());
 
         // Run custom stuff.
         DoClone(
@@ -176,6 +191,21 @@ public:
         return clonedNode;
     }
 
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
+        const TCypressNodeBase* node) override
+    {
+        NSecurityServer::TClusterResources result;
+        result.NodeCount = 1;
+        return result;
+    }
+
+    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
+        const TCypressNodeBase* node) override
+    {
+        NSecurityServer::TClusterResources result;
+        result.NodeCount = 1;
+        return result;
+    }
 
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
@@ -184,14 +214,15 @@ protected:
 
     virtual std::unique_ptr<TImpl> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        TReqCreate* /*request*/,
-        TRspCreate* /*response*/)
+        NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransaction* /*transaction*/,
+        NYTree::IAttributeDictionary* /*attributes*/    )
     {
-        return std::unique_ptr<TImpl>(new TImpl(id));
+        auto nodeHolder = std::make_unique<TImpl>(id);
+        nodeHolder->SetExternalCellTag(externalCellTag);
+        nodeHolder->SetTrunkNode(nodeHolder.get());
+        return nodeHolder;
     }
-
-    virtual void DoValidateCreated(TImpl* /*node*/)
-    { }
 
     virtual void DoDestroy(TImpl* /*node*/)
     { }
@@ -202,6 +233,11 @@ protected:
     { }
 
     virtual void DoMerge(
+        TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    { }
+
+    virtual void DoUnbranch(
         TImpl* /*originatingNode*/,
         TImpl* /*branchedNode*/)
     { }
@@ -512,16 +548,18 @@ public:
     virtual NObjectClient::EObjectType GetObjectType() override;
     virtual NYTree::ENodeType GetNodeType() override;
 
-    virtual void SetDefaultAttributes(
-        NYTree::IAttributeDictionary* attributes,
-        NTransactionServer::TTransaction* tranasction) override;
-
 private:
     typedef TCypressNodeTypeHandlerBase<TLinkNode> TBase;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
         TLinkNode* trunkNode,
         NTransactionServer::TTransaction* transaction) override;
+
+    virtual std::unique_ptr<TLinkNode> DoCreate(
+        const TVersionedNodeId& id,
+        NObjectClient::TCellTag cellTag,
+        NTransactionServer::TTransaction* transaction,
+        NYTree::IAttributeDictionary* attributes) override;
 
     virtual void DoBranch(
         const TLinkNode* originatingNode,

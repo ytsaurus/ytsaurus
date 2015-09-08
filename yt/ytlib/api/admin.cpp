@@ -98,46 +98,45 @@ private:
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
         auto cellDirectory = Connection_->GetCellDirectory();
+        WaitFor(cellDirectory->Synchronize(LeaderChannel_))
+            .ThrowOnError();
 
-        {
-            TNodeTrackerServiceProxy proxy(LeaderChannel_);
-            auto req = proxy.GetRegisteredCells();
+        auto cellId = options.CellId
+            ? options.CellId
+            : Connection_->GetConfig()->PrimaryMaster->CellId;
+        auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
-            auto rsp = WaitFor(req->Invoke())
-                .ValueOrThrow();
+        THydraServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(Null); // infinity
 
-            auto descriptors = FromProto<TCellDescriptor>(rsp->cell_descriptors());
-            for (const auto& descriptor : descriptors) {
-                cellDirectory->ReconfigureCell(descriptor);
-            }
-        }
+        auto req = proxy.ForceBuildSnapshot();
+        req->set_set_read_only(options.SetReadOnly);
 
-        {
-            auto cellId = options.CellId
-                  ? options.CellId
-                  : Connection_->GetConfig()->Master->CellId;
-            auto channel = cellDirectory->GetChannelOrThrow(cellId);
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
 
-            THydraServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Null); // infinity
-
-            auto req = proxy.ForceBuildSnapshot();
-            req->set_set_read_only(options.SetReadOnly);
-
-            auto rsp = WaitFor(req->Invoke())
-                .ValueOrThrow();
-
-            return rsp->snapshot_id();
-        }
+        return rsp->snapshot_id();
     }
 
     void DoGCCollect(const TGCCollectOptions& /*options*/)
     {
-        TObjectServiceProxy proxy(LeaderChannel_);
-        proxy.SetDefaultTimeout(Null); // infinity
+        std::vector<TFuture<void>> asyncResults;
 
-        auto req = proxy.GCCollect();
-        WaitFor(req->Invoke())
+        auto collectAtCell = [&] (TCellTag cellTag) {
+            auto channel = Connection_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+            TObjectServiceProxy proxy(LeaderChannel_);
+            proxy.SetDefaultTimeout(Null); // infinity
+            auto req = proxy.GCCollect();
+            auto asyncResult = req->Invoke().As<void>();
+            asyncResults.push_back(asyncResult);
+        };
+
+        collectAtCell(Connection_->GetPrimaryMasterCellTag());
+        for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
+            collectAtCell(cellTag);
+        }
+
+        WaitFor(Combine(asyncResults))
             .ThrowOnError();
     }
 };

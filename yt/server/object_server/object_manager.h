@@ -67,9 +67,6 @@ public:
     void Initialize();
 
     //! Registers a new type handler.
-    /*!
-     *  It asserts than no handler of this type is already registered.
-     */
     void RegisterHandler(IObjectTypeHandlerPtr handler);
 
     //! Returns the handler for a given type or |nullptr| if the type is unknown.
@@ -79,25 +76,33 @@ public:
     const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const;
 
     //! Returns the handler for a given object.
-    const IObjectTypeHandlerPtr& GetHandler(TObjectBase* object) const;
+    const IObjectTypeHandlerPtr& GetHandler(const TObjectBase* object) const;
 
     //! Returns the set of registered object types, excluding schemas.
     const std::set<EObjectType>& GetRegisteredTypes() const;
 
-    //! Creates a new unique object id.
-    TObjectId GenerateId(EObjectType type);
+    //! If |hintId| is |NullObjectId| then creates a new unique object id.
+    //! Otherwise returns |hintId| (but checks its type).
+    TObjectId GenerateId(EObjectType type, const TObjectId& hintId);
+
+    //! Returns |true| if the object was replicated here from another cell.
+    bool IsForeign(const TObjectBase* object);
 
     //! Adds a reference.
-    void RefObject(TObjectBase* object);
+    //! Returns the strong reference counter.
+    int RefObject(TObjectBase* object);
 
-    //! Removes a reference.
-    void UnrefObject(TObjectBase* object);
+    //! Removes #count references.
+    //! Returns the strong reference counter.
+    int UnrefObject(TObjectBase* object, int count = 1);
 
     //! Increments the object weak reference counter thus temporarily preventing it from being destructed.
-    void WeakRefObject(TObjectBase* object);
+    //! Returns the weak reference counter.
+    int WeakRefObject(TObjectBase* object);
 
     //! Decrements the object weak reference counter thus making it eligible for destruction.
-    void WeakUnrefObject(TObjectBase* object);
+    //! Returns the weak reference counter.
+    int WeakUnrefObject(TObjectBase* object);
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObjectBase* FindObject(const TObjectId& id);
@@ -107,6 +112,9 @@ public:
 
     //! Finds object by id, throws if nothing is found.
     TObjectBase* GetObjectOrThrow(const TObjectId& id);
+
+    //! Creates a cross-cell read-only proxy for the object with the given #id.
+    NYTree::IYPathServicePtr CreateRemoteProxy(const TObjectId& id);
 
     //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(
@@ -162,25 +170,36 @@ public:
     TFuture<void> GCCollect();
 
     TObjectBase* CreateObject(
+        const TObjectId& hintId,
         NTransactionServer::TTransaction* transaction,
         NSecurityServer::TAccount* account,
         EObjectType type,
         NYTree::IAttributeDictionary* attributes,
-        IObjectTypeHandler::TReqCreateObjects* request,
-        IObjectTypeHandler::TRspCreateObjects* response);
+        const NObjectClient::NProto::TObjectCreationExtensions& extensions);
 
     IObjectResolver* GetObjectResolver();
 
     //! Advices a client to yield if it spent a lot of time already.
-    bool AdviceYield(TInstant startTime) const;
+    bool AdviceYield(NProfiling::TCpuInstant startInstant) const;
 
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
-    //! Forwards a request to the leader.
+    //! Forwards a request to the leader of a given cell.
     TFuture<TSharedRefArray> ForwardToLeader(
+        TCellTag cellTag,
         TSharedRefArray requestMessage,
         TNullable<TDuration> timeout = Null);
+
+    //! Posts a creation request to the secondary master.
+    void ReplicateObjectCreationToSecondaryMaster(
+        TObjectBase* object,
+        TCellTag cellTag);
+
+    //! Posts an attribute update request to the secondary master.
+    void ReplicateObjectAttributesToSecondaryMaster(
+        TObjectBase* object,
+        TCellTag cellTag);
 
     const NProfiling::TProfiler& GetProfiler();
     NProfiling::TTagId GetTypeTagId(EObjectType type);
@@ -191,10 +210,10 @@ private:
 
     class TRootService;
     typedef TIntrusivePtr<TRootService> TRootServicePtr;
-
+    class TRemoteProxy;
     class TObjectResolver;
 
-    TObjectManagerConfigPtr Config_;
+    const TObjectManagerConfigPtr Config_;
 
     NProfiling::TProfiler Profiler;
 
@@ -231,30 +250,18 @@ private:
     //! Stores schemas (for serialization mostly).
     NHydra::TEntityMap<TObjectId, TSchemaObject> SchemaMap_;
 
-    bool PatchSchemasWithRemovePermissions_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;
 
-    virtual void OnBeforeSnapshotLoaded() override;
-    virtual void OnAfterSnapshotLoaded() override;
-
     void LoadKeys(NCellMaster::TLoadContext& context);
     void LoadValues(NCellMaster::TLoadContext& context);
 
-    // COMPAT(babenko)
-    void LoadSchemas(NCellMaster::TLoadContext& context);
-    std::vector<TVersionedObjectId> LegacyAttributeIds_;
-
     virtual void OnRecoveryStarted() override;
     virtual void OnRecoveryComplete() override;
-
-    void DoClear();
     virtual void Clear() override;
-
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
@@ -264,8 +271,14 @@ private:
         NRpc::IServiceContextPtr context);
     void HydraExecuteFollower(const NProto::TReqExecute& request);
     void HydraDestroyObjects(const NProto::TReqDestroyObjects& request);
+    void HydraCreateForeignObject(const NProto::TReqCreateForeignObject& request) noexcept;
+    void HydraRemoveForeignObject(const NProto::TReqRemoveForeignObject& request) noexcept;
+    void HydraUnrefExportedObjects(const NProto::TReqUnrefExportedObjects& request) noexcept;
 
     void OnProfiling();
+
+    std::unique_ptr<NYTree::IAttributeDictionary> GetReplicatedAttributes(TObjectBase  * object);
+    void OnSecondaryMasterRegistered(TCellTag cellTag);
 
 };
 

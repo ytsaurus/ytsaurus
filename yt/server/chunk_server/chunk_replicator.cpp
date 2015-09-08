@@ -406,12 +406,8 @@ void TChunkReplicator::ScheduleJobs(
         jobsToAbort);
 }
 
-void TChunkReplicator::OnNodeRegistered(TNode* node)
-{
-    node->ClearChunkRemovalQueue();
-    node->ClearChunkReplicationQueues();
-    node->ClearChunkSealQueue();
-}
+void TChunkReplicator::OnNodeRegistered(TNode* /*node*/)
+{ }
 
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
@@ -420,7 +416,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
             job,
             EJobUnregisterFlags(EJobUnregisterFlags::UnregisterFromChunk | EJobUnregisterFlags::ScheduleChunkRefresh));
     }
-    node->Jobs().clear();
+    node->Reset();
 }
 
 void TChunkReplicator::OnNodeRemoved(TNode* node)
@@ -479,10 +475,9 @@ void TChunkReplicator::ProcessExistingJobs(
 
     auto chunkManager = Bootstrap_->GetChunkManager();
     for (const auto& job : currentJobs) {
-        if (job->GetType() == EJobType::Foreign)
-            continue;
-
         const auto& jobId = job->GetJobId();
+        YCHECK(CellTagFromId(jobId) == Bootstrap_->GetCellTag());
+        YCHECK(TypeFromId(jobId) == EObjectType::MasterJob);
         switch (job->GetState()) {
             case EJobState::Running:
                 if (TInstant::Now() - job->GetStartTime() > Config_->JobTimeout) {
@@ -556,6 +551,11 @@ void TChunkReplicator::ProcessExistingJobs(
     }
 }
 
+TJobId TChunkReplicator::GenerateJobId()
+{
+    return MakeRandomId(EObjectType::MasterJob, Bootstrap_->GetCellTag());
+}
+
 bool TChunkReplicator::CreateReplicationJob(
     TNode* sourceNode,
     TChunkPtrWithIndex chunkWithIndex,
@@ -617,6 +617,7 @@ bool TChunkReplicator::CreateReplicationJob(
     resourceUsage.set_replication_slots(1);
 
     *job = TJob::CreateReplicate(
+        GenerateJobId(),
         TChunkIdWithIndex(chunk->GetId(), index),
         sourceNode,
         targetNodes,
@@ -652,6 +653,7 @@ bool TChunkReplicator::CreateBalancingJob(
 
     TChunkIdWithIndex chunkIdWithIndex(chunk->GetId(), chunkWithIndex.GetIndex());
     *job = TJob::CreateReplicate(
+        GenerateJobId(),
         chunkIdWithIndex,
         sourceNode,
         TNodeList(1, targetNode),
@@ -687,6 +689,7 @@ bool TChunkReplicator::CreateRemovalJob(
     resourceUsage.set_removal_slots(1);
 
     *job = TJob::CreateRemove(
+        GenerateJobId(),
         chunkIdWithIndex,
         node,
         resourceUsage);
@@ -751,6 +754,7 @@ bool TChunkReplicator::CreateRepairJob(
     resourceUsage.set_memory(Config_->RepairJobMemoryUsage);
 
     *job = TJob::CreateRepair(
+        GenerateJobId(),
         chunk->GetId(),
         node,
         targetNodes,
@@ -789,6 +793,7 @@ bool TChunkReplicator::CreateSealJob(
     resourceUsage.set_seal_slots(1);
 
     *job = TJob::CreateSeal(
+        GenerateJobId(),
         chunk->GetId(),
         node,
         resourceUsage);
@@ -1119,6 +1124,11 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
     return node->GetDecommissioned();
 }
 
+bool TChunkReplicator::IsForeign(TChunk* chunk)
+{
+    return CellTagFromId(chunk->GetId()) != Bootstrap_->GetCellTag();
+}
+
 bool TChunkReplicator::HasRunningJobs(TChunk* chunk)
 {
     auto jobList = FindJobList(chunk);
@@ -1152,14 +1162,14 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 {
     auto chunkManager = Bootstrap_->GetChunkManager();
     auto* chunk = chunkManager->FindChunk(chunkId);
-    if (IsObjectAlive(chunk)) {
-        ScheduleChunkRefresh(chunk);
-    }
+    ScheduleChunkRefresh(chunk);
 }
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
+    if (!IsObjectAlive(chunk) ||
+        chunk->GetRefreshScheduled() ||
+        IsForeign(chunk))
         return;
 
     TRefreshEntry entry;
@@ -1363,7 +1373,9 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 
 void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetPropertiesUpdateScheduled())
+    if (!IsObjectAlive(chunk) ||
+        chunk->GetPropertiesUpdateScheduled() ||
+        IsForeign(chunk))
         return;
 
     PropertiesUpdateList_.push_back(chunk);

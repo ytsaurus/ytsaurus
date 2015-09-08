@@ -33,13 +33,13 @@ public:
     bool IsBuiltin() const;
 
 
-    //! Increments the object's reference counter.
+    //! Increments the object's reference counter by one.
     /*!
      *  \returns the incremented counter.
      */
     int RefObject();
 
-    //! Decrements the object's reference counter.
+    //! Decrements the object's reference counter by #count.
     /*!
      *  \note
      *  Objects do not self-destruct, it's callers responsibility to check
@@ -47,19 +47,33 @@ public:
      *
      *  \returns the decremented counter.
      */
-    int UnrefObject();
+    int UnrefObject(int count = 1);
 
-    //! Increments the object's weak reference counter.
+
+    //! Increments the object's weak reference counter by one.
     /*!
      *  \returns the incremented counter.
      */
     int WeakRefObject();
 
-    //! Decrements the object's weak reference counter.
+    //! Decrements the object's weak reference counter by one.
     /*!
      *  \returns the decremented counter.
      */
     int WeakUnrefObject();
+
+
+    //! Increments the object's import reference counter by one.
+    /*!
+     *  \returns the incremented counter.
+     */
+    int ImportRefObject();
+
+    //! Decrements the object's import reference counter by one.
+    /*!
+     *  \returns the decremented counter.
+     */
+    int ImportUnrefObject();
 
 
     //! Sets weak reference counter to zero.
@@ -68,8 +82,11 @@ public:
     //! Returns the current reference counter.
     int GetObjectRefCounter() const;
 
-    //! Returns the current lock counter.
+    //! Returns the current weak reference counter.
     int GetObjectWeakRefCounter() const;
+
+    //! Returns the current import reference counter.
+    int GetImportRefCounter() const;
 
     //! Returns |true| iff the reference counter is positive.
     bool IsAlive() const;
@@ -101,6 +118,7 @@ protected:
 
     int RefCounter_ = 0;
     int WeakRefCounter_ = 0;
+    int ImportRefCounter_ = 0;
 
     static constexpr int DestroyedRefCounter = -1;
     static constexpr int DisposedRefCounter = -2;
@@ -109,25 +127,18 @@ protected:
 
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 TObjectId GetObjectId(const TObjectBase* object);
 bool IsObjectAlive(const TObjectBase* object);
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 std::vector<TObjectId> ToObjectIds(
     const T& objects,
-    size_t sizeLimit = std::numeric_limits<size_t>::max())
-{
-    std::vector<TObjectId> result;
-    result.reserve(std::min(objects.size(), sizeLimit));
-    for (auto* object : objects) {
-        if (result.size() == sizeLimit)
-            break;
-        result.push_back(object->GetId());
-    }
-    return result;
-}
+    size_t sizeLimit = std::numeric_limits<size_t>::max());
+
+template <class TKey, class TValue, class THash>
+std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TKey, TValue, THash>& entities);
 
 ////////////////////////////////////////////////////////////////////////////////
 

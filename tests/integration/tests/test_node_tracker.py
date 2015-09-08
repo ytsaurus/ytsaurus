@@ -15,13 +15,10 @@ class TestNodeTracker(YTEnvSetup):
         test_node = nodes[0]
         assert get("//sys/nodes/%s/@state" % test_node) == "online"
 
-        set("//sys/nodes/%s/@banned" % test_node, True)
-        sleep(1)
-        assert get("//sys/nodes/%s/@state" % test_node) == "offline"
+        self.set_node_banned(test_node, True)
+        self.set_node_banned(test_node, False)
 
-        set("//sys/nodes/%s/@banned" % test_node, False)
-        sleep(1)
-        assert get("//sys/nodes/%s/@state" % test_node) == "online"
+##################################################################
 
-    def test_node_attr(self): #regression
-        ls("//sys/nodes", attr=["statistics"])
+class TestNodeTrackerMulticell(TestNodeTracker):
+    NUM_SECONDARY_MASTER_CELLS = 2

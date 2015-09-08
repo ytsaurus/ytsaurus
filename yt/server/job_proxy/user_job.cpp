@@ -829,7 +829,8 @@ private:
     template <class T>
     TDataStatistics GetDataStatistics(const std::vector<T>& sources) const
     {
-        auto statistics = ZeroDataStatistics();
+        TDataStatistics statistics;
+
         for (const auto& source : sources) {
             statistics += source->GetDataStatistics();
         }

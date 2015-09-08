@@ -38,12 +38,13 @@ struct IJobHost
 
     virtual NChunkClient::IBlockCachePtr GetBlockCache() const = 0;
 
-    virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const = 0;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetInputNodeDirectory() const = 0;
+    virtual NNodeTrackerClient::TNodeDirectoryPtr GetAuxNodeDirectory() const = 0;
 
     virtual NLogging::TLogger GetLogger() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
-    virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) = 0;
+    virtual NYson::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) = 0;
 
 };
 
@@ -67,7 +68,7 @@ struct IJob
     virtual NScheduler::TStatistics GetStatistics() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
-    virtual NYTree::TYsonString Strace() = 0;
+    virtual NYson::TYsonString Strace() = 0;
 
 };
 

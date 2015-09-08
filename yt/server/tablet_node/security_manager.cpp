@@ -176,11 +176,6 @@ public:
             return VoidFuture;
         }
 
-        // COMPAT(babenko)
-        if (!tabletSnapshot->TableId) {
-            return VoidFuture;
-        }
-
         TTablePermissionKey key{tabletSnapshot->TableId, *maybeUser, permission};
         return TablePermissionCache_->Get(key);
     }

@@ -23,6 +23,12 @@ class TReqFetch;
 
 class TDataStatistics;
 
+class TReqExportChunks;
+class TRspExportChunks;
+
+class TReqImportChunks;
+class TRspImportChunks;
+
 } // namespace NProto
 
 ///////////////////////////////////////////////////////////////////////////////

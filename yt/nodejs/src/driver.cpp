@@ -37,6 +37,7 @@ COMMON_V8_USES
 
 using namespace NRpc;
 using namespace NYTree;
+using namespace NYson;
 using namespace NDriver;
 using namespace NFormats;
 using namespace NConcurrency;

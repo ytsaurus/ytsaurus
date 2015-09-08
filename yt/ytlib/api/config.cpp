@@ -13,14 +13,17 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
+#include <ytlib/object_client/helpers.h>
+
 namespace NYT {
 namespace NApi {
+
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterConnectionConfig::TMasterConnectionConfig()
 {
-    RegisterParameter("cell_tag", CellTag);
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(15));
 }
@@ -31,7 +34,9 @@ TConnectionConfig::TConnectionConfig()
 {
     RegisterParameter("network_name", NetworkName)
         .Default(NNodeTrackerClient::InterconnectNetworkName);
-    RegisterParameter("master", Master);
+    RegisterParameter("primary_master", PrimaryMaster);
+    RegisterParameter("secondary_masters", SecondaryMasters)
+        .Default();
     RegisterParameter("master_cache", MasterCache)
         .Default();
     RegisterParameter("enable_read_from_followers", EnableReadFromFollowers)
@@ -90,6 +95,23 @@ TConnectionConfig::TConnectionConfig()
         .Default(false);
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
+
+    RegisterValidator([&] () {
+        const auto& cellId = PrimaryMaster->CellId;
+        auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
+        yhash_set<TCellTag> cellTags = {primaryCellTag};
+        for (const auto& cellConfig : SecondaryMasters) {
+            if (ReplaceCellTagInId(cellConfig->CellId, primaryCellTag) != cellId) {
+                THROW_ERROR_EXCEPTION("Invalid cell id %v specified for secondary master in connection configuration",
+                    cellConfig->CellId);
+            }
+            auto cellTag = CellTagFromId(cellConfig->CellId);
+            if (!cellTags.insert(cellTag).second) {
+                THROW_ERROR_EXCEPTION("Duplicate cell tag %v in connection configuration",
+                    cellTag);
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

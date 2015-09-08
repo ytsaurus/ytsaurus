@@ -4,7 +4,8 @@
 #include "property.h"
 #include "nullable.h"
 
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
+
 #include <core/ytree/attributes.h>
 
 #include <type_traits>
@@ -154,9 +155,9 @@ namespace NYTree {
 // Avoid dependency on convert.h
 
 template <class T>
-TYsonString ConvertToYsonString(const T& value);
-TYsonString ConvertToYsonString(const char* value);
-TYsonString ConvertToYsonString(const TStringBuf& value);
+NYson::TYsonString ConvertToYsonString(const T& value);
+NYson::TYsonString ConvertToYsonString(const char* value);
+NYson::TYsonString ConvertToYsonString(const TStringBuf& value);
 
 } // namespace NYTree
 
@@ -168,13 +169,13 @@ struct TErrorAttribute
         , Value(NYTree::ConvertToYsonString(value))
     { }
 
-    TErrorAttribute(const Stroka& key, const NYTree::TYsonString& value)
+    TErrorAttribute(const Stroka& key, const NYson::TYsonString& value)
         : Key(key)
         , Value(value)
     { }
 
     Stroka Key;
-    NYTree::TYsonString Value;
+    NYson::TYsonString Value;
 };
 
 TError operator << (TError error, const TErrorAttribute& attribute);

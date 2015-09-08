@@ -5,19 +5,21 @@
 namespace NYT {
 namespace NYTree {
 
+using namespace NYson;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::EYsonType GetYsonType(const TYsonString& yson)
+EYsonType GetYsonType(const TYsonString& yson)
 {
     return yson.GetType();
 }
 
-NYson::EYsonType GetYsonType(const TYsonInput& input)
+EYsonType GetYsonType(const TYsonInput& input)
 {
     return input.GetType();
 }
 
-NYson::EYsonType GetYsonType(const TYsonProducer& producer)
+EYsonType GetYsonType(const TYsonProducer& producer)
 {
     return producer.GetType();
 }
@@ -26,7 +28,7 @@ NYson::EYsonType GetYsonType(const TYsonProducer& producer)
 
 // signed integers
 #define SERIALIZE(type) \
-    void Serialize(type value, NYson::IYsonConsumer* consumer) \
+    void Serialize(type value, IYsonConsumer* consumer) \
     { \
         consumer->OnInt64Scalar(CheckedStaticCast<i64>(value)); \
     }
@@ -43,7 +45,7 @@ SERIALIZE(long long)
 
 // unsigned integers
 #define SERIALIZE(type) \
-    void Serialize(type value, NYson::IYsonConsumer* consumer) \
+    void Serialize(type value, IYsonConsumer* consumer) \
     { \
         consumer->OnUint64Scalar(CheckedStaticCast<ui64>(value)); \
     }
@@ -57,61 +59,61 @@ SERIALIZE(unsigned long long)
 #undef SERIALIZE
 
 // double
-void Serialize(double value, NYson::IYsonConsumer* consumer)
+void Serialize(double value, IYsonConsumer* consumer)
 {
     consumer->OnDoubleScalar(value);
 }
 
 // Stroka
-void Serialize(const Stroka& value, NYson::IYsonConsumer* consumer)
+void Serialize(const Stroka& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
 }
 
 // TStringBuf
-void Serialize(const TStringBuf& value, NYson::IYsonConsumer* consumer)
+void Serialize(const TStringBuf& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value);
 }
 
 // const char*
-void Serialize(const char* value, NYson::IYsonConsumer* consumer)
+void Serialize(const char* value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(TStringBuf(value));
 }
 
 // bool
-void Serialize(bool value, NYson::IYsonConsumer* consumer)
+void Serialize(bool value, IYsonConsumer* consumer)
 {
     consumer->OnBooleanScalar(value);
 }
 
 // char
-void Serialize(char value, NYson::IYsonConsumer* consumer)
+void Serialize(char value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(Stroka(value));
 }
 
 // TDuration
-void Serialize(TDuration value, NYson::IYsonConsumer* consumer)
+void Serialize(TDuration value, IYsonConsumer* consumer)
 {
     consumer->OnInt64Scalar(value.MilliSeconds());
 }
 
 // TInstant
-void Serialize(TInstant value, NYson::IYsonConsumer* consumer)
+void Serialize(TInstant value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(value.ToString());
 }
 
 // TGuid
-void Serialize(const TGuid& value, NYson::IYsonConsumer* consumer)
+void Serialize(const TGuid& value, IYsonConsumer* consumer)
 {
     consumer->OnStringScalar(ToString(value));
 }
 
 // TInputStream
-void Serialize(TInputStream& input, NYson::IYsonConsumer* consumer)
+void Serialize(TInputStream& input, IYsonConsumer* consumer)
 {
     Serialize(TYsonInput(&input), consumer);
 }

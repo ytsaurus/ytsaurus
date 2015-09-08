@@ -11,6 +11,8 @@
 #include <core/misc/error.h>
 #include <core/misc/public.h>
 
+#include <core/actions/future.h>
+
 #include <memory>
 
 namespace NYT {

@@ -13,11 +13,12 @@ class TVirtualMapBase
     , public ISystemAttributeProvider
 {
 protected:
-    virtual std::vector<Stroka> GetKeys(size_t sizeLimit = std::numeric_limits<size_t>::max()) const = 0;
-    virtual size_t GetSize() const = 0;
+    explicit TVirtualMapBase(INodePtr owningNode = nullptr);
+
+    virtual std::vector<Stroka> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const = 0;
+    virtual i64 GetSize() const = 0;
     virtual IYPathServicePtr FindItemService(const TStringBuf& key) const = 0;
 
-private:
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override;
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, NRpc::IServiceContextPtr context) override;
@@ -28,10 +29,15 @@ private:
     virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;
 
     // ISystemAttributeProvider overrides
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override;
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override;
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) override;
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) override;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) override;
+    virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) override;
+    virtual bool RemoveBuiltinAttribute(const Stroka& key) override;
+
+private:
+    const INodePtr OwningNode_;
 
 };
 

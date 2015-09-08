@@ -119,7 +119,7 @@ void Serialize(const IAttributeDictionary& attributes, IYsonConsumer* consumer)
     for (const auto& key : list) {
         consumer->OnKeyedItem(key);
         auto yson = attributes.GetYson(key);
-        consumer->OnRaw(yson.Data(), yson.GetType());
+        consumer->OnRaw(yson);
     }
     consumer->OnEndMap();
 }
@@ -168,30 +168,6 @@ void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAtt
         auto key = Load<Stroka>(context);
         auto value = Load<TYsonString>(context);
         obj.SetYson(key, value);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TAttributeDictionaryRefSerializer::Save(TStreamSaveContext& context, const std::unique_ptr<IAttributeDictionary>& obj)
-{
-    using NYT::Save;
-    if (obj) {
-        Save(context, true);
-        Save(context, *obj);
-    } else {
-        Save(context, false);
-    }
-}
-
-void TAttributeDictionaryRefSerializer::Load(TStreamLoadContext& context, std::unique_ptr<IAttributeDictionary>& obj)
-{
-    using NYT::Load;
-    if (Load<bool>(context)) {
-        obj = CreateEphemeralAttributes();
-        Load(context, *obj);
-    } else {
-        obj.reset();
     }
 }
 

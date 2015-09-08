@@ -48,7 +48,6 @@ class TTransactionManager::TImpl
 public:
     TImpl(
         TTransactionManagerConfigPtr config,
-        TCellTag cellTag,
         const TCellId& cellId,
         IChannelPtr channel,
         ITimestampProviderPtr timestampProvider,
@@ -64,18 +63,34 @@ public:
 
     void AbortAll();
 
+    TTransactionManagerConfigPtr GetConfig();
+
 private:
     friend class TTransaction;
 
-    TTransactionManagerConfigPtr Config_;
-    IChannelPtr MasterChannel_;
-    TCellTag CellTag_;
-    TCellId CellId_;
-    ITimestampProviderPtr TimestampProvider_;
-    TCellDirectoryPtr CellDirectory_;
+    const TTransactionManagerConfigPtr Config_;
+    const IChannelPtr MasterChannel_;
+    const TCellId CellId_;
+    const ITimestampProviderPtr TimestampProvider_;
+    const TCellDirectoryPtr CellDirectory_;
 
     TSpinLock SpinLock_;
     yhash_set<TTransaction::TImpl*> AliveTransactions_;
+
+
+    std::unique_ptr<TTransactionSupervisorServiceProxy> MakeSupervisorProxy(IChannelPtr channel)
+    {
+        auto proxy = std::make_unique<TTransactionSupervisorServiceProxy>(channel);
+        proxy->SetDefaultTimeout(Config_->RpcTimeout);
+        return proxy;
+    }
+
+    std::unique_ptr<TTabletServiceProxy> MakeTabletProxy(IChannelPtr channel)
+    {
+        auto proxy = std::make_unique<TTabletServiceProxy>(channel);
+        proxy->SetDefaultTimeout(Config_->RpcTimeout);
+        return proxy;
+    }
 
 };
 
@@ -122,6 +137,7 @@ public:
 
         Type_ = type;
         AutoAbort_ = options.AutoAbort;
+        PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         Timeout_ = options.Timeout;
@@ -150,6 +166,7 @@ public:
         Type_ = ETransactionType::Master;
         Id_ = id;
         AutoAbort_ = options.AutoAbort;
+        PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
@@ -225,9 +242,9 @@ public:
                     coordinatorCellId);
 
                 auto channel = Owner_->CellDirectory_->GetChannelOrThrow(coordinatorCellId);
-                TTransactionSupervisorServiceProxy proxy(channel);
+                auto proxy = Owner_->MakeSupervisorProxy(channel);
 
-                auto req = proxy.CommitTransaction();
+                auto req = proxy->CommitTransaction();
                 ToProto(req->mutable_transaction_id(), Id_);
                 for (const auto& cellId : participantGuids) {
                     if (cellId != coordinatorCellId) {
@@ -386,11 +403,10 @@ public:
             cellId);
 
         auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-        TTabletServiceProxy proxy(channel);
+        auto proxy = Owner_->MakeTabletProxy(channel);
 
-        auto req = proxy.StartTransaction();
+        auto req = proxy->StartTransaction();
         ToProto(req->mutable_transaction_id(), Id_);
-        req->set_start_timestamp(StartTimestamp_);
         req->set_start_timestamp(StartTimestamp_);
         req->set_timeout(Timeout_.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
@@ -425,6 +441,7 @@ private:
     TIntrusivePtr<TTransactionManager::TImpl> Owner_;
     ETransactionType Type_;
     bool AutoAbort_;
+    TNullable<TDuration> PingPeriod_;
     bool Ping_;
     bool PingAncestors_;
     TNullable<TDuration> Timeout_;
@@ -546,7 +563,7 @@ private:
     TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
         TObjectServiceProxy proxy(Owner_->MasterChannel_);
-        auto req = TMasterYPathProxy::CreateObjects();
+        auto req = TMasterYPathProxy::CreateObject();
         req->set_type(static_cast<int>(EObjectType::Transaction));
         if (options.Attributes) {
             ToProto(req->mutable_object_attributes(), *options.Attributes);
@@ -555,9 +572,7 @@ private:
             ToProto(req->mutable_transaction_id(), options.ParentId);
         }
 
-        auto* reqExt = req->MutableExtension(NTransactionClient::NProto::TReqStartTransactionExt::create_transaction_ext);
-        reqExt->set_enable_uncommitted_accounting(options.EnableUncommittedAccounting);
-        reqExt->set_enable_staged_accounting(options.EnableStagedAccounting);
+        auto* reqExt = req->mutable_extensions()->MutableExtension(NTransactionClient::NProto::TTransactionCreationExt::transaction_creation_ext);
         reqExt->set_timeout(options.Timeout.Get(Owner_->Config_->DefaultTransactionTimeout).MilliSeconds());
 
         if (options.ParentId) {
@@ -568,7 +583,7 @@ private:
             BIND(&TImpl::OnMasterTransactionStarted, MakeStrong(this)));
     }
 
-    void OnMasterTransactionStarted(const TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError)
+    void OnMasterTransactionStarted(const TMasterYPathProxy::TErrorOrRspCreateObjectPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             State_ = ETransactionState::Aborted;
@@ -578,8 +593,7 @@ private:
         State_ = ETransactionState::Active;
 
         const auto& rsp = rspOrError.Value();
-        YCHECK(rsp->object_ids_size() == 1);
-        Id_ = FromProto<TTransactionId>(rsp->object_ids(0));
+        Id_ = FromProto<TTransactionId>(rsp->object_id());
 
         YCHECK(CellIdToStartTransactionResult_.insert(std::make_pair(
             Owner_->CellId_,
@@ -604,7 +618,7 @@ private:
 
         Id_ = MakeTabletTransactionId(
             Atomicity_,
-            Owner_->CellTag_,
+            CellTagFromId(Owner_->CellId_),
             StartTimestamp_,
             TabletTransactionHashCounter++);
 
@@ -631,7 +645,7 @@ private:
 
         Id_ = MakeTabletTransactionId(
             Atomicity_,
-            Owner_->CellTag_,
+            CellTagFromId(Owner_->CellId_),
             StartTimestamp_,
             TabletTransactionHashCounter++);
 
@@ -707,9 +721,9 @@ private:
                 cellId);
 
             auto channel = Owner_->CellDirectory_->GetChannelOrThrow(cellId);
-            TTransactionSupervisorServiceProxy proxy(channel);
+            auto proxy = Owner_->MakeSupervisorProxy(channel);
 
-            auto req = proxy.PingTransaction();
+            auto req = proxy->PingTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
 
             if (cellId == Owner_->CellId_) {
@@ -761,7 +775,7 @@ private:
 
             TDelayedExecutor::Submit(
                 BIND(IgnoreResult(&TImpl::RunPeriodicPings), MakeWeak(this)),
-                Owner_->Config_->PingPeriod);
+                PingPeriod_.Get(Owner_->Config_->DefaultPingPeriod));
         }));
     }
 
@@ -785,9 +799,9 @@ private:
             auto channel = Owner_->CellDirectory_->FindChannel(cellId);
             if (!channel)
                 continue; // better skip
-            TTransactionSupervisorServiceProxy proxy(channel);
+            auto proxy = Owner_->MakeSupervisorProxy(channel);
 
-            auto req = proxy.AbortTransaction();
+            auto req = proxy->AbortTransaction();
             ToProto(req->mutable_transaction_id(), Id_);
             req->set_force(options.Force);
             SetMutationId(req, options.MutationId, options.Retry);
@@ -842,26 +856,6 @@ private:
     }
 
 
-    TNullable<TCellId> GetCoordinatorCellId()
-    {
-        switch (Type_) {
-            case ETransactionType::Master:
-                return Owner_->CellId_;
-
-            case ETransactionType::Tablet: {
-                auto ids = GetParticipantIds();
-                if (ids.empty()) {
-                    // NB: NullCellId is still a valid cell id.
-                    return Null;
-                }
-                return ids[0];
-            }
-
-            default:
-                YUNREACHABLE();
-        }
-    }
-
     std::vector<TCellId> GetParticipantIds()
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -880,14 +874,12 @@ private:
 
 TTransactionManager::TImpl::TImpl(
     TTransactionManagerConfigPtr config,
-    TCellTag cellTag,
     const TCellId& cellId,
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Config_(config)
     , MasterChannel_(masterChannel)
-    , CellTag_(cellTag)
     , CellId_(cellId)
     , TimestampProvider_(timestampProvider)
     , CellDirectory_(cellDirectory)
@@ -939,6 +931,11 @@ void TTransactionManager::TImpl::AbortAll()
     for (const auto& transaction : transactions) {
         transaction->Abort();
     }
+}
+
+TTransactionManagerConfigPtr TTransactionManager::TImpl::GetConfig()
+{
+    return Config_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1011,14 +1008,12 @@ DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 
 TTransactionManager::TTransactionManager(
     TTransactionManagerConfigPtr config,
-    TCellTag cellTag,
     const TCellId& cellId,
     IChannelPtr masterChannel,
     ITimestampProviderPtr timestampProvider,
     TCellDirectoryPtr cellDirectory)
     : Impl_(New<TImpl>(
         config,
-        cellTag,
         cellId,
         masterChannel,
         timestampProvider,
@@ -1045,6 +1040,11 @@ TTransactionPtr TTransactionManager::Attach(
 void TTransactionManager::AbortAll()
 {
     Impl_->AbortAll();
+}
+
+TTransactionManagerConfigPtr TTransactionManager::GetConfig()
+{
+    return Impl_->GetConfig();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,19 +25,24 @@ public:
 
     explicit TChunkOwnerTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
-    virtual void SetDefaultAttributes(
-        NYTree::IAttributeDictionary* attributes,
-        NTransactionServer::TTransaction* transaction) override;
-
     virtual NYTree::ENodeType GetNodeType() override;
+
+    virtual NSecurityServer::TClusterResources GetTotalResourceUsage(
+        const NCypressServer::TCypressNodeBase* node) override;
+
+    virtual NSecurityServer::TClusterResources GetAccountingResourceUsage(
+        const NCypressServer::TCypressNodeBase* node) override;
 
 protected:
     NLogging::TLogger Logger;
 
+    void InitializeAttributes(NYTree::IAttributeDictionary* attributes);
+
     virtual std::unique_ptr<TChunkOwner> DoCreate(
         const NCypressServer::TVersionedNodeId& id,
-        NCypressServer::INodeTypeHandler::TReqCreate* request,
-        NCypressServer::INodeTypeHandler::TRspCreate* response) override;
+        NObjectClient::TCellTag externalCellTag,
+        NTransactionServer::TTransaction* transaction,
+        NYTree::IAttributeDictionary* attributes) override;
 
     virtual void DoDestroy(TChunkOwner* node) override;
 
@@ -54,11 +59,6 @@ protected:
         TChunkOwner* clonedNode,
         NCypressServer::ICypressNodeFactoryPtr factory,
         NCypressServer::ENodeCloneMode mode) override;
-
-private:
-    void MergeChunkLists(
-        TChunkOwner* originatingNode,
-        TChunkOwner* branchedNode);
 
 };
 

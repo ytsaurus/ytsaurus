@@ -27,8 +27,9 @@ public:
         : NRpc::TServiceBase(
             bootstrap->GetControlInvoker(),
             TJobTrackerServiceProxy::GetServiceName(),
-            SchedulerLogger)
-        , Bootstrap(bootstrap)
+            SchedulerLogger,
+            TJobTrackerServiceProxy::GetProtocolVersion())
+        , Bootstrap_(bootstrap)
     {
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(Heartbeat)
@@ -40,7 +41,8 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap;
+    TBootstrap* const Bootstrap_;
+
 
     DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, Heartbeat)
     {
@@ -54,7 +56,7 @@ private:
 
         // NB: Don't call ValidateConnected.
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
-        auto scheduler = Bootstrap->GetScheduler();
+        auto scheduler = Bootstrap_->GetScheduler();
         auto node = scheduler->GetOrRegisterNode(addresses);
         try {
             scheduler->ProcessHeartbeat(node, context);

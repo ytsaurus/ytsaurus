@@ -38,7 +38,6 @@ private:
     struct TCluster
     {
         Stroka Name;
-        NObjectClient::TCellTag CellTag;
         NApi::TConnectionConfigPtr Config;
         NApi::IConnectionPtr Connection;
     };
@@ -50,6 +49,8 @@ private:
 
     TCluster CreateCluster(const Stroka& name, NApi::TConnectionConfigPtr config) const;
     TCluster CreateSelfCluster() const;
+
+    static NObjectClient::TCellTag GetCellTag(const TCluster& cluster);
 
 };
 

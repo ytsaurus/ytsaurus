@@ -33,6 +33,8 @@
 
 #include <server/tablet_node/public.h>
 
+#include <server/hive/public.h>
+
 namespace NYT {
 namespace NCellNode {
 
@@ -84,7 +86,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
     NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
 
-    const NElection::TCellId& GetCellId() const;
+    const NObjectClient::TCellId& GetCellId() const;
 
     void Run();
 
@@ -99,7 +101,9 @@ private:
     IInvokerPtr BoundedConcurrencyReadPoolInvoker;
 
     NBus::IBusServerPtr BusServer;
+    NApi::IConnectionPtr MasterConnection;
     NApi::IClientPtr MasterClient;
+    NHive::TCellDirectorySynchronizerPtr CellDirectorySynchronizer;
     NRpc::IServerPtr RpcServer;
     std::unique_ptr<NHttp::TServer> HttpServer;
     NRpc::IChannelFactoryPtr TabletChannelFactory;
@@ -137,7 +141,7 @@ private:
     void DoRun();
     NNodeTrackerClient::TAddressMap GetLocalAddresses();
     void PopulateAlerts(std::vector<TError>* alerts);
-    NElection::TCellId ToRedirectorCellId(const NElection::TCellId& cellId);
+    NObjectClient::TCellId ToRedirectorCellId(const NObjectClient::TCellId& cellId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,9 +9,23 @@ message TReqUnregisterNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRemoveNode
+message TReqDisposeNode
 {
     required int32 node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqSetNodeStates
+{
+    message TEntry
+    {
+        required int32 node_id = 1;
+        required int32 state = 2; // ENodeState
+    }
+
+    required int32 cell_tag = 1;
+    repeated TEntry entries = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

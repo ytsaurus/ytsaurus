@@ -80,7 +80,7 @@ private:
             return;
 
         auto loggedVersion = Owner_->DecoratedAutomaton_->GetLoggedVersion();
-        auto committedVersion = Owner_->DecoratedAutomaton_->GetAutomatonVersion();
+        auto committedVersion = Owner_->DecoratedAutomaton_->GetCommittedVersion();
 
         LOG_DEBUG("Sending ping to follower (FollowerId: %v, LoggedVersion: %v, CommittedVersion: %v, EpochId: %v)",
             followerId,

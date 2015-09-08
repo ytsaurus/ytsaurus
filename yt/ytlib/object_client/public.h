@@ -3,8 +3,18 @@
 #include <core/misc/guid.h>
 #include <core/misc/string.h>
 
+#include <ytlib/election/public.h>
+
 namespace NYT {
 namespace NObjectClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TObjectCreationExtensions;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,9 +43,30 @@ extern TObjectId NullObjectId;
 //! Used to mark counters for well-known ids.
 const ui64 WellKnownCounterMask = 0x1000000000000000;
 
+using NElection::TCellId;
+using NElection::NullCellId;
+
 //! Identifies a particular installation of YT.
 //! Must be unique to prevent object ids from colliding.
 typedef ui16 TCellTag;
+
+//! The minimum valid cell tag.
+const TCellTag MinimumValidCellTag = 0x0000;
+
+//! The maximum valie cell tag.
+const TCellTag MaximumValidCellTag = 0xf000;
+
+//! A sentinel cell tag indicating that the request does not need replication.
+const TCellTag NotReplicatedCellTag = 0xf001;
+
+//! A sentinel cell tag representing all secondary masters.
+const TCellTag AllSecondaryMastersCellTag = 0xf002;
+
+//! A sentinel cell tag representing the primary master.
+const TCellTag PrimaryMasterCellTag = 0xf003;
+
+//! A sentinel cell tag meaning nothing.
+const TCellTag InvalidCellTag = 0xf003;
 
 //! Describes the runtime type of an object.
 DEFINE_ENUM(EObjectType,
@@ -121,6 +152,8 @@ DEFINE_ENUM(EObjectType,
     // Global stuff
     // A mysterious creature representing the master as a whole.
     ((Master)                     (600))
+    ((ClusterCell)                (601))
+    ((SysNode)                    (602))
 
     // Tablet Manager stuff
     ((TabletCell)                 (700))
@@ -131,10 +164,18 @@ DEFINE_ENUM(EObjectType,
     ((TabletPartition)            (705))
     
     // Node Tracker stuff
-    ((CellNodeMap)                (408))
-    ((CellNode)                   (410))
     ((Rack)                       (800))
     ((RackMap)                    (801))
+    ((ClusterNode)                (802))
+    ((ClusterNodeNode)            (803))
+    ((ClusterNodeMap)             (804))
+
+    // Job Tracker stuff
+    ((SchedulerJob)               (900))
+    ((MasterJob)                  (901))
+
+    // Scheduler
+    ((Operation)                 (1000))
 );
 
 //! A bit mask marking schema types.
@@ -145,6 +186,10 @@ const EObjectType MinObjectType = TEnumTraits<EObjectType>::GetMinValue();
 const EObjectType MaxObjectType = EObjectType(
     static_cast<int>(TEnumTraits<EObjectType>::GetMaxValue()) +
     SchemaObjectTypeMask);
+
+// The range of erasure chunk part types.
+const EObjectType MinErasureChunkPartType = EObjectType::ErasureChunkPart_0;
+const EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "tree_visitor.h"
 #include "attributes.h"
-#include "yson_producer.h"
 #include "attribute_helpers.h"
 
 #include <core/misc/serialize.h>
 #include <core/misc/assert.h>
+
+#include <core/yson/producer.h>
+#include <core/yson/async_consumer.h>
 
 #include <core/ytree/node.h>
 #include <core/ytree/convert.h>
@@ -23,7 +25,7 @@ class TTreeVisitor
 {
 public:
     TTreeVisitor(
-        IYsonConsumer* consumer,
+        IAsyncYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
         bool sortKeys,
         bool ignoreOpaque)
@@ -39,14 +41,15 @@ public:
     }
 
 private:
-    IYsonConsumer* Consumer;
-    TAttributeFilter AttributeFilter;
-    bool SortKeys;
-    bool IgnoreOpaque;
+    IAsyncYsonConsumer* const Consumer;
+    const TAttributeFilter AttributeFilter;
+    const bool SortKeys;
+    const bool IgnoreOpaque;
+
 
     void VisitAny(const INodePtr& node, bool isRoot = false)
     {
-        node->SerializeAttributes(Consumer, AttributeFilter, SortKeys);
+        node->WriteAttributes(Consumer, AttributeFilter, SortKeys);
 
         if (!isRoot &&
             !IgnoreOpaque &&
@@ -154,6 +157,22 @@ private:
 void VisitTree(
     INodePtr root,
     IYsonConsumer* consumer,
+    const TAttributeFilter& attributeFilter,
+    bool sortKeys,
+    bool ignoreOpaque)
+{
+    TAsyncYsonConsumerAdapter adapter(consumer);
+    VisitTree(
+        std::move(root),
+        &adapter,
+        attributeFilter,
+        sortKeys,
+        ignoreOpaque);
+}
+
+void VisitTree(
+    INodePtr root,
+    IAsyncYsonConsumer* consumer,
     const TAttributeFilter& attributeFilter,
     bool sortKeys,
     bool ignoreOpaque)

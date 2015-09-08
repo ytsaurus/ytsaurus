@@ -41,17 +41,13 @@ public:
         return EObjectType::File;
     }
 
-protected:
-    virtual void SetDefaultAttributes(
-        IAttributeDictionary* attributes,
-        TTransaction* transaction) override
+    virtual bool IsExternalizable() override
     {
-        TChunkOwnerTypeHandler::SetDefaultAttributes(attributes, transaction);
-
-        if (!attributes->Contains("compression_codec")) {
-            attributes->Set("compression_codec", NCompression::ECodec::None);
-        }
+        return true;
     }
+
+protected:
+    using TBase = TChunkOwnerTypeHandler<TFileNode>;
 
     virtual ICypressNodeProxyPtr DoGetProxy(
         TFileNode* trunkNode,
@@ -63,6 +59,26 @@ protected:
             transaction,
             trunkNode);
     }
+
+    virtual std::unique_ptr<TFileNode> DoCreate(
+        const TVersionedNodeId& id,
+        TCellTag cellTag,
+        TTransaction* transaction,
+        IAttributeDictionary* attributes) override
+    {
+        TBase::InitializeAttributes(attributes);
+
+        if (!attributes->Contains("compression_codec")) {
+            attributes->Set("compression_codec", NCompression::ECodec::None);
+        }
+
+        return TBase::DoCreate(
+            id,
+            cellTag,
+            transaction,
+            attributes);
+    }
+
 };
 
 INodeTypeHandlerPtr CreateFileTypeHandler(TBootstrap* bootstrap)

@@ -29,6 +29,8 @@
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+
 #include <server/object_server/type_handler_detail.h>
 
 #include <server/tablet_server/tablet_manager.pb.h>
@@ -48,10 +50,13 @@
 #include <server/chunk_server/chunk_tree_traversing.h>
 
 #include <server/cypress_server/cypress_manager.h>
+#include <server/cypress_server/node_proxy.h>
 
 #include <server/security_server/security_manager.h>
 
 #include <server/object_server/object_manager.h>
+
+#include <server/transaction_server/transaction_manager.h>
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
@@ -68,6 +73,7 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NObjectClient;
+using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NSecurityServer;
@@ -86,6 +92,7 @@ using namespace NChunkServer;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NCypressServer;
+using namespace NCypressClient;
 using namespace NCellMaster;
 
 using NTabletNode::TTableMountConfigPtr;
@@ -106,6 +113,19 @@ class TTabletManager::TTabletCellTypeHandler
 public:
     explicit TTabletCellTypeHandler(TImpl* owner);
 
+    virtual EObjectReplicationFlags GetReplicationFlags() const override
+    {
+        return
+            EObjectReplicationFlags::ReplicateCreate |
+            EObjectReplicationFlags::ReplicateDestroy |
+            EObjectReplicationFlags::ReplicateAttributes;
+    }
+
+    virtual TCellTag GetReplicationCellTag(const TObjectBase* /*object*/) override
+    {
+        return AllSecondaryMastersCellTag;
+    }
+
     virtual EObjectType GetType() const override
     {
         return EObjectType::TabletCell;
@@ -119,14 +139,14 @@ public:
     }
 
     virtual TObjectBase* CreateObject(
+        const TObjectId& hintId,
         TTransaction* transaction,
         TAccount* account,
         IAttributeDictionary* attributes,
-        TReqCreateObjects* request,
-        TRspCreateObjects* response) override;
+        const TObjectCreationExtensions& extensions) override;
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TTabletCell* object) override
     {
@@ -156,7 +176,7 @@ public:
     }
 
 private:
-    TImpl* Owner_;
+    TImpl* const Owner_;
 
     virtual Stroka DoGetName(TTablet* object) override
     {
@@ -209,11 +229,12 @@ public:
         RegisterMethod(BIND(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletStores, Unretained(this)));
 
-        auto nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribePopulateCellDescriptors(BIND(&TImpl::OnPopulateCellDescriptors, MakeWeak(this)));
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto nodeTracker = Bootstrap_->GetNodeTracker();
+            nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
+            nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+            nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+        }
     }
 
     void Initialize()
@@ -228,12 +249,12 @@ public:
     }
 
 
-    TTabletCell* CreateCell(int size, IAttributeDictionary* attributes)
+    TTabletCell* CreateCell(int size, IAttributeDictionary* attributes, const TObjectId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::TabletCell);
+        auto id = objectManager->GenerateId(EObjectType::TabletCell, hintId);
         auto cellHolder = std::make_unique<TTabletCell>(id);
 
         cellHolder->SetSize(size);
@@ -251,64 +272,46 @@ public:
         hiveManager->CreateMailbox(id);
 
         auto cellMapNodeProxy = GetCellMapNode();
+        auto cellNodePath = "/" + ToString(id);
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* sysAccount = securityManager->GetSysAccount();
+        try {
+            // Create Cypress node.
+            {
+                auto req = TCypressYPathProxy::Create(cellNodePath);
+                req->set_type(static_cast<int>(EObjectType::TabletCellNode));
 
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto nodeFactory = cypressManager->CreateNodeFactory(
-            nullptr,
-            sysAccount,
-            false);
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("opaque", true);
+                ToProto(req->mutable_node_attributes(), *attributes);
 
-        auto cellNodeTypeHandler = cypressManager->GetHandler(EObjectType::TabletCellNode);
+                SyncExecuteVerb(cellMapNodeProxy, req);
+            }
 
-        auto* cellNode = cypressManager->CreateNode(
-            cellNodeTypeHandler,
-            nodeFactory,
-            nullptr,
-            nullptr);
+            // Create "snapshots" child.
+            {
+                auto req = TCypressYPathProxy::Create(cellNodePath + "/snapshots");
+                req->set_type(static_cast<int>(EObjectType::MapNode));
 
-        auto cellNodeProxy = cypressManager->GetNodeProxy(cellNode);
-        cellMapNodeProxy->AddChild(cellNodeProxy, ToString(id));
+                SyncExecuteVerb(cellMapNodeProxy, req);
+            }
 
-        SyncYPathSet(cellNodeProxy, "", BuildYsonStringFluently()
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .BeginMap()
-                .Item("snapshots").BeginMap()
-                .EndMap()
-                .Item("changelogs").BeginMap()
-                .EndMap()
-            .EndMap());
-     
+            // Create "changelogs" child.
+            {
+                auto req = TCypressYPathProxy::Create(cellNodePath + "/changelogs");
+                req->set_type(static_cast<int>(EObjectType::MapNode));
+
+                SyncExecuteVerb(cellMapNodeProxy, req);
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering tablet cell in Cypress");
+        }
+
         return cell;
     }
 
     void DestroyCell(TTabletCell* cell)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        auto cellMapNodeProxy = GetCellMapNode();
-        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
-        auto cypressCellNodeProxy = dynamic_cast<ICypressNodeProxy*>(cellNodeProxy.Get());
-
-        auto cypressManager = Bootstrap_->GetCypressManager();
-        auto locks = cypressManager->ListSubtreeLocks(cypressCellNodeProxy->GetTrunkNode(), nullptr, true);
-
-        // NB: std::set ensures stable order.
-        std::set<TTransaction*> transactions;
-        for (const auto* lock : locks) {
-            transactions.insert(lock->GetTransaction());
-        }
-
-        auto transactionManager = Bootstrap_->GetTransactionManager();
-        for (auto* transaction : transactions) {
-            transactionManager->AbortTransaction(transaction, true);
-        }
-
-        cellMapNodeProxy->RemoveChild(cellNodeProxy);
 
         auto hiveManager = Bootstrap_->GetHiveManager();
         hiveManager->RemoveMailbox(cell->GetId());
@@ -317,12 +320,20 @@ public:
             if (peer.Node) {
                 peer.Node->DetachTabletCell(cell);
             }
-            if (peer.Descriptor) {
-                RemoveFromAddressToCellMap(*peer.Descriptor, cell);
+            if (!peer.Descriptor.IsNull()) {
+                RemoveFromAddressToCellMap(peer.Descriptor, cell);
             }
         }
 
         AbortPrerequisiteTransaction(cell);
+    
+        auto cellMapNodeProxy = GetCellMapNode();
+        auto cellNodeProxy = cellMapNodeProxy->FindChild(ToString(cell->GetId()));
+        if (cellNodeProxy) {
+            auto cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->AbortSubtreeTransactions(cellNodeProxy);
+            cellMapNodeProxy->RemoveChild(cellNodeProxy);
+        }
     }
 
 
@@ -331,7 +342,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto objectManager = Bootstrap_->GetObjectManager();
-        auto id = objectManager->GenerateId(EObjectType::Tablet);
+        auto id = objectManager->GenerateId(EObjectType::Tablet, NullObjectId);
         auto tabletHolder = std::make_unique<TTablet>(id);
         tabletHolder->SetTable(table);
 
@@ -415,11 +426,14 @@ public:
         const TTabletCellId& cellId,
         i64 estimatedUncompressedSize,
         i64 estimatedCompressedSize)
-
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
-        
+
+        if (table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
+        }
+
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
         ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns()); // may throw
@@ -647,6 +661,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YCHECK(table->IsTrunk());
 
+        if (table->IsExternal()) {
+            THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
+        }
+
         auto objectManager = Bootstrap_->GetObjectManager();
         auto chunkManager = Bootstrap_->GetChunkManager();
 
@@ -701,13 +719,8 @@ public:
         }
 
         // Validate that all tablets are unmounted.
-        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
-            if (tablet->GetState() != ETabletState::Unmounted) {
-                THROW_ERROR_EXCEPTION("Cannot reshard table: tablet %v is in %Qlv state",
-                    tablet->GetId(),
-                    tablet->GetState());
-            }
+        if (table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard the table since it has mounted tablets");
         }
 
         // Drop old tablets.
@@ -808,9 +821,9 @@ private:
     friend class TTabletCellTypeHandler;
     friend class TTabletTypeHandler;
 
-    TTabletManagerConfigPtr Config_;
+    const TTabletManagerConfigPtr Config_;
 
-    TTabletTrackerPtr TabletTracker_;
+    const TTabletTrackerPtr TabletTracker_;
 
     TEntityMap<TTabletCellId, TTabletCell> TabletCellMap_;
     TEntityMap<TTabletId, TTablet> TabletMap_;
@@ -836,15 +849,6 @@ private:
     }
 
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
-
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -861,6 +865,7 @@ private:
         TabletMap_.LoadValues(context);
     }
 
+
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -870,8 +875,8 @@ private:
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             for (const auto& peer : cell->Peers()) {
-                if (peer.Descriptor) {
-                    AddToAddressToCellMap(*peer.Descriptor, cell);
+                if (!peer.Descriptor.IsNull()) {
+                    AddToAddressToCellMap(peer.Descriptor, cell);
                 }
             }
             auto* transaction = cell->GetPrerequisiteTransaction();
@@ -881,22 +886,16 @@ private:
         }
     }
 
-
-    void DoClear()
-    {
-        TabletCellMap_.Clear();
-        TabletMap_.Clear();
-        AddressToCell_.clear();
-        TransactionToCellMap_.clear();
-    }
-
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
-        DoClear();
+        TabletCellMap_.Clear();
+        TabletMap_.Clear();
+        AddressToCell_.clear();
+        TransactionToCellMap_.clear();
     }
 
 
@@ -1123,69 +1122,6 @@ private:
             #undef XX
             tablet->PerformanceCounters().Timestamp = now;
         }
-
-        // Request to remove orphaned Hive cells.
-        // Reconfigure missing and outdated ones.
-        auto requestReconfigureCell = [&] (TTabletCell* cell) {
-            if (!response)
-                return;
-
-            LOG_DEBUG("Requesting Hive cell reconfiguration (Address: %v, CellId: %v, ConfigVersion: %v)",
-                node->GetDefaultAddress(),
-                cell->GetId(),
-                cell->GetConfigVersion());
-
-            auto* protoInfo = response->add_hive_cells_to_reconfigure();
-            ToProto(protoInfo->mutable_cell_descriptor(), cell->GetDescriptor());
-        };
-
-        auto requestUnregisterCell = [&] (const TTabletCellId& cellId) {
-            if (!response)
-                return;
-
-            LOG_DEBUG("Requesting Hive cell unregistration (Address: %v, CellId: %v)",
-                node->GetDefaultAddress(),
-                cellId);
-
-            auto* unregisterInfo = response->add_hive_cells_to_unregister();
-            ToProto(unregisterInfo->mutable_cell_id(), cellId);
-        };
-
-        yhash_set<TTabletCell*> missingCells;
-        for (const auto& pair : TabletCellMap_) {
-            auto* cell = pair.second;
-            if (IsObjectAlive(cell)) {
-               YCHECK(missingCells.insert(pair.second).second);
-            }
-        }
-            
-        for (const auto& cellInfo : request.hive_cells()) {
-            auto cellId = FromProto<TCellId>(cellInfo.cell_id());
-            if (cellId == Bootstrap_->GetCellId())
-                continue;
-
-            auto* cell = FindTabletCell(cellId);
-            if (IsObjectAlive(cell)) {
-                YCHECK(missingCells.erase(cell) == 1);
-                if (cellInfo.config_version() < cell->GetConfigVersion()) {
-                    requestReconfigureCell(cell);
-                }
-            } else {
-                requestUnregisterCell(cellId);
-            }
-        }
-
-        for (auto* cell : missingCells) {
-            requestReconfigureCell(cell);
-        }
-    }
-
-    void OnPopulateCellDescriptors(std::vector<TCellDescriptor>* descriptors)
-    {
-        for (const auto& pair : TabletCellMap_) {
-            const auto* tablet = pair.second;
-            descriptors->push_back(tablet->GetDescriptor());
-        }
     }
 
 
@@ -1226,7 +1162,7 @@ private:
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
 
             auto& peer = cell->Peers()[peerId];
-            if (peer.Descriptor)
+            if (!peer.Descriptor.IsNull())
                 continue;
 
             AddToAddressToCellMap(descriptor, cell);
@@ -1433,9 +1369,6 @@ private:
 
         TabletTracker_->Start();
 
-        auto cellDirectory = Bootstrap_->GetCellDirectory();
-        cellDirectory->Clear();
-
         for (const auto& pair : TabletCellMap_) {
             auto* cell = pair.second;
             UpdateCellDirectory(cell);
@@ -1471,10 +1404,10 @@ private:
         config->Addresses.clear();
         for (const auto& peer : cell->Peers()) {
             auto nodeTracker = Bootstrap_->GetNodeTracker();
-            if (peer.Descriptor) {
-                config->Addresses.push_back(peer.Descriptor->GetInterconnectAddress());
-            } else {
+            if (peer.Descriptor.IsNull()) {
                 config->Addresses.push_back(Null);
+            } else {
+                config->Addresses.push_back(peer.Descriptor.GetInterconnectAddress());
             }
         }
 
@@ -1628,6 +1561,10 @@ private:
 
         // NB: Cell-to-transaction link is broken in OnTransactionFinished from AbortTransaction.
         YCHECK(!cell->GetPrerequisiteTransaction());
+
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto cellNodeProxy = GetCellNode(cell->GetId());
+        cypressManager->AbortSubtreeTransactions(cellNodeProxy);
     }
 
     void OnTransactionFinished(TTransaction* transaction)
@@ -1653,10 +1590,10 @@ private:
     void DoRevokePeer(TTabletCell* cell, TPeerId peerId)
     {
         const auto& peer = cell->Peers()[peerId];
-        if (!peer.Descriptor)
+        const auto& descriptor = peer.Descriptor;
+        if (descriptor.IsNull())
             return;
 
-        const auto& descriptor = *peer.Descriptor;
         LOG_INFO_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),
@@ -1769,6 +1706,13 @@ private:
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto resolver = cypressManager->CreateResolver();
         return resolver->ResolvePath("//sys/tablet_cells")->AsMap();
+    }
+
+    INodePtr GetCellNode(const TCellId& cellId)
+    {
+        auto cypressManager = Bootstrap_->GetCypressManager();
+        auto resolver = cypressManager->CreateResolver();
+        return resolver->ResolvePath(Format("//sys/tablet_cells/%v", cellId));
     }
 
 
@@ -1910,22 +1854,21 @@ TTabletManager::TTabletCellTypeHandler::TTabletCellTypeHandler(TImpl* owner)
 { }
 
 TObjectBase* TTabletManager::TTabletCellTypeHandler::CreateObject(
+    const TObjectId& hintId,
     TTransaction* transaction,
     TAccount* account,
     IAttributeDictionary* attributes,
-    TReqCreateObjects* request,
-    TRspCreateObjects* response)
+    const TObjectCreationExtensions& /*extensions*/)
 {
     // TODO(babenko): support arbitrary size
-    auto* cell = Owner_->CreateCell(1, attributes);
-    return cell;
+    return Owner_->CreateCell(1, attributes, hintId);
 }
 
 void TTabletManager::TTabletCellTypeHandler::DoZombifyObject(TTabletCell* cell)
 {
     TObjectTypeHandlerWithMapBase::DoZombifyObject(cell);
     // NB: Destroy the cell right away and do not wait for GC to prevent
-    // dangling links from occuring in //sys/tablet_cells.
+    // dangling links from occurring in //sys/tablet_cells.
     Owner_->DestroyCell(cell);
 }
 

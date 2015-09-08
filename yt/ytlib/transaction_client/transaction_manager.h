@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <core/actions/signal.h>
 
@@ -17,26 +18,15 @@ namespace NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTransactionStartOptions
-    : public NApi::TTransactionStartOptions
-{
-    TTransactionStartOptions() = default;
-    TTransactionStartOptions(const TTransactionStartOptions& other) = default;
-    TTransactionStartOptions(const NApi::TTransactionStartOptions& other)
-        : NApi::TTransactionStartOptions(other)
-    { }
-
-    bool EnableUncommittedAccounting = true;
-    bool EnableStagedAccounting = true;
-};
-
 struct TTransactionAttachOptions
 {
     bool AutoAbort = false;
+    TNullable<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = false;
 };
 
+using TTransactionStartOptions = NApi::TTransactionStartOptions;
 using TTransactionCommitOptions = NApi::TTransactionCommitOptions;
 using TTransactionAbortOptions = NApi::TTransactionAbortOptions;
 
@@ -159,7 +149,6 @@ public:
      */
     TTransactionManager(
         TTransactionManagerConfigPtr config,
-        NObjectClient::TCellTag cellTag,
         const NHive::TCellId& cellId,
         NRpc::IChannelPtr masterChannel,
         ITimestampProviderPtr timestampProvider,
@@ -198,6 +187,9 @@ public:
 
     //! Asynchronously aborts all active transactions.
     void AbortAll();
+
+    //! Returns the configuration.
+    TTransactionManagerConfigPtr GetConfig();
 
 private:
     friend class TTransaction;

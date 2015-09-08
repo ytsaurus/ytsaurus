@@ -44,29 +44,54 @@ public:
 
     void Initialize();
 
-    TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
-    void CommitTransaction(TTransaction* transaction);
+    TTransaction* StartTransaction(
+        TTransaction* parent,
+        TNullable<TDuration> timeout,
+        const TTransactionId& hintId = NullTransactionId);
+    void CommitTransaction(TTransaction* transaction, TTimestamp commitTimestamp);
     void AbortTransaction(TTransaction* transaction, bool force);
     void PingTransaction(TTransaction* transaction, bool pingAncestors = false);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction, TTransactionId);
 
     //! Finds transaction by id, throws if nothing is found.
-    TTransaction* GetTransactionOrThrow(const TTransactionId& id);
+    TTransaction* GetTransactionOrThrow(const TTransactionId& transactionId);
 
     //! Registers and references the object with the transaction.
-    void StageObject(TTransaction* transaction, NObjectServer::TObjectBase* object);
+    //! The same object can only be staged once.
+    void StageObject(
+        TTransaction* transaction,
+        NObjectServer::TObjectBase* object);
 
     //! Unregisters the object from its staging transaction,
-    //! calls IObjectTypeHandler::Unstage and
+    //! calls IObjectTypeHandler::UnstageObject and
     //! unreferences the object. Throws on failure.
     /*!
      *  If #recursive is |true| then all child objects are also released.
      */
-    void UnstageObject(NObjectServer::TObjectBase* object, bool recursive);
+    void UnstageObject(
+        NObjectServer::TObjectBase* object,
+        bool recursive);
 
     //! Registers (and references) the node with the transaction.
-    void StageNode(TTransaction* transaction, NCypressServer::TCypressNodeBase* node);
+    void StageNode(
+        TTransaction* transaction,
+        NCypressServer::TCypressNodeBase* trunkNode);
+
+    //! Registers and references the object with the transaction.
+    //! The reference is dropped if the transaction aborts
+    //! but is preserved if the transaction commits.
+    //! The same object as be exported more than once.
+    void ExportObject(
+        TTransaction* transaction,
+        NObjectServer::TObjectBase* object);
+
+    //! Registers and references the object with the transaction.
+    //! The reference is dropped if the transaction aborts or aborts.
+    //! The same object as be exported more than once.
+    void ImportObject(
+        TTransaction* transaction,
+        NObjectServer::TObjectBase* object);
 
 private:
     class TImpl;

@@ -8,6 +8,8 @@
 
 #include <core/actions/signal.h>
 
+#include <core/rpc/service_detail.h>
+
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
@@ -39,6 +41,22 @@ public:
 
     NHydra::TMutationPtr CreateUpdateChunkPropertiesMutation(
         const NProto::TReqUpdateChunkProperties& request);
+
+    // Pass RPC service context to avoid copying request message.
+    using TCtxExportChunks = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqExportChunks,
+        NChunkClient::NProto::TRspExportChunks>;
+    using TCtxExportChunksPtr = TIntrusivePtr<TCtxExportChunks>;
+    NHydra::TMutationPtr CreateExportChunksMutation(
+        TCtxExportChunksPtr context);
+
+    // Pass RPC service context to avoid copying request message.
+    using TCtxImportChunks = NRpc::TTypedServiceContext<
+        NChunkClient::NProto::TReqImportChunks,
+        NChunkClient::NProto::TRspImportChunks>;
+    using TCtxImportChunksPtr = TIntrusivePtr<TCtxImportChunks>;
+    NHydra::TMutationPtr CreateImportChunksMutation(
+        TCtxImportChunksPtr context);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk, TChunkId);
     TChunk* GetChunkOrThrow(const TChunkId& id);
@@ -128,13 +146,14 @@ public:
 
     EChunkStatus ComputeChunkStatus(TChunk* chunk);
 
-    void SealChunk(TChunk* chunk, const NChunkClient::NProto::TMiscExt& info);
-    TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(TChunk* chunk);
+    //! Computes misc extension of a given journal chunk
+    //! by querying a quorum of replicas (if the chunk is not sealed).
+    TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(NChunkServer::TChunk* chunk);
 
 private:
     class TImpl;
     class TChunkTypeHandlerBase;
-    class TChunkTypeHandler;
+    class TRegularChunkTypeHandler;
     class TErasureChunkTypeHandler;
     class TJournalChunkTypeHandler;
     class TChunkListTypeHandler;

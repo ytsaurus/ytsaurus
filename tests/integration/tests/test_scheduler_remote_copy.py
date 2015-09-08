@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_multicell
 from yt_commands import *
 
 import time
@@ -21,25 +21,27 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @classmethod
-    def setup_class(cls):
+    def setup_class(cls, secondary_master_cell_count=0):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
         # Change cell tag of remote cluster
         cls.Env._run_all(masters_count=1,
                          nodes_count=9,
+                         secondary_master_cell_count=secondary_master_cell_count,
                          schedulers_count=0,
                          has_proxy=False,
-                         instance_id="-remote",
+                         instance_id="_remote",
                          cell_tag=10)
 
     def setup(self):
         set("//sys/clusters/remote",
             {
-                "master": self.Env.configs["master-remote"][0]["master"],
-                "timestamp_provider": self.Env.configs["master-remote"][0]["timestamp_provider"],
-                "transaction_manager": self.Env.configs["master-remote"][0]["transaction_manager"],
+                "primary_master": self.Env.configs["master_remote"][0]["primary_master"],
+                "secondary_masters": self.Env.configs["master_remote"][0]["secondary_masters"],
+                "timestamp_provider": self.Env.configs["master_remote"][0]["timestamp_provider"],
+                "transaction_manager": self.Env.configs["master_remote"][0]["transaction_manager"],
                 "cell_tag": 10
             })
-        self.remote_driver = Driver(config=self.Env.configs["driver-remote"])
+        self.remote_driver = Driver(config=self.Env.configs["driver_remote"])
         time.sleep(1.0)
 
     def teardown(self):
@@ -122,6 +124,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @skip_if_multicell
     def test_chunk_scratcher(self):
         def set_banned_flag(value):
             if value:
@@ -232,3 +235,13 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         with pytest.raises(YtError):
             remote_copy(in_=["//tmp/t1", "//tmp/t1"], out="//tmp/t2", spec={"cluster_name": "remote", "copy_attributes": True})
+
+##################################################################
+
+class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    @classmethod
+    def setup_class(cls):
+        super(TestSchedulerRemoteCopyCommandsMulticell, cls).setup_class(2)
+

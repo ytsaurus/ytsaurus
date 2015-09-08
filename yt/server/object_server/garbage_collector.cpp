@@ -103,6 +103,18 @@ void TGarbageCollector::RegisterZombie(TObjectBase* object)
     YCHECK(Zombies_.insert(object).second);
 }
 
+void TGarbageCollector::UnregisterZombie(TObjectBase* object)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YASSERT(object->GetObjectRefCounter() == 1);
+
+    if (Zombies_.erase(object) == 1) {
+        LOG_DEBUG("Object has been resurrected (ObjectId: %v)",
+            object->GetId());
+        CheckEmpty();
+    }
+}
+
 void TGarbageCollector::DestroyZombie(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -183,7 +195,7 @@ void TGarbageCollector::OnSweep()
         ToProto(request.add_object_ids(), object->GetId());
     }
 
-    LOG_DEBUG("Starting sweep for %v zombie objects",
+    LOG_DEBUG("Starting zombie objects sweep (Count: %v)",
         request.object_ids_size());
 
     auto invoker = hydraFacade->GetEpochAutomatonInvoker();

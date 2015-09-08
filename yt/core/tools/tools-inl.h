@@ -41,11 +41,11 @@ template <
 >
 TResult RunTool(
     const TArg& arg,
-    std::function<NYTree::TYsonString(const Stroka&, const NYTree::TYsonString&)> invoker)
+    std::function<NYson::TYsonString(const Stroka&, const NYson::TYsonString&)> invoker)
 {
     auto name = typeid(TTool).name();
 
-    NYTree::TYsonString serializedArgument;
+    NYson::TYsonString serializedArgument;
     try {
         serializedArgument = NYTree::ConvertToYsonString(arg);
     } catch (const std::exception& ex) {

@@ -26,6 +26,7 @@ DEFINE_ENUM(EYsonFormat,
 );
 
 DEFINE_ENUM(EYsonType,
+    (None)
     (Node)
     (ListFragment)
     (MapFragment)
@@ -33,9 +34,17 @@ DEFINE_ENUM(EYsonType,
 
 enum class ETokenType;
 
+class TYsonString;
+
+class TYsonProducer;
+
+class TYsonInput;
+class TYsonOutput;
+
 class TTokenizer;
 
 struct IYsonConsumer;
+struct IAsyncYsonConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

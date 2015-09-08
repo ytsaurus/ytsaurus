@@ -27,6 +27,7 @@ using namespace NBus;
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NYPath;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -360,7 +361,7 @@ std::vector<Stroka> SyncYPathList(IYPathServicePtr service, const TYPath& path)
     auto response = ExecuteVerb(service, request)
         .Get()
         .ValueOrThrow();
-    return ConvertTo<std::vector<Stroka>>(TYsonString(response->keys()));
+    return ConvertTo<std::vector<Stroka>>(TYsonString(response->value()));
 }
 
 void ApplyYPathOverride(INodePtr root, const TStringBuf& overrideString)

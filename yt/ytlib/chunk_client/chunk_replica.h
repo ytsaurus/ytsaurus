@@ -15,7 +15,6 @@ void FromProto(TChunkReplica* replica, ui32 value);
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A compact representation of |(nodeId, index)| pair.
-// TODO(babenko): rename since it now represents a replica of tablet as well
 class TChunkReplica
 {
 public:

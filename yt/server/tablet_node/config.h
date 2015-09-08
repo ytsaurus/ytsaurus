@@ -464,6 +464,9 @@ public:
     //! Controls outcoming bandwidth used by store compactions.
     NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionOutThrottler;
 
+    //! Interval between slots examination.
+    TDuration SlotScanPeriod;
+
 
     TTabletNodeConfig()
     {
@@ -511,6 +514,9 @@ public:
             .DefaultNew();
         RegisterParameter("store_compaction_out_throttler", StoreCompactionOutThrottler)
             .DefaultNew();
+
+        RegisterParameter("slot_scan_period", SlotScanPeriod)
+            .Default(TDuration::Seconds(1));
     }
 };
 

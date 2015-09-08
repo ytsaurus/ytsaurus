@@ -32,14 +32,14 @@ static const size_t RemoteWriteBufferSize = (size_t) 1024 * 1024;
 TSnapshotBuilder::TSnapshotBuilder(
     TSchedulerConfigPtr config,
     TSchedulerPtr scheduler,
-    IClientPtr masterClient)
-    : Config(config)
-    , Scheduler(scheduler)
-    , MasterClient(masterClient)
+    IClientPtr client)
+    : Config_(config)
+    , Scheduler_(scheduler)
+    , Client_(client)
 {
-    YCHECK(Config);
-    YCHECK(Scheduler);
-    YCHECK(MasterClient);
+    YCHECK(Config_);
+    YCHECK(Scheduler_);
+    YCHECK(Client_);
 
     Logger = SchedulerLogger;
 }
@@ -49,22 +49,22 @@ TFuture<void> TSnapshotBuilder::Run()
     LOG_INFO("Snapshot builder started");
 
     try {
-        NFS::ForcePath(Config->SnapshotTempPath);
-        NFS::CleanTempFiles(Config->SnapshotTempPath);
+        NFS::ForcePath(Config_->SnapshotTempPath);
+        NFS::CleanTempFiles(Config_->SnapshotTempPath);
     } catch (const std::exception& ex) {
         return MakeFuture(TError(ex));
     }
 
     // Capture everything needed in Build.
-    for (auto operation : Scheduler->GetOperations()) {
+    for (auto operation : Scheduler_->GetOperations()) {
         if (operation->GetState() != EOperationState::Running)
             continue;
 
         TJob job;
         job.Operation = operation;
-        job.FileName = NFS::CombinePaths(Config->SnapshotTempPath, ToString(operation->GetId()));
+        job.FileName = NFS::CombinePaths(Config_->SnapshotTempPath, ToString(operation->GetId()));
         job.TempFileName = job.FileName + NFS::TempFileSuffix;
-        Jobs.push_back(job);
+        Jobs_.push_back(job);
 
         LOG_INFO("Snapshot job registered (OperationId: %v)",
             operation->GetId());
@@ -72,12 +72,12 @@ TFuture<void> TSnapshotBuilder::Run()
 
     return Fork().Apply(
         BIND(&TSnapshotBuilder::OnBuilt, MakeStrong(this))
-            .AsyncVia(Scheduler->GetSnapshotIOInvoker()));
+            .AsyncVia(Scheduler_->GetSnapshotIOInvoker()));
 }
 
 TDuration TSnapshotBuilder::GetTimeout() const
 {
-    return Config->SnapshotTimeout;
+    return Config_->SnapshotTimeout;
 }
 
 void TSnapshotBuilder::RunChild()
@@ -85,7 +85,7 @@ void TSnapshotBuilder::RunChild()
     CloseAllDescriptors({
         2 // stderr
     });
-    for (const auto& job : Jobs) {
+    for (const auto& job : Jobs_) {
         Build(job);
     }
 }
@@ -108,7 +108,7 @@ void TSnapshotBuilder::Build(const TJob& job)
 
 void TSnapshotBuilder::OnBuilt()
 {
-    for (const auto& job : Jobs) {
+    for (const auto& job : Jobs_) {
         UploadSnapshot(job);
     }
 
@@ -147,7 +147,8 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                 "title",
                 Format("Snapshot upload for operation %v", operation->GetId()));
             options.Attributes = std::move(attributes);
-            auto transactionOrError = WaitFor(MasterClient->StartTransaction(
+            auto transactionOrError = WaitFor(
+                Client_->StartTransaction(
                 NTransactionClient::ETransactionType::Master,
                 options));
             THROW_ERROR_EXCEPTION_IF_FAILED(transactionOrError);
@@ -180,7 +181,7 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
         // Upload new snapshot.
         {
             TFileWriterOptions options;
-            options.Config = Config->SnapshotWriter;
+            options.Config = Config_->SnapshotWriter;
             auto writer = transaction->CreateFileWriter(snapshotPath, options);
 
             {

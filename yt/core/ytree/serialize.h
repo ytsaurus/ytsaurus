@@ -2,7 +2,8 @@
 
 #include "public.h"
 #include "ephemeral_node_factory.h"
-#include "yson_producer.h"
+
+#include <core/yson/producer.h>
 
 #include <core/misc/nullable.h>
 #include <core/misc/mpl.h>
@@ -18,9 +19,9 @@ namespace NYTree {
 
 template <class T>
 NYson::EYsonType GetYsonType(const T&);
-NYson::EYsonType GetYsonType(const TYsonString& yson);
-NYson::EYsonType GetYsonType(const TYsonInput& input);
-NYson::EYsonType GetYsonType(const TYsonProducer& producer);
+NYson::EYsonType GetYsonType(const NYson::TYsonString& yson);
+NYson::EYsonType GetYsonType(const NYson::TYsonInput& input);
+NYson::EYsonType GetYsonType(const NYson::TYsonProducer& producer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +41,7 @@ void WriteYson(
 
 template <class T>
 void WriteYson(
-    const TYsonOutput& output,
+    const NYson::TYsonOutput& output,
     const T& value,
     NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
 

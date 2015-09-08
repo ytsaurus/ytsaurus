@@ -27,6 +27,7 @@ set( SRCS
   ${BASE}/snapshot_builder.cpp
   ${BASE}/snapshot_downloader.cpp
   ${BASE}/sort_controller.cpp
+  ${BASE}/chunk_teleporter.cpp
 )
 set( HDRS
   ${BASE}/chunk_list_pool.h
@@ -60,6 +61,7 @@ set( HDRS
   ${BASE}/snapshot_builder.h
   ${BASE}/snapshot_downloader.h
   ${BASE}/sort_controller.h
+  ${BASE}/chunk_teleporter.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -12,6 +12,7 @@ set( SRCS
   ${BASE}/private.cpp
   ${BASE}/schema.cpp
   ${BASE}/staged_object.cpp
+  ${BASE}/sys_node.cpp
   ${BASE}/type_handler.cpp
 )
 set( HDRS
@@ -30,6 +31,7 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/schema.h
   ${BASE}/staged_object.h
+  ${BASE}/sys_node.h
   ${BASE}/type_handler.h
   ${BASE}/type_handler_detail.h
 )

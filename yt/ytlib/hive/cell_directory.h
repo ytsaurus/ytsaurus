@@ -6,6 +6,8 @@
 
 #include <core/rpc/public.h>
 
+#include <core/actions/future.h>
+
 #include <ytlib/hydra/public.h>
 #include <ytlib/hydra/hydra_manager.pb.h>
 
@@ -35,7 +37,7 @@ struct TCellDescriptor
 {
     TCellId CellId;
     int ConfigVersion = -1;
-    std::vector<TNullable<NNodeTrackerClient::TNodeDescriptor>> Peers;
+    std::vector<NNodeTrackerClient::TNodeDescriptor> Peers;
 
     NElection::TCellConfigPtr ToConfig(const Stroka& networkName) const;
     TCellInfo ToInfo() const;
@@ -62,8 +64,10 @@ public:
         const Stroka& networkName);
     ~TCellDirectory();
 
-
     //! Returns a peer channel of a given kind for a given cell id (|nullptr| if none is known).
+    /*!
+     *  No user or timeout is configured for the returned channel.
+     */
     NRpc::IChannelPtr FindChannel(
         const TCellId& cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
@@ -73,16 +77,24 @@ public:
         const TCellId& cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
+    //! Similar to #FindChannel but fails if no channel is known.
+    NRpc::IChannelPtr GetChannel(
+        const TCellId& cellId,
+        NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
 
-    //! Returns the list of peer addresses for a given cell id (|Null| if the cell is not known).
-    TNullable<std::vector<Stroka>> FindAddresses(const TCellId& cellId);
 
-    //! Similar to #FindAddresses but throws an exception if the cell is not known.
-    std::vector<Stroka> GetAddressesOrThrow(const TCellId& cellId);
+    //! Returns the descriptor for a given cell id (|Null| if the cell is not known).
+    TNullable<TCellDescriptor> FindDescriptor(const TCellId& cellId);
+
+    //! Returns the descriptor for a given cell id (throws if the cell is not known).
+    TCellDescriptor GetDescriptorOrThrow(const TCellId& cellId);
 
 
     //! Returns the list of all registered cells, their versions, and configurations.
     std::vector<TCellInfo> GetRegisteredCells();
+
+    //! Populates the directory with the entries of the remote one via Hive RPC interface.
+    TFuture<void> Synchronize(NRpc::IChannelPtr channel);
 
     //! Returns |true| if the cell was unregistered by calling #UnregisterCell.
     bool IsCellUnregistered(const TCellId& cellId);
@@ -106,13 +118,13 @@ public:
      */
     bool UnregisterCell(const TCellId& cellId);
 
-    //! Drops all known cells.
+    //! Clears the state; i.e. drops all known registered and unregistered cells.
     void Clear();
 
 
 private:
     class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
+    const TIntrusivePtr<TImpl> Impl_;
 
 };
 

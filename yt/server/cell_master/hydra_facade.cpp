@@ -6,28 +6,17 @@
 
 #include <core/misc/fs.h>
 
-#include <core/ytree/ypath_proxy.h>
-#include <core/ytree/ypath_client.h>
-
-#include <core/ypath/token.h>
-
 #include <core/rpc/bus_channel.h>
 #include <core/rpc/server.h>
 #include <core/rpc/response_keeper.h>
+#include <core/rpc/message.h>
 
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
 
-#include <core/logging/log.h>
-
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
-
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
-
-#include <ytlib/election/cell_manager.h>
 
 #include <server/election/election_manager.h>
 
@@ -38,16 +27,9 @@
 #include <server/hydra/file_helpers.h>
 #include <server/hydra/private.h>
 
-#include <server/hive/transaction_supervisor.h>
+#include <server/hive/hive_manager.h>
 
 #include <server/cell_master/bootstrap.h>
-
-#include <server/cypress_server/cypress_manager.h>
-#include <server/cypress_server/node_detail.h>
-
-#include <server/security_server/security_manager.h>
-#include <server/security_server/acl.h>
-#include <server/security_server/group.h>
 
 #include <server/object_server/private.h>
 
@@ -58,16 +40,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NElection;
 using namespace NHydra;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NCypressServer;
-using namespace NCypressClient;
-using namespace NTransactionClient;
 using namespace NHive;
-using namespace NHive::NProto;
-using namespace NObjectClient;
-using namespace NObjectServer;
-using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,8 +96,13 @@ public:
         }
     }
 
-    void Start()
+    void Initialize()
     {
+        if (Bootstrap_->IsSecondaryMaster()) {
+            // NB: This causes a cyclic reference but we don't care.
+            HydraManager_->SubscribeUpstreamSync(BIND(&TImpl::OnUpstreamSync, MakeStrong(this)));
+        }
+
         HydraManager_->Initialize();
 
         SnapshotCleanupExecutor_ = New<TPeriodicExecutor>(
@@ -144,6 +122,7 @@ public:
         Automaton_->LoadSnapshot(reader);
     }
 
+
     TMasterAutomatonPtr GetAutomaton() const
     {
         return Automaton_;
@@ -158,6 +137,7 @@ public:
     {
         return ResponseKeeper_;
     }
+
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const
     {
@@ -285,6 +265,12 @@ private:
         }
     }
 
+
+    TFuture<void> OnUpstreamSync()
+    {
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        return hiveManager->SyncWith(Bootstrap_->GetPrimaryCellId());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,9 +284,9 @@ THydraFacade::THydraFacade(
 THydraFacade::~THydraFacade()
 { }
 
-void THydraFacade::Start()
+void THydraFacade::Initialize()
 {
-    Impl_->Start();
+    Impl_->Initialize();
 }
 
 void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)

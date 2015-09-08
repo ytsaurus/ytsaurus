@@ -77,40 +77,49 @@ private:
     }
 
 
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
-        const auto* table = GetThisTypedImpl();
+        TBase::ListSystemAttributes(descriptors);
 
-        attributes->push_back(TAttributeInfo("row_count", !table->IsDynamic()));
-        attributes->push_back(TAttributeInfo("unmerged_row_count", table->IsDynamic()));
-        attributes->push_back("sorted");
-        attributes->push_back("key_columns");
-        attributes->push_back(TAttributeInfo("sorted_by", table->GetSorted()));
-        attributes->push_back("dynamic");
-        attributes->push_back(TAttributeInfo("tablets", table->IsDynamic(), true));
-        attributes->push_back(TAttributeInfo("channels", true, false, true));
-        attributes->push_back(TAttributeInfo("schema", true, false, true));
-        attributes->push_back("atomicity");
-        TBase::ListSystemAttributes(attributes);
+        const auto* table = GetThisTypedImpl();
+        bool isDynamic = table->IsDynamic();
+
+        descriptors->push_back(TAttributeDescriptor("row_count")
+            .SetPresent(!isDynamic));
+        descriptors->push_back(TAttributeDescriptor("unmerged_row_count")
+            .SetPresent(isDynamic));
+        descriptors->push_back("sorted");
+        descriptors->push_back(TAttributeDescriptor("key_columns")
+            .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("sorted_by")
+            .SetPresent(table->GetSorted()));
+        descriptors->push_back("dynamic");
+        descriptors->push_back(TAttributeDescriptor("tablets")
+            .SetPresent(isDynamic)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("channels")
+            .SetCustom(true));
+        descriptors->push_back(TAttributeDescriptor("schema")
+            .SetCustom(true));
+        descriptors->push_back("atomicity");
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
     {
         const auto* table = GetThisTypedImpl();
-        auto tabletManager = Bootstrap_->GetTabletManager();
+        auto statistics = table->ComputeTotalStatistics();
 
-        const auto* chunkList = table->GetChunkList();
-        const auto& statistics = chunkList->Statistics();
+        auto tabletManager = Bootstrap_->GetTabletManager();
 
         if (key == "row_count" && !table->IsDynamic()) {
             BuildYsonFluently(consumer)
-                .Value(statistics.RowCount);
+                .Value(statistics.row_count());
             return true;
         }
 
         if (key == "unmerged_row_count" && table->IsDynamic()) {
             BuildYsonFluently(consumer)
-                .Value(statistics.RowCount);
+                .Value(statistics.row_count());
             return true;
         }
 
@@ -175,13 +184,13 @@ private:
             ValidateNoTransaction();
 
             auto* table = LockThisTypedImpl();
-            auto* chunkList = table->GetChunkList();
+
             if (table->IsDynamic()) {
                 if (table->HasMountedTablets()) {
                     THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
                 }
             } else {
-                if (!chunkList->Children().empty()) {
+                if (!table->IsEmpty()) {
                     THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
                 }
             }
@@ -271,19 +280,8 @@ private:
     }
 
 
-    virtual void Clear() override
-    {
-        TChunkOwnerNodeProxy::Clear();
-
-        auto* table = GetThisTypedImpl();
-        table->KeyColumns().clear();
-        table->SetSorted(false);
-    }
-
-
     virtual bool DoInvoke(IServiceContextPtr context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(SetSorted);
         DISPATCH_YPATH_SERVICE_METHOD(Mount);
         DISPATCH_YPATH_SERVICE_METHOD(Unmount);
         DISPATCH_YPATH_SERVICE_METHOD(Remount);
@@ -303,53 +301,16 @@ private:
         }
     }
 
-    virtual void ValidatePrepareForUpdate() override
+    virtual void ValidateBeginUpload() override
     {
-        TBase::ValidatePrepareForUpdate();
+        TBase::ValidateBeginUpload();
 
         const auto* table = GetThisTypedImpl();
         if (table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Cannot write into a dynamic table");
+            THROW_ERROR_EXCEPTION("Cannot upload into a dynamic table");
         }
     }
 
-    virtual bool IsSorted() override
-    {
-        const auto* table = GetThisTypedImpl();
-        return table->GetSorted();
-    }
-
-    virtual void ResetSorted() override
-    {
-        auto* table = GetThisTypedImpl();
-        table->KeyColumns().clear();
-        table->SetSorted(false);
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, SetSorted)
-    {
-        DeclareMutating();
-
-        auto keyColumns = FromProto<Stroka>(request->key_columns());
-        context->SetRequestInfo("KeyColumns: %v",
-            ConvertToYsonString(keyColumns, EYsonFormat::Text).Data());
-
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-        auto* table = LockThisTypedImpl();
-
-        if (table->GetUpdateMode() == EUpdateMode::None) {
-            THROW_ERROR_EXCEPTION("Table must not be in \"none\" mode");
-        }
-
-        ValidateKeyColumns(keyColumns);
-        table->KeyColumns() = keyColumns;
-        table->SetSorted(true);
-
-        SetModified();
-
-        context->Reply();
-    }
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Mount)
     {
@@ -367,14 +328,15 @@ private:
             lastTabletIndex,
             cellId);
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->MountTable(
-            impl,
+            table,
             firstTabletIndex,
             lastTabletIndex,
             cellId,
@@ -396,14 +358,15 @@ private:
             lastTabletIndex,
             force);
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->UnmountTable(
-            impl,
+            table,
             force,
             firstTabletIndex,
             lastTabletIndex);
@@ -421,14 +384,15 @@ private:
             firstTabletIndex,
             lastTabletIndex);
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->RemountTable(
-            impl,
+            table,
             firstTabletIndex,
             lastTabletIndex);
 
@@ -445,16 +409,17 @@ private:
         context->SetRequestInfo("FirstTabletIndex: %v, LastTabletIndex: %v, PivotKeyCount: %v",
             firstTabletIndex,
             lastTabletIndex,
-            static_cast<int>(pivotKeys.size()));
+            pivotKeys.size());
 
+        ValidateNotExternal();
         ValidateNoTransaction();
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
 
-        auto* impl = LockThisTypedImpl();
+        auto* table = LockThisTypedImpl();
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->ReshardTable(
-            impl,
+            table,
             firstTabletIndex,
             lastTabletIndex,
             pivotKeys);
@@ -468,6 +433,7 @@ private:
 
         context->SetRequestInfo();
 
+        ValidateNotExternal();
         ValidateNoTransaction();
 
         auto* table = GetThisTypedImpl();

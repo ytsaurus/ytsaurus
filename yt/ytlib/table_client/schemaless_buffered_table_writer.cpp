@@ -12,6 +12,8 @@
 
 #include <ytlib/ypath/rich.h>
 
+#include <ytlib/api/client.h>
+
 #include <core/concurrency/delayed_executor.h>
 #include <core/concurrency/periodic_executor.h>
 
@@ -35,6 +37,7 @@ using namespace NRpc;
 using namespace NApi;
 using namespace NTransactionClient;
 using namespace NYPath;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 

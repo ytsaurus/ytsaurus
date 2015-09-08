@@ -6,6 +6,8 @@
 
 #include <ytlib/node_tracker_client/helpers.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <server/scheduler/job_resources.h>
 
 #include <server/data_node/master_connector.h>
@@ -19,6 +21,7 @@
 namespace NYT {
 namespace NJobAgent {
 
+using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
@@ -259,7 +262,10 @@ bool TJobController::CheckResourceUsageDelta(const TNodeResources& delta)
     return true;
 }
 
-void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
+void TJobController::PrepareHeartbeatRequest(
+    TCellTag cellTag,
+    EObjectType jobObjectType,
+    TReqHeartbeat* request)
 {
     auto masterConnector = Bootstrap_->GetMasterConnector();
     request->set_node_id(masterConnector->GetNodeId());
@@ -268,12 +274,18 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
     *request->mutable_resource_usage() = GetResourceUsage();
 
     for (const auto& pair : Jobs_) {
+        const auto& jobId = pair.first;
         auto job = pair.second;
-        auto type = EJobType(job->GetSpec().type());
+        if (CellTagFromId(jobId) != cellTag)
+            continue;
+        if (TypeFromId(jobId) != jobObjectType)
+            continue;
+
+        auto jobType = EJobType(job->GetSpec().type());
         auto state = job->GetState();
         auto* jobStatus = request->add_jobs();
         ToProto(jobStatus->mutable_job_id(), job->GetId());
-        jobStatus->set_job_type(static_cast<int>(type));
+        jobStatus->set_job_type(static_cast<int>(jobType));
         jobStatus->set_state(static_cast<int>(state));
         jobStatus->set_phase(static_cast<int>(job->GetPhase()));
         jobStatus->set_progress(job->GetProgress());
@@ -294,7 +306,7 @@ void TJobController::PrepareHeartbeat(TReqHeartbeat* request)
     }
 }
 
-void TJobController::ProcessHeartbeat(TRspHeartbeat* response)
+void TJobController::ProcessHeartbeatResponse(TRspHeartbeat* response)
 {
     for (const auto& protoJobId : response->jobs_to_remove()) {
         auto jobId = FromProto<TJobId>(protoJobId);

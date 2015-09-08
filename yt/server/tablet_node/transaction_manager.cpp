@@ -450,14 +450,6 @@ private:
             });
     }
 
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        TTabletAutomatonPart::OnBeforeSnapshotLoaded();
-
-        DoClear();
-    }
 
     void LoadKeys(TLoadContext& context)
     {
@@ -491,18 +483,13 @@ private:
     }
 
 
-    void DoClear()
-    {
-        TransactionMap_.Clear();
-    }
-
     virtual void Clear() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::Clear();
 
-        DoClear();
+        TransactionMap_.Clear();
     }
 
 };

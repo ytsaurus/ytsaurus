@@ -4,6 +4,7 @@
 #include "permission.h"
 
 #include <core/yson/consumer.h>
+#include <core/yson/string.h>
 
 #include <core/misc/error.h>
 #include <core/misc/nullable.h>
@@ -21,25 +22,61 @@ struct ISystemAttributeProvider
     { }
 
     //! Describes a system attribute.
-    struct TAttributeInfo
+    struct TAttributeDescriptor
     {
-        const char* Key;
-        bool IsPresent;
-        bool IsOpaque;
-        bool IsCustom;
-        NYTree::EPermissionSet WritePermission;
+        const char* Key = nullptr;
+        bool Present = true;
+        bool Opaque = false;
+        bool Custom = false;
+        bool Removable = false;
+        bool Replicated = false;
+        bool External = false;
+        EPermissionSet WritePermission = EPermission::Write;
 
-        TAttributeInfo(
-            const char* key,
-            bool isPresent = true,
-            bool isOpaque = false,
-            bool isCustom = false,
-            EPermission writePermission = EPermission::Write)
+        TAttributeDescriptor& SetPresent(bool value)
+        {
+            Present = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetOpaque(bool value)
+        {
+            Opaque = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetCustom(bool value)
+        {
+            Custom = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetRemovable(bool value)
+        {
+            Removable = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetReplicated(bool value)
+        {
+            Replicated = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetExternal(bool value)
+        {
+            External = value;
+            return *this;
+        }
+
+        TAttributeDescriptor& SetWritePermission(EPermission value)
+        {
+            WritePermission = value;
+            return *this;
+        }
+
+        TAttributeDescriptor(const char* key)
             : Key(key)
-            , IsPresent(isPresent)
-            , IsOpaque(isOpaque)
-            , IsCustom(isCustom)
-            , WritePermission(writePermission)
         { }
     };
 
@@ -48,10 +85,7 @@ struct ISystemAttributeProvider
      *  \note
      *  Must not clear #attributes since additional items may be added in inheritors.
      */
-    virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) = 0;
-
-    //! Populates the list of all builtin attributes supported by this object.
-    void ListBuiltinAttributes(std::vector<TAttributeInfo>* attributes);
+    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) = 0;
 
     //! Gets the value of a builtin attribute.
     /*!
@@ -61,22 +95,44 @@ struct ISystemAttributeProvider
 
     //! Asynchronously gets the value of a builtin attribute.
     /*!
-     *  \returns Null if there is no such async builtin attribute with the given key.
+     *  \returns A future representing attribute value or null if there is no such async builtin attribute.
      */
-    virtual TFuture<void> GetBuiltinAttributeAsync(const Stroka& key, NYson::IYsonConsumer* consumer) = 0;
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(const Stroka& key) = 0;
 
     //! Sets the value of a builtin attribute.
     /*!
      *  \returns |false| if there is no writable builtin attribute with the given key.
      */
-    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) = 0;
+    virtual bool SetBuiltinAttribute(const Stroka& key, const NYson::TYsonString& value) = 0;
+
+    //! Asynchronously sets the value of a builtin attribute.
+    /*!
+     *  \returns A future representing the outcome of the operation or |Null| if no such asynchronous attribute is known.
+     */
+    virtual TFuture<void> SetBuiltinAttributeAsync(const Stroka& key, const NYson::TYsonString& value) = 0;
+
+    //! Removes the builtin attribute.
+    /*!
+     *  \returns |false| if there is no removable builtin attribute with the given key.
+     */
+    virtual bool RemoveBuiltinAttribute(const Stroka& key) = 0;
 
 
     // Extension methods.
 
-    //! Returns an instance of TAttributeInfo matching a given #key or |Null| if no such
+    //! Similar to its interface counterpart, but populates a map rather than a vector.
+    void ListSystemAttributes(std::map<Stroka, TAttributeDescriptor>* descriptors);
+
+    //! Populates the list of all builtin attributes supported by this object.
+    void ListBuiltinAttributes(std::vector<TAttributeDescriptor>* descriptors);
+
+    //! Returns an instance of TAttributeDescriptor matching a given #key or |Null| if no such
     //! builtin attribute is known.
-    TNullable<TAttributeInfo> FindBuiltinAttributeInfo(const Stroka& key);
+    TNullable<TAttributeDescriptor> FindBuiltinAttributeDescriptor(const Stroka& key);
+
+    //! A wrapper around interface method that returns the YSON string instead
+    //! of writing it into a consumer.
+    TNullable<NYson::TYsonString> GetBuiltinAttribute(const Stroka& key);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

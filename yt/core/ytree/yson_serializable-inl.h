@@ -470,7 +470,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
 template <class T>
 bool ReconfigureYsonSerializable(
     TIntrusivePtr<T> config,
-    const NYTree::TYsonString& newConfigYson)
+    const NYson::TYsonString& newConfigYson)
 {
     auto newConfig = ConvertToNode(newConfigYson);
     return ReconfigureYsonSerializable(config, newConfig);

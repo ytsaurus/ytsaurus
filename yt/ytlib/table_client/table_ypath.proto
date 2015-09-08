@@ -6,18 +6,6 @@ import "yt/ytlib/hive/cell_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Raises "sorted" flag for the root chunk list of the table.
-// No checks are performed, it's caller's responsibility to ensure proper row order.
-message TReqSetSorted
-{
-    repeated string key_columns = 1;
-}
-
-message TRspSetSorted
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqMount
 {
     // If omitted then all tablets are affected.
