@@ -28,16 +28,16 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns, const TKeyColumns& chunkK
     if (chunkKeyColumns.size() < keyColumns.size()) {
         THROW_ERROR_EXCEPTION(
             "Chunk has less key columns than requested (Actual: [%s], Expected: [%s])",
-            ~JoinToString(chunkKeyColumns),
-            ~JoinToString(keyColumns));
+            JoinToString(chunkKeyColumns),
+            JoinToString(keyColumns));
     }
 
     for (int i = 0; i < keyColumns.size(); ++i) {
         if (chunkKeyColumns[i] != keyColumns[i]) {
             THROW_ERROR_EXCEPTION(
                 "Incompatible key columns (Actual: [%s], Expected: [%s])",
-                ~JoinToString(chunkKeyColumns),
-                ~JoinToString(keyColumns));
+                JoinToString(chunkKeyColumns),
+                JoinToString(keyColumns));
         }
     }
 }
