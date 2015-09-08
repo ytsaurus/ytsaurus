@@ -236,8 +236,15 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
         objectManager->ValidatePrerequisites(prerequiesitesExt);
     }
 
+    LOG_DEBUG_IF(IsFollower(), "Invoke: %v:%v %v (ObjectId: %v, User: %v)",
+        context->GetService(),
+        context->GetMethod(),
+        ypathExt.path(),
+        GetVersionedId(),
+        user->GetName());
+
     NProfiling::TTagIdList tagIds;
-    tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
+    tagIds.push_back(objectManager->GetTypeTagId(Object_->GetType()));
     tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
     const auto& Profiler = objectManager->GetProfiler();
     static const auto profilingPath = TYPath("/verb_execute_time");
@@ -771,6 +778,11 @@ bool TObjectProxyBase::IsRecovery() const
 bool TObjectProxyBase::IsLeader() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader();
+}
+
+bool TObjectProxyBase::IsFollower() const
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsFollower();
 }
 
 void TObjectProxyBase::ValidateActiveLeader() const
