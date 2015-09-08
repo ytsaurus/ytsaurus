@@ -69,28 +69,6 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
-void TYPathServiceBase::EnsureLoggerCreated() const
-{
-    if (!LoggerCreated_) {
-        if (IsLoggingEnabled()) {
-            Logger = CreateLogger();
-        }
-        LoggerCreated_ = true;
-    }
-}
-
-bool TYPathServiceBase::IsLoggingEnabled() const
-{
-    // Logging is enabled by default...
-    return true;
-}
-
-NLogging::TLogger TYPathServiceBase::CreateLogger() const
-{
-    // ... but a null logger is returned :)
-    return NLogging::TLogger();
-}
-
 void TYPathServiceBase::Invoke(IServiceContextPtr context)
 {
     TError error;
@@ -111,9 +89,7 @@ void TYPathServiceBase::Invoke(IServiceContextPtr context)
 }
 
 void TYPathServiceBase::BeforeInvoke(IServiceContextPtr /*context*/)
-{
-    EnsureLoggerCreated();
-}
+{ }
 
 bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
 {
@@ -122,12 +98,6 @@ bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
 
 void TYPathServiceBase::AfterInvoke(IServiceContextPtr /*context*/)
 { }
-
-NLogging::TLogger TYPathServiceBase::GetLogger() const
-{
-    EnsureLoggerCreated();
-    return Logger;
-}
 
 void TYPathServiceBase::SerializeAttributes(
     IYsonConsumer* /*consumer*/,
@@ -1116,11 +1086,6 @@ public:
         }
 
         return TResolveResult::There(UnderlyingService_, tokenizer.GetSuffix());
-    }
-
-    virtual NLogging::TLogger GetLogger() const override
-    {
-        return UnderlyingService_->GetLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider

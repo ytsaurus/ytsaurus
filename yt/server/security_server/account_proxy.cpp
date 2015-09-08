@@ -31,11 +31,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TAccount> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return SecurityServerLogger;
-    }
-
     virtual void ValidateRemoval() override
     {
         const auto* account = GetThisTypedImpl();

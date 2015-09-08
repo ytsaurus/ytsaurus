@@ -674,11 +674,6 @@ TClusterResources TNontemplateCypressNodeProxyBase::GetResourceUsage() const
     return TClusterResources(0, 1, 0);
 }
 
-NLogging::TLogger TNontemplateCypressNodeProxyBase::CreateLogger() const
-{
-    return CypressServerLogger;
-}
-
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
 {
     DeclareMutating();

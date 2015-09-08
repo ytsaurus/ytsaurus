@@ -60,11 +60,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TSchemaObject> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return ObjectServerLogger;
-    }
-
     virtual bool GetBuiltinAttribute(const Stroka& key, NYson::IYsonConsumer* consumer) override
     {
         if (key == "type") {

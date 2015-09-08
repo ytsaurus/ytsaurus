@@ -836,16 +836,6 @@ void TObjectProxyBase::ValidateActiveLeader() const
 //    context->Reply(responseMessage);
 //}
 
-bool TObjectProxyBase::IsLoggingEnabled() const
-{
-    return !IsRecovery();
-}
-
-NLogging::TLogger TObjectProxyBase::CreateLogger() const
-{
-    return ObjectServerLogger;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase(

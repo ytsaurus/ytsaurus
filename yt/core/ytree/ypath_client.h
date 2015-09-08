@@ -173,6 +173,8 @@ TFuture<TSharedRefArray>
 ExecuteVerb(
     IYPathServicePtr service,
     TSharedRefArray requestMessage,
+    const NLogging::TLogger& logger = NLogging::TLogger(),
+    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
     const Stroka& requestInfo = Stroka(),
     const Stroka& responseInfo = Stroka());
 

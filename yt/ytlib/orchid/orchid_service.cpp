@@ -48,12 +48,10 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
 
-        auto path = GetRequestYPath(context);
-        const auto& method = requestHeader.method();
-
-        context->SetRequestInfo("Path: %v, Method: %v",
-            path,
-            method);
+        context->SetRequestInfo("%v:%v %v",
+            requestHeader.service(),
+            requestHeader.method(),
+            GetRequestYPath(context));
 
         ExecuteVerb(RootService_, requestMessage)
             .Subscribe(BIND([=] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {

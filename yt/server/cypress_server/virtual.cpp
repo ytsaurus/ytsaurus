@@ -60,11 +60,6 @@ public:
         Bootstrap->GetHydraFacade()->ValidateActiveLeader();
     }
 
-    virtual NLogging::TLogger GetLogger() const override
-    {
-        return NLogging::TLogger();
-    }
-
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         IYsonConsumer* /*consumer*/,
@@ -104,11 +99,6 @@ public:
     {
         Bootstrap->GetHydraFacade()->ValidateActiveLeader();
         UnderlyingService->Invoke(context);
-    }
-
-    virtual NLogging::TLogger GetLogger() const override
-    {
-        return UnderlyingService->GetLogger();
     }
 
     // TODO(panin): remove this when getting rid of IAttributeProvider
