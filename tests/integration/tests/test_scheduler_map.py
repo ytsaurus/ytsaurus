@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
+from yt.wrapper import JsonFormat
 from yt.environment.helpers import assert_items_equal
 
 import pytest
@@ -513,7 +514,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         context = read_file("//tmp/input_context")
         assert get("//tmp/input_context/@description/type") == "input_context"
-        assert format.JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
+        assert JsonFormat(process_table_index=True).loads_row(context)["foo"] == "bar"
 
     @linux_only
     def test_sorted_output(self):
