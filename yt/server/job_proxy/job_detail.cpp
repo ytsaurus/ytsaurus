@@ -94,6 +94,9 @@ TJobResult TSimpleJobBase::Run()
     }
 }
 
+void TSimpleJobBase::Abort()
+{ }
+
 double TSimpleJobBase::GetProgress() const
 {
     if (TotalRowCount_ == 0) {
