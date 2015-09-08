@@ -403,6 +403,8 @@ void TSupportsAttributes::GetAttribute(
     TRspGet* response,
     TCtxGetPtr context)
 {
+    context->SetRequestInfo();
+
     DoGetAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (!ysonOrError.IsOK()) {
             context->Reply(ysonOrError);
@@ -489,6 +491,8 @@ void TSupportsAttributes::ListAttribute(
     TRspList* response,
     TCtxListPtr context)
 {
+    context->SetRequestInfo();
+
     DoListAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (ysonOrError.IsOK()) {
             response->set_keys(ysonOrError.Value().Data());
