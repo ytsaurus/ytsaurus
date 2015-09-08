@@ -215,6 +215,8 @@ void TTableConsumer::OnBeginAttributes()
 
     if (Depth_ == 0) {
         ControlState_ = EControlState::ExpectName;
+    } else if (Depth_ == 1) {
+        THROW_ERROR_EXCEPTION("Table values cannot have top-level attributes");
     } else {
         ValueWriter_.OnBeginAttributes();
     }
@@ -230,11 +232,6 @@ void TTableConsumer::ThrowControlAttributesNotSupported()
 void TTableConsumer::ThrowMapExpected()
 {
     THROW_ERROR AttachLocationAttributes(TError("Invalid row format, map expected"));
-}
-
-void TTableConsumer::ThrowCompositesNotSupported()
-{
-    THROW_ERROR AttachLocationAttributes(TError("Composite types are not supported"));
 }
 
 void TTableConsumer::ThrowInvalidControlAttribute(const Stroka& whatsWrong)
