@@ -85,6 +85,7 @@ DEFINE_ENUM(EErrorCode,
     ((IOError)                  (711))
     ((MasterCommunicationFailed)(712))
     ((NoSuchChunkTree)          (713))
+    ((NoSuchChunkList)          (717))
     ((MasterNotConnected)       (714))
     ((ChunkUnavailable)         (716))
 );
