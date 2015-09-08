@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -1087,7 +1087,6 @@ class TestJobQuery(YTEnvSetup):
             {"a": 7, "c": 8}]
         write_table("//tmp/t1", rows)
 
-        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={
                 "input_query": "* where a > 0 or b > 0",
@@ -1172,4 +1171,4 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
             out="//tmp/t_out",
             command="cat")
 
-        self.assertItemsEqual(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])
+        assert_items_equal(read_table("//tmp/t_out"), [{"a": 1}, {"a": 2}])
