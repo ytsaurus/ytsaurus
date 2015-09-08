@@ -41,27 +41,18 @@ def get_master_config():
     return yson.loads(
 """
 {
-    enable_provision_lock = false;
-
-    master = {
-        addresses = [ ];
-        cell_tag = 0;
-        cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
-    };
+    enable_provision_lock = %false;
 
     timestamp_provider = {
-        addresses = [ ];
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
 
     changelogs = {
-        path = "";
+        flush_period = 10;
     };
 
-    snapshots = {
-        path = "";
-    };
+    snapshots = { };
 
     cell_directory = {
         soft_backoff_time = 100;
@@ -70,16 +61,6 @@ def get_master_config():
 
     transaction_manager = {
         default_transaction_timeout = 300000;
-    };
-
-    hydra_manager = {
-        leader_lease_check_period = 100;
-        leader_lease_timeout = 200;
-        disable_leader_lease_grace_delay = true;
-        response_keeper = {
-            expiration_time = 25000;
-            warmup_time = 30000;
-        };
     };
 
     chunk_manager = {
@@ -98,7 +79,6 @@ def get_master_config():
     };
 
     node_tracker = {
-        online_node_timeout = 1000;
         max_concurrent_node_registrations = 100;
         max_concurrent_node_unregistrations = 100;
     };
@@ -124,24 +104,14 @@ def get_scheduler_config():
 """
 {
     cluster_connection = {
-        enable_read_from_followers = true;
-
-        master = {
-            addresses = [ ];
-            cell_tag = 0;
-            cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
-            rpc_timeout = 5000;
-        };
+        enable_read_from_followers = %true;
 
         timestamp_provider = {
-            addresses = [ ];
             soft_backoff_time = 100;
             hard_backoff_time = 100;
         };
 
-        transaction_manager = {
-            ping_period = 500;
-        };
+        transaction_manager = { };
     };
 
     response_keeper = {
@@ -162,13 +132,11 @@ def get_scheduler_config():
              PYTHONUSERBASE = "/tmp"
         };
 
-        enable_snapshot_loading = true;
+        enable_snapshot_loading = %true;
         snapshot_timeout = 1000;
     };
 
-    transaction_manager = {
-        ping_period = 500;
-    };
+    transaction_manager = { };
 
     logging = { };
 
@@ -184,45 +152,35 @@ def get_node_config():
     orchid_cache_expiration_time = 0;
 
     cluster_connection = {
-        enable_read_from_followers = true;
-
-        master = {
-            addresses = [ ];
-            cell_tag = 0;
-            cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
-            rpc_timeout = 5000;
-        };
+        enable_read_from_followers = %true;
 
         master_cache = {
-            addresses = [ ];
-            cell_tag = 0;
-            cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
             soft_backoff_time = 100;
             hard_backoff_time = 100;
             rpc_timeout = 5000;
         };
 
         timestamp_provider = {
-            addresses = [ ];
             soft_backoff_time = 100;
             hard_backoff_time = 100;
         };
 
         transaction_manager = {
             default_transaction_timeout = 1000;
-            ping_period = 500;
         };
 
         scheduler = {
             retry_backoff_time = 100;
         };
 
-        enable_udf = true;
+        enable_udf = %true;
     };
 
     data_node = {
-        cache_locations = [];
         store_locations = [];
+        split_changelog = {
+            flush_period = 10;
+        };
 
         cache_location = {
             path = "";
@@ -235,6 +193,8 @@ def get_node_config():
     };
 
     exec_agent = {
+        slot_manager = {};
+
         scheduler_connector = {
             heartbeat_period = 200;
         };
@@ -254,7 +214,7 @@ def get_node_config():
             };
         };
 
-        enable_cgroups = false;
+        enable_cgroups = %false;
 
         slot_manager = {
             paths = [];
@@ -292,12 +252,13 @@ def get_node_config():
         hydra_manager = {
             leader_lease_check_period = 100;
             leader_lease_timeout = 200;
-            disable_leader_lease_grace_delay = true;
+            disable_leader_lease_grace_delay = %true;
         };
+
+        slot_scan_period = 100;
     };
 
-    query_agent = {
-    };
+    query_agent = { };
 
     tracing = { };
 
@@ -330,24 +291,14 @@ def get_driver_config():
     return yson.loads(
 """
 {
-    enable_read_from_followers = true;
-
-    master = {
-        addresses = [ ];
-        cell_tag = 0;
-        cell_id = "ffffffff-ffffffff-ffffffff-ffffffff";
-        rpc_timeout = 5000;
-    };
+    enable_read_from_followers = %true;
 
     timestamp_provider = {
-        addresses = [ ];
         soft_backoff_time = 100;
         hard_backoff_time = 100;
     };
 
-    transaction_manager = {
-        ping_period = 500;
-    };
+    transaction_manager = { };
 
     format_defaults = {
         structured = <
@@ -358,7 +309,7 @@ def get_driver_config():
         > yson
     };
 
-    enable_udf = true;
+    enable_udf = %true;
 }
 """)
 
@@ -378,6 +329,7 @@ def get_proxy_config():
 {
     "port" : -1,
     "log_port" : -1,
+    "address" : "::",
     "number_of_workers" : 1,
     "memory_limit" : 33554432,
     "thread_limit" : 64,
