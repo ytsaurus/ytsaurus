@@ -17,6 +17,7 @@
 #include <ytlib/table_client/schemaful_reader.h>
 #include <ytlib/table_client/versioned_reader.h>
 #include <ytlib/table_client/row_merger.h>
+#include <ytlib/table_client/row_buffer.h>
 
 #include <atomic>
 
@@ -384,7 +385,7 @@ public:
         TTabletPerformanceCountersPtr performanceCounters,
         const TDynamicRowKeyComparer& keyComparer)
         : TBase(performanceCounters, keyComparer)
-        , Pool_(TTabletReaderPoolTag())
+        , RowBuffer_(New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()))
     { }
 
     static ISchemafulReaderPtr Create(
@@ -439,8 +440,8 @@ public:
                 columnFilter));
         }
 
-        result->RowMerger_ = std::make_unique<TSchemafulRowMerger>(
-            &result->Pool_,
+        result->RowMerger_ = New<TSchemafulRowMerger>(
+            result->RowBuffer_,
             tabletSnapshot->Schema.Columns().size(),
             tabletSnapshot->KeyColumns.size(),
             columnFilter);
@@ -452,7 +453,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return DoRead(rows, RowMerger_.get());
+        return DoRead(rows, RowMerger_.Get());
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -463,8 +464,8 @@ public:
 private:
     typedef TTabletReaderBase<THeapMerger> TBase;
 
-    TChunkedMemoryPool Pool_;
-    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
+    TRowBufferPtr RowBuffer_;
+    TSchemafulRowMergerPtr RowMerger_;
 
 };
 
@@ -477,7 +478,7 @@ public:
         TTabletPerformanceCountersPtr performanceCounters,
         const TDynamicRowKeyComparer& keyComparer)
         : TBase(performanceCounters, keyComparer)
-        , Pool_(TTabletReaderPoolTag())
+        , RowBuffer_(New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()))
     { }
 
     static ISchemafulReaderPtr Create(
@@ -546,8 +547,8 @@ public:
                 columnFilter));
         }
 
-        result->RowMerger_ = std::make_unique<TSchemafulRowMerger>(
-            &result->Pool_,
+        result->RowMerger_ = New<TSchemafulRowMerger>(
+            result->RowBuffer_,
             tabletSnapshot->Schema.Columns().size(),
             tabletSnapshot->KeyColumns.size(),
             columnFilter);
@@ -559,7 +560,7 @@ public:
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
-        return DoRead(rows, RowMerger_.get());
+        return DoRead(rows, RowMerger_.Get());
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -570,8 +571,8 @@ public:
 private:
     typedef TTabletReaderBase<TSimpleMerger> TBase;
 
-    TChunkedMemoryPool Pool_;
-    std::unique_ptr<TSchemafulRowMerger> RowMerger_;
+    TRowBufferPtr RowBuffer_;
+    TSchemafulRowMergerPtr RowMerger_;
 
 };
 
@@ -626,12 +627,12 @@ public:
         , PoolInvoker_(std::move(poolInvoker))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , Stores_(std::move(stores))
-        , RowMerger_(
-            &Pool_,
+        , RowMerger_(New<TVersionedRowMerger>(
+            New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
             TabletSnapshot_->KeyColumns.size(),
             TabletSnapshot_->Config,
             currentTimestamp,
-            majorTimestamp)
+            majorTimestamp))
         , LowerBound_(std::move(lowerBound))
         , UpperBound_(std::move(upperBound))
     { }
@@ -645,7 +646,7 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
-        bool result = DoRead(rows, &RowMerger_);
+        bool result = DoRead(rows, RowMerger_.Get());
         #ifndef NDEBUG
         for (int index = 0; index < static_cast<int>(rows->size()) - 1; ++index) {
             auto lhs = (*rows)[index];
@@ -670,8 +671,7 @@ private:
     const TTabletSnapshotPtr TabletSnapshot_;
 
     const std::vector<IStorePtr> Stores_;
-    TChunkedMemoryPool Pool_;
-    TVersionedRowMerger RowMerger_;
+    TVersionedRowMergerPtr RowMerger_;
     const TOwningKey LowerBound_;
     const TOwningKey UpperBound_;
     
@@ -685,8 +685,8 @@ private:
             TabletSnapshot_->Slot->GetCellId(),
             LowerBound_,
             UpperBound_,
-            RowMerger_.GetCurrentTimestamp(),
-            RowMerger_.GetMajorTimestamp(),
+            RowMerger_->GetCurrentTimestamp(),
+            RowMerger_->GetMajorTimestamp(),
             JoinToString(Stores_, TStoreIdFormatter()));
 
         for (const auto& store : Stores_) {

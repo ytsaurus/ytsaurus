@@ -2,6 +2,7 @@
 #include "framework.h"
 
 #include <core/misc/protobuf_helpers.h>
+#include <core/misc/new.h>
 
 #include <core/ytree/convert.h>
 
@@ -10,6 +11,23 @@
 #include <ytlib/table_client/row_buffer.h>
 #include <ytlib/table_client/row_merger.h>
 #include <ytlib/table_client/config.h>
+#include <ytlib/table_client/versioned_reader.h>
+#include <ytlib/table_client/schemaful_reader.h>
+
+namespace NYT {
+namespace NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintTo(const TVersionedRow& row, ::std::ostream* os)
+{
+    *os << ToString(row);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NTableClient
+} // namespace NYT
 
 namespace NYT {
 namespace NTableClient {
@@ -18,6 +36,7 @@ namespace {
 using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
+using namespace NConcurrency;
 
 using ::ToString;
 
@@ -149,106 +168,106 @@ class TSchemafulRowMergerTest
 
 TEST_F(TSchemafulRowMergerTest, Simple1)
 {
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> 3.14; <id=3> \"test\""),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TSchemafulRowMergerTest, Simple2)
 {
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 3; <id=2> #; <id=3> #"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TSchemafulRowMergerTest, Delete1)
 {
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
 
     EXPECT_EQ(
         TUnversionedRow(),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TSchemafulRowMergerTest, Delete2)
 {
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TSchemafulRowMergerTest, Delete3)
 {
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 300 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 300 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
 
     EXPECT_EQ(
         TUnversionedRow(),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TSchemafulRowMergerTest, Delete4)
 {
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 300 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=400> 3.15"));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 300 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 1; <id=2;ts=200> 3.14; <id=3;ts=200> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=400> 3.15"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> 3.15; <id=3> #"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TSchemafulRowMergerTest, Filter1)
 {
     TColumnFilter filter { 0 };
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, filter);
 
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TSchemafulRowMergerTest, Filter2)
 {
     TColumnFilter filter { 1, 2 };
-    TSchemafulRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
+    auto merger = New<TSchemafulRowMerger>(Buffer_, 4, 1, filter);
 
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=1> 2; <id=2> 3.14"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,106 +278,106 @@ class TUnversionedRowMergerTest
 
 TEST_F(TUnversionedRowMergerTest, Simple1)
 {
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 2; <id=2> 3.14; <id=3> \"test\""),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Simple2)
 {
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 3"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 3"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 3;"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete1)
 {
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete2)
 {
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
+    merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete3)
 {
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
-    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
+    merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Delete4)
 {
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, TColumnFilter());
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, TColumnFilter());
 
-    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
-    merger.DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.15"));
+    merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 1; <id=2> 3.14; <id=3> \"test\""));
+    merger->DeletePartialRow(BuildUnversionedRow("<id=0> 0"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.15"));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0; <id=1> #; <id=2> 3.15; <id=3> #"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Filter1)
 {
     TColumnFilter filter { 0 };
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, filter);
 
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=0> 0"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TUnversionedRowMergerTest, Filter2)
 {
     TColumnFilter filter { 1, 2 };
-    TUnversionedRowMerger merger(Buffer_->GetPool(), 4, 1, filter);
+    auto merger = New<TUnversionedRowMerger>(Buffer_, 4, 1, filter);
 
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
-    merger.AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=1> 2"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=2> 3.14"));
+    merger->AddPartialRow(BuildUnversionedRow("<id=0> 0; <id=3> \"test\""));
 
     EXPECT_EQ(
         BuildUnversionedRow("<id=1> 2; <id=2> 3.14"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -372,14 +391,13 @@ TEST_F(TVersionedRowMergerTest, KeepAll1)
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 10;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
 
     EXPECT_EQ(
         BuildVersionedRow("0", "<id=1;ts=100> 1"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll2)
@@ -387,18 +405,17 @@ TEST_F(TVersionedRowMergerTest, KeepAll2)
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 10;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "<id=1;ts=300> 3; <id=1;ts=200> 2; <id=1;ts=100> 1;"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll3)
@@ -406,19 +423,18 @@ TEST_F(TVersionedRowMergerTest, KeepAll3)
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 10;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2", {  50 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1", { 150 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3", { 250 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2", {  50 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1", { 150 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3", { 250 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "<id=1;ts=300> 3; <id=1;ts=200> 2; <id=1;ts=100> 1;",
             { 50, 150, 250 }),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll4)
@@ -426,12 +442,11 @@ TEST_F(TVersionedRowMergerTest, KeepAll4)
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 10;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2; <id=2;ts=200> 3.14"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3; <id=3;ts=500> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2; <id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3; <id=3;ts=500> \"test\""));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -439,7 +454,7 @@ TEST_F(TVersionedRowMergerTest, KeepAll4)
             "<id=1;ts=300> 3; <id=1;ts=200> 2; <id=1;ts=100> 1;"
             "<id=2;ts=200> 3.14;"
             "<id=3;ts=500> \"test\";"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepAll5)
@@ -447,18 +462,17 @@ TEST_F(TVersionedRowMergerTest, KeepAll5)
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 10;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1; <id=1;ts=200> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=100> 3; <id=2;ts=200> 4"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1; <id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=100> 3; <id=2;ts=200> 4"));
     
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "<id=1;ts=200> 2; <id=1;ts=100> 1;"
             "<id=2;ts=200> 4; <id=2;ts=100> 3;"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest1)
@@ -467,18 +481,17 @@ TEST_F(TVersionedRowMergerTest, KeepLatest1)
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "<id=1;ts=300> 3"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest2)
@@ -487,12 +500,11 @@ TEST_F(TVersionedRowMergerTest, KeepLatest2)
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2; <id=1;ts=199> 20"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=100> 3.14; <id=2;ts=99> 3.15"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\"; <id=3;ts=299> \"tset\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2; <id=1;ts=199> 20"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=100> 3.14; <id=2;ts=99> 3.15"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\"; <id=3;ts=299> \"tset\""));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -500,7 +512,7 @@ TEST_F(TVersionedRowMergerTest, KeepLatest2)
             "<id=1;ts=200> 2;"
             "<id=2;ts=100> 3.14;"
             "<id=3;ts=300> \"test\""),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest3)
@@ -509,18 +521,17 @@ TEST_F(TVersionedRowMergerTest, KeepLatest3)
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(200));
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(200));
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 200 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 200 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "",
             { 200 }),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest4)
@@ -529,13 +540,12 @@ TEST_F(TVersionedRowMergerTest, KeepLatest4)
     config->MinDataVersions = 1;
     config->MaxDataVersions = 1;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(201));
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(201));
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 200 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 200 }));
 
-    EXPECT_FALSE(merger.BuildMergedRow());
+    EXPECT_FALSE(merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest5)
@@ -544,20 +554,19 @@ TEST_F(TVersionedRowMergerTest, KeepLatest5)
     config->MinDataVersions = 3;
     config->MaxDataVersions = 3;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(400));
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(400));
 
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 150, 250 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 150, 250 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "<id=1;ts=300> 3; <id=1;ts=200> 2;",
             { 250 }),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, KeepLatest6)
@@ -566,17 +575,16 @@ TEST_F(TVersionedRowMergerTest, KeepLatest6)
     config->MinDataVersions = 2;
     config->MaxDataVersions = 2;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(150));
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000000), SecondsToTimestamp(150));
 
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 100, 200, 300 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 100, 200, 300 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "",
             { 200, 300 }),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, Expire1)
@@ -585,14 +593,13 @@ TEST_F(TVersionedRowMergerTest, Expire1)
     config->MinDataVersions = 0;
     config->MaxDataTtl = TDuration::Seconds(1000);
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1101), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1101), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
 
     EXPECT_EQ(
         BuildVersionedRow("0", "<id=1;ts=100> 1"),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, Expire2)
@@ -601,12 +608,11 @@ TEST_F(TVersionedRowMergerTest, Expire2)
     config->MinDataVersions = 0;
     config->MaxDataTtl = TDuration::Seconds(1000);
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1102), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1102), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
 
-    EXPECT_FALSE(merger.BuildMergedRow());
+    EXPECT_FALSE(merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, Expire3)
@@ -617,16 +623,15 @@ TEST_F(TVersionedRowMergerTest, Expire3)
     config->MinDataTtl = TDuration::Seconds(0);
     config->MaxDataTtl = TDuration::Seconds(10000);
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000), 0);
     
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=1;ts=400> 4"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
-    merger.AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 350 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=100> 1"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=200> 2"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=300> 3"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=1;ts=400> 4"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=2;ts=200> 3.14"));
+    merger->AddPartialRow(BuildVersionedRow("0", "<id=3;ts=300> \"test\""));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 350 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
@@ -635,7 +640,7 @@ TEST_F(TVersionedRowMergerTest, Expire3)
             "<id=2;ts=200> 3.14;"
             "<id=3;ts=300> \"test\";",
             { 350 }),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, DeleteOnly)
@@ -643,17 +648,16 @@ TEST_F(TVersionedRowMergerTest, DeleteOnly)
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 10;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000), 0);
 
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "",
             { 100 }),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 TEST_F(TVersionedRowMergerTest, ManyDeletes)
@@ -661,19 +665,18 @@ TEST_F(TVersionedRowMergerTest, ManyDeletes)
     auto config = New<TRetentionConfig>();
     config->MinDataVersions = 10;
 
-    TChunkedMemoryPool pool;
-    TVersionedRowMerger merger(&pool, 1, config, SecondsToTimestamp(1000), 0);
+    auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000), 0);
 
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 200 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 100 }));
-    merger.AddPartialRow(BuildVersionedRow("0", "", { 300 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 200 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 100 }));
+    merger->AddPartialRow(BuildVersionedRow("0", "", { 300 }));
 
     EXPECT_EQ(
         BuildVersionedRow(
             "0",
             "",
             { 100, 200, 300 }),
-        merger.BuildMergedRow());
+        merger->BuildMergedRow());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
