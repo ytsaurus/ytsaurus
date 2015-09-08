@@ -232,11 +232,11 @@ void ResolveYPath(
     }
 }
 
-TFuture<TSharedRefArray>  ExecuteVerb(
+TFuture<TSharedRefArray> ExecuteVerb(
     IYPathServicePtr service,
     TSharedRefArray requestMessage,
     const Stroka& requestInfo,
-    const Stroka& rawResponseInfo)
+    const Stroka& responseInfo)
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
@@ -262,7 +262,7 @@ TFuture<TSharedRefArray>  ExecuteVerb(
         suffixService->GetLogger(),
         NLogging::ELogLevel::Debug,
         requestInfo,
-        rawResponseInfo);
+        responseInfo);
 
     // NB: Calling GetAsyncResponseMessage after Invoke is not allowed.
     auto asyncResponseMessage = invokeContext->GetAsyncResponseMessage();
