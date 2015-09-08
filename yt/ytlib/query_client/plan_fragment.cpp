@@ -108,8 +108,10 @@ Stroka InferName(TConstExpressionPtr expr)
 
 Stroka InferName(TConstQueryPtr query)
 {
-    auto namedItemFormatter = [] (const TNamedItem& item) {
-        return InferName(item.Expression) + " AS " + item.Name;
+    auto namedItemFormatter = [] (TStringBuilder* builder, const TNamedItem& item) {
+        builder->AppendFormat("%v AS %v",
+            InferName(item.Expression),
+            item.Name);
     };
 
     std::vector<Stroka> clauses;
@@ -139,7 +141,7 @@ Stroka InferName(TConstQueryPtr query)
         clauses.push_back(Stroka("LIMIT ") + str);
     }
 
-    return JoinToString(clauses, Stroka(" "));
+    return JoinToString(clauses, " ");
 }
 
 Stroka TExpression::GetName() const

@@ -8,7 +8,10 @@ namespace NYT {
 
 // Forward declaration, avoid including format.h directly here.
 template <class... TArgs>
-void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
+void Format(
+    TStringBuilder* builder,
+    const char* format,
+    const TArgs&... args);
 
 //! A simple helper for constructing strings by a sequence of appends.
 class TStringBuilder
@@ -95,7 +98,10 @@ private:
 
 };
 
-inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, const TStringBuf& /*format*/)
+inline void FormatValue(
+    TStringBuilder* builder,
+    const TStringBuilder& value,
+    const TStringBuf& /*format*/)
 {
     builder->AppendString(value.GetBuffer());
 }
@@ -103,15 +109,41 @@ inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, co
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Formatters enable customizable way to turn an object into a string.
-//! This default implementation calls |ToString|.
+//! This default implementation calls |FormatValue|.
 struct TDefaultFormatter
 {
     template <class T>
-    Stroka operator () (const T& obj) const
+    void operator () (TStringBuilder* builder, const T& obj) const
     {
-        return ToString(obj);
+        FormatValue(builder, obj, "%v");
     }
 };
+
+template <class TFormatter, class TValue>
+struct TFormatted
+{
+    TFormatter Formatter;
+    TValue Value;
+};
+
+template <class TFormatter, class TValue>
+TFormatted<TFormatter, TValue> MakeFormatted(TFormatter&& formatter, TValue&& value)
+{
+    return TFormatted<TFormatter, TValue>{
+        std::forward<TFormatter>(formatter),
+        std::forward<TValue>(value)};
+}
+
+template <class TFormatter, class TValue>
+void FormatValue(
+    TStringBuilder* builder,
+    const TFormatted<TFormatter, TValue>& formatted,
+    const TStringBuf& /*format*/)
+{
+    formatted.Formatter(builder, formatted.Value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!
@@ -126,16 +158,16 @@ Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
-    const Stroka& delimiter = ", ")
+    const char* delimiter = ", ")
 {
-    Stroka result;
+    TStringBuilder builder;
     for (auto current = begin; current != end; ++current) {
         if (current != begin) {
-            result.append(delimiter);
+            builder.AppendString(delimiter);
         }
-        result.append(formatter(*current));
+        formatter(&builder, *current);
     }
-    return result;
+    return builder.Flush();
 }
 
 //! A handy shortcut with default formatter.
@@ -143,7 +175,7 @@ template <class TIterator>
 Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
-    const Stroka& delimiter = ", ")
+    const char* delimiter = ", ")
 {
     return JoinToString(begin, end, TDefaultFormatter(), delimiter);
 }
@@ -158,7 +190,7 @@ template <class TCollection, class TFormatter>
 Stroka JoinToString(
     const TCollection& items,
     const TFormatter& formatter,
-    const Stroka& delimiter = ", ")
+    const char* delimiter = ", ")
 {
     using std::begin;
     using std::end;
@@ -169,7 +201,7 @@ Stroka JoinToString(
 template <class TCollection>
 Stroka JoinToString(
     const TCollection& items,
-    const Stroka& delimiter = ", ")
+    const char* delimiter = ", ")
 {
     return JoinToString(items, TDefaultFormatter(), delimiter);
 }
@@ -183,11 +215,10 @@ std::vector<Stroka> ConvertToStrings(
     size_t maxSize = std::numeric_limits<size_t>::max())
 {
     std::vector<Stroka> result;
-    for (auto it = begin; it != end; ++it) {
-        result.push_back(formatter(*it));
-        if (result.size() == maxSize) {
-            break;
-        }
+    for (auto it = begin; it != end && result.size() < maxSize; ++it) {
+        TStringBuilder builder;
+        formatter(&builder, *it);
+        result.push_back(builder.Flush());
     }
     return result;
 }

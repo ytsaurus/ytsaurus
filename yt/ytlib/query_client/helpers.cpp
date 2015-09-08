@@ -1,5 +1,7 @@
 #include "stdafx.h"
 #include "public.h"
+#include "helpers.h"
+#include "plan_fragment.h"
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -15,11 +17,15 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NChunkClient::NProto;
+using namespace NVersionedTableClient;
 using namespace NVersionedTableClient::NProto;
 
 using NChunkClient::TReadLimit;
 using NVersionedTableClient::MinKey;
 using NVersionedTableClient::MaxKey;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,6 +154,18 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted)
     SetProtoExtension<TMiscExt>(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
         *miscProto);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRowRangeFormatter::operator()(TStringBuilder* builder, const TRowRange& range) const
+{
+    builder->AppendFormat("[%v .. %v]", range.first, range.second);
+}
+
+void TDataSourceFormatter::operator()(TStringBuilder* builder, const TDataSource& source) const
+{
+    TRowRangeFormatter()(builder, source.Range);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

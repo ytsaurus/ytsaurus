@@ -140,6 +140,15 @@ TPartitionSnapshotPtr TPartition::RebuildSnapshot()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPartitionIdFormatter::operator()(
+    TStringBuilder* builder,
+    const std::unique_ptr<TPartition>& partition) const
+{
+    FormatValue(builder, partition->GetId(), STRINGBUF("v"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NTabletNode
 } // namespace NYT
 

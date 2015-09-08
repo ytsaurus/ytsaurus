@@ -230,14 +230,15 @@ private:
         }
 
         auto Logger = TabletNodeLogger;
+        auto partitionFormatter = [] (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) {
+            FormatValue(builder, partition->GetId(), STRINGBUF("v"));
+        };
         Logger.AddTag("TabletId: %v, PartitionIds: [%v]",
             partition->GetTablet()->GetTabletId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
                 tablet->Partitions().begin() + lastPartitionIndex + 1,
-                [] (const std::unique_ptr<TPartition>& partition) {
-                     return ToString(partition->GetId());
-                })));
+                partitionFormatter)));
 
         LOG_INFO("Partition is eligible for merge");
 

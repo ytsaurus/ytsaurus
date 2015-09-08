@@ -112,7 +112,7 @@ class TChunkReplicaAddressFormatter
 public:
     explicit TChunkReplicaAddressFormatter(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
 
-    Stroka operator() (TChunkReplica replica) const;
+    void operator() (TStringBuilder* builder, TChunkReplica replica) const;
 
 private:
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
