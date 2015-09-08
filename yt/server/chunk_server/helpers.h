@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_tree_statistics.h"
 
 #include <core/yson/public.h>
 
@@ -41,6 +42,9 @@ void AccumulateChildStatistics(
     TChunkList* chunkList,
     TChunkTree* child,
     TChunkTreeStatistics* statistics);
+void AccumulateUniqueAncestorsStatistics(
+    TChunkList* chunkList,
+    const TChunkTreeStatistics& statisticsDelta);
 void ResetChunkListStatistics(TChunkList* chunkList);
 void RecomputeChunkListStatistics(TChunkList* chunkList);
 
