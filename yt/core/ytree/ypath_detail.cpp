@@ -967,32 +967,48 @@ public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
         const NLogging::TLogger& logger,
-        NLogging::ELogLevel logLevel)
+        NLogging::ELogLevel logLevel,
+        const Stroka& requestInfo,
+        const Stroka& responseInfo)
         : TServiceContextBase(
             std::move(requestMessage),
             logger,
             logLevel)
+        , ExternalRequestInfo_(requestInfo)
+        , ExternalResponseInfo_(responseInfo)
     { }
 
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
         const NLogging::TLogger& logger,
-        NLogging::ELogLevel logLevel)
+        NLogging::ELogLevel logLevel,
+        const Stroka& requestInfo,
+        const Stroka& responseInfo)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
             logger,
             logLevel)
+        , ExternalRequestInfo_(requestInfo)
+        , ExternalResponseInfo_(responseInfo)
     { }
 
 protected:
+    const Stroka ExternalRequestInfo_;
+    const Stroka ExternalResponseInfo_;
+
+
     virtual void DoReply() override
     { }
 
     virtual void LogRequest() override
     {
         TStringBuilder builder;
+
+        if (!ExternalRequestInfo_.empty()) {
+            AppendInfo(&builder, ExternalRequestInfo_);
+        }
 
         auto mutationId = GetMutationId(*RequestHeader_);
         if (mutationId != NullMutationId) {
@@ -1002,7 +1018,7 @@ protected:
         AppendInfo(&builder, "Retry: %v", IsRetry());
 
         if (!RequestInfo_.empty()) {
-            AppendInfo(&builder, "%v", RequestInfo_);
+            AppendInfo(&builder, RequestInfo_);
         }
 
         LOG_DEBUG("%v:%v %v <- %v",
@@ -1018,8 +1034,12 @@ protected:
 
         AppendInfo(&builder, "Error: %v", error);
 
+        if (!ExternalResponseInfo_.empty()) {
+            AppendInfo(&builder, ExternalResponseInfo_);
+        }
+
         if (!ResponseInfo_.empty()) {
-            AppendInfo(&builder, "%v", ResponseInfo_);
+            AppendInfo(&builder, ResponseInfo_);
         }
 
         LOG_DEBUG("%v:%v %v -> %v",
@@ -1034,21 +1054,27 @@ protected:
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger,
-    NLogging::ELogLevel logLevel)
+    NLogging::ELogLevel logLevel,
+    const Stroka& requestInfo,
+    const Stroka& responseInfo)
 {
     YASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
         logger,
-        logLevel);
+        logLevel,
+        requestInfo,
+        responseInfo);
 }
 
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger,
-    NLogging::ELogLevel logLevel)
+    NLogging::ELogLevel logLevel,
+    const Stroka& requestInfo,
+    const Stroka& responseInfo)
 {
     YASSERT(requestMessage);
 
@@ -1056,7 +1082,9 @@ IServiceContextPtr CreateYPathContext(
         std::move(requestHeader),
         std::move(requestMessage),
         logger,
-        logLevel);
+        logLevel,
+        requestInfo,
+        responseInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
