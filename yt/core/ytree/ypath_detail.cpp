@@ -1006,8 +1006,6 @@ protected:
     {
         TStringBuilder builder;
 
-        AppendInfo(&builder, "Error: %v", error);
-
         if (!ExternalResponseInfo_.empty()) {
             AppendInfo(&builder, ExternalResponseInfo_);
         }
@@ -1015,6 +1013,8 @@ protected:
         if (!ResponseInfo_.empty()) {
             AppendInfo(&builder, ResponseInfo_);
         }
+
+        AppendInfo(&builder, "Error: %v", error);
 
         LOG_DEBUG("%v:%v %v -> %v",
             GetService(),
