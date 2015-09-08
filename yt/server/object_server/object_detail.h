@@ -100,6 +100,7 @@ protected:
 
     bool IsRecovery() const;
     bool IsLeader() const;
+    bool IsFollower() const;
 
     void ValidateActiveLeader() const;
     // XXX(babenko)
