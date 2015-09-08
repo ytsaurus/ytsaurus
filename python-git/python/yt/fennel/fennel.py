@@ -708,11 +708,12 @@ class Application(object):
     def __init__(self, proxy_path, logbroker_url, table_name,
                  service_id, source_id,
                  cluster_name, log_name,
-                 chunk_size):
+                 chunk_size, logtype):
         self._last_acked_seqno = None
         self._chunk_size = chunk_size
         self._logbroker_url = logbroker_url
 
+        self._logtype = logtype
         self._service_id = service_id
         self._source_id = source_id
 
@@ -739,7 +740,7 @@ class Application(object):
                 try:
                     self._log_broker = LogBroker(self._service_id, self._source_id, io_loop=self._io_loop)
 
-                    hostname = _get_logbroker_hostname(logbroker_url=self._logbroker_url)
+                    hostname = _get_logbroker_hostname(logbroker_url=self._logbroker_url, ident=self._service_id, logtype=self._logtype, sourceid=self._source_id)
                     self._last_acked_seqno = yield self._log_broker.connect(hostname)
 
                     while True:
@@ -778,10 +779,11 @@ class LastSeqnoGetter(object):
     log = logging.getLogger("LastSeqnoGetter")
 
     def __init__(self, logbroker_url, service_id, source_id,
-                 io_loop=None, connection_factory=None):
+                 io_loop=None, connection_factory=None, logtype=None):
         self._last_seqno = None
         self._last_seqno_ex = None
 
+        self._logtype = logtype
         self._logbroker_url = logbroker_url
         self._service_id = service_id
         self._source_id = source_id
@@ -800,7 +802,7 @@ class LastSeqnoGetter(object):
     def _get_seqno(self):
         try:
             with ExceptionLoggingContext(self.log):
-                hostname = _get_logbroker_hostname(self._logbroker_url)
+                hostname = _get_logbroker_hostname(self._logbroker_url, ident=self._service_id, logtype=self._logtype, sourceid=self._source_id)
                 session = SessionReader(service_id=self._service_id, source_id=self._source_id, io_loop=self._io_loop, connection_factory=self._connection_factory)
                 self.log.info("Connect session stream")
                 yield session.connect((hostname, 80))
@@ -810,9 +812,14 @@ class LastSeqnoGetter(object):
         finally:
             self._io_loop.stop()
 
-def _get_logbroker_hostname(logbroker_url):
+def _get_logbroker_hostname(logbroker_url, ident, logtype, sourceid):
     log.info("Getting adviced logbroker endpoint hostname for %s...", logbroker_url)
-    response = requests.get("http://{0}/advice".format(logbroker_url), headers={"ClientHost": socket.getfqdn(), "Accept-Encoding": "identity"})
+    headers = {"ClientHost": socket.getfqdn(),
+               "Accept-Encoding": "identity"}
+    params = {"ident": ident,
+              "logtype": logtype,
+              "sourceid": sourceid}
+    response = requests.get("http://{0}/advice".format(logbroker_url), headers=headers, params=params)
     if not response.ok:
         raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
     host = response.text.strip()
@@ -833,7 +840,7 @@ def main(proxy_path, table_name, logbroker_url,
     app = Application(proxy_path, logbroker_url, table_name,
                       service_id, source_id,
                       cluster_name, log_name,
-                      chunk_size)
+                      chunk_size, logtype=kwargs["logtype"])
     app.start()
 
 
