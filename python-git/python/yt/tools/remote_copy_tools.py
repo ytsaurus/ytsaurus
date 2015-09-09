@@ -165,16 +165,6 @@ def check_permission(client, permission, path):
      permission = client.check_permission(user_name, permission, path)
      return permission["action"] == "allow"
 
-def run_operation_and_notify(message_queue, run_operation, *args, **kwargs):
-    operation = run_operation(*args, sync=False, **kwargs)
-    if message_queue is not None:
-        message_queue.put({"type": "operation_started",
-                           "operation": {
-                               "id": operation.id,
-                               "cluster_name": operation.client._name
-                            }})
-    operation.wait()
-
 def copy_user_attributes(source_client, destination_client, source_table, destination_table):
     source_attributes = source_client.get(source_table + "/@")
 
@@ -188,7 +178,7 @@ def run_erasure_merge(source_client, destination_client, source_table, destinati
     convert_to_erasure(destination_table, yt_client=destination_client, erasure_codec=erasure_codec,
                        compression_codec=compression_codec)
 
-def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None, message_queue=None):
+def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None):
     if spec_template is None:
         spec_template = {}
 
@@ -200,12 +190,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
             try:
                 merge_spec = deepcopy(spec_template)
                 merge_spec["combine_chunks"] = bool_to_string(True)
-                run_operation_and_notify(
-                    message_queue,
-                    source_client.run_merge,
-                    src,
-                    src,
-                    spec=merge_spec)
+                source_client.run_merge(src, src, spec=merge_spec)
             except yt.YtError as error:
                 raise yt.YtError("Failed to merge source table", inner_errors=[error])
         else:
@@ -214,20 +199,17 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
     with destination_client.Transaction():
-        run_operation_and_notify(
-            message_queue,
-            destination_client.run_remote_copy,
+        destination_client.run_remote_copy(
             src,
             dst,
             cluster_name=source_client._name,
             network_name=network_name,
-            spec=spec_template,
-            remote_cluster_token=source_client.config["token"])
+            spec=spec_template)
 
         run_erasure_merge(source_client, destination_client, src, dst)
         copy_user_attributes(source_client, destination_client, src, dst)
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None, message_queue=None):
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None):
     if spec_template is None:
         spec_template = {}
 
@@ -258,9 +240,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             _set_mapper_settings_for_read_from_yt(spec)
             spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
-            run_operation_and_notify(
-                message_queue,
-                destination_client.run_map,
+            destination_client.run_map(
                 "bash read_from_yt.sh",
                 temp_table,
                 dst_table,
@@ -290,7 +270,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None, message_queue=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -359,9 +339,7 @@ done"""
             #else:
             dst_path = dst
 
-            run_operation_and_notify(
-                message_queue,
-                yt_client.run_map,
+            yt_client.run_map(
                 command,
                 temp_table,
                 dst_path,
@@ -379,9 +357,7 @@ done"""
 
             if (sorted and force_sort is None) or force_sort:
                 logger.info("Sorting '%s'", dst)
-                run_operation_and_notify(
-                    message_queue,
-                    yt_client.run_sort,
+                yt_client.run_sort(
                     dst,
                     sort_by=["key", "subkey"],
                     spec=sort_spec)
@@ -392,7 +368,7 @@ done"""
         if not yamr_client.supports_read_snapshots:
             yamr_client.drop(temp_yamr_table)
 
-def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None, fastbone=True, message_queue=None):
+def copy_yt_to_yamr_pull(yt_client, yamr_client, src, dst, parallel_job_count=None, force_sort=None, fastbone=True):
     tmp_dir = tempfile.mkdtemp()
 
     lenval_to_nums_file = _pack_string(
@@ -460,7 +436,7 @@ while True:
     finally:
         shutil.rmtree(tmp_dir)
 
-def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_template=None, message_queue=None):
+def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_template=None):
     if not yamr_client.is_empty(dst):
         yamr_client.drop(dst)
 
@@ -474,9 +450,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
     write_command = yamr_client.get_write_command(dst, fastbone=fastbone)
     logger.info("Running map '%s'", write_command)
 
-    run_operation_and_notify(
-        message_queue,
-        yt_client.run_map,
+    yt_client.run_map(
         write_command,
         src,
         yt_client.create_temp_table(),
@@ -492,7 +466,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         logger.error(error)
         raise IncorrectRowCount(error)
 
-def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, kwworm_options=None, message_queue=None):
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, kwworm_options=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -567,9 +541,7 @@ while True:
     files.append(kiwi_client.kwworm_binary)
 
     try:
-        run_operation_and_notify(
-            message_queue,
-            kiwi_transmittor.run_map,
+        kiwi_transmittor.run_map(
             "bash -ux command.sh",
             range_table,
             output_table,
@@ -598,7 +570,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
 def copy_yamr_to_kiwi():
     pass
 
-def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spec_template=None, message_queue=None):
+def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spec_template=None):
     if spec_template is None:
         spec_template = {}
 
@@ -612,9 +584,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spe
     spec = deepcopy(spec_template)
     spec["data_size_per_job"] = 1
     _set_mapper_settings_for_read_from_yt(spec)
-    run_operation_and_notify(
-        message_queue,
-        yt_client.run_map,
+    yt_client.run_map(
         read_command,
         temp_table,
         destination_table,
