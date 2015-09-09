@@ -5,7 +5,8 @@ import yt.yson as yson
 
 import sys
 import random
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from itertools import ifilter, chain
 
 EMPTY_GENERATOR = (i for i in [])
@@ -137,3 +138,17 @@ def get_version():
 def get_python_version():
     return sys.version_info[:3]
 
+def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,), except_action=None):
+    start_time = datetime.now()
+    for iter in xrange(retry_count):
+        try:
+            action()
+            break
+        except exceptions:
+            if iter + 1 == retry_count:
+                raise
+            if except_action:
+                except_action()
+            sleep_backoff = timedelta(seconds=backoff) * i - total_seconds(datetime.now() - start_time)
+            if sleep_backoff > 0.0:
+                time.sleep(sleep_backoff)
