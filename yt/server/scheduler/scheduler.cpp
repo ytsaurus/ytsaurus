@@ -933,30 +933,6 @@ private:
         batchReq->AddRequest(req, "get_nodes");
     }
 
-    void HandleSchedulingTags(const Stroka& address, const std::vector<Stroka>& schedulingTags)
-    {
-        yhash_set<Stroka> tags;
-        for (const auto& tag : schedulingTags) {
-            tags.insert(tag);
-            if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
-                SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
-            }
-        }
-
-        auto oldTags = AddressToNode_[address]->SchedulingTags();
-        for (const auto& oldTag : oldTags) {
-            if (tags.find(oldTag) == tags.end()) {
-                SchedulingTagResources_[oldTag] -= AddressToNode_[address]->ResourceLimits();
-            }
-        }
-        for (const auto& tag : tags) {
-            if (oldTags.find(tag) == oldTags.end()) {
-                SchedulingTagResources_[tag] += AddressToNode_[address]->ResourceLimits();
-            }
-        }
-        AddressToNode_[address]->SchedulingTags() = tags;
-    }
-
     void HandleNodesAttributes(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_nodes");
@@ -976,16 +952,28 @@ private:
                 }
 
                 auto node = child.second;
-                auto state = node->Attributes().Get<ENodeState>("state");
-                AddressToNode_[address]->SetMasterState(state);
-                if (state != ENodeState::Online) {
-                    AbortJobsAtNode(AddressToNode_[address]);
-                }
+                auto newState = node->Attributes().Get<ENodeState>("state");
+
+                auto execNode = AddressToNode_[address];
+                auto oldState = execNode->GetMasterState();
 
                 auto schedulingTags = node->Attributes().Find<std::vector<Stroka>>("scheduling_tags");
                 if (schedulingTags) {
-                    HandleSchedulingTags(address, *schedulingTags);
+                    UpdateSchedulingTags(execNode, *schedulingTags);
                 }
+
+                if (oldState != newState) {
+                    if (oldState == ENodeState::Online && newState != ENodeState::Online) {
+                        SubtractNodeResources(execNode);
+                        AbortJobsAtNode(execNode);
+                    }
+                    if (oldState != ENodeState::Online && newState == ENodeState::Online) {
+                        AddNodeResources(execNode);
+                    }
+                }
+
+                execNode->SetMasterState(newState);
+
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating nodes information");
@@ -1294,9 +1282,6 @@ private:
 
         node->SetLease(lease);
 
-        TotalResourceLimits_ += node->ResourceLimits();
-        TotalResourceUsage_ += node->ResourceUsage();
-
         YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
 
         LOG_INFO("Node online (Address: %v)", address);
@@ -1319,22 +1304,67 @@ private:
         }
     }
 
+    void UpdateSchedulingTags(TExecNodePtr node, const std::vector<Stroka>& schedulingTags)
+    {
+        yhash_set<Stroka> tags;
+        for (const auto& tag : schedulingTags) {
+            tags.insert(tag);
+            if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
+                SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
+            }
+        }
+
+        if (node->GetMasterState() == ENodeState::Online) {
+            auto oldTags = node->SchedulingTags();
+            for (const auto& oldTag : oldTags) {
+                if (tags.find(oldTag) == tags.end()) {
+                    SchedulingTagResources_[oldTag] -= node->ResourceLimits();
+                }
+            }
+
+            for (const auto& tag : tags) {
+                if (oldTags.find(tag) == oldTags.end()) {
+                    SchedulingTagResources_[tag] += node->ResourceLimits();
+                }
+            }
+        }
+
+        node->SchedulingTags() = tags;
+    }
+
+    void SubtractNodeResources(TExecNodePtr node)
+    {
+        TotalResourceLimits_ -= node->ResourceLimits();
+        TotalResourceUsage_ -= node->ResourceUsage();
+
+        for (const auto& tag : node->SchedulingTags()) {
+            SchedulingTagResources_[tag] -= node->ResourceLimits();
+        }
+    }
+
+    void AddNodeResources(TExecNodePtr node)
+    {
+        TotalResourceLimits_ += node->ResourceLimits();
+        TotalResourceUsage_ += node->ResourceUsage();
+
+        for (const auto& tag : node->SchedulingTags()) {
+            SchedulingTagResources_[tag] += node->ResourceLimits();
+        }
+    }
+
     void UnregisterNode(TExecNodePtr node)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         LOG_INFO("Node offline (Address: %v)", node->GetDefaultAddress());
 
-        TotalResourceLimits_ -= node->ResourceLimits();
-        TotalResourceUsage_ -= node->ResourceUsage();
+        if (node->GetMasterState() == ENodeState::Online) {
+            SubtractNodeResources(node);
+        }
 
         AbortJobsAtNode(node);
 
         YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
-
-        for (const auto& tag : node->SchedulingTags()) {
-            SchedulingTagResources_[tag] -= node->ResourceLimits();
-        }
     }
 
 
