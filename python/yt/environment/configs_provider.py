@@ -369,7 +369,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
         ports = [get_open_port() for _ in xrange(scheduler_count * 2)]
-        scheduler_addresses = ["{1}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(scheduler_count)]
+        scheduler_addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(scheduler_count)]
 
         configs = []
 
@@ -422,8 +422,9 @@ class ConfigsProvider_18(ConfigsProvider):
         proxy_config["proxy"]["driver"] = driver_config
         proxy_config["port"] = ports[0]
         proxy_config["log_port"] = ports[1]
+        proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
 
-        self._proxy_address = "localhost:{0}".format(ports[0])
+        self._proxy_address = proxy_config["fqdn"]
 
         return proxy_config, self._proxy_address
 
