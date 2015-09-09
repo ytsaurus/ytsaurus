@@ -495,6 +495,7 @@ public:
                 if (state != ETransactionState::Active) {
                     currentTransaction->ThrowInvalidState();
                 }
+                currentTransaction = currentTransaction->GetParent();
             }
         }
 
