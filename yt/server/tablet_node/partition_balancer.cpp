@@ -340,6 +340,7 @@ private:
             Config_->SamplesFetcher,
             maxSampleCount,
             tablet->KeyColumns(),
+            std::numeric_limits<i64>::max(),
             nodeDirectory,
             GetCurrentInvoker(),
             Logger);
@@ -402,7 +403,11 @@ private:
         WaitFor(fetcher->Fetch())
             .ThrowOnError();
 
-        auto samples = fetcher->GetSamples();
+        std::vector<TOwningKey> samples;
+        for (const auto& sample : fetcher->GetSamples()) {
+            YCHECK(!sample.Incomplete);
+            samples.push_back(sample.Key);
+        }
 
         // NB(psushin): This filtering is typically redundant (except for the first pivot), 
         // since fetcher already returns samples within given limits.
