@@ -12,7 +12,6 @@ import signal
 import errno
 import socket
 import shutil
-import subprocess
 import sys
 import getpass
 import yt.packages.simplejson as json
@@ -20,6 +19,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import chain
 from copy import deepcopy
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    print >>sys.stderr, "Environment may not work properly on python of version <= 2.6"
+    import subprocess
 
 GEN_PORT_ATTEMPTS = 10
 
