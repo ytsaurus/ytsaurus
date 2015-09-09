@@ -255,14 +255,6 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            #if sorted_by:
-            #    logger.info("Sorting '%s'", dst)
-            #    run_operation_and_notify(
-            #        message_queue,
-            #        destination_client.run_sort,
-            #        dst,
-            #        sort_by=sorted_by)
-
             run_erasure_merge(source_client, destination_client, src, dst)
             copy_user_attributes(source_client, destination_client, src, dst)
 
@@ -332,12 +324,11 @@ done"""
     logger.info("Pull import: run map '%s' with spec '%s'", command, repr(spec))
     try:
         with yt_client.Transaction():
-            # NB: put back when it start working properly
-            #if sorted:
-            #    dst_path = yt.TablePath(dst, client=yt_client)
-            #    dst_path.attributes["sorted_by"] = ["key", "subkey"]
-            #else:
-            dst_path = dst
+            if sorted:
+                dst_path = yt.TablePath(dst, client=yt_client)
+                dst_path.attributes["sorted_by"] = ["key", "subkey"]
+            else:
+                dst_path = dst
 
             yt_client.run_map(
                 command,
@@ -354,13 +345,6 @@ done"""
                 error = "Incorrect record count (expected: %d, actual: %d)" % (record_count, result_record_count)
                 logger.error(error)
                 raise IncorrectRowCount(error)
-
-            if (sorted and force_sort is None) or force_sort:
-                logger.info("Sorting '%s'", dst)
-                yt_client.run_sort(
-                    dst,
-                    sort_by=["key", "subkey"],
-                    spec=sort_spec)
 
             convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client)
 
