@@ -18,6 +18,7 @@ set( SRCS
   ${BASE}/file_writer.cpp
   ${BASE}/format.cpp
   ${BASE}/helpers.cpp
+  ${BASE}/lazy_chunk_writer.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
   ${BASE}/multi_chunk_reader_base.cpp
@@ -59,6 +60,7 @@ set( HDRS
   ${BASE}/file_writer.h
   ${BASE}/format.h
   ${BASE}/helpers.h
+  ${BASE}/lazy_chunk_writer.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
   ${BASE}/multi_chunk_reader.h

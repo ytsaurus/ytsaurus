@@ -6,11 +6,14 @@
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
+#include <core/erasure/codec.h>
+
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
 using namespace NObjectClient;
+using namespace NErasure;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +24,6 @@ static const auto& Logger = ChunkClientLogger;
 TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     NRpc::IChannelPtr masterChannel,
     TMultiChunkWriterOptionsPtr options,
-    EObjectType chunkType,
     const TTransactionId& transactionId,
     const TChunkListId& chunkListId)
 {
@@ -31,6 +33,10 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
         transactionId);
 
     TObjectServiceProxy objectProxy(masterChannel);
+
+    auto chunkType = options->ErasureCodec == ECodec::None
+         ? EObjectType::Chunk
+         : EObjectType::ErasureChunk;
 
     auto req = TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), transactionId);

@@ -5,7 +5,6 @@
 #include "config.h"
 #include "job_detail.h"
 #include "private.h"
-#include "stderr_output.h"
 #include "table_output.h"
 #include "user_job_io.h"
 #include "stracer.h"
@@ -18,6 +17,8 @@
 #include <ytlib/new_table_client/table_consumer.h>
 #include <ytlib/new_table_client/schemaless_chunk_reader.h>
 #include <ytlib/new_table_client/schemaless_chunk_writer.h>
+
+#include <ytlib/file_client/file_chunk_output.h>
 
 #include <ytlib/job_tracker_client/statistics.h>
 
@@ -62,6 +63,7 @@ using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NJobAgent;
 using namespace NChunkClient;
+using namespace NFileClient;
 using namespace NChunkClient::NProto;
 using namespace NPipes;
 using namespace NYPath;
@@ -233,7 +235,7 @@ private:
     std::vector<std::unique_ptr<TOutputStream>> TableOutputs_;
     std::vector<TWritingValueConsumerPtr> WritingValueConsumers_;
 
-    std::unique_ptr<TErrorOutput> ErrorOutput_;
+    std::unique_ptr<TFileChunkOutput> ErrorOutput_;
     std::unique_ptr<TTableOutput> StatisticsOutput_;
 
     std::vector<TAsyncReaderPtr> TablePipeReaders_;
@@ -322,13 +324,23 @@ private:
         return StatisticsOutput_.get();
     }
 
+    TMultiChunkWriterOptionsPtr CreateSystemFileOptions()
+    {
+        auto options = New<TMultiChunkWriterOptions>();
+        options->Account = NSecurityClient::SysAccountName;
+        options->ReplicationFactor = 1;
+        options->ChunksVital = false;
+        return options;
+    }
+
     TOutputStream* CreateErrorOutput()
     {
         auto host = Host.Lock();
         YCHECK(host);
 
-        ErrorOutput_.reset(new TErrorOutput(
+        ErrorOutput_.reset(new TFileChunkOutput(
             Config_->JobIO->ErrorFileWriter,
+            CreateSystemFileOptions(),
             host->GetClient(),
             FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id()),
             UserJobSpec_.max_stderr_size()));
@@ -384,8 +396,9 @@ private:
 
         auto transactionId = FromProto<TTransactionId>(UserJobSpec_.async_scheduler_transaction_id());
         for (int index = 0; index < contexts.size(); ++index) {
-            TErrorOutput contextOutput(
+            TFileChunkOutput contextOutput(
                 Config_->JobIO->ErrorFileWriter,
+                CreateSystemFileOptions(),
                 host->GetClient(),
                 transactionId);
 
