@@ -89,8 +89,11 @@ class YsonBoolean(int, YsonType):
     def __hash__(self):
         return self.base_hash(bool)
 
+    # NB: do not change this representation, because 
+    # this type required to be JSON serializable.
+    # JSON encoder thinks that it is interger and calls str.
     def __repr__(self):
-        return "True" if self else "False"
+        return "true" if self else "false"
 
     def __str__(self):
         return self.__repr__()

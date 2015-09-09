@@ -409,6 +409,7 @@ class ConfigsProvider_18(ConfigsProvider):
             ports = [get_open_port(), get_open_port()]
 
         driver_config = default_configs.get_driver_config()
+        driver_config["primary_master"] = {}
         driver_config["primary_master"]["addresses"] = self._master_addresses["primary"]
         driver_config["primary_master"]["cell_id"] = self._primary_master_cell_id
         secondary_masters_info = zip(self._master_addresses["secondary"], self._secondary_masters_cell_ids)
