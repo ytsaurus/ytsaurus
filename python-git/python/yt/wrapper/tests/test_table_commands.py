@@ -388,6 +388,9 @@ class TestTableCommands(object):
         time.sleep(1)
 
     def test_banned_proxy(self):
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
         table = TEST_DIR + "/table"
         yt.create_table(table)
 
