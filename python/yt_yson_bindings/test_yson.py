@@ -39,11 +39,11 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
     def test_dump(self):
         self.assertEqual(
             self.dump_fragment([{"x": 1}, {"y": 2}]),
-            '{"x"=1};\n{"y"=2};\n')
+            '{"x"=1;};\n{"y"=2;};\n')
 
         self.assertEqual(
             self.dump_fragment((x for x in [{"x": None}, to_yson_type({"y": 2}, {"a": 10})])),
-            '{"x"=#};\n<"a"=10;>{"y"=2;};\n')
+            '{"x"=#;};\n<"a"=10;>{"y"=2;};\n')
 
     def test_unicode(self):
         unicode_str = u"ав"
@@ -88,7 +88,7 @@ class TestYsonStream(YsonParserTestBase, unittest.TestCase):
         map = YsonMap()
         map["value"] = YsonEntity()
         map["value"].attributes = {"attr": 10}
-        self.assertEqual('{"value"=<"attr"=10;>#}', dumps(map))
+        self.assertEqual('{"value"=<"attr"=10;>#;}', dumps(map))
         self.assertEqual('{"value"=#;}', dumps(map, ignore_inner_attributes=True))
 
     def test_loading_raw_rows(self):
