@@ -5,6 +5,7 @@ from yt.transfer_manager.flask_helpers import process_gzip
 from yt.transfer_manager.logger import TaskIdLogger
 from yt.transfer_manager.pattern_matching import match_copy_pattern
 from yt.transfer_manager.message_queue import MessageReader, MessageWriter
+from yt.transfer_manager.yt_client import YtClientWithNotifications
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
@@ -19,7 +20,6 @@ from yt.tools.remote_copy_tools import \
     copy_yt_to_yt_through_proxy, \
     copy_hive_to_yt
 
-from yt.wrapper.client import Yt
 from yt.wrapper.common import generate_uuid, get_value, update
 import yt.logger as logger
 import yt.wrapper as yt
@@ -230,7 +230,7 @@ class Application(object):
         self._config_path = config_path
         self._config = config = json.load(open(config_path))
         self._mutex = RLock()
-        self._yt = Yt(**config["yt_backend_options"])
+        self._yt = YtClientWithNotifications(**config["yt_backend_options"])
 
         self._load_config(config)
         self._path = config["path"]
@@ -385,7 +385,7 @@ class Application(object):
                 if "config" not in options:
                     options["config"] = {}
                 options["config"] = update(config["yt_client_config"], options["config"])
-                self._clusters[name] = Yt(**options)
+                self._clusters[name] = YtClientWithNotifications(**options)
                 self._clusters[name]._pools = cluster_description.get("pools", {})
                 self._clusters[name]._version = cluster_description.get("version", 0)
             elif type == "yamr":
@@ -850,7 +850,13 @@ class Application(object):
             }
 
             source_client = task.get_source_client(self._clusters)
+            source_client.message_queue = message_queue
+
             destination_client = task.get_destination_client(self._clusters)
+            destination_client.message_queue = message_queue
+
+            self.kiwi_transmitter.message_queue = message_queue
+
             parameters = self._availability_graph[task.source_cluster][task.destination_cluster]
 
             # Calculate fastbone
@@ -866,8 +872,7 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
-                        spec_template=task_spec,
-                        message_queue=message_queue)
+                        spec_template=task_spec)
                 else:  # native
                     network_name = "fastbone" if fastbone else "default"
                     network_name = parameters.get("network_name", network_name)
@@ -877,8 +882,7 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         network_name=network_name,
-                        spec_template=task_spec,
-                        message_queue=message_queue)
+                        spec_template=task_spec)
             elif source_client._type == "yt" and destination_client._type == "yamr":
                 logger.info("Running YT -> YAMR remote copy")
                 if task.copy_method == "push":
@@ -888,8 +892,7 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
-                        spec_template=task_spec,
-                        message_queue=message_queue)
+                        spec_template=task_spec)
                 else:
                     copy_yt_to_yamr_pull(
                         source_client,
@@ -897,8 +900,7 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
-                        force_sort=task.destination_force_sort,
-                        message_queue=message_queue)
+                        force_sort=task.destination_force_sort)
             elif source_client._type == "yamr" and destination_client._type == "yt":
                 logger.info("Running YAMR -> YT remote copy")
                 copy_yamr_to_yt_pull(
@@ -910,8 +912,7 @@ class Application(object):
                     compression_codec=task.destination_compression_codec,
                     erasure_codec=task.destination_erasure_codec,
                     force_sort=task.destination_force_sort,
-                    spec_template=task_spec,
-                    message_queue=message_queue)
+                    spec_template=task_spec)
             elif source_client._type == "yamr" and destination_client._type == "yamr":
                 destination_client.remote_copy(
                     source_client.server,
@@ -930,16 +931,14 @@ class Application(object):
                     fastbone=fastbone,
                     kiwi_user=task.kiwi_user,
                     kwworm_options=task.kwworm_options,
-                    spec_template=task_spec,
-                    message_queue=message_queue)
+                    spec_template=task_spec)
             elif source_client._type == "hive" and destination_client._type == "yt":
                 copy_hive_to_yt(
                     source_client,
                     destination_client,
                     task.source_table,
                     task.destination_table,
-                    spec_template=task_spec,
-                    message_queue=message_queue)
+                    spec_template=task_spec)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,
