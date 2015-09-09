@@ -211,7 +211,8 @@ class YTEnv(object):
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
             self._run_proxy(has_proxy, proxy_name, use_proxy_from_package=use_proxy_from_package, proxy_port=proxy_port)
             self._write_environment_info_to_file(masters_count, secondary_master_cell_count, schedulers_count, nodes_count, has_proxy)
-        except:
+        except Exception:
+            logger.exception("Failed to start environment")
             self.clear_environment()
             raise
 
