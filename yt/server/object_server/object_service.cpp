@@ -214,7 +214,7 @@ private:
                     path,
                     Context->GetRequestId(),
                     mutating,
-                    GetTransactionId(Context));
+                    GetTransactionId(requestHeader));
 
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(

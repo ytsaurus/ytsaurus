@@ -16,6 +16,7 @@ using namespace NRpc;
 using namespace NCellScheduler;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -56,6 +57,10 @@ private:
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
         auto scheduler = Bootstrap->GetScheduler();
         auto node = scheduler->GetOrRegisterNode(addresses);
+        if (node->GetMasterState() == ENodeState::Offline) {
+            THROW_ERROR_EXCEPTION("Node is offline");
+        }
+
         scheduler->ProcessHeartbeat(node, context);
     }
 
