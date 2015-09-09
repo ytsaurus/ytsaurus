@@ -4,6 +4,7 @@
 #include "private.h"
 
 #include <ytlib/object_client/master_ypath_proxy.h>
+#include <ytlib/object_client/helpers.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -12,129 +13,159 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkListPool::TChunkListPool(
     TSchedulerConfigPtr config,
-    NRpc::IChannelPtr masterChannel,
+    IClientPtr client,
     IInvokerPtr controlInvoker,
     const TOperationId& operationId,
     const TTransactionId& transactionId)
-    : Config(config)
-    , MasterChannel(masterChannel)
-    , ControlInvoker(controlInvoker)
-    , OperationId(operationId)
-    , TransactionId(transactionId)
+    : Config_(config)
+    , Client_(client)
+    , ControlInvoker_(controlInvoker)
+    , OperationId_(operationId)
+    , TransactionId_(transactionId)
     , Logger(OperationLogger)
-    , RequestInProgress(false)
-    , LastSuccessCount(-1)
 {
     YCHECK(config);
-    YCHECK(masterChannel);
+    YCHECK(client);
     YCHECK(controlInvoker);
 
     Logger.AddTag("OperationId: %v", operationId);
-
-    AllocateMore();
 }
 
-bool TChunkListPool::HasEnough(int requestedCount)
+bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
 {
-    int currentSize = static_cast<int>(Ids.size());
-    if (currentSize >= requestedCount + Config->ChunkListWatermarkCount) {
+    auto& data = CellMap_[cellTag];
+    int currentSize = static_cast<int>(data.Ids.size());
+    if (currentSize >= requestedCount + Config_->ChunkListWatermarkCount) {
         // Enough chunk lists. Above the watermark even after extraction.
         return true;
     } else {
         // Additional chunk lists are definitely needed but still could be a success.
-        AllocateMore();
+        AllocateMore(cellTag);
         return currentSize >= requestedCount;
     }
 }
 
-TChunkListId TChunkListPool::Extract()
+TChunkListId TChunkListPool::Extract(TCellTag cellTag)
 {
-    YCHECK(!Ids.empty());
-    auto id = Ids.back();
-    Ids.pop_back();
+    auto& data = CellMap_[cellTag];
 
-    LOG_DEBUG("Extracted chunk list %v from the pool, %v remaining",
+    YCHECK(!data.Ids.empty());
+    auto id = data.Ids.back();
+    data.Ids.pop_back();
+
+    LOG_DEBUG("Chunk list extracted from pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
         id,
-        static_cast<int>(Ids.size()));
+        cellTag,
+        data.Ids.size());
 
     return id;
 }
 
 void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
 {
-    TObjectServiceProxy objectProxy(MasterChannel);
-    auto batchReq = objectProxy.ExecuteBatch();
+    yhash<TCellTag, std::vector<TChunkListId>> cellTagToIds;
     for (const auto& id : ids) {
-        auto req = TMasterYPathProxy::UnstageObject();
-        ToProto(req->mutable_object_id(), id);
-        req->set_recursive(true);
-        batchReq->AddRequest(req);
+        cellTagToIds[CellTagFromId(id)].push_back(id);
     }
 
-    // Fire-and-forget.
-    // The subscriber is only needed to log the outcome.
-    batchReq->Invoke().Subscribe(
-        BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this)));
+    for (const auto& pair : cellTagToIds) {
+        auto cellTag = pair.first;
+        const auto& ids = pair.second;
+
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+        TObjectServiceProxy objectProxy(channel);
+
+        auto batchReq = objectProxy.ExecuteBatch();
+        for (const auto& id : ids) {
+            auto req = TMasterYPathProxy::UnstageObject();
+            ToProto(req->mutable_object_id(), id);
+            req->set_recursive(true);
+            batchReq->AddRequest(req);
+        }
+
+        // Fire-and-forget.
+        // The subscriber is only needed to log the outcome.
+        batchReq->Invoke().Subscribe(
+            BIND(&TChunkListPool::OnChunkListsReleased, MakeStrong(this), cellTag));
+    }
 }
 
-void TChunkListPool::AllocateMore()
+void TChunkListPool::AllocateMore(TCellTag cellTag)
 {
-    int count = LastSuccessCount < 0
-        ? Config->ChunkListPreallocationCount
-        : static_cast<int>(LastSuccessCount * Config->ChunkListAllocationMultiplier);
+    auto& data = CellMap_[cellTag];
 
-    count = std::min(count, Config->MaxChunkListAllocationCount);
+    int count = data.LastSuccessCount < 0
+        ? Config_->ChunkListPreallocationCount
+        : static_cast<int>(data.LastSuccessCount * Config_->ChunkListAllocationMultiplier);
 
-    if (RequestInProgress) {
-        LOG_DEBUG("Cannot allocate more chunk lists, another request is in progress");
+    count = std::min(count, Config_->MaxChunkListAllocationCount);
+
+    if (data.RequestInProgress) {
+        LOG_DEBUG("Cannot allocate more chunk lists for pool, another request is in progress (CellTag: %v)",
+            cellTag);
         return;
     }
 
-    LOG_INFO("Allocating %v chunk lists for pool", count);
+    LOG_INFO("Allocating more chunk lists for pool (CellTag: %v, Count: %v)",
+        cellTag,
+        count);
 
-    TObjectServiceProxy objectProxy(MasterChannel);
+    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    TObjectServiceProxy objectProxy(channel);
+
     auto req = TMasterYPathProxy::CreateObjects();
-    ToProto(req->mutable_transaction_id(), TransactionId);
+    ToProto(req->mutable_transaction_id(), TransactionId_);
     req->set_type(static_cast<int>(EObjectType::ChunkList));
     req->set_object_count(count);
 
     objectProxy.Execute(req).Subscribe(
-        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this))
-            .Via(ControlInvoker));
+        BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), cellTag)
+            .Via(ControlInvoker_));
 
-    RequestInProgress = true;
+    data.RequestInProgress = true;
 }
 
-void TChunkListPool::OnChunkListsCreated(const TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError)
+void TChunkListPool::OnChunkListsCreated(
+    TCellTag cellTag,
+    const TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError)
 {
-    YCHECK(RequestInProgress);
-    RequestInProgress = false;
+    auto& data = CellMap_[cellTag];
+
+    YCHECK(data.RequestInProgress);
+    data.RequestInProgress = false;
 
     if (!rspOrError.IsOK()) {
-        LOG_ERROR(rspOrError, "Error allocating chunk lists");
+        LOG_ERROR(rspOrError, "Error allocating chunk lists for pool (CellTag: %v)",
+            cellTag);
         return;
     }
 
-    LOG_INFO("Chunk lists allocated");
-
     const auto& rsp = rspOrError.Value();
-    for (const auto& id : rsp->object_ids()) {
-        Ids.push_back(FromProto<TChunkListId>(id));
-    }
 
-    LastSuccessCount = rsp->object_ids_size();
+    for (const auto& id : rsp->object_ids()) {
+        data.Ids.push_back(FromProto<TChunkListId>(id));
+    }
+    data.LastSuccessCount = rsp->object_ids_size();
+
+    LOG_INFO("Allocated more chunk lists for pool (CellTag: %v, Count: %v)",
+        cellTag,
+        data.LastSuccessCount);
 }
 
-void TChunkListPool::OnChunkListsReleased(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+void TChunkListPool::OnChunkListsReleased(
+    TCellTag cellTag,
+    const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
 {
     auto error = GetCumulativeError(batchRspOrError);
     if (!error.IsOK()) {
-        LOG_WARNING(error, "Error releasing chunk lists");
+        LOG_WARNING(error, "Error releasing chunk lists from pool (CellTag: %v)",
+            cellTag);
     }
 }
 

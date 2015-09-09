@@ -10,6 +10,7 @@
 #include <ytlib/transaction_client/public.h>
 
 #include <ytlib/chunk_client/public.h>
+#include <ytlib/api/public.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -22,34 +23,43 @@ class TChunkListPool
 public:
     TChunkListPool(
         TSchedulerConfigPtr config,
-        NRpc::IChannelPtr masterChannel,
+        NApi::IClientPtr clientPtr,
         IInvokerPtr controlInvoker,
         const TOperationId& operationId,
         const NTransactionClient::TTransactionId& transactionId);
 
-    bool HasEnough(int requestedCount);
-    NChunkClient::TChunkListId Extract();
+    bool HasEnough(NObjectClient::TCellTag cellTag, int requestedCount);
+    NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);
 
     void Release(const std::vector<NChunkClient::TChunkListId>& ids);
 
 private:
-    TSchedulerConfigPtr Config;
-    NRpc::IChannelPtr MasterChannel;
-    IInvokerPtr ControlInvoker;
-    TOperationId OperationId;
-    NTransactionClient::TTransactionId TransactionId;
+    const TSchedulerConfigPtr Config_;
+    const NApi::IClientPtr Client_;
+    const IInvokerPtr ControlInvoker_;
+    const TOperationId OperationId_;
+    const NTransactionClient::TTransactionId TransactionId_;
 
     NLogging::TLogger Logger;
-    bool RequestInProgress;
-    int LastSuccessCount;
-    std::vector<NChunkClient::TChunkListId> Ids;
 
-    void AllocateMore();
+    struct TCellData
+    {
+        bool RequestInProgress = false;
+        int LastSuccessCount = -1;
+        std::vector<NChunkClient::TChunkListId> Ids;
+    };
+
+    yhash_map<NObjectClient::TCellTag, TCellData> CellMap_;
+
+
+    void AllocateMore(NObjectClient::TCellTag cellTag);
 
     void OnChunkListsCreated(
+        NObjectClient::TCellTag cellTag,
         const NObjectClient::TMasterYPathProxy::TErrorOrRspCreateObjectsPtr& rspOrError);
 
     void OnChunkListsReleased(
+        NObjectClient::TCellTag cellTag,
         const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
 };
 
