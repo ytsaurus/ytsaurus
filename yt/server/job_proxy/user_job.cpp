@@ -275,7 +275,7 @@ private:
         Process_.AddArgument("--executor");
         Process_.AddArguments({"--command", UserJobSpec_.shell_command()});
         Process_.AddArguments({"--config", NFS::CombinePaths(GetCwd(), NExecAgent::ProxyConfigFileName)});
-        Process_.AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxIndex::User]});
+        Process_.AddArguments({"--working-dir", SandboxDirectoryNames[ESandboxKind::User]});
 
         if (UserJobSpec_.enable_core_dump()) {
             Process_.AddArgument("--enable-core-dump");
@@ -287,7 +287,7 @@ private:
 
         // Init environment variables.
         TPatternFormatter formatter;
-        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), SandboxDirectoryNames[ESandboxIndex::User]));
+        formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), SandboxDirectoryNames[ESandboxKind::User]));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             Process_.AddEnvVar(formatter.Format(UserJobSpec_.environment(i)));
@@ -632,7 +632,7 @@ private:
                 for (const auto& descriptor : FromProto<Stroka>(spec.udf_descriptors())) {
                     descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
                 }
-                auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxIndex::Udf]);
+                auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);
                 auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
                 auto reader = WaitFor(CreateSchemafulReaderAdapter(readerFactory, query->TableSchema))
                     .ValueOrThrow();

@@ -94,7 +94,7 @@ TJobResult TSimpleJobBase::Run()
             for (const auto& descriptor : FromProto<Stroka>(querySpec.udf_descriptors())) {
                 descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
             }
-            auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxIndex::Udf]);
+            auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);
             auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
             auto reader = WaitFor(CreateSchemafulReaderAdapter(ReaderFactory_, query->TableSchema))
                 .ValueOrThrow();
