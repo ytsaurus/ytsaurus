@@ -66,11 +66,11 @@ def test_yson_format():
     assert stream.getvalue().rstrip(";\n") == serialized_row
 
     format = yt.YsonFormat(format="binary")
-    assert format.dumps_row({"a": 1}) == yson.dumps({"a": 1}, yson_format="binary") + ";"
+    assert format.dumps_row({"a": 1}).rstrip(";\n") == yson.dumps({"a": 1}, yson_format="binary")
 
 def test_yson_table_switch():
     format = yt.YsonFormat(format="text")
-    input = '{"a"=1;};\n<"table_index"=1>#;\n{"a"=1;};\n'
+    input = '{"a"=1;};\n<"table_index"=1;>#;\n{"a"=1;};\n'
 
     yson_rows = format.load_rows(StringIO(input))
     parsed_rows = [dict(yson) for yson in yson_rows]
