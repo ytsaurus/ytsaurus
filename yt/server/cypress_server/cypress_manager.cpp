@@ -2094,8 +2094,9 @@ auto TCypressManager::TImpl::TNodeMapTraits::Create(const TVersionedNodeId& id) 
 {
     auto type = TypeFromId(id.ObjectId);
     auto handler = Owner_->GetHandler(type);
-    // This cell tag is fake and will be overwritten on load.
-    return handler->Instantiate(id, InvalidCellTag);
+    // This cell tag is fake and will be overwritten on load
+    // (unless this is a pre-multicell snapshot, in which case NotReplicatedCellTag is just what we want).
+    return handler->Instantiate(id, NotReplicatedCellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
