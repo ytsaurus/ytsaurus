@@ -169,6 +169,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "watchers_update_period" : 100
+        }
+    }
+
     def test_empty_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1025,8 +1031,9 @@ print row + table_index
 
         try:
             op_id = map(dont_track=True, in_="//tmp/in", out="//tmp/out", command="cat; sleep 3")
-            time.sleep(2.5)
+            time.sleep(2.0)
             self._set_banned("true")
+            time.sleep(1.0)
             self._set_banned("false")
             track_op(op_id)
             assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) > 0
