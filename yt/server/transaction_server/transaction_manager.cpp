@@ -487,11 +487,15 @@ public:
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
-        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
-        if (state != ETransactionState::Active &&
-            (!persistent || state != ETransactionState::TransientCommitPrepared))
+        // This check applies not only to #transaction itself but also to all of its ancestors.
         {
-            transaction->ThrowInvalidState();
+            auto* currentTransaction = transaction;
+            while (currentTransaction) {
+                auto state = persistent ? currentTransaction->GetPersistentState() : currentTransaction->GetState();
+                if (state != ETransactionState::Active) {
+                    currentTransaction->ThrowInvalidState();
+                }
+            }
         }
 
         if (!transaction->NestedTransactions().empty()) {
@@ -503,11 +507,13 @@ public:
         auto securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
+        auto oldState = persistent ? transaction->GetPersistentState() : transaction->GetState();
+
         transaction->SetState(persistent
             ? ETransactionState::PersistentCommitPrepared
             : ETransactionState::TransientCommitPrepared);
 
-        if (state == ETransactionState::Active) {
+        if (oldState == ETransactionState::Active) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v)",
                 transactionId,
                 persistent);
