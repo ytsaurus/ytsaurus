@@ -46,6 +46,7 @@ using namespace NScheduler;
 using namespace NJobTrackerClient::NProto;
 using namespace NVersionedTableClient;
 using namespace NApi;
+using namespace NErasure;
 
 using NJobTrackerClient::TStatistics;
 
@@ -178,22 +179,16 @@ private:
         writerOptions->ErasureCodec = erasureCodecId;
 
         auto inputReplicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(inputChunkSpec.replicas());
-
-        bool isErasure = IsErasureChunkId(inputChunkId);
-
+        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         LOG_INFO("Creating output chunk");
 
         // Create output chunk.
         TChunkId outputChunkId;
         {
-            auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
             auto writerNodeDirectory = New<TNodeDirectory>();
-
-            auto channel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader);
             auto rspOrError = WaitFor(CreateChunk(
-                channel,
+                host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader),
                 writerOptions,
-                isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
                 transactionId,
                 OutputChunkListId_));
 
@@ -215,7 +210,7 @@ private:
 
         auto nodeDirectory = New<TNodeDirectory>();
 
-        if (isErasure) {
+        if (erasureCodecId == ECodec::None) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
