@@ -700,6 +700,10 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     SchemaMap_.LoadValues(context);
     for (const auto& pair : SchemaMap_) {
         auto type = TypeFromSchemaType(TypeFromId(pair.first));
+        // COMPAT(sandello): CellNodeMap (408) and CellNode (410) are now obsolete.
+        if (type == 408 || type == 410) {
+            continue;
+        }
         YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
         auto& entry = TypeToEntry_[type];
         entry.SchemaObject = pair.second;
