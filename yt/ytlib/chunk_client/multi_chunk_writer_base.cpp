@@ -114,9 +114,9 @@ TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
 
 TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
 {
-    auto writer = CurrentSession_.TemplateWriter;
-    if (writer) {
-        return DataStatistics_ + writer->GetDataStatistics();
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (CurrentSession_.IsActive()) {
+        return DataStatistics_ + CurrentSession_.TemplateWriter->GetDataStatistics();
     } else {
         return DataStatistics_;
     }
@@ -154,7 +154,9 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
 
     WrittenChunks_.push_back(chunkSpec);
 
+    TGuard<TSpinLock> guard(SpinLock_);
     DataStatistics_ += CurrentSession_.TemplateWriter->GetDataStatistics();
+    CurrentSession_.Reset();
 }
 
 void TNontemplateMultiChunkWriterBase::InitSession()
