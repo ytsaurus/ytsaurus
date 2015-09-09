@@ -1435,6 +1435,7 @@ private:
                 NRpc::EErrorCode::Unavailable,
                 "Failed to synchronize with leader")
                 << rspOrError);
+            epochContext->LeaderSyncPromise.Reset();
             return;
         }
 
