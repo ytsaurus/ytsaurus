@@ -994,7 +994,7 @@ void TOperationControllerBase::DoPrepare()
     GetOutputTablesUploadParams();
 
     PickIntermediateDataCell();
-    InitCells();
+    InitChunkListPool();
 
     CreateLivePreviewTables();
 
@@ -1052,7 +1052,7 @@ void TOperationControllerBase::DoRevive()
 {
     VERIFY_THREAD_AFFINITY(BackgroundThread);
 
-    InitCells();
+    InitChunkListPool();
 
     DoLoadSnapshot();
 
@@ -1258,42 +1258,18 @@ void TOperationControllerBase::PickIntermediateDataCell()
         : secondaryCellTags[rand() % secondaryCellTags.size()];
 }
 
-void TOperationControllerBase::InitCells()
+void TOperationControllerBase::InitChunkListPool()
 {
-    auto client = Host->GetMasterClient();
-    auto connection = client->GetConnection();
-
-    auto createPool = [&] (TCellTag cellTag) -> TCellData* {
-        auto it = CellMap.find(cellTag);
-        if (it == CellMap.end()) {
-            it = CellMap.insert(std::make_pair(cellTag, TCellData())).first;
-        }
-
-        auto& data = it->second;
-        data.ChunkListPool = New<TChunkListPool>(
-            Config,
-            client->GetMasterChannel(EMasterChannelKind::Leader, cellTag),
-            CancelableControlInvoker,
-            Operation->GetId(),
-            Operation->GetOutputTransaction()->GetId());
-
-        return &data;
-    };
+    ChunkListPool = New<TChunkListPool>(
+        Config,
+        AuthenticatedOutputMasterClient,
+        CancelableControlInvoker,
+        Operation->GetId(),
+        Operation->GetOutputTransaction()->GetId());
 
     for (const auto& table : OutputTables) {
-        auto* data = createPool(table.CellTag);
-        ++data->OutputTableCount;
+        ++CellTagToOutputTableCount[table.CellTag];
     }
-
-    // NB: The choice of cell must be deterministic.
-    IntermediateOutputChunkListPool = createPool(IntermediateOutputCellTag)->ChunkListPool;
-}
-
-const TOperationControllerBase::TCellData& TOperationControllerBase::GetCellData(TCellTag cellTag)
-{
-    auto it = CellMap.find(cellTag);
-    YCHECK(it != CellMap.end());
-    return it->second;
 }
 
 void TOperationControllerBase::InitInputChunkScraper()
@@ -3479,36 +3455,25 @@ void TOperationControllerBase::RegisterIntermediate(
 bool TOperationControllerBase::HasEnoughChunkLists(bool intermediate)
 {
     if (intermediate) {
-        return IntermediateOutputChunkListPool->HasEnough(1);
-    }
-
-    for (const auto& pair : CellMap) {
-        const auto& data = pair.second;
-        if (!data.ChunkListPool->HasEnough(data.OutputTableCount)) {
-            return false;
+        return ChunkListPool->HasEnough(IntermediateOutputCellTag, 1);
+    } else {
+        for (const auto& pair : CellTagToOutputTableCount) {
+            if (!ChunkListPool->HasEnough(pair.first, pair.second)) {
+                return false;
+            }
         }
+        return true;
     }
-
-    return true;
 }
 
 TChunkListId TOperationControllerBase::ExtractChunkList(TCellTag cellTag)
 {
-    const auto& data = GetCellData(cellTag);
-    return data.ChunkListPool->Extract();
+    return ChunkListPool->Extract(cellTag);
 }
 
 void TOperationControllerBase::ReleaseChunkLists(const std::vector<TChunkListId>& ids)
 {
-    yhash<TCellTag, std::vector<TChunkListId>> cellTagToIds;
-    for (const auto& id : ids) {
-        cellTagToIds[CellTagFromId(id)].push_back(id);
-    }
-
-    for (const auto& pair : cellTagToIds) {
-        const auto& data = GetCellData(pair.first);
-        data.ChunkListPool->Release(pair.second);
-    }
+    ChunkListPool->Release(ids);
 }
 
 void TOperationControllerBase::RegisterJoblet(TJobletPtr joblet)

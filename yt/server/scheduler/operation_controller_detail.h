@@ -604,22 +604,14 @@ protected:
         const Stroka& queryString,
         const NQueryClient::TTableSchema& schema);
 
-    struct TCellData
-    {
-        TChunkListPoolPtr ChunkListPool;
-        int OutputTableCount = 0;
-    };
-
     void PickIntermediateDataCell();
-    void InitCells();
-    const TCellData& GetCellData(NObjectClient::TCellTag cellTag);
+    void InitChunkListPool();
 
     void ValidateKey(const NTableClient::TOwningKey& key);
 
     // Initialize transactions
     void StartAsyncSchedulerTransaction();
     void StartSyncSchedulerTransaction();
-    void StartIOTransactions();
     virtual void StartInputTransaction(NObjectClient::TTransactionId parentTransactionId);
     virtual void StartOutputTransaction(NObjectClient::TTransactionId parentTransactionId);
 
@@ -831,10 +823,9 @@ private:
 
     TOperationSpecBasePtr Spec;
 
-    // Multicell-related stuff.
-    NObjectClient::TCellTag IntermediateOutputCellTag;
-    TChunkListPoolPtr IntermediateOutputChunkListPool;
-    yhash_map<NObjectClient::TCellTag, TCellData> CellMap;
+    NObjectClient::TCellTag IntermediateOutputCellTag = NObjectClient::InvalidCellTag;
+    TChunkListPoolPtr ChunkListPool;
+    yhash<NObjectClient::TCellTag, int> CellTagToOutputTableCount;
 
     int CachedPendingJobCount;
 
