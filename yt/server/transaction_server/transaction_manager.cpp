@@ -543,8 +543,13 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // NB: Transaction must exist.
-        auto* transaction = GetTransaction(transactionId);
+        auto* transaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(transaction)) {
+            LOG_ERROR("Attempt to commit a missing transaction (TransactionId: %v)",
+                transactionId);
+            return;
+        }
+        
         CommitTransaction(transaction);
     }
 
