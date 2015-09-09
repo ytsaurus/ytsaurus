@@ -460,7 +460,7 @@ private:
             NodeDirectory->MergeFrom(userJobSpec.node_directory());
 
             for (const auto& descriptor : userJobSpec.files()) {
-                PrepareFile(ESandboxIndex::User, descriptor);
+                PrepareFile(ESandboxKind::User, descriptor);
             }
         }
 
@@ -470,7 +470,7 @@ private:
             NodeDirectory->MergeFrom(querySpec.node_directory());
 
             for (const auto& descriptor : querySpec.udf_files()) {
-                PrepareFile(ESandboxIndex::Udf, descriptor);
+                PrepareFile(ESandboxKind::Udf, descriptor);
             }
         }
     }
@@ -543,7 +543,7 @@ private:
         FinalizeJob();
     }
 
-    void PrepareFile(ESandboxIndex sandboxIndex, const TFileDescriptor& descriptor)
+    void PrepareFile(ESandboxKind sandboxKind, const TFileDescriptor& descriptor)
     {
         const auto& fileName = descriptor.file_name();
         LOG_INFO("Preparing user file (FileName: %v)",
@@ -565,7 +565,7 @@ private:
 
         try {
             Slot->MakeLink(
-                sandboxIndex,
+                sandboxKind,
                 chunk->GetFileName(),
                 fileName,
                 descriptor.executable());

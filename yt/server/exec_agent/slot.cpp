@@ -78,10 +78,10 @@ void TSlot::Initialize()
             currentPath = path;
             NFS::ForcePath(path, 0755);
             SandboxPaths_.emplace_back();
-            for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
-                const auto& sandboxName = SandboxDirectoryNames[sandboxIndex];
+            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
                 YASSERT(sandboxName);
-                SandboxPaths_[pathIndex][sandboxIndex] = NFS::CombinePaths(path, sandboxName);
+                SandboxPaths_[pathIndex][sandboxKind] = NFS::CombinePaths(path, sandboxName);
             }
             DoCleanSandbox(pathIndex);
         }
@@ -155,8 +155,8 @@ TTcpBusClientConfigPtr TSlot::GetRpcClientConfig() const
 
 void TSlot::DoCleanSandbox(int pathIndex)
 {
-    for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
-        const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxIndex];
+    for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+        const auto& sandboxPath = SandboxPaths_[pathIndex][sandboxKind];
         try {
             if (NFS::Exists(sandboxPath)) {
                 if (UserId_) {
@@ -225,8 +225,8 @@ void TSlot::InitSandbox()
 {
     YCHECK(!IsFree());
 
-    for (auto sandboxIndex : TEnumTraits<ESandboxIndex>::GetDomainValues()) {
-        const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxIndex];
+    for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+        const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
         try {
             NFS::ForcePath(sandboxPath, 0777);
         } catch (const std::exception& ex) {
@@ -241,14 +241,14 @@ void TSlot::InitSandbox()
 }
 
 void TSlot::MakeLink(
-    ESandboxIndex sandboxIndex,
+    ESandboxKind sandboxKind,
     const Stroka& targetPath,
     const Stroka& linkName,
     bool isExecutable) noexcept
 {
     YCHECK(!IsFree());
 
-    const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxIndex];
+    const auto& sandboxPath = SandboxPaths_[PathIndex_][sandboxKind];
     auto linkPath = NFS::CombinePaths(sandboxPath, linkName);
     try {
         {
