@@ -257,6 +257,17 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert read('//tmp/out') == []
 
+    def test_duplicate_key_columns(self):
+        create('table', '//tmp/in')
+        create('table', '//tmp/out')
+
+        with pytest.raises(YtError):
+            reduce(
+                in_ = '//tmp/in',
+                out = '//tmp/out',
+                command = 'cat',
+                reduce_by=["a", "b", "a"])
+
     def test_unsorted_input(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')

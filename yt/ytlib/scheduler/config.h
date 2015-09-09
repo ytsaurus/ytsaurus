@@ -7,6 +7,7 @@
 #include <ytlib/api/config.h>
 
 #include <ytlib/new_table_client/config.h>
+#include <ytlib/new_table_client/schema.h>
 
 #include <ytlib/formats/format.h>
 
@@ -439,6 +440,12 @@ public:
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
         });
+
+        RegisterValidator([&] () {
+            if (ReduceBy && !ReduceBy->empty()) {
+                NVersionedTableClient::ValidateKeyColumns(*ReduceBy);
+            }
+        });
     }
 
     virtual void OnLoaded() override
@@ -520,6 +527,10 @@ public:
 
         RegisterParameter("sort_by", SortBy)
             .NonEmpty();
+
+        RegisterValidator([&] () {
+            NVersionedTableClient::ValidateKeyColumns(SortBy);
+        });
     }
 
     virtual void OnLoaded() override
@@ -680,6 +691,10 @@ public:
             };
             validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
             validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
+
+            if (!ReduceBy.empty()) {
+                NVersionedTableClient::ValidateKeyColumns(ReduceBy);
+            }
         });
     }
 
