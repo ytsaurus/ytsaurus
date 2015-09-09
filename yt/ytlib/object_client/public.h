@@ -66,7 +66,7 @@ const TCellTag AllSecondaryMastersCellTag = 0xf002;
 const TCellTag PrimaryMasterCellTag = 0xf003;
 
 //! A sentinel cell tag meaning nothing.
-const TCellTag InvalidCellTag = 0xf003;
+const TCellTag InvalidCellTag = 0xf004;
 
 //! Describes the runtime type of an object.
 DEFINE_ENUM(EObjectType,
