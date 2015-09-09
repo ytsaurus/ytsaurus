@@ -71,6 +71,12 @@ private:
         {
             return bool(TemplateWriter);
         }
+        
+        void Reset()
+        {
+            TemplateWriter.Reset();
+            UnderlyingWriter.Reset();
+        }
     };
 
     const TMultiChunkWriterConfigPtr Config_;
@@ -91,6 +97,8 @@ private:
     std::atomic<bool> SwitchingSession_ = { true };
 
     TFuture<void> ReadyEvent_ = VoidFuture;
+
+    TSpinLock SpinLock_;
     NProto::TDataStatistics DataStatistics_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
 

@@ -210,7 +210,7 @@ private:
 
         auto nodeDirectory = New<TNodeDirectory>();
 
-        if (erasureCodecId == ECodec::None) {
+        if (erasureCodecId != ECodec::None) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
