@@ -15,6 +15,8 @@ class ReadingThread(Thread):
             length_str = self.pipe.read(4)
             if not length_str:
                 return
+            if len(length_str) != 4:
+                raise RuntimeError("Incorrect message format: expected 4 bytes, but  for %d bytes found" % length_str)
             length = struct.unpack("i", length_str)[0]
             self.queue.put(pickle.loads(self.pipe.read(length)))
 
