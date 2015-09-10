@@ -1573,7 +1573,13 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     int replicationFactor = isErasure ? 1 : requestExt.replication_factor();
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
     int writeQuorum = isJournal ? requestExt.write_quorum() : 0;
+
+    // NB: Once the chunk is created, no exceptions could be thrown.
     auto chunkListId = requestExt.has_chunk_list_id() ? FromProto<TChunkListId>(requestExt.chunk_list_id()) : NullChunkListId;
+    TChunkList* chunkList = nullptr;
+    if (chunkListId != NullChunkId) {
+        chunkList = Owner_->GetChunkListOrThrow(chunkListId);
+    }
 
     auto* chunk = Owner_->CreateChunk(chunkType);
     chunk->SetReplicationFactor(replicationFactor);
@@ -1585,8 +1591,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
 
     Owner_->StageChunkTree(chunk, transaction, account);
 
-    if (chunkListId != NullChunkId) {
-        auto* chunkList = Owner_->GetChunkListOrThrow(chunkListId);
+    if (chunkList) {
         Owner_->AttachToChunkList(chunkList, chunk);
     }
 
