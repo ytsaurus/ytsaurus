@@ -562,7 +562,8 @@ private:
         auto service = GetService();
         const auto& method = context->GetMethod();
         if ((Options_ & EVirtualNodeOptions::RedirectSelf) != EVirtualNodeOptions::None &&
-            method != "Remove")
+            method != "Remove" &&
+            method != "GetBasicAttributes")
         {
             return TResolveResult::There(service, path);
         } else {

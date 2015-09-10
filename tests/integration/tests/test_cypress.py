@@ -536,8 +536,8 @@ class TestCypress(YTEnvSetup):
             attributes={"type": "transaction_map"})
 
     def test_move_virtual_maps1(self):
-        create("cluster_node_map", "//tmp/n")
-        move("//tmp/n", "//tmp/nn")
+        create("tablet_map", "//tmp/t")
+        move("//tmp/t", "//tmp/tt")
 
     def test_move_virtual_maps2(self):
         create("chunk_map", "//tmp/c")
