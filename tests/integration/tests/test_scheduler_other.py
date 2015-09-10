@@ -7,7 +7,6 @@ from yt_commands import *
 import time
 import __builtin__
 
-
 ##################################################################
 
 class TestSchedulerOther(YTEnvSetup):
@@ -133,8 +132,8 @@ class TestSchedulerOther(YTEnvSetup):
             spec={'time_limit': 800})
 
         time.sleep(0.9)
-        assert get("//sys/operations/{0}/@state".format(op1)) != "failed"
-        assert get("//sys/operations/{0}/@state".format(op2)) == "failed"
+        assert get("//sys/operations/{0}/@state".format(op1)) not in ["failing", "failed"]
+        assert get("//sys/operations/{0}/@state".format(op2)) in ["failing", "failed"]
 
         track_op(op1)
 
