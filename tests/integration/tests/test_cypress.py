@@ -535,6 +535,10 @@ class TestCypress(YTEnvSetup):
             {tx: to_yson_type(None, attributes={"type": "transaction"})},
             attributes={"type": "transaction_map"})
 
+    def test_move_virtual_maps(self):
+        create("cluster_node_map", "//tmp/n")
+        move("//tmp/n", "//tmp/nn")
+
     def test_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
         assert ls("//sys/transactions", attributes=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
