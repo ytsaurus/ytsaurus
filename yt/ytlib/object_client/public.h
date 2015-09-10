@@ -53,7 +53,7 @@ typedef ui16 TCellTag;
 //! The minimum valid cell tag.
 const TCellTag MinimumValidCellTag = 0x0000;
 
-//! The maximum valie cell tag.
+//! The maximum valid cell tag.
 const TCellTag MaximumValidCellTag = 0xf000;
 
 //! A sentinel cell tag indicating that the request does not need replication.
