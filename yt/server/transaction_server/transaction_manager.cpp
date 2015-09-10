@@ -545,8 +545,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // NB: Transaction must exist.
-        auto* transaction = GetTransaction(transactionId);
+        auto* transaction = GetTransactionOrThrow(transactionId);
+
         CommitTransaction(transaction);
     }
 
