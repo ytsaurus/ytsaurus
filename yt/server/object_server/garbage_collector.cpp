@@ -97,12 +97,6 @@ TFuture<void> TGarbageCollector::Collect()
     return CollectPromise_;
 }
 
-bool TGarbageCollector::IsEnqueued(TObjectBase* object) const
-{
-    return Zombies_.find(object) != Zombies_.end() ||
-           LockedZombies_.find(object) != LockedZombies_.end();
-}
-
 void TGarbageCollector::Enqueue(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -114,11 +108,11 @@ void TGarbageCollector::Enqueue(TObjectBase* object)
 
     if (object->IsLocked()) {
         YCHECK(LockedZombies_.insert(object).second);
-        LOG_DEBUG("Object is put into locked zombie queue (ObjectId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Object is put into locked zombie queue (ObjectId: %v)",
             object->GetId());
     } else {
         YCHECK(Zombies_.insert(object).second);
-        LOG_TRACE("Object is put into zombie queue (ObjectId: %v)",
+        LOG_TRACE_UNLESS(IsRecovery(), "Object is put into zombie queue (ObjectId: %v)",
             object->GetId());
     }
 }
@@ -132,7 +126,7 @@ void TGarbageCollector::Unlock(TObjectBase* object)
     YCHECK(LockedZombies_.erase(object) == 1);
     YCHECK(Zombies_.insert(object).second);
     
-    LOG_DEBUG("Object is unlocked and moved to zombie queue (ObjectId: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Object is unlocked and moved to zombie queue (ObjectId: %v)",
         object->GetId());
 }
 
@@ -158,8 +152,7 @@ void TGarbageCollector::CheckEmpty()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies_.empty() && LockedZombies_.empty()) {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        LOG_DEBUG_UNLESS(hydraManager->IsRecovery(), "GC queue is empty");
+        LOG_DEBUG_UNLESS(IsRecovery(), "GC queue is empty");
         CollectPromise_.Set();
     }
 }
@@ -211,6 +204,11 @@ int TGarbageCollector::GetGCQueueSize() const
 int TGarbageCollector::GetLockedGCQueueSize() const
 {
     return static_cast<int>(LockedZombies_.size());
+}
+
+bool TGarbageCollector::IsRecovery()
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
