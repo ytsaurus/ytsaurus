@@ -101,8 +101,8 @@ class TestChunkServerMulticell(TestChunkServer):
 
     def test_owning_nodes3(self):
         create("table", "//tmp/t0", attributes={"external": False})
-        create("table", "//tmp/t1", attributes={"cell_tag": 1})
-        create("table", "//tmp/t2", attributes={"cell_tag": 2})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
 
         write_table("//tmp/t1", {"a" : "b"})
 

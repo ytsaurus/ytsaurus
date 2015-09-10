@@ -381,7 +381,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(TAttributeDescriptor("parent_id")
         .SetPresent(node->GetParent()));
     descriptors->push_back("external");
-    descriptors->push_back(TAttributeDescriptor("cell_tag")
+    descriptors->push_back(TAttributeDescriptor("external_cell_tag")
         .SetPresent(isExternal));
     descriptors->push_back("accounting_enabled");
     descriptors->push_back("locks");
@@ -426,7 +426,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
         return true;
     }
 
-    if (key == "cell_tag" && isExternal) {
+    if (key == "external_cell_tag" && isExternal) {
         BuildYsonFluently(consumer)
             .Value(node->GetExternalCellTag());
         return true;
