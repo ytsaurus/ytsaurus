@@ -4,7 +4,7 @@ set( SRCS
   ${BASE}/cached_versioned_chunk_meta.cpp
   ${BASE}/chunk_meta_extensions.cpp
   ${BASE}/chunk_reader_base.cpp
-  ${BASE}/chunk_splits_fetcher.cpp
+  ${BASE}/chunk_slices_fetcher.cpp
   ${BASE}/chunk_writer_base.cpp
   ${BASE}/helpers.cpp
   ${BASE}/legacy_channel_reader.cpp
@@ -52,7 +52,7 @@ set( HDRS
   ${BASE}/cached_versioned_chunk_meta.h
   ${BASE}/chunk_meta_extensions.h
   ${BASE}/chunk_reader_base.h
-  ${BASE}/chunk_splits_fetcher.h
+  ${BASE}/chunk_slices_fetcher.h
   ${BASE}/chunk_writer_base.h
   ${BASE}/config.h
   ${BASE}/helpers.h

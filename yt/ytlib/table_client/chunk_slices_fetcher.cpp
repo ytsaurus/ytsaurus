@@ -1,10 +1,11 @@
 #include "stdafx.h"
 
-#include "chunk_splits_fetcher.h"
+#include "chunk_slices_fetcher.h"
 
 #include "private.h"
 
 #include <ytlib/chunk_client/chunk_replica.h>
+#include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/chunk_spec.h>
 #include <ytlib/chunk_client/config.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
@@ -34,10 +35,11 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////
 
-TChunkSplitsFetcher::TChunkSplitsFetcher(
+TChunkSlicesFetcher::TChunkSlicesFetcher(
     TFetcherConfigPtr config,
     i64 chunkSliceSize,
     const TKeyColumns& keyColumns,
+    bool sliceByKeys,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
@@ -45,36 +47,38 @@ TChunkSplitsFetcher::TChunkSplitsFetcher(
     : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, logger)
     , ChunkSliceSize_(chunkSliceSize)
     , KeyColumns_(keyColumns)
+    , SliceByKeys_(sliceByKeys)
 {
     YCHECK(ChunkSliceSize_ > 0);
 }
 
-TFuture<void> TChunkSplitsFetcher::Fetch()
+TFuture<void> TChunkSlicesFetcher::Fetch()
 {
-    LOG_DEBUG("Started fetching chunk splits (ChunkCount: %v)",
+    LOG_DEBUG("Started fetching chunk slices (ChunkCount: %v)",
         Chunks_.size());
     return TFetcherBase::Fetch();
 }
 
-const std::vector<TRefCountedChunkSpecPtr>& TChunkSplitsFetcher::GetChunkSplits() const
+const std::vector<TChunkSlicePtr>& TChunkSlicesFetcher::GetChunkSlices() const
 {
-    return ChunkSplits_;
+    return ChunkSlices_;
 }
 
-TFuture<void> TChunkSplitsFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
+TFuture<void> TChunkSlicesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
 {
-    return BIND(&TChunkSplitsFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
+    return BIND(&TChunkSlicesFetcher::DoFetchFromNode, MakeWeak(this), nodeId, Passed(std::move(chunkIndexes)))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 }
 
-void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int> chunkIndexes)
+void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int> chunkIndexes)
 {
     TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
-    auto req = proxy.GetChunkSplits();
-    req->set_min_split_size(ChunkSliceSize_);
+    auto req = proxy.GetChunkSlices();
+    req->set_slice_data_size(ChunkSliceSize_);
+    req->set_slice_by_keys(SliceByKeys_);
     NYT::ToProto(req->mutable_key_columns(), KeyColumns_);
 
     std::vector<int> requestedChunkIndexes;
@@ -89,16 +93,13 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         TOwningKey minKey, maxKey;
         YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey));
 
-        if (chunkDataSize < ChunkSliceSize_ || CompareRows(minKey, maxKey, keyColumnCount) == 0) {
-            if (!chunk->lower_limit().has_key()) {
-                ToProto(chunk->mutable_lower_limit()->mutable_key(), GetKeyPrefix(minKey.Get(), keyColumnCount));
-            }
-            if (!chunk->upper_limit().has_key()) {
-                ToProto(
-                    chunk->mutable_upper_limit()->mutable_key(),
-                    GetKeyPrefixSuccessor(maxKey.Get(), keyColumnCount));
-            }
-            ChunkSplits_.push_back(chunk);
+        if (chunkDataSize < ChunkSliceSize_
+                || (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount)) == 0) {
+            auto slice = CreateChunkSlice(
+                chunk,
+                GetKeyPrefix(minKey.Get(), keyColumnCount),
+                GetKeyPrefixSuccessor(maxKey.Get(), keyColumnCount));
+            ChunkSlices_.push_back(slice);
         } else {
             requestedChunkIndexes.push_back(index);
             auto chunkId = EncodeChunkId(*chunk, nodeId);
@@ -116,7 +117,7 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
     auto rspOrError = WaitFor(req->Invoke());
 
     if (!rspOrError.IsOK()) {
-        LOG_WARNING("Failed to get chunk splits from node (Address: %v, NodeId: %v)",
+        LOG_WARNING("Failed to get chunk slices from node (Address: %v, NodeId: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             nodeId);
 
@@ -132,26 +133,21 @@ void TChunkSplitsFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
     const auto& rsp = rspOrError.Value();
     for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
         const auto& chunk = Chunks_[requestedChunkIndexes[i]];
-        const auto& splits = rsp->splits(i);
+        const auto& slices = rsp->slices(i);
 
-        if (splits.has_error()) {
-            auto error = FromProto<TError>(splits.error());
+        if (slices.has_error()) {
+            auto error = FromProto<TError>(slices.error());
             OnChunkFailed(nodeId, requestedChunkIndexes[i], error);
             continue;
         }
 
-        LOG_TRACE("Received %v chunk splits for chunk #%v",
-            splits.chunk_specs_size(),
+        LOG_TRACE("Received %v chunk slices for chunk #%v",
+            slices.chunk_slices_size(),
             requestedChunkIndexes[i]);
 
-        for (auto& chunkSpec : splits.chunk_specs()) {
-            auto split = New<TRefCountedChunkSpec>(std::move(chunkSpec));
-            // Adjust chunk id (makes sense for erasure chunks only).
-            auto chunkId = FromProto<TChunkId>(split->chunk_id());
-            auto chunkIdWithIndex = DecodeChunkId(chunkId);
-            ToProto(split->mutable_chunk_id(), chunkIdWithIndex.Id);
-            split->set_table_index(chunk->table_index());
-            ChunkSplits_.push_back(split);
+        for (auto& protoChunkSlice : slices.chunk_slices()) {
+            auto slice = CreateChunkSlice(chunk, protoChunkSlice);
+            ChunkSlices_.push_back(slice);
         }
     }
 }

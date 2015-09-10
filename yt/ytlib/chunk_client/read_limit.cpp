@@ -138,6 +138,44 @@ void TReadLimit::Persist(NPhoenix::TPersistenceContext& context)
     Persist(context, Key_);
 }
 
+void TReadLimit::MergeLowerLimit(const NProto::TReadLimit& readLimit)
+{
+    if (readLimit.has_row_index() && (!HasRowIndex() || GetRowIndex() < readLimit.row_index())) {
+        SetRowIndex(readLimit.row_index());
+    }
+    if (readLimit.has_chunk_index() && (!HasChunkIndex() || GetChunkIndex() < readLimit.chunk_index())) {
+        SetChunkIndex(readLimit.chunk_index());
+    }
+    if (readLimit.has_offset() && (!HasOffset() || GetOffset() < readLimit.offset())) {
+        SetOffset(readLimit.offset());
+    }
+    if (readLimit.has_key()) {
+        auto key = NYT::FromProto<TOwningKey>(readLimit.key());
+        if (!HasKey() || GetKey() < key) {
+            SetKey(key);
+        }
+    }
+}
+
+void TReadLimit::MergeUpperLimit(const NProto::TReadLimit& readLimit)
+{
+    if (readLimit.has_row_index() && (!HasRowIndex() || GetRowIndex() > readLimit.row_index())) {
+        SetRowIndex(readLimit.row_index());
+    }
+    if (readLimit.has_chunk_index() && (!HasChunkIndex() || GetChunkIndex() > readLimit.chunk_index())) {
+        SetChunkIndex(readLimit.chunk_index());
+    }
+    if (readLimit.has_offset() && (!HasOffset() || GetOffset() > readLimit.offset())) {
+        SetOffset(readLimit.offset());
+    }
+    if (readLimit.has_key()) {
+        auto key = NYT::FromProto<TOwningKey>(readLimit.key());
+        if (!HasKey() || GetKey() > key) {
+            SetKey(key);
+        }
+    }
+}
+
 void TReadLimit::InitKey()
 {
     if (ReadLimit_.has_key()) {

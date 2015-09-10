@@ -92,17 +92,6 @@ i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs)
     return result;
 }
 
-TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec)
-{
-    auto result = New<TRefCountedChunkSpec>(*chunkSpec);
-    result->clear_upper_limit();
-    result->clear_lower_limit();
-
-    RemoveProtoExtension<TSizeOverrideExt>(result->mutable_chunk_meta()->mutable_extensions());
-
-    return result;
-}
-
 TChunkId EncodeChunkId(
     const TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId)
