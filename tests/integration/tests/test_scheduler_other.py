@@ -46,27 +46,6 @@ class TestSchedulerOther(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
-    def test_strategies(self):
-        self._prepare_tables()
-        self._set_banned_flag(True)
-
-        print "Fail strategy"
-        with pytest.raises(YtError):
-            op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "fail"})
-            track_op(op_id)
-
-        print "Skip strategy"
-        map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "skip"})
-        assert read("//tmp/t_out") == []
-
-        print "Wait strategy"
-        op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
-
-        self._set_banned_flag(False)
-        track_op(op_id)
-
-        assert read("//tmp/t_out") == [ {"foo" : "bar"} ]
-
     def test_revive(self):
         self._prepare_tables()
 
@@ -120,7 +99,7 @@ class TestSchedulerOther(YTEnvSetup):
 
         # Default infinite time limit.
         op1 = map(dont_track=True,
-            command="sleep 1.0; cat >/dev/null",
+            command="sleep 1.2; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out1")
 
@@ -131,11 +110,73 @@ class TestSchedulerOther(YTEnvSetup):
             out="//tmp/out2",
             spec={'time_limit': 800})
 
-        time.sleep(0.9)
-        assert get("//sys/operations/{0}/@state".format(op1)) not in ["failing", "failed"]
-        assert get("//sys/operations/{0}/@state".format(op2)) in ["failing", "failed"]
+        # we should wait as least time_limit + heartbeat_period
+        time.sleep(1.1)
+        assert get("//sys/operations/{0}/@state".format(op1)) != "failed"
+        assert get("//sys/operations/{0}/@state".format(op2)) == "failed"
 
         track_op(op1)
+
+class TestStrategies(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    def _prepare_tables(self):
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write("//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@replication_factor", 1)
+
+    def _get_table_chunk_node(self, table):
+        chunk_ids = get(table + "/@chunk_ids")
+        assert len(chunk_ids) == 1
+
+        chunk_id = chunk_ids[0]
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 1
+
+        return replicas[0]
+
+    def _set_banned_flag(self, node, value):
+        if value:
+            flag = True
+            state = "offline"
+        else:
+            flag = False
+            state = "online"
+
+        set("//sys/nodes/%s/@banned" % node, flag)
+
+        # Give it enough time to register or unregister the node
+        time.sleep(1.0)
+        assert get("//sys/nodes/%s/@state" % node) == state
+        print "Node is %s" % state
+
+    def test_strategies(self):
+        self._prepare_tables()
+
+        node = self._get_table_chunk_node("//tmp/t_in")
+        self._set_banned_flag(node, True)
+
+        print "Fail strategy"
+        with pytest.raises(YtError):
+            op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "fail"})
+            track_op(op_id)
+
+        print "Skip strategy"
+        map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "skip"})
+        assert read("//tmp/t_out") == []
+
+        print "Wait strategy"
+        op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
+
+        self._set_banned_flag(node, False)
+        track_op(op_id)
+
+        assert read("//tmp/t_out") == [ {"foo" : "bar"} ]
 
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
@@ -299,6 +340,8 @@ class TestSchedulingTags(YTEnvSetup):
 
         self.node = list(get("//sys/nodes"))[0]
         set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagA", "tagB"])
+        # Wait applying scheduling tags.
+        time.sleep(0.1)
 
     def test_failed_cases(self):
         self._prepare()
