@@ -376,11 +376,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def test_multicell_merge_teleport(self):
-        create("table", "//tmp/t1", attributes={"cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id1 = get("//tmp/t1/@chunk_ids/0")
 
-        create("table", "//tmp/t2", attributes={"cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
         write_table("//tmp/t2", [{"a": 2}])
         chunk_id2 = get("//tmp/t2/@chunk_ids/0")
 
@@ -406,7 +406,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("#" + chunk_id2 + "/@ref_counter") == 1
         
     def test_multicell_merge_multi_teleport(self):
-        create("table", "//tmp/t1", attributes={"cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id = get("//tmp/t1/@chunk_ids/0")
 

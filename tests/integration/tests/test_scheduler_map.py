@@ -1157,9 +1157,9 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def test_multicell_input_fetch(self):
-        create("table", "//tmp/t1", attributes={"cell_tag": 1})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
-        create("table", "//tmp/t2", attributes={"cell_tag": 2})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
         write_table("//tmp/t2", [{"a": 2}])
 
         create("table", "//tmp/t_in", attributes={"external": False})

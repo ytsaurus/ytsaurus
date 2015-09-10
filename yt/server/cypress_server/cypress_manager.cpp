@@ -215,13 +215,13 @@ public:
                     handler->GetObjectType());
             }
 
-            auto maybeCellTag = attributes->Find<TCellTag>("cell_tag");
-            if (maybeCellTag) {
-                cellTag = *maybeCellTag;
+            auto maybeExternalCellTag = attributes->Find<TCellTag>("external_cell_tag");
+            if (maybeExternalCellTag) {
+                cellTag = *maybeExternalCellTag;
                 if (!multicellManager->IsRegisteredSecondaryMaster(cellTag)) {
                     THROW_ERROR_EXCEPTION("Unknown cell tag %v", cellTag);
                 }
-                attributes->Remove("cell_tag");
+                attributes->Remove("external_cell_tag");
             } else {
                 cellTag = multicellManager->PickCellForNode();
                 if (cellTag == InvalidCellTag) {
