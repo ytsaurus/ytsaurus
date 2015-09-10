@@ -697,17 +697,25 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    std::vector<TGuid> keysToRemove;
+
     SchemaMap_.LoadValues(context);
     for (const auto& pair : SchemaMap_) {
         auto type = TypeFromSchemaType(TypeFromId(pair.first));
         // COMPAT(sandello): CellNodeMap (408) and CellNode (410) are now obsolete.
         if (type == 408 || type == 410) {
+            keysToRemove.push_back(pair.first);
             continue;
         }
         YCHECK(RegisteredTypes_.find(type) != RegisteredTypes_.end());
         auto& entry = TypeToEntry_[type];
         entry.SchemaObject = pair.second;
         entry.SchemaProxy = CreateSchemaProxy(Bootstrap_, entry.SchemaObject);
+    }
+
+    // COMPAT(sandello): CellNodeMap (408) and CellNode (410) are now obsolete.
+    for (const auto& key : keysToRemove) {
+        SchemaMap_.Remove(key);
     }
 
     GarbageCollector_->Load(context);
