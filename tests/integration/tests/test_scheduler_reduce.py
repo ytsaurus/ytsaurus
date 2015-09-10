@@ -257,7 +257,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert read('//tmp/out') == []
 
-    def test_duplicate_columns(self):
+    def test_duplicate_key_columns(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')
 
