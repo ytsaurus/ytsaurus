@@ -36,7 +36,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);
     DEFINE_ONE_WAY_RPC_PROXY_METHOD(NProto, UpdatePeer);
     DEFINE_RPC_PROXY_METHOD(NProto, GetTableSamples);
-    DEFINE_RPC_PROXY_METHOD(NChunkClient::NProto, GetChunkSplits);
+    DEFINE_RPC_PROXY_METHOD(NChunkClient::NProto, GetChunkSlices);
 
 };
 
