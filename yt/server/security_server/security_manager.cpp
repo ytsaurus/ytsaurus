@@ -136,7 +136,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TAccount* account, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TAccount* account) override;
+    virtual void DoZombifyObject(TAccount* account) override;
 
     virtual TAccessControlDescriptor* DoFindAcd(TAccount* account) override
     {
@@ -195,7 +195,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TUser* user, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TUser* user) override;
+    virtual void DoZombifyObject(TUser* user) override;
 
 };
 
@@ -249,7 +249,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TGroup* group, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TGroup* group) override;
+    virtual void DoZombifyObject(TGroup* group) override;
 
 };
 
@@ -1729,9 +1729,9 @@ IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
     return CreateAccountProxy(Owner_->Bootstrap_, account);
 }
 
-void TSecurityManager::TAccountTypeHandler::DoDestroyObject(TAccount* account)
+void TSecurityManager::TAccountTypeHandler::DoZombifyObject(TAccount* account)
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(account);
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(account);
     Owner_->DestroyAccount(account);
 }
 
@@ -1762,9 +1762,9 @@ IObjectProxyPtr TSecurityManager::TUserTypeHandler::DoGetProxy(
     return CreateUserProxy(Owner_->Bootstrap_, user);
 }
 
-void TSecurityManager::TUserTypeHandler::DoDestroyObject(TUser* user)
+void TSecurityManager::TUserTypeHandler::DoZombifyObject(TUser* user)
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(user);
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(user);
     Owner_->DestroyUser(user);
 }
 
@@ -1795,9 +1795,9 @@ IObjectProxyPtr TSecurityManager::TGroupTypeHandler::DoGetProxy(
     return CreateGroupProxy(Owner_->Bootstrap_, group);
 }
 
-void TSecurityManager::TGroupTypeHandler::DoDestroyObject(TGroup* group)
+void TSecurityManager::TGroupTypeHandler::DoZombifyObject(TGroup* group)
 {
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(group);
+    TObjectTypeHandlerWithMapBase::DoZombifyObject(group);
     Owner_->DestroyGroup(group);
 }
 
