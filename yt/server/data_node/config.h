@@ -202,6 +202,12 @@ public:
     //! Random delay before first heartbeat
     TDuration HeartbeatSplay;
 
+    //! Timeout for IncrementalHeartbeat requests.
+    /*!
+     *  This must not be too long to prevent node lease from expiring.
+     */
+    TDuration IncrementalHeartbeatTimeout;
+
     //! Timeout for FullHeartbeat requests.
     /*!
      *  This is usually much larger then the default RPC timeout.
@@ -310,6 +316,8 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("full_heartbeat_period", FullHeartbeatPeriod)
             .Default();
+        RegisterParameter("incremental_heartbeat_timeout", IncrementalHeartbeatTimeout)
+            .Default(TDuration::Seconds(15));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         
