@@ -29,6 +29,9 @@ struct TDriverRequest
 {
     TDriverRequest();
 
+    //! Request identifier to be logged.
+    ui64 Id = 0;
+
     //! Command name to execute.
     Stroka CommandName;
 
