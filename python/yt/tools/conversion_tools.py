@@ -1,5 +1,6 @@
 import yt.logger as logger
 import yt.wrapper as yt
+from yt.common import update
 
 def _get_compression_ratio(table, codec, yt_client):
     logger.info("Compress sample of '%s' to calculate compression ratio", table) 
@@ -23,7 +24,7 @@ def _check_codec(table, codec_name, codec_value, yt_client):
             else:
                 raise
 
-def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, yt_client=None):
+def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, yt_client=None, spec=None):
     if yt_client is None:
         yt_client = yt
 
@@ -56,7 +57,9 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
     data_size_per_job = max(1, int(desired_chunk_size / ratio))
     mode = "sorted" if yt_client.is_sorted(src) else "unordered"
     
-    spec = {"combine_chunks": "true",
+    spec = update(
+        {
+            "combine_chunks": "true",
             "force_transform": "true",
             "data_size_per_job": data_size_per_job,
             "job_io": {
@@ -65,7 +68,9 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
                     "max_row_weight": 128 * 1024 * 1024,
                     "desired_chunk_size": desired_chunk_size
                 }
-            }}
+            }
+        },
+        spec)
    
     logger.info("Merge from '%s' to '%s' (mode: '%s', spec: '%s'", src, dst, mode, spec) 
     yt_client.run_merge(src, dst, mode, spec=spec)
