@@ -664,7 +664,10 @@ public:
 
         std::vector<TExecNodePtr> result;
         for (const auto& pair : AddressToNode_) {
-            result.push_back(pair.second);
+            const auto& node = pair.second;
+            if (node->GetMasterState() == ENodeState::Online) {
+                result.push_back(pair.second);
+            }
         }
         return result;
     }
