@@ -74,7 +74,7 @@ IMPORT_COMMAND='
 import_from_mr.py
     --tables-queue '"$IMPORT_QUEUE"'
     --destination-dir '"$IMPORT_PATH"'
-    --mapreduce-binary /Berkanavt/bin/mapreduce-dev
+    --mapreduce-binary /Berkanavt/bin/mapreduce
     --mr-server redwood00.search.yandex.net
     --compression-codec gzip_best_compression
     --erasure-codec lrc_12_2_2
