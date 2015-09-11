@@ -149,6 +149,10 @@ class TDistributedHydraManagerConfig
     : public NElection::TElectionManagerConfig
 {
 public:
+    //! The maximum time interval mutations are allowed to occupy the automaton thread
+    //! before yielding control other callbacks.
+    TDuration MaxCommitBatchDuration;
+
     //! Commit RPC requests timeout (leader-to-follower commit propagation).
     TDuration CommitRpcTimeout;
 
@@ -197,6 +201,9 @@ public:
 
     TDistributedHydraManagerConfig()
     {
+        RegisterParameter("max_commit_batch_duration", MaxCommitBatchDuration)
+            .Default(TDuration::MilliSeconds(100));
+
         RegisterParameter("commit_rpc_timeout", CommitRpcTimeout)
             .Default(TDuration::Seconds(30));
 

@@ -579,7 +579,7 @@ private:
         switch (ControlState_) {
             case EPeerState::Following:
                 epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion));
+                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, epochContext, committedVersion));
                 break;
 
             case EPeerState::FollowerRecovery:
