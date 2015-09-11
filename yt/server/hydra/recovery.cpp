@@ -57,14 +57,17 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
-    THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
-
-    int snapshotId = snapshotIdOrError.Value();
-    YCHECK(snapshotId <= targetVersion.SegmentId);
-
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     YCHECK(currentVersion <= targetVersion);
+
+    int snapshotId = InvalidSegmentId;
+    if (targetVersion.SegmentId > currentVersion.SegmentId) {
+        auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
+        THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
+
+        snapshotId = snapshotIdOrError.Value();
+        YCHECK(snapshotId <= targetVersion.SegmentId);
+    }
 
     LOG_INFO("Recoverying from version %v to version %v",
         currentVersion,
