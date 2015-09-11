@@ -105,7 +105,7 @@ private:
             case EObjectType::ChunkMap:
                 return "//sys/chunks";
             case EObjectType::LostChunkMap:
-                return "///sys/lost_chunks";
+                return "//sys/lost_chunks";
             case EObjectType::LostVitalChunkMap:
                 return "//sys/lost_vital_chunks";
             case EObjectType::OverreplicatedChunkMap:
