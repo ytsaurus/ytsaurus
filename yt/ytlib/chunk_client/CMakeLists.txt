@@ -40,6 +40,7 @@ set( HDRS
   ${BASE}/chunk_reader.h
   ${BASE}/chunk_reader_base.h
   ${BASE}/chunk_replica.h
+  ${BASE}/chunk_replica-inl.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_slice.h
   ${BASE}/chunk_spec.h
