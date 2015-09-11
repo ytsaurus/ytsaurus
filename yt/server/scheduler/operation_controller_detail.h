@@ -546,6 +546,10 @@ protected:
         //! Local tasks keyed by address.
         yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
 
+        TTaskGroup()
+        {
+            MinNeededResources.set_user_slots(1);
+        }
 
         void Persist(TPersistenceContext& context);
 
