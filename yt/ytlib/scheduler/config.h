@@ -674,8 +674,8 @@ public:
         RegisterValidator([&] () {
             auto throwError = [] (NVersionedTableClient::EControlAttribute attribute, const Stroka& jobType) {
                 THROW_ERROR_EXCEPTION(
-                    "%Qlv contol attribute is not supported by %v jobs in map-reduce operation", 
-                    attribute, 
+                    "%Qlv contol attribute is not supported by %v jobs in map-reduce operation",
+                    attribute,
                     jobType);
             };
             auto validateControlAttributes = [&] (const NVersionedTableClient::TControlAttributesConfigPtr& attributes, const Stroka& jobType) {
@@ -780,6 +780,12 @@ DEFINE_ENUM(ESchedulingMode,
     (FairShare)
 );
 
+DEFINE_ENUM(EFifoSortParameter,
+    (Weight)
+    (StartTime)
+    (PendingJobCount)
+);
+
 class TResourceLimitsConfig
     : public NYTree::TYsonSerializable
 {
@@ -871,6 +877,8 @@ public:
 
     TNullable<int> MaxRunningOperations;
 
+    std::vector<EFifoSortParameter> FifoSortParameters;
+
     TPoolConfig()
     {
         RegisterParameter("mode", Mode)
@@ -878,6 +886,18 @@ public:
 
         RegisterParameter("max_running_operations", MaxRunningOperations)
             .Default();
+
+        RegisterParameter("fifo_sort_parameters", FifoSortParameters)
+            .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime});
+    }
+
+    virtual void OnLoaded() override
+    {
+        TSchedulableConfig::OnLoaded();
+
+        if (FifoSortParameters.empty()) {
+            THROW_ERROR_EXCEPTION("Fifo sort parameters must be non-empty");
+        }
     }
 };
 
