@@ -153,7 +153,7 @@ class Task(object):
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
                  start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
-                 destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None):
+                 destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -177,6 +177,8 @@ class Task(object):
         self.pool = pool
         self.kiwi_user = kiwi_user
         self.kwworm_options = kwworm_options
+        self.copy_spec = copy_spec
+        self.postprocess_spec = postprocess_spec
 
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec
@@ -184,6 +186,7 @@ class Task(object):
 
         # Special field to store meta-information for web-interface
         self.meta = meta
+
 
     def get_queue_id(self):
         return self.source_cluster, self.destination_cluster
@@ -840,14 +843,19 @@ class Application(object):
             self._precheck(task)
 
             title = "Supervised by transfer task " + task.id
-            task_spec = {
+
+            common_spec = {
                 "title": title,
                 "transfer_manager": {
                     "task_id": task.id,
                     "backend_tag": task.backend_tag
-                },
-                "pool": task.pool
+                }
             }
+
+            copy_spec = update(get_value(task.copy_spec, {}), common_spec)
+            copy_spec["pool"] = task.pool
+
+            postprocess_spec = update(get_value(task.postprocess_spec, {}), common_spec)
 
             source_client = task.get_source_client(self._clusters)
             source_client.message_queue = message_queue
@@ -872,7 +880,8 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
-                        spec_template=task_spec)
+                        copy_spec_template=copy_spec,
+                        postprocess_spec_template=postprocess_spec)
                 else:  # native
                     network_name = "fastbone" if fastbone else "default"
                     network_name = parameters.get("network_name", network_name)
@@ -882,7 +891,8 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         network_name=network_name,
-                        spec_template=task_spec)
+                        copy_spec_template=copy_spec,
+                        postprocess_spec_template=postprocess_spec)
             elif source_client._type == "yt" and destination_client._type == "yamr":
                 logger.info("Running YT -> YAMR remote copy")
                 if task.copy_method == "push":
@@ -892,7 +902,7 @@ class Application(object):
                         task.source_table,
                         task.destination_table,
                         fastbone=fastbone,
-                        spec_template=task_spec)
+                        copy_spec_template=copy_spec)
                 else:
                     copy_yt_to_yamr_pull(
                         source_client,
@@ -912,7 +922,8 @@ class Application(object):
                     compression_codec=task.destination_compression_codec,
                     erasure_codec=task.destination_erasure_codec,
                     force_sort=task.destination_force_sort,
-                    spec_template=task_spec)
+                    copy_spec_template=copy_spec,
+                    postprocess_spec_template=postprocess_spec)
             elif source_client._type == "yamr" and destination_client._type == "yamr":
                 destination_client.remote_copy(
                     source_client.server,
@@ -922,7 +933,7 @@ class Application(object):
             elif source_client._type == "yt" and destination_client._type == "kiwi":
                 dc_name = source_client._parameters.get("dc_name")
                 if dc_name is not None:
-                    task_spec["scheduling_tag"] = dc_name
+                    copy_spec["scheduling_tag"] = dc_name
                 copy_yt_to_kiwi(
                     source_client,
                     destination_client,
@@ -931,14 +942,14 @@ class Application(object):
                     fastbone=fastbone,
                     kiwi_user=task.kiwi_user,
                     kwworm_options=task.kwworm_options,
-                    spec_template=task_spec)
+                    copy_spec_template=copy_spec)
             elif source_client._type == "hive" and destination_client._type == "yt":
                 copy_hive_to_yt(
                     source_client,
                     destination_client,
                     task.source_table,
                     task.destination_table,
-                    spec_template=task_spec)
+                    copy_spec_template=copy_spec)
             else:
                 raise Exception("Incorrect cluster types: {} source and {} destination".format(
                                 source_client._type,

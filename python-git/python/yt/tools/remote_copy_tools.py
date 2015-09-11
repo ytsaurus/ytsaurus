@@ -1,5 +1,6 @@
 from yt.wrapper.common import generate_uuid, bool_to_string, MB
 from yt.tools.conversion_tools import convert_to_erasure
+from yt.common import get_value
 import yt.yson as yson
 import yt.logger as logger
 import yt.wrapper as yt
@@ -171,16 +172,15 @@ def copy_user_attributes(source_client, destination_client, source_table, destin
     for attribute in source_attributes.get("user_attribute_keys", []):
         destination_client.set_attribute(destination_table, attribute, source_attributes[attribute])
 
-def run_erasure_merge(source_client, destination_client, source_table, destination_table):
+def run_erasure_merge(source_client, destination_client, source_table, destination_table, spec):
     compression_codec = source_client.get_attribute(source_table, "compression_codec")
     erasure_codec = source_client.get_attribute(source_table, "erasure_codec")
 
     convert_to_erasure(destination_table, yt_client=destination_client, erasure_codec=erasure_codec,
-                       compression_codec=compression_codec)
+                       compression_codec=compression_codec, spec=spec)
 
-def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spec_template=None):
-    if spec_template is None:
-        spec_template = {}
+def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, copy_spec_template=None, postprocess_spec_template=None):
+    copy_spec_template = get_value(copy_spec_template, {})
 
     compressed_data_size = source_client.get_attribute(src, "compressed_data_size")
     chunk_count = source_client.get_attribute(src, "chunk_count")
@@ -188,7 +188,9 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
     if compressed_data_size / chunk_count < 10 * MB and chunk_count > 100:
         if check_permission(source_client, "write", src):
             try:
-                merge_spec = deepcopy(spec_template)
+                # TODO(ignat): introduce preprocess spec template
+                merge_spec = deepcopy(copy_spec_template)
+                del merge_spec["pool"]
                 merge_spec["combine_chunks"] = bool_to_string(True)
                 source_client.run_merge(src, src, spec=merge_spec)
             except yt.YtError as error:
@@ -204,15 +206,12 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, spe
             dst,
             cluster_name=source_client._name,
             network_name=network_name,
-            spec=spec_template)
+            spec=copy_spec_template)
 
-        run_erasure_merge(source_client, destination_client, src, dst)
+        run_erasure_merge(source_client, destination_client, src, dst, spec=postprocess_spec_template)
         copy_user_attributes(source_client, destination_client, src, dst)
 
-def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, spec_template=None):
-    if spec_template is None:
-        spec_template = {}
-
+def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None):
     tmp_dir = tempfile.mkdtemp()
 
     destination_client.create("map_node", os.path.dirname(dst), recursive=True, ignore_existing=True)
@@ -235,7 +234,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
             temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
             destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
 
-            spec = deepcopy(spec_template)
+            spec = deepcopy(get_value(copy_spec_template, {}))
             spec["data_size_per_job"] = 1
             _set_mapper_settings_for_read_from_yt(spec)
             spec["job_io"] = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
@@ -255,14 +254,14 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            run_erasure_merge(source_client, destination_client, src, dst)
+            run_erasure_merge(source_client, destination_client, src, dst, spec=postprocess_spec_template)
             copy_user_attributes(source_client, destination_client, src, dst)
 
     finally:
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_template=None, sort_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -293,19 +292,13 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, spec_templa
 
     job_io_config = {"table_writer": {"max_row_weight": 128 * 1024 * 1024}}
 
-    if spec_template is None:
-        spec_template = {}
-    spec = deepcopy(spec_template)
+    spec = deepcopy(get_value(copy_spec_template, {}))
     spec["data_size_per_job"] = 1
     spec["job_io"] = job_io_config
 
-    if sort_spec_template is None:
-        sort_spec = deepcopy(spec)
-        del sort_spec["pool"]
-    else:
-        sort_spec = sort_spec_template
-    sort_spec["sort_job_io"] = job_io_config
-    sort_spec["merge_job_io"] = job_io_config
+    postprocess_spec = deepcopy(get_value(postprocess_spec_template, {}))
+    postprocess_spec["sort_job_io"] = job_io_config
+    postprocess_spec["merge_job_io"] = job_io_config
 
     command = """\
 set -ux
@@ -420,15 +413,13 @@ while True:
     finally:
         shutil.rmtree(tmp_dir)
 
-def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_template=None):
+def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, copy_spec_template=None):
     if not yamr_client.is_empty(dst):
         yamr_client.drop(dst)
 
     record_count = yt_client.records_count(src)
 
-    if spec_template is None:
-        spec_template = {}
-    spec = deepcopy(spec_template)
+    spec = deepcopy(get_value(copy_spec_template, {}))
     spec["data_size_per_job"] = 2 * 1024 * yt.common.MB
 
     write_command = yamr_client.get_write_command(dst, fastbone=fastbone)
@@ -450,7 +441,7 @@ def copy_yt_to_yamr_push(yt_client, yamr_client, src, dst, fastbone, spec_templa
         logger.error(error)
         raise IncorrectRowCount(error)
 
-def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, spec_template=None, write_to_table=False, protobin=True, kwworm_options=None):
+def _copy_to_kiwi(kiwi_client, kiwi_transmittor, src, read_command, ranges, kiwi_user, files=None, copy_spec_template=None, write_to_table=False, protobin=True, kwworm_options=None):
     extract_value_script_to_table = """\
 import sys
 import struct
@@ -495,9 +486,7 @@ while True:
     output_table = kiwi_transmittor.create_temp_table()
     kiwi_transmittor.set(output_table + "/@replication_factor", 1)
 
-    if spec_template is None:
-        spec_template = {}
-    spec = deepcopy(spec_template)
+    spec = deepcopy(get_value(copy_spec_template, {}))
     spec["data_size_per_job"] = 1
     spec["locality_timeout"] = 0
     spec["pool"] = "transfer_kiwi"
@@ -554,10 +543,7 @@ def copy_yt_to_kiwi(yt_client, kiwi_client, kiwi_transmittor, src, **kwargs):
 def copy_yamr_to_kiwi():
     pass
 
-def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spec_template=None):
-    if spec_template is None:
-        spec_template = {}
-
+def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, copy_spec_template=None):
     source = source_table.split(".", 1)
     read_config, files = hive_client.get_table_config_and_files(*source)
     read_command = hive_client.get_read_command(read_config)
@@ -565,7 +551,7 @@ def copy_hive_to_yt(hive_client, yt_client, source_table, destination_table, spe
     temp_table = yt_client.create_temp_table()
     yt_client.write_table(temp_table, [{"file": file} for file in files], raw=False, format=yt.JsonFormat())
 
-    spec = deepcopy(spec_template)
+    spec = deepcopy(get_value(copy_spec_template, {}))
     spec["data_size_per_job"] = 1
     _set_mapper_settings_for_read_from_yt(spec)
     yt_client.run_map(

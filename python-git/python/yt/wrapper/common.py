@@ -1,6 +1,6 @@
 """Some common useful misc"""
 
-from yt.common import require, flatten, update, which, YtError, update_from_env, unlist
+from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value
 import yt.yson as yson
 
 import sys
@@ -79,12 +79,6 @@ def filter_dict(predicate, dictionary):
 
 def merge_dicts(*dicts):
     return dict(chain(*[d.iteritems() for d in dicts]))
-
-def get_value(value, default):
-    if value is None:
-        return default
-    else:
-        return value
 
 def chunk_iter_lines(lines, chunk_size):
     """ Unite lines into large chunks """
