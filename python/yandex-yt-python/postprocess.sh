@@ -35,4 +35,6 @@ for name in yt mapreduce-yt; do
 done
 
 # Create ticket in coductor
-curl --verbose --show-error -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable"
+curl --verbose --show-error \
+    -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" \
+    "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable&ticket\[comment\]=$(dpkg-parsechangelog)"
