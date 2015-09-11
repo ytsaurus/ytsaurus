@@ -93,6 +93,7 @@ private:
         attributes->push_back(TAttributeInfo("register_time", node));
         attributes->push_back(TAttributeInfo("transaction_id", node && node->GetTransaction()));
         attributes->push_back(TAttributeInfo("statistics", node));
+        attributes->push_back(TAttributeInfo("io_weight", node));
         attributes->push_back(TAttributeInfo("addresses", node));
         attributes->push_back(TAttributeInfo("alerts", node));
         attributes->push_back(TAttributeInfo("stored_replica_count", node));
@@ -162,6 +163,12 @@ private:
                             })
                         .EndMap()
                     .EndMap();
+                return true;
+            }
+
+            if (key == "io_weight") {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetIOWeight());
                 return true;
             }
 

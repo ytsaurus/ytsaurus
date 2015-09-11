@@ -72,7 +72,7 @@ private:
     TFillFactorToNodeMap FillFactorToNode_;
 
 
-    static int GetLoadFactor(TNode* node);
+    static double GetLoadFactor(TNode* node);
 
     void InsertToFillFactorMap(TNode* node);
     void RemoveFromFillFactorMap(TNode* node);

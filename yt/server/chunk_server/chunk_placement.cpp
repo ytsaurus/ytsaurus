@@ -166,6 +166,16 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
 {
     node->ResetSessionHints();
 
+    // Recompute IO weight.
+    // Currently its just the number of non-full locations.
+    double ioWeight = 0.0;
+    for (const auto& location : node->Statistics().locations()) {
+        if (!location.full()) {
+            ioWeight += 1.0;
+        }
+    }
+    node->SetIOWeight(ioWeight);
+
     OnNodeUnregistered(node);
     OnNodeRegistered(node);
 }
@@ -199,9 +209,10 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     return targetNodes;
 }
 
-int TChunkPlacement::GetLoadFactor(TNode* node)
+double TChunkPlacement::GetLoadFactor(TNode* node)
 {
-    return node->GetTotalSessionCount();
+    // NB: Avoid division by zero.
+    return static_cast<double>(node->GetTotalSessionCount()) / std::max(node->GetIOWeight(), 0.000000001);
 }
 
 void TChunkPlacement::InsertToFillFactorMap(TNode* node)
@@ -225,7 +236,7 @@ void TChunkPlacement::InsertToLoadRankList(TNode* node)
 {
     RemoveFromLoadRankList(node);
 
-    int loadFactor = GetLoadFactor(node);
+    double loadFactor = GetLoadFactor(node);
     int i = 0;
     while (i < LoadRankToNode_.size() && GetLoadFactor(LoadRankToNode_[i]) < loadFactor) {
         ++i;

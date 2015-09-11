@@ -48,6 +48,7 @@ public:
     // Transient properties.
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
     DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
+    DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
