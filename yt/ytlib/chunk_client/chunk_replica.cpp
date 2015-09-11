@@ -17,47 +17,17 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplica::TChunkReplica()
-    : Value(InvalidNodeId | (0 << 28))
-{ }
-
-TChunkReplica::TChunkReplica(ui32 value)
-    : Value(value)
-{ }
-
-TChunkReplica::TChunkReplica(int nodeId, int index)
-    : Value(nodeId | (index << 28))
-{
-    YASSERT(nodeId >= 0 && nodeId <= MaxNodeId);
-    YASSERT(index >= 0 && index < ChunkReplicaIndexBound);
-}
-
-int TChunkReplica::GetNodeId() const
-{
-    return Value & 0x0fffffff;
-}
-
-int TChunkReplica::GetIndex() const
-{
-    return Value >> 28;
-}
-
-void ToProto(ui32* value, TChunkReplica replica)
-{
-    *value = replica.Value;
-}
-
-void FromProto(TChunkReplica* replica, ui32 value)
-{
-    replica->Value = value;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 Stroka ToString(TChunkReplica replica)
 {
     return Format("%v/%v", replica.GetNodeId(), replica.GetIndex());
 }
+
+Stroka ToString(const TChunkIdWithIndex& id)
+{
+    return Format("%v/%v", id.Id, id.Index);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr nodeDirectory)
     : NodeDirectory_(std::move(nodeDirectory))
@@ -67,33 +37,6 @@ void TChunkReplicaAddressFormatter::operator () (TStringBuilder* builder, TChunk
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
     builder->AppendFormat("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkIdWithIndex::TChunkIdWithIndex()
-    : Index(0)
-{ }
-
-TChunkIdWithIndex::TChunkIdWithIndex(const TChunkId& id, int index)
-    : Id(id)
-    , Index(index)
-{ }
-
-bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
-{
-    return lhs.Id == rhs.Id && lhs.Index == rhs.Index;
-}
-
-bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
-{
-
-    return !(lhs == rhs);
-}
-
-Stroka ToString(const TChunkIdWithIndex& id)
-{
-    return Format("%v/%v", id.Id, id.Index);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
