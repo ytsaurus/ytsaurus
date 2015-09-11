@@ -28,6 +28,10 @@
 
 #include <ytlib/hive/public.h>
 
+#include <ytlib/chunk_client/public.h>
+
+#include <ytlib/object_client/public.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -72,8 +76,8 @@ struct IOperationHost
      */
     virtual IInvokerPtr GetBackgroundInvoker() = 0;
 
-    //! Returns the throttler to limit #LocateChunk requests from chunk scraper.
-    virtual NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() = 0;
+    //! Returns the manager of the throttlers to limit #LocateChunk requests from chunk scraper.
+    virtual NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const = 0;
 
     //! Returns the list of currently active exec nodes.
     /*!

@@ -27,6 +27,8 @@
 #include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
 
+#include <ytlib/chunk_client/throttler_manager.h>
+
 #include <ytlib/hydra/peer_channel.h>
 #include <ytlib/hydra/config.h>
 
@@ -66,6 +68,7 @@ using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;
 using namespace NObjectClient;
+using namespace NChunkClient;
 using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
@@ -141,7 +144,10 @@ void TBootstrap::DoRun()
 
     Scheduler_ = New<TScheduler>(Config_->Scheduler, this);
 
-    ChunkLocationThrottler_ = CreateLimitedThrottler(Config_->Scheduler->ChunkLocationThrottler);
+    ChunkLocationThrottlerManager_ = New<TThrottlerManager>(
+            Config_->Scheduler->ChunkLocationThrottler,
+            SchedulerLogger,
+            SchedulerProfiler);
 
     ResponseKeeper_ = New<TResponseKeeper>(
         Config_->ResponseKeeper,
@@ -236,9 +242,9 @@ TResponseKeeperPtr TBootstrap::GetResponseKeeper() const
     return ResponseKeeper_;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetChunkLocationThrottler() const
+TThrottlerManagerPtr TBootstrap::GetChunkLocationThrottlerManager() const
 {
-    return ChunkLocationThrottler_;
+    return ChunkLocationThrottlerManager_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

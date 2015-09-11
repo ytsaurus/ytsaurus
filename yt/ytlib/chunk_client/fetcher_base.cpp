@@ -19,6 +19,7 @@ namespace NChunkClient {
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,16 +30,16 @@ public:
     TScrapeChunksSession(
         const TChunkScraperConfigPtr config,
         const IInvokerPtr invoker,
-        const NConcurrency::IThroughputThrottlerPtr throttler,
-        NRpc::IChannelPtr masterChannel,
+        TThrottlerManagerPtr throttlerManager,
+        NApi::IClientPtr masterClient,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger = ChunkClientLogger)
         : Scraper_(
             New<TChunkScraper>(
                 config,
                 invoker,
-                throttler,
-                masterChannel,
+                throttlerManager,
+                masterClient,
                 nodeDirectory,
                 yhash_set<TChunkId>(),
                 BIND(&TScrapeChunksSession::OnChunkLocated, MakeWeak(this)),
@@ -117,16 +118,16 @@ DEFINE_REFCOUNTED_TYPE(TScrapeChunksSession)
 TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
-    const NConcurrency::IThroughputThrottlerPtr throttler,
-    NRpc::IChannelPtr masterChannel,
+    TThrottlerManagerPtr throttlerManager,
+    NApi::IClientPtr masterClient,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger)
 {
     auto scrapeChunksSession = New<TScrapeChunksSession>(
         config,
         invoker,
-        throttler,
-        masterChannel,
+        throttlerManager,
+        masterClient,
         nodeDirectory,
         logger);
     return BIND(&TScrapeChunksSession::ScrapeChunks, scrapeChunksSession)
