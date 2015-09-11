@@ -148,3 +148,8 @@ def update_from_env(variables):
 
         variables[key] = var_type(value)
 
+def get_value(value, default):
+    if value is None:
+        return default
+    else:
+        return value
