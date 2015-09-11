@@ -63,6 +63,7 @@ void TNode::Init()
 {
     VisitMark_ = 0;
     LoadRank_ = -1;
+    IOWeight_ = 0.0;
     Rack_ = nullptr;
     Transaction_ = nullptr;
     Decommissioned_ = Config_->Decommissioned;
