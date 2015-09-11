@@ -676,9 +676,9 @@ public:
         return BackgroundQueue_->GetInvoker();
     }
 
-    virtual IThroughputThrottlerPtr GetChunkLocationThrottler() override
+    virtual TThrottlerManagerPtr GetChunkLocationThrottlerManager() const override
     {
-        return Bootstrap_->GetChunkLocationThrottler();
+        return Bootstrap_->GetChunkLocationThrottlerManager();
     }
 
     virtual std::vector<TExecNodePtr> GetExecNodes() const override
@@ -1685,7 +1685,7 @@ private:
         auto jobFailed = job->GetState() == EJobState::Failed;
         const auto& schedulerResultExt = job->Result()->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id() 
+        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id()
             ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
             : NullChunkId;
 

@@ -12,7 +12,11 @@
 
 #include <ytlib/api/public.h>
 
+#include <ytlib/chunk_client/public.h>
+
 #include <ytlib/hive/public.h>
+
+#include <ytlib/object_client/public.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -44,7 +48,7 @@ public:
     NScheduler::TSchedulerPtr GetScheduler() const;
     NHive::TClusterDirectoryPtr GetClusterDirectory() const;
     NRpc::TResponseKeeperPtr GetResponseKeeper() const;
-    NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() const;
+    NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const;
 
     void Run();
 
@@ -61,7 +65,7 @@ private:
     NScheduler::TSchedulerPtr Scheduler_;
     NHive::TClusterDirectoryPtr ClusterDirectory_;
     NRpc::TResponseKeeperPtr ResponseKeeper_;
-    NConcurrency::IThroughputThrottlerPtr ChunkLocationThrottler_;
+    NChunkClient::TThrottlerManagerPtr ChunkLocationThrottlerManager_;
 
     void DoRun();
 };

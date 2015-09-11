@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, skip_if_multicell
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import time
@@ -124,8 +124,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @skip_if_multicell
-    def test_chunk_scratcher(self):
+    def test_chunk_scraper(self):
         def set_banned_flag(value):
             if value:
                 flag = True

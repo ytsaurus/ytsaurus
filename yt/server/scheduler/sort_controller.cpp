@@ -1693,8 +1693,8 @@ private:
                 scraperCallback = CreateScrapeChunksSessionCallback(
                     Config,
                     Host->GetBackgroundInvoker(),
-                    Host->GetChunkLocationThrottler(),
-                    AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
+                    Host->GetChunkLocationThrottlerManager(),
+                    AuthenticatedInputMasterClient,
                     InputNodeDirectory,
                     Logger);
             }

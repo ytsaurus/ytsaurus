@@ -2,7 +2,9 @@
 
 #include "public.h"
 
+#include <ytlib/api/public.h>
 #include <ytlib/node_tracker_client/public.h>
+#include <ytlib/object_client/public.h>
 
 #include <core/misc/guid.h>
 #include <core/misc/error.h>
@@ -21,8 +23,8 @@ typedef TCallback<TFuture<void>(yhash_set<TRefCountedChunkSpecPtr> chunkSpecs)> 
 TScrapeChunksCallback CreateScrapeChunksSessionCallback(
     const TChunkScraperConfigPtr config,
     const IInvokerPtr invoker,
-    const NConcurrency::IThroughputThrottlerPtr throttler,
-    NRpc::IChannelPtr masterChannel,
+    TThrottlerManagerPtr throttlerManager,
+    NApi::IClientPtr masterClient,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const NLogging::TLogger& logger);
 

@@ -1283,8 +1283,8 @@ void TOperationControllerBase::InitInputChunkScraper()
     InputChunkScraper = New<TChunkScraper>(
         Config,
         CancelableBackgroundInvoker,
-        Host->GetChunkLocationThrottler(),
-        AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader),
+        Host->GetChunkLocationThrottlerManager(),
+        AuthenticatedInputMasterClient,
         InputNodeDirectory,
         std::move(chunkIds),
         BIND(&TThis::OnInputChunkLocated, MakeWeak(this))
