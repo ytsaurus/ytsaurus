@@ -58,8 +58,9 @@ private:
         auto scheduler = Bootstrap->GetScheduler();
         auto node = scheduler->GetOrRegisterNode(addresses);
         if (node->GetMasterState() != ENodeState::Online) {
-            // NB: Resource limits should be considered even if node is offline to avoid incorrect limits after node bocomes online.
-            // Should we consider resource usage here?
+            // NB: Resource limits should be considered even if node is offline.
+            // It is necessary to avoid incorrect total limits when node becomes online.
+            // XXX(ignat): Should we consider resource usage here?
             node->ResourceLimits() = context->Request().resource_limits();
             THROW_ERROR_EXCEPTION("Node is not online");
         }
