@@ -197,6 +197,7 @@ private:
     std::atomic<TVersion> LoggedVersion_;
     std::atomic<TVersion> AutomatonVersion_;
     TVersion CommittedVersion_;
+    bool ApplyPendingMutationsScheduled_ = false;
 
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
