@@ -55,7 +55,8 @@ private:
         descriptors->push_back("committed_resource_usage");
         descriptors->push_back(TAttributeDescriptor("multicell_statistics")
             .SetOpaque(true));
-        descriptors->push_back("resource_limits");
+        descriptors->push_back(TAttributeDescriptor("resource_limits")
+            .SetReplicated(true));
         descriptors->push_back("violated_resource_limits");
     }
 
