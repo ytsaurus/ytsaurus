@@ -1,23 +1,22 @@
-set( BASE ${CMAKE_SOURCE_DIR}/yt/python )
 set( SRCS
-  ${BASE}/buffered_stream.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/descriptor.cpp
-  ${BASE}/response.cpp
-  ${BASE}/serialize.cpp
-  ${BASE}/shutdown.cpp
-  ${BASE}/stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/descriptor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/response.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/stream.cpp
 )
 
 set( HDRS
-  ${BASE}/buffered_stream.h
-  ${BASE}/helpers.h
-  ${BASE}/descriptor.h
-  ${BASE}/public.h
-  ${BASE}/response.h
-  ${BASE}/serialize.h
-  ${BASE}/shutdown.h
-  ${BASE}/stream.h
+  ${CMAKE_CURRENT_LIST_DIR}/buffered_stream.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/descriptor.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/response.h
+  ${CMAKE_CURRENT_LIST_DIR}/serialize.h
+  ${CMAKE_CURRENT_LIST_DIR}/shutdown.h
+  ${CMAKE_CURRENT_LIST_DIR}/stream.h
 )
 
 include_directories(
@@ -25,12 +24,12 @@ include_directories(
 )
 
 add_library( yt-driver-python SHARED
-  ${BASE}/driver.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/driver.cpp
   ${SRCS}
 )
 
 add_library( yt-yson-python SHARED
-  ${BASE}/yson.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
   ${SRCS}
 )
 

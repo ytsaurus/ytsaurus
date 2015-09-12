@@ -1,105 +1,104 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/unittests )
 set( SRCS
-  ${BASE}/any_ut.cpp
-  ${BASE}/async_rw_lock_ut.cpp
-  ${BASE}/attributes_ut.cpp
-  ${BASE}/bind_ut.cpp
-  ${BASE}/bus_ut.cpp
-  ${BASE}/callback_ut.cpp
-  ${BASE}/cgroup_ut.cpp
-  ${BASE}/checkpointable_stream_ut.cpp
-  ${BASE}/chunk_tree_balancer_ut.cpp
-  ${BASE}/chunk_tree_traversing_ut.cpp
-  ${BASE}/compression_ut.cpp
-  ${BASE}/coroutines_ut.cpp
-  ${BASE}/dsv_parser_ut.cpp
-  ${BASE}/dsv_writer_ut.cpp
-  ${BASE}/dynamic_memory_store_ut.cpp
-  ${BASE}/election_ut.cpp
-  ${BASE}/enum_ut.cpp
-  ${BASE}/erasure_ut.cpp
-  ${BASE}/file_changelog_ut.cpp
-  ${BASE}/fls_ut.cpp
-  ${BASE}/format_ut.cpp
-  ${BASE}/framework.cpp
-  ${BASE}/future_ut.cpp
-  ${BASE}/guid_ut.cpp
-  ${BASE}/hash_filter_ut.cpp
-  ${BASE}/heap_ut.cpp
-  ${BASE}/intrusive_ptr_ut.cpp
-  ${BASE}/json_parser_ut.cpp
-  ${BASE}/json_writer_ut.cpp
-  ${BASE}/lexer_ut.cpp
-  ${BASE}/lifecycle_ut.cpp
-  ${BASE}/logging_ut.cpp
-  ${BASE}/main.cpp
-  ${BASE}/memory_store_pt.cpp
-  ${BASE}/mpl_ut.cpp
-  ${BASE}/network_address_ut.cpp
-  ${BASE}/nonblocking_queue_ut.cpp
-  ${BASE}/nullable_ut.cpp
-  ${BASE}/pattern_formatter_ut.cpp
-  ${BASE}/phoenix_ut.cpp
-  ${BASE}/pipes_ut.cpp
-  ${BASE}/preprocessor_ut.cpp
-  ${BASE}/process_ut.cpp
-  ${BASE}/query_client_ut.cpp
-  ${BASE}/random_ut.cpp
-  ${BASE}/read_limit_ut.cpp
-  ${BASE}/ref_counted_tracker_ut.cpp
-  ${BASE}/row_merger_ut.cpp
-  ${BASE}/row_ut.cpp
-  ${BASE}/rpc_ut.cpp
-  ${BASE}/scheduler_ut.cpp
-  ${BASE}/schema_ut.cpp
-  ${BASE}/schemaful_dsv_parser_ut.cpp
-  ${BASE}/schemaful_dsv_writer_ut.cpp
-  ${BASE}/schemaless_blocks_ut.cpp
-  ${BASE}/schemaless_chunks_ut.cpp
-  ${BASE}/serialize_ut.cpp
-  ${BASE}/skip_list_ut.cpp
-  ${BASE}/small_string_ut.cpp
-  ${BASE}/small_vector_ut.cpp
-  ${BASE}/statistics_ut.cpp
-  ${BASE}/store_manager_ut.cpp
-  ${BASE}/stracer_ut.cpp
-  ${BASE}/string_ut.cpp
-  ${BASE}/subprocess_ut.cpp
-  ${BASE}/sync_file_changelog_ut.cpp
-  ${BASE}/thread_affinity_ut.cpp
-  ${BASE}/tools_ut.cpp
-  ${BASE}/tree_builder_ut.cpp
-  ${BASE}/url_ut.cpp
-  ${BASE}/variant_ut.cpp
-  ${BASE}/varint_ut.cpp
-  ${BASE}/versioned_blocks_ut.cpp
-  ${BASE}/versioned_chunks_ut.cpp
-  ${BASE}/weak_ptr_ut.cpp
-  ${BASE}/yamr_parser_ut.cpp
-  ${BASE}/yamr_writer_ut.cpp
-  ${BASE}/yamred_dsv_parser_ut.cpp
-  ${BASE}/yamred_dsv_writer_ut.cpp
-  ${BASE}/ypath_tokenizer_ut.cpp
-  ${BASE}/ypath_ut.cpp
-  ${BASE}/yson_parser_ut.cpp
-  ${BASE}/yson_serializable_ut.cpp
-  ${BASE}/yson_ut.cpp
-  ${BASE}/yson_writer_ut.cpp
-  ${BASE}/ytree_fluent_ut.cpp
-  ${BASE}/yverify_ut.cpp
-  ${BASE}/zigzag_ut.cpp
-  ${BASE}/persistent_queue_ut.cpp
-  ${BASE}/hyperloglog_ut.cpp
-  ${BASE}/udf/invalid_ir.h
+  ${CMAKE_CURRENT_LIST_DIR}/any_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/async_rw_lock_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/attributes_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bind_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/compression_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/coroutines_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dsv_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dsv_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/election_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/enum_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/erasure_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_changelog_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/fls_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/format_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/framework.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/future_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/guid_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hash_filter_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/heap_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lexer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lifecycle_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/logging_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/memory_store_pt.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/mpl_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/network_address_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/nonblocking_queue_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/nullable_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pattern_formatter_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/phoenix_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pipes_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_client_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/row_merger_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/row_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schema_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaless_blocks_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schemaless_chunks_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/serialize_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/skip_list_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/small_vector_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/statistics_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/store_manager_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/stracer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/string_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/versioned_blocks_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/versioned_chunks_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ypath_tokenizer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ypath_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson_serializable_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yson_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/persistent_queue_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
 )
 
-protoc( ${BASE}/rpc_ut.proto SRCS )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto SRCS )
 
-udf_bc( ${BASE}/udf/sum_udf2.c SRCS )
-udf_bc( ${BASE}/udf/malloc_udf.c SRCS )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sum_udf2.c SRCS )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/malloc_udf.c SRCS )
 udf_bc(
-  ${BASE}/udf/test_udfs.c
+  ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs.c
   SRCS
   SYMBOLS
     seventyfive
@@ -116,7 +115,7 @@ udf_bc(
     avg_udaf_finalize
 )
 udf_o(
-  ${BASE}/udf/test_udfs_o.c
+  ${CMAKE_CURRENT_LIST_DIR}/udf/test_udfs_o.c
   SRCS
   SYMBOLS
     abs_udf

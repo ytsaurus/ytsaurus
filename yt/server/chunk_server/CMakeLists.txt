@@ -1,58 +1,57 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/chunk_server )
 set( SRCS
-  ${BASE}/chunk.cpp
-  ${BASE}/chunk_list.cpp
-  ${BASE}/chunk_list_proxy.cpp
-  ${BASE}/chunk_manager.cpp
-  ${BASE}/chunk_owner_base.cpp
-  ${BASE}/chunk_owner_node_proxy.cpp
-  ${BASE}/chunk_placement.cpp
-  ${BASE}/chunk_proxy.cpp
-  ${BASE}/chunk_replica.cpp
-  ${BASE}/chunk_replicator.cpp
-  ${BASE}/chunk_sealer.cpp
-  ${BASE}/chunk_service.cpp
-  ${BASE}/chunk_tree.cpp
-  ${BASE}/chunk_tree_balancer.cpp
-  ${BASE}/chunk_tree_statistics.cpp
-  ${BASE}/chunk_tree_traversing.cpp
-  ${BASE}/cypress_integration.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/job.cpp
-  ${BASE}/job_tracker_service.cpp
-  ${BASE}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_list.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_list_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_base.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_placement.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_replica.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_replicator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_sealer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
 )
 
 set( HDRS
-  ${BASE}/chunk.h
-  ${BASE}/chunk-inl.h
-  ${BASE}/chunk_list.h
-  ${BASE}/chunk_list_proxy.h
-  ${BASE}/chunk_manager.h
-  ${BASE}/chunk_owner_base.h
-  ${BASE}/chunk_owner_node_proxy.h
-  ${BASE}/chunk_owner_type_handler-inl.h
-  ${BASE}/chunk_owner_type_handler.h
-  ${BASE}/chunk_placement.h
-  ${BASE}/chunk_proxy.h
-  ${BASE}/chunk_replica-inl.h
-  ${BASE}/chunk_replica.h
-  ${BASE}/chunk_replicator.h
-  ${BASE}/chunk_sealer.h
-  ${BASE}/chunk_service.h
-  ${BASE}/chunk_tree.h
-  ${BASE}/chunk_tree_balancer.h
-  ${BASE}/chunk_tree_statistics.h
-  ${BASE}/chunk_tree_traversing.h
-  ${BASE}/config.h
-  ${BASE}/cypress_integration.h
-  ${BASE}/helpers-inl.h
-  ${BASE}/helpers.h
-  ${BASE}/job.h
-  ${BASE}/job_tracker_service.h
-  ${BASE}/private.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_list.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_list_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_node_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_type_handler-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_type_handler.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_placement.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_replica-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_replica.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_replicator.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_sealer.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_statistics.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/job.h
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -60,4 +59,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/chunk_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/chunk_manager.proto YT_SOURCE_FILES )

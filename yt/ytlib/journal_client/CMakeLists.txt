@@ -1,16 +1,15 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/journal_client )
 set( SRCS
-  ${BASE}/helpers.cpp
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/helpers.h
-  ${BASE}/journal_ypath_proxy.h
-  ${BASE}/private.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/journal_ypath_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -18,4 +17,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/journal_ypath.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/journal_ypath.proto YT_SOURCE_FILES )

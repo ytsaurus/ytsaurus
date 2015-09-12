@@ -1,22 +1,20 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/erasure )
-
 set( SRCS
-  ${BASE}/codec.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/jerasure.cpp
-  ${BASE}/lrc.cpp
-  ${BASE}/public.cpp
-  ${BASE}/reed_solomon.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/codec.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/jerasure.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lrc.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/reed_solomon.cpp
 )
 
 set( HDRS
-  ${BASE}/codec.h
-  ${BASE}/helpers.h
-  ${BASE}/jerasure.h
-  ${BASE}/lrc.h
-  ${BASE}/public.h
-  ${BASE}/reed_solomon.h
+  ${CMAKE_CURRENT_LIST_DIR}/codec.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/jerasure.h
+  ${CMAKE_CURRENT_LIST_DIR}/lrc.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/reed_solomon.h
 )
 
 list(APPEND YT_SOURCE_FILES

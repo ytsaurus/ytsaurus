@@ -1,16 +1,15 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/table_server )
 set( SRCS
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
-  ${BASE}/table_node.cpp
-  ${BASE}/table_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_node_proxy.cpp
 )
 set( HDRS
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/table_node.h
-  ${BASE}/table_node_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/table_node.h
+  ${CMAKE_CURRENT_LIST_DIR}/table_node_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES

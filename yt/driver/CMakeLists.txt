@@ -1,33 +1,32 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/driver )
 set( SRCS
-  ${BASE}/cypress_executors.cpp
-  ${BASE}/etc_executors.cpp
-  ${BASE}/executor.cpp
-  ${BASE}/file_executors.cpp
-  ${BASE}/io_helpers.cpp
-  ${BASE}/journal_executors.cpp
-  ${BASE}/main.cpp
-  ${BASE}/operation_tracker.cpp
-  ${BASE}/preprocess.cpp
-  ${BASE}/scheduler_executors.cpp
-  ${BASE}/table_executors.cpp
-  ${BASE}/transaction_executors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_executors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/etc_executors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/executor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_executors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/io_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_executors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/main.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/operation_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/preprocess.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler_executors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_executors.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_executors.cpp
 )
 
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/cypress_executors.h
-  ${BASE}/etc_executors.h
-  ${BASE}/executor.h
-  ${BASE}/file_executors.h
-  ${BASE}/io_helpers.h
-  ${BASE}/journal_executors.h
-  ${BASE}/operation_tracker.h
-  ${BASE}/preprocess.h
-  ${BASE}/scheduler_executors.h
-  ${BASE}/table_executors.h
-  ${BASE}/transaction_executors.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_executors.h
+  ${CMAKE_CURRENT_LIST_DIR}/etc_executors.h
+  ${CMAKE_CURRENT_LIST_DIR}/executor.h
+  ${CMAKE_CURRENT_LIST_DIR}/file_executors.h
+  ${CMAKE_CURRENT_LIST_DIR}/io_helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/journal_executors.h
+  ${CMAKE_CURRENT_LIST_DIR}/operation_tracker.h
+  ${CMAKE_CURRENT_LIST_DIR}/preprocess.h
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler_executors.h
+  ${CMAKE_CURRENT_LIST_DIR}/table_executors.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_executors.h
 )
 
 add_executable( yt ${SRCS} ${HDRS} )

@@ -1,38 +1,37 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cypress_server )
 set( SRCS
-  ${BASE}/access_tracker.cpp
-  ${BASE}/cypress_integration.cpp
-  ${BASE}/cypress_manager.cpp
-  ${BASE}/cypress_traversing.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/lock.cpp
-  ${BASE}/lock_proxy.cpp
-  ${BASE}/node.cpp
-  ${BASE}/node_detail.cpp
-  ${BASE}/node_proxy.cpp
-  ${BASE}/node_proxy_detail.cpp
-  ${BASE}/private.cpp
-  ${BASE}/virtual.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/access_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_traversing.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lock.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lock_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_proxy_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/virtual.cpp
 )
 set( HDRS
-  ${BASE}/access_tracker.h
-  ${BASE}/config.h
-  ${BASE}/cypress_integration.h
-  ${BASE}/cypress_manager.h
-  ${BASE}/cypress_traversing.h
-  ${BASE}/helpers.h
-  ${BASE}/lock.h
-  ${BASE}/lock_proxy.h
-  ${BASE}/node.h
-  ${BASE}/node_detail.h
-  ${BASE}/node_proxy.h
-  ${BASE}/node_proxy_detail.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/type_handler.h
-  ${BASE}/virtual-inl.h
-  ${BASE}/virtual.h
+  ${CMAKE_CURRENT_LIST_DIR}/access_tracker.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_traversing.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/lock.h
+  ${CMAKE_CURRENT_LIST_DIR}/lock_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/node.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_proxy_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/type_handler.h
+  ${CMAKE_CURRENT_LIST_DIR}/virtual-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/virtual.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -40,4 +39,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/cypress_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/cypress_manager.proto YT_SOURCE_FILES )

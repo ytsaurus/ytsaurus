@@ -26,12 +26,11 @@ set( DIRS
   journal_client
 )
 
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib )
 set( SRCS
-  ${BASE}/shutdown.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shutdown.cpp
 )
 set( HDRS
-  ${BASE}/shutdown.h
+  ${CMAKE_CURRENT_LIST_DIR}/shutdown.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -1,19 +1,18 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/hive )
 set( SRCS
-  ${BASE}/cell_directory.cpp
-  ${BASE}/cluster_directory.cpp
-  ${BASE}/public.cpp
-  ${BASE}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cluster_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
 )
 set( HDRS
-  ${BASE}/cell_directory.h
-  ${BASE}/cluster_directory.h
-  ${BASE}/config.h
-  ${BASE}/public.h
-  ${BASE}/private.h
-  ${BASE}/transaction_supervisor_service_proxy.h
-  ${BASE}/hive_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/cell_directory.h
+  ${CMAKE_CURRENT_LIST_DIR}/cluster_directory.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_supervisor_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/hive_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -21,6 +20,6 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/transaction_supervisor_service.proto YT_SOURCE_FILES )
-protoc( ${BASE}/hive_service.proto YT_SOURCE_FILES )
-protoc( ${BASE}/cell_directory.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/transaction_supervisor_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/hive_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/cell_directory.proto YT_SOURCE_FILES )

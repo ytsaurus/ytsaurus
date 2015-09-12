@@ -1,28 +1,27 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cell_master )
 set( SRCS
-  ${BASE}/automaton.cpp
-  ${BASE}/bootstrap.cpp
-  ${BASE}/config.cpp
-  ${BASE}/hydra_facade.cpp
-  ${BASE}/master_hydra_service.cpp
-  ${BASE}/private.cpp
-  ${BASE}/serialize.cpp
-  ${BASE}/world_initializer.cpp
-  ${BASE}/multicell_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/automaton.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bootstrap.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hydra_facade.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/master_hydra_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/world_initializer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/multicell_manager.cpp
 )
 set( HDRS
-  ${BASE}/automaton.h
-  ${BASE}/bootstrap.h
-  ${BASE}/config.h
-  ${BASE}/hydra_facade.h
-  ${BASE}/master_hydra_service.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/serialize-inl.h
-  ${BASE}/serialize.h
-  ${BASE}/world_initializer.h
-  ${BASE}/multicell_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/automaton.h
+  ${CMAKE_CURRENT_LIST_DIR}/bootstrap.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/hydra_facade.h
+  ${CMAKE_CURRENT_LIST_DIR}/master_hydra_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/serialize-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/serialize.h
+  ${CMAKE_CURRENT_LIST_DIR}/world_initializer.h
+  ${CMAKE_CURRENT_LIST_DIR}/multicell_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -30,4 +29,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/multicell_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/multicell_manager.proto YT_SOURCE_FILES )

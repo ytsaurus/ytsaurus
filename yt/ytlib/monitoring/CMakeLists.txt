@@ -1,17 +1,16 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/monitoring )
 set( SRCS
-  ${BASE}/http_integration.cpp
-  ${BASE}/http_server.cpp
-  ${BASE}/monitoring_manager.cpp
-  ${BASE}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/http_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/http_server.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/monitoring_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
 )
 set( HDRS
-  ${BASE}/http_integration.h
-  ${BASE}/http_server.h
-  ${BASE}/monitoring_manager.h
-  ${BASE}/private.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/http_integration.h
+  ${CMAKE_CURRENT_LIST_DIR}/http_server.h
+  ${CMAKE_CURRENT_LIST_DIR}/monitoring_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

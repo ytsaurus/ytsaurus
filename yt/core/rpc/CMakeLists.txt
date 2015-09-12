@@ -1,60 +1,59 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/rpc )
 set( SRCS
-  ${BASE}/balancing_channel.cpp
-  ${BASE}/bus_channel.cpp
-  ${BASE}/bus_server.cpp
-  ${BASE}/caching_channel_factory.cpp
-  ${BASE}/channel_detail.cpp
-  ${BASE}/client.cpp
-  ${BASE}/dispatcher.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/local_channel.cpp
-  ${BASE}/local_server.cpp
-  ${BASE}/message.cpp
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
-  ${BASE}/redirector_service.cpp
-  ${BASE}/response_keeper.cpp
-  ${BASE}/retrying_channel.cpp
-  ${BASE}/roaming_channel.cpp
-  ${BASE}/scoped_channel.cpp
-  ${BASE}/serialized_channel.cpp
-  ${BASE}/server_detail.cpp
-  ${BASE}/service.cpp
-  ${BASE}/service_detail.cpp
-  ${BASE}/static_channel_factory.cpp
-  ${BASE}/throttling_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/balancing_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bus_server.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/caching_channel_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/channel_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/local_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/local_server.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/message.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redirector_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/response_keeper.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/retrying_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/roaming_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scoped_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/serialized_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/server_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/service_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/static_channel_factory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/throttling_channel.cpp
 )
 set( HDRS
-  ${BASE}/balancing_channel.h
-  ${BASE}/bus_channel.h
-  ${BASE}/bus_server.h
-  ${BASE}/caching_channel_factory.h
-  ${BASE}/channel.h
-  ${BASE}/channel_detail.h
-  ${BASE}/client.h
-  ${BASE}/config.h
-  ${BASE}/dispatcher.h
-  ${BASE}/helpers.h
-  ${BASE}/local_channel.h
-  ${BASE}/local_server.h
-  ${BASE}/message.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/redirector_service.h
-  ${BASE}/response_keeper.h
-  ${BASE}/retrying_channel.h
-  ${BASE}/roaming_channel.h
-  ${BASE}/scoped_channel.h
-  ${BASE}/serialized_channel.h
-  ${BASE}/server.h
-  ${BASE}/server_detail.h
-  ${BASE}/service-inl.h
-  ${BASE}/service.h
-  ${BASE}/service_detail.h
-  ${BASE}/static_channel_factory.h
-  ${BASE}/throttling_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/balancing_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/bus_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/bus_server.h
+  ${CMAKE_CURRENT_LIST_DIR}/caching_channel_factory.h
+  ${CMAKE_CURRENT_LIST_DIR}/channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/channel_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/client.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/dispatcher.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/local_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/local_server.h
+  ${CMAKE_CURRENT_LIST_DIR}/message.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/redirector_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/response_keeper.h
+  ${CMAKE_CURRENT_LIST_DIR}/retrying_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/roaming_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/scoped_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/serialized_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/server.h
+  ${CMAKE_CURRENT_LIST_DIR}/server_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/service-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/service.h
+  ${CMAKE_CURRENT_LIST_DIR}/service_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/static_channel_factory.h
+  ${CMAKE_CURRENT_LIST_DIR}/throttling_channel.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -62,4 +61,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/rpc.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc.proto YT_SOURCE_FILES )

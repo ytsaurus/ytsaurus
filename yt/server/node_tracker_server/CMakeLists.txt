@@ -1,29 +1,28 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/node_tracker_server )
 set( SRCS
-  ${BASE}/cypress_integration.cpp
-  ${BASE}/node.cpp
-  ${BASE}/node_proxy.cpp
-  ${BASE}/node_directory_builder.cpp
-  ${BASE}/node_tracker.cpp
-  ${BASE}/node_tracker_service.cpp
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
-  ${BASE}/rack.cpp
-  ${BASE}/rack_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_directory_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rack.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rack_proxy.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/cypress_integration.h
-  ${BASE}/node.h
-  ${BASE}/node_proxy.h
-  ${BASE}/node_directory_builder.h
-  ${BASE}/node_tracker.h
-  ${BASE}/node_tracker_service.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/rack.h
-  ${BASE}/rack_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.h
+  ${CMAKE_CURRENT_LIST_DIR}/node.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_directory_builder.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/rack.h
+  ${CMAKE_CURRENT_LIST_DIR}/rack_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -31,4 +30,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/node_tracker.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/node_tracker.proto YT_SOURCE_FILES )
