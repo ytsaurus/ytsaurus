@@ -666,7 +666,7 @@ public:
         for (const auto& pair : AddressToNode_) {
             const auto& node = pair.second;
             if (node->GetMasterState() == ENodeState::Online) {
-                result.push_back(pair.second);
+                result.push_back(node);
             }
         }
         return result;
@@ -977,6 +977,9 @@ private:
 
                 execNode->SetMasterState(newState);
 
+                if (oldState != newState) {
+                    LOG_INFO("Node %lv (Address: %v)", newState, address);
+                }
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating nodes information");
@@ -1287,7 +1290,7 @@ private:
 
         YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
 
-        LOG_INFO("Node online (Address: %v)", address);
+        LOG_INFO("Node registered (Address: %v)", address);
 
         return node;
     }
@@ -1359,7 +1362,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Node offline (Address: %v)", node->GetDefaultAddress());
+        LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
 
         if (node->GetMasterState() == ENodeState::Online) {
             SubtractNodeResources(node);
