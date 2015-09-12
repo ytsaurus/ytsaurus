@@ -1,63 +1,62 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/tablet_node )
 set( SRCS
-  ${BASE}/automaton.cpp
-  ${BASE}/chunk_store.cpp
-  ${BASE}/dynamic_memory_store.cpp
-  ${BASE}/dynamic_memory_store_bits.cpp
-  ${BASE}/dynamic_memory_store_comparer.cpp
-  ${BASE}/lookup.cpp
-  ${BASE}/partition.cpp
-  ${BASE}/partition_balancer.cpp
-  ${BASE}/private.cpp
-  ${BASE}/row_comparer_generator.cpp
-  ${BASE}/security_manager.cpp
-  ${BASE}/serialize.cpp
-  ${BASE}/slot_manager.cpp
-  ${BASE}/store.cpp
-  ${BASE}/store_compactor.cpp
-  ${BASE}/store_detail.cpp
-  ${BASE}/store_flusher.cpp
-  ${BASE}/store_manager.cpp
-  ${BASE}/tablet.cpp
-  ${BASE}/tablet_manager.cpp
-  ${BASE}/tablet_reader.cpp
-  ${BASE}/tablet_service.cpp
-  ${BASE}/tablet_slot.cpp
-  ${BASE}/transaction.cpp
-  ${BASE}/transaction_manager.cpp
-  ${BASE}/in_memory_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/automaton.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_bits.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_comparer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lookup.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/partition.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/partition_balancer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/row_comparer_generator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/security_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/slot_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/store.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/store_compactor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/store_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/store_flusher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/store_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_slot.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/in_memory_manager.cpp
 )
 set( HDRS
-  ${BASE}/automaton.h
-  ${BASE}/chunk_store.h
-  ${BASE}/config.h
-  ${BASE}/dynamic_memory_store.h
-  ${BASE}/dynamic_memory_store_bits.h
-  ${BASE}/dynamic_memory_store_comparer.h
-  ${BASE}/llvm_types.h
-  ${BASE}/lookup.h
-  ${BASE}/partition.h
-  ${BASE}/partition_balancer.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/row_comparer_generator.h
-  ${BASE}/security_manager.h
-  ${BASE}/serialize.h
-  ${BASE}/slot_manager.h
-  ${BASE}/store.h
-  ${BASE}/store_compactor.h
-  ${BASE}/store_detail.h
-  ${BASE}/store_flusher.h
-  ${BASE}/store_manager.h
-  ${BASE}/tablet.h
-  ${BASE}/tablet_manager.h
-  ${BASE}/tablet_reader.h
-  ${BASE}/tablet_service.h
-  ${BASE}/tablet_slot.h
-  ${BASE}/transaction.h
-  ${BASE}/transaction_manager.h
-  ${BASE}/in_memory_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/automaton.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store.h
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_bits.h
+  ${CMAKE_CURRENT_LIST_DIR}/dynamic_memory_store_comparer.h
+  ${CMAKE_CURRENT_LIST_DIR}/llvm_types.h
+  ${CMAKE_CURRENT_LIST_DIR}/lookup.h
+  ${CMAKE_CURRENT_LIST_DIR}/partition.h
+  ${CMAKE_CURRENT_LIST_DIR}/partition_balancer.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/row_comparer_generator.h
+  ${CMAKE_CURRENT_LIST_DIR}/security_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/serialize.h
+  ${CMAKE_CURRENT_LIST_DIR}/slot_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/store.h
+  ${CMAKE_CURRENT_LIST_DIR}/store_compactor.h
+  ${CMAKE_CURRENT_LIST_DIR}/store_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/store_flusher.h
+  ${CMAKE_CURRENT_LIST_DIR}/store_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/tablet.h
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_reader.h
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/tablet_slot.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/in_memory_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -65,4 +64,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/tablet_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/tablet_manager.proto YT_SOURCE_FILES )

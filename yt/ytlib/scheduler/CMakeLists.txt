@@ -1,19 +1,18 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/scheduler )
 set( SRCS
-  ${BASE}/helpers.cpp
-  ${BASE}/scheduler_channel.cpp
-  ${BASE}/statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/statistics.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/helpers.h
-  ${BASE}/job_prober_service_proxy.h
-  ${BASE}/public.h
-  ${BASE}/scheduler_channel.h
-  ${BASE}/scheduler_service_proxy.h
-  ${BASE}/statistics-inl.h
-  ${BASE}/statistics.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/job_prober_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/scheduler_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/statistics-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/statistics.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -21,6 +20,6 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/scheduler_service.proto YT_SOURCE_FILES )
-protoc( ${BASE}/job.proto YT_SOURCE_FILES )
-protoc( ${BASE}/job_prober_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/scheduler_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/job.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/job_prober_service.proto YT_SOURCE_FILES )

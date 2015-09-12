@@ -1,35 +1,34 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/api )
 set( SRCS
-  ${BASE}/admin.cpp
-  ${BASE}/client.cpp
-  ${BASE}/config.cpp
-  ${BASE}/connection.cpp
-  ${BASE}/file_reader.cpp
-  ${BASE}/file_writer.cpp
-  ${BASE}/journal_reader.cpp
-  ${BASE}/journal_writer.cpp
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
-  ${BASE}/rowset.cpp
-  ${BASE}/table_reader.cpp
-  ${BASE}/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/admin.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rowset.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction.cpp
 )
 set( HDRS
-  ${BASE}/admin.h
-  ${BASE}/box.h
-  ${BASE}/client.h
-  ${BASE}/config.h
-  ${BASE}/connection.h
-  ${BASE}/file_reader.h
-  ${BASE}/file_writer.h
-  ${BASE}/journal_reader.h
-  ${BASE}/journal_writer.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/rowset.h
-  ${BASE}/table_reader.h
-  ${BASE}/transaction.h
+  ${CMAKE_CURRENT_LIST_DIR}/admin.h
+  ${CMAKE_CURRENT_LIST_DIR}/box.h
+  ${CMAKE_CURRENT_LIST_DIR}/client.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/connection.h
+  ${CMAKE_CURRENT_LIST_DIR}/file_reader.h
+  ${CMAKE_CURRENT_LIST_DIR}/file_writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/journal_reader.h
+  ${CMAKE_CURRENT_LIST_DIR}/journal_writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/rowset.h
+  ${CMAKE_CURRENT_LIST_DIR}/table_reader.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction.h
 )
 
 list(APPEND YT_SOURCE_FILES

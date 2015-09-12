@@ -1,18 +1,17 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/object_client )
 set( SRCS
-  ${BASE}/helpers.cpp
-  ${BASE}/object_service_proxy.cpp
-  ${BASE}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/object_service_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
 )
 set( HDRS
-  ${BASE}/helpers.h
-  ${BASE}/helpers-inl.h
-  ${BASE}/master_ypath_proxy.h
-  ${BASE}/object_service_proxy-inl.h
-  ${BASE}/object_service_proxy.h
-  ${BASE}/object_ypath_proxy.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/master_ypath_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/object_service_proxy-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/object_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/object_ypath_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -20,6 +19,6 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/object_ypath.proto YT_SOURCE_FILES )
-protoc( ${BASE}/master_ypath.proto YT_SOURCE_FILES )
-protoc( ${BASE}/object_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/object_ypath.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/master_ypath.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/object_service.proto YT_SOURCE_FILES )

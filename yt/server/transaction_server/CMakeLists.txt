@@ -1,22 +1,21 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/transaction_server )
 set( SRCS
-  ${BASE}/cypress_integration.cpp
-  ${BASE}/private.cpp
-  ${BASE}/timestamp_manager.cpp
-  ${BASE}/timestamp_proxy_service.cpp
-  ${BASE}/transaction.cpp
-  ${BASE}/transaction_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/timestamp_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/timestamp_proxy_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/cypress_integration.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/timestamp_manager.h
-  ${BASE}/timestamp_proxy_service.h
-  ${BASE}/transaction.h
-  ${BASE}/transaction_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_integration.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/timestamp_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/timestamp_proxy_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -24,5 +23,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/timestamp_manager.proto YT_SOURCE_FILES )
-protoc( ${BASE}/transaction_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/timestamp_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.proto YT_SOURCE_FILES )

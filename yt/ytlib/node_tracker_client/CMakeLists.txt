@@ -1,19 +1,18 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/node_tracker_client )
 set( SRCS
-  ${BASE}/helpers.cpp
-  ${BASE}/node_directory.cpp
-  ${BASE}/node_directory_builder.cpp
-  ${BASE}/node_statistics.cpp
-  ${BASE}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_directory.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_directory_builder.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/node_statistics.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
 )
 set( HDRS
-  ${BASE}/helpers.h
-  ${BASE}/node_directory.h
-  ${BASE}/node_directory_builder.h
-  ${BASE}/node_statistics.h
-  ${BASE}/node_tracker_service_proxy.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_directory.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_directory_builder.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_statistics.h
+  ${CMAKE_CURRENT_LIST_DIR}/node_tracker_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -21,5 +20,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/node.proto YT_SOURCE_FILES )
-protoc( ${BASE}/node_tracker_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/node.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/node_tracker_service.proto YT_SOURCE_FILES )

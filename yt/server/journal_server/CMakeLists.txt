@@ -1,19 +1,18 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/journal_server )
 set( SRCS
-  ${BASE}/journal_node.cpp
-  ${BASE}/journal_node_proxy.cpp
-  ${BASE}/journal_manager.cpp
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_node.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_node_proxy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/journal_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
 )
 set( HDRS
-  ${BASE}/journal_node.h
-  ${BASE}/journal_node_proxy.h
-  ${BASE}/journal_manager.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/journal_node.h
+  ${CMAKE_CURRENT_LIST_DIR}/journal_node_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/journal_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
 )
 
 list(APPEND YT_SOURCE_FILES

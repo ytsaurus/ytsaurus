@@ -1,26 +1,24 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/compression )
-
 set( SRCS
-  ${BASE}/codec.cpp
-  ${BASE}/details.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/lz.cpp
-  ${BASE}/public.cpp
-  ${BASE}/snappy.cpp
-  ${BASE}/zlib.cpp
-  ${BASE}/zstd.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/codec.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/details.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lz.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/snappy.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/zlib.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/zstd.cpp
 )
 
 set( HDRS
-  ${BASE}/codec.h
-  ${BASE}/details.h
-  ${BASE}/helpers.h
-  ${BASE}/lz.h
-  ${BASE}/public.h
-  ${BASE}/snappy.h
-  ${BASE}/zlib.h
-  ${BASE}/zstd.h
+  ${CMAKE_CURRENT_LIST_DIR}/codec.h
+  ${CMAKE_CURRENT_LIST_DIR}/details.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/lz.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/snappy.h
+  ${CMAKE_CURRENT_LIST_DIR}/zlib.h
+  ${CMAKE_CURRENT_LIST_DIR}/zstd.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -28,4 +26,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/helpers.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/helpers.proto YT_SOURCE_FILES )

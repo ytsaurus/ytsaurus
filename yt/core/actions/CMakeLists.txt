@@ -1,30 +1,29 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/actions )
 set( SRCS
-  ${BASE}/callback_internal.cpp
-  ${BASE}/cancelable_context.cpp
-  ${BASE}/future.cpp
-  ${BASE}/invoker_detail.cpp
-  ${BASE}/invoker_util.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/callback_internal.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cancelable_context.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/future.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/invoker_detail.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/invoker_util.cpp
 )
 set( HDRS
-  ${BASE}/bind.h
-  ${BASE}/bind_helpers.h
-  ${BASE}/bind_internal.h
-  ${BASE}/bind_mpl.h
-  ${BASE}/callback.h
-  ${BASE}/callback_internal.h
-  ${BASE}/cancelable_context-inl.h
-  ${BASE}/cancelable_context.h
-  ${BASE}/future-inl.h
-  ${BASE}/future.h
-  ${BASE}/invoker-inl.h
-  ${BASE}/invoker.h
-  ${BASE}/invoker_detail.h
-  ${BASE}/invoker_util.h
-  ${BASE}/public.h
-  ${BASE}/signal-inl.h
-  ${BASE}/signal.h
+  ${CMAKE_CURRENT_LIST_DIR}/bind.h
+  ${CMAKE_CURRENT_LIST_DIR}/bind_helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/bind_internal.h
+  ${CMAKE_CURRENT_LIST_DIR}/bind_mpl.h
+  ${CMAKE_CURRENT_LIST_DIR}/callback.h
+  ${CMAKE_CURRENT_LIST_DIR}/callback_internal.h
+  ${CMAKE_CURRENT_LIST_DIR}/cancelable_context-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/cancelable_context.h
+  ${CMAKE_CURRENT_LIST_DIR}/future-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/future.h
+  ${CMAKE_CURRENT_LIST_DIR}/invoker-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/invoker.h
+  ${CMAKE_CURRENT_LIST_DIR}/invoker_detail.h
+  ${CMAKE_CURRENT_LIST_DIR}/invoker_util.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/signal-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/signal.h
 )
 
 list(APPEND YT_SOURCE_FILES

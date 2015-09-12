@@ -1,20 +1,19 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/file_client )
 set( SRCS
-  ${BASE}/file_chunk_output.cpp
-  ${BASE}/file_chunk_reader.cpp
-  ${BASE}/file_chunk_writer.cpp
-  ${BASE}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_chunk_output.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_chunk_reader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/file_chunk_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
 )
 set( HDRS
-  ${BASE}/chunk_meta_extensions.h
-  ${BASE}/config.h
-  ${BASE}/file_chunk_output.h
-  ${BASE}/file_chunk_reader.h
-  ${BASE}/file_chunk_writer.h
-  ${BASE}/file_ypath_proxy.h
-  ${BASE}/private.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_extensions.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/file_chunk_output.h
+  ${CMAKE_CURRENT_LIST_DIR}/file_chunk_reader.h
+  ${CMAKE_CURRENT_LIST_DIR}/file_chunk_writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/file_ypath_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -22,5 +21,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/file_chunk_meta.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/file_chunk_meta.proto YT_SOURCE_FILES )
 

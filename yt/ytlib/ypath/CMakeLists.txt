@@ -1,11 +1,10 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/ypath )
 set( SRCS
-  ${BASE}/rich.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rich.cpp
 )
 set( HDRS
-  ${BASE}/public.h
-  ${BASE}/rich.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/rich.h
 )
 
 list(APPEND YT_SOURCE_FILES

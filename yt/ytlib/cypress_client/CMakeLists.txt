@@ -1,14 +1,13 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/cypress_client )
 set( SRCS
-  ${BASE}/public.cpp
-  ${BASE}/rpc_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_helpers.cpp
 )
 set( HDRS
-  ${BASE}/cypress_ypath_proxy.h
-  ${BASE}/lock_ypath_proxy.h
-  ${BASE}/public.h
-  ${BASE}/rpc_helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/cypress_ypath_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/lock_ypath_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/rpc_helpers.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -16,5 +15,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/rpc.proto YT_SOURCE_FILES )
-protoc( ${BASE}/cypress_ypath.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/cypress_ypath.proto YT_SOURCE_FILES )

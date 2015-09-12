@@ -1,28 +1,27 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/bus )
 set( SRCS
-  ${BASE}/config.cpp
-  ${BASE}/packet.cpp
-  ${BASE}/private.cpp
-  ${BASE}/tcp_client.cpp
-  ${BASE}/tcp_connection.cpp
-  ${BASE}/tcp_dispatcher.cpp
-  ${BASE}/tcp_dispatcher_impl.cpp
-  ${BASE}/tcp_server.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/packet.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_client.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_connection.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_dispatcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_dispatcher_impl.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_server.cpp
 )
 set( HDRS
-  ${BASE}/bus.h
-  ${BASE}/client.h
-  ${BASE}/config.h
-  ${BASE}/packet.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/server.h
-  ${BASE}/tcp_client.h
-  ${BASE}/tcp_connection.h
-  ${BASE}/tcp_dispatcher.h
-  ${BASE}/tcp_dispatcher_impl.h
-  ${BASE}/tcp_server.h
+  ${CMAKE_CURRENT_LIST_DIR}/bus.h
+  ${CMAKE_CURRENT_LIST_DIR}/client.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/packet.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/server.h
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_client.h
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_connection.h
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_dispatcher.h
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_dispatcher_impl.h
+  ${CMAKE_CURRENT_LIST_DIR}/tcp_server.h
 )
 
 list(APPEND YT_SOURCE_FILES

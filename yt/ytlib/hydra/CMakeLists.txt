@@ -1,18 +1,17 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/hydra )
 set( SRCS
-  ${BASE}/peer_channel.cpp
-  ${BASE}/private.cpp
-  ${BASE}/public.cpp
-  ${BASE}/version.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/peer_channel.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/version.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/hydra_service_proxy.h
-  ${BASE}/peer_channel.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/version.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/hydra_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/peer_channel.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/version.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -20,5 +19,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/hydra_service.proto YT_SOURCE_FILES )
-protoc( ${BASE}/hydra_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/hydra_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/hydra_manager.proto YT_SOURCE_FILES )

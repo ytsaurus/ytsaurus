@@ -1,11 +1,10 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/job_tracker_client )
 set( SRCS
-  ${BASE}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
 )
 set( HDRS
-  ${BASE}/job_tracker_service_proxy.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/job_tracker_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -13,5 +12,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/job.proto YT_SOURCE_FILES )
-protoc( ${BASE}/job_tracker_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/job.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/job_tracker_service.proto YT_SOURCE_FILES )

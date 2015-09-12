@@ -1,26 +1,25 @@
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/codegen )
 set( SRCS
 )
 set( HDRS
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
   set( SRCS
     ${SRCS}
-    ${BASE}/private.cpp
-    ${BASE}/init.cpp
-    ${BASE}/module.cpp
-    ${BASE}/routine_registry.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/init.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/module.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/routine_registry.cpp
   )
   set( HDRS
     ${HDRS}
-    ${BASE}/private.h
-    ${BASE}/init.h
-    ${BASE}/function.h
-    ${BASE}/module.h
-    ${BASE}/module-inl.h
-    ${BASE}/routine_registry.h
+    ${CMAKE_CURRENT_LIST_DIR}/private.h
+    ${CMAKE_CURRENT_LIST_DIR}/init.h
+    ${CMAKE_CURRENT_LIST_DIR}/function.h
+    ${CMAKE_CURRENT_LIST_DIR}/module.h
+    ${CMAKE_CURRENT_LIST_DIR}/module-inl.h
+    ${CMAKE_CURRENT_LIST_DIR}/routine_registry.h
   )
 endif()
 

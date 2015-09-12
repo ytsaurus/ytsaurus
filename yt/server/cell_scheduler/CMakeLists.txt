@@ -1,12 +1,11 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/cell_scheduler )
 set( SRCS
-  ${BASE}/bootstrap.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/bootstrap.cpp
 )
 set( HDRS
-  ${BASE}/bootstrap.h
-  ${BASE}/config.h
-  ${BASE}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/bootstrap.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
 )
 
 list(APPEND YT_SOURCE_FILES

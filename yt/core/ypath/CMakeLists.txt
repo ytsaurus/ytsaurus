@@ -1,13 +1,12 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/ypath )
 set( SRCS
-  ${BASE}/token.cpp
-  ${BASE}/tokenizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/token.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/tokenizer.cpp
 )
 set( HDRS
-  ${BASE}/public.h
-  ${BASE}/token.h
-  ${BASE}/tokenizer.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/token.h
+  ${CMAKE_CURRENT_LIST_DIR}/tokenizer.h
 )
 
 list(APPEND YT_SOURCE_FILES

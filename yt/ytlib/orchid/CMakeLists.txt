@@ -1,13 +1,12 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/orchid )
 set( SRCS
-  ${BASE}/orchid_service.cpp
-  ${BASE}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/orchid_service.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
 )
 set( HDRS
-  ${BASE}/orchid_service.h
-  ${BASE}/orchid_service_proxy.h
-  ${BASE}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/orchid_service.h
+  ${CMAKE_CURRENT_LIST_DIR}/orchid_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -15,4 +14,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/orchid_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/orchid_service.proto YT_SOURCE_FILES )

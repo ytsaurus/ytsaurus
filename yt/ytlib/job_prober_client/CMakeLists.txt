@@ -1,9 +1,8 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/job_prober_client )
 set( SRCS
 )
 set( HDRS
-  ${BASE}/job_prober_service_proxy.h
+  ${CMAKE_CURRENT_LIST_DIR}/job_prober_service_proxy.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -11,4 +10,4 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/job_prober_service.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/job_prober_service.proto YT_SOURCE_FILES )

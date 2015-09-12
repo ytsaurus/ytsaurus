@@ -1,24 +1,23 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/server/hive )
 set( SRCS
-  ${BASE}/commit.cpp
-  ${BASE}/hive_manager.cpp
-  ${BASE}/mailbox.cpp
-  ${BASE}/public.cpp
-  ${BASE}/helpers.cpp
-  ${BASE}/transaction_supervisor.cpp
-  ${BASE}/cell_directory_synchronizer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/commit.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hive_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/mailbox.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/public.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_supervisor.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cell_directory_synchronizer.cpp
 )
 set( HDRS
-  ${BASE}/commit.h
-  ${BASE}/config.h
-  ${BASE}/hive_manager.h
-  ${BASE}/mailbox.h
-  ${BASE}/public.h
-  ${BASE}/helpers.h
-  ${BASE}/transaction_manager.h
-  ${BASE}/transaction_supervisor.h
-  ${BASE}/cell_directory_synchronizer.h
+  ${CMAKE_CURRENT_LIST_DIR}/commit.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/hive_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/mailbox.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/transaction_supervisor.h
+  ${CMAKE_CURRENT_LIST_DIR}/cell_directory_synchronizer.h
 )
 
 list(APPEND YT_SOURCE_FILES
@@ -26,5 +25,5 @@ list(APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-protoc( ${BASE}/hive_manager.proto YT_SOURCE_FILES )
-protoc( ${BASE}/transaction_supervisor.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/hive_manager.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/transaction_supervisor.proto YT_SOURCE_FILES )

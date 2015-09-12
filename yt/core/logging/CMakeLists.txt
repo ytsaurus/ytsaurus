@@ -1,22 +1,21 @@
 #:yt-updatable
-set( BASE ${CMAKE_SOURCE_DIR}/yt/core/logging )
 set( SRCS
-  ${BASE}/config.cpp
-  ${BASE}/log.cpp
-  ${BASE}/log_manager.cpp
-  ${BASE}/pattern.cpp
-  ${BASE}/private.cpp
-  ${BASE}/writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/config.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/log.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/log_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/pattern.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/private.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/writer.cpp
 )
 set( HDRS
-  ${BASE}/config.h
-  ${BASE}/log-inl.h
-  ${BASE}/log.h
-  ${BASE}/log_manager.h
-  ${BASE}/pattern.h
-  ${BASE}/private.h
-  ${BASE}/public.h
-  ${BASE}/writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/log-inl.h
+  ${CMAKE_CURRENT_LIST_DIR}/log.h
+  ${CMAKE_CURRENT_LIST_DIR}/log_manager.h
+  ${CMAKE_CURRENT_LIST_DIR}/pattern.h
+  ${CMAKE_CURRENT_LIST_DIR}/private.h
+  ${CMAKE_CURRENT_LIST_DIR}/public.h
+  ${CMAKE_CURRENT_LIST_DIR}/writer.h
 )
 
 list(APPEND YT_SOURCE_FILES
