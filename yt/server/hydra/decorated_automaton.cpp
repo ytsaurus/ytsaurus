@@ -884,7 +884,9 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    YCHECK(version >= CommittedVersion_);
+    if (version < CommittedVersion_)
+        return;
+
     CommittedVersion_ = version;
 
     LOG_DEBUG("Committed version promoted to %v",
