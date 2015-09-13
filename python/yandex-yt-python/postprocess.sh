@@ -18,6 +18,20 @@ make_link()
     $YT link "$src" "$dst"
 }
 
+urlencode() {
+    # urlencode <string>
+
+    local length="${#1}"
+    for (( i = 0; i < length; i++ )); do
+        local c="${1:i:1}"
+        case $c in
+            [a-zA-Z0-9.~_-]) printf "$c" ;;
+            *) printf '%s' '$c' | xxd -p -c1 |
+                   while read c; do printf '%%%s' "$c"; done ;;
+        esac
+    done
+}
+
 # Upload python egg
 python setup.py bdist_egg
 EGG_FILEPATH=$(find dist/ -name "*.egg" | head -n 1)
@@ -34,7 +48,9 @@ for name in yt mapreduce-yt; do
     make_link "$DEST/${name}_${VERSION}_${UBUNTU_VERSION}" "$DEST/${name}_${UBUNTU_VERSION}"
 done
 
+
 # Create ticket in coductor
+COMMENT=$(urlencode $(dpkg-parsechangelog))
 curl --verbose --show-error \
     -H "Cookie: conductor_auth=419fb75155c27d44f1d110ec833400fa" \
-    "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable&ticket\[comment\]=$(dpkg-parsechangelog)"
+    "http://c.yandex-team.ru/auth_update/ticket_add?package\[0\]=yandex-yt-python&version\[0\]=$VERSION&ticket\[branch\]=unstable&ticket\[comment\]=$COMMENT"
