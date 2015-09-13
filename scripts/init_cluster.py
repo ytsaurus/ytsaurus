@@ -81,3 +81,8 @@ if __name__ == "__main__":
             {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
             {"action": "allow", "subjects": ["users"], "permissions": ["write", "create"]}
         ])
+
+    if not yt.exists("//sys/empty_yamr_table"):
+        yt.create("table", "//sys/empty_yamr_table")
+        yt.run_sort("//sys/empty_yamr_table", sort_by=["key", "subkey"])
+
