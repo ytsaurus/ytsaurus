@@ -126,11 +126,8 @@ static const i64 FootprintMemorySize = (i64) 1024 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(
-    const Stroka& configFileName,
-    TCellNodeConfigPtr config)
-    : ConfigFileName(configFileName)
-    , Config(config)
+TBootstrap::TBootstrap(INodePtr configNode)
+    : ConfigNode(configNode)
 { }
 
 TBootstrap::~TBootstrap()
@@ -153,6 +150,13 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
+    try {
+        Config = ConvertTo<TCellNodeConfigPtr>(ConfigNode);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
+            << ex;
+    }
+
     auto localAddresses = GetLocalAddresses();
 
     LOG_INFO("Starting node (LocalAddresses: [%v], MasterAddresses: [%v])",
@@ -377,7 +381,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         OrchidRoot,
         "/config",
-        CreateVirtualNode(CreateYsonFileService(ConfigFileName)));
+        ConfigNode);
     SetNodeByYPath(
         OrchidRoot,
         "/stored_chunks",

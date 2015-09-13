@@ -120,11 +120,8 @@ static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(
-    const Stroka& configFileName,
-    TCellMasterConfigPtr config)
-    : ConfigFileName_(configFileName)
-    , Config_(config)
+TBootstrap::TBootstrap(INodePtr configNode)
+    : ConfigNode_(configNode)
 { }
 
 // Neither remove it nor move it to the header.
@@ -266,6 +263,13 @@ void TBootstrap::DumpSnapshot(const Stroka& fileName)
 
 void TBootstrap::DoInitialize()
 {
+    try {
+        Config_ = ConvertTo<TCellMasterConfigPtr>(ConfigNode_);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
+            << ex;
+    }
+
     LOG_INFO("Initializing cell master (CellId: %v, CellTag: %v)",
         GetCellId(),
         GetCellTag());
@@ -403,7 +407,7 @@ void TBootstrap::DoInitialize()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        CreateVirtualNode(CreateYsonFileService(ConfigFileName_)));
+        ConfigNode_);
 
     SetBuildAttributes(orchidRoot, "master");
 

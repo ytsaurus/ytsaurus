@@ -39,10 +39,7 @@ namespace NCellMaster {
 class TBootstrap
 {
 public:
-    TBootstrap(
-        const Stroka& configFileName,
-        TCellMasterConfigPtr config);
-
+    explicit TBootstrap(NYTree::INodePtr configNode);
     ~TBootstrap();
 
     const NElection::TCellId& GetCellId() const;
@@ -71,9 +68,9 @@ public:
     void DumpSnapshot(const Stroka& fileName);
 
 private:
-    const Stroka ConfigFileName_;
-    const TCellMasterConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
 
+    TCellMasterConfigPtr Config_;
     NRpc::IServerPtr RpcServer_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
