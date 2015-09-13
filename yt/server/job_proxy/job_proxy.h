@@ -27,7 +27,7 @@ class TJobProxy
 {
 public:
     TJobProxy(
-        TJobProxyConfigPtr config,
+        NYTree::INodePtr configNode,
         const NJobAgent::TJobId& jobId);
 
     //! Runs the job. Blocks until the job is complete.
@@ -39,6 +39,8 @@ public:
     virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
 
 private:
+    const NYTree::INodePtr ConfigNode_;
+
     TJobProxyConfigPtr Config_;
     NJobAgent::TJobId JobId_;
 
