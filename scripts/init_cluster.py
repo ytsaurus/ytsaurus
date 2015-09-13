@@ -5,7 +5,7 @@ def create(type, name):
     try:
         yt.create(type, attributes={"name": name})
     except yt.YtResponseError as err:
-        if yt.YtResponseError._contains_code(err, 501):
+        if yt.YtResponseError._contains_code(err.error, 501):
             logger.warning("'%s' already exists", name)
         else:
             raise
@@ -20,7 +20,7 @@ def add_member(subject, group):
             raise
 
 def add_acl(path, new_acl):
-    current_acls = set(yt.get(path + "/@acl"))
+    current_acls = yt.get(path + "/@acl")
     if new_acl not in current_acls:
         yt.set(path + "/@acl/end", new_acl)
     
