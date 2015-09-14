@@ -178,6 +178,12 @@ class Config(types.ModuleType):
                 var_type = str
             return var_type
 
+        def apply_type(type, key, value):
+            try:
+                return type(value)
+            except ValueError:
+                raise self.common_module.YtError("Incorrect value of option '{0}': failed to apply type '{1}' to '{2}'".format(key, type, value))
+
         # These options should be processed before reading config fil
         for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
             if opt_name in os.environ:
@@ -216,10 +222,10 @@ class Config(types.ModuleType):
                 #NB: it is necessary to set boolean vaiable as 0 or 1
                 if var_type is bool:
                     value = int(value)
-                self._set(name, var_type(value))
+                self._set(name, apply_type(var_type, key, value))
             elif key in self._env_configurable_options:
                 var_type = get_var_type(self.__dict__[key])
-                self.__dict__[key] = var_type(value)
+                self.__dict__[key] = apply_type(var_type, key, value)
             elif key in self.special_shortcuts:
                 setattr(self, key, self.special_shortcuts[key](value))
 
