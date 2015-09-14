@@ -3,16 +3,16 @@
 from yt.common import YtError
 from yt.wrapper.client import Yt
 from yt.wrapper.common import get_backoff
-import yt.packages.requests as requests
 
 import simplejson as json
 import logging
+import requests
 import argparse
 import time
 from datetime import datetime
 
 from socket import error as SocketError
-from yt.packages.requests import HTTPError, ConnectionError, Timeout
+from requests import HTTPError, ConnectionError, Timeout
 
 STATFACE_PUSH_URL = "https://stat.yandex-team.ru/_api/report/data"
 
