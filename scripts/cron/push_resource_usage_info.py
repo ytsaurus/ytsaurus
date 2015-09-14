@@ -3,12 +3,12 @@
 from yt.common import YtError
 from yt.wrapper.client import Yt
 from yt.wrapper.common import get_backoff
-import simplejson as json
+import yt.packages.requests as requests
 
+import simplejson as json
 import logging
 import argparse
 import time
-import requests
 from datetime import datetime
 
 from socket import error as SocketError
