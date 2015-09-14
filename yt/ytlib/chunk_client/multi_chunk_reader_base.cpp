@@ -405,7 +405,7 @@ void TSequentialMultiChunkReaderBase::OnError()
 {
     BIND([=, this_ = MakeStrong(this)] () {
         // This is to avoid infinite waiting and memory leaks.
-        for (int i = NextReaderIndex_; ++i; i < NextReaders_.size()) {
+        for (int i = NextReaderIndex_; i < NextReaders_.size(); ++i) {
             NextReaders_[i].Reset();
         }
         NextReaderIndex_ = NextReaders_.size();
