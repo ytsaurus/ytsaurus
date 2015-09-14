@@ -124,4 +124,62 @@ void ParseYsonStringBuffer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonListParser::TImpl
+{
+public:
+    TImpl(
+        IYsonConsumer* consumer,
+        TInputStream* stream,
+        bool enableLinePositionInfo,
+        TMaybe<ui64> memoryLimit = Nothing())
+        : Consumer_(consumer)
+        , Stream_(stream)
+        , EnableLinePositionInfo_(enableLinePositionInfo)
+        , MemoryLimit_(memoryLimit)
+        , Buffer_(64 << 10)
+        , Reader_(Stream_, Buffer_.Data(), Buffer_.Capacity())
+    { }
+
+    bool Parse()
+    {
+        if (!Impl_) {
+            Impl_.Reset(
+                EnableLinePositionInfo_
+                ? static_cast<TYsonListParserImplBase*>(new TYsonListParserImpl<IYsonConsumer, TStreamReader, true>(Reader_, Consumer_, MemoryLimit_))
+                : static_cast<TYsonListParserImplBase*>(new TYsonListParserImpl<IYsonConsumer, TStreamReader, false>(Reader_, Consumer_, MemoryLimit_))
+            );
+        }
+        return Impl_->Parse();
+    }
+
+private:
+    IYsonConsumer* Consumer_;
+    TInputStream* Stream_;
+    bool EnableLinePositionInfo_;
+    TMaybe<ui64> MemoryLimit_;
+    TBuffer Buffer_;
+    TStreamReader Reader_;
+    THolder<TYsonListParserImplBase> Impl_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYsonListParser::TYsonListParser(
+    IYsonConsumer *consumer,
+    TInputStream* stream,
+    bool enableLinePositionInfo,
+    TMaybe<ui64> memoryLimit)
+    : Impl(new TImpl(consumer, stream, enableLinePositionInfo, memoryLimit))
+{ }
+
+TYsonListParser::~TYsonListParser()
+{ }
+
+bool TYsonListParser::Parse()
+{
+    return Impl->Parse();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
