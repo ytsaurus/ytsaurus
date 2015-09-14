@@ -63,6 +63,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NCGroup;
+using namespace NYTree;
 
 using NJobTrackerClient::TStatistics;
 
@@ -73,9 +74,9 @@ static const auto InitialJobProxyMemoryLimit = (i64) 100 * 1024 * 1024;
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxy::TJobProxy(
-    TJobProxyConfigPtr config,
+    INodePtr configNode,
     const TJobId& jobId)
-    : Config_(config)
+    : ConfigNode_(configNode)
     , JobId_(jobId)
     , Logger(JobProxyLogger)
     , JobProxyMemoryLimit_(InitialJobProxyMemoryLimit)
@@ -258,11 +259,17 @@ IJobPtr TJobProxy::CreateBuiltinJob()
         default:
             YUNREACHABLE();
     }
-
 }
 
 TJobResult TJobProxy::DoRun()
 {
+    try {
+        Config_->Load(ConfigNode_);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing job proxy configuration")
+            << ex;
+    }
+
     RpcServer = CreateBusServer(CreateTcpBusServer(Config_->RpcServer));
     RpcServer->RegisterService(CreateJobProberService(this));
     RpcServer->Start();

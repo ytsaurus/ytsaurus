@@ -22,7 +22,6 @@ set( SRCS
   ${BASE}/ypath_client.cpp
   ${BASE}/ypath_detail.cpp
   ${BASE}/ypath_service.cpp
-  ${BASE}/yson_file_service.cpp
   ${BASE}/yson_producer.cpp
   ${BASE}/yson_serializable.cpp
   ${BASE}/yson_stream.cpp
@@ -59,7 +58,6 @@ set( HDRS
   ${BASE}/ypath_proxy.h
   ${BASE}/ypath_service.h
   ${BASE}/yson_consumer-mock.h
-  ${BASE}/yson_file_service.h
   ${BASE}/yson_producer.h
   ${BASE}/yson_serializable-inl.h
   ${BASE}/yson_serializable.h
