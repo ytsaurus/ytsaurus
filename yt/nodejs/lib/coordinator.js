@@ -31,7 +31,6 @@ function YtCoordinatedHost(config, host)
         updated_at: new Date(0),
         load_average: 0.0,
         network_traffic: 0,
-        failing: false
     };
     var randomness = Math.random();
     var dampening = 0.0;
@@ -119,14 +118,13 @@ function YtCoordinatedHost(config, host)
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average) || 0.0;
             liveness.network_traffic = parseFloat(value.network_traffic) || 0;
-            liveness.failing = parseBoolean(value.failing) || false;
 
             randomness = Math.random();
             dampening = 0.0;
 
             afd.heartbeatTS(liveness.updated_at);
 
-            this.dead = !liveness.failing && (new Date() - liveness.updated_at) > age;
+            this.dead = (new Date() - liveness.updated_at) > age;
         },
         enumerable: true
     });
@@ -320,7 +318,6 @@ YtCoordinator.prototype._refresh = function()
                 updated_at: now.toISOString(),
                 load_average: os.loadavg()[0],
                 network_traffic: self.network_traffic_reservoir.mean,
-                failing: failing ? "true" : "false",
             });
         });
     }
