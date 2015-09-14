@@ -750,6 +750,10 @@ private:
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request.mount_config())), tabletId);
         auto writerOptions = DeserializeTabletWriterOptions(TYsonString(request.writer_options()), tabletId);
 
+        if (mountConfig->ReadOnly && !tablet->GetConfig()->ReadOnly) {
+            RotateStores(tablet, true);
+        }
+
         int oldSamplesPerPartition = tablet->GetConfig()->SamplesPerPartition;
         int newSamplesPerPartition = mountConfig->SamplesPerPartition;
 
