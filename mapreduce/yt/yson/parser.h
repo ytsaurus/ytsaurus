@@ -51,6 +51,26 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonListParser
+{
+public:
+    TYsonListParser(
+        IYsonConsumer* consumer,
+        TInputStream* stream,
+        bool enableLinePositionInfo = false,
+        TMaybe<ui64> memoryLimit = Nothing());
+
+    ~TYsonListParser();
+
+    bool Parse(); // Returns false, if there is no more list items
+
+private:
+    class TImpl;
+    THolder<TImpl> Impl;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ParseYsonStringBuffer(
     const TStringBuf& buffer,
     IYsonConsumer* consumer,

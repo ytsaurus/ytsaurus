@@ -49,6 +49,12 @@ public:
         }
     }
 
+    bool DoParseListFragment(bool first)
+    {
+        bool ret = first ? first : ParseListSeparator<true>(EndSymbol);
+        return ret && ParseListItem<true>(EndSymbol);
+    }
+
     void ParseAttributes()
     {
         Consumer->OnBeginAttributes();
@@ -231,20 +237,33 @@ public:
     }
 
     template <bool AllowFinish>
-    void ParseListFragment(char endSymbol)
-    {
+    bool ParseListItem(char endSymbol) {
         char ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
-        while (ch != endSymbol) {
+        if (ch != endSymbol) {
             Consumer->OnListItem();
             ParseNode<AllowFinish>(ch);
-            ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
-            if (ch == ListItemSeparatorSymbol) {
-                TBase::Advance(1);
-                ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
-            } else if (ch != endSymbol) {
-                ythrow TYsonException() << Sprintf("Expected '%c' or '%c' but '%c' found",
-                    ListItemSeparatorSymbol, endSymbol, ch);
-            }
+            return true;
+        }
+        return false;
+    }
+
+    template <bool AllowFinish>
+    bool ParseListSeparator(char endSymbol) {
+        char ch = TBase::template SkipSpaceAndGetChar<AllowFinish>();
+        if (ch == ListItemSeparatorSymbol) {
+            TBase::Advance(1);
+            return true;
+        } else if (ch != endSymbol) {
+            ythrow TYsonException() << Sprintf("Expected '%c' or '%c' but '%c' found",
+                ListItemSeparatorSymbol, endSymbol, ch);
+        }
+        return false;
+    }
+
+    template <bool AllowFinish>
+    void ParseListFragment(char endSymbol)
+    {
+        while (ParseListItem<AllowFinish>(endSymbol) && ParseListSeparator<AllowFinish>(endSymbol)) {
         }
     }
 
@@ -339,6 +358,37 @@ public:
     {
         Parser.SetBuffer(data.begin(), data.end());
         Parser.DoParse(type);
+    }
+};
+
+class TYsonListParserImplBase
+{
+public:
+    virtual bool Parse() = 0;
+
+    virtual ~TYsonListParserImplBase()
+    { }
+};
+
+template <class TConsumer, class TBlockStream, bool EnableLinePositionInfo>
+class TYsonListParserImpl
+    : public TYsonListParserImplBase
+{
+private:
+    using TParser = NDetail::TParser<TConsumer, TBlockStream, EnableLinePositionInfo>;
+    TParser Parser;
+    bool First = true;
+
+public:
+    TYsonListParserImpl(const TBlockStream& blockStream, TConsumer* consumer, TMaybe<ui64> memoryLimit)
+        : Parser(blockStream, consumer, memoryLimit)
+    { }
+
+    bool Parse() override
+    {
+        bool ret = Parser.DoParseListFragment(First);
+        First = false;
+        return ret;
     }
 };
 
