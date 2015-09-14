@@ -28,7 +28,6 @@
 
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/virtual.h>
-#include <core/ytree/yson_file_service.h>
 #include <core/ytree/ypath_client.h>
 
 #include <core/profiling/profile_manager.h>
