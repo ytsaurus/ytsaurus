@@ -364,7 +364,13 @@ void TSequentialMultiChunkReaderBase::OnReaderBlocked()
 void TSequentialMultiChunkReaderBase::OnReaderFinished()
 {
     TMultiChunkReaderBase::OnReaderFinished();
- 
+
+    ++FinishedReaderCount_;
+    if (FinishedReaderCount_ == Chunks_.size()) {
+        CompletionError_.TrySet(TError());
+        return;
+    }
+
     ReadyEvent_ = CombineCompletionError(BIND(
         &TSequentialMultiChunkReaderBase::WaitForNextReader,
         MakeStrong(this))
@@ -375,7 +381,6 @@ void TSequentialMultiChunkReaderBase::OnReaderFinished()
 void TSequentialMultiChunkReaderBase::WaitForNextReader()
 {
     if (NextReaderIndex_ == Chunks_.size()) {
-        CompletionError_.TrySet(TError());
         return;
     }
 
@@ -384,10 +389,9 @@ void TSequentialMultiChunkReaderBase::WaitForNextReader()
         .ValueOrThrow();
 
     ++NextReaderIndex_;
-    if (!Options_->KeepInMemory) {
-        // Avoid memory leaks, drop smart pointer reference.
-        NextReaders_[NextReaderIndex_].Reset();
-    }
+
+    // Avoid memory leaks, drop smart pointer reference.
+    NextReaders_[CurrentSession_.ChunkIndex].Reset();
 
     OnReaderSwitched();
 }
