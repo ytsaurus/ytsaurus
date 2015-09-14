@@ -46,7 +46,7 @@ public:
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const override    ;
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const override;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
@@ -143,7 +143,6 @@ public:
     virtual bool Write(TWriteArgs... args) override
     {
         YCHECK(GetReadyEvent().IsSet());
-        YCHECK(GetReadyEvent().Get().IsOK());
 
         // Return true if current writer is ready for more data and
         // we didn't switch to the next chunk.
