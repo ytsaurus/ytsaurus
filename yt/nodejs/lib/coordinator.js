@@ -207,16 +207,13 @@ function YtCoordinator(config, logger, driver, fqdn)
     this.hosts = {};
     this.hosts[this.fqdn] = this.host;
 
-    if (this.config.enable) {
-        this.failure_count = 0;
-        this.failure_at = new Date(0);
+    this.initialized = false;
 
+    if (this.config.enable) {
         this.sync_at = new Date(0);
 
         this.network_bytes = null;
         this.network_traffic_reservoir = new YtReservoir(this.config.afd_window_size);
-
-        this.initialized = false;
 
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
         if (this.timer.unref) { this.timer.unref(); }
@@ -289,15 +286,6 @@ YtCoordinator.prototype._refresh = function()
         self.__DBG("Updating coordination information");
 
         var now = new Date();
-        var failing = false;
-
-        if (self.failure_count > self.config.failure_threshold) {
-            self.failure_at = now;
-        }
-
-        if (now - self.failure_at < self.config.failure_timeout) {
-            failing = true;
-        }
 
         sync = Q.promisify(fs.readFile)("/proc/net/dev")
         .then(function(data) {
@@ -339,9 +327,6 @@ YtCoordinator.prototype._refresh = function()
 
     return sync
     .then(function() {
-        // We are dropping failure count as soon as we pushed it to Cypress.
-        self.failure_count = 0;
-
         // We are resetting timed as we have successfully reported to masters.
         self.sync_at = new Date();
 
@@ -418,17 +403,28 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
 
 YtCoordinator.prototype.isSelfAlive = function()
 {
-    return (new Date() - this.sync_at) < this.config.death_age;
+    if (!this.config.enable) {
+        return true;
+    }
+
+    if (!this.initialized) {
+        return false;
+    }
+
+    if ((new Date() - this.sync_at) > this.config.death_age) {
+        return false;
+    }
+
+    if (this.host.banned) {
+        return false;
+    }
+
+    return true;
 };
 
 YtCoordinator.prototype.getSelf = function()
 {
     return this.host;
-};
-
-YtCoordinator.prototype.countFailure = function()
-{
-    ++this.failure_count;
 };
 
 YtCoordinator.prototype.allocateDataProxy = function()
