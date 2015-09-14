@@ -138,3 +138,7 @@ struct hash<NYT::NChunkClient::TChunkIdWithIndex>
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+
+#define CHUNK_REPLICA_INL_H_
+#include "chunk_replica-inl.h"
+#undef CHUNK_REPLICA_INL_H_
