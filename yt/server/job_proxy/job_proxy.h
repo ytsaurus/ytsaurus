@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 #include "private.h"
 #include "job.h"
 
@@ -41,7 +42,7 @@ public:
 private:
     const NYTree::INodePtr ConfigNode_;
 
-    TJobProxyConfigPtr Config_;
+    TJobProxyConfigPtr Config_ = New<TJobProxyConfig>();
     NJobAgent::TJobId JobId_;
 
     NLogging::TLogger Logger;
