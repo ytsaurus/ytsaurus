@@ -1187,6 +1187,12 @@ public:
                             .Do(BIND(&TFairShareStrategy::BuildOperationProgress, this, operation))
                         .EndMap();
                 });
+            for (auto& pair : OperationToElement) {
+                auto operation = pair.first;
+                LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
+                    GetOperationLoggingProgress(operation),
+                    operation->GetId());
+            }
             LastLogTime = now;
         }
 
