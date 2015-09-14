@@ -2,14 +2,23 @@
 
 from yt.common import YtError
 from yt.wrapper.client import Yt
+from yt.wrapper.common import get_backoff
 import simplejson as json
 
 import logging
 import argparse
+import time
 import requests
 from datetime import datetime
 
+from socket import error as SocketError
+from yt.packages.requests import HTTPError, ConnectionError, Timeout
+
 STATFACE_PUSH_URL = "https://stat.yandex-team.ru/_api/report/data"
+
+PUSH_RETRIES_COUNT = 5
+PUSH_REQUEST_TIMEOUT = 20000
+
 REPORT_NAME = "YT/AccountsResourceUsage"
 
 NOW = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -50,8 +59,22 @@ def push_cluster_data(accounts_data, headers):
     data["name"] = REPORT_NAME
     data["scale"] = "h"
     data["json_data"] = json.dumps({"values": accounts_data})
-    r = requests.post(STATFACE_PUSH_URL, data=data, headers=headers)
-    r.raise_for_status()
+    for attempt in xrange(PUSH_RETRIES_COUNT):
+        current_time = datetime.now()
+        try:
+            r = requests.post(STATFACE_PUSH_URL, data=data, headers=headers, timeout=PUSH_REQUEST_TIMEOUT)
+            r.raise_for_status()
+            return
+        except (Timeout, ConnectionError, HTTPError, SocketError) as error:
+            if attempt + 1 == PUSH_RETRIES_COUNT:
+                raise
+            logging.warning('HTTP POST request (url: %s) failed with error %s, message: "%s"',
+                    STATFACE_PUSH_URL, str(type(error)), error.message)
+            backoff = get_backoff(PUSH_REQUEST_TIMEOUT, current_time)
+            if backoff:
+                logging.warning("Sleep for %.2lf seconds before next retry", backoff)
+                time.sleep(backoff)
+            logging.warning("New retry (%d) ...", attempt + 2)
 
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)-15s\t%(levelname)s\t%(message)s")
