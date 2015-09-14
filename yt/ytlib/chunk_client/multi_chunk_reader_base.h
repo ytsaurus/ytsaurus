@@ -154,6 +154,7 @@ public:
 
 private:
     int NextReaderIndex_ = 0;
+    int FinishedReaderCount_ = 0;
     std::vector<TPromise<IChunkReaderBasePtr>> NextReaders_;
 
 
