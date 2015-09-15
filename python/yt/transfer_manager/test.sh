@@ -72,18 +72,20 @@ wait_task() {
     done
 }
 
-# Different transfers
-echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
-yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
-
 test_copy_from_smith_to_sakura() {
-    echo "Importing from Smith to Cedar"
+    echo "Importing from Smith to Sakura"
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "sakura"}')
     wait_task $id
 }
 
+test_copy_from_smith_to_redwood() {
+    echo "Importing from Smith to Sakura"
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "redwood", "mr_user": "userdata"}')
+    wait_task $id
+}
+
 test_copy_from_sakura_to_redwood() {
-    echo "Importing from Cedar to Redwood"
+    echo "Importing from Sakura to Redwood"
     id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "tmp/yt/test_table", "destination_cluster": "redwood", "mr_user": "userdata"}')
     wait_task $id
 }
@@ -120,7 +122,7 @@ test_copy_from_plato_to_quine() {
 }
 
 test_copy_from_sakura_to_plato() {
-    echo "Importing from Cedar to Plato"
+    echo "Importing from Sakura to Plato"
     # mr_user: asaitgalin because this user has zero quota
     id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "//tmp/test_table_from_sakura", "destination_cluster": "plato", "mr_user": "asaitgalin", "pool": "ignat"}')
     wait_task $id
@@ -175,7 +177,7 @@ test_copy_table_attributes() {
 }
 
 test_copy_to_yamr_table_with_spaces_in_name() {
-    echo "Importing from Smith to Cedar (test spaces in destination table name)"
+    echo "Importing from Smith to Sakura (test spaces in destination table name)"
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test table", "destination_cluster": "sakura"}')
     wait_task $id
 }
@@ -193,15 +195,31 @@ test_recursive_path_creation() {
         "$(yt2 read //tmp/test/table/from/plato --proxy quine.yt.yandex.net --format yamr)"
 }
 
-#test_passing_custom_spec() {
-#    echo "Test passing spec to Trasnfer Manager tasks"
-#    
-#    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy"}, "postprocess_spec": {"type": "postprocess}}')
-#    
-#    #copy_spec
-#    #postprocess_spec
-#    #destination_erasure_codec
-#}
+strip_quotes() {
+    local str="$1"
+    str="${str%\"}"
+    str="${str#\"}"
+    echo "$str"
+}
+
+test_passing_custom_spec() {
+    echo "Test passing spec to Trasnfer Manager tasks"
+    
+    yt2 remove //tmp/test_table --force --proxy quine
+    yt2 set //tmp/test_table/@erasure_codec lrc_12_2_2 --proxy plato
+
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy"}, "postprocess_spec": {"type": "postprocess"}, "copy_method": "proxy"}')
+    wait_task $id
+
+    op1=$(strip_quotes $(yt2 get //tmp/test_transfer_manager/tasks/$id/progress/operations/0/id --proxy locke))
+    op2=$(strip_quotes $(yt2 get //tmp/test_transfer_manager/tasks/$id/progress/operations/1/id --proxy locke))
+    check "$(yt2 get //sys/operations/$op1/@spec/type --proxy quine)" '"copy"'
+    check "$(yt2 get //sys/operations/$op2/@spec/type --proxy quine)" '"postprocess"'
+}
+
+# Different transfers
+echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
+yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
 
 test_copy_from_smith_to_sakura
 test_copy_from_sakura_to_redwood
@@ -213,3 +231,4 @@ test_abort_restart_task
 test_copy_table_attributes
 test_copy_to_yamr_table_with_spaces_in_name
 test_recursive_path_creation
+test_passing_custom_spec
