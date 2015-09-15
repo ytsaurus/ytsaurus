@@ -1184,7 +1184,7 @@ class Application(object):
         if not fields:
             fields = None
         if user is not None:
-            tasks = [task.user == user for task in tasks]
+            tasks = dict([(id, task) for id, task in tasks.iteritems() if task.user == user])
 
         tasks_queue_indexes = {}
         queue_sizes = defaultdict(lambda: 0)
