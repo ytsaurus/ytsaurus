@@ -68,7 +68,6 @@ class SafeThread(Thread):
             kwargs = {}
 
         def safe_run(*args, **kwargs):
-            print >>sys.stderr, "Running thread ", current_thread()
             try:
                 target(*args, **kwargs)
             except KeyboardInterrupt:
@@ -90,6 +89,7 @@ SIGTERM_SENT = False
 def sigterm_handler(signum, frame):
     global SIGTERM_SENT
     if not SIGTERM_SENT:
+        print >>sys.stderr, "Handling SIGTERM, killing process group"
         SIGTERM_SENT = True
         os.killpg(0, signal.SIGINT)
         time.sleep(0.5)
@@ -454,7 +454,6 @@ class Application(object):
 
     def _run_logging_server(self):
         prctl.set_pdeathsig(signal.SIGINT)
-        print >>sys.stderr, "Logging process PID", os.getpid()
         socket_reciever = LogRecordSocketReceiver(lambda record: logger.LOGGER.handle(record),
                                                   port=self._logging_port)
         socket_reciever.serve_until_stopped()
@@ -846,7 +845,7 @@ class Application(object):
     def execute_task(self, task, message_queue):
         logger.LOGGER = TaskIdLogger(task.id)
 
-        logger.info("Start executing task")
+        logger.info("Start executing task (pid %s)", os.getpid())
         try:
             self._precheck(task)
 
@@ -1023,6 +1022,7 @@ class Application(object):
 
     # Public interface
     def run(self, *args, **kwargs):
+        logger.info("Starting transfer manager (pid %s)", os.getpid())
         self._daemon.run(*args, **kwargs)
 
 
@@ -1093,7 +1093,6 @@ class Application(object):
             raise RequestFailed("Unknown task " + id)
 
         logger.info("Aboring task %s", id)
-        print >>sys.stderr, "Aboring task", id
 
         with self._mutex:
             self._check_permission(id, request.headers, "Aborting")
@@ -1102,7 +1101,7 @@ class Application(object):
                 process, _ = self._task_processes[id]
                 process.aborted = True
 
-                print >>sys.stderr, "Killing process with pid", process.pid
+                logger.info("Killing process with pid", process.pid)
                 try:
                     os.kill(process.pid, signal.SIGINT)
                 except OSError:
@@ -1240,15 +1239,11 @@ class Application(object):
 
 
 def main():
-    signal.signal(signal.SIGTERM, sigterm_handler)
-
     parser = argparse.ArgumentParser(description="Transfer manager.")
     parser.add_argument("--execute-task", action="store_true", default=False)
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
         
-    print >>sys.stderr, "Main process PID", os.getpid()
-
     if args.execute_task:
         # NB: we do not want see configuration messages for each task.
         logger.LOGGER.setLevel(logging.WARNING)
@@ -1260,6 +1255,9 @@ def main():
         message_queue = MessageWriter(sys.stdout)
         app.execute_task(task, message_queue)
     else:
+        # We should register sigterm handler only for main transfer manager process.
+        signal.signal(signal.SIGTERM, sigterm_handler)
+
         app = Application(args.config)
         app.start_processes()
         app.run(host=app._config.get("host", "::"), port=app._config["port"], use_reloader=False, threaded=True)
