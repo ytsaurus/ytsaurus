@@ -1,4 +1,4 @@
-import configs
+from configs_provider import ConfigsProviderFactory
 
 from yt.environment import YTEnv
 from yt.wrapper.common import generate_uuid
@@ -175,7 +175,8 @@ def _safe_kill(pid):
 
 def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
-          proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False, path=None):
+          proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
+          enable_debug_logging=False, path=None):
 
     require(masters_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
 
@@ -187,12 +188,13 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
         os.makedirs(sandbox_path)
 
     environment = YTEnvironment(master_config, scheduler_config, node_config, proxy_config)
-    environment.CONFIGS_MODULE = configs
 
     environment.NUM_MASTERS = masters_count
     environment.NUM_NODES = nodes_count
     environment.NUM_SCHEDULERS = schedulers_count
     environment.START_PROXY = start_proxy
+    environment.START_SECONDARY_MASTER_CELLS = False
+    environment.CONFIGS_PROVIDER_FACTORY = ConfigsProviderFactory
 
     use_proxy_from_yt_source = use_proxy_from_yt_source or \
             _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
@@ -211,7 +213,11 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
         else:
             raise YtError("Instance with id {0} is already running".format(sandbox_id))
 
-    environment.start(sandbox_path, pids_file_path, proxy_port=proxy_port, supress_yt_output=True)
+    environment.start(sandbox_path, pids_file_path,
+                      proxy_port=proxy_port,
+                      supress_yt_output=True,
+                      enable_debug_logging=enable_debug_logging)
+
     environment.id = sandbox_id
 
     if local_cypress_dir is not None:
