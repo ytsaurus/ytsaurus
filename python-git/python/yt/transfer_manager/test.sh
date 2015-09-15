@@ -76,15 +76,15 @@ wait_task() {
 echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
 
-test_copy_from_smith_to_cedar() {
+test_copy_from_smith_to_sakura() {
     echo "Importing from Smith to Cedar"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "cedar"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "sakura"}')
     wait_task $id
 }
 
-test_copy_from_cedar_to_redwood() {
+test_copy_from_sakura_to_redwood() {
     echo "Importing from Cedar to Redwood"
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "tmp/yt/test_table", "destination_cluster": "redwood", "mr_user": "userdata"}')
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "tmp/yt/test_table", "destination_cluster": "redwood", "mr_user": "userdata"}')
     wait_task $id
 }
 
@@ -119,14 +119,14 @@ test_copy_from_plato_to_quine() {
     check "true" "$(yt2 exists //tmp/test_table_from_plato/@sorted --proxy quine.yt.yandex.net)"
 }
 
-test_copy_from_cedar_to_plato() {
+test_copy_from_sakura_to_plato() {
     echo "Importing from Cedar to Plato"
     # mr_user: asaitgalin because this user has zero quota
-    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "cedar", "destination_table": "//tmp/test_table_from_cedar", "destination_cluster": "plato", "mr_user": "asaitgalin", "pool": "ignat"}')
+    id=$(run_task '{"source_table": "tmp/yt/test_table", "source_cluster": "sakura", "destination_table": "//tmp/test_table_from_sakura", "destination_cluster": "plato", "mr_user": "asaitgalin", "pool": "ignat"}')
     wait_task $id
 
     check \
-        "$(yt2 read //tmp/test_table_from_cedar --proxy plato.yt.yandex.net --format yamr)" \
+        "$(yt2 read //tmp/test_table_from_sakura --proxy plato.yt.yandex.net --format yamr)" \
         "$(yt2 read //tmp/test_table --proxy smith.yt.yandex.net --format yamr)"
 }
 
@@ -176,7 +176,7 @@ test_copy_table_attributes() {
 
 test_copy_to_yamr_table_with_spaces_in_name() {
     echo "Importing from Smith to Cedar (test spaces in destination table name)"
-    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test table", "destination_cluster": "cedar"}')
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test table", "destination_cluster": "sakura"}')
     wait_task $id
 }
 
@@ -193,12 +193,22 @@ test_recursive_path_creation() {
         "$(yt2 read //tmp/test/table/from/plato --proxy quine.yt.yandex.net --format yamr)"
 }
 
-test_copy_from_smith_to_cedar
-test_copy_from_cedar_to_redwood
+#test_passing_custom_spec() {
+#    echo "Test passing spec to Trasnfer Manager tasks"
+#    
+#    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy"}, "postprocess_spec": {"type": "postprocess}}')
+#    
+#    #copy_spec
+#    #postprocess_spec
+#    #destination_erasure_codec
+#}
+
+test_copy_from_smith_to_sakura
+test_copy_from_sakura_to_redwood
 test_copy_from_redwood_to_plato
 test_copy_from_plato_to_smith
 test_copy_from_plato_to_quine
-test_copy_from_cedar_to_plato
+test_copy_from_sakura_to_plato
 test_abort_restart_task
 test_copy_table_attributes
 test_copy_to_yamr_table_with_spaces_in_name
