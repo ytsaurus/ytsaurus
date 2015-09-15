@@ -787,7 +787,11 @@ private:
             }
 
             LOG_ERROR(error, "Job input/output error, aborting");
-            CleanupUserProcesses();
+
+            // This is a workaround for YT-2837.
+            BIND(&TUserJob::CleanupUserProcesses, MakeWeak(this))
+                .Via(PipeIOQueue_->GetInvoker())
+                .Run();
 
             for (auto& reader : TablePipeReaders_) {
                 reader->Abort();
