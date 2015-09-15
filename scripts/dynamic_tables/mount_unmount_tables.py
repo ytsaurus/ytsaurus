@@ -9,7 +9,7 @@ import time
 from threading import Thread
 
 
-def do_action(action, tables, **kwargs):
+def do_action(action, tables, args, **kwargs):
     def _mount(table, **kwargs):
         logging.info("Mounting table %s", table)
         yt.mount_table(table, **kwargs)
@@ -35,6 +35,11 @@ def do_action(action, tables, **kwargs):
 
     for fn, state in ops:
         for table in tables:
+            if args.read_only:
+                yt.set(table + "/@read_only", True)
+            if args.read_write and yt.exists(table + "@/read_only"):
+                yt.remove(table + "/@read_only")
+
             fn(table, **kwargs)
         for table in tables:
             while not all(tablet["state"] == state for tablet in yt.get(table + "/@tablets")):
@@ -50,6 +55,11 @@ def main():
                         help="Do not wait for transactions and flushes while unmounting")
     parser.add_argument("--silent", action="store_true", default=False,
                         help="Do not log anything")
+    parser.add_argument("--read-only", action="store_true", default=False,
+                        help="Set read-only mode for table")
+    parser.add_argument("--read-write", action="store_true", default=False,
+                        help="Set read-write mode for table")
+
     args = parser.parse_args()
 
     if args.silent:
@@ -78,7 +88,7 @@ def main():
         if start_index >= end_index:
             break
         tables_for_thread = tables[start_index:end_index]
-        thread = Thread(target=do_action, args=(args.action, tables_for_thread), kwargs=kwargs)
+        thread = Thread(target=do_action, args=(args.action, tables_for_thread, args), kwargs=kwargs)
         thread.start()
         threads.append(thread)
 
