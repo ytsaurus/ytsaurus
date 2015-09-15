@@ -3,8 +3,8 @@ import yt.packages.simplejson as json
 
 """This module provides default ytserver configs"""
 
-def get_logging_config():
-    return yson.loads(
+def get_logging_config(enable_debug_logging=True):
+    config = yson.loads(
 """
 {
     rules = [
@@ -13,12 +13,12 @@ def get_logging_config():
             writers = [ info ];
         };
         {
-            min_level = debug;
-            writers = [ debug ];
-        };
-        {
             min_level = error;
             writers = [ stderr ];
+        };
+        {
+            min_level = debug;
+            writers = [ debug ];
         };
     ];
     writers = {
@@ -36,6 +36,11 @@ def get_logging_config():
     };
 }
 """)
+    if not enable_debug_logging:
+        del config["rules"][2]
+        del config["writers"]["debug"]
+
+    return config
 
 def get_master_config():
     return yson.loads(
@@ -182,10 +187,6 @@ def get_node_config():
             flush_period = 10;
         };
 
-        cache_location = {
-            path = "";
-        };
-
         multiplexed_changelog = {
             path = "";
         };
@@ -193,7 +194,7 @@ def get_node_config():
     };
 
     exec_agent = {
-        slot_manager = {};
+        slot_manager = { };
 
         scheduler_connector = {
             heartbeat_period = 200;
@@ -216,36 +217,9 @@ def get_node_config():
 
         enable_cgroups = %false;
 
-        slot_manager = {
-            paths = [];
-            path = "";
-        };
+        job_proxy_logging = { };
 
-        job_proxy_logging = {
-            rules = [
-                {
-                    min_level = info;
-                    writers = [ info ];
-                };
-                {
-                    min_level = debug;
-                    writers = [ debug ];
-                };
-            ];
-            writers = {
-                info = {
-                    type = file;
-                    file_name = "{path}/{name}.log";
-                };
-                debug = {
-                    type = file;
-                    file_name = "{path}/{name}.debug.log";
-                };
-            }
-        };
-
-        job_proxy_tracing = {
-        };
+        job_proxy_tracing = { };
     };
 
     tablet_node = {
@@ -262,28 +236,7 @@ def get_node_config():
 
     tracing = { };
 
-    logging = {
-        rules = [
-            {
-                min_level = info;
-                writers = [ info ];
-            };
-            {
-                min_level = debug;
-                writers = [ debug ];
-            };
-        ];
-        writers = {
-            info = {
-                type = file;
-                file_name = "{path}/{name}.log";
-            };
-            debug = {
-                type = file;
-                file_name = "{path}/{name}.debug.log";
-            };
-        }
-    };
+    logging = { };
 }
 """)
 
