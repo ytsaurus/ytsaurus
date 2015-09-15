@@ -16,6 +16,20 @@ Oper = namedtuple("Oper", ["start_time", "finish_time", "id", "user", "state", "
 
 logger.set_formatter(logging.Formatter('%(asctime)-15s\t{}\t%(message)s'.format(yt.config.http.PROXY)))
 
+def get_filter_factors(op, attributes):
+    brief_spec = attributes.get("brief_spec", {})
+    return " ".join([
+        op,
+        attributes.get("key", ""),
+        attributes.get("authenticated_user", ""),
+        attributes.get("state", ""),
+        attributes.get("operation_type", ""),
+        attributes.get("pool", ""),
+        brief_spec.get("title", ""),
+        str(brief_spec.get('input_table_paths', [''])[0]),
+        str(brief_spec.get('input_table_paths', [''])[0])
+    ]).lower()
+
 def clean_operations(count, total_count, failed_timeout, max_operations_per_user, robots, log, save_to_tablets):
     """Clean all operations started no more than #days days ago,
        leaving no more than #count most recent operations."""
@@ -89,6 +103,8 @@ def clean_operations(count, total_count, failed_timeout, max_operations_per_user
             row = {"id": op}
             for key in fields:
                 row[key] = attributes[key]
+            row["filter_factors"] = get_filter_factors(op, attributes)
+
             run_with_retries(lambda: yt.insert_rows("//sys/operations_archive/ordered_by_id", [row], raw=False))
             run_with_retries(lambda: yt.insert_rows("//sys/operations_archive/ordered_by_start_time", [{"id": row["id"], "start_time": row["start_time"], "dummy": "null"}], raw=False))
 
