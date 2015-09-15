@@ -1,4 +1,4 @@
-from configs_provider import ConfigsProvider, _init_logging
+from configs_provider import ConfigsProviderFactory, init_logging
 from helpers import versions_cmp
 
 from yt.common import update, YtError
@@ -68,6 +68,8 @@ class YTEnv(object):
     START_PROXY = False
     USE_PROXY_FROM_PACKAGE = False
 
+    CONFIGS_PROVIDER_FACTORY = ConfigsProviderFactory
+
     DELTA_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
@@ -89,7 +91,7 @@ class YTEnv(object):
     def modify_proxy_config(self, config):
         pass
 
-    def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False):
+    def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True):
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
@@ -125,7 +127,8 @@ class YTEnv(object):
                       self.START_PROXY,
                       use_proxy_from_package=self.USE_PROXY_FROM_PACKAGE,
                       start_secondary_master_cells=self.START_SECONDARY_MASTER_CELLS,
-                      proxy_port=proxy_port)
+                      proxy_port=proxy_port,
+                      enable_debug_logging=enable_debug_logging)
 
     def get_master_addresses(self):
         return list(chain.from_iterable(self._master_addresses.values()))
@@ -168,9 +171,12 @@ class YTEnv(object):
             if not ok:
                 total_ok = False
                 total_message_parts.append(message)
-        if safe and not total_ok:
-            raise YtError("Failed to clear environment. Message: {0}"\
-                          .format("\n\n".join(total_message_parts)))
+        if not total_ok:
+            message = "Failed to clear clear_environment. Message: %s"
+            if safe:
+                raise YtError(message % "\n\n".join(total_message_parts))
+            else:
+                logger.warning(message, "\n\n".join(total_message_parts))
 
     def check_liveness(self, callback_func):
         for pid, info in self._all_processes.iteritems():
@@ -181,7 +187,8 @@ class YTEnv(object):
                 break
 
     def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy,
-                 use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0, proxy_port=None):
+                 use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
+                 proxy_port=None, enable_debug_logging=True):
 
         master_name = "master" + instance_id
         scheduler_name = "scheduler" + instance_id
@@ -193,13 +200,18 @@ class YTEnv(object):
         if secondary_master_cell_count > 0 and versions_cmp(self._ytserver_version, "0.18") < 0:
             raise YtError("Multicell is not supported for ytserver version < 0.18")
 
-        self._configs_provider = ConfigsProvider.create_for_version(self._ytserver_version)
+        self._configs_provider = self.CONFIGS_PROVIDER_FACTORY \
+                .create_for_version(self._ytserver_version, enable_debug_logging)
+        self._enable_debug_logging = enable_debug_logging
 
         logger.info("Starting up cluster instance as follows:")
         logger.info("  masters          %d", masters_count)
         logger.info("  nodes            %d", nodes_count)
         logger.info("  schedulers       %d", schedulers_count)
-        logger.info("  secondary cells  %d", secondary_master_cell_count)
+
+        if self.START_SECONDARY_MASTER_CELLS:
+            logger.info("  secondary cells  %d", secondary_master_cell_count)
+
         logger.info("  proxies          %d", int(has_proxy))
         logger.info("  working dir      %s", self.path_to_run)
 
@@ -209,17 +221,19 @@ class YTEnv(object):
             return
 
         try:
-            self._run_masters(masters_count, master_name, secondary_master_cell_count, cell_tag, start_secondary_master_cells=start_secondary_master_cells)
+            self._run_masters(masters_count, master_name, secondary_master_cell_count, cell_tag,
+                              start_secondary_master_cells=start_secondary_master_cells)
             self._run_schedulers(schedulers_count, scheduler_name)
             self._run_nodes(nodes_count, node_name)
             self._prepare_driver(driver_name, secondary_master_cell_count)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
             self._run_proxy(has_proxy, proxy_name, use_proxy_from_package=use_proxy_from_package, proxy_port=proxy_port)
-            self._write_environment_info_to_file(masters_count, secondary_master_cell_count, schedulers_count, nodes_count, has_proxy)
-        except Exception:
-            logger.exception("Failed to start environment")
-            self.clear_environment()
-            raise
+
+            self._write_environment_info_to_file(masters_count, secondary_master_cell_count, schedulers_count,
+                                                 nodes_count, has_proxy)
+        except Exception as err:
+            self.clear_environment(safe=False)
+            raise YtError("Failed to start environment", inner_errors=[err])
 
     def _write_environment_info_to_file(self, masters_count, secondary_master_cell_count, schedulers_count, nodes_count, has_proxy):
         info = {}
@@ -611,7 +625,7 @@ class YTEnv(object):
                 current_driver_name = driver_name + "_secondary_" + str(cell_index - 1)
 
             self.configs[current_driver_name] = config
-            self.driver_logging_config = _init_logging(None, self.path_to_run, "driver")
+            self.driver_logging_config = init_logging(None, self.path_to_run, "driver", self._enable_debug_logging)
 
     def _prepare_console_driver(self, console_driver_name, driver_config):
             from default_configs import get_console_driver_config
@@ -619,7 +633,8 @@ class YTEnv(object):
             config = get_console_driver_config()
 
             config["driver"] = driver_config
-            config["logging"] = _init_logging(config["logging"], self.path_to_run, "console_driver")
+            config["logging"] = init_logging(config["logging"], self.path_to_run, "console_driver",
+                                              self._enable_debug_logging)
 
             config_path = os.path.join(self.path_to_run, "console_driver_config.yson")
 

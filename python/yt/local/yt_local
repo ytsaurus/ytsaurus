@@ -105,6 +105,8 @@ def add_start_subparser(subparsers):
                              "Can be specified through YT_LOCAL_USE_PROXY_FROM_SOURCE.")
     parser.add_argument("--no-proxy", action="store_true", default=False, help="do not start proxy")
     parser.add_argument("--proxy-port", type=int, help="proxy port for http requests")
+    parser.add_argument("--enable-debug-logging", action="store_true", default=False,
+                        help="set logging level threshold to DEBUG")
 
 
 def add_stop_subparser(subparsers):

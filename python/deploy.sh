@@ -25,7 +25,7 @@ DEB=1 dpkg-buildpackage -i -I -rfakeroot
 # Upload debian package
 REPOS=""
 case $PACKAGE in
-    yandex-yt-python|yandex-yt-python-tools)
+    yandex-yt-python|yandex-yt-python-tools|yandex-yt-local)
         REPOS="common yt-common"
         ;;
     yandex-yt-transfer-manager|yandex-yt-python-fennel)

@@ -7,9 +7,9 @@ import os
 import abc
 import socket
 
-def _init_logging(node, path, name):
+def init_logging(node, path, name, enable_debug_logging):
     if not node:
-        node = default_configs.get_logging_config()
+        node = default_configs.get_logging_config(enable_debug_logging)
 
     def process(node, key, value):
         if isinstance(value, str):
@@ -28,11 +28,24 @@ def _init_logging(node, path, name):
 
     return traverse(node)
 
+class ConfigsProviderFactory(object):
+    @staticmethod
+    def create_for_version(version, enable_debug_logging):
+        if versions_cmp(version, "0.17.2") <= 0:
+            return ConfigsProvider_17_2(enable_debug_logging)
+        elif versions_cmp(version, "0.17.3") >= 0 and versions_cmp(version, "0.18") < 0:
+            return ConfigsProvider_17_3(enable_debug_logging)
+        elif versions_cmp(version, "0.18") >= 0:
+            return ConfigsProvider_18(enable_debug_logging)
+
+        raise YtError("Cannot create configs provider for version: {0}".format(version))
+
 class ConfigsProvider(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self):
+    def __init__(self, enable_debug_logging=True):
         self.fqdn = socket.getfqdn()
+        self.enable_debug_logging = enable_debug_logging
         get_open_port.busy_ports = set()
         # Generated addresses
         # _master_addresses["secondary"] is list of size secondary_master_cell_count
@@ -61,20 +74,9 @@ class ConfigsProvider(object):
     def get_driver_configs(self):
         pass
 
-    @classmethod
-    def create_for_version(cls, version):
-        if versions_cmp(version, "0.17.2") <= 0:
-            return ConfigsProvider_17_2()
-        elif versions_cmp(version, "0.17.3") >= 0 and versions_cmp(version, "0.18") < 0:
-            return ConfigsProvider_17_3()
-        elif versions_cmp(version, "0.18") >= 0:
-            return ConfigsProvider_18()
-
-        raise YtError("Cannot create configs provider for version: {0}".format(version))
-
 class ConfigsProvider_17(ConfigsProvider):
-    def __init__(self):
-        super(ConfigsProvider_17, self).__init__()
+    def __init__(self, enable_debug_logging=True):
+        super(ConfigsProvider_17, self).__init__(enable_debug_logging)
         self._master_cell_tag = 0
 
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
@@ -101,7 +103,8 @@ class ConfigsProvider_17(ConfigsProvider):
             config["timestamp_provider"]["addresses"] = addresses
             config["changelogs"]["path"] = os.path.join(master_dirs[i], "changelogs")
             config["snapshots"]["path"] = os.path.join(master_dirs[i], "snapshots")
-            config["logging"] = _init_logging(config["logging"], master_dirs[i], "master-" + str(i))
+            config["logging"] = init_logging(config["logging"], master_dirs[i], "master-" + str(i),
+                                             self.enable_debug_logging)
 
             config["node_tracker"]["online_node_timeout"] = 1000
 
@@ -110,7 +113,7 @@ class ConfigsProvider_17(ConfigsProvider):
         self._master_addresses["primary"] = addresses
         self._master_cell_tag = cell_tag
 
-        return [configs], addresses
+        return [configs], [addresses]
 
     def _get_cache_addresses(self):
         if self._node_addresses:
@@ -142,7 +145,8 @@ class ConfigsProvider_17(ConfigsProvider):
 
             config["transaction_manager"]["ping_period"] = 500
 
-            config["logging"] = _init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i))
+            config["logging"] = init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i),
+                                             self.enable_debug_logging)
 
             configs.append(config)
 
@@ -195,9 +199,12 @@ class ConfigsProvider_17(ConfigsProvider):
 
             current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
 
-            config["logging"] = _init_logging(config["logging"], node_dirs[i], "node-{0}".format(i))
-            config["exec_agent"]["job_proxy_logging"] = \
-                _init_logging(config["exec_agent"]["job_proxy_logging"], node_dirs[i], "job_proxy-{0}".format(i))
+            config["logging"] = init_logging(config["logging"], node_dirs[i], "node-{0}".format(i),
+                                             self.enable_debug_logging)
+
+            config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
+                                                                     node_dirs[i], "job_proxy-{0}".format(i),
+                                                                     self.enable_debug_logging)
 
             configs.append(config)
 
@@ -220,7 +227,8 @@ class ConfigsProvider_17(ConfigsProvider):
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
         proxy_config = default_configs.get_proxy_config()
-        proxy_config["proxy"]["logging"] = _init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy")
+        proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
+                                                        self.enable_debug_logging)
         proxy_config["proxy"]["driver"] = driver_config
         proxy_config["port"] = ports[0]
         proxy_config["log_port"] = ports[1]
@@ -286,8 +294,8 @@ class ConfigsProvider_17_2(ConfigsProvider_17):
         return configs, addresses
 
 class ConfigsProvider_18(ConfigsProvider):
-    def __init__(self):
-        super(ConfigsProvider_18, self).__init__()
+    def __init__(self, enable_debug_logging=True):
+        super(ConfigsProvider_18, self).__init__(enable_debug_logging)
         self._primary_master_cell_id = 0
         self._secondary_masters_cell_ids = []
 
@@ -346,7 +354,8 @@ class ConfigsProvider_18(ConfigsProvider):
                 config["timestamp_provider"]["addresses"] = addresses[0]
                 config["changelogs"]["path"] = master_dirs[cell_index][master_index]
                 config["snapshots"]["path"] = master_dirs[cell_index][master_index]
-                config["logging"] = _init_logging(config["logging"], master_dirs[cell_index][master_index], "master-" + str(master_index))
+                config["logging"] = init_logging(config["logging"], master_dirs[cell_index][master_index],
+                                                 "master-" + str(master_index), self.enable_debug_logging)
 
                 config["tablet_manager"] = {
                     "cell_scan_period": 100
@@ -394,7 +403,8 @@ class ConfigsProvider_18(ConfigsProvider):
 
             config["transaction_manager"]["default_ping_period"] = 500
 
-            config["logging"] = _init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i))
+            config["logging"] = init_logging(config["logging"], scheduler_dirs[i], "scheduler-" + str(i),
+                                             self.enable_debug_logging)
 
             configs.append(config)
 
@@ -418,7 +428,8 @@ class ConfigsProvider_18(ConfigsProvider):
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
         proxy_config = default_configs.get_proxy_config()
-        proxy_config["proxy"]["logging"] = _init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy")
+        proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
+                                                        self.enable_debug_logging)
         proxy_config["proxy"]["driver"] = driver_config
         proxy_config["port"] = ports[0]
         proxy_config["log_port"] = ports[1]
@@ -481,9 +492,11 @@ class ConfigsProvider_18(ConfigsProvider):
 
             current_user += config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] + 1
 
-            config["logging"] = _init_logging(config["logging"], node_dirs[i], "node-{0}".format(i))
-            config["exec_agent"]["job_proxy_logging"] = \
-                _init_logging(config["exec_agent"]["job_proxy_logging"], node_dirs[i], "job_proxy-{0}".format(i))
+            config["logging"] = init_logging(config["logging"], node_dirs[i], "node-{0}".format(i),
+                                             self.enable_debug_logging)
+            config["exec_agent"]["job_proxy_logging"] = init_logging(config["exec_agent"]["job_proxy_logging"],
+                                                                     node_dirs[i], "job_proxy-{0}".format(i),
+                                                                     self.enable_debug_logging)
 
             configs.append(config)
 
