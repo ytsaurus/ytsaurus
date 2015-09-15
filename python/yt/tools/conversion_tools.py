@@ -1,6 +1,6 @@
+from yt.common import update, get_value
 import yt.logger as logger
 import yt.wrapper as yt
-from yt.common import update
 
 def _get_compression_ratio(table, codec, yt_client):
     logger.info("Compress sample of '%s' to calculate compression ratio", table) 
@@ -25,6 +25,8 @@ def _check_codec(table, codec_name, codec_value, yt_client):
                 raise
 
 def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None, desired_chunk_size=None, yt_client=None, spec=None):
+    spec = get_value(spec, {})
+
     if yt_client is None:
         yt_client = yt
 

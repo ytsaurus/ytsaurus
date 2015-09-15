@@ -44,7 +44,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from collections import defaultdict
 from subprocess32 import TimeoutExpired
-from threading import RLock, Thread
+from threading import RLock, Thread, current_thread
 from multiprocessing import Process, Queue
 
 yt.config["read_retries"]["enable"] = True
@@ -68,9 +68,11 @@ class SafeThread(Thread):
             kwargs = {}
 
         def safe_run(*args, **kwargs):
+            print >>sys.stderr, "Running thread ", current_thread()
             try:
                 target(*args, **kwargs)
             except KeyboardInterrupt:
+                print >>sys.stderr, "Interrupting main from child thread:", current_thread()
                 thread.interrupt_main()
                 time.sleep(0.5)
                 os.kill(self._parent_pid, signal.SIGTERM)
@@ -452,6 +454,7 @@ class Application(object):
 
     def _run_logging_server(self):
         prctl.set_pdeathsig(signal.SIGINT)
+        print >>sys.stderr, "Logging process PID", os.getpid()
         socket_reciever = LogRecordSocketReceiver(lambda record: logger.LOGGER.handle(record),
                                                   port=self._logging_port)
         socket_reciever.serve_until_stopped()
@@ -480,13 +483,18 @@ class Application(object):
         for id, options in self._yt.get(tasks_path).iteritems():
             try:
                 task = Task(**options)
-            except Exception:
-                logger.warning("Failed to load task " + id)
+            except Exception as err:
+                logger.warning("Failed to load task %s: %s", id, str(err))
                 continue
 
-            active_client, passive_client = self._get_active_and_passive_clients(task)
+            try:
+                active_client, passive_client = self._get_active_and_passive_clients(task)
+            except yt.YtError as err:
+                logger.warning("Failed to load task %s: %s", id, str(err))
+                continue
+
             if active_client._type == "yt" and task.pool is None:
-                logger.warning("Cannot load task %s: task has no pool", id)
+                logger.warning("Failed load task %s: task has no pool", id)
                 continue
 
             self._tasks[id] = task
@@ -1085,6 +1093,7 @@ class Application(object):
             raise RequestFailed("Unknown task " + id)
 
         logger.info("Aboring task %s", id)
+        print >>sys.stderr, "Aboring task", id
 
         with self._mutex:
             self._check_permission(id, request.headers, "Aborting")
@@ -1093,6 +1102,7 @@ class Application(object):
                 process, _ = self._task_processes[id]
                 process.aborted = True
 
+                print >>sys.stderr, "Killing process with pid", process.pid
                 try:
                     os.kill(process.pid, signal.SIGINT)
                 except OSError:
@@ -1236,6 +1246,8 @@ def main():
     parser.add_argument("--execute-task", action="store_true", default=False)
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
+        
+    print >>sys.stderr, "Main process PID", os.getpid()
 
     if args.execute_task:
         # NB: we do not want see configuration messages for each task.

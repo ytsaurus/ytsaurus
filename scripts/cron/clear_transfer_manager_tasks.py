@@ -17,8 +17,10 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
     if robots is None:
         robots = []
 
-
+    logger.info("Request tasks")
     rsp = requests.get(url + "/tasks/")
+    logger.info("Tasks recieved")
+
     tasks = [Task(
         parse(v.get("start_time", v["creation_time"])).replace(tzinfo=None),
         v.get("finish_time", None),
@@ -63,10 +65,10 @@ def clean_tasks(url, token, count, total_count, failed_timeout, max_regular_task
         else:
             saved += 1
 
-
     for task in to_remove:
         rsp = requests.get("%s/tasks/%s/" % (url, task))
         if rsp.status_code != 200:
+            logger.info("Task %s is already removed", task)
             continue
         if not is_final(rsp.json()["state"]):
             logger.info("Task (%s) is no more in final state", task)
