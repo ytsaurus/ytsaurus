@@ -2,11 +2,13 @@ from yt.common import update, get_value
 import yt.logger as logger
 import yt.wrapper as yt
 
-def _get_compression_ratio(table, codec, yt_client):
+def _get_compression_ratio(table, codec, yt_client, spec):
     logger.info("Compress sample of '%s' to calculate compression ratio", table) 
     tmp = yt_client.create_temp_table()
+    spec["force_transform"] = "true"
+    spec["title"] = "Merge to calculate compression ratio"
     yt_client.set(tmp + "/@compression_codec", codec)
-    yt_client.run_merge(table + "[#1:#10000]", tmp, mode="unordered", spec={"force_transform": "true"})
+    yt_client.run_merge(table + "[#1:#10000]", tmp, mode="unordered", spec=spec)
     ratio = yt_client.get(table + "/@compression_ratio")
     yt_client.remove(tmp)
     return ratio
@@ -46,7 +48,7 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
         yt_client.create("table", dst, ignore_existing=True)
     
     if compression_codec is not None:
-        ratio = _get_compression_ratio(src, compression_codec, yt_client)
+        ratio = _get_compression_ratio(src, compression_codec, yt_client, spec=spec)
         yt_client.set(dst + "/@compression_codec", compression_codec)
     else:
         ratio = yt_client.get(src + "/@compression_ratio")
@@ -61,6 +63,7 @@ def convert_to_erasure(src, dst=None, erasure_codec=None, compression_codec=None
     
     spec = update(
         {
+            "title": "Convert to erasure",
             "combine_chunks": "true",
             "force_transform": "true",
             "data_size_per_job": data_size_per_job,
