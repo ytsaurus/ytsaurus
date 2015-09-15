@@ -3,9 +3,9 @@
 import yt.yson as yson
 import yt.wrapper as yt
 
+BY_ID_ARCHIVE = "//sys/operations_archive/ordered_by_id"
+BY_START_TIME_ARCHIVE = "//sys/operations_archive/ordered_by_start_time"
 SHARD_COUNT = 100
-yt.config.VERSION = "v3"
-yt.config.http.HEADER_FORMAT = "yson"
 
 def create_ordered_by_id_table():
     path = "//sys/operations_archive/ordered_by_id"
@@ -45,9 +45,15 @@ def create_ordered_by_start_time_table():
     yt.set(path + "/@key_columns", ["start_time", "id_hash", "id"])
     yt.mount_table(path)
 
-def main():
+def prepare_tables():
+    yt.config.VERSION = "v3"
+    yt.config.http.HEADER_FORMAT = "yson"
+
     create_ordered_by_id_table()
     create_ordered_by_start_time_table()
+
+def main():
+    prepare_tables()
 
 if __name__ == "__main__":
     main()
