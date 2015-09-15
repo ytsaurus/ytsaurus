@@ -680,3 +680,23 @@ class TestTablets(YTEnvSetup):
 
     def test_nonatomic_snapshots(self):
         self._test_snapshots("none")
+
+    def test_read_only_mode(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        set("//tmp/t/@read_only", True)
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(1)]
+
+        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
+
+        remove("//tmp/t/@read_only")
+        remount_table("//tmp/t")
+
+        insert_rows("//tmp/t", rows)
+
+        set("//tmp/t/@read_only", True)
+        remount_table("//tmp/t")
+
+        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
