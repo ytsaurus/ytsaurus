@@ -391,18 +391,29 @@ YtCommand.prototype._checkHttpMethod = function() {
 YtCommand.prototype._checkAvailability = function() {
     this.__DBG("_checkAvailability");
 
-    if (this.coordinator.getSelf().banned) {
-        this.rsp.statusCode = 503;
-        this.rsp.setHeader("Retry-After", "60");
-        throw new YtError("This proxy is banned");
+    var self = this;
+
+    function abortAsUnavailable(cause) {
+        self.rsp.statusCode = 503;
+        self.rsp.setHeader("Retry-After", "60");
+        throw new YtError(cause);
     }
 
-    if (this.descriptor.is_heavy && this.watcher.is_choking()) {
-        this.rsp.statusCode = 503;
-        this.rsp.setHeader("Retry-After", "60");
-        throw new YtError(
+    if (this.coordinator.getSelf().banned) {
+        abortAsUnavailable(
+            "This proxy is banned");
+    }
+
+    if (this.descriptor.is_heavy && this.watcher.isChoking()) {
+        abortAsUnavailable(
             "Command '" + this.name +
             "' is heavy and the proxy is currently under heavy load; " +
+            "please try another proxy or try again later");
+    }
+
+    if (!this.watcher.acquireThread()) {
+        abortAsUnavailable(
+            "There are too many concurrent requests being served at the moment; " +
             "please try another proxy or try again later");
     }
 };
@@ -788,12 +799,13 @@ YtCommand.prototype._execute = function(cb) {
 
     var self = this;
 
+    self.logger.debug("Command '" + self.name + "' is being executed");
     return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression,
         this.output_stream, this.output_compression,
         this.parameters, this.request_id,
         this.pause,
-        function(key, value) {
+        function response_parameters_consumer(key, value) {
             self.logger.debug(
                 "Got a response parameter",
                 { key: key, value: value.Print() });
@@ -810,22 +822,16 @@ YtCommand.prototype._execute = function(cb) {
                         binding.ECompression_None,
                         self.header_format));
             }
-        })
-    .spread(
-        function(result) {
-            self.logger.debug(
-                "Command '" + self.name + "' successfully executed",
-                { result: result });
-            return arguments;
         },
-        function(result) {
+        function result_interceptor(result) {
+            self.watcher.releaseThread();
             self.logger.debug(
-                "Command '" + self.name + "' has failed to execute",
+                "Command '" + self.name + "' has finished executing",
                 { result: result });
-            return arguments;
         })
+    .spread(function() { return arguments; }, function() { return arguments; })
     .spread(function(result, bytes_in, bytes_out) {
-        self.bytes_in  = bytes_in;
+        self.bytes_in = bytes_in;
         self.bytes_out = bytes_out;
 
         if (result.code === 0) {
