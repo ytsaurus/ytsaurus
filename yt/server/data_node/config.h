@@ -393,7 +393,7 @@ public:
             .Default(1000)
             .GreaterThanOrEqual(1);
 
-        RegisterParameter("max_block_per_read", MaxBlocksPerRead)
+        RegisterParameter("max_blocks_per_read", MaxBlocksPerRead)
             .GreaterThan(0)
             .Default(100000);
         RegisterParameter("max_bytes_per_read", MaxBytesPerRead)
