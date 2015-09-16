@@ -98,7 +98,9 @@ function YtDriverFacadeV2(driver)
 YtDriverFacadeV2.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters, request_id, pause, response_parameters_consumer)
+    parameters, request_id, pause,
+    response_parameters_consumer,
+    result_interceptor)
 {
     if (typeof(this.mapping[name]) !== "undefined") {
         name = this.mapping[name];
@@ -111,7 +113,9 @@ YtDriverFacadeV2.prototype.execute = function(name, user,
         name, user,
         input_stream, input_compression,
         output_stream, output_compression,
-        parameters, request_id, pause, response_parameters_consumer);
+        parameters, request_id, pause,
+        response_parameters_consumer,
+        result_interceptor);
 };
 
 YtDriverFacadeV2.prototype.find_command_descriptor = function(name)
