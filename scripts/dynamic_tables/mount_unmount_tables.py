@@ -8,6 +8,12 @@ import logging
 import time
 from threading import Thread
 
+def remove(path):
+    try:
+        yt.remove(path)
+    except yt.errors.YtResponseError as error:
+        if error.error["code"] not in (500, 501):
+            raise
 
 def do_action(action, tables, args, **kwargs):
     def _mount(table, **kwargs):
@@ -37,8 +43,8 @@ def do_action(action, tables, args, **kwargs):
         for table in tables:
             if args.read_only:
                 yt.set(table + "/@read_only", True)
-            if args.read_write and yt.exists(table + "@/read_only"):
-                yt.remove(table + "/@read_only")
+            if args.read_write:
+                remove(table + "/@read_only")
 
             fn(table, **kwargs)
         for table in tables:
