@@ -86,6 +86,7 @@ struct ISchedulerElement
     virtual void UpdateAttributes() = 0;
 
     virtual TInstant GetStartTime() const = 0;
+    virtual int GetPendingJobCount() const = 0;
 
     virtual Stroka GetId() const = 0;
 
@@ -339,6 +340,7 @@ public:
 
     virtual void UpdateBottomUp() override
     {
+        PendingJobCount = 0;
         ResourceDemand_ = ZeroNodeResources();
         Attributes_.BestAllocationRatio = 0.0;
         for (const auto& child : Children) {
@@ -348,6 +350,8 @@ public:
             Attributes_.BestAllocationRatio = std::max(
                 Attributes_.BestAllocationRatio,
                 child->Attributes().BestAllocationRatio);
+
+            PendingJobCount += child->GetPendingJobCount();
         }
         TSchedulerElementBase::UpdateBottomUp();
     }
@@ -455,6 +459,17 @@ public:
         return BestLeafDescendant_;
     }
 
+    virtual TInstant GetStartTime() const override
+    {
+        // For pools StartTime is equal to minimal start time among active children.
+        return MinSubtreeStartTime;
+    }
+
+    virtual int GetPendingJobCount() const override
+    {
+        return PendingJobCount;
+    }
+
     virtual bool IsRoot() const
     {
         return false;
@@ -508,6 +523,7 @@ public:
 
 protected:
     ESchedulingMode Mode;
+    std::vector<EFifoSortParameter> FifoSortParameters;
 
     yhash_set<ISchedulerElementPtr> Children;
     yhash_set<ISchedulerElementPtr> DisabledChildren;
@@ -515,6 +531,7 @@ protected:
     ISchedulerElement* BestLeafDescendant_ = nullptr;
 
     TInstant MinSubtreeStartTime;
+    int PendingJobCount;
 
     // Given a non-descending continuous |f|, |f(0) = 0|, and a scalar |a|,
     // computes |x \in [0,1]| s.t. |f(x) = a|.
@@ -664,14 +681,29 @@ protected:
 
     ISchedulerElementPtr GetBestChildFifo(bool needsActive) const
     {
-        auto isBetter = [] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
-            if (lhs->GetWeight() > rhs->GetWeight()) {
-                return true;
+        auto isBetter = [this] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
+            for (auto parameter : FifoSortParameters) {
+                switch (parameter) {
+                    case EFifoSortParameter::Weight:
+                        if (lhs->GetWeight() != rhs->GetWeight()) {
+                            return lhs->GetWeight() > rhs->GetWeight();
+                        }
+                        break;
+                    case EFifoSortParameter::StartTime:
+                        if (lhs->GetStartTime() != rhs->GetStartTime()) {
+                            return lhs->GetStartTime() < rhs->GetStartTime();
+                        }
+                        break;
+                    case EFifoSortParameter::PendingJobCount:
+                        if (lhs->GetPendingJobCount() != rhs->GetPendingJobCount()) {
+                            return lhs->GetPendingJobCount() < rhs->GetPendingJobCount();
+                        }
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
             }
-            if (lhs->GetWeight() < rhs->GetWeight()) {
-                return false;
-            }
-            return lhs->GetStartTime() < rhs->GetStartTime();
+            return false;
         };
 
         ISchedulerElementPtr bestChild;
@@ -699,16 +731,6 @@ protected:
         }
         return bestChild;
     }
-
-
-    void SetMode(ESchedulingMode mode)
-    {
-        if (Mode != mode) {
-            Mode = mode;
-            Update();
-        }
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -749,12 +771,6 @@ public:
     {
         DoSetConfig(New<TPoolConfig>());
         DefaultConfigured = true;
-    }
-
-    virtual TInstant GetStartTime() const override
-    {
-        // For pools StartTime is equal to minimal start time among active children.
-        return MinSubtreeStartTime;
     }
 
     virtual Stroka GetId() const override
@@ -838,7 +854,19 @@ private:
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
         Config_ = newConfig;
-        SetMode(Config_->Mode);
+
+        bool update = false;
+        if (FifoSortParameters != Config_->FifoSortParameters || Mode != Config_->Mode) {
+            FifoSortParameters = Config_->FifoSortParameters;
+            update = true;
+        }
+
+        FifoSortParameters = Config_->FifoSortParameters;
+        Mode = Config_->Mode;
+
+        if (update) {
+            Update();
+        }
     }
 
     TNodeResources ComputeResourceLimits() const
@@ -878,7 +906,6 @@ public:
         , NonpreemptableResourceUsage_(ZeroNodeResources())
         , Config(config)
     { }
-
 
     virtual void PrescheduleJob(TExecNodePtr node, bool starvingOnly) override
     {
@@ -930,6 +957,12 @@ public:
     virtual TInstant GetStartTime() const override
     {
         return Operation_->GetStartTime();
+    }
+
+    virtual int GetPendingJobCount() const override
+    {
+        auto controller = Operation_->GetController();
+        return controller->GetPendingJobCount();
     }
 
     virtual Stroka GetId() const override
@@ -1077,13 +1110,8 @@ public:
     {
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
-        SetMode(ESchedulingMode::FairShare);
-    }
-
-    virtual TInstant GetStartTime() const override
-    {
-        // For pools StartTime is equal to minimal start time among active children.
-        return MinSubtreeStartTime;
+        Mode = ESchedulingMode::FairShare;
+        Update();
     }
 
     virtual bool IsRoot() const override
