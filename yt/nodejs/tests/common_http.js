@@ -56,19 +56,19 @@ exports.ask = function ask(method, path, headers, verify, callback)
                         // TODO(sandello): Rework.
                         if (rsp.headers["x-yt-error"]) {
                             if (bodyParsed.hasOwnProperty("error")) {
-                                __DBG("*** HTTP Response Error:\n" + bodyParsed.error);
+                                __DBG("\n*** HTTP Response Error:\n" + bodyParsed.error);
                                 delete bodyParsed.error;
                             }
                             if (bodyParsed.hasOwnProperty("error_trace")) {
-                                __DBG("*** HTTP Response Error Stack:\n" + bodyParsed.error_trace);
+                                __DBG("\n*** HTTP Response Error Stack:\n" + bodyParsed.error_trace);
                                 delete bodyParsed.error_trace;
                             }
                         }
 
                         var bodyFormatted = JSON.stringify(bodyParsed, null, 2);
-                        __DBG("*** HTTP Response Body:\n" + bodyFormatted + "\n***");
+                        __DBG("\n*** HTTP Response Body:\n" + bodyFormatted + "\n***");
                     } catch (err) {
-                        __DBG("*** HTTP Response Body:\n" + body + "\n***");
+                        __DBG("\n*** HTTP Response Body:\n" + body + "\n***");
                     }
                 }
 

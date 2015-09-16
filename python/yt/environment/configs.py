@@ -141,6 +141,7 @@ def get_scheduler_config():
         lock_transaction_timeout = 2000;
         transactions_refresh_period = 500;
         operations_update_period = 500;
+        fair_share_update_period = 500;
         watchers_update_period = 100;
         connect_grace_delay = 0;
         environment = {

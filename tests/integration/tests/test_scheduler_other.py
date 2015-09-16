@@ -38,13 +38,15 @@ class TestSchedulerOther(YTEnvSetup):
         assert get("//sys/nodes/%s/@state" % address) == state
         print "Node is %s" % state
 
+    def _create_table(self, table):
+        create("table", table)
+        set(table + "/@replication_factor", 1)
+
     def _prepare_tables(self):
-        create("table", "//tmp/t_in")
-        set("//tmp/t_in/@replication_factor", 1)
+        self._create_table("//tmp/t_in")
         write("//tmp/t_in", {"foo": "bar"})
 
-        create("table", "//tmp/t_out")
-        set("//tmp/t_out/@replication_factor", 1)
+        self._create_table("//tmp/t_out")
 
     def test_revive(self):
         self._prepare_tables()
@@ -86,14 +88,9 @@ class TestSchedulerOther(YTEnvSetup):
         assert "aborted" == get("//sys/operations/" + op_id + "/@state")
 
     def test_operation_time_limit(self):
-        create("table", "//tmp/in")
-        set("//tmp/in/@replication_factor", 1)
-
-        create("table", "//tmp/out1")
-        set("//tmp/out1/@replication_factor", 1)
-
-        create("table", "//tmp/out2")
-        set("//tmp/out2/@replication_factor", 1)
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out1")
+        self._create_table("//tmp/out2")
 
         write("//tmp/in", [{"foo": i} for i in xrange(5)])
 
@@ -116,6 +113,64 @@ class TestSchedulerOther(YTEnvSetup):
         assert get("//sys/operations/{0}/@state".format(op2)) == "failed"
 
         track_op(op1)
+
+    def test_fifo_default(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out1")
+        self._create_table("//tmp/out2")
+        self._create_table("//tmp/out3")
+        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
+        set("//sys/pools/fifo_pool/@mode", "fifo")
+
+        # Waiting for updating pool settings.
+        time.sleep(0.6)
+
+        ops = []
+        for i in xrange(1, 4):
+            ops.append(
+                map(dont_track=True,
+                    command="sleep 0.3; cat >/dev/null",
+                    in_=["//tmp/in"],
+                    out="//tmp/out" + str(i),
+                    spec={"pool": "fifo_pool"}))
+
+        for op in ops:
+            track_op(op)
+
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op)) for op in ops]
+        for cur, next in zip(finish_times, finish_times[1:]):
+            assert cur < next
+
+    def test_fifo_by_pending_job_count(self):
+        for i in xrange(1, 4):
+            self._create_table("//tmp/in" + str(i))
+            self._create_table("//tmp/out" + str(i))
+            write("//tmp/in" + str(i), [{"foo": j} for j in xrange(2 * (4 - i))])
+
+        create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
+        set("//sys/pools/fifo_pool/@mode", "fifo")
+        set("//sys/pools/fifo_pool/@fifo_sort_parameters", ["pending_job_count"])
+
+        # Wait until pools tree would be updated
+        time.sleep(0.6)
+
+        ops = []
+        for i in xrange(1, 4):
+            ops.append(
+                map(dont_track=True,
+                    command="sleep 0.3; cat >/dev/null",
+                    in_=["//tmp/in" + str(i)],
+                    out="//tmp/out" + str(i),
+                    spec={"pool": "fifo_pool", "data_size_per_job": 1}))
+
+        for op in ops:
+            track_op(op)
+
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op)) for op in ops]
+        for cur, next in zip(finish_times, finish_times[1:]):
+            assert cur > next
 
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1
