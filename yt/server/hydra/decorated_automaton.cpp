@@ -902,11 +902,17 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
     ApplyPendingMutationsScheduled_ = false;
 
     NProfiling::TScopedTimer timer;
+    bool hasMoreMutations = false;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
-        while (!PendingMutations_.empty() && timer.GetElapsed() < Config_->MaxCommitBatchDuration) {
+        while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
             if (pendingMutation.Version >= CommittedVersion_)
                 break;
+
+            if (timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
+                hasMoreMutations = true;
+                break;
+            }
 
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
@@ -928,7 +934,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
         }
     }
 
-    if (!PendingMutations_.empty()) {
+    if (hasMoreMutations) {
         ApplyPendingMutationsScheduled_ = true;
         epochContext->EpochUserAutomatonInvoker->Invoke(
             BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
