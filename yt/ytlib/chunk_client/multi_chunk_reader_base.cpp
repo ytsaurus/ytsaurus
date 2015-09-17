@@ -181,8 +181,8 @@ void TMultiChunkReaderBase::DoOpenChunk(int chunkIndex)
     auto error = WaitFor(reader->Open());
 
     if (!error.IsOK()) {
-        CompletionError_.TrySet(error);
         RegisterFailedChunk(chunkIndex);
+        CompletionError_.TrySet(error);
         return;
     }
 
@@ -400,8 +400,8 @@ void TSequentialMultiChunkReaderBase::WaitForCurrentReader()
 {
     auto error = WaitFor(CurrentSession_.ChunkReader->GetReadyEvent());
     if (!error.IsOK()) {
-        CompletionError_.TrySet(error);
         RegisterFailedChunk(CurrentSession_.ChunkIndex);
+        CompletionError_.TrySet(error);
     }
 }
 
@@ -511,8 +511,8 @@ void TParallelMultiChunkReaderBase::WaitForReader(TSession session)
         return;
     }
 
-    CompletionError_.TrySet(error);
     RegisterFailedChunk(session.ChunkIndex);
+    CompletionError_.TrySet(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
