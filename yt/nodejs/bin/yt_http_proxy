@@ -204,8 +204,6 @@ config = {
         afd_window_size: 24,
         afd_phi_threshold: 4,
         death_age: 300000,
-        failure_threshold: 5,
-        failure_timeout: 60000,
     },
     min_python_wrapper_version: {
         enable: true,

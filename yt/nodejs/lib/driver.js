@@ -129,8 +129,8 @@ YtDriver.prototype.execute = function(
     input_stream, input_compression,
     output_stream, output_compression,
     parameters, request_id, pause,
-    response_parameters_consumer
-)
+    response_parameters_consumer,
+    result_interceptor)
 {
     this.__DBG("execute");
 
@@ -176,6 +176,11 @@ YtDriver.prototype.execute = function(
             self.__DBG("execute -> (on-execute callback)");
             // XXX(sandello): Can we move |_endSoon| to C++?
             wrapped_output_stream._endSoon();
+
+            if (typeof(result_interceptor) === "function") {
+                self.__DBG("execute -> (interceptor)");
+                result_interceptor(result);
+            }
 
             if (result.code === 0) {
                 self.__DBG("execute -> execute_promise has been resolved");

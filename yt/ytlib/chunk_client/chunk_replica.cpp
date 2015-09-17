@@ -17,78 +17,9 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReplica::TChunkReplica()
-    : Value(InvalidNodeId | (0 << 28))
-{ }
-
-TChunkReplica::TChunkReplica(ui32 value)
-    : Value(value)
-{ }
-
-TChunkReplica::TChunkReplica(int nodeId, int index)
-    : Value(nodeId | (index << 28))
-{
-    YASSERT(nodeId >= 0 && nodeId <= MaxNodeId);
-    YASSERT(index >= 0 && index < ChunkReplicaIndexBound);
-}
-
-int TChunkReplica::GetNodeId() const
-{
-    return Value & 0x0fffffff;
-}
-
-int TChunkReplica::GetIndex() const
-{
-    return Value >> 28;
-}
-
-void ToProto(ui32* value, TChunkReplica replica)
-{
-    *value = replica.Value;
-}
-
-void FromProto(TChunkReplica* replica, ui32 value)
-{
-    replica->Value = value;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 Stroka ToString(TChunkReplica replica)
 {
     return Format("%v/%v", replica.GetNodeId(), replica.GetIndex());
-}
-
-TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr nodeDirectory)
-    : NodeDirectory_(nodeDirectory)
-{ }
-
-Stroka TChunkReplicaAddressFormatter::operator () (TChunkReplica replica) const
-{
-    const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
-    return Format("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkIdWithIndex::TChunkIdWithIndex()
-    : Index(0)
-{ }
-
-TChunkIdWithIndex::TChunkIdWithIndex(const TChunkId& id, int index)
-    : Id(id)
-    , Index(index)
-{ }
-
-bool operator == (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
-{
-    return lhs.Id == rhs.Id && lhs.Index == rhs.Index;
-}
-
-bool operator != (const TChunkIdWithIndex& lhs, const TChunkIdWithIndex& rhs)
-{
-
-    return !(lhs == rhs);
 }
 
 Stroka ToString(const TChunkIdWithIndex& id)
@@ -98,11 +29,22 @@ Stroka ToString(const TChunkIdWithIndex& id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr nodeDirectory)
+    : NodeDirectory_(std::move(nodeDirectory))
+{ }
+
+void TChunkReplicaAddressFormatter::operator () (TStringBuilder* builder, TChunkReplica replica) const
+{
+    const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
+    builder->AppendFormat("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsArtifactChunkId(const TChunkId& id)
 {
     return TypeFromId(id) == EObjectType::Artifact;
 }
-
 bool IsErasureChunkId(const TChunkId& id)
 {
     return TypeFromId(id) == EObjectType::ErasureChunk;

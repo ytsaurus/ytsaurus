@@ -684,7 +684,9 @@ std::vector<TRowRange> MergeOverlappingRanges(
     std::sort(ranges.begin(), ranges.end());
     for (int index = 1; index < ranges.size(); ++index) {
         if (ranges[index].first <= ranges[lastIndex].second) {
-            ranges[lastIndex].second = std::move(ranges[index].second);
+            if (ranges[lastIndex].second < ranges[index].second) {
+                ranges[lastIndex].second = std::move(ranges[index].second);
+            }
         } else if (ranges[index].first == ranges[index].second) {
             continue;
         } else {

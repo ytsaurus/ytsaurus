@@ -5,10 +5,7 @@
 #include <ytlib/node_tracker_client/public.h>
 
 // TODO(babenko): kill this when refactoring TDataSplit
-namespace NYT { namespace NChunkClient { namespace NProto {
-    class TChunkSpec;
-} } }
-
+#include <ytlib/chunk_client/public.h>
 
 namespace NYT {
 namespace NQueryClient {
@@ -111,6 +108,8 @@ typedef NTableClient::TOwningKey TOwningKey;
 typedef std::pair<TOwningKey, TOwningKey> TKeyRange;
 typedef std::pair<TRow, TRow> TRowRange;
 typedef std::vector<TRowRange> TRowRanges;
+
+struct TDataSource;
 
 const int MaxRowsPerRead = 1024;
 const int MaxRowsPerWrite = 1024;

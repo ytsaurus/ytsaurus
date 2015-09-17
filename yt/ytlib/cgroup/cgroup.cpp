@@ -473,8 +473,8 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("user").Value(static_cast<ui64>(statistics.UserTime.MilliSeconds()))
-            .Item("system").Value(static_cast<ui64>(statistics.SystemTime.MilliSeconds()))
+            .Item("user").Value(statistics.UserTime.MilliSeconds())
+            .Item("system").Value(statistics.SystemTime.MilliSeconds())
         .EndMap();
 }
 

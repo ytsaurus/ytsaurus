@@ -73,11 +73,6 @@ struct IYPathService
     //! Executes a given request.
     virtual void Invoke(NRpc::IServiceContextPtr context) = 0;
 
-    //! Called for the target service and returns the logger that will be used by RPC infrastructure
-    //! to log various details about verb invocation (e.g. request and response infos).
-    virtual NLogging::TLogger GetLogger() const = 0;
-
-
     // Extension methods
 
     //! Creates a YPath service from a YSON producer.

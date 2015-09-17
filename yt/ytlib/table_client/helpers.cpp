@@ -16,6 +16,7 @@ namespace NTableClient {
 
 using namespace NConcurrency;
 using namespace NFormats;
+using namespace NYson;
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -163,6 +164,37 @@ void PipeInputToOutput(
 }
 
 //////////////////////////////////////////////////////////////////////////////////
+
+// NB: not using TYsonString here to avoid copying.
+TUnversionedValue MakeUnversionedValue(const TStringBuf& ysonString, int id, TStatelessLexer& lexer)
+{
+    TToken token;
+    lexer.GetToken(ysonString, &token);
+    YCHECK(!token.IsEmpty());
+
+    switch (token.GetType()) {
+        case ETokenType::Int64:
+            return MakeUnversionedInt64Value(token.GetInt64Value(), id);
+
+        case ETokenType::Uint64:
+            return MakeUnversionedUint64Value(token.GetUint64Value(), id);
+
+        case ETokenType::String:
+            return MakeUnversionedStringValue(token.GetStringValue(), id);
+
+        case ETokenType::Double:
+            return MakeUnversionedDoubleValue(token.GetDoubleValue(), id);
+
+        case ETokenType::Hash:
+            return MakeUnversionedSentinelValue(EValueType::Null, id);
+
+        default:
+            return MakeUnversionedAnyValue(ysonString, id);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT
 } // namespace NTableClient

@@ -37,11 +37,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TTablet> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return TabletServerLogger;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* tablet = GetThisTypedImpl();

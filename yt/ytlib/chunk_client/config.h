@@ -320,8 +320,6 @@ public:
     i64 DesiredChunkSize;
     i64 MaxMetaSize;
 
-    bool SyncChunkSwitch;
-
     NErasure::ECodec ErasureCodec;
 
     TMultiChunkWriterConfig()
@@ -333,8 +331,6 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual((i64) 64 * 1024 * 1024)
             .Default((i64) 30 * 1024 * 1024);
-        RegisterParameter("sync_chunk_switch", SyncChunkSwitch)
-            .Default(true);
     }
 };
 

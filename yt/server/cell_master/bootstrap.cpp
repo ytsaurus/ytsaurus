@@ -13,7 +13,6 @@
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/virtual.h>
 
-#include <core/ytree/yson_file_service.h>
 #include <core/ytree/ypath_service.h>
 #include <core/ytree/ypath_client.h>
 
@@ -120,11 +119,8 @@ static const auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(
-    const Stroka& configFileName,
-    TCellMasterConfigPtr config)
-    : ConfigFileName_(configFileName)
-    , Config_(config)
+TBootstrap::TBootstrap(INodePtr configNode)
+    : ConfigNode_(configNode)
 { }
 
 // Neither remove it nor move it to the header.
@@ -266,6 +262,13 @@ void TBootstrap::TryLoadSnapshot(const Stroka& fileName, bool dump)
 
 void TBootstrap::DoInitialize()
 {
+    try {
+        Config_ = ConvertTo<TCellMasterConfigPtr>(ConfigNode_);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
+            << ex;
+    }
+
     LOG_INFO("Initializing cell master (CellId: %v, CellTag: %v)",
         GetCellId(),
         GetCellTag());
@@ -325,7 +328,7 @@ void TBootstrap::DoInitialize()
         Config_->HiveManager,
         CellDirectory_,
         GetCellId(),
-        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::RpcService),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
 
@@ -357,7 +360,7 @@ void TBootstrap::DoInitialize()
 
     TransactionSupervisor_ = New<TTransactionSupervisor>(
         Config_->TransactionSupervisor,
-        HydraFacade_->GetAutomatonInvoker(),
+        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::RpcService),
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),
@@ -395,7 +398,7 @@ void TBootstrap::DoInitialize()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        CreateVirtualNode(CreateYsonFileService(ConfigFileName_)));
+        ConfigNode_);
 
     SetBuildAttributes(orchidRoot, "master");
 

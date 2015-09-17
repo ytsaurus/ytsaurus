@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 #include "private.h"
 #include "job.h"
 
@@ -11,6 +12,7 @@
 #include <ytlib/api/public.h>
 
 #include <ytlib/job_tracker_client/public.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <core/concurrency/public.h>
 
@@ -26,7 +28,7 @@ class TJobProxy
 {
 public:
     TJobProxy(
-        TJobProxyConfigPtr config,
+        NYTree::INodePtr configNode,
         const NJobAgent::TJobId& jobId);
 
     //! Runs the job. Blocks until the job is complete.
@@ -38,7 +40,9 @@ public:
     virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
 
 private:
-    TJobProxyConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
+
+    TJobProxyConfigPtr Config_ = New<TJobProxyConfig>();
     NJobAgent::TJobId JobId_;
 
     NLogging::TLogger Logger;
@@ -49,9 +53,12 @@ private:
     
     NApi::IClientPtr Client_;
 
+    std::atomic<bool> EnableJobProxyMemoryControl_ = { false };
+
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
 
     i64 JobProxyMemoryLimit_;
+    std::atomic<i64> MaxMemoryUsage_ = { 0 };
 
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
@@ -71,6 +78,8 @@ private:
 
     void RetrieveJobSpec();
     void ReportResult(const NJobTrackerClient::NProto::TJobResult& result);
+
+    NJobTrackerClient::TStatistics GetStatistics() const;
 
     std::unique_ptr<IUserJobIO> CreateUserJobIO();
     IJobPtr CreateBuiltinJob();
@@ -95,7 +104,7 @@ private:
 
     void CheckMemoryUsage();
 
-    static void Exit(EJobProxyExitCode exitCode);
+    void Exit(EJobProxyExitCode exitCode);
 
 };
 

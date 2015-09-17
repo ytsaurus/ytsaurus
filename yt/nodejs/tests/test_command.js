@@ -16,9 +16,8 @@ var srv = require("./common_http").srv;
 var die = require("./common_http").die;
 
 // This will spawn a (mock of a) real API server.
-function spawnServer(driver, watcher, done) {
+function spawnServer(driver, coordinator, watcher, done) {
     var logger = stubLogger();
-    var coordinator = stubCoordinator();
     var sticky_cache = lru_cache({ max: 5, maxAge: 5000 });
     return srv(function(req, rsp) {
         var pause = utils.Pause(req);
@@ -48,8 +47,17 @@ function stubCoordinator()
     };
 }
 
+// This stub provides a constant watcher which is either choking or not.
+function stubWatcher() {
+    return {
+        isChoking: function() { return false; },
+        acquireThread: function() { return true; },
+        releaseThread: function() {},
+    };
+}
+
 // This stub provides a real driver instance which simply pipes all data through.
-function stubDriver(echo)
+function stubDriver()
 {
     var config = {
         "low_watermark": 100,
@@ -71,12 +79,22 @@ function stubDriver(echo)
         }
     };
 
-    return new YtDriver(config, !!echo);
+    return new YtDriver(config, /* echo */ true);
 }
 
-// This stub provides a constant watcher which is either choking or not.
-function stubWatcher(is_choking) {
-    return { tackle: function(){}, is_choking: function() { return is_choking; } };
+function beforeCommandTest(done) {
+    this.driver = stubDriver();
+    this.watcher = stubWatcher();
+    this.coordinator = stubCoordinator();
+    this.server = spawnServer(this.driver, this.coordinator, this.watcher, done);
+}
+
+function afterCommandTest(done) {
+    die(this.server, done);
+    this.server = null;
+    this.coordinator = null;
+    this.watcher = null;
+    this.driver = null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,14 +102,8 @@ function stubWatcher(is_choking) {
 describe("YtCommand - v2 http method selection", function() {
     var V = "/v2";
 
-    before(function(done) {
-        this.server = spawnServer(stubDriver(true), stubWatcher(false), done);
-    });
-
-    after(function(done) {
-        die(this.server, done);
-        this.server = null;
-    });
+    before(beforeCommandTest);
+    after(afterCommandTest);
 
     [ "/get", "/download", "/read" ]
     .forEach(function(entry_point) {
@@ -121,14 +133,8 @@ describe("YtCommand - v2 http method selection", function() {
 describe("YtCommand - v3 http method selection", function() {
     var V = "/v3";
 
-    before(function(done) {
-        this.server = spawnServer(stubDriver(true), stubWatcher(false), done);
-    });
-
-    after(function(done) {
-        die(this.server, done);
-        this.server = null;
-    });
+    before(beforeCommandTest);
+    after(afterCommandTest);
 
     [ "/get", "/read_file", "/read_table", "/read_journal" ]
     .forEach(function(entry_point) {
@@ -160,14 +166,8 @@ describe("YtCommand - v3 http method selection", function() {
 describe("YtCommand - v2 command name", function() {
     var V = "/v2";
 
-    before(function(done) {
-        this.server = spawnServer(stubDriver(true), stubWatcher(false), done);
-    });
-
-    after(function(done) {
-        die(this.server, done);
-        this.server = null;
-    });
+    before(beforeCommandTest);
+    after(afterCommandTest);
 
     it("should allow good names", function(done) {
         ask("GET", V + "/get", {},
@@ -194,14 +194,8 @@ describe("YtCommand - v2 command name", function() {
 describe("YtCommand - v3 command name", function() {
     var V = "/v3";
 
-    before(function(done) {
-        this.server = spawnServer(stubDriver(true), stubWatcher(false), done);
-    });
-
-    after(function(done) {
-        die(this.server, done);
-        this.server = null;
-    });
+    before(beforeCommandTest);
+    after(afterCommandTest);
 
     it("should allow good names", function(done) {
         ask("GET", V + "/get", {},
@@ -228,14 +222,8 @@ describe("YtCommand - v3 command name", function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 describe("YtCommand - command descriptors", function() {
-    before(function(done) {
-        this.server = spawnServer(stubDriver(true), stubWatcher(false), done);
-    });
-
-    after(function(done) {
-        die(this.server, done);
-        this.server = null;
-    });
+    before(beforeCommandTest);
+    after(afterCommandTest);
 
     it("should return a list of supported versions", function(done) {
         ask("GET", "/", {},
@@ -385,47 +373,36 @@ describe("YtCommand - command descriptors", function() {
 describe("YtCommand - v2 command heaviness", function() {
     var V = "/v2";
 
-    before(function() {
-        this.driver = stubDriver(true);
-    });
+    before(beforeCommandTest);
+    after(afterCommandTest);
 
     describe("when there is no workload", function() {
-        before(function(done) {
-            this.server = spawnServer(this.driver, stubWatcher(false), done);
-        });
-
-        after(function(done) {
-            die(this.server, done);
-            this.server = null;
-        });
-
-        it("should allow light commands ", function(done) {
+        it("should allow light commands", function(done) {
             ask("GET", V + "/get", {},
             function(rsp) { rsp.should.be.http2xx; }, done).end();
         });
 
-        it("should allow heavy commands ", function(done) {
+        it("should allow heavy commands", function(done) {
             ask("GET", V + "/read", {},
             function(rsp) { rsp.should.be.http2xx; }, done).end();
         });
     });
 
     describe("when there is workload", function() {
-        before(function(done) {
-            this.server = spawnServer(this.driver, stubWatcher(true), done);
+        before(function() {
+            sinon.stub(this.watcher, "isChoking").returns(true);
         });
 
-        after(function(done) {
-            die(this.server, done);
-            this.server = null;
+        after(function() {
+            this.watcher.isChoking.restore();
         });
 
-        it("should allow light commands ", function(done) {
+        it("should allow light commands", function(done) {
             ask("GET", V + "/get", {},
             function(rsp) { rsp.should.be.http2xx; }, done).end();
         });
 
-        it("should disallow heavy commands ", function(done) {
+        it("should disallow heavy commands", function(done) {
             ask("GET", V + "/read", {},
             function(rsp) { rsp.statusCode.should.eql(503); }, done).end();
         });
@@ -435,20 +412,10 @@ describe("YtCommand - v2 command heaviness", function() {
 describe("YtCommand - v3 command heaviness", function() {
     var V = "/v3";
 
-    before(function() {
-        this.driver = stubDriver(true);
-    });
+    before(beforeCommandTest);
+    after(afterCommandTest);
 
     describe("when there is no workload", function() {
-        before(function(done) {
-            this.server = spawnServer(this.driver, stubWatcher(false), done);
-        });
-
-        after(function(done) {
-            die(this.server, done);
-            this.server = null;
-        });
-
         it("should allow light commands ", function(done) {
             ask("GET", V + "/get", {},
             function(rsp) { rsp.should.be.http2xx; }, done).end();
@@ -461,13 +428,12 @@ describe("YtCommand - v3 command heaviness", function() {
     });
 
     describe("when there is workload", function() {
-        before(function(done) {
-            this.server = spawnServer(this.driver, stubWatcher(true), done);
+        before(function() {
+            sinon.stub(this.watcher, "isChoking").returns(true);
         });
 
-        after(function(done) {
-            die(this.server, done);
-            this.server = null;
+        after(function() {
+            this.watcher.isChoking.restore();
         });
 
         it("should allow light commands ", function(done) {
@@ -487,17 +453,15 @@ describe("YtCommand - v3 command heaviness", function() {
 describe("YtCommand - v2 command parameters", function() {
     var V = "/v2";
 
-    beforeEach(function(done) {
-        this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver, stubWatcher(false), done);
-        this.stub   = sinon.spy(this.driver, "execute");
+    before(beforeCommandTest);
+    after(afterCommandTest);
+
+    beforeEach(function() {
+        this.stub = sinon.spy(this.driver, "execute");
     });
 
-    afterEach(function(done) {
-        die(this.server, done);
-        this.driver = null;
-        this.server = null;
-        this.stub   = null;
+    afterEach(function() {
+        this.stub.restore();
     });
 
     it("should set meaningful defaults", function(done) {
@@ -642,17 +606,15 @@ describe("YtCommand - v2 command parameters", function() {
 describe("YtCommand - v3 command parameters", function() {
     var V = "/v3";
 
-    beforeEach(function(done) {
-        this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver, stubWatcher(false), done);
-        this.stub   = sinon.spy(this.driver, "execute");
+    before(beforeCommandTest);
+    after(afterCommandTest);
+
+    beforeEach(function() {
+        this.stub = sinon.spy(this.driver, "execute");
     });
 
-    afterEach(function(done) {
-        die(this.server, done);
-        this.driver = null;
-        this.server = null;
-        this.stub   = null;
+    afterEach(function() {
+        this.stub.restore();
     });
 
     it("should set meaningful defaults", function(done) {
@@ -779,17 +741,15 @@ describe("YtCommand - v3 command parameters", function() {
 describe("YtCommand - v2 input format selection", function() {
     var V = "/v2";
 
-    beforeEach(function(done) {
-        this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver, stubWatcher(false), done);
-        this.stub   = sinon.spy(this.driver, "execute");
+    before(beforeCommandTest);
+    after(afterCommandTest);
+
+    beforeEach(function() {
+        this.stub = sinon.spy(this.driver, "execute");
     });
 
-    afterEach(function(done) {
-        die(this.server, done);
-        this.driver = null;
-        this.server = null;
-        this.stub   = null;
+    afterEach(function() {
+        this.stub.restore();
     });
 
     it("should use 'json' as a default for structured data", function(done) {
@@ -892,17 +852,15 @@ describe("YtCommand - v2 input format selection", function() {
 describe("YtCommand - v2 output format selection", function() {
     var V = "/v2";
 
-    beforeEach(function(done) {
-        this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver, stubWatcher(false), done);
-        this.stub   = sinon.spy(this.driver, "execute");
+    before(beforeCommandTest);
+    after(afterCommandTest);
+
+    beforeEach(function() {
+        this.stub = sinon.spy(this.driver, "execute");
     });
 
-    afterEach(function(done) {
-        die(this.server, done);
-        this.driver = null;
-        this.server = null;
-        this.stub   = null;
+    afterEach(function() {
+        this.stub.restore();
     });
 
     it("should use application/json as a default for structured data", function(done) {
@@ -1093,17 +1051,15 @@ describe("YtCommand - v2 output format selection", function() {
 describe("YtCommand - v3 input format selection", function() {
     var V = "/v3";
 
-    beforeEach(function(done) {
-        this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver, stubWatcher(false), done);
-        this.stub   = sinon.spy(this.driver, "execute");
+    before(beforeCommandTest);
+    after(afterCommandTest);
+
+    beforeEach(function() {
+        this.stub = sinon.spy(this.driver, "execute");
     });
 
-    afterEach(function(done) {
-        die(this.server, done);
-        this.driver = null;
-        this.server = null;
-        this.stub   = null;
+    afterEach(function() {
+        this.stub.restore();
     });
 
     it("should use 'json' as a default for structured data", function(done) {
@@ -1205,17 +1161,15 @@ describe("YtCommand - v3 input format selection", function() {
 describe("YtCommand - v3 output format selection", function() {
     var V = "/v3";
 
-    beforeEach(function(done) {
-        this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver, stubWatcher(false), done);
-        this.stub   = sinon.spy(this.driver, "execute");
+    before(beforeCommandTest);
+    after(afterCommandTest);
+
+    beforeEach(function() {
+        this.stub = sinon.spy(this.driver, "execute");
     });
 
-    afterEach(function(done) {
-        die(this.server, done);
-        this.driver = null;
-        this.server = null;
-        this.stub   = null;
+    afterEach(function() {
+        this.stub.restore();
     });
 
     it("should use application/json as a default for structured data", function(done) {
@@ -1414,25 +1368,15 @@ describe("YtCommand - v3 output format selection", function() {
 describe("YtCommand - specific behaviour", function() {
     var V = "/v2";
 
-    beforeEach(function(done) {
-        this.driver = stubDriver(true);
-        this.server = spawnServer(this.driver, stubWatcher(false), done);
-    });
-
-    afterEach(function(done) {
-        die(this.server, done);
-        this.driver = null;
-        this.server = null;
-    });
+    beforeEach(beforeCommandTest);
+    afterEach(afterCommandTest);
 
     it("should reply with 503 on AllTargetNodesFailed error", function(done) {
         var stub = sinon.stub(this.driver, "execute");
         stub.returns(Q.reject(
             new YtError("YTADMIN-1685").withCode(binding.AllTargetNodesFailedYtErrorCode)
         ));
-        ask("PUT", V + "/write",
-        {},
-        function(rsp) {
+        ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(503);
             stub.should.have.been.calledOnce;
         }, done).end();
@@ -1443,9 +1387,7 @@ describe("YtCommand - specific behaviour", function() {
         stub.returns(Q.reject(
             new YtError("Unavailable").withCode(binding.UnavailableYtErrorCode)
         ));
-        ask("PUT", V + "/write",
-        {},
-        function(rsp) {
+        ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(503);
             stub.should.have.been.calledOnce;
         }, done).end();
@@ -1456,9 +1398,7 @@ describe("YtCommand - specific behaviour", function() {
         stub.returns(Q.reject(
             new YtError("Banned").withCode(binding.UserBannedYtErrorCode)
         ));
-        ask("PUT", V + "/write",
-        {},
-        function(rsp) {
+        ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(403);
             stub.should.have.been.calledOnce;
         }, done).end();
@@ -1469,10 +1409,26 @@ describe("YtCommand - specific behaviour", function() {
         stub.returns(Q.reject(
             new YtError("RequestRateLimitExceeded").withCode(binding.RequestRateLimitExceededYtErrorCode)
         ));
-        ask("PUT", V + "/write",
-        {},
-        function(rsp) {
+        ask("PUT", V + "/write", {}, function(rsp) {
             rsp.statusCode.should.eql(429);
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should reply with 503 when proxy is banned", function(done) {
+        var stub = sinon.stub(this.coordinator, "getSelf");
+        stub.returns({ banned: true });
+        ask("GET", V + "/get?path=/", {}, function(rsp) {
+            rsp.statusCode.should.eql(503);
+            stub.should.have.been.calledOnce;
+        }, done).end();
+    });
+
+    it("should reply with 503 when there are no spare threads", function(done) {
+        var stub = sinon.stub(this.watcher, "acquireThread");
+        stub.returns(false);
+        ask("GET", V + "/get?path=/", {}, function(rsp) {
+            rsp.statusCode.should.eql(503);
             stub.should.have.been.calledOnce;
         }, done).end();
     });

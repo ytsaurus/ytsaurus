@@ -161,11 +161,12 @@ void TYamrConsumer::OnStringScalar(const TStringBuf& value)
 void TYamrConsumer::OnEntity()
 {
     if (State == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Entities are not supported by YAMR");
+        // Ignore nulls.
+        State = EState::ExpectColumnName;
+    } else {
+        YCHECK(State == EState::ExpectEntity);
+        State = EState::None;
     }
-
-    YASSERT(State == EState::ExpectEntity);
-    State = EState::None;
 }
 
 void TYamrConsumer::OnBeginList()

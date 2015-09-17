@@ -195,12 +195,6 @@ TGroupedRanges GetPrunedRanges(
         rangeExpansionLimit,
         verboseLogging);
 
-    auto keyRangeFormatter = [] (const TRowRange& range) -> Stroka {
-        return Format("[%v .. %v]",
-            range.first,
-            range.second);
-    };
-
     LOG_DEBUG("Splitting %v sources according to ranges", sources.size());
 
     TGroupedRanges prunedSources;
@@ -214,8 +208,8 @@ TGroupedRanges GetPrunedRanges(
         for (const auto& range : ranges) {
             LOG_DEBUG_IF(verboseLogging, "Narrowing source %v key range from %v to %v",
                 source.Id,
-                keyRangeFormatter(originalRange),
-                keyRangeFormatter(range));
+                MakeFormatted(TRowRangeFormatter(), originalRange),
+                MakeFormatted(TRowRangeFormatter(), range));
         }
     }
 

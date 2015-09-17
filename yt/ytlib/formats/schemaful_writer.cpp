@@ -28,8 +28,6 @@ bool TSchemafulWriter::Write(const std::vector<TUnversionedRow>& rows)
         Writer_->OnBeginMap();
         for (int index = 0; index < columnCount; ++index) {
             const auto& value = row[index];
-            if (value.Type == EValueType::Null)
-                continue;
 
             const auto& column = Schema_.Columns()[index];
             Writer_->OnKeyedItem(column.Name);
@@ -49,6 +47,9 @@ bool TSchemafulWriter::Write(const std::vector<TUnversionedRow>& rows)
                     break;
                 case EValueType::String:
                     Writer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
+                    break;
+                case EValueType::Null:
+                    Writer_->OnEntity();
                     break;
                 case EValueType::Any:
                     Writer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);

@@ -130,6 +130,8 @@ protected:
 
     IChunkReaderPtr CreateRemoteReader(const TChunk& chunk);
 
+    TFuture<void> CombineCompletionError(TFuture<void> future);
+
     void OpenNextChunks();
     void DoOpenChunk(int chunkIndex);
 
@@ -152,6 +154,7 @@ public:
 
 private:
     int NextReaderIndex_ = 0;
+    int FinishedReaderCount_ = 0;
     std::vector<TPromise<IChunkReaderBasePtr>> NextReaders_;
 
 

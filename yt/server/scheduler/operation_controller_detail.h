@@ -37,7 +37,7 @@
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/scheduler/statistics.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <server/chunk_server/public.h>
 
@@ -171,6 +171,13 @@ protected:
 
     // Maps node ids seen in fetch responses to node descriptors.
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory;
+
+    // Operation transactions ids are stored here to avoid their retrieval from
+    // potentially dangling Operation pointer.
+    NObjectClient::TTransactionId AsyncSchedulerTransactionId;
+    NObjectClient::TTransactionId SyncSchedulerTransactionId;
+    NObjectClient::TTransactionId InputTransactionId;
+    NObjectClient::TTransactionId OutputTransactionId;
 
     struct TUserTableBase
     {
@@ -518,6 +525,10 @@ protected:
         //! Local tasks keyed by address.
         yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
 
+        TTaskGroup()
+        {
+            MinNeededResources.set_user_slots(1);
+        }
 
         void Persist(TPersistenceContext& context);
 
@@ -830,6 +841,9 @@ private:
 
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
+
+    //! Aggregates job statistics.
+    NJobTrackerClient::TStatistics JobStatistics;
 
 
     NApi::IClientPtr CreateClient();

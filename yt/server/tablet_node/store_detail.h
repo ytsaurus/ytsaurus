@@ -29,6 +29,9 @@ public:
     virtual EStoreState GetStoreState() const override;
     virtual void SetStoreState(EStoreState state) override;
 
+    virtual EStoreRemovalState GetRemovalState() const override;
+    virtual void SetRemovalState(EStoreRemovalState state) override;
+
     virtual TPartition* GetPartition() const override;
     virtual void SetPartition(TPartition* partition) override;
 
@@ -56,6 +59,8 @@ protected:
     const std::vector<int> ColumnIndexToLockIndex_;
 
     EStoreState StoreState_;
+    EStoreRemovalState RemovalState_;
+
     TPartition* Partition_ = nullptr;
 
     NLogging::TLogger Logger;

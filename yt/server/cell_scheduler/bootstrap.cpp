@@ -20,7 +20,6 @@
 
 #include <core/ytree/virtual.h>
 #include <core/ytree/ypath_client.h>
-#include <core/ytree/yson_file_service.h>
 
 #include <core/profiling/profile_manager.h>
 
@@ -82,11 +81,8 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(
-    const Stroka& configFileName,
-    TCellSchedulerConfigPtr config)
-    : ConfigFileName_(configFileName)
-    , Config_(config)
+TBootstrap::TBootstrap(const INodePtr configNode)
+    : ConfigNode_(configNode)
 { }
 
 TBootstrap::~TBootstrap()
@@ -109,6 +105,13 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
+    try {
+        Config_ = ConvertTo<TCellSchedulerConfigPtr>(ConfigNode_);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing cell scheduler configuration")
+                << ex;
+    }
+
     LocalAddress_ = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
         Config_->RpcPort);
@@ -161,7 +164,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        CreateVirtualNode(NYTree::CreateYsonFileService(ConfigFileName_)));
+        ConfigNode_);
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",

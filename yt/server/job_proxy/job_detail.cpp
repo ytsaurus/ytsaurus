@@ -34,6 +34,8 @@ using namespace NScheduler;
 using namespace NQueryClient;
 using namespace NExecAgent;
 
+using NJobTrackerClient::TStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = JobProxyProfiler;
@@ -136,6 +138,9 @@ TJobResult TSimpleJobBase::Run()
     }
 }
 
+void TSimpleJobBase::Abort()
+{ }
+
 double TSimpleJobBase::GetProgress() const
 {
     if (TotalRowCount_ == 0) {
@@ -158,13 +163,15 @@ TStatistics TSimpleJobBase::GetStatistics() const
 {
     TStatistics result;
     if (Reader_) {
-        result.AddComplex("/data/input", Reader_->GetDataStatistics());
+        result.AddSample("/data/input", Reader_->GetDataStatistics());
     }
+    
     if (Writer_) {
-        result.AddComplex(
+        result.AddSample(
             "/data/output/" + NYPath::ToYPathLiteral(0),
             Writer_->GetDataStatistics());
     }
+
     return result;
 }
 

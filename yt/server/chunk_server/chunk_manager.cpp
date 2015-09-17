@@ -166,7 +166,6 @@ public:
         TReqCreateObjects* request,
         TRspCreateObjects* response) override;
 
-
     virtual void ResetAllObjects() override
     {
         // NB: All chunk type handlers share the same map.
@@ -430,11 +429,6 @@ public:
         if (childrenBegin == childrenEnd)
             return;
 
-        if (!chunkList->Statistics().Sealed) {
-            THROW_ERROR_EXCEPTION("Cannot attach children to an unsealed chunk list %v",
-                chunkList->GetId());
-        }
-
         auto objectManager = Bootstrap_->GetObjectManager();
         NChunkServer::AttachToChunkList(
             chunkList,
@@ -562,6 +556,11 @@ public:
                     EAddReplicaReason::Confirmation);
                 node->AddUnapprovedReplica(chunkWithIndex, mutationTimestamp);
             }
+        }
+
+        // NB: This is true for non-journal chunks.
+        if (chunk->IsSealed()) {
+            OnChunkSealed(chunk);
         }
 
         // Increase staged resource usage.
@@ -755,6 +754,18 @@ public:
         return chunk;
     }
 
+    TChunkList* GetChunkListOrThrow(const TChunkListId& id)
+    {
+        auto* chunkList = FindChunkList(id);
+        if (!IsObjectAlive(chunkList)) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::NoSuchChunkList,
+                "No such chunk list %v",
+                id);
+        }
+        return chunkList;
+    }
+
 
     TChunkTree* FindChunkTree(const TChunkTreeId& id)
     {
@@ -813,32 +824,10 @@ public:
 
         chunk->Seal(info);
 
-        // Go upwards and apply delta.
-        YCHECK(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
+        OnChunkSealed(chunk);
 
-        TChunkTreeStatistics statisticsDelta;
-        statisticsDelta.Sealed = true;
-        statisticsDelta.RowCount = info.row_count();
-        statisticsDelta.UncompressedDataSize = info.uncompressed_data_size();
-        statisticsDelta.CompressedDataSize = info.compressed_data_size();
-        statisticsDelta.RegularDiskSpace = info.compressed_data_size();
-
-        VisitUniqueAncestors(
-            chunkList,
-            [&] (TChunkList* current) {
-                ++statisticsDelta.Rank;
-                current->Statistics().Accumulate(statisticsDelta);
-            });
-
-        auto owningNodes = GetOwningNodes(chunk);
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        for (auto* node : owningNodes) {
-            securityManager->UpdateAccountNodeUsage(node);
-        }
-
-        if (IsLeader()) {
-            ScheduleChunkRefresh(chunk);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleChunkRefresh(chunk);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
@@ -1230,6 +1219,27 @@ private:
         LOG_INFO("Finished recomputing statistics");
     }
 
+    void OnChunkSealed(TChunk* chunk)
+    {
+        YASSERT(chunk->IsSealed());
+
+        if (chunk->Parents().empty())
+            return;
+
+        // Go upwards and apply delta.
+        YCHECK(chunk->Parents().size() == 1);
+        auto* chunkList = chunk->Parents()[0];
+
+        auto statisticsDelta = chunk->GetStatistics();
+        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+
+        auto owningNodes = GetOwningNodes(chunk);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        for (auto* node : owningNodes) {
+            securityManager->UpdateAccountNodeUsage(node);
+        }
+    }
+
 
     virtual void OnRecoveryStarted() override
     {
@@ -1564,6 +1574,13 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     int readQuorum = isJournal ? requestExt.read_quorum() : 0;
     int writeQuorum = isJournal ? requestExt.write_quorum() : 0;
 
+    // NB: Once the chunk is created, no exceptions could be thrown.
+    auto chunkListId = requestExt.has_chunk_list_id() ? FromProto<TChunkListId>(requestExt.chunk_list_id()) : NullChunkListId;
+    TChunkList* chunkList = nullptr;
+    if (chunkListId != NullChunkId) {
+        chunkList = Owner_->GetChunkListOrThrow(chunkListId);
+    }
+
     auto* chunk = Owner_->CreateChunk(chunkType);
     chunk->SetReplicationFactor(replicationFactor);
     chunk->SetReadQuorum(readQuorum);
@@ -1574,11 +1591,16 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
 
     Owner_->StageChunkTree(chunk, transaction, account);
 
+    if (chunkList) {
+        Owner_->AttachToChunkList(chunkList, chunk);
+    }
+
     LOG_DEBUG_UNLESS(Owner_->IsRecovery(),
         "Chunk created "
-        "(ChunkId: %v, TransactionId: %v, Account: %v, ReplicationFactor: %v, "
+        "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, ReplicationFactor: %v, "
         "ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
         chunk->GetId(),
+        chunkListId,
         transaction->GetId(),
         account->GetName(),
         chunk->GetReplicationFactor(),
@@ -1665,6 +1687,11 @@ void TChunkManager::Initialize()
 TChunk* TChunkManager::GetChunkOrThrow(const TChunkId& id)
 {
     return Impl_->GetChunkOrThrow(id);
+}
+
+TChunkList* TChunkManager::GetChunkListOrThrow(const TChunkListId& id)
+{
+    return Impl_->GetChunkListOrThrow(id);
 }
 
 TChunkTree* TChunkManager::FindChunkTree(const TChunkTreeId& id)

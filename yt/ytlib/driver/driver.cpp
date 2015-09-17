@@ -57,9 +57,7 @@ static const auto& Logger = DriverLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDriverRequest::TDriverRequest()
-    : InputStream(nullptr)
-    , OutputStream(nullptr)
-    , ResponseParametersConsumer(GetNullYsonConsumer())
+    : ResponseParametersConsumer(GetNullYsonConsumer())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,7 +156,8 @@ public:
                 request.CommandName));
         }
 
-        LOG_INFO("Command started (Command: %v, User: %v)",
+        LOG_INFO("Command initialized (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            request.Id,
             request.CommandName,
             request.AuthenticatedUser);
 
@@ -242,14 +241,24 @@ private:
         const auto& request = context->Request();
 
         TRACE_CHILD("Driver", request.CommandName) {
+            LOG_INFO("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+                request.Id,
+                request.CommandName,
+                request.AuthenticatedUser);
             command->Execute(context);
         }
 
         const auto& error = context->GetError();
         if (error.IsOK()) {
-            LOG_INFO("Command completed (Command: %v)", request.CommandName);
+            LOG_INFO("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+                request.Id,
+                request.CommandName,
+                request.AuthenticatedUser);
         } else {
-            LOG_INFO(error, "Command failed (Command: %v)", request.CommandName);
+            LOG_INFO(error, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+                request.Id,
+                request.CommandName,
+                request.AuthenticatedUser);
         }
 
         WaitFor(context->Terminate());

@@ -112,9 +112,6 @@ protected:
      */
     virtual bool IsLeaderReadRequired() const;
 
-    virtual bool IsLoggingEnabled() const override;
-    virtual NLogging::TLogger CreateLogger() const override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

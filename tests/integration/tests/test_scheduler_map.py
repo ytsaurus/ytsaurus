@@ -168,6 +168,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "watchers_update_period" : 100
+        }
+    }
+
     def test_empty_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -517,13 +523,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = """cat >/dev/null; 
+        command = """cat >/dev/null;
            if [ "$YT_JOB_INDEX" = "0" ]; then
-               k1=0; k2=1; 
+               k1=0; k2=1;
            else
-               k1=0; k2=0; 
+               k1=0; k2=0;
            fi
-           echo "{key=$k1; value=one}; {key=$k2; value=two}" 
+           echo "{key=$k1; value=one}; {key=$k2; value=two}"
         """
 
         map(in_="//tmp/t1",
@@ -1011,6 +1017,27 @@ print row + table_index
         variation = sampling_rate * (1 - sampling_rate)
         assert sampling_rate - variation <= actual_rate <= sampling_rate + variation
 
+    def _set_banned(self, value):
+        for node in ls("//sys/nodes"):
+            set("//sys/nodes/{0}/@banned".format(node), value)
+
+    def test_banned_node(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write("//tmp/in", [{"key": "value"}])
+
+        try:
+            op_id = map(dont_track=True, in_="//tmp/in", out="//tmp/out", command="cat; sleep 3")
+            time.sleep(2.0)
+            self._set_banned("true")
+            time.sleep(1.0)
+            self._set_banned("false")
+            track_op(op_id)
+            assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) > 0
+            assert [{"key": "value"}] == read("//tmp/in")
+        finally:
+            self._set_banned("false")
+
 @only_linux
 class TestJobQuery(YTEnvSetup):
     NUM_MASTERS = 3
@@ -1145,3 +1172,4 @@ class TestJobQuery(YTEnvSetup):
         assert get("//tmp/t_output/@sorted")
         assert get("//tmp/t_output/@sorted_by") == ["key"]
         assert read_table("//tmp/t_output") == original_data
+

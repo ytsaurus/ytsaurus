@@ -8,27 +8,6 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EStoreState IStore::GetPersistentStoreState() const
-{
-    auto state = GetStoreState();
-    switch (state) {
-        case EStoreState::Removing:
-        case EStoreState::RemoveFailed:
-            switch (GetType()) {
-                case EStoreType::DynamicMemory:
-                    return EStoreState::PassiveDynamic;
-                case EStoreType::Chunk:
-                    return EStoreState::Persistent;
-                default:
-                    YUNREACHABLE();
-            }
-            break;
-
-        default:
-            return state;
-    }
-}
-
 TDynamicMemoryStorePtr IStore::AsDynamicMemory()
 {
     auto* result = dynamic_cast<TDynamicMemoryStore*>(this);
@@ -45,9 +24,11 @@ TChunkStorePtr IStore::AsChunk()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka TStoreIdFormatter::operator()(const IStorePtr& store) const
+void TStoreIdFormatter::operator()(
+    TStringBuilder* builder,
+    const IStorePtr& store) const
 {
-    return ToString(store->GetId());
+    FormatValue(builder, store->GetId(), STRINGBUF("v"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -48,6 +48,7 @@ public:
     // Transient properties.
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
     DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
+    DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
 
     DEFINE_BYVAL_RO_PROPERTY(TNodeId, Id);
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, State);
@@ -188,9 +189,9 @@ private:
 
 struct TNodePtrAddressFormatter
 {
-    Stroka operator () (TNode* node) const
+    void operator () (TStringBuilder* builder, TNode* node) const
     {
-        return node->GetDefaultAddress();
+        builder->AppendString(node->GetDefaultAddress());
     }
 };
 

@@ -75,7 +75,7 @@ struct IOperationHost
     //! Returns the throttler to limit #LocateChunk requests from chunk scraper.
     virtual NConcurrency::IThroughputThrottlerPtr GetChunkLocationThrottler() = 0;
 
-    //! Returns the list of currently active exec nodes.
+    //! Returns the list of currently online exec nodes.
     /*!
      *  \note Thread affinity: ControlThread
      */

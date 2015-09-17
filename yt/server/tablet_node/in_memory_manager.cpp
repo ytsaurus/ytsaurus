@@ -377,7 +377,9 @@ private:
 
         auto data = New<TInterceptedChunkData>();
         data->InMemoryMode = mode;
-        YCHECK(ChunkIdToData_.insert(std::make_pair(chunkId, data)).second);
+
+        // Replace the old data, if any, by a new one.
+        ChunkIdToData_[chunkId] = data;
 
         LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
             chunkId,

@@ -98,6 +98,8 @@ struct ISchedulerElement
     virtual const TDynamicAttributes& DynamicAttributes() const = 0;
     virtual TDynamicAttributes& DynamicAttributes() = 0;
 
+    virtual int GetPendingJobCount() const = 0;
+
     virtual Stroka GetId() const = 0;
 
     virtual double GetWeight() const = 0;
@@ -444,6 +446,7 @@ public:
 
     virtual void UpdateBottomUp() override
     {
+        PendingJobCount = 0;
         ResourceDemand_ = ZeroNodeResources();
         auto maxPossibleChildrenResourceUsage_ = ZeroNodeResources();
         Attributes_.BestAllocationRatio = 0.0;
@@ -455,6 +458,8 @@ public:
             Attributes_.BestAllocationRatio = std::max(
                 Attributes_.BestAllocationRatio,
                 child->Attributes().BestAllocationRatio);
+
+            PendingJobCount += child->GetPendingJobCount();
         }
         MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage_, ResourceLimits_);
         TSchedulerElementBase::UpdateBottomUp();
@@ -590,6 +595,11 @@ public:
         }
     }
 
+    virtual int GetPendingJobCount() const override
+    {
+        return PendingJobCount;
+    }
+
     virtual bool IsRoot() const
     {
         return false;
@@ -643,6 +653,8 @@ public:
 
 protected:
     ESchedulingMode Mode;
+    std::vector<EFifoSortParameter> FifoSortParameters;
+    int PendingJobCount;
 
     yhash_set<ISchedulerElementPtr> Children;
     yhash_set<ISchedulerElementPtr> DisabledChildren;
@@ -791,14 +803,32 @@ protected:
 
     ISchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesMap& dynamicAttributesMap) const
     {
-        auto isBetter = [&dynamicAttributesMap] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
-            if (lhs->GetWeight() > rhs->GetWeight()) {
-                return true;
+        auto isBetter = [this, &dynamicAttributesMap] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
+            for (auto parameter : FifoSortParameters) {
+                switch (parameter) {
+                    case EFifoSortParameter::Weight:
+                        if (lhs->GetWeight() != rhs->GetWeight()) {
+                            return lhs->GetWeight() > rhs->GetWeight();
+                        }
+                        break;
+                    case EFifoSortParameter::StartTime: {
+                        const auto& lhsStartTime = dynamicAttributesMap.At(lhs).MinSubtreeStartTime;
+                        const auto& rhsStartTime = dynamicAttributesMap.At(rhs).MinSubtreeStartTime;
+                        if (lhsStartTime != rhsStartTime) {
+                            return lhsStartTime < rhsStartTime;
+                        }
+                        break;
+                    }
+                    case EFifoSortParameter::PendingJobCount:
+                        if (lhs->GetPendingJobCount() != rhs->GetPendingJobCount()) {
+                            return lhs->GetPendingJobCount() < rhs->GetPendingJobCount();
+                        }
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
             }
-            if (lhs->GetWeight() < rhs->GetWeight()) {
-                return false;
-            }
-            return dynamicAttributesMap.At(lhs).MinSubtreeStartTime < dynamicAttributesMap.At(rhs).MinSubtreeStartTime;
+            return false;
         };
 
         ISchedulerElementPtr bestChild;
@@ -824,7 +854,6 @@ protected:
         }
         return bestChild;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -948,7 +977,19 @@ private:
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
         Config_ = newConfig;
+
+        bool update = false;
+        if (FifoSortParameters != Config_->FifoSortParameters || Mode != Config_->Mode) {
+            FifoSortParameters = Config_->FifoSortParameters;
+            update = true;
+        }
+
+        FifoSortParameters = Config_->FifoSortParameters;
         Mode = Config_->Mode;
+
+        if (update) {
+            Update();
+        }
     }
 
     TNodeResources ComputeResourceLimits() const
@@ -1053,6 +1094,12 @@ public:
             }
         }
         return jobId != NJobTrackerClient::NullJobId;
+    }
+
+    virtual int GetPendingJobCount() const override
+    {
+        auto controller = Operation_->GetController();
+        return controller->GetPendingJobCount();
     }
 
     virtual Stroka GetId() const override
@@ -1322,6 +1369,7 @@ public:
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
+        Update();
     }
 
     virtual bool IsRoot() const override

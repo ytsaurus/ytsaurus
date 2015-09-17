@@ -46,6 +46,12 @@ TPartition::TPartition(
     , SampleKeys_(New<TKeyList>())
 { }
 
+void TPartition::CheckedSetState(EPartitionState oldState, EPartitionState newState)
+{
+    YCHECK(GetState() == oldState);
+    SetState(newState);
+}
+
 void TPartition::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -55,7 +61,7 @@ void TPartition::Save(TSaveContext& context) const
 
     TSizeSerializer::Save(context, Stores_.size());
     // NB: This is not stable.
-    for (auto store : Stores_) {
+    for (const auto& store : Stores_) {
         Save(context, store->GetId());
     }
 }
@@ -130,6 +136,15 @@ TPartitionSnapshotPtr TPartition::RebuildSnapshot()
     Snapshot_->SampleKeys = SampleKeys_;
     Snapshot_->Stores.insert(Snapshot_->Stores.end(), Stores_.begin(), Stores_.end());
     return Snapshot_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPartitionIdFormatter::operator()(
+    TStringBuilder* builder,
+    const std::unique_ptr<TPartition>& partition) const
+{
+    FormatValue(builder, partition->GetId(), STRINGBUF("v"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

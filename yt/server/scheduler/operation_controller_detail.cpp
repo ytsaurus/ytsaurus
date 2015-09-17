@@ -18,6 +18,7 @@
 
 #include <ytlib/table_client/schema.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
+#include <ytlib/cypress_client/rpc_helpers.h>
 
 #include <ytlib/transaction_client/transaction_ypath_proxy.h>
 
@@ -862,6 +863,10 @@ TOperationControllerBase::TOperationControllerBase(
     , TotalEstimatedCompressedDataSize(0)
     , UnavailableInputChunkCount(0)
     , JobCounter(0)
+    , AsyncSchedulerTransactionId(NullTransactionId)
+    , SyncSchedulerTransactionId(NullTransactionId)
+    , InputTransactionId(NullTransactionId)
+    , OutputTransactionId(NullTransactionId)
     , Spec(spec)
     , CachedPendingJobCount(0)
     , CachedNeededResources(ZeroNodeResources())
@@ -1039,8 +1044,11 @@ void TOperationControllerBase::InitializeTransactions()
     StartAsyncSchedulerTransaction();
     if (Operation->GetCleanStart()) {
         StartSyncSchedulerTransaction();
-        StartInputTransaction(Operation->GetSyncSchedulerTransaction()->GetId());
-        StartOutputTransaction(Operation->GetSyncSchedulerTransaction()->GetId());
+        StartInputTransaction(SyncSchedulerTransactionId);
+        StartOutputTransaction(SyncSchedulerTransactionId);
+    } else {
+        InputTransactionId = Operation->GetInputTransaction()->GetId();
+        OutputTransactionId = Operation->GetOutputTransaction()->GetId();
     }
 }
 
@@ -1080,13 +1088,13 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
     {
         const auto& batchRsp = batchRspOrError.Value();
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_async_tx").Value();
-        auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
+        AsyncSchedulerTransactionId = FromProto<TObjectId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedMasterClient->GetTransactionManager();
-        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(transactionId));
+        Operation->SetAsyncSchedulerTransaction(transactionManager->Attach(AsyncSchedulerTransactionId));
     }
 
     LOG_INFO("Scheduler async transaction started (AsyncTranasctionId: %v)",
-        Operation->GetAsyncSchedulerTransaction()->GetId());
+        AsyncSchedulerTransactionId);
 }
 
 void TOperationControllerBase::StartSyncSchedulerTransaction()
@@ -1126,13 +1134,13 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
 
     {
         auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_sync_tx").Value();
-        auto transactionId = FromProto<TObjectId>(rsp->object_ids(0));
+        SyncSchedulerTransactionId = FromProto<TObjectId>(rsp->object_ids(0));
         auto transactionManager = Host->GetMasterClient()->GetTransactionManager();
-        Operation->SetSyncSchedulerTransaction(transactionManager->Attach(transactionId));
+        Operation->SetSyncSchedulerTransaction(transactionManager->Attach(SyncSchedulerTransactionId));
     }
 
     LOG_INFO("Scheduler sync transaction started (SyncTransactionId: %v)",
-        Operation->GetSyncSchedulerTransaction()->GetId());
+        SyncSchedulerTransactionId);
 }
 
 void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransactionId)
@@ -1171,10 +1179,12 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
         auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_in_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting input transaction");
         const auto& rsp = rspOrError.Value();
-        auto id = FromProto<TTransactionId>(rsp->object_ids(0));
+        InputTransactionId = FromProto<TTransactionId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedInputMasterClient->GetTransactionManager();
-        Operation->SetInputTransaction(transactionManager->Attach(id));
+        Operation->SetInputTransaction(transactionManager->Attach(InputTransactionId));
     }
+
+    LOG_INFO("Input transaction started (InputTransactionId: %v)", InputTransactionId);
 }
 
 void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTransactionId)
@@ -1214,10 +1224,12 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
         auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObjects>("start_out_tx");
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting output transaction");
         const auto& rsp = rspOrError.Value();
-        auto id = FromProto<TTransactionId>(rsp->object_ids(0));
+        OutputTransactionId = FromProto<TTransactionId>(rsp->object_ids(0));
         auto transactionManager = AuthenticatedOutputMasterClient->GetTransactionManager();
-        Operation->SetOutputTransaction(transactionManager->Attach(id));
+        Operation->SetOutputTransaction(transactionManager->Attach(OutputTransactionId));
     }
+
+    LOG_INFO("Output transaction started (OutputTransactionId: %v)", OutputTransactionId);
 }
 
 void TOperationControllerBase::InitChunkListPool()
@@ -1227,7 +1239,7 @@ void TOperationControllerBase::InitChunkListPool()
         Host->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader),
         CancelableControlInvoker,
         Operation->GetId(),
-        Operation->GetOutputTransaction()->GetId());
+        OutputTransactionId);
 }
 
 void TOperationControllerBase::InitInputChunkScraper()
@@ -1432,7 +1444,7 @@ void TOperationControllerBase::CommitResults()
                 ConvertToYsonString(table.KeyColumns, EYsonFormat::Text).Data());
             auto req = TTableYPathProxy::SetSorted(path);
             ToProto(req->mutable_key_columns(), table.KeyColumns);
-            SetTransactionId(req, Operation->GetOutputTransaction());
+            SetTransactionId(req, OutputTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "set_out_sorted");
         }
@@ -1476,6 +1488,7 @@ void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSum
     const auto& result = jobSummary.Result;
 
     JobCounter.Completed(1);
+    JobStatistics.Update(jobSummary.Statistics);
 
     const auto& schedulerResultEx = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
@@ -1504,9 +1517,7 @@ void TOperationControllerBase::OnJobFailed(const TFailedJobSummary& jobSummary)
     auto error = FromProto<TError>(result->error());
 
     JobCounter.Failed(1);
-
-    auto joblet = GetJoblet(jobId);
-    joblet->Task->OnJobFailed(joblet, jobSummary);
+    JobStatistics.Update(jobSummary.Statistics);
 
     RemoveJoblet(jobId);
 
@@ -1532,9 +1543,7 @@ void TOperationControllerBase::OnJobAborted(const TAbortedJobSummary& jobSummary
     auto abortReason = jobSummary.AbortReason;
 
     JobCounter.Aborted(1, abortReason);
-
-    auto joblet = GetJoblet(jobId);
-    joblet->Task->OnJobAborted(joblet, jobSummary);
+    JobStatistics.Update(jobSummary.Statistics);
 
     RemoveJoblet(jobId);
 
@@ -2303,7 +2312,7 @@ void TOperationControllerBase::PrepareLivePreviewTablesForUpdate()
         auto req = TTableYPathProxy::PrepareForUpdate(FromObjectId(table.LivePreviewTableId));
         req->set_update_mode(static_cast<int>(EUpdateMode::Overwrite));
         req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
-        SetTransactionId(req, Operation->GetAsyncSchedulerTransaction());
+        SetTransactionId(req, AsyncSchedulerTransactionId);
         batchReq->AddRequest(req, key);
     };
 
@@ -2358,7 +2367,7 @@ void TOperationControllerBase::GetInputObjectIds()
 
     for (const auto& table : InputTables) {
         auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
-        SetTransactionId(req, Operation->GetInputTransaction());
+        SetTransactionId(req, InputTransactionId);
         batchReq->AddRequest(req, "get_in_id");
     }
 
@@ -2401,7 +2410,7 @@ void TOperationControllerBase::GetOutputObjectIds()
 
     for (const auto& table : OutputTables) {
         auto req = TObjectYPathProxy::GetBasicAttributes(table.Path.GetPath());
-        SetTransactionId(req, Operation->GetOutputTransaction());
+        SetTransactionId(req, OutputTransactionId);
         batchReq->AddRequest(req, "get_out_id");
     }
 
@@ -2445,7 +2454,7 @@ void TOperationControllerBase::ValidateFileTypes()
     for (const auto& pair : GetFilePaths()) {
         const auto& path = pair.first;
         auto req = TObjectYPathProxy::Get(path.GetPath() + "/@type");
-        SetTransactionId(req, Operation->GetInputTransaction());
+        SetTransactionId(req, InputTransactionId);
         batchReq->AddRequest(req, "get_file_types");
     }
 
@@ -2517,7 +2526,7 @@ void TOperationControllerBase::FetchInputTables()
                 ToProto(req->mutable_ranges(), std::vector<TReadRange>({adjustedRange}));
                 req->set_fetch_all_meta_extensions(true);
                 req->set_fetch_parity_replicas(IsParityReplicasFetchEnabled());
-                SetTransactionId(req, Operation->GetInputTransaction());
+                SetTransactionId(req, InputTransactionId);
                 batchReq->AddRequest(req, Format("fetch_input_table_%v", tableIndex));
             }
         }
@@ -2563,7 +2572,7 @@ void TOperationControllerBase::RequestInputObjects()
         {
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
-            SetTransactionId(req, Operation->GetInputTransaction());
+            SetTransactionId(req, InputTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "lock_in");
         }
@@ -2574,7 +2583,7 @@ void TOperationControllerBase::RequestInputObjects()
             attributeFilter.Keys.push_back("sorted_by");
             attributeFilter.Keys.push_back("chunk_count");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
-            SetTransactionId(req, Operation->GetInputTransaction());
+            SetTransactionId(req, InputTransactionId);
             batchReq->AddRequest(req, "get_in_attributes");
         }
     }
@@ -2640,7 +2649,7 @@ void TOperationControllerBase::RequestOutputObjects()
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(static_cast<int>(table.LockMode));
             GenerateMutationId(req);
-            SetTransactionId(req, Operation->GetOutputTransaction());
+            SetTransactionId(req, OutputTransactionId);
             batchReq->AddRequest(req, "lock_out");
         }
         {
@@ -2655,12 +2664,12 @@ void TOperationControllerBase::RequestOutputObjects()
             attributeFilter.Keys.push_back("vital");
             attributeFilter.Keys.push_back("effective_acl");
             ToProto(req->mutable_attribute_filter(), attributeFilter);
-            SetTransactionId(req, Operation->GetOutputTransaction());
+            SetTransactionId(req, OutputTransactionId);
             batchReq->AddRequest(req, "get_out_attributes");
         }
         {
             auto req = TTableYPathProxy::PrepareForUpdate(path);
-            SetTransactionId(req, Operation->GetOutputTransaction());
+            SetTransactionId(req, OutputTransactionId);
             GenerateMutationId(req);
             req->set_update_mode(static_cast<int>(table.UpdateMode));
             req->set_lock_mode(static_cast<int>(table.LockMode));
@@ -2758,7 +2767,7 @@ void TOperationControllerBase::FetchFileObjects(std::vector<TUserFile>* files)
             default:
                 YUNREACHABLE();
         }
-        SetTransactionId(req, Operation->GetInputTransaction());
+        SetTransactionId(req, InputTransactionId);
         batchReq->AddRequest(req, "fetch_files");
     }
 
@@ -2799,17 +2808,17 @@ void TOperationControllerBase::DoRequestFileObjects(
             auto req = TCypressYPathProxy::Lock(path);
             req->set_mode(static_cast<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
-            SetTransactionId(req, Operation->GetInputTransaction());
+            SetTransactionId(req, InputTransactionId);
             batchReq->AddRequest(req, "lock_file");
         }
         {
             auto req = TYPathProxy::GetKey(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
+            SetTransactionId(req, InputTransactionId);
             batchReq->AddRequest(req, "get_file_name");
         }
         {
             auto req = TYPathProxy::Get(path);
-            SetTransactionId(req, Operation->GetInputTransaction());
+            SetTransactionId(req, InputTransactionId);
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             if (file.Type == EObjectType::File) {
                 attributeFilter.Keys.push_back("executable");
@@ -3366,7 +3375,7 @@ void TOperationControllerBase::BuildProgress(IYsonConsumer* consumer) const
     BuildYsonMapFluently(consumer)
         .Item("jobs").Value(JobCounter)
         .Item("ready_job_count").Value(GetPendingJobCount())
-        .Item("job_statistics").Do(BIND(&TOperation::BuildJobStatistics, Operation))
+        .Item("job_statistics").Value(JobStatistics)
         .Item("estimated_input_statistics").BeginMap()
             .Item("chunk_count").Value(TotalEstimatedInputChunkCount)
             .Item("uncompressed_data_size").Value(TotalEstimatedInputDataSize)
@@ -3519,8 +3528,7 @@ void TOperationControllerBase::InitUserJobSpec(
     TJobletPtr joblet,
     i64 memoryReserve)
 {
-    auto asyncSchedulerTransactionId = Operation->GetAsyncSchedulerTransaction()->GetId();
-    ToProto(jobSpec->mutable_async_scheduler_transaction_id(), asyncSchedulerTransactionId);
+    ToProto(jobSpec->mutable_async_scheduler_transaction_id(), AsyncSchedulerTransactionId);
 
     jobSpec->set_memory_reserve(memoryReserve);
 
@@ -3545,11 +3553,6 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
             double replicationFactor = (double) codec->GetTotalPartCount() / codec->GetDataPartCount();
             result += static_cast<i64>(ioConfig->TableWriter->DesiredChunkSize * replicationFactor);
         }
-    }
-
-    if (!ioConfig->TableWriter->SyncChunkSwitch) {
-        // Each writer may have up to 2 active chunks: closing one and current one.
-        result *= 2;
     }
     return result;
 }
@@ -3660,6 +3663,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
     Persist(context, JobletMap);
 
     Persist(context, JobIndexGenerator);
+
+    Persist(context, JobStatistics);
 
     // NB: Scheduler snapshots need not be stable.
     Persist<

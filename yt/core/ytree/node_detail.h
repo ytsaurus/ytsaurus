@@ -171,6 +171,7 @@ public: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSetPtr context) override \
     { \
         UNUSED(response); \
+        context->SetRequestInfo(); \
         DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYTree::TYsonString(request->value())); \
         context->Reply(); \
     }

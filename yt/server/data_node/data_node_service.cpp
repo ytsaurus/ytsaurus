@@ -66,7 +66,6 @@ using namespace NTableClient::NProto;
 static const auto& Profiler = DataNodeProfiler;
 
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
-static const size_t MaxSampleSize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -622,7 +621,8 @@ private:
                     MakeStrong(this),
                     &sampleRequest,
                     sampleResponse,
-                    keyColumns)
+                    keyColumns,
+                    request->max_sample_size())
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
@@ -633,6 +633,7 @@ private:
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* sampleResponse,
         const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -652,7 +653,7 @@ private:
             auto formatVersion = ETableChunkFormat(meta.version());
             switch (formatVersion) {
                 case ETableChunkFormat::Old:
-                    ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
                     break;
 
                 case ETableChunkFormat::VersionedSimple:
@@ -660,7 +661,7 @@ private:
                     break;
 
                 case ETableChunkFormat::SchemalessHorizontal:
-                    ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
                     break;
 
                 default:
@@ -675,10 +676,36 @@ private:
         }
     }
 
+    static void SerializeSample(
+        TRspGetTableSamples::TSample* protoSample, 
+        std::vector<TUnversionedValue> values, 
+        i32 maxSampleSize)
+    {
+        size_t size = 0;
+        bool incomplete = false;
+        for (auto& value : values) {
+            auto valueSize = GetByteSize(value);
+            if (incomplete) {
+                value = MakeUnversionedSentinelValue(EValueType::Null);
+            } else if (size + valueSize > maxSampleSize && IsStringLikeType(value.Type)) {
+                value.Length = maxSampleSize - size;
+                size += value.Length;
+                incomplete = true;
+            } else {
+                size += valueSize;
+            }
+        }
+
+        ToProto(protoSample->mutable_key(), values.data(), values.data() + values.size());
+        protoSample->set_incomplete(incomplete);
+    }
+
+
     void ProcessOldChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
         const TChunkMeta& chunkMeta)
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
@@ -690,13 +717,9 @@ private:
             sampleRequest->sample_count());
 
         for (const auto& sample : samples) {
-            TUnversionedRowBuilder rowBuilder;
-            auto* key = chunkSamples->add_keys();
-            size_t size = 0;
-            for (const auto& column : keyColumns) {
-                if (size >= MaxSampleSize)
-                    break;
+            std::vector<TUnversionedValue> values;
 
+            for (const auto& column : keyColumns) {
                 auto it = std::lower_bound(
                     sample.parts().begin(),
                     sample.parts().end(),
@@ -706,7 +729,6 @@ private:
                     });
 
                 auto keyPart = MakeUnversionedSentinelValue(EValueType::Null);
-                size += sizeof(keyPart); // part type
                 if (it != sample.parts().end() && it->column() == column) {
                     switch (ELegacyKeyPartType(it->key_part().type())) {
                         case ELegacyKeyPartType::Composite:
@@ -718,20 +740,16 @@ private:
                         case ELegacyKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                             break;
-                        case ELegacyKeyPartType::String: {
-                            auto partSize = std::min(it->key_part().str_value().size(), MaxSampleSize - size);
-                            auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
-                            keyPart = MakeUnversionedStringValue(value);
-                            size += partSize;
+                        case ELegacyKeyPartType::String:
+                            keyPart = MakeUnversionedStringValue(it->key_part().str_value());
                             break;
-                        }
                         default:
                             YUNREACHABLE();
                     }
                 }
-                rowBuilder.AddValue(keyPart);
+                values.push_back(keyPart);
             }
-            ToProto(key, rowBuilder.GetRow());
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize);
         }
     }
 
@@ -787,18 +805,21 @@ private:
             sampleRequest->sample_count());
         samples.erase(samples.begin() + count, samples.end());
 
-        for (int i = 0; i < samples.size(); ++i) {
-            YCHECK(samples[i].GetCount() == chunkKeyColumns.size());
-            samples[i] = WidenKey(samples[i], keyColumns.size());
+        for (const auto& sample : samples) {
+            YCHECK(sample.GetCount() == chunkKeyColumns.size());
+            auto* protoSample = chunkSamples->add_samples();
+            ToProto(
+                protoSample->mutable_key(), 
+                WidenKey(sample, keyColumns.size()));
+            protoSample->set_incomplete(false);
         }
-
-        ToProto(chunkSamples->mutable_keys(), samples);
     }
 
     void ProcessUnversionedChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
         const TChunkMeta& chunkMeta)
     {
         auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
@@ -825,8 +846,10 @@ private:
             sampleRequest->sample_count());
 
         for (const auto& protoSample : samples) {
-            std::vector<TUnversionedValue> keyValues(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null));
             TUnversionedOwningRow row = FromProto<TUnversionedOwningRow>(protoSample);
+            std::vector<TUnversionedValue> values(
+                keyColumns.size(),
+                MakeUnversionedSentinelValue(EValueType::Null));
 
             for (int i = 0; i < row.GetCount(); ++i) {
                 auto& value = row[i];
@@ -834,28 +857,10 @@ private:
                 if (keyIndex < 0) {
                     continue;
                 }
-
-                keyValues[keyIndex] = value;
+                values[keyIndex] = value;
             }
 
-            size_t size = 0;
-            for (const auto& value : keyValues) {
-                size += GetByteSize(value);
-            }
-
-            while (size > MaxSampleSize && keyValues.size() > 1) {
-                size -= GetByteSize(keyValues.back());
-                keyValues.pop_back();
-            }
-
-            if (size > MaxSampleSize) {
-                YCHECK(keyValues.size() == 1);
-                YCHECK(keyValues.front().Type == EValueType::String);
-                keyValues.front().Length = MaxSampleSize;
-            }
-
-            auto* key = chunkSamples->add_keys();
-            ToProto(key, keyValues.data(), keyValues.data() + keyValues.size());
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize);
         }
     }
 

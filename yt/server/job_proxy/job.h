@@ -9,7 +9,7 @@
 #include <ytlib/chunk_client/public.h>
 
 #include <ytlib/scheduler/job.pb.h>
-#include <ytlib/scheduler/statistics.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/job_tracker_client/public.h>
 
@@ -60,11 +60,15 @@ struct IJob
 
     virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
 
+    //! Tries to clean up (e.g. user processes), best effort guarantees.
+    //! Used during abnormal job proxy termination.
+    virtual void Abort() = 0;
+
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const = 0;
 
     virtual double GetProgress() const = 0;
 
-    virtual NScheduler::TStatistics GetStatistics() const = 0;
+    virtual NJobTrackerClient::TStatistics GetStatistics() const = 0;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual NYTree::TYsonString Strace() = 0;

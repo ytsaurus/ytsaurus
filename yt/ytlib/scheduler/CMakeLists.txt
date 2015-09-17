@@ -3,7 +3,6 @@ set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/scheduler )
 set( SRCS
   ${BASE}/helpers.cpp
   ${BASE}/scheduler_channel.cpp
-  ${BASE}/statistics.cpp
 )
 set( HDRS
   ${BASE}/config.h
@@ -12,8 +11,6 @@ set( HDRS
   ${BASE}/public.h
   ${BASE}/scheduler_channel.h
   ${BASE}/scheduler_service_proxy.h
-  ${BASE}/statistics-inl.h
-  ${BASE}/statistics.h
 )
 
 list(APPEND YT_SOURCE_FILES

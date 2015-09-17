@@ -1444,7 +1444,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        DecoratedAutomaton_->CommitMutations(committedVersion);
+        DecoratedAutomaton_->CommitMutations(epochContext, committedVersion);
         CheckForPendingLeaderSync(std::move(epochContext));
     }
 

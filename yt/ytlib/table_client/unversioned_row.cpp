@@ -888,7 +888,7 @@ TOwningKey GetKeySuccessor(TKey key)
 
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
 {
-    YASSERT(prefixLength <= key.GetCount());
+    YCHECK(prefixLength <= key.GetCount());
     return GetKeySuccessorImpl(
         key,
         prefixLength,

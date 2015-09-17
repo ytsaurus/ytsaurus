@@ -44,6 +44,7 @@ public:
     TChunk* GetChunkOrThrow(const TChunkId& id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList, TChunkListId);
+    TChunkList* GetChunkListOrThrow(const TChunkListId& id);
 
     TChunkTree* FindChunkTree(const TChunkTreeId& id);
     TChunkTree* GetChunkTree(const TChunkTreeId& id);

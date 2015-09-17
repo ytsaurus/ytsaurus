@@ -30,11 +30,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TLock> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return CypressServerLogger;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         const auto* lock = GetThisTypedImpl();

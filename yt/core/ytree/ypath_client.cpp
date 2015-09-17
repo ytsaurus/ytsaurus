@@ -12,6 +12,7 @@
 
 #include <core/rpc/rpc.pb.h>
 #include <core/rpc/message.h>
+#include <core/rpc/server_detail.h>
 
 #include <core/ypath/token.h>
 #include <core/ypath/tokenizer.h>
@@ -232,8 +233,13 @@ void ResolveYPath(
     }
 }
 
-TFuture<TSharedRefArray>
-ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
+TFuture<TSharedRefArray> ExecuteVerb(
+    IYPathServicePtr service,
+    TSharedRefArray requestMessage,
+    const NLogging::TLogger& logger,
+    NLogging::ELogLevel logLevel,
+    const Stroka& requestInfo,
+    const Stroka& responseInfo)
 {
     IYPathServicePtr suffixService;
     TYPath suffixPath;
@@ -256,7 +262,10 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
 
     auto invokeContext = CreateYPathContext(
         std::move(updatedRequestMessage),
-        suffixService->GetLogger());
+        logger,
+        logLevel,
+        requestInfo,
+        responseInfo);
 
     // NB: Calling GetAsyncResponseMessage after Invoke is not allowed.
     auto asyncResponseMessage = invokeContext->GetAsyncResponseMessage();
@@ -267,11 +276,78 @@ ExecuteVerb(IYPathServicePtr service, TSharedRefArray requestMessage)
     return asyncResponseMessage;
 }
 
-void ExecuteVerb(IYPathServicePtr service, IServiceContextPtr context)
+void ExecuteVerb(
+    IYPathServicePtr service,
+    IServiceContextPtr context)
 {
+    IYPathServicePtr suffixService;
+    TYPath suffixPath;
+    try {
+        ResolveYPath(
+            service,
+            context,
+            &suffixService,
+            &suffixPath);
+    } catch (const std::exception& ex) {
+        context->Reply(ex);
+        return;
+    }
+
     auto requestMessage = context->GetRequestMessage();
-    auto asyncResponseMessage = ExecuteVerb(service, requestMessage);
-    context->ReplyFrom(asyncResponseMessage);
+    NRpc::NProto::TRequestHeader requestHeader;
+    YCHECK(ParseRequestHeader(requestMessage, &requestHeader));
+    SetRequestYPath(&requestHeader, suffixPath);
+
+    auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
+
+    class TInvokeContext
+        : public TServiceContextBase
+    {
+    public:
+        TInvokeContext(
+            TSharedRefArray requestMessage,
+            IServiceContextPtr underlyingContext)
+            : TServiceContextBase(
+                std::move(requestMessage),
+                underlyingContext->GetLogger(),
+                underlyingContext->GetLogLevel())
+            , UnderlyingContext_(std::move(underlyingContext))
+        { }
+
+        virtual void SetRawRequestInfo(const Stroka& info) override
+        {
+            UnderlyingContext_->SetRawRequestInfo(info);
+        }
+
+        virtual void SetRawResponseInfo(const Stroka& info) override
+        {
+            UnderlyingContext_->SetRawResponseInfo(info);
+        }
+
+    private:
+        const IServiceContextPtr UnderlyingContext_;
+
+
+        virtual void LogRequest() override
+        {
+            YUNREACHABLE();
+        }
+
+        virtual void LogResponse(const TError& /*error*/) override
+        { }
+
+        virtual void DoReply() override
+        {
+            UnderlyingContext_->Reply(GetResponseMessage());
+        }
+    };
+
+    auto invokeContext = New<TInvokeContext>(
+        std::move(updatedRequestMessage),
+        std::move(context));
+
+    // This should never throw.
+    suffixService->Invoke(std::move(invokeContext));
 }
 
 TFuture<TYsonString> AsyncYPathGet(

@@ -3,15 +3,12 @@
 #include "multi_chunk_writer_base.h"
 
 #include "chunk_writer.h"
-#include "chunk_list_ypath_proxy.h"
 #include "chunk_replica.h"
 #include "chunk_writer_base.h"
-#include "chunk_ypath_proxy.h"
 #include "config.h"
 #include "dispatcher.h"
-#include "erasure_writer.h"
 #include "private.h"
-#include "replication_writer.h"
+#include "lazy_chunk_writer.h"
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
@@ -19,15 +16,9 @@
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/object_client/helpers.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/object_service_proxy.h>
-
-#include <ytlib/chunk_client/chunk_service_proxy.h>
+#include <ytlib/chunk_client/chunk_spec.pb.h>
 
 #include <core/concurrency/scheduler.h>
-
-#include <core/erasure/codec.h>
 
 #include <core/misc/address.h>
 
@@ -41,8 +32,6 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
-using namespace NObjectClient;
-using namespace NRpc;
 using namespace NApi;
 using namespace NTransactionClient;
 
@@ -79,7 +68,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
 
 TFuture<void> TNontemplateMultiChunkWriterBase::Open()
 {
-    ReadyEvent_= BIND(&TNontemplateMultiChunkWriterBase::DoOpen, MakeStrong(this))
+    ReadyEvent_= BIND(&TNontemplateMultiChunkWriterBase::InitSession, MakeStrong(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 
@@ -89,29 +78,22 @@ TFuture<void> TNontemplateMultiChunkWriterBase::Open()
 TFuture<void> TNontemplateMultiChunkWriterBase::Close()
 {
     YCHECK(!Closing_);
+    YCHECK(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
+
     Closing_ = true;
-
-    if (CompletionError_.IsSet()) {
-        return CompletionError_.ToFuture();
-    }
-
-    FinishSession(CurrentSession_);
-    CurrentSession_.Reset();
-
-    BIND(&TNontemplateMultiChunkWriterBase::DoClose, MakeWeak(this))
+    ReadyEvent_ = BIND(&TNontemplateMultiChunkWriterBase::FinishSession, MakeWeak(this))
         .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
         .Run();
 
-    ReadyEvent_ = CompletionError_.ToFuture();
     return ReadyEvent_;
 }
 
 TFuture<void> TNontemplateMultiChunkWriterBase::GetReadyEvent()
 {
-    if (CurrentSession_.IsActive()) {
-        return CurrentSession_.TemplateWriter->GetReadyEvent();
-    } else {
+    if (SwitchingSession_) {
         return ReadyEvent_;
+    } else {
+        return CurrentSession_.TemplateWriter->GetReadyEvent();
     }
 }
 
@@ -132,224 +114,71 @@ TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
 
 TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
 {
-    auto writer = CurrentSession_.TemplateWriter;
-    if (writer) {
-        return DataStatistics_ + writer->GetDataStatistics();
+    TGuard<TSpinLock> guard(SpinLock_);
+    if (CurrentSession_.IsActive()) {
+        return DataStatistics_ + CurrentSession_.TemplateWriter->GetDataStatistics();
     } else {
         return DataStatistics_;
     }
 }
 
-void TNontemplateMultiChunkWriterBase::DoOpen()
-{
-    CreateNextSession();
-    NextSessionReady_ = VoidFuture;
-    InitCurrentSession();
-}
-
-void TNontemplateMultiChunkWriterBase::CreateNextSession()
-{
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v)", Options_->ReplicationFactor);
-
-    try {
-        TObjectServiceProxy objectProxy(MasterChannel_);
-
-        auto req = TMasterYPathProxy::CreateObjects();
-        ToProto(req->mutable_transaction_id(), TransactionId_);
-
-        auto type = Options_->ErasureCodec == ECodec::None
-            ? EObjectType::Chunk
-            : EObjectType::ErasureChunk;
-        req->set_type(static_cast<int>(type));
-
-        req->set_account(Options_->Account);
-        GenerateMutationId(req);
-
-        // ToDo(psushin): Use CreateChunk here.
-        auto* reqExt = req->MutableExtension(NProto::TReqCreateChunkExt::create_chunk_ext);
-        reqExt->set_movable(Options_->ChunksMovable);
-        reqExt->set_replication_factor(Options_->ReplicationFactor);
-        reqExt->set_vital(Options_->ChunksVital);
-        reqExt->set_erasure_codec(static_cast<int>(Options_->ErasureCodec));
-
-        auto rspOrError = WaitFor(objectProxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError,
-            NChunkClient::EErrorCode::ChunkCreationFailed,
-            "Error creating chunk");
-        const auto& rsp = rspOrError.Value();
-
-        NextSession_.ChunkId = NYT::FromProto<TChunkId>(rsp->object_ids(0));
-
-        LOG_DEBUG("Chunk created (ChunkId: %v)", NextSession_.ChunkId);
-
-        if (Options_->ErasureCodec == ECodec::None) {
-            NextSession_.UnderlyingWriter = CreateReplicationWriter(
-                Config_,
-                Options_,
-                NextSession_.ChunkId, 
-                TChunkReplicaList(),
-                NodeDirectory_,
-                Client_,
-                BlockCache_,
-                Throttler_);
-        } else {
-            auto* erasureCodec = GetCodec(Options_->ErasureCodec);
-            auto writers = CreateErasurePartWriters(
-                Config_,
-                Options_,
-                NextSession_.ChunkId, 
-                erasureCodec, 
-                NodeDirectory_, 
-                Client_,
-                Throttler_,
-                BlockCache_);
-            NextSession_.UnderlyingWriter = CreateErasureWriter(
-                Config_,
-                NextSession_.ChunkId,
-                erasureCodec,
-                writers);
-        }
-
-        WaitFor(NextSession_.UnderlyingWriter->Open())
-            .ThrowOnError();
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to start new session") << ex;
-        LOG_WARNING(error);
-        CompletionError_.TrySet(error);
-    }
-}
-
 void TNontemplateMultiChunkWriterBase::SwitchSession()
 {
-    auto currentSession = CurrentSession_;
-    CurrentSession_.Reset();
-    
+    SwitchingSession_ = true;
     ReadyEvent_ = BIND(
         &TNontemplateMultiChunkWriterBase::DoSwitchSession,
-        MakeStrong(this),
-        currentSession)
+        MakeWeak(this))
     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
     .Run();
 }
 
-void TNontemplateMultiChunkWriterBase::DoSwitchSession(const TSession& session)
+void TNontemplateMultiChunkWriterBase::DoSwitchSession()
 {
-    if (Config_->SyncChunkSwitch) {
-        // Wait until session is finished.
-        WaitFor(FinishSession(session))
-            .ThrowOnError();
-    } else {
-        // Do not wait, fire and move on.
-        FinishSession(session);
-    }
-
-    InitCurrentSession();
+    FinishSession();
+    InitSession();
 }
 
-TFuture<void> TNontemplateMultiChunkWriterBase::FinishSession(const TSession& session)
+void TNontemplateMultiChunkWriterBase::FinishSession()
 {
-    auto sessionFinishedEvent = BIND(
-        &TNontemplateMultiChunkWriterBase::DoFinishSession,
-        MakeWeak(this), 
-        session)
-    .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-    .Run();
-
-    CloseChunkEvents_.push_back(sessionFinishedEvent);
-
-    return sessionFinishedEvent;
-}
-
-void TNontemplateMultiChunkWriterBase::DoFinishSession(const TSession& session)
-{
-    if (session.TemplateWriter->GetDataSize() == 0) {
-        LOG_DEBUG("Canceling empty chunk (ChunkId: %v)", session.ChunkId);
+    if (CurrentSession_.TemplateWriter->GetDataSize() == 0) {
         return;
     }
 
-    // Reserve next sequential slot in WrittenChunks_.
-    WrittenChunks_.push_back(TChunkSpec());
-    auto& chunkSpec = WrittenChunks_.back();
-
-    LOG_DEBUG("Finishing chunk (ChunkId: %v)", session.ChunkId);
-
-    auto error = WaitFor(session.TemplateWriter->Close());
-
-    if (!error.IsOK()) {
-        CompletionError_.TrySet(TError(
-            "Failed to close chunk %v",
-            session.ChunkId)
-            << error);
-        return;
-    }
-
-    LOG_DEBUG("Chunk closed (ChunkId: %v)", session.ChunkId);
-
-    auto replicas = session.UnderlyingWriter->GetWrittenChunkReplicas();
-    YCHECK(!replicas.empty());
-
-    *chunkSpec.mutable_chunk_meta() = session.TemplateWriter->GetSchedulerMeta();
-    ToProto(chunkSpec.mutable_chunk_id(), session.ChunkId);
-    NYT::ToProto(chunkSpec.mutable_replicas(), replicas);
-
-    DataStatistics_ += session.TemplateWriter->GetDataStatistics();
-
-    auto req = TChunkYPathProxy::Confirm(FromObjectId(session.ChunkId));
-    GenerateMutationId(req);
-    *req->mutable_chunk_info() = session.UnderlyingWriter->GetChunkInfo();
-    *req->mutable_chunk_meta() = session.TemplateWriter->GetMasterMeta();
-    NYT::ToProto(req->mutable_replicas(), replicas);
-
-    TObjectServiceProxy objectProxy(MasterChannel_);
-    auto rspOrError = WaitFor(objectProxy.Execute(req));
-
-    if (!rspOrError.IsOK()) {
-        CompletionError_.TrySet(TError(
-            EErrorCode::MasterCommunicationFailed,
-            "Failed to confirm chunk %v",
-            session.ChunkId)
-            << rspOrError);
-        return;
-    }
-
-    LOG_DEBUG("Chunk confirmed (ChunkId: %v)", session.ChunkId);
-}
-
-void TNontemplateMultiChunkWriterBase::InitCurrentSession()
-{
-    WaitFor(NextSessionReady_)
+    WaitFor(CurrentSession_.TemplateWriter->Close())
         .ThrowOnError();
 
-    auto maybeError = CompletionError_.TryGet();
-    if (maybeError) {
-        maybeError->ThrowOnError();
-    }
+    TChunkSpec chunkSpec;
+    *chunkSpec.mutable_chunk_meta() = CurrentSession_.TemplateWriter->GetSchedulerMeta();
+    ToProto(chunkSpec.mutable_chunk_id(), CurrentSession_.UnderlyingWriter->GetChunkId());
+    NYT::ToProto(chunkSpec.mutable_replicas(), CurrentSession_.UnderlyingWriter->GetWrittenChunkReplicas());
 
-    CurrentSession_ = NextSession_;
-    NextSession_.Reset();
+    WrittenChunks_.push_back(chunkSpec);
 
-    CurrentSession_.TemplateWriter = CreateTemplateWriter(CurrentSession_.UnderlyingWriter);
-
-    NextSessionReady_ = BIND(&TNontemplateMultiChunkWriterBase::CreateNextSession, MakeWeak(this))
-        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-        .Run();
-
-    WaitFor(CurrentSession_.TemplateWriter->Open());
+    TGuard<TSpinLock> guard(SpinLock_);
+    DataStatistics_ += CurrentSession_.TemplateWriter->GetDataStatistics();
+    CurrentSession_.Reset();
 }
 
-bool TNontemplateMultiChunkWriterBase::VerifyActive()
+void TNontemplateMultiChunkWriterBase::InitSession()
 {
-    YCHECK(!Closing_);
+    CurrentSession_.UnderlyingWriter = CreateLazyChunkWriter(
+        Config_,
+        Options_,
+        TransactionId_,
+        ParentChunkListId_,
+        NodeDirectory_,
+        Client_,
+        BlockCache_,
+        Throttler_);
 
-    if (CompletionError_.IsSet()) {
-        ReadyEvent_ = CompletionError_.ToFuture();
-        return false;
-    }
+    WaitFor(CurrentSession_.UnderlyingWriter->Open())
+        .ThrowOnError();
 
-    // If #CompletionError is not set, #CurrentSession must be ready.
-    YCHECK(CurrentSession_.IsActive());
-    return true;
+    CurrentSession_.TemplateWriter = CreateTemplateWriter(CurrentSession_.UnderlyingWriter);
+    WaitFor(CurrentSession_.TemplateWriter->Open())
+        .ThrowOnError();
+
+    SwitchingSession_ = false;
 }
 
 bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
@@ -382,46 +211,6 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
     }
 
     return false;
-}
-
-void TNontemplateMultiChunkWriterBase::DoClose()
-{
-    WaitFor(Combine(CloseChunkEvents_))
-        .ThrowOnError();
-
-    if (CompletionError_.IsSet()) {
-        return;
-    }
-
-    if (!ParentChunkListId_) {
-        LOG_DEBUG("Chunk sequence writer closed, no chunks attached");
-        CompletionError_.TrySet(TError());
-        return;
-    }
-
-
-    LOG_DEBUG("Attaching %v chunks", WrittenChunks_.size());
-
-    auto req = TChunkListYPathProxy::Attach(FromObjectId(ParentChunkListId_));
-    GenerateMutationId(req);
-    for (const auto& chunkSpec : WrittenChunks_) {
-        *req->add_children_ids() = chunkSpec.chunk_id();
-    }
-
-    TObjectServiceProxy objectProxy(MasterChannel_);
-    auto rspOrError = WaitFor(objectProxy.Execute(req));
-
-    if (!rspOrError.IsOK()) {
-        CompletionError_.TrySet(TError(
-            EErrorCode::MasterCommunicationFailed, 
-            "Error attaching chunks to chunk list %v",
-            ParentChunkListId_)
-            << rspOrError);
-        return;
-    }
-
-    LOG_DEBUG("Chunks attached, chunk sequence writer closed");
-    CompletionError_.TrySet(TError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
