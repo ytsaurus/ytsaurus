@@ -128,7 +128,7 @@ class FiberExecutionContext17(FiberExecutionContextBase):
         bp = fiber["Stack_"]["_M_ptr"]["Stack_"]
         sz = fiber["Stack_"]["_M_ptr"]["Size_"]
         super(FiberExecutionContext17, self).__init__(sp, bp, sz)
-        self.is_running = (str(fiber["State_"]["Value"]) == "NYT::NConcurrency::EFiberState::Running")
+        self.is_running = (str(fiber["State_"]) == "NYT::NConcurrency::EFiberState::Running")
 
 
 def arg_to_fiber_context(arg):
@@ -201,8 +201,6 @@ class FiberScanCmd(gdb.Command):
 
         print("Searching for stack entries that look like return addresses...")
         for pc, name in ctx.frame_fragments:
-            if len(name) > 80:
-                name = name[:80] + "..."
             print("# %14s in %s" % ("0x%08x" % from_vpp(pc), name))
 
 
