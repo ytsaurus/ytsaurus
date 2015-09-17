@@ -362,16 +362,22 @@ private:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto commitTimestamp = TTimestamp(request.commit_timestamp());
 
+        auto* commit = FindCommit(transactionId);
+            
         try {
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
+            if (commit) {
+                YCHECK(!commit->GetPersistent());
+                SetCommitSucceeded(commit, commitTimestamp);
+                TransientCommitMap_.Remove(transactionId);
+            }
             LOG_ERROR_UNLESS(IsRecovery(), ex, "Error committing simple transaction (TransactionId: %v)",
                 transactionId);
             return;
         }
 
-        auto* commit = FindCommit(transactionId);
         if (!commit) {
             // Commit could be missing (e.g. at followers or during recovery).
             // Let's recreate it since it's needed below in SetCommitSucceeded.
@@ -383,7 +389,6 @@ private:
         }
 
         YCHECK(!commit->GetPersistent());
-
         SetCommitSucceeded(commit, commitTimestamp);
         TransientCommitMap_.Remove(transactionId);
     }

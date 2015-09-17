@@ -101,7 +101,7 @@ private:
                 } else {
                     switch (state) {
                         case EJobState::Completed:
-                            LOG_WARNING("Unknown job has completed, removal scheduled (JobId: %v)",
+                            LOG_INFO("Unknown job has completed, removal scheduled (JobId: %v)",
                                 jobId);
                             ToProto(response->add_jobs_to_remove(), jobId);
                             break;

@@ -686,7 +686,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         InitUserJobSpecTemplate(
@@ -781,7 +781,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         if (Spec->InputQuery) {
@@ -900,7 +900,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         auto* jobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
@@ -1440,7 +1440,7 @@ private:
         auto* mergeJobSpecExt = JobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), KeyColumns);
@@ -1803,7 +1803,7 @@ private:
         auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
         schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
 
         InitUserJobSpecTemplate(

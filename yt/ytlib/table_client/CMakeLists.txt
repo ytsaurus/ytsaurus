@@ -40,6 +40,7 @@ set( SRCS
   ${BASE}/unordered_schemaful_reader.cpp
   ${BASE}/unversioned_value.cpp
   ${BASE}/unversioned_row.cpp
+  ${BASE}/value_consumer.cpp
   ${BASE}/versioned_block_reader.cpp
   ${BASE}/versioned_block_writer.cpp
   ${BASE}/versioned_chunk_reader.cpp
@@ -98,6 +99,8 @@ set( HDRS
   ${BASE}/unversioned_value.h
   ${BASE}/unversioned_row.h
   ${BASE}/unversioned_writer.h
+  ${BASE}/value_consumer.h
+  ${BASE}/value_consumer-mock.h
   ${BASE}/versioned_block_reader.h
   ${BASE}/versioned_block_writer.h
   ${BASE}/versioned_chunk_reader.h

@@ -179,7 +179,6 @@ private:
                         false,
                         NTracing::TTraceContext(),
                         nullptr,
-                        startTime,
                         TSharedRefArray());
                     NextRequest();
                     continue;
@@ -198,11 +197,10 @@ private:
                         "Error parsing request header");
                 }
 
-                // Propagate retry flag to the subrequest.
-                if (Context->IsRetry()) {
-                    requestHeader.set_retry(true);
-                    requestMessage = SetRequestHeader(requestMessage, requestHeader);
-                }
+                // Propagate various parameters to the subrequest.
+                requestHeader.set_retry(requestHeader.retry() || Context->IsRetry());
+                requestHeader.set_user(user->GetName());
+                auto updatedRequestMessage = SetRequestHeader(requestMessage, requestHeader);
 
                 const auto& ypathExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
                 const auto& path = ypathExt.path();
@@ -216,24 +214,28 @@ private:
                     return;
                 }
 
-                LOG_DEBUG("Execute[%v] <- %v:%v %v (RequestId: %v, Mutating: %v, TransactionId: %v)",
-                    CurrentRequestIndex,
-                    requestHeader.service(),
-                    requestHeader.method(),
-                    path,
-                    Context->GetRequestId(),
-                    mutating,
-                    GetTransactionId(Context));
-
                 NTracing::TTraceContextGuard traceContextGuard(NTracing::CreateChildTraceContext());
                 NTracing::TraceEvent(
                     requestHeader.service(),
                     requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
+                auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v",
+                    Context->GetRequestId(),
+                    mutating,
+                    path);
+                auto responseInfo = Format("RequestId: %v",
+                    Context->GetRequestId());
+
                 TFuture<TSharedRefArray> asyncResponseMessage;
                 try {
-                    asyncResponseMessage = ExecuteVerb(rootService, requestMessage);
+                    auto asyncResponseMessage = ExecuteVerb(
+                        rootService,
+                        std::move(updatedRequestMessage),
+                        ObjectServerLogger,
+                        NLogging::ELogLevel::Debug,
+                        requestInfo,
+                        responseInfo);
                 } catch (const TLeaderFallbackException&) {
                     asyncResponseMessage = objectManager->ForwardToLeader(
                         requestMessage,
@@ -247,7 +249,6 @@ private:
                         mutating,
                         traceContextGuard.GetContext(),
                         &requestHeader,
-                        startTime,
                         asyncResponseMessage.Get());
                 } else {
                     LastMutationCommitted = asyncResponseMessage.Apply(BIND(
@@ -256,8 +257,7 @@ private:
                         CurrentRequestIndex,
                         mutating,
                         traceContextGuard.GetContext(),
-                        &requestHeader,
-                        startTime));
+                        &requestHeader));
                 }
 
                 NextRequest();
@@ -282,7 +282,6 @@ private:
         bool mutating,
         const NTracing::TTraceContext& traceContext,
         const TRequestHeader* requestHeader,
-        const TInstant startTime,
         const TErrorOr<TSharedRefArray>& responseMessageOrError)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -300,17 +299,6 @@ private:
                 requestHeader->service(),
                 requestHeader->method(),
                 NTracing::ServerSendAnnotation);
-
-            TResponseHeader responseHeader;
-            YCHECK(ParseResponseHeader(responseMessage, &responseHeader));
-
-            auto error = FromProto<TError>(responseHeader.error());
-
-            LOG_DEBUG("Execute[%v] -> Error: %v (RequestId: %v, Duration: %v)",
-                requestIndex,
-                error,
-                Context->GetRequestId(),
-                TInstant::Now() - startTime);
         }
 
         ResponseMessages[requestIndex] = std::move(responseMessage);

@@ -172,7 +172,11 @@ void ResolveYPath(
 TFuture<TSharedRefArray>
 ExecuteVerb(
     IYPathServicePtr service,
-    TSharedRefArray requestMessage);
+    TSharedRefArray requestMessage,
+    const NLogging::TLogger& logger = NLogging::TLogger(),
+    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug,
+    const Stroka& requestInfo = Stroka(),
+    const Stroka& responseInfo = Stroka());
 
 //! Asynchronously executes a request against a given service.
 void ExecuteVerb(

@@ -185,15 +185,22 @@ message TReqGetTableSamples
 
     repeated TSampleRequest sample_requests = 1;
     repeated string key_columns = 2;
+    required int32 max_sample_size = 3;
 }
 
 message TRspGetTableSamples
 {
+    message TSample
+    {
+        required bytes key = 1;
+        required bool incomplete = 2;
+    }
+
     message TChunkSamples
     {
         optional NYT.NProto.TError error = 1;
         // Deprecated = 2;
-        repeated bytes keys = 3;
+        repeated TSample samples = 3;
     }
 
     repeated TChunkSamples sample_responses = 1;

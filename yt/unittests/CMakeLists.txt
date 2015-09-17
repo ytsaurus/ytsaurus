@@ -70,6 +70,7 @@ set( SRCS
   ${BASE}/string_ut.cpp
   ${BASE}/subprocess_ut.cpp
   ${BASE}/sync_file_changelog_ut.cpp
+  ${BASE}/table_consumer_ut.cpp
   ${BASE}/thread_affinity_ut.cpp
   ${BASE}/tools_ut.cpp
   ${BASE}/tree_builder_ut.cpp

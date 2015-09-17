@@ -19,6 +19,7 @@ set( SRCS
   ${BASE}/file_writer.cpp
   ${BASE}/format.cpp
   ${BASE}/helpers.cpp
+  ${BASE}/lazy_chunk_writer.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
   ${BASE}/multi_chunk_reader_base.cpp
@@ -40,6 +41,7 @@ set( HDRS
   ${BASE}/chunk_reader.h
   ${BASE}/chunk_reader_base.h
   ${BASE}/chunk_replica.h
+  ${BASE}/chunk_replica-inl.h
   ${BASE}/chunk_scraper.h
   ${BASE}/chunk_service_proxy.h
   ${BASE}/chunk_slice.h
@@ -61,6 +63,7 @@ set( HDRS
   ${BASE}/file_writer.h
   ${BASE}/format.h
   ${BASE}/helpers.h
+  ${BASE}/lazy_chunk_writer.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
   ${BASE}/multi_chunk_reader.h

@@ -240,7 +240,7 @@ void TTablet::Load(TLoadContext& context)
                 partitionId,
                 index);
             Load(context, *partition);
-            for (auto store : partition->Stores()) {
+            for (const auto& store : partition->Stores()) {
                 store->SetPartition(partition.get());
             }
             return partition;
@@ -419,7 +419,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
             existingSampleKeys.begin(),
             existingSampleKeys.end());
 
-        for (auto store : existingPartition->Stores()) {
+        for (const auto& store : existingPartition->Stores()) {
             YCHECK(store->GetPartition() == existingPartition.get());
             store->SetPartition(mergedPartition.get());
             YCHECK(mergedPartition->Stores().insert(store).second);
@@ -484,7 +484,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
         std::make_move_iterator(splitPartitions.begin()),
         std::make_move_iterator(splitPartitions.end()));
 
-    for (auto store : existingPartition->Stores()) {
+    for (const auto& store : existingPartition->Stores()) {
         YCHECK(store->GetPartition() == existingPartition.get());
         auto* newPartition = GetContainingPartition(store);
         store->SetPartition(newPartition);

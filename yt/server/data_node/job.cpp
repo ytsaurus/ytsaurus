@@ -182,7 +182,7 @@ public:
         Progress_ = value;
     }
 
-    virtual void SetStatistics(const NYTree::TYsonString& /*statistics*/) override
+    virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& /*statistics*/) override
     {
         YUNREACHABLE();
     }
@@ -270,7 +270,6 @@ private:
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
-        ToProto(Result_.mutable_statistics(), NYTree::TYsonString().Data());
         auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();

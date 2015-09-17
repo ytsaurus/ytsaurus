@@ -11,6 +11,7 @@ namespace NYT {
 namespace NScheduler {
 
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerServer;
 using NNodeTrackerClient::NProto::TNodeResources;
 
 ////////////////////////////////////////////////////////////////////
@@ -19,6 +20,7 @@ TExecNode::TExecNode(const TAddressMap& addresses)
     : Addresses_(addresses)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUsage_(ZeroNodeResources())
+    , MasterState_(ENodeState::Offline)
 { }
 
 bool TExecNode::HasEnoughResources(const TNodeResources& neededResources) const

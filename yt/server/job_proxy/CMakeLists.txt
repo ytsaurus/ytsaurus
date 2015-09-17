@@ -15,7 +15,6 @@ set( SRCS
   ${BASE}/simple_sort_job.cpp
   ${BASE}/sorted_merge_job.cpp
   ${BASE}/sorted_reduce_job_io.cpp
-  ${BASE}/stderr_output.cpp
   ${BASE}/stracer.cpp
   ${BASE}/table_output.cpp
   ${BASE}/user_job.cpp
@@ -39,7 +38,6 @@ set( HDRS
   ${BASE}/simple_sort_job.h
   ${BASE}/sorted_merge_job.h
   ${BASE}/sorted_reduce_job_io.h
-  ${BASE}/stderr_output.h
   ${BASE}/stracer.h
   ${BASE}/table_output.h
   ${BASE}/user_job.h

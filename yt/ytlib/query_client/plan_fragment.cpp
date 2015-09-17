@@ -97,8 +97,10 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
 
 Stroka InferName(TConstQueryPtr query, bool omitValues)
 {
-    auto namedItemFormatter = [=] (const TNamedItem& item) {
-        return InferName(item.Expression, omitValues) + " AS " + item.Name;
+    auto namedItemFormatter = [=] (TStringBuilder* builder, const TNamedItem& item) {
+        builder->AppendFormat("%v AS %v",
+            InferName(item.Expression, omitValues),
+            item.Name);
     };
 
     std::vector<Stroka> clauses;
@@ -132,7 +134,7 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
         clauses.push_back(Stroka("LIMIT ") + str);
     }
 
-    return JoinToString(clauses, Stroka(" "));
+    return JoinToString(clauses, " ");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

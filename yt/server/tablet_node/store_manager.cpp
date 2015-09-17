@@ -99,8 +99,7 @@ bool TStoreManager::HasUnflushedStores() const
 {
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
-        auto state = store->GetStoreState();
-        if (state != EStoreState::Persistent) {
+        if (store->GetStoreState() != EStoreState::Persistent) {
             return true;
         }
     }
@@ -121,22 +120,18 @@ void TStoreManager::StopEpoch()
 
     for (const auto& pair : Tablet_->Stores()) {
         const auto& store = pair.second;
-        store->SetStoreState(store->GetPersistentStoreState());
+        store->SetRemovalState(EStoreRemovalState::None);
         switch (store->GetType()) {
             case EStoreType::DynamicMemory: {
                 auto dynamicStore = store->AsDynamicMemory();
                 dynamicStore->SetFlushState(EStoreFlushState::None);
                 break;
             }
-
             case EStoreType::Chunk: {
                 auto chunkStore = store->AsChunk();
                 chunkStore->SetCompactionState(EStoreCompactionState::None);
                 break;
             }
-
-            default:
-                YUNREACHABLE();
         }
     }
 }
@@ -476,6 +471,7 @@ void TStoreManager::EndStoreFlush(TDynamicMemoryStorePtr store)
 {
     YCHECK(store->GetFlushState() == EStoreFlushState::Running);
     store->SetFlushState(EStoreFlushState::Complete);
+    store->SetRemovalState(EStoreRemovalState::Pending);
 }
 
 void TStoreManager::BackoffStoreFlush(TDynamicMemoryStorePtr store)
@@ -520,7 +516,8 @@ void TStoreManager::BeginStoreCompaction(TChunkStorePtr store)
 void TStoreManager::EndStoreCompaction(TChunkStorePtr store)
 {
     YCHECK(store->GetCompactionState() == EStoreCompactionState::Running);
-    store->SetCompactionState(EStoreCompactionState::None);
+    store->SetCompactionState(EStoreCompactionState::Complete);
+    store->SetRemovalState(EStoreRemovalState::Pending);
 }
 
 void TStoreManager::BackoffStoreCompaction(TChunkStorePtr store)
@@ -541,8 +538,9 @@ void TStoreManager::ScheduleStorePreload(TChunkStorePtr store)
     auto state = store->GetPreloadState();
     YCHECK(state != EStorePreloadState::Disabled);
 
-    if (state != EStorePreloadState::None && state != EStorePreloadState::Failed)
+    if (state != EStorePreloadState::None && state != EStorePreloadState::Failed) {
         return;
+    }
 
     Tablet_->PreloadStoreIds().push_back(store->GetId());
     store->SetPreloadState(EStorePreloadState::Scheduled);
@@ -618,8 +616,9 @@ void TStoreManager::EndStorePreload(TChunkStorePtr store)
 
 void TStoreManager::BackoffStorePreload(TChunkStorePtr store)
 {
-    if (store->GetPreloadState() != EStorePreloadState::Running)
+    if (store->GetPreloadState() != EStorePreloadState::Running) {
         return;
+    }
 
     store->SetPreloadState(EStorePreloadState::Failed);
     store->SetPreloadFuture(TFuture<void>());

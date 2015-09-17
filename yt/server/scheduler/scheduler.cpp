@@ -54,6 +54,7 @@ using namespace NChunkClient;
 using namespace NJobProberClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
+using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 
@@ -685,7 +686,10 @@ public:
 
         std::vector<TExecNodePtr> result;
         for (const auto& pair : AddressToNode_) {
-            result.push_back(pair.second);
+            const auto& node = pair.second;
+            if (node->GetMasterState() == ENodeState::Online) {
+                result.push_back(node);
+            }
         }
         return result;
     }
@@ -947,7 +951,7 @@ private:
         LOG_INFO("Updating nodes information");
 
         auto req = TYPathProxy::Get("//sys/nodes");
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags"});
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags", "state"});
         ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_nodes");
     }
@@ -965,36 +969,37 @@ private:
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
-                auto node = child.second;
-                auto schedulingTags = node->Attributes().Find<std::vector<Stroka>>("scheduling_tags");
-                if (!schedulingTags) {
-                    continue;
-                }
                 if (AddressToNode_.find(address) == AddressToNode_.end()) {
                     LOG_WARNING("Node %v is not registered in scheduler", address);
                     continue;
                 }
 
-                yhash_set<Stroka> tags;
-                for (const auto& tag : *schedulingTags) {
-                    tags.insert(tag);
-                    if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
-                        SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
+                auto node = child.second;
+                auto newState = node->Attributes().Get<ENodeState>("state");
+
+                auto execNode = AddressToNode_[address];
+                auto oldState = execNode->GetMasterState();
+
+                auto schedulingTags = node->Attributes().Find<std::vector<Stroka>>("scheduling_tags");
+                if (schedulingTags) {
+                    UpdateSchedulingTags(execNode, *schedulingTags);
+                }
+
+                if (oldState != newState) {
+                    if (oldState == ENodeState::Online && newState != ENodeState::Online) {
+                        SubtractNodeResources(execNode);
+                        AbortJobsAtNode(execNode);
+                    }
+                    if (oldState != ENodeState::Online && newState == ENodeState::Online) {
+                        AddNodeResources(execNode);
                     }
                 }
 
-                auto oldTags = AddressToNode_[address]->SchedulingTags();
-                for (const auto& oldTag : oldTags) {
-                    if (tags.find(oldTag) == tags.end()) {
-                        SchedulingTagResources_[oldTag] -= AddressToNode_[address]->ResourceLimits();
-                    }
+                execNode->SetMasterState(newState);
+
+                if (oldState != newState) {
+                    LOG_INFO("Node %lv (Address: %v)", newState, address);
                 }
-                for (const auto& tag : tags) {
-                    if (oldTags.find(tag) == oldTags.end()) {
-                        SchedulingTagResources_[tag] += AddressToNode_[address]->ResourceLimits();
-                    }
-                }
-                AddressToNode_[address]->SchedulingTags() = tags;
             }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Error updating nodes information");
@@ -1260,8 +1265,8 @@ private:
 
             {
                 auto error = WaitFor(operation->Snapshot()
-                	? controller->Revive()
-                	: controller->Prepare());
+                    ? controller->Revive()
+                    : controller->Prepare());
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
@@ -1303,25 +1308,15 @@ private:
 
         node->SetLease(lease);
 
-        TotalResourceLimits_ += node->ResourceLimits();
-        TotalResourceUsage_ += node->ResourceUsage();
-
         YCHECK(AddressToNode_.insert(std::make_pair(address, node)).second);
 
-        LOG_INFO("Node online (Address: %v)", address);
+        LOG_INFO("Node registered (Address: %v)", address);
 
         return node;
     }
 
-    void UnregisterNode(TExecNodePtr node)
+    void AbortJobsAtNode(TExecNodePtr node)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        LOG_INFO("Node offline (Address: %v)", node->GetDefaultAddress());
-
-        TotalResourceLimits_ -= node->ResourceLimits();
-        TotalResourceUsage_ -= node->ResourceUsage();
-
         // Make a copy, the collection will be modified.
         auto jobs = node->Jobs();
         const auto& address = node->GetDefaultAddress();
@@ -1333,11 +1328,69 @@ private:
             AbortJob(job, TError("Node offline"));
             UnregisterJob(job);
         }
-        YCHECK(AddressToNode_.erase(address) == 1);
+    }
+
+    void UpdateSchedulingTags(TExecNodePtr node, const std::vector<Stroka>& schedulingTags)
+    {
+        yhash_set<Stroka> tags;
+        for (const auto& tag : schedulingTags) {
+            tags.insert(tag);
+            if (SchedulingTagResources_.find(tag) == SchedulingTagResources_.end()) {
+                SchedulingTagResources_.insert(std::make_pair(tag, TNodeResources()));
+            }
+        }
+
+        if (node->GetMasterState() == ENodeState::Online) {
+            auto oldTags = node->SchedulingTags();
+            for (const auto& oldTag : oldTags) {
+                if (tags.find(oldTag) == tags.end()) {
+                    SchedulingTagResources_[oldTag] -= node->ResourceLimits();
+                }
+            }
+
+            for (const auto& tag : tags) {
+                if (oldTags.find(tag) == oldTags.end()) {
+                    SchedulingTagResources_[tag] += node->ResourceLimits();
+                }
+            }
+        }
+
+        node->SchedulingTags() = tags;
+    }
+
+    void SubtractNodeResources(TExecNodePtr node)
+    {
+        TotalResourceLimits_ -= node->ResourceLimits();
+        TotalResourceUsage_ -= node->ResourceUsage();
 
         for (const auto& tag : node->SchedulingTags()) {
             SchedulingTagResources_[tag] -= node->ResourceLimits();
         }
+    }
+
+    void AddNodeResources(TExecNodePtr node)
+    {
+        TotalResourceLimits_ += node->ResourceLimits();
+        TotalResourceUsage_ += node->ResourceUsage();
+
+        for (const auto& tag : node->SchedulingTags()) {
+            SchedulingTagResources_[tag] += node->ResourceLimits();
+        }
+    }
+
+    void UnregisterNode(TExecNodePtr node)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        LOG_INFO("Node unregistered (Address: %v)", node->GetDefaultAddress());
+
+        if (node->GetMasterState() == ENodeState::Online) {
+            SubtractNodeResources(node);
+        }
+
+        AbortJobsAtNode(node);
+
+        YCHECK(AddressToNode_.erase(node->GetDefaultAddress()) == 1);
     }
 
 
@@ -1507,12 +1560,7 @@ private:
             return;
 
         job->SetState(EJobState::Aborted);
-        {
-            TJobResult jobResult;
-            ToProto(jobResult.mutable_error(), error);
-            ToProto(jobResult.mutable_statistics(), SerializedEmptyStatistics.Data());
-            job->SetResult(std::move(jobResult));
-        }
+        ToProto(job->Result()->mutable_error(), error);
 
         OnJobFinished(job);
 
@@ -1522,7 +1570,6 @@ private:
         if (operation->GetState() == EOperationState::Running) {
             LogFinishedJobFluently(ELogEventType::JobAborted, job)
                 .Item("reason").Value(GetAbortReason(job->Result()));
-            operation->UpdateJobStatistics(job);
             operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
         }
     }
@@ -1564,6 +1611,11 @@ private:
             job->SetState(EJobState::Completed);
             job->SetResult(std::move(*result));
 
+            LOG_INFO("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
+                job->GetId(),
+                GetTotalInputDataStatistics(job->Statistics()),
+                GetTotalOutputDataStatistics(job->Statistics()));
+
             OnJobFinished(job);
 
             auto operation = FindOperation(job->GetOperationId());
@@ -1571,7 +1623,6 @@ private:
 
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobCompleted, job);
-                operation->UpdateJobStatistics(job);
                 operation->GetController()->OnJobCompleted(TCompletedJobSummary(job));
             }
 
@@ -1611,7 +1662,6 @@ private:
                 auto error = FromProto<TError>(job->Result()->error());
                 LogFinishedJobFluently(ELogEventType::JobFailed, job)
                     .Item("error").Value(error);
-                operation->UpdateJobStatistics(job);
                 operation->GetController()->OnJobFailed(TFailedJobSummary(job));
             }
 
@@ -1641,7 +1691,6 @@ private:
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobAborted, job)
                     .Item("reason").Value(GetAbortReason(job->Result()));
-                operation->UpdateJobStatistics(job);
                 operation->GetController()->OnJobAborted(TAbortedJobSummary(job));
             }
         }
@@ -1674,7 +1723,7 @@ private:
         auto jobFailed = job->GetState() == EJobState::Failed;
         const auto& schedulerResultExt = job->Result()->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
-        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id() 
+        auto stderrChunkId = schedulerResultExt.has_stderr_chunk_id()
             ? FromProto<TChunkId>(schedulerResultExt.stderr_chunk_id())
             : NullChunkId;
 
@@ -2084,15 +2133,7 @@ private:
 
         switch (state) {
             case EJobState::Completed: {
-                if (jobStatus->has_result()) {
-                    auto statistics = ConvertTo<TStatistics>(TYsonString(jobStatus->result().statistics()));
-
-                    LOG_INFO("Job completed, removal scheduled (Input: {%v}, Output: {%v})",
-                        GetTotalInputDataStatistics(statistics),
-                        GetTotalOutputDataStatistics(statistics));
-                } else {
-                    LOG_INFO("Job completed, removal scheduled");
-                }
+                LOG_INFO("Job completed, removal scheduled");
                 OnJobCompleted(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
@@ -2117,11 +2158,7 @@ private:
             case EJobState::Running:
             case EJobState::Waiting:
                 if (job->GetState() == EJobState::Aborted) {
-                    LOG_INFO("Aborting job (Address: %v, JobType: %v, JobId: %v, OperationId: %v)",
-                        jobAddress,
-                        job->GetType(),
-                        jobId,
-                        operation->GetId());
+                    LOG_INFO("Aborting job");
                     ToProto(response->add_jobs_to_abort(), jobId);
                 } else {
                     switch (state) {

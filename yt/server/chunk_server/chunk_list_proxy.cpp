@@ -34,11 +34,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TChunkList> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return ChunkServerLogger;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back("children_ids");

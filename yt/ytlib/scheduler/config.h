@@ -7,6 +7,7 @@
 #include <ytlib/api/config.h>
 
 #include <ytlib/table_client/config.h>
+#include <ytlib/table_client/helpers.h>
 
 #include <ytlib/formats/format.h>
 
@@ -504,6 +505,12 @@ public:
         RegisterInitializer([&] () {
             DataSizePerJob = (i64) 128 * 1024 * 1024;
         });
+
+        RegisterValidator([&] () {
+            if (!ReduceBy.empty()) {
+                NTableClient::ValidateKeyColumns(ReduceBy);
+            }
+        });
     }
 
     virtual void OnLoaded() override
@@ -585,6 +592,10 @@ public:
 
         RegisterParameter("sort_by", SortBy)
             .NonEmpty();
+
+        RegisterValidator([&] () {
+            NTableClient::ValidateKeyColumns(SortBy);
+        });
     }
 
     virtual void OnLoaded() override
@@ -729,8 +740,8 @@ public:
         RegisterValidator([&] () {
             auto throwError = [] (NTableClient::EControlAttribute attribute, const Stroka& jobType) {
                 THROW_ERROR_EXCEPTION(
-                    "%Qlv contol attribute is not supported by %v jobs in map-reduce operation", 
-                    attribute, 
+                    "%Qlv contol attribute is not supported by %v jobs in map-reduce operation",
+                    attribute,
                     jobType);
             };
             auto validateControlAttributes = [&] (const NTableClient::TControlAttributesConfigPtr& attributes, const Stroka& jobType) {
@@ -746,6 +757,8 @@ public:
             };
             validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
             validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
+
+            NTableClient::ValidateKeyColumns(ReduceBy);
         });
     }
 
@@ -772,7 +785,7 @@ class TRemoteCopyOperationSpec
     : public TOperationSpecBase
 {
 public:
-    Stroka ClusterName;
+    TNullable<Stroka> ClusterName;
     TNullable<Stroka> NetworkName;
     TNullable<NApi::TConnectionConfigPtr> ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
@@ -786,7 +799,8 @@ public:
 
     TRemoteCopyOperationSpec()
     {
-        RegisterParameter("cluster_name", ClusterName);
+        RegisterParameter("cluster_name", ClusterName)
+            .Default();
         RegisterParameter("input_table_paths", InputTablePaths)
             .NonEmpty();
         RegisterParameter("output_table_path", OutputTablePath);
@@ -816,6 +830,10 @@ public:
 
         InputTablePaths = NYPath::Normalize(InputTablePaths);
         OutputTablePath = OutputTablePath.Normalize();
+
+        if (!ClusterName && !ClusterConnection) {
+            THROW_ERROR_EXCEPTION("Neither cluster name nor cluster connection specified.");
+        }
     }
 };
 
@@ -824,6 +842,12 @@ public:
 DEFINE_ENUM(ESchedulingMode,
     (Fifo)
     (FairShare)
+);
+
+DEFINE_ENUM(EFifoSortParameter,
+    (Weight)
+    (StartTime)
+    (PendingJobCount)
 );
 
 class TResourceLimitsConfig
@@ -924,6 +948,8 @@ public:
 
     TNullable<int> MaxRunningOperations;
 
+    std::vector<EFifoSortParameter> FifoSortParameters;
+
     TPoolConfig()
     {
         RegisterParameter("mode", Mode)
@@ -931,6 +957,18 @@ public:
 
         RegisterParameter("max_running_operations", MaxRunningOperations)
             .Default();
+
+        RegisterParameter("fifo_sort_parameters", FifoSortParameters)
+            .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime});
+    }
+
+    virtual void OnLoaded() override
+    {
+        TSchedulableConfig::OnLoaded();
+
+        if (FifoSortParameters.empty()) {
+            THROW_ERROR_EXCEPTION("Fifo sort parameters must be non-empty");
+        }
     }
 };
 

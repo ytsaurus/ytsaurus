@@ -266,9 +266,7 @@ private:
         auto ranges = GetRanges(groupedSplits);
 
         LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
-            JoinToString(ranges, [] (const TRowRange& range) {
-                return Format("[%v .. %v]", range.first, range.second);
-            }));
+            JoinToString(ranges, TRowRangeFormatter()));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
@@ -283,9 +281,7 @@ private:
             });
             subreaderCreators.push_back([&] () {
                 LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v",
-                    JoinToString(groupedSplit, [] (const TDataSource& source) {
-                        return Format("[%v .. %v]", source.Range.first, source.Range.second);
-                    }));
+                    JoinToString(groupedSplit, TDataSourceFormatter()));
 
                 auto bottomSplitReaderGenerator = [
                     fragment,
@@ -382,9 +378,7 @@ private:
         });
         
         LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
-            JoinToString(splits, [] (const TDataSource& split) {
-                return Format("[%v .. %v]", split.Range.first, split.Range.second);
-            }));
+            JoinToString(splits, TDataSourceFormatter()));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,

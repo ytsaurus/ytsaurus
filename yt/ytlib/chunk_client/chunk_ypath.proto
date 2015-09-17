@@ -1,5 +1,7 @@
 package NYT.NChunkClient.NProto;
 
+import "yt/core/misc/guid.proto";
+
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/object_client/master_ypath.proto";
@@ -54,6 +56,9 @@ message TReqCreateChunkExt
 
     // Should this chunk be marked as vital?
     optional bool vital = 6 [default = false];
+
+    // If given, the chunk is immediately attached to this chunk list.
+    optional NYT.NProto.TGuid chunk_list_id = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

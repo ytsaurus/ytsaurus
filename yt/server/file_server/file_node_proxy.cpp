@@ -40,11 +40,6 @@ public:
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TFileNode> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return FileServerLogger;
-    }
-
     virtual void ListSystemAttributes(std::vector<TAttributeInfo>* attributes) override
     {
         attributes->push_back(TAttributeInfo("executable", true, false, true));

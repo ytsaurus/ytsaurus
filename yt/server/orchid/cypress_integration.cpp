@@ -123,11 +123,6 @@ public:
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    virtual NLogging::TLogger GetLogger() const override
-    {
-        return OrchidLogger;
-    }
-
     // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void SerializeAttributes(
         NYson::IYsonConsumer* /*consumer*/,

@@ -46,7 +46,7 @@ public:
     /*!
      *  To get consistent data, should be called only when the writer is closed.
      */
-    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const override    ;
+    virtual const std::vector<NProto::TChunkSpec>& GetWrittenChunks() const override;
 
     //! Provides node id to descriptor mapping for chunks returned via #GetWrittenChunks.
     virtual NNodeTrackerClient::TNodeDirectoryPtr GetNodeDirectory() const override;
@@ -66,18 +66,16 @@ private:
     {
         IChunkWriterBasePtr TemplateWriter;
         IChunkWriterPtr UnderlyingWriter;
-        TChunkId ChunkId;
 
         bool IsActive() const
         {
             return bool(TemplateWriter);
         }
-
+        
         void Reset()
         {
             TemplateWriter.Reset();
             UnderlyingWriter.Reset();
-            ChunkId = TChunkId();
         }
     };
 
@@ -89,38 +87,27 @@ private:
     const TChunkListId ParentChunkListId_;
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
-
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    std::vector<TFuture<void>> CloseChunkEvents_;
 
-    volatile double Progress_ = 0.0;
+    std::atomic<double> Progress_ = { 0.0 };
 
     TSession CurrentSession_;
-    TSession NextSession_;
 
     bool Closing_ = false;
+    std::atomic<bool> SwitchingSession_ = { true };
 
-    TFuture<void> NextSessionReady_;
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-    TPromise<void> CompletionError_ = NewPromise<void>();
-
+    TSpinLock SpinLock_;
     NProto::TDataStatistics DataStatistics_;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;
 
 
-    void DoOpen();
-    void DoClose();
-
-    void CreateNextSession();
-    void InitCurrentSession();
+    void InitSession();
+    void FinishSession();
 
     void SwitchSession();
-    void DoSwitchSession(const TSession& session);
-
-    TFuture<void> FinishSession(const TSession& session);
-    void DoFinishSession(const TSession& session);
-
+    void DoSwitchSession();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,9 +142,7 @@ public:
 
     virtual bool Write(TWriteArgs... args) override
     {
-        if (!VerifyActive()) {
-            return false;
-        }
+        YCHECK(GetReadyEvent().IsSet());
 
         // Return true if current writer is ready for more data and
         // we didn't switch to the next chunk.

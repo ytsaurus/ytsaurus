@@ -48,7 +48,6 @@ using NNodeTrackerServer::TNodeList;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTree;
-class TChunkReplica;
 class TChunk;
 class TChunkList;
 class TChunkOwnerBase;

@@ -1717,6 +1717,7 @@ private:
                 Config->Fetcher,
                 sampleCount,
                 Spec->SortBy,
+                Options->MaxSampleSize,
                 NodeDirectory,
                 Host->GetBackgroundInvoker(),
                 scraperCallback,
@@ -1740,16 +1741,16 @@ private:
         InitJobSpecTemplates();
     }
 
-    std::vector<const TOwningKey*> SortSamples(const std::vector<TOwningKey>& samples)
+    std::vector<const TSample*> SortSamples(const std::vector<TSample>& samples)
     {
         int sampleCount = static_cast<int>(samples.size());
         LOG_INFO("Sorting %v samples", sampleCount);
 
-        std::vector<const TOwningKey*> sortedSamples;
+        std::vector<const TSample*> sortedSamples;
         sortedSamples.reserve(sampleCount);
         try {
             for (const auto& sample : samples) {
-                ValidateKey(sample);
+                ValidateKey(sample.Key);
                 sortedSamples.push_back(&sample);
             }
         } catch (const std::exception& ex) {
@@ -1759,14 +1760,14 @@ private:
         std::sort(
             sortedSamples.begin(),
             sortedSamples.end(),
-            [] (const TOwningKey* lhs, const TOwningKey* rhs) {
-                return CompareRows(*lhs, *rhs) < 0;
+            [] (const TSample* lhs, const TSample* rhs) {
+                return *lhs < *rhs;
             });
 
         return sortedSamples;
     }
 
-    void BuildPartitions(const std::vector<const TOwningKey*>& sortedSamples)
+    void BuildPartitions(const std::vector<const TSample*>& sortedSamples)
     {
         // Use partition count provided by user, if given.
         // Otherwise use size estimates.
@@ -1835,11 +1836,11 @@ private:
         Partitions.push_back(New<TPartition>(this, index));
     }
 
-    void BuildMulitplePartitions(const std::vector<const TOwningKey*>& sortedSamples, int partitionCount)
+    void BuildMulitplePartitions(const std::vector<const TSample*>& sortedSamples, int partitionCount)
     {
         LOG_INFO("Building partition keys");
 
-        auto getSampleKey = [&](int sampleIndex) {
+        auto getSample = [&](int sampleIndex) {
             return sortedSamples[(sampleIndex + 1) * (sortedSamples.size() - 1) / partitionCount];
         };
 
@@ -1856,33 +1857,45 @@ private:
         // Take partition keys evenly.
         int sampleIndex = 0;
         while (sampleIndex < partitionCount - 1) {
-            auto* sampleKey = getSampleKey(sampleIndex);
+            auto* sample = getSample(sampleIndex);
             // Check for same keys.
-            if (PartitionKeys.empty() || CompareRows(*sampleKey, PartitionKeys.back()) != 0) {
-                AddPartition(*sampleKey);
+            if (PartitionKeys.empty() || CompareRows(sample->Key, PartitionKeys.back()) != 0) {
+                AddPartition(sample->Key);
                 ++sampleIndex;
             } else {
                 // Skip same keys.
                 int skippedCount = 0;
                 while (sampleIndex < partitionCount - 1 &&
-                    CompareRows(*getSampleKey(sampleIndex), PartitionKeys.back()) == 0)
+                    CompareRows(getSample(sampleIndex)->Key, PartitionKeys.back()) == 0)
                 {
                     ++sampleIndex;
                     ++skippedCount;
                 }
 
+                auto* lastManiacSample = getSample(sampleIndex - 1);
                 auto lastPartition = Partitions.back();
-                LOG_DEBUG("Partition %v is a maniac, skipped %v samples",
-                    lastPartition->Index,
-                    skippedCount);
 
-                lastPartition->Maniac = true;
-                YCHECK(skippedCount >= 1);
+                if (!lastManiacSample->Incomplete) {
+                    LOG_DEBUG("Partition %v is a maniac, skipped %v samples",
+                        lastPartition->Index,
+                        skippedCount);
 
-                // NB: in partitioner we compare keys with the whole rows,
-                // so key prefix successor in required here. 
-                auto successorKey = GetKeyPrefixSuccessor(sampleKey->Get(), Spec->SortBy.size());
-                AddPartition(successorKey);
+                    lastPartition->Maniac = true;
+                    YCHECK(skippedCount >= 1);
+
+                    // NB: in partitioner we compare keys with the whole rows,
+                    // so key prefix successor in required here. 
+                    auto successorKey = GetKeyPrefixSuccessor(sample->Key.Get(), Spec->SortBy.size());
+                    AddPartition(successorKey);
+                } else {
+                    // If sample keys are incomplete, we cannot use UnorderedMerge, 
+                    // because full keys may be different.
+                    LOG_DEBUG("Partition %v is oversized, skipped %v samples",
+                        lastPartition->Index,
+                        skippedCount);
+                    AddPartition(getSample(sampleIndex)->Key);
+                    ++sampleIndex;
+                }
             }
         }
 
@@ -1939,7 +1952,7 @@ private:
             auto* schedulerJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -1955,7 +1968,7 @@ private:
         {
             auto* schedulerJobSpecExt = sortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
 
             auto* sortJobSpecExt = sortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
             ToProto(sortJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -1981,7 +1994,7 @@ private:
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -1993,7 +2006,7 @@ private:
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig).Data());
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2415,7 +2428,7 @@ private:
                 InitQuerySpec(schedulerJobSpecExt, Spec->InputQuery.Get(), Spec->InputSchema.Get());
             }
 
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig).Data());
 
@@ -2434,7 +2447,7 @@ private:
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).Data());
 
             if (Spec->ReduceCombiner) {
@@ -2460,7 +2473,7 @@ private:
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);
@@ -2478,7 +2491,7 @@ private:
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
-            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), Operation->GetOutputTransaction()->GetId());
+            ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).Data());
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), Spec->SortBy);

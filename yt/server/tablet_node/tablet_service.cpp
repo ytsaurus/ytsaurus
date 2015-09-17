@@ -177,6 +177,10 @@ private:
                 tabletSnapshot->Atomicity);
         }
 
+        if (tabletSnapshot->Config->ReadOnly) {
+            THROW_ERROR_EXCEPTION("Table is read-only");
+        }
+
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());
         TWireProtocolReader reader(requestData);
 

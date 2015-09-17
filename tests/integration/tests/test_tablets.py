@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import YsonEntity
 
 from time import sleep
 
@@ -269,7 +270,7 @@ class TestTablets(YTEnvSetup):
         self._sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
-        expected = [{"key1": 1, "key2": 1, "value1": "2"}]
+        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2" : YsonEntity()}]
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         self.assertItemsEqual(actual, expected)
 
@@ -613,7 +614,7 @@ class TestTablets(YTEnvSetup):
         rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows2)
         
-        assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "value": "77"}]
+        assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "key2": YsonEntity(), "value": "77"}]
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
         assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
@@ -665,3 +666,23 @@ class TestTablets(YTEnvSetup):
 
     def test_nonatomic_snapshots(self):
         self._test_snapshots("none")
+
+    def test_read_only_mode(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        set("//tmp/t/@read_only", True)
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(1)]
+
+        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
+
+        remove("//tmp/t/@read_only")
+        remount_table("//tmp/t")
+
+        insert_rows("//tmp/t", rows)
+
+        set("//tmp/t/@read_only", True)
+        remount_table("//tmp/t")
+
+        with pytest.raises(YtError): insert_rows("//tmp/t", rows)

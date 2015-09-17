@@ -7,7 +7,6 @@ from yt_commands import *
 import time
 import __builtin__
 
-
 ##################################################################
 
 class TestSchedulerOther(YTEnvSetup):
@@ -39,108 +38,15 @@ class TestSchedulerOther(YTEnvSetup):
         assert get("//sys/nodes/%s/@state" % address) == state
         print >>sys.stderr, "Node is %s" % state
 
+    def _create_table(self, table):
+        create("table", table)
+        set(table + "/@replication_factor", 1)
+
     def _prepare_tables(self):
-        create("table", "//tmp/t_in")
-        set("//tmp/t_in/@replication_factor", 1)
-        write_table("//tmp/t_in", {"foo": "bar"})
+        self._create_table("//tmp/t_in")
+        write("//tmp/t_in", {"foo": "bar"})
 
-        create("table", "//tmp/t_out")
-        set("//tmp/t_out/@replication_factor", 1)
-
-    def test_strategies(self):
-        self._prepare_tables()
-        self._set_banned_flag(True)
-
-        print >>sys.stderr, "Fail strategy"
-        with pytest.raises(YtError):
-            op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "fail"})
-            track_op(op_id)
-
-        print >>sys.stderr, "Skip strategy"
-        map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "skip"})
-        assert read_table("//tmp/t_out") == []
-
-        print >>sys.stderr, "Wait strategy"
-        op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "wait"})
-
-        self._set_banned_flag(False)
-        track_op(op_id)
-
-        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
-
-    def test_strategies_in_sort(self):
-        v1 = {"key" : "aaa"}
-        v2 = {"key" : "bb"}
-        v3 = {"key" : "bbxx"}
-        v4 = {"key" : "zfoo"}
-        v5 = {"key" : "zzz"}
-
-        create("table", "//tmp/t_in")
-        set("//tmp/t_in/@replication_factor", 1)
-        write_table("//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
-
-        create("table", "//tmp/t_out")
-        set("//tmp/t_out/@replication_factor", 1)
-
-        self._set_banned_flag(True)
-
-        print >>sys.stderr, "Fail strategy"
-        with pytest.raises(YtError):
-            op_id = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "fail"})
-            track_op(op_id)
-
-        print >>sys.stderr, "Skip strategy"
-        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "skip"})
-        assert read_table("//tmp/t_out") == []
-
-        print >>sys.stderr, "Wait strategy"
-        op_id = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "wait"})
-
-        # Give a chance to scraper to work
-        time.sleep(1.0)
-        self._set_banned_flag(False)
-        track_op(op_id)
-
-        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
-        assert get("//tmp/t_out/@sorted") == True
-        assert get("//tmp/t_out/@sorted_by") == ["key"]
-
-    def test_strategies_in_merge(self):
-        create("table", "//tmp/t1")
-        set("//tmp/t1/@replication_factor", 1)
-        write_table("<append=true>//tmp/t1", [{"a": 0}, {"a": 2}], sorted_by="a")
-        write_table("<append=true>//tmp/t1", [{"a": 4}, {"a": 6}], sorted_by="a")
-
-        create("table", "//tmp/t2")
-        set("//tmp/t2/@replication_factor", 1)
-        write_table("<append=true>//tmp/t2", [{"a": 1}, {"a": 3}], sorted_by="a")
-        write_table("<append=true>//tmp/t2", [{"a": 5}, {"a": 7}], sorted_by="a")
-
-        create("table", "//tmp/t_out")
-        set("//tmp/t_out/@replication_factor", 1)
-
-        self._set_banned_flag(True)
-
-        print >>sys.stderr, "Fail strategy"
-        with pytest.raises(YtError):
-            op_id = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "fail"})
-            track_op(op_id)
-
-        print >>sys.stderr, "Skip strategy"
-        merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "skip"})
-        assert read_table("//tmp/t_out") == []
-
-        print >>sys.stderr, "Wait strategy"
-        op_id = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "wait"})
-
-        # Give a chance for scraper to work
-        time.sleep(1.0)
-        self._set_banned_flag(False)
-        track_op(op_id)
-
-        assert read_table("//tmp/t_out") == [{"a": i} for i in range(8)]
-        assert get("//tmp/t_out/@sorted") == True
-        assert get("//tmp/t_out/@sorted_by") == ["a"]
+        self._create_table("//tmp/t_out")
 
     def test_revive(self):
         self._prepare_tables()
@@ -182,20 +88,15 @@ class TestSchedulerOther(YTEnvSetup):
         assert "aborted" == get("//sys/operations/" + op_id + "/@state")
 
     def test_operation_time_limit(self):
-        create("table", "//tmp/in")
-        set("//tmp/in/@replication_factor", 1)
-
-        create("table", "//tmp/out1")
-        set("//tmp/out1/@replication_factor", 1)
-
-        create("table", "//tmp/out2")
-        set("//tmp/out2/@replication_factor", 1)
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out1")
+        self._create_table("//tmp/out2")
 
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         # Default infinite time limit.
         op1 = map(dont_track=True,
-            command="sleep 1.0; cat >/dev/null",
+            command="sleep 1.2; cat >/dev/null",
             in_=["//tmp/in"],
             out="//tmp/out1")
 
@@ -206,7 +107,8 @@ class TestSchedulerOther(YTEnvSetup):
             out="//tmp/out2",
             spec={'time_limit': 800})
 
-        time.sleep(0.9)
+        # we should wait as least time_limit + heartbeat_period
+        time.sleep(1.1)
         assert get("//sys/operations/{0}/@state".format(op1)) != "failed"
         assert get("//sys/operations/{0}/@state".format(op2)) == "failed"
 
@@ -226,6 +128,127 @@ class TestSchedulerOther(YTEnvSetup):
         pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
         for resource, limit in resource_limits.iteritems():
             assert pool_resource_limits[resource] == limit
+
+    def test_fifo_default(self):
+        self._create_table("//tmp/in")
+        self._create_table("//tmp/out1")
+        self._create_table("//tmp/out2")
+        self._create_table("//tmp/out3")
+        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
+        set("//sys/pools/fifo_pool/@mode", "fifo")
+
+        # Waiting for updating pool settings.
+        time.sleep(0.6)
+
+        ops = []
+        for i in xrange(1, 4):
+            ops.append(
+                map(dont_track=True,
+                    command="sleep 0.3; cat >/dev/null",
+                    in_=["//tmp/in"],
+                    out="//tmp/out" + str(i),
+                    spec={"pool": "fifo_pool"}))
+
+        for op in ops:
+            track_op(op)
+
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op)) for op in ops]
+        for cur, next in zip(finish_times, finish_times[1:]):
+            assert cur < next
+
+    def test_fifo_by_pending_job_count(self):
+        for i in xrange(1, 4):
+            self._create_table("//tmp/in" + str(i))
+            self._create_table("//tmp/out" + str(i))
+            write("//tmp/in" + str(i), [{"foo": j} for j in xrange(2 * (4 - i))])
+
+        create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
+        set("//sys/pools/fifo_pool/@mode", "fifo")
+        set("//sys/pools/fifo_pool/@fifo_sort_parameters", ["pending_job_count"])
+
+        # Wait until pools tree would be updated
+        time.sleep(0.6)
+
+        ops = []
+        for i in xrange(1, 4):
+            ops.append(
+                map(dont_track=True,
+                    command="sleep 0.3; cat >/dev/null",
+                    in_=["//tmp/in" + str(i)],
+                    out="//tmp/out" + str(i),
+                    spec={"pool": "fifo_pool", "data_size_per_job": 1}))
+
+        for op in ops:
+            track_op(op)
+
+        finish_times = [get("//sys/operations/{0}/@finish_time".format(op)) for op in ops]
+        for cur, next in zip(finish_times, finish_times[1:]):
+            assert cur > next
+
+
+class TestStrategies(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    def _prepare_tables(self):
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@replication_factor", 1)
+
+    def _get_table_chunk_node(self, table):
+        chunk_ids = get(table + "/@chunk_ids")
+        assert len(chunk_ids) == 1
+
+        chunk_id = chunk_ids[0]
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 1
+
+        return replicas[0]
+
+    def _set_banned_flag(self, node, value):
+        if value:
+            flag = True
+            state = "offline"
+        else:
+            flag = False
+            state = "online"
+
+        set("//sys/nodes/%s/@banned" % node, flag)
+
+        # Give it enough time to register or unregister the node
+        time.sleep(1.0)
+        assert get("//sys/nodes/%s/@state" % node) == state
+        print >>sys.stderr,  "Node is %s" % state
+
+    def test_strategies(self):
+        self._prepare_tables()
+
+        node = self._get_table_chunk_node("//tmp/t_in")
+        self._set_banned_flag(node, True)
+
+        print >>sys.stderr,  "Fail strategy"
+        with pytest.raises(YtError):
+            op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "fail"})
+            track_op(op_id)
+
+        print >>sys.stderr,  "Skip strategy"
+        map(in_="//tmp/t_in", out="//tmp/t_out", command="cat", spec={"unavailable_chunk_strategy": "skip"})
+        assert read_table("//tmp/t_out") == []
+
+        print >>sys.stderr,  "Wait strategy"
+        op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
+
+        self._set_banned_flag(node, False)
+        track_op(op_id)
+
+        assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
+
 
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
@@ -388,6 +411,8 @@ class TestSchedulingTags(YTEnvSetup):
 
         self.node = list(get("//sys/nodes"))[0]
         set("//sys/nodes/{0}/@scheduling_tags".format(self.node), ["tagA", "tagB"])
+        # Wait applying scheduling tags.
+        time.sleep(0.1)
 
     def test_failed_cases(self):
         self._prepare()

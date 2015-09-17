@@ -71,6 +71,8 @@ public:
         TOwningKey pivotKey = TOwningKey(),
         TOwningKey nextPivotKey = TOwningKey());
 
+    void CheckedSetState(EPartitionState oldState, EPartitionState newState);
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
@@ -84,6 +86,13 @@ public:
 
     TPartitionSnapshotPtr RebuildSnapshot();
 
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPartitionIdFormatter
+{
+    void operator() (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

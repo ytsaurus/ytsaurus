@@ -6,11 +6,14 @@
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
 
+#include <core/erasure/codec.h>
+
 namespace NYT {
 namespace NChunkClient {
 
 using namespace NRpc;
 using namespace NObjectClient;
+using namespace NErasure;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,17 +23,20 @@ static const auto& Logger = ChunkClientLogger;
 
 TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     NRpc::IChannelPtr masterChannel,
-    TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    EObjectType chunkType,
-    TTransactionId transactionId)
+    const TTransactionId& transactionId,
+    const TChunkListId& chunkListId)
 {
-    auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
-        options->ReplicationFactor,
-        uploadReplicationFactor);
+    LOG_DEBUG(
+        "Creating chunk (ReplicationFactor: %v, TransactionId: %v)", 
+        options->ReplicationFactor, 
+        transactionId);
 
     TObjectServiceProxy objectProxy(masterChannel);
+
+    auto chunkType = options->ErasureCodec == ECodec::None
+         ? EObjectType::Chunk
+         : EObjectType::ErasureChunk;
 
     auto req = TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), transactionId);
@@ -43,6 +49,9 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     reqExt->set_movable(options->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
     reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
+    if (chunkListId != NullChunkListId) {
+        ToProto(reqExt->mutable_chunk_list_id(), chunkListId);
+    }
 
     return objectProxy.Execute(req);
 }

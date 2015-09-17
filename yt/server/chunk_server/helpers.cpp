@@ -97,6 +97,19 @@ void AccumulateChildStatistics(
     statistics->Accumulate(GetChunkTreeStatistics(child));
 }
 
+void AccumulateUniqueAncestorsStatistics(
+    TChunkList* chunkList,
+    const TChunkTreeStatistics& statisticsDelta)
+{
+    auto mutableStatisticsDelta = statisticsDelta;
+    VisitUniqueAncestors(
+        chunkList,
+        [&] (TChunkList* current) {
+            ++mutableStatisticsDelta.Rank;
+            current->Statistics().Accumulate(mutableStatisticsDelta);
+        });
+}
+
 void ResetChunkListStatistics(TChunkList* chunkList)
 {
     chunkList->RowCountSums().clear();

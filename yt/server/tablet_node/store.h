@@ -29,8 +29,10 @@ struct IStore
     virtual EStoreType GetType() const = 0;
 
     virtual EStoreState GetStoreState() const = 0;
-    EStoreState GetPersistentStoreState() const;
     virtual void SetStoreState(EStoreState state) = 0;
+
+    virtual EStoreRemovalState GetRemovalState() const = 0;
+    virtual void SetRemovalState(EStoreRemovalState state) = 0;
 
     TDynamicMemoryStorePtr AsDynamicMemory();
     TChunkStorePtr AsChunk();
@@ -118,11 +120,9 @@ DEFINE_REFCOUNTED_TYPE(IStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreIdFormatter
+struct TStoreIdFormatter
 {
-public:
-    Stroka operator() (const IStorePtr& store) const;
-
+    void operator() (TStringBuilder* builder, const IStorePtr& store) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

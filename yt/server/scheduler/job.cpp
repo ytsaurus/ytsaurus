@@ -10,6 +10,7 @@ namespace NScheduler {
 
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -35,17 +36,16 @@ TJob::TJob(
     , SpecBuilder_(std::move(specBuilder))
 { }
 
-
 void TJob::FinalizeJob(const TInstant& finishTime)
 {
     FinishTime_ = finishTime;
-    Statistics_.Add("/time/total", GetDuration().MilliSeconds());
+    Statistics_.AddSample("/time/total", GetDuration().MilliSeconds());
     if (Result()->has_prepare_time()) {
-        Statistics_.Add("/time/prepare", Result()->prepare_time());
+        Statistics_.AddSample("/time/prepare", Result()->prepare_time());
     }
 
     if (Result()->has_exec_time()) {
-        Statistics_.Add("/time/exec", Result()->exec_time());
+        Statistics_.AddSample("/time/exec", Result()->exec_time());
     }
 }
 
@@ -57,34 +57,45 @@ TDuration TJob::GetDuration() const
 void TJob::SetResult(NJobTrackerClient::NProto::TJobResult&& result)
 {
     Result_ = New<TRefCountedJobResult>(std::move(result));
-    Statistics_ = NYTree::ConvertTo<TStatistics>(NYTree::TYsonString(Result_->statistics()));
+    Statistics_ = FromProto<TStatistics>(Result()->statistics());
+}
+
+TStatistics TJob::GetStatisticsWithSuffix() const
+{
+    Stroka suffix;
+    if (GetRestarted()) {
+        suffix = Format("/$/lost/%lv", GetType());
+    } else {
+        suffix = Format("/$/%lv/%lv", GetState(), GetType());
+    }
+    auto statistics = Statistics();
+    statistics.AddSuffixToNames(suffix);
+    return std::move(statistics);
 }
 
 ////////////////////////////////////////////////////////////////////
 
-TCompletedJobSummary::TCompletedJobSummary(TJobPtr job)
+TJobSummary::TJobSummary(TJobPtr job)
     : Result(job->Result())
+    , Statistics(job->GetStatisticsWithSuffix())
     , Id(job->GetId())
-    , Statistics(job->Statistics())
 { }
 
-////////////////////////////////////////////////////////////////////
-
-TFailedJobSummary::TFailedJobSummary(TJobPtr job)
-    : Result(job->Result())
-    , Id(job->GetId())
+TJobSummary::TJobSummary(const TJobId& id)
+    : Result()
+    , Statistics()
+    , Id(Id)
 { }
 
 ////////////////////////////////////////////////////////////////////
 
 TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
-    : Id(id)
+    : TJobSummary(id)
     , AbortReason(abortReason)
 { }
 
 TAbortedJobSummary::TAbortedJobSummary(TJobPtr job)
-    : Result(job->Result())
-    , Id(job->GetId())
+    : TJobSummary(job)
     , AbortReason(GetAbortReason(Result))
 { }
 
@@ -92,4 +103,3 @@ TAbortedJobSummary::TAbortedJobSummary(TJobPtr job)
 
 } // namespace NScheduler
 } // namespace NYT
-

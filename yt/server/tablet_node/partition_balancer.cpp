@@ -69,8 +69,9 @@ private:
 
     void OnScanSlot(TTabletSlotPtr slot)
     {
-        if (slot->GetAutomatonState() != EPeerState::Leading)
+        if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
+        }
 
         auto tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
@@ -81,8 +82,9 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::Mounted)
+        if (tablet->GetState() != ETabletState::Mounted) {
             return;
+        }
         
         for (const auto& partition : tablet->Partitions()) {
             ScanPartition(slot, partition.get());
@@ -101,13 +103,13 @@ private:
 
         // Maximum data size the partition might have if all chunk stores from Eden go here.
         i64 maxPotentialDataSize = actualDataSize;
-        for (auto store : tablet->GetEden()->Stores()) {
+        for (const auto& store : tablet->GetEden()->Stores()) {
             if (store->GetType() == EStoreType::Chunk) {
                 maxPotentialDataSize += store->GetUncompressedDataSize();
             }
         }
 
-        if (actualDataSize >  config->MaxPartitionDataSize) {
+        if (actualDataSize > config->MaxPartitionDataSize) {
             int splitFactor = std::min(std::min(
                 actualDataSize / config->DesiredPartitionDataSize + 1,
                 actualDataSize / config->MinPartitioningDataSize),
@@ -137,15 +139,17 @@ private:
 
     void RunSplit(TPartition* partition, int splitFactor)
     {
-        if (partition->GetState() != EPartitionState::Normal)
+        if (partition->GetState() != EPartitionState::Normal) {
             return;
-
-        for (auto store : partition->Stores()) {
-            if (store->GetStoreState() != EStoreState::Persistent)
-                return;
         }
 
-        partition->SetState(EPartitionState::Splitting);
+        for (const auto& store : partition->Stores()) {
+            if (store->GetStoreState() != EStoreState::Persistent) {
+                return;
+            }
+        }
+
+        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
 
         BIND(&TPartitionBalancer::DoRunSplit, MakeStrong(this))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
@@ -203,7 +207,7 @@ private:
                 }));
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partitioning aborted");
-            partition->SetState(EPartitionState::Normal);
+            partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
         }
     }
 
@@ -216,23 +220,25 @@ private:
         auto* tablet = partition->GetTablet();
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            if (tablet->Partitions()[index]->GetState() != EPartitionState::Normal)
+            if (tablet->Partitions()[index]->GetState() != EPartitionState::Normal) {
                 return;
+            }
         }
 
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
-            tablet->Partitions()[index]->SetState(EPartitionState::Merging);
+            tablet->Partitions()[index]->CheckedSetState(EPartitionState::Normal, EPartitionState::Merging);
         }
 
         auto Logger = TabletNodeLogger;
+        auto partitionFormatter = [] (TStringBuilder* builder, const std::unique_ptr<TPartition>& partition) {
+            FormatValue(builder, partition->GetId(), STRINGBUF("v"));
+        };
         Logger.AddTag("TabletId: %v, PartitionIds: [%v]",
             partition->GetTablet()->GetTabletId(),
             JoinToString(ConvertToStrings(
                 tablet->Partitions().begin() + firstPartitionIndex,
                 tablet->Partitions().begin() + lastPartitionIndex + 1,
-                [] (const std::unique_ptr<TPartition>& partition) {
-                     return ToString(partition->GetId());
-                })));
+                partitionFormatter)));
 
         LOG_INFO("Partition is eligible for merge");
 
@@ -254,17 +260,18 @@ private:
     }
 
 
-
     void RunSample(TPartition* partition)
     {
-        if (partition->GetState() != EPartitionState::Normal)
+        if (partition->GetState() != EPartitionState::Normal) {
             return;
+        }
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&Semaphore_);
-        if (!guard)
+        if (!guard) {
             return;
+        }
 
-        partition->SetState(EPartitionState::Sampling);
+        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Sampling);
 
         BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
@@ -306,7 +313,7 @@ private:
             LOG_ERROR(ex, "Partition sampling aborted");
         }
 
-        partition->SetState(EPartitionState::Normal);
+        partition->CheckedSetState(EPartitionState::Sampling, EPartitionState::Normal);
         // NB: Update the timestamp even in case of failure to prevent
         // repeating unsuccessful samplings too rapidly.
         partition->SetSamplingTime(TInstant::Now());
@@ -333,6 +340,7 @@ private:
             Config_->SamplesFetcher,
             maxSampleCount,
             tablet->KeyColumns(),
+            std::numeric_limits<i64>::max(),
             nodeDirectory,
             GetCurrentInvoker(),
             TScrapeChunksCallback(),
@@ -360,7 +368,7 @@ private:
             };
 
             auto addStores = [&] (const yhash_set<IStorePtr>& stores) {
-                for (auto store : stores) {
+                for (const auto& store : stores) {
                     addStore(store);
                 }
             };
@@ -393,12 +401,14 @@ private:
             }
         }
 
-        {
-            auto result = WaitFor(fetcher->Fetch());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(fetcher->Fetch())
+            .ThrowOnError();
 
-        auto samples = fetcher->GetSamples();
+        std::vector<TOwningKey> samples;
+        for (const auto& sample : fetcher->GetSamples()) {
+            YCHECK(!sample.Incomplete);
+            samples.push_back(sample.Key);
+        }
 
         // NB(psushin): This filtering is typically redundant (except for the first pivot), 
         // since fetcher already returns samples within given limits.

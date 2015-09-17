@@ -31,7 +31,6 @@ function YtCoordinatedHost(config, host)
         updated_at: new Date(0),
         load_average: 0.0,
         network_traffic: 0,
-        failing: false
     };
     var randomness = Math.random();
     var dampening = 0.0;
@@ -119,14 +118,13 @@ function YtCoordinatedHost(config, host)
             liveness.updated_at = new Date(value.updated_at);
             liveness.load_average = parseFloat(value.load_average) || 0.0;
             liveness.network_traffic = parseFloat(value.network_traffic) || 0;
-            liveness.failing = parseBoolean(value.failing) || false;
 
             randomness = Math.random();
             dampening = 0.0;
 
             afd.heartbeatTS(liveness.updated_at);
 
-            this.dead = !liveness.failing && (new Date() - liveness.updated_at) > age;
+            this.dead = (new Date() - liveness.updated_at) > age;
         },
         enumerable: true
     });
@@ -207,16 +205,13 @@ function YtCoordinator(config, logger, driver, fqdn)
     this.hosts = {};
     this.hosts[this.fqdn] = this.host;
 
-    if (this.config.enable) {
-        this.failure_count = 0;
-        this.failure_at = new Date(0);
+    this.initialized = false;
 
+    if (this.config.enable) {
         this.sync_at = new Date(0);
 
         this.network_bytes = null;
         this.network_traffic_reservoir = new YtReservoir(this.config.afd_window_size);
-
-        this.initialized = false;
 
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
         if (this.timer.unref) { this.timer.unref(); }
@@ -289,15 +284,6 @@ YtCoordinator.prototype._refresh = function()
         self.__DBG("Updating coordination information");
 
         var now = new Date();
-        var failing = false;
-
-        if (self.failure_count > self.config.failure_threshold) {
-            self.failure_at = now;
-        }
-
-        if (now - self.failure_at < self.config.failure_timeout) {
-            failing = true;
-        }
 
         sync = Q.promisify(fs.readFile)("/proc/net/dev")
         .then(function(data) {
@@ -332,16 +318,12 @@ YtCoordinator.prototype._refresh = function()
                 updated_at: now.toISOString(),
                 load_average: os.loadavg()[0],
                 network_traffic: self.network_traffic_reservoir.mean,
-                failing: failing ? "true" : "false",
             });
         });
     }
 
     return sync
     .then(function() {
-        // We are dropping failure count as soon as we pushed it to Cypress.
-        self.failure_count = 0;
-
         // We are resetting timed as we have successfully reported to masters.
         self.sync_at = new Date();
 
@@ -418,17 +400,28 @@ YtCoordinator.prototype.getProxies = function(role, dead, banned)
 
 YtCoordinator.prototype.isSelfAlive = function()
 {
-    return (new Date() - this.sync_at) < this.config.death_age;
+    if (!this.config.enable) {
+        return true;
+    }
+
+    if (!this.initialized) {
+        return false;
+    }
+
+    if ((new Date() - this.sync_at) > this.config.death_age) {
+        return false;
+    }
+
+    if (this.host.banned) {
+        return false;
+    }
+
+    return true;
 };
 
 YtCoordinator.prototype.getSelf = function()
 {
     return this.host;
-};
-
-YtCoordinator.prototype.countFailure = function()
-{
-    ++this.failure_count;
 };
 
 YtCoordinator.prototype.allocateDataProxy = function()
