@@ -305,11 +305,14 @@ public:
             InferName(predicate),
             KeyTrie_);
 
+        //TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
+        auto rangeCountLimit = GetRangeCountLimit();
 
         auto ranges = GetExtendedRangesFromTrieWithinRange(
             TRowRange(Buffer_->Capture(MinKey().Get()), Buffer_->Capture(MaxKey().Get())),
             KeyTrie_,
-            Buffer_);
+            Buffer_,
+            rangeCountLimit);
         YCHECK(ranges.first.size() == ranges.second.size());
 
         RangeExpansionLeft_ = (RangeExpansionLimit_ > ranges.first.size())
@@ -402,6 +405,36 @@ private:
     {
         YCHECK(depletedIndex < sizeof(unboundedColumnMask) * 8);
         return unboundedColumnMask & (1 << depletedIndex);
+    }
+
+    ui64 GetRangeCountLimit() {
+        ui64 moduloExpansion = 1;
+        for (int index = 0; index < KeySize_; ++index) {
+            if (Schema_.Columns()[index].Expression) {
+                auto expr = Evaluator_->GetExpression(index)->As<TBinaryOpExpression>();
+                if (expr && expr->Opcode == EBinaryOp::Modulo) {
+                    if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {
+                        TUnversionedValue value = literalExpr->Value;
+                        switch (value.Type) {
+                            case EValueType::Int64:
+                                moduloExpansion *= value.Data.Int64 * 2;
+                                break;
+
+                            case EValueType::Uint64:
+                                moduloExpansion *= value.Data.Uint64 + 1;
+                                break;
+
+                            default:
+                                break;
+                        }
+                    }
+                }
+            }
+        }
+
+        return moduloExpansion == 1
+            ? std::numeric_limits<ui64>::max()
+            : RangeExpansionLimit_ / moduloExpansion;
     }
 
     TDivisors GetDivisors(int keyIndex, std::vector<int> referries)

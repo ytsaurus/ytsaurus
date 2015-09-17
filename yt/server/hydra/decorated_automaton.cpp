@@ -902,7 +902,6 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
     ApplyPendingMutationsScheduled_ = false;
 
     NProfiling::TScopedTimer timer;
-    bool hasMoreMutations = false;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
@@ -910,7 +909,9 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
                 break;
 
             if (timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
-                hasMoreMutations = true;
+                ApplyPendingMutationsScheduled_ = true;
+                epochContext->EpochUserAutomatonInvoker->Invoke(
+                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
                 break;
             }
 
@@ -932,12 +933,6 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
 
             MaybeStartSnapshotBuilder();
         }
-    }
-
-    if (hasMoreMutations) {
-        ApplyPendingMutationsScheduled_ = true;
-        epochContext->EpochUserAutomatonInvoker->Invoke(
-            BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
     }
 }
 
