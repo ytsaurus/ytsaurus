@@ -2,6 +2,9 @@
 #include "key_trie.h"
 #include "plan_helpers.h"
 
+#include <deque>
+#include <tuple>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -377,6 +380,7 @@ void GetRangesFromTrieWithinRangeImpl(
     std::vector<std::pair<TRow, TRow>>* result,
     std::vector<ui32>* resultMask,
     TRowBufferPtr rowBuffer,
+    ui64 rangeCountLimit = std::numeric_limits<ui64>::max(),
     std::vector<TValue> prefix = std::vector<TValue>(),
     ui32 mask = 0,
     bool refineLower = true,
@@ -385,201 +389,296 @@ void GetRangesFromTrieWithinRangeImpl(
     auto lowerBoundSize = keyRange.first.GetCount();
     auto upperBoundSize = keyRange.second.GetCount();
 
-    size_t offset = prefix.size();
-    
-    if (refineLower && offset >= lowerBoundSize) {
-        refineLower = false;
-    }
+    struct TState
+    {
+        TKeyTriePtr Trie;
+        std::vector<TValue> Prefix;
+        ui32 Mask;
+        bool RefineLower;
+        bool RefineUpper;
+    };
 
-    if (refineUpper && offset >= upperBoundSize) {
-        return;
-    }
+    std::vector<std::tuple<TBound, bool>> resultBounds;
+    std::vector<std::tuple<TValue, TKeyTriePtr, bool, bool>> nextValues;
 
-    YCHECK(!refineLower || offset < lowerBoundSize);
-    YCHECK(!refineUpper || offset < upperBoundSize);
+    std::deque<TState> states;
+    states.push_back(TState{trie, prefix, mask, refineLower, refineUpper});
 
-    TUnversionedRowBuilder builder(offset);
+    while (!states.empty()) {
+        auto state = std::move(states.front());
+        states.pop_front();
+        const auto& trie = state.Trie;
+        auto prefix = std::move(state.Prefix);
+        auto mask = state.Mask;
+        auto refineLower =  state.RefineLower;
+        auto refineUpper = state.RefineUpper;
 
-    auto trieOffset = trie ? trie->Offset : std::numeric_limits<size_t>::max();
+        size_t offset = prefix.size();
 
-    if (trieOffset > offset) {
-        if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
-            prefix.emplace_back(keyRange.first[offset]);
-            GetRangesFromTrieWithinRangeImpl(
-                keyRange,
-                trie,
-                result,
-                resultMask,
-                rowBuffer,
-                prefix,
-                mask,
-                true,
-                true);
-        } else if (resultMask != nullptr && trie) {
-            YCHECK(prefix.size() < sizeof(mask) * 8);
-            mask |= (1 << prefix.size());
-            prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::Null));
-            GetRangesFromTrieWithinRangeImpl(
-                keyRange,
-                trie,
-                result,
-                resultMask,
-                rowBuffer,
-                prefix,
-                mask,
-                false,
-                false);
-        } else {
-            std::pair<TRow, TRow> range;
-            for (size_t i = 0; i < offset; ++i) {
-                builder.AddValue(prefix[i]);
-            }
+        if (refineLower && offset >= lowerBoundSize) {
+            refineLower = false;
+        }
 
-            if (refineLower) {
-                for (size_t i = offset; i < lowerBoundSize; ++i) {
-                    builder.AddValue(keyRange.first[i]);
+        if (refineUpper && offset >= upperBoundSize) {
+            continue;
+        }
+
+        YCHECK(!refineLower || offset < lowerBoundSize);
+        YCHECK(!refineUpper || offset < upperBoundSize);
+
+        TUnversionedRowBuilder builder(offset);
+
+        auto trieOffset = trie ? trie->Offset : std::numeric_limits<size_t>::max();
+
+        if (trieOffset > offset) {
+            if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
+                prefix.emplace_back(keyRange.first[offset]);
+                states.push_back(TState{trie, std::move(prefix), mask, true, true});
+            } else if (resultMask != nullptr && trie) {
+                YCHECK(prefix.size() < sizeof(mask) * 8);
+                mask |= (1 << prefix.size());
+                prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::Null));
+                states.push_back(TState{trie, std::move(prefix), mask, false, false});
+            } else {
+                std::pair<TRow, TRow> range;
+                for (size_t i = 0; i < offset; ++i) {
+                    builder.AddValue(prefix[i]);
+                }
+
+                if (refineLower) {
+                    for (size_t i = offset; i < lowerBoundSize; ++i) {
+                        builder.AddValue(keyRange.first[i]);
+                    }
+                }
+                range.first = rowBuffer->Capture(builder.GetRow());
+                builder.Reset();
+
+
+                for (size_t i = 0; i < offset; ++i) {
+                    builder.AddValue(prefix[i]);
+                }
+
+                if (refineUpper) {
+                    for (size_t i = offset; i < upperBoundSize; ++i) {
+                        builder.AddValue(keyRange.second[i]);
+                    }
+                } else {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+                }
+                range.second = rowBuffer->Capture(builder.GetRow());
+                builder.Reset();
+
+                if (!IsEmpty(range)) {
+                    result->push_back(range);
+                    if (resultMask != nullptr) {
+                        resultMask->push_back(mask);
+                    }
                 }
             }
+            continue;
+        }
+
+        YCHECK(trie);
+        YCHECK(trie->Offset == offset);
+
+        YCHECK(!(trie->Bounds.size() & 1));
+
+        resultBounds.clear();
+        resultBounds.reserve(trie->Bounds.size());
+
+        for (size_t i = 0; i + 1 < trie->Bounds.size(); i += 2) {
+            auto lower = trie->Bounds[i];
+            auto upper = trie->Bounds[i + 1];
+
+            YCHECK(CompareBound(lower, upper, true, false) < 0);
+
+            auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
+            auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 < upperBoundSize);
+
+            bool lowerBoundRefined = false;
+            if (refineLower) {
+                if (CompareBound(upper, keyRangeLowerBound, false, true) < 0) {
+                    continue;
+                } else if (CompareBound(lower, keyRangeLowerBound, true, true) <= 0) {
+                    lowerBoundRefined = true;
+                }
+            }
+
+            bool upperBoundRefined = false;
+            if (refineUpper) {
+                if (CompareBound(lower, keyRangeUpperBound, true, false) > 0) {
+                    continue;
+                } else if (CompareBound(upper, keyRangeUpperBound, false, false) >= 0) {
+                    upperBoundRefined = true;
+                }
+            }
+
+            resultBounds.emplace_back(lower, lowerBoundRefined);
+            resultBounds.emplace_back(upper, upperBoundRefined);
+        }
+
+        nextValues.clear();
+        nextValues.reserve(trie->Next.size());
+
+        for (const auto& next : trie->Next) {
+            auto value = next.first;
+
+            bool refineLowerNext = false;
+            if (refineLower) {
+                if (value < keyRange.first[offset]) {
+                    continue;
+                } else if (value == keyRange.first[offset]) {
+                    refineLowerNext = true;
+                }
+            }
+
+            bool refineUpperNext = false;
+            if (refineUpper) {
+                if (value > keyRange.second[offset]) {
+                    continue;
+                } else if (value == keyRange.second[offset]) {
+                    refineUpperNext = true;
+                }
+            }
+
+            nextValues.emplace_back(value, next.second, refineLowerNext, refineUpperNext);
+        }
+
+        ui64 subrangeCount = resultBounds.size() / 2 + nextValues.size();
+
+        if (subrangeCount > rangeCountLimit) {
+            TBound min = TBound(MakeUnversionedSentinelValue(EValueType::Max), false);
+            TBound max = TBound(MakeUnversionedSentinelValue(EValueType::Min), true);
+
+            auto updateMinMax = [&] (const TBound& lower, const TBound& upper) {
+                if (CompareBound(lower, min, true, true) < 0) {
+                    min = lower;
+                }
+                if (CompareBound(upper, max, false, false) > 0) {
+                    max = upper;
+                }
+            };
+
+            for (size_t i = 0; i + 1 < resultBounds.size(); i += 2) {
+                auto lower = std::get<0>(resultBounds[i]);
+                auto upper = std::get<0>(resultBounds[i + 1]);
+                updateMinMax(lower, upper);
+            }
+
+            for (const auto& next : nextValues) {
+                auto value = TBound(std::get<0>(next), true);
+                updateMinMax(value, value);
+            }
+
+            std::pair<TRow, TRow> range;
+
+            for (size_t j = 0; j < offset; ++j) {
+                builder.AddValue(prefix[j]);
+            }
+
+            if (refineLower && min.Included && min.Value == keyRange.first[offset]) {
+                for (size_t j = offset; j < lowerBoundSize; ++j) {
+                    builder.AddValue(keyRange.first[j]);
+                }
+            } else {
+                builder.AddValue(min.Value);
+
+                if (!min.Included) {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+                }
+            }
+
             range.first = rowBuffer->Capture(builder.GetRow());
             builder.Reset();
 
-
-            for (size_t i = 0; i < offset; ++i) {
-                builder.AddValue(prefix[i]);
+            for (size_t j = 0; j < offset; ++j) {
+                builder.AddValue(prefix[j]);
             }
 
-            if (refineUpper) {
-                for (size_t i = offset; i < upperBoundSize; ++i) {
-                    builder.AddValue(keyRange.second[i]);
+            if (refineUpper && max.Included && max.Value == keyRange.second[offset]) {
+                for (size_t j = offset; j < upperBoundSize; ++j) {
+                    builder.AddValue(keyRange.second[j]);
                 }
             } else {
-                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
-            }
-            range.second = rowBuffer->Capture(builder.GetRow());
-            builder.Reset();
+                builder.AddValue(max.Value);
 
-            if (!IsEmpty(range)) {
-                result->push_back(range);
-                if (resultMask != nullptr) {
-                    resultMask->push_back(mask);
+                if (max.Included) {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
                 }
             }
+
+            range.second = rowBuffer->Capture(builder.GetRow());
+            builder.Reset();
+            result->push_back(range);
+            if (resultMask != nullptr) {
+                resultMask->push_back(mask);
+            }
+
+            continue;
         }
-        return;
-    }
 
-    YCHECK(trie);
-    YCHECK(trie->Offset == offset);
+        rangeCountLimit -= subrangeCount;
 
-    const auto& resultBounds = trie->Bounds;
-    YCHECK(!(resultBounds.size() & 1));
+        for (size_t i = 0; i + 1 < resultBounds.size(); i += 2) {
+            auto lower = std::get<0>(resultBounds[i]);
+            auto upper = std::get<0>(resultBounds[i + 1]);
+            bool lowerBoundRefined = std::get<1>(resultBounds[i]);
+            bool upperBoundRefined = std::get<1>(resultBounds[i + 1]);
 
-    for (size_t i = 0; i + 1 < resultBounds.size(); i += 2) {
-        auto lower = resultBounds[i];
-        auto upper = resultBounds[i + 1];
+            std::pair<TRow, TRow> range;
+            for (size_t j = 0; j < offset; ++j) {
+                builder.AddValue(prefix[j]);
+            }
 
-        YCHECK(CompareBound(lower, upper, true, false) < 0);
+            if (lowerBoundRefined) {
+                for (size_t j = offset; j < lowerBoundSize; ++j) {
+                    builder.AddValue(keyRange.first[j]);
+                }
+            } else {
+                builder.AddValue(lower.Value);
 
-        auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
-        auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 < upperBoundSize);
+                if (!lower.Included) {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+                }
+            }
 
-        bool lowerBoundRefined = false;
-        if (refineLower) {
-            if (CompareBound(upper, keyRangeLowerBound, false, true) < 0) {
-                continue;
-            } else if (CompareBound(lower, keyRangeLowerBound, true, true) <= 0) {
-                lowerBoundRefined = true;
+            range.first = rowBuffer->Capture(builder.GetRow());
+            builder.Reset();
+
+            for (size_t j = 0; j < offset; ++j) {
+                builder.AddValue(prefix[j]);
+            }
+
+            if (upperBoundRefined) {
+                for (size_t j = offset; j < upperBoundSize; ++j) {
+                    builder.AddValue(keyRange.second[j]);
+                }
+            } else {
+                builder.AddValue(upper.Value);
+
+                if (upper.Included) {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+                }
+            }
+
+            range.second = rowBuffer->Capture(builder.GetRow());
+            builder.Reset();
+            result->push_back(range);
+            if (resultMask != nullptr) {
+                resultMask->push_back(mask);
             }
         }
 
-        bool upperBoundRefined = false;
-        if (refineUpper) {
-            if (CompareBound(lower, keyRangeUpperBound, true, false) > 0) {
-                continue;
-            } else if (CompareBound(upper, keyRangeUpperBound, false, false) >= 0) {
-                upperBoundRefined = true;
-            }
+        prefix.emplace_back();
+
+        for (const auto& next : nextValues) {
+            auto value = std::get<0>(next);
+            auto trie = std::get<1>(next);
+            bool refineLowerNext = std::get<2>(next);
+            bool refineUpperNext = std::get<3>(next);
+            prefix.back() = value;
+            states.push_back(TState{trie, prefix, mask, refineLowerNext, refineUpperNext});
         }
-
-        std::pair<TRow, TRow> range;
-        for (size_t j = 0; j < offset; ++j) {
-            builder.AddValue(prefix[j]);
-        }
-
-        if (lowerBoundRefined) {
-            for (size_t j = offset; j < lowerBoundSize; ++j) {
-                builder.AddValue(keyRange.first[j]);
-            }
-        } else {
-            builder.AddValue(lower.Value);
-
-            if (!lower.Included) {
-                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
-            }
-        }
-        
-        range.first = rowBuffer->Capture(builder.GetRow());
-        builder.Reset();
-
-        for (size_t j = 0; j < offset; ++j) {
-            builder.AddValue(prefix[j]);
-        }
-
-        if (upperBoundRefined) {
-            for (size_t j = offset; j < upperBoundSize; ++j) {
-                builder.AddValue(keyRange.second[j]);
-            }
-        } else {
-            builder.AddValue(upper.Value);
-
-            if (upper.Included) {
-                builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
-            }
-        }
-
-        range.second = rowBuffer->Capture(builder.GetRow());
-        builder.Reset();
-        result->push_back(range);
-        if (resultMask != nullptr) {
-            resultMask->push_back(mask);
-        }
-    }
-
-    prefix.emplace_back();
-
-    for (const auto& next : trie->Next) {
-        auto value = next.first;
-
-        bool refineLowerNext = false;
-        if (refineLower) {
-            if (value < keyRange.first[offset]) {
-                continue;
-            } else if (value == keyRange.first[offset]) {
-                refineLowerNext = true;
-            }
-        }
-
-        bool refineUpperNext = false;
-        if (refineUpper) {
-            if (value > keyRange.second[offset]) {
-                continue;
-            } else if (value == keyRange.second[offset]) {
-                refineUpperNext = true;
-            }
-        }
-
-        prefix.back() = value;
-
-        GetRangesFromTrieWithinRangeImpl(
-            keyRange,
-            next.second,
-            result,
-            resultMask,
-            rowBuffer,
-            prefix,
-            mask,
-            refineLowerNext,
-            refineUpperNext);
     }
 }
 
@@ -596,11 +695,12 @@ TRowRanges GetRangesFromTrieWithinRange(
 std::pair<TRowRanges, std::vector<ui32>> GetExtendedRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer)
+    TRowBufferPtr rowBuffer,
+    ui64 rangeCountLimit)
 {
     TRowRanges resultRanges;
     std::vector<ui32> resultMasks;
-    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &resultRanges, &resultMasks, rowBuffer);
+    GetRangesFromTrieWithinRangeImpl(keyRange, trie, &resultRanges, &resultMasks, rowBuffer, rangeCountLimit);
     return std::make_pair(std::move(resultRanges), std::move(resultMasks));
 }
 
