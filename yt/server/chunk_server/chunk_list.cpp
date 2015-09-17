@@ -30,6 +30,14 @@ void TChunkList::IncrementVersion()
     ++Version_;
 }
 
+void TChunkList::ValidateSealed()
+{
+    if (!Statistics_.Sealed) {
+        THROW_ERROR_EXCEPTION("Chunk list %v is not sealed",
+            Id);
+    }
+}
+
 void TChunkList::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
