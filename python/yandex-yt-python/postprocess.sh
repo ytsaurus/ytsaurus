@@ -21,9 +21,10 @@ make_link()
 urlencode() {
     # urlencode <string>
 
-    local length="${#1}"
+    local string="$@"
+    local length="${#string}"
     for (( i = 0; i < length; i++ )); do
-        local c="${1:i:1}"
+        local c="${string:i:1}"
         case $c in
             [a-zA-Z0-9.~_-]) printf "$c" ;;
             *) printf '%s' '$c' | xxd -p -c1 |
