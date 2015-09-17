@@ -90,6 +90,8 @@ function YtDriverFacadeV2(driver)
     delete descriptors.dump_job_context;
     delete descriptors.strace_job;
 
+    delete descriptors.join_reduce;
+
     this.driver = driver;
     this.mapping = mapping;
     this.descriptors = descriptors;

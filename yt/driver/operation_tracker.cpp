@@ -81,6 +81,7 @@ Stroka TOperationTracker::FormatProgress(const TYsonString& progress)
         case EOperationType::Merge:
         case EOperationType::Erase:
         case EOperationType::Reduce:
+        case EOperationType::JoinReduce:
             AppendPhaseProgress(&result, "", progressAttributes->GetYson("jobs"));
             break;
 

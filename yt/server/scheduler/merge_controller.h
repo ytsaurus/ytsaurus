@@ -27,6 +27,11 @@ IOperationControllerPtr CreateReduceController(
     IOperationHost* host,
     TOperation* operation);
 
+IOperationControllerPtr CreateJoinReduceController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

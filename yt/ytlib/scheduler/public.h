@@ -24,6 +24,7 @@ DEFINE_ENUM(EOperationType,
     (Reduce)
     (MapReduce)
     (RemoteCopy)
+    (JoinReduce)
 );
 
 DEFINE_ENUM(EOperationState,
@@ -105,6 +106,9 @@ typedef TIntrusivePtr<TEraseOperationSpec> TEraseOperationSpecPtr;
 
 class TReduceOperationSpec;
 typedef TIntrusivePtr<TReduceOperationSpec> TReduceOperationSpecPtr;
+
+class TJoinReduceOperationSpec;
+typedef TIntrusivePtr<TJoinReduceOperationSpec> TJoinReduceOperationSpecPtr;
 
 class TSortOperationSpecBase;
 typedef TIntrusivePtr<TSortOperationSpecBase> TSortOperationSpecBasePtr;

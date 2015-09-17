@@ -195,7 +195,7 @@ function YtApplicationOperations(driver)
 
             var user_counts = makeCounts(["all", "personal", "other"]),
                 state_counts = makeCounts(["all", "running", "completed", "failed", "aborted"]),
-                type_counts = makeCounts(["all", "map", "map_reduce", "merge", "reduce", "remote_copy", "sort"]);
+                type_counts = makeCounts(["all", "join_reduce", "map", "map_reduce", "merge", "reduce", "remote_copy", "sort"]);
 
             var all_users = { };
 

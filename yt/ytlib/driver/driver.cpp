@@ -125,6 +125,7 @@ public:
         REGISTER(TMapCommand,                  "map",                     Null,       Structured, true,  false);
         REGISTER(TSortCommand,                 "sort",                    Null,       Structured, true,  false);
         REGISTER(TReduceCommand,               "reduce",                  Null,       Structured, true,  false);
+        REGISTER(TJoinReduceCommand,           "join_reduce",             Null,       Structured, true,  false);
         REGISTER(TMapReduceCommand,            "map_reduce",              Null,       Structured, true,  false);
         REGISTER(TRemoteCopyCommand,           "remote_copy",             Null,       Structured, true,  false);
         REGISTER(TAbortOperationCommand,       "abort_op",                Null,       Null,       true,  false);
