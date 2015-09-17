@@ -24,6 +24,9 @@ default_config = {
         "request_retry_timeout": 20000,
         "request_retry_count": 6,
 
+        # Heavy commands have increased timeout.
+        "heavy_request_retry_timeout": 60000,
+
         # More retries in case of operation state discovery.
         "operation_state_discovery_retry_count": 100,
 
@@ -155,7 +158,6 @@ default_config = {
     "read_retries": {
         "enable": False,
         "retry_count": 30,
-        "retry_timeout": 60000,
         "create_transaction_and_take_snapshot_lock": True
     },
 
@@ -163,8 +165,7 @@ default_config = {
     "write_retries": {
         "enable": True,
         # The size of data chunk that retried.
-        "chunk_size": 512 * common.MB,
-        "retry_timeout": 60000
+        "chunk_size": 512 * common.MB
     },
 
     "auto_merge_output": {

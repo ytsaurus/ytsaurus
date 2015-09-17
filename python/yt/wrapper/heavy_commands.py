@@ -43,7 +43,6 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                      client=client):
         create_object(path.name)
         if use_retries:
-            retry_timeout = get_config(client)["write_retries"]["retry_timeout"]
             chunk_size = get_config(client)["write_retries"]["chunk_size"]
 
             started = False
@@ -71,7 +70,6 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                                 data=iter(chunk),
                                 use_heavy_proxy=True,
                                 retry_unavailable_proxy=False,
-                                timeout=retry_timeout,
                                 client=client)
                         break
                     except RETRIABLE_ERRORS as err:
@@ -119,7 +117,6 @@ def make_read_request(command_name, path, params, process_response_action, retri
         return execute_with_retries(simple_read)
     else:
         retry_count = get_config(client)["read_retries"]["retry_count"]
-        retry_timeout = get_config(client)["read_retries"]["retry_timeout"]
 
         if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
             title = "Python wrapper: read {0}".format(to_name(path, client=client))
@@ -161,7 +158,6 @@ def make_read_request(command_name, path, params, process_response_action, retri
                     params,
                     return_content=False,
                     use_heavy_proxy=True,
-                    timeout=retry_timeout,
                     client=client)
                 if tx:
                     with Transaction(transaction_id=tx.transaction_id, client=client):
