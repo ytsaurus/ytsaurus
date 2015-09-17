@@ -448,7 +448,6 @@ private:
                 reqExt->set_movable(true);
                 reqExt->set_vital(true);
                 reqExt->set_erasure_codec(static_cast<int>(NErasure::ECodec::None));
-                ToProto(reqExt->mutable_chunk_list_id(), ChunkListId_);
 
                 auto rspOrError = WaitFor(ObjectProxy_.Execute(req));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error creating chunk");
@@ -532,28 +531,35 @@ private:
                 node->PingExecutor->Start();
             }
 
-            LOG_INFO("Confirming chunk");
+            LOG_INFO("Attaching chunk");
             {
                 auto batchReq = CreateMasterBatchRequest();
 
-                YCHECK(!replicas.empty());
-                auto req = TChunkYPathProxy::Confirm(FromObjectId(CurrentSession_->ChunkId));
-                req->mutable_chunk_info();
-                ToProto(req->mutable_replicas(), replicas);
-                auto* meta = req->mutable_chunk_meta();
-                meta->set_type(static_cast<int>(EChunkType::Journal));
-                meta->set_version(0);
-                TMiscExt miscExt;
-                SetProtoExtension(meta->mutable_extensions(), miscExt);
-                GenerateMutationId(req);
-                batchReq->AddRequest(req, "confirm");
+                {
+                    YCHECK(!replicas.empty());
+                    auto req = TChunkYPathProxy::Confirm(FromObjectId(CurrentSession_->ChunkId));
+                    req->mutable_chunk_info();
+                    ToProto(req->mutable_replicas(), replicas);
+                    auto* meta = req->mutable_chunk_meta();
+                    meta->set_type(static_cast<int>(EChunkType::Journal));
+                    meta->set_version(0);
+                    TMiscExt miscExt;
+                    SetProtoExtension(meta->mutable_extensions(), miscExt);
+                    GenerateMutationId(req);
+                    batchReq->AddRequest(req, "confirm");
+                }
+                {
+                    auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
+                    ToProto(req->add_children_ids(), CurrentSession_->ChunkId);
+                    GenerateMutationId(req);
+                    batchReq->AddRequest(req, "attach");
+                }
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error confirming chunk %v",
-                    CurrentSession_->ChunkId);
+                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunk");
             }
-            LOG_INFO("Chunk confirmed");
-        
+            LOG_INFO("Chunk attached");
+
             for (auto batch : PendingBatches_) {
                 EnqueueBatchToSession(batch);
             }
