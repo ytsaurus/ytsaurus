@@ -305,10 +305,14 @@ void TSchedulerThread::Reschedule(TFiberPtr fiber, TFuture<void> future, IInvoke
     if (invoker == GetSyncInvoker()) {
         if (future) {
             future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) mutable {
+                YCHECK(fiber->GetState() == EFiberState::Sleeping);
+                fiber->SetSuspended();
                 RunQueue.push_back(fiber);
             }));
         } else {
-            RunQueue.push_back(std::move(fiber));
+            YCHECK(fiber->GetState() == EFiberState::Sleeping);
+            fiber->SetSuspended();
+            RunQueue.push_back(fiber);
         }
         return;
     }
