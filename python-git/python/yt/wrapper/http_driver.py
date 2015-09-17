@@ -93,6 +93,12 @@ def make_request(command_name, params,
     # Determine make retries or not and set mutation if needed
     allow_retries = not command.is_heavy
 
+    if timeout is None:
+        if command.is_heavy:
+            timeout = get_config(client)["proxy"]["heavy_request_retry_timeout"] / 1000.0
+        else:
+            timeout = get_config(client)["proxy"]["request_retry_timeout"] / 1000.0
+
     if command.is_volatile and allow_retries:
         if "mutation_id" not in params:
             params["mutation_id"] = generate_uuid()
