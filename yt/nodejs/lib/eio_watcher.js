@@ -10,9 +10,8 @@ function YtEioWatcher(logger, config) {
     this.logger = logger;
     this.thread_limit = config.thread_limit;
     this.spare_threads = config.spare_threads;
+    this.semaphore_limit = config.concurrency_limit || config.thread_limit;
     this.semaphore = 1; // Preallocate a thread for internal needs.
-
-    __DBG("Concurrency: " + this.thread_limit + " (w/ " + this.spare_threads + " spare threads)");
 
     binding.SetEioConcurrency(this.thread_limit);
 }
@@ -29,7 +28,7 @@ YtEioWatcher.prototype.isChoking = function() {
 };
 
 YtEioWatcher.prototype.acquireThread = function() {
-    if (this.semaphore < this.thread_limit) {
+    if (this.semaphore < this.semaphore_limit) {
         ++this.semaphore;
         return true;
     } else {
