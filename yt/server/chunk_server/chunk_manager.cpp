@@ -1579,6 +1579,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     TChunkList* chunkList = nullptr;
     if (chunkListId != NullChunkId) {
         chunkList = Owner_->GetChunkListOrThrow(chunkListId);
+        chunkList->ValidateSealed();
     }
 
     auto* chunk = Owner_->CreateChunk(chunkType);
