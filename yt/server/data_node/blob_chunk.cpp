@@ -283,7 +283,9 @@ void TBlobChunkBase::DoReadBlockSet(
                 Location_->GetId());
 
             NProfiling::TScopedTimer timer;
-            auto blocksOrError = WaitFor(reader->ReadBlocks(startBlockIndex, blocksToRead));
+            // NB: The reader is synchronous.
+            auto blocksOrError = reader->ReadBlocks(startBlockIndex, blocksToRead)
+                .Get();
             auto readTime = timer.GetElapsed();
 
             LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
