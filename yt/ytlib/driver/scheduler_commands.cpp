@@ -93,6 +93,13 @@ EOperationType TReduceCommand::GetOperationType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EOperationType TJoinReduceCommand::GetOperationType() const
+{
+    return EOperationType::JoinReduce;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 EOperationType TMapReduceCommand::GetOperationType() const
 {
     return EOperationType::MapReduce;

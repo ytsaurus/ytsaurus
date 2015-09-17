@@ -28,8 +28,8 @@ Tablet commands:
 ACL commands:
     add-member, remove-member, check-permission
 Operation commands:
-    map-reduce, map, sort, reduce, merge, erase, remote-copy
-    abort-op, suspend-op, resume-op, track-op
+    map-reduce, map, sort, reduce, join-reduce, merge, erase,
+    remote-copy, abort-op, suspend-op, resume-op, track-op
 Transaction commands:
     lock, start-tx, abort_tx, commit-tx, ping-tx'''
 
@@ -517,6 +517,12 @@ For reducing not sorted table use map-reduce command without --mapper")
     operation_args(parser)
     parser.add_argument("--reduce-by", action="append", required=True, help="Columns to reduce by.")
 
+def add_join_reduce_parser(add_parser):
+    parser = add_parser("join-reduce", operation_handler(yt.run_join_reduce),
+        epilog="See also yt map-reduce --help for brief options description.\n Note, source tables must be sorted!")
+    operation_args(parser)
+    parser.add_argument("--join-by", action="append", required=True, help="Columns to join by.")
+
 def add_remote_copy_parser(add_parser):
     parser = add_parser("remote-copy", operation_handler(yt.run_remote_copy))
     parser.add_argument("--src", action="append", required=True, dest="source_table", help="path to source Cypress node in remote cluster")
@@ -752,6 +758,7 @@ def main():
     add_sort_parser(add_parser)
     add_map_parser(add_parser)
     add_reduce_parser(add_parser)
+    add_join_reduce_parser(add_parser)
     add_map_reduce_parser(add_parser)
     add_remote_copy_parser(add_parser)
 

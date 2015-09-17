@@ -574,10 +574,11 @@ private:
 
             auto newChunkSpec = *chunkSpec;
             *newChunkSpec.mutable_chunk_meta() = meta;
-            auto slices = SliceChunkByKeys(
+            auto slices = SliceChunk(
                 New<TRefCountedChunkSpec>(std::move(newChunkSpec)),
                 sliceDataSize,
-                keyColumns.size());
+                keyColumns.size(),
+                sliceByKeys);
 
             for (const auto& slice : slices) {
                 ToProto(result->add_chunk_slices(), *slice);

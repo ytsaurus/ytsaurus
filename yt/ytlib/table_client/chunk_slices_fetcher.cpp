@@ -59,9 +59,15 @@ TFuture<void> TChunkSlicesFetcher::Fetch()
     return TFetcherBase::Fetch();
 }
 
-const std::vector<TChunkSlicePtr>& TChunkSlicesFetcher::GetChunkSlices() const
+std::vector<TChunkSlicePtr> TChunkSlicesFetcher::GetChunkSlices()
 {
-    return ChunkSlices_;
+    std::vector<NChunkClient::TChunkSlicePtr> chunkSlices;
+
+    chunkSlices.reserve(SliceCount_);
+    for (const auto& slices: SlicesByChunkIndex_) {
+        chunkSlices.insert(chunkSlices.end(), slices.begin(), slices.end());
+    }
+    return chunkSlices;
 }
 
 TFuture<void> TChunkSlicesFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> chunkIndexes)
@@ -99,7 +105,11 @@ void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
                 chunk,
                 GetKeyPrefix(minKey.Get(), keyColumnCount),
                 GetKeyPrefixSuccessor(maxKey.Get(), keyColumnCount));
-            ChunkSlices_.push_back(slice);
+            if (SlicesByChunkIndex_.size() <= index) {
+                SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TChunkSlicePtr>());
+            }
+            SlicesByChunkIndex_[index].push_back(slice);
+            SliceCount_++;
         } else {
             requestedChunkIndexes.push_back(index);
             auto chunkId = EncodeChunkId(*chunk, nodeId);
@@ -132,22 +142,27 @@ void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
 
     const auto& rsp = rspOrError.Value();
     for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
-        const auto& chunk = Chunks_[requestedChunkIndexes[i]];
+        int index = requestedChunkIndexes[i];
+        const auto& chunk = Chunks_[index];
         const auto& slices = rsp->slices(i);
 
         if (slices.has_error()) {
             auto error = FromProto<TError>(slices.error());
-            OnChunkFailed(nodeId, requestedChunkIndexes[i], error);
+            OnChunkFailed(nodeId, index, error);
             continue;
         }
 
         LOG_TRACE("Received %v chunk slices for chunk #%v",
             slices.chunk_slices_size(),
-            requestedChunkIndexes[i]);
+            index);
 
+        if (SlicesByChunkIndex_.size() <= index) {
+            SlicesByChunkIndex_.resize(index + 1, std::vector<NChunkClient::TChunkSlicePtr>());
+        }
         for (auto& protoChunkSlice : slices.chunk_slices()) {
             auto slice = CreateChunkSlice(chunk, protoChunkSlice);
-            ChunkSlices_.push_back(slice);
+            SlicesByChunkIndex_[index].push_back(slice);
+            SliceCount_++;
         }
     }
 }
