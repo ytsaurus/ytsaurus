@@ -91,7 +91,8 @@ TRowRanges GetRangesFromTrieWithinRange(
 std::pair<TRowRanges, std::vector<ui32>> GetExtendedRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    TRowBufferPtr rowBuffer);
+    TRowBufferPtr rowBuffer,
+    ui64 rangeCountLimit = std::numeric_limits<ui64>::max());
 
 Stroka ToString(TKeyTriePtr node);
 
