@@ -250,6 +250,7 @@ def regions_mapper(r):
         new_data = []
         def dump_data():
             driver_dst.execute_command(config["mode"], config["destination"], prepare(new_data))
+            yt.write_statistics({"processed_rows": len(new_data)})
             del new_data[:]
 
         # Process data.
