@@ -211,8 +211,9 @@ test_passing_custom_spec() {
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table", "destination_cluster": "quine", "copy_spec": {"type": "copy"}, "postprocess_spec": {"type": "postprocess"}, "copy_method": "proxy"}')
     wait_task $id
 
-    op1=$(strip_quotes $(yt2 get //tmp/test_transfer_manager/tasks/$id/progress/operations/0/id --proxy locke))
-    op2=$(strip_quotes $(yt2 get //tmp/test_transfer_manager/tasks/$id/progress/operations/1/id --proxy locke))
+    local task_descr=$(get_task $id)
+    op1=$(strip_quotes $(echo $task_descr | jq '.progress.operations' | jq '.[0].id'))
+    op2=$(strip_quotes $(echo $task_descr | jq '.progress.operations' | jq '.[1].id'))
     check "$(yt2 get //sys/operations/$op1/@spec/type --proxy quine)" '"copy"'
     check "$(yt2 get //sys/operations/$op2/@spec/type --proxy quine)" '"postprocess"'
 }
