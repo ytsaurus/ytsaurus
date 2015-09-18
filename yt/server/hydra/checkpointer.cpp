@@ -281,7 +281,6 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         Owner_->RotatingChangelogs_ = false;
-        Owner_->DecoratedAutomaton_->RotateAutomatonVersion(Version_.SegmentId + 1);
         Owner_->LeaderCommitter_->ResumeLogging();
     }
 
