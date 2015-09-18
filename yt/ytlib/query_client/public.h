@@ -1,13 +1,14 @@
 #pragma once
 
 #include <ytlib/tablet_client/public.h>
-
 #include <ytlib/new_table_client/public.h>
-
 #include <ytlib/node_tracker_client/public.h>
 
 // TODO(babenko): kill this when refactoring TDataSplit
-#include <ytlib/chunk_client/public.h>
+namespace NYT { namespace NChunkClient { namespace NProto {
+    class TChunkSpec;
+} } }
+
 
 namespace NYT {
 namespace NQueryClient {
@@ -109,8 +110,6 @@ typedef NVersionedTableClient::TOwningKey TKey;
 typedef std::pair<TKey, TKey> TKeyRange;
 typedef std::pair<TRow, TRow> TRowRange;
 typedef std::vector<TRowRange> TRowRanges;
-
-struct TDataSource;
 
 const int MaxRowsPerRead = 1024;
 const int MaxRowsPerWrite = 1024;
