@@ -290,7 +290,7 @@ private:
         formatter.AddProperty("SandboxPath", NFS::CombinePaths(GetCwd(), Config_->SandboxName));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            Process_.AddEnvVar(formatter.Format(UserJobSpec_.environment(i)));
+            Process_.AddArguments({"--env", formatter.Format(UserJobSpec_.environment(i))});
         }
     }
 
@@ -684,19 +684,19 @@ private:
             if (Config_->IsCGroupSupported(TCpuAccounting::Name)) {
                 CpuAccounting_.Create();
                 Process_.AddArguments({ "--cgroup", CpuAccounting_.GetFullPath() });
-                Process_.AddEnvVar(Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()));
+                Process_.AddArguments({ "--env", Format("YT_CGROUP_CPUACCT=%v", CpuAccounting_.GetFullPath()) });
             }
 
             if (Config_->IsCGroupSupported(TBlockIO::Name)) {
                 BlockIO_.Create();
                 Process_.AddArguments({ "--cgroup", BlockIO_.GetFullPath() });
-                Process_.AddEnvVar(Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()));
+                Process_.AddArguments({ "--env", Format("YT_CGROUP_BLKIO=%v", BlockIO_.GetFullPath()) });
             }
 
             if (Config_->IsCGroupSupported(TMemory::Name)) {
                 Memory_.Create();
                 Process_.AddArguments({ "--cgroup", Memory_.GetFullPath() });
-                Process_.AddEnvVar(Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()));
+                Process_.AddArguments({ "--env", Format("YT_CGROUP_MEMORY=%v", Memory_.GetFullPath()) });
             }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");
