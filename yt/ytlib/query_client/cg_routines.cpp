@@ -21,7 +21,20 @@
 
 #include <core/misc/farm_hash.h>
 
+#include <contrib/libs/re2/re2/re2.h>
+
 #include <mutex>
+
+namespace llvm {
+
+template <bool Cross>
+class TypeBuilder<re2::RE2*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+} // namespace llvm
+
+////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NQueryClient {
@@ -449,6 +462,23 @@ void ThrowException(const char* error)
     THROW_ERROR_EXCEPTION("Error while executing UDF: %s", error);
 }
 
+re2::RE2* RegexCreate(TUnversionedValue* regexp)
+{
+    return new re2::RE2(re2::StringPiece(regexp->Data.String, regexp->Length));
+}
+
+void RegexDestroy(re2::RE2* re2)
+{
+    delete re2;
+}
+
+ui8 RegexFullMatch(re2::RE2* re2, TUnversionedValue* string)
+{
+    YCHECK(string->Type == EValueType::String);
+
+    return re2::RE2::FullMatch(re2::StringPiece(string->Data.String, string->Length), *re2);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -482,6 +512,9 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AddRow);
     REGISTER_ROUTINE(OrderOpHelper);
     REGISTER_ROUTINE(ThrowException);
+    REGISTER_ROUTINE(RegexCreate);
+    REGISTER_ROUTINE(RegexDestroy);
+    REGISTER_ROUTINE(RegexFullMatch);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);

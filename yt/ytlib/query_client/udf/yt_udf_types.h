@@ -1,3 +1,5 @@
+#pragma once
+
 #include <stdint.h>
 
 typedef enum EValueType

@@ -7,6 +7,7 @@
 #include "udf/hyperloglog.h"
 #include "udf/double_cast.h"
 #include "udf/farm_hash.h"
+#include "udf/regex_match.h"
 #include "udf/int64.h"
 #include "udf/is_null.h"
 #include "udf/is_substr.h"
@@ -217,6 +218,19 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
             double_cast_bc,
             double_cast_bc_len,
             nullptr)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "regex_match",
+        "regex_match",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::Boolean,
+        TSharedRef(
+            regex_match_bc,
+            regex_match_bc_len,
+            nullptr),
+        New<TUnversionedValueCallingConvention>(-1, true)));
 
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());

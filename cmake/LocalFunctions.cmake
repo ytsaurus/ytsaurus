@@ -31,6 +31,8 @@ function(UDF udf output type)
       set(_list _extrasymbols_list)
     elseif(${_arg} STREQUAL "FILES")
       set(_list _extrafiles)
+    elseif(${_arg} STREQUAL "INCLUDE_DIRECTORIES")
+      set(_list _include_dirs)
     else()
       set(${_list} ${${_list}} ${_arg})
     endif()
@@ -55,11 +57,13 @@ function(UDF udf output type)
     PROPERTY
       INCLUDE_DIRECTORIES
   )
-  foreach( _dir ${_dirs})
+  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
+  set(_dirs ${_include_dirs} ${_dirs} ${_include_dir})
+  set(_include_dirs)
+
+  foreach(_dir ${_dirs})
     set(_include_dirs ${_include_dirs} -I${_dir})
   endforeach()
-  set(_include_dir ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/udf)
-  set(_include_dirs ${_include_dirs} -I${_include_dir})
 
   find_program(CLANG_EXECUTABLE
     NAMES clang-3.6 clang
@@ -118,6 +122,7 @@ function(UDF udf output type)
       mv ${_bc_filename}.tmp ${_bc_filename}
     COMMAND
       ${OPT_EXECUTABLE}
+        -O2
         -internalize
         -internalize-public-api-list=${_filename},${_filename}_init,${_filename}_update,${_filename}_merge,${_filename}_finalize,${_extrasymbols}
         -globalopt

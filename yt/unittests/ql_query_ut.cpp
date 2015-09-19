@@ -2442,35 +2442,6 @@ TEST_F(TQueryEvaluateTest, TestObjectUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64}
-    });
-
-    std::vector<Stroka> source = {
-        "a=3",
-        "a=4"
-    };
-
-    auto mallocUdf = New<TUserDefinedFunction>(
-        "malloc_udf",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        TSharedRef(
-            malloc_udf_bc,
-            malloc_udf_bc_len,
-            nullptr),
-        ECallingConvention::Simple);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(mallocUdf);
-
-    EvaluateExpectingError("malloc_udf(a) as x FROM [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
-
-    SUCCEED();
-}
-
 TEST_F(TQueryEvaluateTest, TestFarmHash)
 {
     auto split = MakeSplit({
@@ -2494,6 +2465,31 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
     }, resultSplit);
 
     Evaluate("farm_hash(a, b, c) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestRegexMatch)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"hello\"",
+        "a=\"hell\"",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean}
+    });
+
+    auto result = BuildRows({
+        "x=%false",
+        "x=%true",
+    }, resultSplit);
+
+    Evaluate("regex_match(\"hel[a-z]\",a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
 
     SUCCEED();
 }
