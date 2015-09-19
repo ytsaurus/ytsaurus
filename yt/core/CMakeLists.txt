@@ -49,6 +49,7 @@ target_link_libraries ( ytcore
   ytext-json
   ytext-httpserver
   ytext-yajl
+  ytext-re2
   protobuf
   farmhash
 )

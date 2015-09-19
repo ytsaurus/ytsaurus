@@ -54,17 +54,9 @@ public:
 
     virtual uint64_t getSymbolAddress(const std::string& name) override
     {
-        auto isWhitelisted = Whitelist_.find(name) != Whitelist_.end();
-
         auto address = llvm::SectionMemoryManager::getSymbolAddress(name);
         if (address) {
-            if (isWhitelisted) {
-                return address;
-            } else {
-                THROW_ERROR_EXCEPTION(
-                    "External call to function %Qv is not allowed",
-                    name);
-            }
+            return address;
         }
 
         return RoutineRegistry->GetAddress(name.c_str());
@@ -72,22 +64,6 @@ public:
 
     // RoutineRegistry is supposed to be a static object.
     TRoutineRegistry* RoutineRegistry;
-
-private:
-    // XXX(lukyan): Visual C++: error C2797:
-    // list initialization inside member initializer list or
-    // non-static data member initializer is not implemented
-    const std::unordered_set<std::string> Whitelist_ = std::unordered_set<std::string>{
-        MangleSymbol("__chkstk"),
-        MangleSymbol("memcmp"),
-        MangleSymbol("memcpy"),
-        MangleSymbol("nanosleep"),
-        MangleSymbol("llabs"),
-        MangleSymbol("tolower"),
-        MangleSymbol("toupper"),
-        MangleSymbol("log"),
-        MangleSymbol("memset"),
-    };
 };
 
 class TCGModule::TImpl

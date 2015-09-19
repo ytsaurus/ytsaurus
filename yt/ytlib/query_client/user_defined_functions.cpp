@@ -23,7 +23,7 @@ namespace NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const char* ExecutionContextStructName = "struct.TExecutionContext";
-
+static const char* FunctionContextStructName = "struct.NYT::NQueryClient::TFunctionContext";
 static const char* UnversionedValueStructName = "struct.TUnversionedValue";
 
 Stroka ToString(llvm::Type* tp)
@@ -59,6 +59,18 @@ void PushExecutionContext(
     auto contextType = GetOpaqueType(builder, ExecutionContextStructName);
     auto contextStruct = builder.CreateBitCast(
         fullContext,
+        PointerType::getUnqual(contextType));
+    argumentValues.push_back(contextStruct);
+}
+
+void PushFunctionContext(
+    TCGContext& builder,
+    Value* functionContext,
+    std::vector<Value*>& argumentValues)
+{
+    auto contextType = GetOpaqueType(builder, FunctionContextStructName);
+    auto contextStruct = builder.CreateBitCast(
+        functionContext,
         PointerType::getUnqual(contextType));
     argumentValues.push_back(contextStruct);
 }
@@ -162,6 +174,7 @@ TCGValue PropagateNullArguments(
 }
 
 TCodegenExpression TSimpleCallingConvention::MakeCodegenFunctionCall(
+    TCodegenValue codegenFunctionContext,
     std::vector<TCodegenExpression> codegenArgs,
     std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
     EValueType type,
@@ -274,11 +287,14 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedValueCallingConvention::TUnversionedValueCallingConvention(
-    int repeatedArgIndex)
+    int repeatedArgIndex,
+    bool useFunctionContext)
     : RepeatedArgIndex_(repeatedArgIndex)
+    , UseFunctionContext_(useFunctionContext)
 { }
 
 TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
+    TCodegenValue codegenFunctionContext,
     std::vector<TCodegenExpression> codegenArgs,
     std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
     EValueType type,
@@ -294,6 +310,11 @@ TCodegenExpression TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
         auto argumentValues = std::vector<Value*>();
 
         PushExecutionContext(builder, argumentValues);
+
+        if (UseFunctionContext_) {
+            auto functionContext = codegenFunctionContext(builder);
+            PushFunctionContext(builder, functionContext, argumentValues);
+        }
 
         auto resultPtr = builder.CreateAlloca(unversionedValueType);
         auto castedResultPtr = builder.CreateBitCast(
@@ -358,8 +379,15 @@ llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     llvm::Type* calleeResultType = builder.getVoidTy();
 
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
+
     calleeArgumentTypes.push_back(PointerType::getUnqual(
         GetOpaqueType(builder, ExecutionContextStructName)));
+
+    if (UseFunctionContext_) {
+        calleeArgumentTypes.push_back(PointerType::getUnqual(
+            GetOpaqueType(builder, FunctionContextStructName)));
+    }
+
     calleeArgumentTypes.push_back(PointerType::getUnqual(
         GetOpaqueType(builder, UnversionedValueStructName)));
 
@@ -653,6 +681,7 @@ void LoadLlvmFunctions(
 }
 
 TCodegenExpression TExternallyDefinedFunction::MakeCodegenExpr(
+    TCodegenValue codegenFunctionContext,
     std::vector<TCodegenExpression> codegenArgs,
     std::vector<EValueType> argumentTypes,
     EValueType type,
@@ -683,6 +712,7 @@ TCodegenExpression TExternallyDefinedFunction::MakeCodegenExpr(
     };
 
     return CallingConvention_->MakeCodegenFunctionCall(
+        codegenFunctionContext,
         codegenArgs,
         codegenBody,
         type,
@@ -823,6 +853,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
         makeCodegenBody
     ] (TCGContext& builder, Value* row) {
         return this_->CallingConvention_->MakeCodegenFunctionCall(
+            nullptr,
             std::vector<TCodegenExpression>(),
             makeCodegenBody(initName),
             stateType,
@@ -852,6 +883,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
+            nullptr,
             codegenArgs,
             makeCodegenBody(updateName),
             stateType,
@@ -881,6 +913,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
+            nullptr,
             codegenArgs,
             makeCodegenBody(mergeName),
             stateType,
@@ -904,6 +937,7 @@ const TCodegenAggregate TUserDefinedAggregateFunction::MakeCodegenAggregate(
         });
 
         return this_->CallingConvention_->MakeCodegenFunctionCall(
+            nullptr,
             codegenArgs,
             makeCodegenBody(finalizeName),
             argumentType,

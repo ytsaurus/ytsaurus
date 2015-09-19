@@ -15,6 +15,7 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenExpression TCodegenFunction::MakeCodegenExpr(
+    TCodegenValue codegenFunctionContext,
     std::vector<TCodegenExpression> codegenArgs,
     std::vector<EValueType> argumentTypes,
     EValueType type,

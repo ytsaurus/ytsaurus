@@ -1,3 +1,5 @@
+#pragma once
+
 #include "yt_udf_types.h"
 
 #include <stdlib.h>

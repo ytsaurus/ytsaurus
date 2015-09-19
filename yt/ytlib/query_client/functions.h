@@ -20,6 +20,7 @@ struct IFunctionDescriptor
         const TStringBuf& source) const = 0;
 
     virtual TCodegenExpression MakeCodegenExpr(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
