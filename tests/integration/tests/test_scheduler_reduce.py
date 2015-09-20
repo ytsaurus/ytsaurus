@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import YsonEntity
 
 
 ##################################################################
@@ -290,6 +291,28 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 out = '//tmp/out',
                 command = 'cat',
                 reduce_by='subkey')
+
+    def test_short_limits(self):
+        create('table', '//tmp/in1')
+        create('table', '//tmp/in2')
+        create('table', '//tmp/out')
+        write('//tmp/in1', [{'key': '1', 'subkey': '2'}, {'key': '2'}], sorted_by=['key', 'subkey'])
+        write('//tmp/in2', [{'key': '1', 'subkey': '2'}, {'key': '2'}], sorted_by=['key', 'subkey'])
+
+        reduce(
+            in_ = ['//tmp/in1["1":"2"]', '//tmp/in2'],
+            out = '<sorted_by=[key; subkey]>//tmp/out',
+            command = 'cat',
+            reduce_by=['key', 'subkey'],
+            spec={"reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
+              "data_size_per_job": 1})
+
+        assert read('//tmp/out') == \
+            [
+                {'key': "1", 'subkey': "2"},
+                {'key': "1", 'subkey': "2"},
+                {'key': "2", 'subkey' : YsonEntity()}
+            ]
 
     @only_linux
     def test_many_output_tables(self):
