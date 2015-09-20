@@ -95,3 +95,4 @@ configure_github_mirror twitter-zipkin
 configure_github_mirror pyinstaller-pyinstaller
 configure_github_mirror google-benchmark
 configure_github_mirror Cyan4973-zstd
+configure_github_mirror kennethreitz-requests
