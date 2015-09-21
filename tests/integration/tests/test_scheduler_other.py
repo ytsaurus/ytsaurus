@@ -249,7 +249,79 @@ class TestStrategies(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
+   def test_strategies_in_sort(self):
+        v1 = {"key" : "aaa"}
+        v2 = {"key" : "bb"}
+        v3 = {"key" : "bbxx"}
+        v4 = {"key" : "zfoo"}
+        v5 = {"key" : "zzz"}
 
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", [v3, v5, v1, v2, v4]) # some random order
+
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@replication_factor", 1)
+
+        self._set_banned_flag(True)
+
+        print >>sys.stderr, "Fail strategy"
+        with pytest.raises(YtError):
+            op_id = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "fail"})
+            track_op(op_id)
+
+        print >>sys.stderr, "Skip strategy"
+        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "skip"})
+        assert read_table("//tmp/t_out") == []
+
+        print >>sys.stderr, "Wait strategy"
+        op_id = sort(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", sort_by="key", spec={"unavailable_chunk_strategy": "wait"})
+
+        # Give a chance to scraper to work
+        time.sleep(1.0)
+        self._set_banned_flag(False)
+        track_op(op_id)
+
+        assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
+        assert get("//tmp/t_out/@sorted") == True
+        assert get("//tmp/t_out/@sorted_by") == ["key"]
+
+    def test_strategies_in_merge(self):
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@replication_factor", 1)
+        write_table("<append=true>//tmp/t1", [{"a": 0}, {"a": 2}], sorted_by="a")
+        write_table("<append=true>//tmp/t1", [{"a": 4}, {"a": 6}], sorted_by="a")
+
+        create("table", "//tmp/t2")
+        set("//tmp/t2/@replication_factor", 1)
+        write_table("<append=true>//tmp/t2", [{"a": 1}, {"a": 3}], sorted_by="a")
+        write_table("<append=true>//tmp/t2", [{"a": 5}, {"a": 7}], sorted_by="a")
+
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@replication_factor", 1)
+
+        self._set_banned_flag(True)
+
+        print >>sys.stderr, "Fail strategy"
+        with pytest.raises(YtError):
+            op_id = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "fail"})
+            track_op(op_id)
+
+        print >>sys.stderr, "Skip strategy"
+        merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "skip"})
+        assert read_table("//tmp/t_out") == []
+
+        print >>sys.stderr, "Wait strategy"
+        op_id = merge(dont_track=True, mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", spec={"unavailable_chunk_strategy": "wait"})
+
+        # Give a chance for scraper to work
+        time.sleep(1.0)
+        self._set_banned_flag(False)
+        track_op(op_id)
+
+        assert read_table("//tmp/t_out") == [{"a": i} for i in range(8)]
+        assert get("//tmp/t_out/@sorted") == True
+        assert get("//tmp/t_out/@sorted_by") == ["a"]
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     NUM_MASTERS = 3
