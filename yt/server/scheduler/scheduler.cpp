@@ -1102,8 +1102,9 @@ private:
                 << ex;
             if (registered) {
                 OnOperationFailed(operation, wrappedError);
+            } else {
+                operation->SetStarted(wrappedError);
             }
-            operation->SetStarted(wrappedError);
             THROW_ERROR(wrappedError);
         }
 
@@ -1437,6 +1438,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (!operation->GetStarted().IsSet()) {
+            operation->SetStarted(error);
+        }
         operation->SetState(state);
         operation->SetFinishTime(TInstant::Now());
         ToProto(operation->Result().mutable_error(), error);
