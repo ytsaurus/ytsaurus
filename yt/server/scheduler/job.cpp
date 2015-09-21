@@ -84,7 +84,7 @@ TJobSummary::TJobSummary(TJobPtr job)
 TJobSummary::TJobSummary(const TJobId& id)
     : Result()
     , Statistics()
-    , Id(Id)
+    , Id(id)
 { }
 
 ////////////////////////////////////////////////////////////////////
