@@ -498,44 +498,43 @@ public:
             resources += node->ResourceLimits();
         }
 
-        if (MasterConnector_->IsConnected()) {
-            try {
-                std::vector<TJobPtr> runningJobs;
-                bool hasWaitingJobs = false;
-                yhash_set<TOperationPtr> operationsToLog;
-                PROFILE_TIMING ("/analysis_time") {
-                    auto missingJobs = node->Jobs();
+        try {
+            std::vector<TJobPtr> runningJobs;
+            bool hasWaitingJobs = false;
+            yhash_set<TOperationPtr> operationsToLog;
+            PROFILE_TIMING ("/analysis_time") {
+                auto missingJobs = node->Jobs();
 
-                    for (auto& jobStatus : *request->mutable_jobs()) {
-                        auto jobType = EJobType(jobStatus.job_type());
-                        // Skip jobs that are not issued by the scheduler.
-                        if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
-                            continue;
+                for (auto& jobStatus : *request->mutable_jobs()) {
+                    auto jobType = EJobType(jobStatus.job_type());
+                    // Skip jobs that are not issued by the scheduler.
+                    if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast)
+                        continue;
 
-                            auto job = ProcessJobHeartbeat(
-                                node,
-                                request,
-                                response,
-                                &jobStatus);
-                            if (job) {
-                                YCHECK(missingJobs.erase(job) == 1);
-                                switch (job->GetState()) {
-                                case EJobState::Completed:
-                                case EJobState::Failed:
-                                case EJobState::Aborted:
-                                    operationsToLog.insert(job->GetOperation());
-                                    break;
-                                case EJobState::Running:
-                                    runningJobs.push_back(job);
-                                    break;
-                                case EJobState::Waiting:
-                                    hasWaitingJobs = true;
-                                    break;
-                                default:
-                                    break;
-                                }
+                        auto job = ProcessJobHeartbeat(
+                            node,
+                            request,
+                            response,
+                            &jobStatus);
+                        if (job) {
+                            YCHECK(missingJobs.erase(job) == 1);
+                            switch (job->GetState()) {
+                            case EJobState::Completed:
+                            case EJobState::Failed:
+                            case EJobState::Aborted:
+                                operationsToLog.insert(job->GetOperation());
+                                break;
+                            case EJobState::Running:
+                                runningJobs.push_back(job);
+                                break;
+                            case EJobState::Waiting:
+                                hasWaitingJobs = true;
+                                break;
+                            default:
+                                break;
                             }
                         }
+                    }
 
                     // Check for missing jobs.
                     for (auto job : missingJobs) {
@@ -603,18 +602,15 @@ public:
                         operationsToLog.insert(operation);
                 }
 
-                context->ReplyFrom(Combine(asyncResults));
+            context->ReplyFrom(Combine(asyncResults));
 
-                for (auto operation : operationsToLog) {
-                    LogOperationProgress(operation);
-                }
-            } catch (const std::exception&) {
-                // Do not forget to update resource usage if heartbeat failed.
-                updateResourceUsage();
-                throw;
+            for (auto operation : operationsToLog) {
+                LogOperationProgress(operation);
             }
-        } else {
-            context->Reply(GetMasterDisconnectedError());
+        } catch (const std::exception&) {
+            // Do not forget to update resource usage if heartbeat failed.
+            updateResourceUsage();
+            throw;
         }
 
         // Update total resource usage _after_ processing the heartbeat to avoid

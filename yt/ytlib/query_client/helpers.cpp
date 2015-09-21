@@ -1,7 +1,5 @@
 #include "stdafx.h"
 #include "public.h"
-#include "helpers.h"
-#include "plan_fragment.h"
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -18,14 +16,12 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NChunkClient::NProto;
+using namespace NTableClient;
 using namespace NTableClient::NProto;
 
 using NChunkClient::TReadLimit;
 using NTableClient::MinKey;
 using NTableClient::MaxKey;
-
-using NYT::FromProto;
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,18 +171,6 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
         }
     }
     return -1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TRowRangeFormatter::operator()(TStringBuilder* builder, const TRowRange& range) const
-{
-    builder->AppendFormat("[%v .. %v]", range.first, range.second);
-}
-
-void TDataSourceFormatter::operator()(TStringBuilder* builder, const TDataSource& source) const
-{
-    TRowRangeFormatter()(builder, source.Range);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

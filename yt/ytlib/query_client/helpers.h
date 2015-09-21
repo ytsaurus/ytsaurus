@@ -49,18 +49,6 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& column
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRowRangeFormatter
-{
-    void operator ()(TStringBuilder* builder, const TRowRange& range) const;
-};
-
-struct TDataSourceFormatter
-{
-    void operator ()(TStringBuilder* builder, const TDataSource& source) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NQueryClient
 } // namespace NYT
 

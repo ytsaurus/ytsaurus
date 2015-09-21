@@ -69,10 +69,7 @@ void AttachToChunkList(
     // NB: Accumulate statistics from left to right to get Sealed flag correct.
     TChunkTreeStatistics statisticsDelta;
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        if (!chunkList->Statistics().Sealed) {
-            THROW_ERROR_EXCEPTION("Cannot attach children to an unsealed chunk list %v",
-                chunkList->GetId());
-        }
+        chunkList->ValidateSealed();
         auto* child = *it;
         AccumulateChildStatistics(chunkList, child, &statisticsDelta);
         chunkList->Children().push_back(child);

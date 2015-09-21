@@ -94,6 +94,7 @@ public:
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
+        , Environment("", "env", "set environment variable  (for executor mode)", false, "ENV")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
 #endif
     {
@@ -116,6 +117,7 @@ public:
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDump);
         CmdLine.add(Uid);
+        CmdLine.add(Environment);
         CmdLine.add(Command);
 #endif
     }
@@ -142,6 +144,7 @@ public:
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDump;
     TCLAP::ValueArg<int> Uid;
+    TCLAP::MultiArg<Stroka> Environment;
     TCLAP::ValueArg<Stroka> Command;
 #endif
 
@@ -323,12 +326,18 @@ EExitCode GuardedMain(int argc, const char* argv[])
             YCHECK(setuid(uid) == 0);
         }
 
-        auto command = parser.Command.getValue();
-        execl("/bin/sh",
-            "/bin/sh",
-            "-c",
-            ~command,
-            (void*)NULL);
+        std::vector<char*> env; 
+        for (auto envVar : parser.Environment.getValue()) {
+            env.push_back(const_cast<char*>(~envVar));
+        }
+        env.push_back(nullptr);
+
+        char* command = const_cast<char*>(~parser.Command.getValue());
+        std::vector<char*> args { "/bin/sh", "-c", command, nullptr };
+
+        TryExecve("/bin/sh",
+            args.data(),
+            env.data());
         return EExitCode::ExecutorError;
     }
 #endif

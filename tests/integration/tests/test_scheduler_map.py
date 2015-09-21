@@ -187,8 +187,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
         op_id = map(dont_track=True,
-            in_="//tmp/t1", out="//tmp/t2", command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"',
-            spec={"mapper": {"environment": {"V1": "Some data", "V2": "$(SandboxPath)/mytmp"}},
+            in_="//tmp/t1", out="//tmp/t2", command=r'cat; echo "{v1=\"$V1\"};{v2=\"$TMPDIR\"}"',
+            spec={"mapper": {"environment": {"V1": "Some data", "TMPDIR": "$(SandboxPath)/mytmp"}},
                   "title": "MyTitle"})
 
         get("//sys/operations/%s/@spec" % op_id)

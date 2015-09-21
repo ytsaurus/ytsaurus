@@ -97,8 +97,8 @@ Stroka InferName(TConstExpressionPtr expr, bool omitValues)
 
 Stroka InferName(TConstQueryPtr query, bool omitValues)
 {
-    auto namedItemFormatter = [=] (TStringBuilder* builder, const TNamedItem& item) {
-        builder->AppendFormat("%v AS %v",
+    auto namedItemFormatter = [&] (const TNamedItem& item) {
+        return Format("%v AS %v",
             InferName(item.Expression, omitValues),
             item.Name);
     };
@@ -134,7 +134,7 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
         clauses.push_back(Stroka("LIMIT ") + str);
     }
 
-    return JoinToString(clauses, " ");
+    return JoinToString(clauses, Stroka(" "));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -56,6 +56,8 @@ private:
         // NB: Don't call ValidateConnected.
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
         auto scheduler = Bootstrap->GetScheduler();
+        scheduler->ValidateConnected();
+
         auto node = scheduler->GetOrRegisterNode(addresses);
         if (node->GetMasterState() != ENodeState::Online) {
             // NB: Resource limits should be considered even if node is offline.

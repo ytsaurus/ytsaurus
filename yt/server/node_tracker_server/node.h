@@ -189,9 +189,9 @@ private:
 
 struct TNodePtrAddressFormatter
 {
-    void operator () (TStringBuilder* builder, TNode* node) const
+    Stroka operator () (TNode* node) const
     {
-        builder->AppendString(node->GetDefaultAddress());
+        return node->GetDefaultAddress();
     }
 };
 
