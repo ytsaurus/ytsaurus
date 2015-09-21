@@ -1,7 +1,7 @@
 import yt.logger as logger
 from config import get_config, get_option, set_option, get_backend_type
 from common import require, get_backoff, get_value, total_seconds
-from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_http_response_error, YtRequestRateLimitExceeded
+from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError
 from command import parse_commands
 
 import yt.yson as yson
@@ -19,7 +19,7 @@ from socket import error as SocketError
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.requests import HTTPError, ConnectionError, Timeout
 from yt.packages.requests.packages.urllib3.packages.httplib import BadStatusLine, IncompleteRead
-RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, IncompleteRead, SocketError, BadStatusLine, YtRequestRateLimitExceeded, YtIncorrectResponse, YtProxyUnavailable)
+RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, IncompleteRead, SocketError, BadStatusLine, YtIncorrectResponse, YtProxyUnavailable)
 
 session_ = yt.packages.requests.Session()
 def get_session():
@@ -109,7 +109,8 @@ def _process_request_backoff(current_time, client):
             time.sleep(float(backoff) / 1000.0 - diff)
         get_session().last_request_time = now_seconds
 
-def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False, timeout=None, retry_action=None, client=None, **kwargs):
+def make_request_with_retries(method, url, make_retries=True, retry_unavailable_proxy=True, response_should_be_json=False,
+                              timeout=None, retry_action=None, client=None, **kwargs):
     configure_ip(client)
 
     if timeout is None:
@@ -130,7 +131,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                     raise YtIncorrectResponse("", response)
             except ConnectionError as error:
                 if hasattr(error, "response") and error.response:
-                    raise build_http_response_error(url, headers, create_response(error.response, headers, client).error())
+                    raise YtHttpResponseError(url, headers, create_response(error.response, headers, client).error())
                 else:
                     raise
 
@@ -144,7 +145,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
             if response.status_code == 503:
                 raise YtProxyUnavailable(response)
             if not response.is_ok():
-                raise build_http_response_error(url, headers, response.error())
+                raise YtHttpResponseError(url, headers, response.error())
 
             return response
         except tuple(retriable_errors) as error:

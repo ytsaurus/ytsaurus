@@ -39,32 +39,35 @@ class YtResponseError(YtError):
 
     def is_resolve_error(self):
         """Resolving error."""
-        return YtResponseError._contains_code(self.error, 500)
+        return self.contains_code(500)
 
     def is_access_denied(self):
         """Access denied."""
-        return YtResponseError._contains_code(self.error, 901)
+        return self.contains_code(901)
 
     def is_concurrent_transaction_lock_conflict(self):
         """Transaction lock conflict."""
-        return YtResponseError._contains_code(self.error, 402)
+        return self.contains_code(402)
 
     def is_request_rate_limit_exceeded(self):
         """Request rate limit exceeded."""
-        return YtResponseError._contains_code(self.error, 904)
+        return self.contains_code(904)
 
     def is_chunk_unavailable(self):
         """Chunk unavailable."""
-        return YtResponseError._contains_code(self.error, 716)
+        return self.contains_code(716)
 
-    @staticmethod
-    def _contains_code(error, code):
-        if int(error["code"]) == code:
-            return True
-        for inner_error in error["inner_errors"]:
-            if YtResponseError._contains_code(inner_error, code):
+    def contains_code(self, code):
+        def contains_code_recursive(error, http_code):
+            if int(error["code"]) == http_code:
                 return True
-        return False
+            for inner_error in error["inner_errors"]:
+                if contains_code_recursive(inner_error, http_code):
+                    return True
+            return False
+
+        return contains_code_recursive(self.error, code)
+
 
 class YtHttpResponseError(YtResponseError):
     def __init__(self, url, headers, error):
@@ -76,12 +79,8 @@ class YtHttpResponseError(YtResponseError):
 
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
+    """Deprecated! Use YtResponseError.is_request_rate_limit_exceeded method."""
     pass
-
-def build_http_response_error(url, headers, error):
-    if YtHttpResponseError._contains_code(error, 904):
-        return YtRequestRateLimitExceeded(url, headers, error)
-    return YtHttpResponseError(url, headers, error)
 
 class YtProxyUnavailable(YtError):
     """Proxy is under heavy load."""
