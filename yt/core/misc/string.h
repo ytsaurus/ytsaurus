@@ -8,10 +8,7 @@ namespace NYT {
 
 // Forward declaration, avoid including format.h directly here.
 template <class... TArgs>
-void Format(
-    TStringBuilder* builder,
-    const char* format,
-    const TArgs&... args);
+void Format(TStringBuilder* builder, const char* format, const TArgs&... args);
 
 //! A simple helper for constructing strings by a sequence of appends.
 class TStringBuilder
@@ -98,10 +95,7 @@ private:
 
 };
 
-inline void FormatValue(
-    TStringBuilder* builder,
-    const TStringBuilder& value,
-    const TStringBuf& /*format*/)
+inline void FormatValue(TStringBuilder* builder, const TStringBuilder& value, const TStringBuf& /*format*/)
 {
     builder->AppendString(value.GetBuffer());
 }
@@ -109,41 +103,15 @@ inline void FormatValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Formatters enable customizable way to turn an object into a string.
-//! This default implementation calls |FormatValue|.
+//! This default implementation calls |ToString|.
 struct TDefaultFormatter
 {
     template <class T>
-    void operator () (TStringBuilder* builder, const T& obj) const
+    Stroka operator () (const T& obj) const
     {
-        FormatValue(builder, obj, "%v");
+        return ToString(obj);
     }
 };
-
-template <class TFormatter, class TValue>
-struct TFormatted
-{
-    TFormatter Formatter;
-    TValue Value;
-};
-
-template <class TFormatter, class TValue>
-TFormatted<TFormatter, TValue> MakeFormatted(TFormatter&& formatter, TValue&& value)
-{
-    return TFormatted<TFormatter, TValue>{
-        std::forward<TFormatter>(formatter),
-        std::forward<TValue>(value)};
-}
-
-template <class TFormatter, class TValue>
-void FormatValue(
-    TStringBuilder* builder,
-    const TFormatted<TFormatter, TValue>& formatted,
-    const TStringBuf& /*format*/)
-{
-    formatted.Formatter(builder, formatted.Value);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!
@@ -158,16 +126,16 @@ Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
     const TFormatter& formatter,
-    const char* delimiter = ", ")
+    const Stroka& delimiter = ", ")
 {
-    TStringBuilder builder;
+    Stroka result;
     for (auto current = begin; current != end; ++current) {
         if (current != begin) {
-            builder.AppendString(delimiter);
+            result.append(delimiter);
         }
-        formatter(&builder, *current);
+        result.append(formatter(*current));
     }
-    return builder.Flush();
+    return result;
 }
 
 //! A handy shortcut with default formatter.
@@ -175,7 +143,7 @@ template <class TIterator>
 Stroka JoinToString(
     const TIterator& begin,
     const TIterator& end,
-    const char* delimiter = ", ")
+    const Stroka& delimiter = ", ")
 {
     return JoinToString(begin, end, TDefaultFormatter(), delimiter);
 }
@@ -190,7 +158,7 @@ template <class TCollection, class TFormatter>
 Stroka JoinToString(
     const TCollection& items,
     const TFormatter& formatter,
-    const char* delimiter = ", ")
+    const Stroka& delimiter = ", ")
 {
     using std::begin;
     using std::end;
@@ -201,7 +169,7 @@ Stroka JoinToString(
 template <class TCollection>
 Stroka JoinToString(
     const TCollection& items,
-    const char* delimiter = ", ")
+    const Stroka& delimiter = ", ")
 {
     return JoinToString(items, TDefaultFormatter(), delimiter);
 }
@@ -215,10 +183,11 @@ std::vector<Stroka> ConvertToStrings(
     size_t maxSize = std::numeric_limits<size_t>::max())
 {
     std::vector<Stroka> result;
-    for (auto it = begin; it != end && result.size() < maxSize; ++it) {
-        TStringBuilder builder;
-        formatter(&builder, *it);
-        result.push_back(builder.Flush());
+    for (auto it = begin; it != end; ++it) {
+        result.push_back(formatter(*it));
+        if (result.size() == maxSize) {
+            break;
+        }
     }
     return result;
 }

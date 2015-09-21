@@ -30,13 +30,13 @@ Stroka ToString(const TChunkIdWithIndex& id)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReplicaAddressFormatter::TChunkReplicaAddressFormatter(TNodeDirectoryPtr nodeDirectory)
-    : NodeDirectory_(std::move(nodeDirectory))
+    : NodeDirectory_(nodeDirectory)
 { }
 
-void TChunkReplicaAddressFormatter::operator () (TStringBuilder* builder, TChunkReplica replica) const
+Stroka TChunkReplicaAddressFormatter::operator () (TChunkReplica replica) const
 {
     const auto& descriptor = NodeDirectory_->GetDescriptor(replica.GetNodeId());
-    builder->AppendFormat("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
+    return Format("%v/%v", descriptor.GetDefaultAddress(), replica.GetIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

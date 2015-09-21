@@ -120,9 +120,11 @@ DEFINE_REFCOUNTED_TYPE(IStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStoreIdFormatter
+class TStoreIdFormatter
 {
-    void operator() (TStringBuilder* builder, const IStorePtr& store) const;
+public:
+    Stroka operator() (const IStorePtr& store) const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
