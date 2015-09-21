@@ -871,6 +871,7 @@ public:
         , Id(id)
         , StrategyConfig_(strategyConfig)
     {
+        DynamicAttributesMap.Initialize(this);
         SetDefaultConfig();
     }
 
@@ -980,7 +981,6 @@ private:
 
         bool update = false;
         if (FifoSortParameters != Config_->FifoSortParameters || Mode != Config_->Mode) {
-            FifoSortParameters = Config_->FifoSortParameters;
             update = true;
         }
 
@@ -1021,14 +1021,18 @@ public:
         , ResourceUsage_(ZeroNodeResources())
         , NonpreemptableResourceUsage_(ZeroNodeResources())
         , Config(config)
-    { }
+    {
+        DynamicAttributesMap.Initialize(this);
+        DynamicAttributesMap.At(this).MinSubtreeStartTime = operation->GetStartTime();
+        DynamicAttributesMap.At(this).BestLeafDescendant = MakeWeak(this);
+    }
 
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
-        const auto& node = context.SchedulingContext->GetNode();
         context.DynamicAttributesMap.Initialize(this, DynamicAttributesMap.At(this));
         auto& attributes = context.DynamicAttributesMap.At(this);
+        const auto& node = context.SchedulingContext->GetNode();
 
         attributes.Active = true;
 
@@ -1366,6 +1370,7 @@ public:
     TRootElement(ISchedulerStrategyHost* host, TDynamicAttributesMap& dynamicAttributesMap)
         : TCompositeSchedulerElement(host, dynamicAttributesMap)
     {
+        DynamicAttributesMap.Initialize(this);
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
@@ -1426,7 +1431,6 @@ public:
             BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
         RootElement = New<TRootElement>(Host, DynamicAttributesMap);
-        DynamicAttributesMap.Initialize(RootElement);
     }
 
 
@@ -1792,9 +1796,6 @@ private:
             operation,
             DynamicAttributesMap);
         YCHECK(OperationToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
-        DynamicAttributesMap.Initialize(operationElement);
-        DynamicAttributesMap.At(operationElement).MinSubtreeStartTime = operation->GetStartTime();
-        DynamicAttributesMap.At(operationElement).BestLeafDescendant = operationElement;
 
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
@@ -1935,14 +1936,12 @@ private:
     void RegisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        DynamicAttributesMap.Initialize(pool);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
     void RegisterPool(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        DynamicAttributesMap.Initialize(pool);
         pool->SetParent(parent.Get());
         parent->AddChild(pool);
 
