@@ -70,9 +70,12 @@ def main():
             logger.info("Destination table is exist and non-empty, ignoring creation of new task", src, dst)
             continue
         params = {
+            "pool": args.copy_pool,
             "copy_spec": {"pool": args.copy_pool},
             "postprocess_spec": {"pool": args.postprocess_pool},
-            "mr_user": "userdata"
+            "mr_user": "userdata",
+            "destination_compression_codec": "gzip_best_compression",
+            "destination_erasure_codec": "lrc_12_2_2"
         }
         headers = {
             "Content-Type": "application/json",
