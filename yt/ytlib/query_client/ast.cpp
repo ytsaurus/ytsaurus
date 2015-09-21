@@ -52,9 +52,9 @@ Stroka InferName(const TExpressionList& exprs, bool omitValues)
             expr->As<TFunctionExpression>();
     };
 
-    return JoinToString(exprs, [&] (const TExpressionPtr& expr) {
+    return JoinToString(exprs, [&] (TStringBuilder* builder, const TExpressionPtr& expr) {
             auto name = InferName(expr.Get(), omitValues);
-            return canOmitParenthesis(expr.Get()) ? name : "(" + name + ")";
+            builder->AppendString(canOmitParenthesis(expr.Get()) ? name : "(" + name + ")");
         }, ", ");
 }
 
