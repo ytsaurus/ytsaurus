@@ -1,14 +1,14 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/new_table_client/value_consumer-mock.h>
-#include <ytlib/new_table_client/table_consumer.h>
-#include <ytlib/new_table_client/unversioned_row.h>
+#include <ytlib/table_client/value_consumer-mock.h>
+#include <ytlib/table_client/table_consumer.h>
+#include <ytlib/table_client/unversioned_row.h>
 
 #include <core/ytree/fluent.h>
 
 namespace NYT {
-namespace NVersionedTableClient {
+namespace NTableClient {
 namespace {
 
 using ::testing::InSequence;

@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/new_table_client/unversioned_row.h>
-#include <ytlib/new_table_client/name_table.h>
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/name_table.h>
 
 #include <ytlib/formats/dsv_writer.h>
 #include <ytlib/formats/dsv_parser.h>
@@ -16,7 +16,7 @@ namespace {
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
-using namespace NVersionedTableClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
