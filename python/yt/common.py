@@ -153,3 +153,6 @@ def get_value(value, default):
         return default
     else:
         return value
+
+def filter_dict(predicate, dictionary):
+    return dict([(k, v) for (k, v) in dictionary.iteritems() if predicate(k, v)])
