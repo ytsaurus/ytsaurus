@@ -34,7 +34,7 @@ protected:
         ColumnEvaluatorCache_ = New<TColumnEvaluatorCache>(config, CreateBuiltinFunctionRegistry());
     }
 
-    std::vector<TKeyRange> Coordinate(const Stroka& source)
+    std::vector<TKeyRange> Coordinate(const Stroka& source, int rangeExpansionLimit = 1000)
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
         auto rowBuffer = New<TRowBuffer>();
@@ -44,7 +44,7 @@ protected:
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
-            1000,
+            rangeExpansionLimit,
             true);
 
         return GetRangesFromSources(prunedSplits);
@@ -514,6 +514,33 @@ TEST_F(TComputedColumnTest, Modulo3)
 
     EXPECT_EQ(BuildKey(_MIN_), result[0].first);
     EXPECT_EQ(BuildKey(_MAX_), result[0].second);
+}
+
+TEST_F(TComputedColumnTest, Modulo4)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().emplace_back("k", EValueType::Int64, Null, Stroka("m % 2"));
+    tableSchema.Columns().emplace_back("l", EValueType::Int64);
+    tableSchema.Columns().emplace_back("m", EValueType::Int64);
+    tableSchema.Columns().emplace_back("a", EValueType::Int64);
+
+    TKeyColumns keyColumns{"k", "l", "m"};
+
+    SetSchema(tableSchema, keyColumns);
+
+    auto query = Stroka("a from [//t] where l in (0,1,2)");
+    auto result = Coordinate(query, 10);
+
+    EXPECT_EQ(4, result.size());
+
+    EXPECT_EQ(BuildKey(_NULL_ ";0;"), result[0].first);
+    EXPECT_EQ(BuildKey(_NULL_ ";2;" _MAX_), result[0].second);
+    EXPECT_EQ(BuildKey("-1;0;"), result[1].first);
+    EXPECT_EQ(BuildKey("-1;2;" _MAX_), result[1].second);
+    EXPECT_EQ(BuildKey("0;0;"), result[2].first);
+    EXPECT_EQ(BuildKey("0;2;" _MAX_), result[2].second);
+    EXPECT_EQ(BuildKey("1;0;"), result[3].first);
+    EXPECT_EQ(BuildKey("1;2;" _MAX_), result[3].second);
 }
 
 TEST_F(TComputedColumnTest, Divide1)

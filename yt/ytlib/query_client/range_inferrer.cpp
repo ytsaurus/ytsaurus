@@ -676,6 +676,41 @@ void EnrichKeyRange(
     }
 }
 
+ui64 GetRangeCountLimit(
+    const TColumnEvaluator& evaluator,
+    const std::vector<TColumnSchema>& columns,
+    size_t keySize,
+    ui64 rangeExpansionLimit)
+{
+    ui64 moduloExpansion = 1;
+    for (int index = 0; index < keySize; ++index) {
+        if (columns[index].Expression) {
+            auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
+            if (expr && expr->Opcode == EBinaryOp::Modulo) {
+                if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {
+                    TUnversionedValue value = literalExpr->Value;
+                    switch (value.Type) {
+                        case EValueType::Int64:
+                            moduloExpansion *= value.Data.Int64 * 2;
+                            break;
+
+                        case EValueType::Uint64:
+                            moduloExpansion *= value.Data.Uint64 + 1;
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    return moduloExpansion == 1
+        ? std::numeric_limits<ui64>::max()
+        : rangeExpansionLimit / moduloExpansion;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRangeInferrer CreateHeavyRangeInferrer(
@@ -691,7 +726,6 @@ TRangeInferrer CreateHeavyRangeInferrer(
     auto keySize = renamedKeyColumns.size();
 
     auto evaluator = evaluatorCache->Find(schema, keySize);
-    // TODO(savrus): use enriched key columns here.
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         renamedKeyColumns,
@@ -704,11 +738,19 @@ TRangeInferrer CreateHeavyRangeInferrer(
         InferName(predicate),
         keyTrie);
 
+    //TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
+    auto rangeCountLimit = GetRangeCountLimit(
+        *evaluator,
+        schema.Columns(),
+        keySize,
+        rangeExpansionLimit);
+
     auto ranges = GetRangesFromTrieWithinRange(
         TRowRange(buffer->Capture(MinKey().Get()), buffer->Capture(MaxKey().Get())),
         keyTrie,
         buffer,
-        true);
+        true,
+        rangeCountLimit);
 
     LOG_DEBUG_IF(
         verboseLogging,
