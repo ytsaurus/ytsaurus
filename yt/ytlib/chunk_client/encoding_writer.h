@@ -2,12 +2,10 @@
 
 #include "public.h"
 
-#include <core/actions/callback.h>
-
 #include <core/misc/ref.h>
-#include <core/misc/async_stream_state.h>
 
 #include <core/concurrency/async_semaphore.h>
+#include <core/concurrency/nonblocking_queue.h>
 
 #include <core/compression/public.h>
 
@@ -48,8 +46,8 @@ private:
     const IChunkWriterPtr ChunkWriter_;
     const IBlockCachePtr BlockCache_;
 
-    std::atomic<i64> UncompressedSize_ = {0};
-    std::atomic<i64> CompressedSize_ = {0};
+    std::atomic<i64> UncompressedSize_ = { 0 };
+    std::atomic<i64> CompressedSize_ = { 0 };
 
     int AddedBlockIndex_ = 0;
     int WrittenBlockIndex_ = 0;
@@ -60,22 +58,16 @@ private:
     NConcurrency::TAsyncSemaphore Semaphore_;
     NCompression::ICodec* Codec_;
 
-    TAsyncStreamState State_;
+    NConcurrency::TNonblockingQueue<TSharedRef> PendingBlocks_;
 
-    std::deque<TSharedRef> PendingBlocks_;
+    TPromise<void> CompletionError_ = NewPromise<void>();
+    TCallback<void(const TErrorOr<TSharedRef>& blockOrError)> WritePendingBlockCallback_;
 
-    // True if OnReadyEventCallback_ is subscribed on AsyncWriter::ReadyEvent.
-    bool IsWaiting_ = false;
     bool CloseRequested_ = false;
-    TCallback<void(const TError&)> OnReadyEventCallback_;
-    TCallback<void()> TriggerWritingCallback_;
 
     NLogging::TLogger Logger;
 
-
-    void OnReadyEvent(const TError& error);
-    void TriggerWriting();
-    void WritePendingBlocks();
+    void WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError);
 
     void DoCompressBlock(const TSharedRef& uncompressedBlock);
     void DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock);
@@ -89,8 +81,6 @@ private:
     void VerifyVector(
         const std::vector<TSharedRef>& uncompressedVectorizedBlock,
         const TSharedRef& compressedBlock);
-
-    void SetCompressionRatio(double value);
 
 };
 
