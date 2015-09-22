@@ -58,6 +58,7 @@ class YtResponseError(YtError):
         return self.contains_code(716)
 
     def contains_code(self, code):
+        """Check if HTTP response has specified status code."""
         def contains_code_recursive(error, http_code):
             if int(error["code"]) == http_code:
                 return True
