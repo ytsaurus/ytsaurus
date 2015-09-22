@@ -249,7 +249,7 @@ class TestStrategies(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
 
-   def test_strategies_in_sort(self):
+    def test_strategies_in_sort(self):
         v1 = {"key" : "aaa"}
         v2 = {"key" : "bb"}
         v3 = {"key" : "bbxx"}
