@@ -17,7 +17,7 @@ done
 for repo in $MIRRORS_DIRECTORY/github-*.git ; do
     echo "=== $repo"
     (cd $repo && git fetch github)
-    (cd $repo && git branch -f master $(git show-ref -s refs/upstream/heads/master))
+    (cd $repo && git branch -f master $(git show-ref -s refs/upstream/trunk))
     (cd $repo && git push origin)
 done
 
