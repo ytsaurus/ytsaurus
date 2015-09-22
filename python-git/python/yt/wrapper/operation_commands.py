@@ -247,12 +247,18 @@ def get_stderrs(operation, only_failed_jobs, client=None):
 
         stderr_path = os.path.join(path, "stderr")
         has_stderr = exists(stderr_path, client=client)
+        ignore_errors = get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]
         if has_stderr:
             try:
                 job_with_stderr["stderr"] = read_file(stderr_path, client=client).read()
             except RETRIABLE_ERRORS:
-                if get_config(client)["operation_tracker"]["ignore_stderr_if_download_failed"]:
-                    break
+                if ignore_errors:
+                    continue
+                else:
+                    raise
+            except YtResponseError as err:
+                if err.is_chunk_unavailable() and ignore_errors:
+                    continue
                 else:
                     raise
 
