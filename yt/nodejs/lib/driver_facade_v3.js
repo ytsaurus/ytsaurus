@@ -84,15 +84,24 @@ function YtDriverFacadeV3(driver)
 YtDriverFacadeV3.prototype.execute = function(name, user,
     input_stream, input_compression,
     output_stream, output_compression,
-    parameters, request_id, pause, response_parameters_consumer)
+    parameters, request_id, pause, response_parameters_consumer,
+    result_interceptor)
 {
     if (typeof(this.custom_commands[name]) !== "undefined") {
         return this.custom_commands[name].execute(parameters.Get())
-        .then(function (result) {
+        .then(
+        function(result) {
             // TODO(sandello): Serialize to user-requested format.
             output_stream.write(JSON.stringify(result));
+            if (typeof(result_interceptor) === "function") {
+                result_interceptor(result);
+            }
             return [new YtError(), 0, 0];
-        }, function (error) {
+        },
+        function(error) {
+            if (typeof(result_interceptor) === "function") {
+                result_interceptor(error);
+            }
             return [error, 0, 0];
         });
     }
@@ -101,7 +110,8 @@ YtDriverFacadeV3.prototype.execute = function(name, user,
         name, user,
         input_stream, input_compression,
         output_stream, output_compression,
-        parameters, request_id, pause, response_parameters_consumer);
+        parameters, request_id, pause, response_parameters_consumer,
+        result_interceptor);
 };
 
 YtDriverFacadeV3.prototype.find_command_descriptor = function(name)

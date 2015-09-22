@@ -312,17 +312,23 @@ print "x={0}\ty={1}".format(x, y)
             {"a": 7, "c": 8}]
         write_table("//tmp/t1", rows)
 
+        schema = [{"name": "z", "type": "int64"},
+            {"name": "a", "type": "int64"},
+            {"name": "y", "type": "int64"},
+            {"name": "b", "type": "int64"},
+            {"name": "x", "type": "int64"},
+            {"name": "c", "type": "int64"},
+            {"name": "u", "type": "int64"}]
+
+        for row in rows:
+            for column in schema:
+                if column["name"] not in row.keys():
+                    row[column["name"]] = None
+
         map_reduce(in_="//tmp/t1", out="//tmp/t2", mapper_command="cat", reducer_command="cat", sort_by=["a"],
             spec={
                 "input_query": "* where a > 0 or b > 0",
-                "input_schema": [
-                    {"name": "z", "type": "int64"},
-                    {"name": "a", "type": "int64"},
-                    {"name": "y", "type": "int64"},
-                    {"name": "b", "type": "int64"},
-                    {"name": "x", "type": "int64"},
-                    {"name": "c", "type": "int64"},
-                    {"name": "u", "type": "int64"}]})
+                "input_schema": schema})
 
         self.assertItemsEqual(read_table("//tmp/t2"), rows)
 

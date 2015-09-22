@@ -522,14 +522,11 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
     if (Controller->IsRowCountPreserved()) {
-        const auto& statistics = jobSummary.Statistics;
-        auto inputStatistics = GetTotalInputDataStatistics(statistics);
-        auto outputStatistics = GetTotalOutputDataStatistics(statistics);
-        if (inputStatistics.row_count() != outputStatistics.row_count()) {
+        if (jobSummary.InputDataStatistics.row_count() != jobSummary.OutputDataStatistics.row_count()) {
             Controller->OnOperationFailed(TError(
                 "Input/output row count mismatch in completed job: %v != %v",
-                inputStatistics.row_count(),
-                outputStatistics.row_count())
+                jobSummary.InputDataStatistics.row_count(),
+                jobSummary.OutputDataStatistics.row_count())
                 << TErrorAttribute("task", GetId()));
         }
     }
@@ -1488,7 +1485,7 @@ void TOperationControllerBase::OnJobCompleted(const TCompletedJobSummary& jobSum
     const auto& result = jobSummary.Result;
 
     JobCounter.Completed(1);
-    JobStatistics.Update(jobSummary.Statistics);
+    UpdateJobStatistics(jobSummary);
 
     const auto& schedulerResultEx = result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
@@ -1517,7 +1514,10 @@ void TOperationControllerBase::OnJobFailed(const TFailedJobSummary& jobSummary)
     auto error = FromProto<TError>(result->error());
 
     JobCounter.Failed(1);
-    JobStatistics.Update(jobSummary.Statistics);
+    UpdateJobStatistics(jobSummary);
+
+    auto joblet = GetJoblet(jobId);
+    joblet->Task->OnJobFailed(joblet, jobSummary);
 
     RemoveJoblet(jobId);
 
@@ -1543,7 +1543,11 @@ void TOperationControllerBase::OnJobAborted(const TAbortedJobSummary& jobSummary
     auto abortReason = jobSummary.AbortReason;
 
     JobCounter.Aborted(1, abortReason);
-    JobStatistics.Update(jobSummary.Statistics);
+    UpdateJobStatistics(jobSummary);
+
+    auto joblet = GetJoblet(jobId);
+    joblet->Task->OnJobAborted(joblet, jobSummary);
+
 
     RemoveJoblet(jobId);
 
@@ -3406,6 +3410,16 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
         .BeginMap()
             .Item("error").Value(error)
         .EndMap();
+}
+
+void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
+{
+    LOG_INFO("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
+        jobSummary.Id,
+        jobSummary.InputDataStatistics,
+        jobSummary.OutputDataStatistics);
+
+    JobStatistics.Update(jobSummary.Statistics);
 }
 
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const

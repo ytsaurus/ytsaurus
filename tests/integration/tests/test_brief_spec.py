@@ -60,7 +60,7 @@ class TestBriefSpec(YTEnvSetup):
         create("table", "//tmp/t2")
         op_id = reduce(in_="//tmp/t1", out="//tmp/t2", command="cat", reduce_by = "key")
         
-        check_attributes(op_id, ["reducer", "input_table_path", "output_table_path"])        
+        check_attributes(op_id, ["reducer", "input_table_path", "output_table_path"])
     
     def test_map_reduce(self):
         create("table", "//tmp/t1")
@@ -72,12 +72,12 @@ class TestBriefSpec(YTEnvSetup):
                reduce_combiner_command="cat",
                reducer_command="cat")
         
-        check_attributes(op_id, ["mapper", "reducer", "input_table_path", "output_table_path"])   
+        check_attributes(op_id, ["mapper", "reducer", "input_table_path", "output_table_path"])
 
     def test_merge(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        create("table", "//tmp/t3")        
+        create("table", "//tmp/t3")
 
         op_id = merge(mode="unordered",
               in_=["//tmp/t1", "//tmp/t2"],

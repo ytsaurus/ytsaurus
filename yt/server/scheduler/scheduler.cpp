@@ -1556,8 +1556,11 @@ private:
             return;
 
         job->SetState(EJobState::Aborted);
-        ToProto(job->Result()->mutable_error(), error);
+        TJobResult result;
+        ToProto(result.mutable_error(), error);
+        result.mutable_statistics();
 
+        job->SetResult(std::move(result));
         OnJobFinished(job);
 
         auto operation = FindOperation(job->GetOperationId());
@@ -1606,11 +1609,6 @@ private:
         {
             job->SetState(EJobState::Completed);
             job->SetResult(std::move(*result));
-
-            LOG_INFO("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
-                job->GetId(),
-                GetTotalInputDataStatistics(job->Statistics()),
-                GetTotalOutputDataStatistics(job->Statistics()));
 
             OnJobFinished(job);
 
