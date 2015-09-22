@@ -339,7 +339,7 @@ done"""
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client)
+            convert_to_erasure(dst, erasure_codec=erasure_codec, yt_client=yt_client, spec=postprocess_spec)
 
     finally:
         if not yamr_client.supports_read_snapshots:
