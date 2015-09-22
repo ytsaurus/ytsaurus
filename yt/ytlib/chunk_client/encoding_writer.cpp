@@ -12,6 +12,8 @@
 
 #include <core/compression/codec.h>
 
+#include <core/misc/finally.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -32,15 +34,14 @@ TEncodingWriter::TEncodingWriter(
     , CompressionInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionPoolInvoker()))
     , Semaphore_(Config_->EncodeWindowSize)
     , Codec_(NCompression::GetCodec(options->CompressionCodec))
-    , OnReadyEventCallback_(
-        BIND(&TEncodingWriter::OnReadyEvent, MakeWeak(this))
-            .Via(CompressionInvoker_))
-    , TriggerWritingCallback_(
-        BIND(&TEncodingWriter::TriggerWriting, MakeWeak(this))
-            .Via(CompressionInvoker_))
+    , WritePendingBlockCallback_(BIND(
+        &TEncodingWriter::WritePendingBlock, 
+        MakeWeak(this)))
 {
     Logger = ChunkClientLogger;
     Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
+
+    PendingBlocks_.Dequeue().Subscribe(WritePendingBlockCallback_);
 }
 
 void TEncodingWriter::WriteBlock(TSharedRef block)
@@ -143,7 +144,7 @@ void TEncodingWriter::VerifyBlock(
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
 void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeToRelease)
 {
-    SetCompressionRatio(double(CompressedSize_.load()) / UncompressedSize_.load());
+    CompressionRatio_ = double(CompressedSize_) / UncompressedSize_;
 
     if (sizeToRelease > 0) {
         Semaphore_.Release(sizeToRelease);
@@ -151,112 +152,76 @@ void TEncodingWriter::ProcessCompressedBlock(const TSharedRef& block, i64 sizeTo
         Semaphore_.Acquire(-sizeToRelease);
     }
 
-    PendingBlocks_.push_back(block);
+    PendingBlocks_.Enqueue(block);
     LOG_DEBUG("Pending block added (Block: %v)", AddedBlockIndex_);
 
     ++AddedBlockIndex_;
-
-    if (PendingBlocks_.size() == 1) {
-        TriggerWritingCallback_.Run();
-    }
-}
-
-void TEncodingWriter::OnReadyEvent(const TError& error)
-{
-    if (!error.IsOK()) {
-        State_.Fail(error);
-        return;
-    }
-
-    YCHECK(IsWaiting_);
-    IsWaiting_ = false;
-
-    if (CloseRequested_) {
-        State_.FinishOperation();
-        return;
-    }
-
-    WritePendingBlocks();
-}
-
-void TEncodingWriter::TriggerWriting()
-{
-    if (IsWaiting_) {
-        return;
-    }
-
-    WritePendingBlocks();
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::WritePendingBlocks()
+void TEncodingWriter::WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError)
 {
-    while (!PendingBlocks_.empty()) {
-        LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
+    if (!blockOrError.IsOK()) {
+        // Sentinel element.
+        CompletionError_.Set(TError());
+        return;
+    }
 
-        auto& front = PendingBlocks_.front();
-        auto result = ChunkWriter_->WriteBlock(front);
-        Semaphore_.Release(front.Size());
-        PendingBlocks_.pop_front();
-        ++WrittenBlockIndex_;
+    LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
 
-        if (!result) {
-            IsWaiting_ = true;
-            ChunkWriter_->GetReadyEvent().Subscribe(OnReadyEventCallback_);
-            break;
+    auto& block = blockOrError.Value();
+    auto isReady = ChunkWriter_->WriteBlock(block);
+    ++WrittenBlockIndex_;
+
+    TFinallyGuard finally([&](){
+        Semaphore_.Release(block.Size());
+    });
+
+    if (!isReady) {
+        auto error = WaitFor(ChunkWriter_->GetReadyEvent());
+        if (!error.IsOK()) {
+            CompletionError_.Set(error);
+            return;
         }
     }
+
+    PendingBlocks_.Dequeue().Subscribe(WritePendingBlockCallback_);
 }
 
 bool TEncodingWriter::IsReady() const
 {
-    return Semaphore_.IsReady() && State_.IsActive();
+    return Semaphore_.IsReady() && !CompletionError_.IsSet();
 }
 
 TFuture<void> TEncodingWriter::GetReadyEvent()
 {
-    if (!Semaphore_.IsReady()) {
-        State_.StartOperation();
+    auto promise = NewPromise<void>();
+    promise.TrySetFrom(CompletionError_.ToFuture());
+    promise.TrySetFrom(Semaphore_.GetReadyEvent());
 
-        Semaphore_.GetReadyEvent().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            State_.FinishOperation(error);
-        }));
-    }
-
-    return State_.GetOperationError();
+    return promise.ToFuture();
 }
 
 TFuture<void> TEncodingWriter::Flush()
 {
-    State_.StartOperation();
-
-    Semaphore_.GetFreeEvent().Subscribe(
-        BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            if (IsWaiting_) {
-                // We dumped all data to ReplicationWriter, and subscribed on ReadyEvent.
-                CloseRequested_ = true;
-            } else {
-                State_.FinishOperation(error);
-            }
-        }).Via(CompressionInvoker_));
-
-    return State_.GetOperationError();
+    // This must be the last enqueued element.
+    BIND([this, this_ = MakeStrong(this)] () {
+        PendingBlocks_.Enqueue(TError("Sentinel value"));
+    })
+    .Via(CompressionInvoker_)
+    .Run();
+    return CompletionError_.ToFuture();
 }
 
 i64 TEncodingWriter::GetUncompressedSize() const
 {
-    return UncompressedSize_.load();
+    return UncompressedSize_;
 }
 
 i64 TEncodingWriter::GetCompressedSize() const
 {
     // NB: #CompressedSize_ may have not been updated yet (updated in compression invoker).
     return static_cast<i64>(GetUncompressedSize() * GetCompressionRatio());
-}
-
-void TEncodingWriter::SetCompressionRatio(double value)
-{
-    CompressionRatio_ = value;
 }
 
 double TEncodingWriter::GetCompressionRatio() const
