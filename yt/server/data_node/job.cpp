@@ -270,6 +270,7 @@ private:
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
         ToProto(Result_.mutable_error(), error);
+        Result_.mutable_statistics();
         auto deltaResources = ZeroNodeResources() - ResourceLimits_;
         ResourceLimits_ = ZeroNodeResources();
         JobFuture_.Reset();

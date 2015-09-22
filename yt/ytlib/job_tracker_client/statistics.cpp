@@ -205,7 +205,12 @@ TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics)
     auto getValue = [] (const TSummary& summary) {
         return summary.GetSum();
     };
-    return GetValues<TDataStatistics>(statistics, "/data/input", getValue);
+
+    try {
+        return GetValues<TDataStatistics>(statistics, "/data/input", getValue);
+    } catch (const std::exception&) {
+        return ZeroDataStatistics();
+    }
 }
 
 TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics)
@@ -214,13 +219,17 @@ TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics)
         return summary.GetSum();
     };
 
-    auto outputStatistics =  GetValues  <yhash_map<int, TDataStatistics>>(statistics, "/data/output", getValue);
+    try {
+        auto outputStatistics =  GetValues<yhash_map<int, TDataStatistics>>(statistics, "/data/output", getValue);
 
-    TDataStatistics result = ZeroDataStatistics();
-    for (const auto& pair : outputStatistics) {
-        result += pair.second;
+        TDataStatistics result = ZeroDataStatistics();
+        for (const auto& pair : outputStatistics) {
+            result += pair.second;
+        }
+        return result;
+    } catch (const std::exception&) {
+        return ZeroDataStatistics();
     }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

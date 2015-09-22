@@ -296,8 +296,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         create('table', '//tmp/in1')
         create('table', '//tmp/in2')
         create('table', '//tmp/out')
-        write('//tmp/in1', [{'key': '1', 'subkey': '2'}, {'key': '2'}], sorted_by=['key', 'subkey'])
-        write('//tmp/in2', [{'key': '1', 'subkey': '2'}, {'key': '2'}], sorted_by=['key', 'subkey'])
+        write_table('//tmp/in1', [{'key': '1', 'subkey': '2'}, {'key': '2'}], sorted_by=['key', 'subkey'])
+        write_table('//tmp/in2', [{'key': '1', 'subkey': '2'}, {'key': '2'}], sorted_by=['key', 'subkey'])
 
         reduce(
             in_ = ['//tmp/in1["1":"2"]', '//tmp/in2'],
@@ -307,7 +307,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             spec={"reducer": {"format": yson.loads("<line_prefix=tskv>dsv")},
               "data_size_per_job": 1})
 
-        assert read('//tmp/out') == \
+        assert read_table('//tmp/out') == \
             [
                 {'key': "1", 'subkey': "2"},
                 {'key': "1", 'subkey': "2"},

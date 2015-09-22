@@ -846,6 +846,8 @@ private:
     NJobTrackerClient::TStatistics JobStatistics;
 
 
+    void UpdateJobStatistics(const TJobSummary& jobSummary);
+
     NApi::IClientPtr CreateClient();
 
     static const NProto::TUserJobResult* FindUserJobResult(const TRefCountedJobResultPtr& result);

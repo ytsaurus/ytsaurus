@@ -555,7 +555,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 out="<sorted_by=[key]>//tmp/t2",
                 command=command,
                 spec={"job_count": 2})
-            print read("//tmp/t2")
+            print read_table("//tmp/t2")
 
     def test_sorted_output_job_failure(self):
         create("table", "//tmp/t1")
@@ -1024,7 +1024,7 @@ print row + table_index
     def test_banned_node(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
-        write("//tmp/in", [{"key": "value"}])
+        write_table("//tmp/in", [{"key": "value"}])
 
         try:
             op_id = map(dont_track=True, in_="//tmp/in", out="//tmp/out", command="cat; sleep 3")
@@ -1034,7 +1034,7 @@ print row + table_index
             self._set_banned("false")
             track_op(op_id)
             assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) > 0
-            assert [{"key": "value"}] == read("//tmp/in")
+            assert [{"key": "value"}] == read_table("//tmp/in")
         finally:
             self._set_banned("false")
 
@@ -1109,18 +1109,24 @@ class TestJobQuery(YTEnvSetup):
             {"a": 7, "c": 8}]
         write_table("//tmp/t1", rows)
 
+        schema = [{"name": "z", "type": "int64"},
+            {"name": "a", "type": "int64"},
+            {"name": "y", "type": "int64"},
+            {"name": "b", "type": "int64"},
+            {"name": "x", "type": "int64"},
+            {"name": "c", "type": "int64"},
+            {"name": "u", "type": "int64"}]
+
+        for row in rows:
+            for column in schema:
+                if column["name"] not in row.keys():
+                    row[column["name"]] = None
+
         yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={
                 "input_query": "* where a > 0 or b > 0",
-                "input_schema": [
-                    {"name": "z", "type": "int64"},
-                    {"name": "a", "type": "int64"},
-                    {"name": "y", "type": "int64"},
-                    {"name": "b", "type": "int64"},
-                    {"name": "x", "type": "int64"},
-                    {"name": "c", "type": "int64"},
-                    {"name": "u", "type": "int64"}]})
+                "input_schema": schema})
 
         self.assertItemsEqual(read_table("//tmp/t2"), rows)
 

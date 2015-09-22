@@ -758,7 +758,9 @@ public:
             validateControlAttributes(ReduceJobIO->ControlAttributes, "reduce");
             validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
 
-            NTableClient::ValidateKeyColumns(ReduceBy);
+            if (!ReduceBy.empty()) {
+                NTableClient::ValidateKeyColumns(ReduceBy);
+            }
         });
     }
 

@@ -11,6 +11,7 @@ namespace NScheduler {
 using namespace NNodeTrackerClient::NProto;
 using namespace NYTree;
 using namespace NJobTrackerClient;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -63,7 +64,7 @@ void TJob::SetResult(NJobTrackerClient::NProto::TJobResult&& result)
 TStatistics TJob::GetStatisticsWithSuffix() const
 {
     Stroka suffix;
-    if (GetRestarted()) {
+    if (GetRestarted() && GetState() == EJobState::Completed) {
         suffix = Format("/$/lost/%lv", GetType());
     } else {
         suffix = Format("/$/%lv/%lv", GetState(), GetType());
@@ -77,14 +78,18 @@ TStatistics TJob::GetStatisticsWithSuffix() const
 
 TJobSummary::TJobSummary(TJobPtr job)
     : Result(job->Result())
-    , Statistics(job->GetStatisticsWithSuffix())
     , Id(job->GetId())
+    , InputDataStatistics(GetTotalInputDataStatistics(job->Statistics()))
+    , OutputDataStatistics(GetTotalOutputDataStatistics(job->Statistics()))
+    , Statistics(job->GetStatisticsWithSuffix())
 { }
 
 TJobSummary::TJobSummary(const TJobId& id)
     : Result()
-    , Statistics()
     , Id(id)
+    , InputDataStatistics(ZeroDataStatistics())
+    , OutputDataStatistics(ZeroDataStatistics())
+    , Statistics()
 { }
 
 ////////////////////////////////////////////////////////////////////

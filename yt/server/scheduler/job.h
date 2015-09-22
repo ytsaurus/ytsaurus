@@ -7,6 +7,8 @@
 
 #include <core/actions/callback.h>
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <ytlib/job_tracker_client/job.pb.h>
 #include <ytlib/job_tracker_client/statistics.h>
 
@@ -98,8 +100,10 @@ struct TJobSummary
     explicit TJobSummary(const TJobId& id);
 
     const TRefCountedJobResultPtr Result;
-    const NJobTrackerClient::TStatistics Statistics;
     const TJobId Id;
+    const NChunkClient::NProto::TDataStatistics InputDataStatistics;
+    const NChunkClient::NProto::TDataStatistics OutputDataStatistics;
+    const NJobTrackerClient::TStatistics Statistics;
 };
 
 using TCompletedJobSummary = TJobSummary;

@@ -229,7 +229,7 @@ private:
 
                 TFuture<TSharedRefArray> asyncResponseMessage;
                 try {
-                    auto asyncResponseMessage = ExecuteVerb(
+                    asyncResponseMessage = ExecuteVerb(
                         rootService,
                         std::move(updatedRequestMessage),
                         ObjectServerLogger,

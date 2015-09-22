@@ -1619,11 +1619,7 @@ protected:
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
     {
-        {
-            auto totalOutput = GetTotalOutputDataStatistics(jobSummary.Statistics);
-            TotalOutputRowCount += totalOutput.row_count();
-        }
-
+        TotalOutputRowCount += jobSummary.OutputDataStatistics.row_count();
         TOperationControllerBase::RegisterOutput(std::move(joblet), key, jobSummary);
     }
 

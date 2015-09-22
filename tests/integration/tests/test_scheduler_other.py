@@ -9,6 +9,27 @@ import __builtin__
 
 ##################################################################
 
+def set_banned_flag(value, nodes=None):
+    if value:
+        flag = True
+        state = "offline"
+    else:
+        flag = False
+        state = "online"
+
+    if not nodes:
+        nodes = get("//sys/nodes").keys()
+
+    for address in nodes:
+        set("//sys/nodes/{0}/@banned".format(address), flag)
+
+    # Give it enough time to register or unregister the node
+    time.sleep(1.0) 
+
+    for address in nodes:
+        assert get("//sys/nodes/{0}/@state".format(address)) == state
+        print >>sys.stderr, "Node {0} is {1}".format(address, state)
+
 class TestSchedulerOther(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 1
@@ -20,31 +41,13 @@ class TestSchedulerOther(YTEnvSetup):
         }
     }
 
-    def _set_banned_flag(self, value):
-        if value:
-            flag = True
-            state = "offline"
-        else:
-            flag = False
-            state = "online"
-
-        nodes = get("//sys/nodes")
-        assert len(nodes) == 1
-        address = nodes.keys()[0]
-        set("//sys/nodes/%s/@banned" % address, flag)
-
-        # Give it enough time to register or unregister the node
-        time.sleep(1.0)
-        assert get("//sys/nodes/%s/@state" % address) == state
-        print >>sys.stderr, "Node is %s" % state
-
     def _create_table(self, table):
         create("table", table)
         set(table + "/@replication_factor", 1)
 
     def _prepare_tables(self):
         self._create_table("//tmp/t_in")
-        write("//tmp/t_in", {"foo": "bar"})
+        write_table("//tmp/t_in", {"foo": "bar"})
 
         self._create_table("//tmp/t_out")
 
@@ -134,7 +137,7 @@ class TestSchedulerOther(YTEnvSetup):
         self._create_table("//tmp/out1")
         self._create_table("//tmp/out2")
         self._create_table("//tmp/out3")
-        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
@@ -162,7 +165,7 @@ class TestSchedulerOther(YTEnvSetup):
         for i in xrange(1, 4):
             self._create_table("//tmp/in" + str(i))
             self._create_table("//tmp/out" + str(i))
-            write("//tmp/in" + str(i), [{"foo": j} for j in xrange(2 * (4 - i))])
+            write_table("//tmp/in" + str(i), [{"foo": j} for j in xrange(2 * (4 - i))])
 
         create("map_node", "//sys/pools/fifo_pool", ignore_existing=True)
         set("//sys/pools/fifo_pool/@mode", "fifo")
@@ -203,34 +206,17 @@ class TestStrategies(YTEnvSetup):
 
     def _get_table_chunk_node(self, table):
         chunk_ids = get(table + "/@chunk_ids")
-        assert len(chunk_ids) == 1
-
         chunk_id = chunk_ids[0]
         replicas = get("#{0}/@stored_replicas".format(chunk_id))
         assert len(replicas) == 1
 
         return replicas[0]
 
-    def _set_banned_flag(self, node, value):
-        if value:
-            flag = True
-            state = "offline"
-        else:
-            flag = False
-            state = "online"
-
-        set("//sys/nodes/%s/@banned" % node, flag)
-
-        # Give it enough time to register or unregister the node
-        time.sleep(1.0)
-        assert get("//sys/nodes/%s/@state" % node) == state
-        print >>sys.stderr,  "Node is %s" % state
-
     def test_strategies(self):
         self._prepare_tables()
 
         node = self._get_table_chunk_node("//tmp/t_in")
-        self._set_banned_flag(node, True)
+        set_banned_flag(True, [ node ])
 
         print >>sys.stderr,  "Fail strategy"
         with pytest.raises(YtError):
@@ -244,7 +230,7 @@ class TestStrategies(YTEnvSetup):
         print >>sys.stderr,  "Wait strategy"
         op_id = map(dont_track=True, in_="//tmp/t_in", out="//tmp/t_out", command="cat",  spec={"unavailable_chunk_strategy": "wait"})
 
-        self._set_banned_flag(node, False)
+        set_banned_flag(False, [ node ])
         track_op(op_id)
 
         assert read_table("//tmp/t_out") == [ {"foo" : "bar"} ]
@@ -263,7 +249,7 @@ class TestStrategies(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
-        self._set_banned_flag(True)
+        set_banned_flag(True)
 
         print >>sys.stderr, "Fail strategy"
         with pytest.raises(YtError):
@@ -279,7 +265,7 @@ class TestStrategies(YTEnvSetup):
 
         # Give a chance to scraper to work
         time.sleep(1.0)
-        self._set_banned_flag(False)
+        set_banned_flag(False)
         track_op(op_id)
 
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
@@ -300,7 +286,7 @@ class TestStrategies(YTEnvSetup):
         create("table", "//tmp/t_out")
         set("//tmp/t_out/@replication_factor", 1)
 
-        self._set_banned_flag(True)
+        set_banned_flag(True)
 
         print >>sys.stderr, "Fail strategy"
         with pytest.raises(YtError):
@@ -316,7 +302,7 @@ class TestStrategies(YTEnvSetup):
 
         # Give a chance for scraper to work
         time.sleep(1.0)
-        self._set_banned_flag(False)
+        set_banned_flag(False)
         track_op(op_id)
 
         assert read_table("//tmp/t_out") == [{"a": i} for i in range(8)]

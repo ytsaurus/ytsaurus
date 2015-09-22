@@ -39,8 +39,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
         v2 = {"key" : a, "subkey" : a}
 
         create("table", "//tmp/t_in")
-        write("//tmp/t_in", v1)
-        write("<append=true>//tmp/t_in", v2)
+        write_table("//tmp/t_in", v1)
+        write_table("<append=true>//tmp/t_in", v2)
 
         create("table", "//tmp/t_out")
 
@@ -48,7 +48,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="//tmp/t_out",
              sort_by=["key", "subkey"])
 
-        assert read("//tmp/t_out") == [v2, v1]
+        assert read_table("//tmp/t_out") == [v2, v1]
         assert get("//tmp/t_out/@sorted") ==  True
         assert get("//tmp/t_out/@sorted_by") ==  ["key", "subkey"]
 
