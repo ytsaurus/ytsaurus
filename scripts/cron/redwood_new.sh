@@ -76,7 +76,7 @@ fi
     --source-cluster redwood \
     --destination-cluster aristotle \
     --copy-pool redwood_restricted \
-    --postprocess-pool importer \
+    --postprocess-pool cron \
     --transfer-manager-url "transfer-manager.yt.yandex.net/api/v1"
 
 #IMPORT_COMMAND='
