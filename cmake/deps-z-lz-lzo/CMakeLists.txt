@@ -55,6 +55,27 @@ add_library( ytext-zstd STATIC
   ${BASE}/zstd/lib/zstd.c
 )
 
+add_library( ytext-brotli STATIC
+  ${BASE}/brotli/enc/backward_references.cc
+  ${BASE}/brotli/enc/block_splitter.cc
+  ${BASE}/brotli/enc/brotli_bit_stream.cc
+  ${BASE}/brotli/enc/encode.cc
+  ${BASE}/brotli/enc/encode_parallel.cc
+  ${BASE}/brotli/enc/entropy_encode.cc
+  ${BASE}/brotli/enc/histogram.cc
+  ${BASE}/brotli/enc/literal_cost.cc
+  ${BASE}/brotli/enc/metablock.cc
+  ${BASE}/brotli/enc/static_dict.cc
+  ${BASE}/brotli/enc/streams.cc
+  ${BASE}/brotli/enc/utf8_util.cc
+  ${BASE}/brotli/dec/bit_reader.c
+  ${BASE}/brotli/dec/decode.c
+  ${BASE}/brotli/dec/dictionary.c
+  ${BASE}/brotli/dec/huffman.c
+  ${BASE}/brotli/dec/state.c
+  ${BASE}/brotli/dec/streams.c
+)
+
 set_target_properties( ytext-zlib PROPERTIES
   COMPILE_DEFINITIONS BUILD_ZLIB
 )

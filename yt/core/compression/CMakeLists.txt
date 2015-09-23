@@ -8,6 +8,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/snappy.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zlib.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zstd.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/brotli.cpp
 )
 
 set( HDRS
@@ -19,6 +20,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/snappy.h
   ${CMAKE_CURRENT_LIST_DIR}/zlib.h
   ${CMAKE_CURRENT_LIST_DIR}/zstd.h
+  ${CMAKE_CURRENT_LIST_DIR}/brotli.h
 )
 
 list(APPEND YT_SOURCE_FILES

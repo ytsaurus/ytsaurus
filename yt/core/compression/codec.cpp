@@ -5,6 +5,7 @@
 #include "zlib.h"
 #include "lz.h"
 #include "zstd.h"
+#include "brotli.h"
 
 #include <core/tracing/trace_context.h>
 
@@ -326,6 +327,56 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBrotliCodec
+    : public TCodecBase
+{
+public:
+    TBrotliCodec(int level)
+        : Compressor_(std::bind(NCompression::BrotliCompress, level, std::placeholders::_1, std::placeholders::_2))
+        , Level_(level)
+    { }
+
+    virtual TSharedRef Compress(const TSharedRef& block) override
+    {
+        return Run<TBrotliCodec>(Compressor_, true, block);
+    }
+
+    virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TBrotliCodec>(Compressor_, true, blocks);
+    }
+
+    virtual TSharedRef Decompress(const TSharedRef& block) override
+    {
+        return Run<TBrotliCodec>(NCompression::BrotliDecompress, false, block);
+    }
+
+    virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
+    {
+        return Run<TBrotliCodec>(NCompression::BrotliDecompress, false, blocks);
+    }
+
+    virtual ECodec GetId() const override
+    {
+        switch (Level_) {
+            case 3:
+                return ECodec::Brotli3;
+            case 5:
+                return ECodec::Brotli5;
+            case 8:
+                return ECodec::Brotli8;
+            default:
+                YUNREACHABLE();
+        }
+    }
+
+private:
+    const NCompression::TConverter Compressor_;
+    const int Level_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ICodec* GetCodec(ECodec id)
 {
     switch (id) {
@@ -366,6 +417,21 @@ ICodec* GetCodec(ECodec id)
 
         case ECodec::Zstd: {
             static TZstdCodec result;
+            return &result;
+        }
+
+        case ECodec::Brotli3: {
+            static TBrotliCodec result(3);
+            return &result;
+        }
+
+        case ECodec::Brotli5: {
+            static TBrotliCodec result(5);
+            return &result;
+        }
+
+        case ECodec::Brotli8: {
+            static TBrotliCodec result(8);
             return &result;
         }
 
