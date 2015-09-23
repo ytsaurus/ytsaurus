@@ -561,7 +561,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=No
 
     def process_response(response):
         if response.response_parameters is None:
-            raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response)
+            raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
 
     class RetriableState(object):
