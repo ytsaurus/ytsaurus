@@ -135,6 +135,8 @@ typedef TParser::token_type TToken;
         '<=' => { type = TToken::OpLessOrEqual; fbreak; };
         '>=' => { type = TToken::OpGreaterOrEqual; fbreak; };
         '!=' => { type = TToken::OpNotEqual; fbreak; };
+        '<<' => { type = TToken::OpLeftShift; fbreak; };
+        '>>' => { type = TToken::OpRightShift; fbreak; };
 
         # Single-character tokens.
         [()*,<=>+-/%.] => {

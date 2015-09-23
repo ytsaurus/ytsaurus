@@ -252,19 +252,25 @@ tr48:
         }}
 	goto st12;
 tr49:
-	{te = p+1;{ type = TToken::OpLessOrEqual; {p++; cs = 12; goto _out;} }}
+	{te = p+1;{ type = TToken::OpLeftShift; {p++; cs = 12; goto _out;} }}
 	goto st12;
 tr50:
-	{te = p+1;{ type = TToken::OpGreaterOrEqual; {p++; cs = 12; goto _out;} }}
+	{te = p+1;{ type = TToken::OpLessOrEqual; {p++; cs = 12; goto _out;} }}
 	goto st12;
 tr51:
+	{te = p+1;{ type = TToken::OpGreaterOrEqual; {p++; cs = 12; goto _out;} }}
+	goto st12;
+tr52:
+	{te = p+1;{ type = TToken::OpRightShift; {p++; cs = 12; goto _out;} }}
+	goto st12;
+tr53:
 	{te = p;p--;{
             type = TToken::Identifier;
             value->build(TStringBuf(ts, te));
             {p++; cs = 12; goto _out;}
         }}
 	goto st12;
-tr54:
+tr56:
 	{	switch( act ) {
 	case 4:
 	{{p = ((te))-1;} type = TToken::KwFrom; {p++; cs = 12; goto _out;} }
@@ -321,10 +327,10 @@ tr54:
 	}
 	}
 	goto st12;
-tr56:
+tr58:
 	{te = p;p--;{ type = TToken::KwAs; {p++; cs = 12; goto _out;} }}
 	goto st12;
-tr95:
+tr97:
 	{te = p;p--;{ type = TToken::KwOr; {p++; cs = 12; goto _out;} }}
 	goto st12;
 st12:
@@ -499,15 +505,19 @@ st18:
 	if ( ++p == pe )
 		goto _test_eof18;
 case 18:
-	if ( (*p) == 61 )
-		goto tr49;
+	switch( (*p) ) {
+		case 60: goto tr49;
+		case 61: goto tr50;
+	}
 	goto tr43;
 st19:
 	if ( ++p == pe )
 		goto _test_eof19;
 case 19:
-	if ( (*p) == 61 )
-		goto tr50;
+	switch( (*p) ) {
+		case 61: goto tr51;
+		case 62: goto tr52;
+	}
 	goto tr43;
 st20:
 	if ( ++p == pe )
@@ -528,68 +538,68 @@ case 20:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 tr27:
 	{te = p+1;}
 	{act = 23;}
 	goto st21;
-tr55:
+tr57:
 	{te = p+1;}
 	{act = 16;}
 	goto st21;
-tr57:
+tr59:
 	{te = p+1;}
 	{act = 12;}
 	goto st21;
-tr63:
+tr65:
 	{te = p+1;}
 	{act = 19;}
 	goto st21;
-tr66:
+tr68:
 	{te = p+1;}
 	{act = 13;}
 	goto st21;
-tr71:
+tr73:
 	{te = p+1;}
 	{act = 21;}
 	goto st21;
-tr73:
+tr75:
 	{te = p+1;}
 	{act = 4;}
 	goto st21;
-tr82:
+tr84:
 	{te = p+1;}
 	{act = 6;}
 	goto st21;
-tr83:
+tr85:
 	{te = p+1;}
 	{act = 20;}
 	goto st21;
-tr86:
+tr88:
 	{te = p+1;}
 	{act = 8;}
 	goto st21;
-tr90:
+tr92:
 	{te = p+1;}
 	{act = 7;}
 	goto st21;
-tr92:
+tr94:
 	{te = p+1;}
 	{act = 18;}
 	goto st21;
-tr93:
+tr95:
 	{te = p+1;}
 	{act = 15;}
 	goto st21;
-tr101:
+tr103:
 	{te = p+1;}
 	{act = 22;}
 	goto st21;
-tr105:
+tr107:
 	{te = p+1;}
 	{act = 9;}
 	goto st21;
-tr109:
+tr111:
 	{te = p+1;}
 	{act = 5;}
 	goto st21;
@@ -607,15 +617,15 @@ case 21:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr54;
+	goto tr56;
 st22:
 	if ( ++p == pe )
 		goto _test_eof22;
 case 22:
 	switch( (*p) ) {
-		case 68: goto tr55;
+		case 68: goto tr57;
 		case 95: goto tr27;
-		case 100: goto tr55;
+		case 100: goto tr57;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -625,15 +635,15 @@ case 22:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st23:
 	if ( ++p == pe )
 		goto _test_eof23;
 case 23:
 	switch( (*p) ) {
-		case 67: goto tr57;
+		case 67: goto tr59;
 		case 95: goto tr27;
-		case 99: goto tr57;
+		case 99: goto tr59;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -643,7 +653,7 @@ case 23:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr56;
+	goto tr58;
 st24:
 	if ( ++p == pe )
 		goto _test_eof24;
@@ -661,7 +671,7 @@ case 24:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st25:
 	if ( ++p == pe )
 		goto _test_eof25;
@@ -679,7 +689,7 @@ case 25:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st26:
 	if ( ++p == pe )
 		goto _test_eof26;
@@ -697,7 +707,7 @@ case 26:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st27:
 	if ( ++p == pe )
 		goto _test_eof27;
@@ -715,7 +725,7 @@ case 27:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st28:
 	if ( ++p == pe )
 		goto _test_eof28;
@@ -733,15 +743,15 @@ case 28:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st29:
 	if ( ++p == pe )
 		goto _test_eof29;
 case 29:
 	switch( (*p) ) {
-		case 78: goto tr63;
+		case 78: goto tr65;
 		case 95: goto tr27;
-		case 110: goto tr63;
+		case 110: goto tr65;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -751,7 +761,7 @@ case 29:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st30:
 	if ( ++p == pe )
 		goto _test_eof30;
@@ -769,7 +779,7 @@ case 30:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st31:
 	if ( ++p == pe )
 		goto _test_eof31;
@@ -787,15 +797,15 @@ case 31:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st32:
 	if ( ++p == pe )
 		goto _test_eof32;
 case 32:
 	switch( (*p) ) {
-		case 67: goto tr66;
+		case 67: goto tr68;
 		case 95: goto tr27;
-		case 99: goto tr66;
+		case 99: goto tr68;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -805,7 +815,7 @@ case 32:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st33:
 	if ( ++p == pe )
 		goto _test_eof33;
@@ -825,7 +835,7 @@ case 33:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st34:
 	if ( ++p == pe )
 		goto _test_eof34;
@@ -843,7 +853,7 @@ case 34:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st35:
 	if ( ++p == pe )
 		goto _test_eof35;
@@ -861,15 +871,15 @@ case 35:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st36:
 	if ( ++p == pe )
 		goto _test_eof36;
 case 36:
 	switch( (*p) ) {
-		case 69: goto tr71;
+		case 69: goto tr73;
 		case 95: goto tr27;
-		case 101: goto tr71;
+		case 101: goto tr73;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -879,7 +889,7 @@ case 36:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st37:
 	if ( ++p == pe )
 		goto _test_eof37;
@@ -897,15 +907,15 @@ case 37:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st38:
 	if ( ++p == pe )
 		goto _test_eof38;
 case 38:
 	switch( (*p) ) {
-		case 77: goto tr73;
+		case 77: goto tr75;
 		case 95: goto tr27;
-		case 109: goto tr73;
+		case 109: goto tr75;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -915,7 +925,7 @@ case 38:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st39:
 	if ( ++p == pe )
 		goto _test_eof39;
@@ -933,7 +943,7 @@ case 39:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st40:
 	if ( ++p == pe )
 		goto _test_eof40;
@@ -951,7 +961,7 @@ case 40:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st41:
 	if ( ++p == pe )
 		goto _test_eof41;
@@ -969,15 +979,15 @@ case 41:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st42:
 	if ( ++p == pe )
 		goto _test_eof42;
 case 42:
 	switch( (*p) ) {
-		case 80: goto tr77;
+		case 80: goto tr79;
 		case 95: goto tr27;
-		case 112: goto tr77;
+		case 112: goto tr79;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -987,8 +997,8 @@ case 42:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
-tr77:
+	goto tr53;
+tr79:
 	{te = p+1;}
 	goto st43;
 st43:
@@ -1010,7 +1020,7 @@ case 43:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st8:
 	if ( ++p == pe )
 		goto _test_eof8;
@@ -1049,7 +1059,7 @@ case 44:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st45:
 	if ( ++p == pe )
 		goto _test_eof45;
@@ -1067,7 +1077,7 @@ case 45:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st46:
 	if ( ++p == pe )
 		goto _test_eof46;
@@ -1085,7 +1095,7 @@ case 46:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st47:
 	if ( ++p == pe )
 		goto _test_eof47;
@@ -1103,15 +1113,15 @@ case 47:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st48:
 	if ( ++p == pe )
 		goto _test_eof48;
 case 48:
 	switch( (*p) ) {
-		case 71: goto tr82;
+		case 71: goto tr84;
 		case 95: goto tr27;
-		case 103: goto tr82;
+		case 103: goto tr84;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1121,15 +1131,15 @@ case 48:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st49:
 	if ( ++p == pe )
 		goto _test_eof49;
 case 49:
 	switch( (*p) ) {
-		case 78: goto tr83;
+		case 78: goto tr85;
 		case 95: goto tr27;
-		case 110: goto tr83;
+		case 110: goto tr85;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1139,7 +1149,7 @@ case 49:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st50:
 	if ( ++p == pe )
 		goto _test_eof50;
@@ -1157,7 +1167,7 @@ case 50:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st51:
 	if ( ++p == pe )
 		goto _test_eof51;
@@ -1175,15 +1185,15 @@ case 51:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st52:
 	if ( ++p == pe )
 		goto _test_eof52;
 case 52:
 	switch( (*p) ) {
-		case 78: goto tr86;
+		case 78: goto tr88;
 		case 95: goto tr27;
-		case 110: goto tr86;
+		case 110: goto tr88;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1193,7 +1203,7 @@ case 52:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st53:
 	if ( ++p == pe )
 		goto _test_eof53;
@@ -1211,7 +1221,7 @@ case 53:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st54:
 	if ( ++p == pe )
 		goto _test_eof54;
@@ -1229,7 +1239,7 @@ case 54:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st55:
 	if ( ++p == pe )
 		goto _test_eof55;
@@ -1247,15 +1257,15 @@ case 55:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st56:
 	if ( ++p == pe )
 		goto _test_eof56;
 case 56:
 	switch( (*p) ) {
-		case 84: goto tr90;
+		case 84: goto tr92;
 		case 95: goto tr27;
-		case 116: goto tr90;
+		case 116: goto tr92;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1265,7 +1275,7 @@ case 56:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st57:
 	if ( ++p == pe )
 		goto _test_eof57;
@@ -1283,15 +1293,15 @@ case 57:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st58:
 	if ( ++p == pe )
 		goto _test_eof58;
 case 58:
 	switch( (*p) ) {
-		case 84: goto tr92;
+		case 84: goto tr94;
 		case 95: goto tr27;
-		case 116: goto tr92;
+		case 116: goto tr94;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1301,16 +1311,16 @@ case 58:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st59:
 	if ( ++p == pe )
 		goto _test_eof59;
 case 59:
 	switch( (*p) ) {
-		case 78: goto tr93;
+		case 78: goto tr95;
 		case 82: goto st60;
 		case 95: goto tr27;
-		case 110: goto tr93;
+		case 110: goto tr95;
 		case 114: goto st60;
 	}
 	if ( (*p) < 65 ) {
@@ -1321,7 +1331,7 @@ case 59:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st60:
 	if ( ++p == pe )
 		goto _test_eof60;
@@ -1339,7 +1349,7 @@ case 60:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr95;
+	goto tr97;
 st61:
 	if ( ++p == pe )
 		goto _test_eof61;
@@ -1357,15 +1367,15 @@ case 61:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st62:
 	if ( ++p == pe )
 		goto _test_eof62;
 case 62:
 	switch( (*p) ) {
-		case 82: goto tr98;
+		case 82: goto tr100;
 		case 95: goto tr27;
-		case 114: goto tr98;
+		case 114: goto tr100;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1375,8 +1385,8 @@ case 62:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
-tr98:
+	goto tr53;
+tr100:
 	{te = p+1;}
 	goto st63;
 st63:
@@ -1398,7 +1408,7 @@ case 63:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st10:
 	if ( ++p == pe )
 		goto _test_eof10;
@@ -1437,7 +1447,7 @@ case 64:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st65:
 	if ( ++p == pe )
 		goto _test_eof65;
@@ -1455,15 +1465,15 @@ case 65:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st66:
 	if ( ++p == pe )
 		goto _test_eof66;
 case 66:
 	switch( (*p) ) {
-		case 69: goto tr101;
+		case 69: goto tr103;
 		case 95: goto tr27;
-		case 101: goto tr101;
+		case 101: goto tr103;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1473,7 +1483,7 @@ case 66:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st67:
 	if ( ++p == pe )
 		goto _test_eof67;
@@ -1491,7 +1501,7 @@ case 67:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st68:
 	if ( ++p == pe )
 		goto _test_eof68;
@@ -1509,7 +1519,7 @@ case 68:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st69:
 	if ( ++p == pe )
 		goto _test_eof69;
@@ -1527,15 +1537,15 @@ case 69:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st70:
 	if ( ++p == pe )
 		goto _test_eof70;
 case 70:
 	switch( (*p) ) {
-		case 71: goto tr105;
+		case 71: goto tr107;
 		case 95: goto tr27;
-		case 103: goto tr105;
+		case 103: goto tr107;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1545,7 +1555,7 @@ case 70:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st71:
 	if ( ++p == pe )
 		goto _test_eof71;
@@ -1563,7 +1573,7 @@ case 71:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st72:
 	if ( ++p == pe )
 		goto _test_eof72;
@@ -1581,7 +1591,7 @@ case 72:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st73:
 	if ( ++p == pe )
 		goto _test_eof73;
@@ -1599,15 +1609,15 @@ case 73:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
+	goto tr53;
 st74:
 	if ( ++p == pe )
 		goto _test_eof74;
 case 74:
 	switch( (*p) ) {
-		case 69: goto tr109;
+		case 69: goto tr111;
 		case 95: goto tr27;
-		case 101: goto tr109;
+		case 101: goto tr111;
 	}
 	if ( (*p) < 65 ) {
 		if ( 48 <= (*p) && (*p) <= 57 )
@@ -1617,18 +1627,18 @@ case 74:
 			goto tr27;
 	} else
 		goto tr27;
-	goto tr51;
-tr110:
+	goto tr53;
+tr112:
 	{te = p+1;}
 	goto st75;
-tr111:
+tr113:
 	{te = p+1;{
             if (++rd == 1) {
                 rs = p + 1;
             }
         }}
 	goto st75;
-tr112:
+tr114:
 	cs = 75;
 	{te = p+1;{
             if (--rd == 0) {
@@ -1648,10 +1658,10 @@ case 75:
 	{ts = p;}
 	switch( (*p) ) {
 		case 0: goto st0;
-		case 91: goto tr111;
-		case 93: goto tr112;
+		case 91: goto tr113;
+		case 93: goto tr114;
 	}
-	goto tr110;
+	goto tr112;
 	}
 	_test_eof12: cs = 12; goto _test_eof; 
 	_test_eof13: cs = 13; goto _test_eof; 
@@ -1742,65 +1752,65 @@ case 75:
 	case 17: goto tr47;
 	case 18: goto tr43;
 	case 19: goto tr43;
-	case 20: goto tr51;
-	case 21: goto tr54;
-	case 22: goto tr51;
-	case 23: goto tr56;
-	case 24: goto tr51;
-	case 25: goto tr51;
-	case 26: goto tr51;
-	case 27: goto tr51;
-	case 28: goto tr51;
-	case 29: goto tr51;
-	case 30: goto tr51;
-	case 31: goto tr51;
-	case 32: goto tr51;
-	case 33: goto tr51;
-	case 34: goto tr51;
-	case 35: goto tr51;
-	case 36: goto tr51;
-	case 37: goto tr51;
-	case 38: goto tr51;
-	case 39: goto tr51;
-	case 40: goto tr51;
-	case 41: goto tr51;
-	case 42: goto tr51;
-	case 43: goto tr51;
+	case 20: goto tr53;
+	case 21: goto tr56;
+	case 22: goto tr53;
+	case 23: goto tr58;
+	case 24: goto tr53;
+	case 25: goto tr53;
+	case 26: goto tr53;
+	case 27: goto tr53;
+	case 28: goto tr53;
+	case 29: goto tr53;
+	case 30: goto tr53;
+	case 31: goto tr53;
+	case 32: goto tr53;
+	case 33: goto tr53;
+	case 34: goto tr53;
+	case 35: goto tr53;
+	case 36: goto tr53;
+	case 37: goto tr53;
+	case 38: goto tr53;
+	case 39: goto tr53;
+	case 40: goto tr53;
+	case 41: goto tr53;
+	case 42: goto tr53;
+	case 43: goto tr53;
 	case 8: goto tr10;
 	case 9: goto tr10;
-	case 44: goto tr51;
-	case 45: goto tr51;
-	case 46: goto tr51;
-	case 47: goto tr51;
-	case 48: goto tr51;
-	case 49: goto tr51;
-	case 50: goto tr51;
-	case 51: goto tr51;
-	case 52: goto tr51;
-	case 53: goto tr51;
-	case 54: goto tr51;
-	case 55: goto tr51;
-	case 56: goto tr51;
-	case 57: goto tr51;
-	case 58: goto tr51;
-	case 59: goto tr51;
-	case 60: goto tr95;
-	case 61: goto tr51;
-	case 62: goto tr51;
-	case 63: goto tr51;
+	case 44: goto tr53;
+	case 45: goto tr53;
+	case 46: goto tr53;
+	case 47: goto tr53;
+	case 48: goto tr53;
+	case 49: goto tr53;
+	case 50: goto tr53;
+	case 51: goto tr53;
+	case 52: goto tr53;
+	case 53: goto tr53;
+	case 54: goto tr53;
+	case 55: goto tr53;
+	case 56: goto tr53;
+	case 57: goto tr53;
+	case 58: goto tr53;
+	case 59: goto tr53;
+	case 60: goto tr97;
+	case 61: goto tr53;
+	case 62: goto tr53;
+	case 63: goto tr53;
 	case 10: goto tr10;
 	case 11: goto tr10;
-	case 64: goto tr51;
-	case 65: goto tr51;
-	case 66: goto tr51;
-	case 67: goto tr51;
-	case 68: goto tr51;
-	case 69: goto tr51;
-	case 70: goto tr51;
-	case 71: goto tr51;
-	case 72: goto tr51;
-	case 73: goto tr51;
-	case 74: goto tr51;
+	case 64: goto tr53;
+	case 65: goto tr53;
+	case 66: goto tr53;
+	case 67: goto tr53;
+	case 68: goto tr53;
+	case 69: goto tr53;
+	case 70: goto tr53;
+	case 71: goto tr53;
+	case 72: goto tr53;
+	case 73: goto tr53;
+	case 74: goto tr53;
 	}
 	}
 

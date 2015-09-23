@@ -107,6 +107,8 @@ EValueType InferBinaryExprType(
             return operandType;
 
         case EBinaryOp::Modulo:
+        case EBinaryOp::LeftShift:
+        case EBinaryOp::RightShift:
             if (!IsIntegralType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires integral operands",
@@ -836,6 +838,30 @@ protected:
                                     THROW_ERROR_EXCEPTION("Division by zero");
                                 }
                                 lhs.Data.Uint64 %= rhs.Data.Uint64;
+                                return lhs;
+                            default:
+                                break;
+                        }
+                        break;
+                    case EBinaryOp::LeftShift:
+                        switch (lhs.Type) {
+                            case EValueType::Int64:
+                                lhs.Data.Int64 <<= rhs.Data.Int64;
+                                return lhs;
+                            case EValueType::Uint64:
+                                lhs.Data.Uint64 <<= rhs.Data.Uint64;
+                                return lhs;
+                            default:
+                                break;
+                        }
+                        break;
+                    case EBinaryOp::RightShift:
+                        switch (lhs.Type) {
+                            case EValueType::Int64:
+                                lhs.Data.Int64 >>= rhs.Data.Int64;
+                                return lhs;
+                            case EValueType::Uint64:
+                                lhs.Data.Uint64 >>= rhs.Data.Uint64;
                                 return lhs;
                             default:
                                 break;
