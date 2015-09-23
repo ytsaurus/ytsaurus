@@ -945,13 +945,15 @@ private:
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
-                if (AddressToNode_.find(address) == AddressToNode_.end()) {
-                    LOG_WARNING("Node %v is not registered in scheduler", address);
-                    continue;
-                }
-
                 auto node = child.second;
                 auto newState = node->Attributes().Get<ENodeState>("state");
+
+                if (AddressToNode_.find(address) == AddressToNode_.end()) {
+                    if (newState == ENodeState::Online) {
+                        LOG_WARNING("Node %v is not registered in scheduler but online at master", address);
+                    }
+                    continue;
+                }
 
                 auto execNode = AddressToNode_[address];
                 auto oldState = execNode->GetMasterState();
