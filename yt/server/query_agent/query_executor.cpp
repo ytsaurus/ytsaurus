@@ -83,15 +83,15 @@ static const auto& Logger = QueryAgentLogger;
 
 namespace {
 
-TColumnFilter GetColumnFilter(const TTableSchema& schema, const TTableSchema& tabletSchema)
+TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSchema& tabletSchema)
 {
     // Infer column filter.
     TColumnFilter columnFilter;
     columnFilter.All = false;
-    for (const auto& column : schema.Columns()) {
+    for (const auto& column : desiredSchema.Columns()) {
         const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name);
         if (tabletColumn.Type != column.Type) {
-            THROW_ERROR_EXCEPTION("Invalid type of schema column %Qv: expected %Qlv, actual %Qlv",
+            THROW_ERROR_EXCEPTION("Mismatched type of column %Qv in schema: expected %Qlv, found %Qlv",
                 column.Name,
                 tabletColumn.Type,
                 column.Type);

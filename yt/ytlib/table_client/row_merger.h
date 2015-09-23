@@ -17,6 +17,8 @@ class TSchemafulRowMerger
     : public TRefCounted
 {
 public:
+    using TResultingRow = TUnversionedRow;
+
     TSchemafulRowMerger(
         TRowBufferPtr rowBuffer,
         int schemaColumnCount,
@@ -52,6 +54,8 @@ class TUnversionedRowMerger
     : public TRefCounted
 {
 public:
+    using TResultingRow = TUnversionedRow;
+
     TUnversionedRowMerger(
         TRowBufferPtr rowBuffer,
         int schemaColumnCount,
@@ -86,6 +90,8 @@ class TVersionedRowMerger
     : public TRefCounted
 {
 public:
+    using TResultingRow = TVersionedRow;
+
     TVersionedRowMerger(
         TRowBufferPtr rowBuffer,
         int keyColumnCount,

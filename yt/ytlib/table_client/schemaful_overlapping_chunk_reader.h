@@ -7,9 +7,9 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: rows are allocated in row merger buffer which is cleared on each Read() call.
+// NB: Rows are allocated in row merger buffer which is cleared on each Read() call.
 
-extern const int MinSimultaneousReaders;
+extern const int MinConcurrentReaders;
 
 using TOverlappingReaderKeyComparer = std::function<int(
     const TUnversionedValue*,
@@ -17,23 +17,23 @@ using TOverlappingReaderKeyComparer = std::function<int(
     const TUnversionedValue*,
     const TUnversionedValue*)>;
 
-ISchemafulReaderPtr CreateSchemafulOverlappingChunkLookupReader(
+ISchemafulReaderPtr CreateSchemafulOverlappingLookupChunkReader(
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr()> readerFactory);
 
-ISchemafulReaderPtr CreateSchemafulOverlappingChunkReader(
+ISchemafulReaderPtr CreateSchemafulOverlappingRangeChunkReader(
     const std::vector<TOwningKey>& boundaries,
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     const TOverlappingReaderKeyComparer& keyComparer,
-    int minSimultaneousReaders = MinSimultaneousReaders);
+    int minSimultaneousReaders = MinConcurrentReaders);
 
-IVersionedReaderPtr CreateVersionedOverlappingChunkReader(
+IVersionedReaderPtr CreateVersionedOverlappingRangeChunkReader(
     const std::vector<TOwningKey>& boundaries,
     TVersionedRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     const TOverlappingReaderKeyComparer& keyComparer,
-    int minSimultaneousReaders = MinSimultaneousReaders);
+    int minSimultaneousReaders = MinConcurrentReaders);
 
 ////////////////////////////////////////////////////////////////////////////////
 
