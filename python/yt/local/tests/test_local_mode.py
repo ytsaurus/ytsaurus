@@ -55,13 +55,13 @@ class TestLocalMode(object):
 
         environment = start(masters_count=3, nodes_count=0, schedulers_count=0)
         assert len(_read_pids_file(environment)) == 4  # + proxy
-        assert len(environment.get_master_addresses()) == 3
+        assert len(environment.configs["master"]) == 3
         stop(environment.id, remove_working_dir=True)
 
         environment = start(nodes_count=5, schedulers_count=2, start_proxy=False)
-        assert len(environment.get_node_addresses()) == 5
-        assert len(environment.get_scheduler_addresses()) == 2
-        assert len(environment.get_master_addresses()) == 1
+        assert len(environment.configs["node"]) == 5
+        assert len(environment.configs["scheduler"]) == 2
+        assert len(environment.configs["master"]) == 1
         assert len(_read_pids_file(environment)) == 8
         with pytest.raises(yt.YtError):
             environment.get_proxy_address()

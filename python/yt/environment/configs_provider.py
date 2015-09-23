@@ -51,8 +51,6 @@ class ConfigsProvider(object):
         # _master_addresses["secondary"] is list of size secondary_master_cell_count
         self._master_addresses = {"primary": [], "secondary": []}
         self._node_addresses = []
-        self._scheduler_addresses = []
-        self._proxy_address = None
 
     @abc.abstractmethod
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
@@ -113,7 +111,7 @@ class ConfigsProvider_17(ConfigsProvider):
         self._master_addresses["primary"] = addresses
         self._master_cell_tag = cell_tag
 
-        return [configs], [addresses]
+        return [configs]
 
     def _get_cache_addresses(self):
         if self._node_addresses:
@@ -123,7 +121,6 @@ class ConfigsProvider_17(ConfigsProvider):
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
         ports = [get_open_port() for _ in xrange(scheduler_count * 2)]
-        addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(scheduler_count)]
 
         configs = []
 
@@ -150,9 +147,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
             configs.append(config)
 
-        self._scheduler_addresses = addresses
-
-        return configs, addresses
+        return configs
 
     def get_node_configs(self, node_count, node_dirs):
         ports = [get_open_port() for _ in xrange(node_count * 2)]
@@ -210,7 +205,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
         self._node_addresses = addresses
 
-        return configs, addresses
+        return configs
 
     def get_proxy_config(self, proxy_dir, proxy_port=None):
         if proxy_port is not None and isinstance(proxy_port, int):
@@ -233,9 +228,7 @@ class ConfigsProvider_17(ConfigsProvider):
         proxy_config["port"] = ports[0]
         proxy_config["log_port"] = ports[1]
 
-        self._proxy_address = "{0}:{1}".format(self.fqdn, ports[0])
-
-        return proxy_config, self._proxy_address
+        return proxy_config
 
     def get_driver_configs(self):
         config = default_configs.get_driver_config()
@@ -251,7 +244,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
 class ConfigsProvider_17_3(ConfigsProvider_17):
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs, addresses = super(ConfigsProvider_17_3, self).\
+        configs = super(ConfigsProvider_17_3, self).\
             get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -266,11 +259,10 @@ class ConfigsProvider_17_3(ConfigsProvider_17):
                     }
                 }
 
-        return configs, addresses
+        return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        configs, addresses = super(ConfigsProvider_17_3, self).\
-                get_node_configs(node_count, node_dirs)
+        configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
 
         for i, config in enumerate(configs):
             config["data_node"]["cache_locations"] = [{
@@ -280,18 +272,17 @@ class ConfigsProvider_17_3(ConfigsProvider_17):
                 "paths": [os.path.join(node_dirs[i]), "slots"]
             }
 
-        return configs, addresses
+        return configs
 
 class ConfigsProvider_17_2(ConfigsProvider_17):
     def get_node_configs(self, node_count, node_dirs):
-        configs, addresses = super(ConfigsProvider_17_2, self).\
-                get_node_configs(node_count, node_dirs)
+        configs = super(ConfigsProvider_17_2, self).get_node_configs(node_count, node_dirs)
 
         for i, config in enumerate(configs):
             config["exec_agent"]["slot_manager"] = {"path": os.path.join(node_dirs[i], "slots")}
             config["data_node"]["cache_location"] = {"path": os.path.join(node_dirs[i], "chunk_cache")}
 
-        return configs, addresses
+        return configs
 
 class ConfigsProvider_18(ConfigsProvider):
     def __init__(self, enable_debug_logging=True):
@@ -374,11 +365,10 @@ class ConfigsProvider_18(ConfigsProvider):
             else:
                 self._master_addresses["secondary"].append(addresses[cell_index])
 
-        return cell_configs, addresses
+        return cell_configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
         ports = [get_open_port() for _ in xrange(scheduler_count * 2)]
-        scheduler_addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(scheduler_count)]
 
         configs = []
 
@@ -408,9 +398,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
             configs.append(config)
 
-        self._scheduler_addresses = scheduler_addresses
-
-        return configs, scheduler_addresses
+        return configs
 
     def get_proxy_config(self, proxy_dir, proxy_port=None):
         if proxy_port is not None and isinstance(proxy_port, int):
@@ -435,9 +423,7 @@ class ConfigsProvider_18(ConfigsProvider):
         proxy_config["log_port"] = ports[1]
         proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
 
-        self._proxy_address = proxy_config["fqdn"]
-
-        return proxy_config, self._proxy_address
+        return proxy_config
 
     def get_node_configs(self, node_count, node_dirs):
         ports = [get_open_port() for _ in xrange(node_count * 2)]
@@ -502,7 +488,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
         self._node_addresses = addresses
 
-        return configs, addresses
+        return configs
 
     def _get_cache_addresses(self):
         if self._node_addresses:
