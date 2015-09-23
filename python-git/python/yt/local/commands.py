@@ -152,13 +152,8 @@ def _read_pids_file(pids_file_path):
 
 def log_started_instance_info(environment, start_proxy):
     logger.info("Local YT started, id: {0}".format(environment.id))
-    logger.info("Masters addresses: {0}".format(environment.get_master_addresses()))
-    if environment.NUM_NODES > 0:
-        logger.info("Nodes addresses: {0}".format(environment.get_node_addresses()))
     if start_proxy:
         logger.info("Proxy address: {0}".format(environment.get_proxy_address()))
-    if environment.NUM_SCHEDULERS:
-        logger.info("Schedulers addresses: {0}".format(environment.get_scheduler_addresses()))
 
 def _safe_kill(pid):
     try:
@@ -183,10 +178,6 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
     path = get_root_path(path)
     sandbox_id = id if id is not None else generate_uuid()
 
-    sandbox_path = os.path.join(path, sandbox_id)
-    if not os.path.exists(sandbox_path):
-        os.makedirs(sandbox_path)
-
     environment = YTEnvironment(master_config, scheduler_config, node_config, proxy_config)
 
     environment.NUM_MASTERS = masters_count
@@ -199,6 +190,8 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
     use_proxy_from_yt_source = use_proxy_from_yt_source or \
             _get_bool_from_env("YT_LOCAL_USE_PROXY_FROM_SOURCE")
     environment.USE_PROXY_FROM_PACKAGE = not use_proxy_from_yt_source
+
+    sandbox_path = os.path.join(path, sandbox_id)
 
     pids_file_path = os.path.join(sandbox_path, "pids.txt")
     # Consider instance running if "pids.txt" file exists
@@ -216,7 +209,8 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
     environment.start(sandbox_path, pids_file_path,
                       proxy_port=proxy_port,
                       supress_yt_output=True,
-                      enable_debug_logging=enable_debug_logging)
+                      enable_debug_logging=enable_debug_logging,
+                      preserve_working_dir=True)
 
     environment.id = sandbox_id
 

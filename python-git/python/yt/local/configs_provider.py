@@ -112,7 +112,7 @@ DRIVER_CONFIG_PATCH = {
 
 class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs, addresses = super(LocalModeConfigsProvider_17_2, self)\
+        configs = super(LocalModeConfigsProvider_17_2, self)\
             .get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
 
         # In patches None values mean config subtree deletion (see _remove_none_fields function)
@@ -121,27 +121,25 @@ class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
                 update(config, MASTER_CONFIG_PATCH)
                 _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        configs, addresses = super(LocalModeConfigsProvider_17_2, self)\
-            .get_scheduler_configs(scheduler_count, scheduler_dirs)
+        configs = super(LocalModeConfigsProvider_17_2, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
 
         for config in configs:
             update(config, SCHEDULER_CONFIG_PATCH)
             _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        configs, addresses = super(LocalModeConfigsProvider_17_2, self)\
-            .get_node_configs(node_count, node_dirs)
+        configs = super(LocalModeConfigsProvider_17_2, self).get_node_configs(node_count, node_dirs)
 
         for config in configs:
             update(config, NODE_CONFIG_PATCH)
             _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_driver_configs(self):
         configs = super(LocalModeConfigsProvider_17_2, self).get_driver_configs()
@@ -154,7 +152,7 @@ class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
 
 class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs, addresses = super(LocalModeConfigsProvider_17_3, self)\
+        configs = super(LocalModeConfigsProvider_17_3, self)\
             .get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -172,27 +170,25 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
                 update(config, MASTER_CONFIG_PATCH)
                 _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        configs, addresses = super(LocalModeConfigsProvider_17_3, self)\
-            .get_node_configs(node_count, node_dirs)
+        configs = super(LocalModeConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
 
         for config in configs:
             update(config, NODE_CONFIG_PATCH)
             _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        configs, addresses = super(LocalModeConfigsProvider_17_3, self)\
-            .get_scheduler_configs(scheduler_count, scheduler_dirs)
+        configs = super(LocalModeConfigsProvider_17_3, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
 
         for config in configs:
             update(config, SCHEDULER_CONFIG_PATCH)
             _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_driver_configs(self):
         configs = super(LocalModeConfigsProvider_17_3, self).get_driver_configs()
@@ -205,7 +201,7 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
 
 class LocalModeConfigsProvider_18(ConfigsProvider_18):
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs, addresses = super(LocalModeConfigsProvider_18, self)\
+        configs = super(LocalModeConfigsProvider_18, self)\
             .get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
 
         local_patch = {
@@ -222,21 +218,19 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
                 update(config, local_patch)
                 _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        configs, addresses = super(LocalModeConfigsProvider_18, self)\
-            .get_scheduler_configs(scheduler_count, scheduler_dirs)
+        configs= super(LocalModeConfigsProvider_18, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
 
         for config in configs:
             update(config, SCHEDULER_CONFIG_PATCH)
             _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        configs, addresses = super(LocalModeConfigsProvider_18, self)\
-            .get_node_configs(node_count, node_dirs)
+        configs = super(LocalModeConfigsProvider_18, self).get_node_configs(node_count, node_dirs)
 
         local_patch = {
             "cell_directory_synchronizer": None
@@ -247,7 +241,7 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
             update(config, local_patch)
             _remove_none_fields(config)
 
-        return configs, addresses
+        return configs
 
     def get_driver_configs(self):
         configs = super(LocalModeConfigsProvider_18, self).get_driver_configs()
