@@ -296,10 +296,8 @@ if __name__ == "__main__":
     # YT proxies connections.
     existent = lambda x: None if len(x) == 0 else x[0] if x[0] is not None else existent(x[1:])
     yt.config.set_proxy(args.proxy)
-    yt_src = Yt(existent([args.proxy_src, args.proxy]), existent([args.token_src, get_token()]))
-    yt_dst = Yt(existent([args.proxy_dst, args.proxy]), existent([args.token_dst, get_token()]))
-    yt_src.VERSION="v3"
-    yt_dst.VERSION="v3"
+    yt_src = Yt(existent([args.proxy_src, args.proxy]), existent([args.token_src, get_token()]), config={"api_version": "v3"})
+    yt_dst = Yt(existent([args.proxy_dst, args.proxy]), existent([args.token_dst, get_token()]), config={"api_version": "v3"})
 
     # YT drivers to use inside operations.
     driver_src = Driver.create(
