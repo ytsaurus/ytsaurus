@@ -91,6 +91,10 @@
 %token <Stroka> StringLiteral "string literal"
 
 
+
+%token OpExclamation 33 "`!`"
+%token OpVerticalBar 124 "`|`"
+%token OpAmpersand 38 "`&`"
 %token OpModulo 37 "`%`"
 %token OpLeftShift "`<<`"
 %token OpRightShift "`>>`"
@@ -121,11 +125,14 @@
 %type <TExpressionList> named-expression
 
 %type <TExpressionList> expression
-%type <TExpressionList> equal-op-expr
-%type <TExpressionList> shift-op-expr
 %type <TExpressionList> or-op-expr
 %type <TExpressionList> and-op-expr
+%type <TExpressionList> not-op-expr
+%type <TExpressionList> equal-op-expr
 %type <TExpressionList> relational-op-expr
+%type <TExpressionList> bitor-op-expr
+%type <TExpressionList> bitand-op-expr
+%type <TExpressionList> shift-op-expr
 %type <TExpressionList> multiplicative-op-expr
 %type <TExpressionList> additive-op-expr
 %type <TExpressionList> unary-expr
@@ -315,44 +322,40 @@ or-op-expr
 ;
 
 and-op-expr
-    : and-op-expr[lhs] KwAnd equal-op-expr[rhs]
+
+    : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+        }
+    | not-op-expr
+        { $$ = $1; }
+;
+
+not-op-expr
+    : KwNot equal-op-expr[expr]
+        {
+            $$ = MakeExpr<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
         }
     | equal-op-expr
         { $$ = $1; }
 ;
 
-
 equal-op-expr
-    : equal-op-expr[lhs] OpEqual shift-op-expr[rhs]
+    : equal-op-expr[lhs] OpEqual relational-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Equal, $lhs, $rhs);
         }
 
-    | equal-op-expr[lhs] OpNotEqual shift-op-expr[rhs]
+    | equal-op-expr[lhs] OpNotEqual relational-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::NotEqual, $lhs, $rhs);
-        }
-    | shift-op-expr
-        { $$ = $1; }
-;
-
-shift-op-expr
-    : shift-op-expr[lhs] OpLeftShift relational-op-expr[rhs]
-        {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
-        }
-    | shift-op-expr[lhs] OpRightShift relational-op-expr[rhs]
-        {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
 ;
 
 relational-op-expr
-    : relational-op-expr[lhs] relational-op[opcode] additive-op-expr[rhs]
+    : relational-op-expr[lhs] relational-op[opcode] bitor-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
@@ -367,7 +370,7 @@ relational-op-expr
         {
             $$ = MakeExpr<TInExpression>(@$, $expr, $args);
         }
-    | additive-op-expr
+    | bitor-op-expr
         { $$ = $1; }
 ;
 
@@ -380,6 +383,37 @@ relational-op
         { $$ = EBinaryOp::Greater; }
     | OpGreaterOrEqual
         { $$ = EBinaryOp::GreaterOrEqual; }
+;
+
+bitor-op-expr
+    : shift-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
+        }
+    | bitand-op-expr
+        { $$ = $1; }
+;
+
+bitand-op-expr
+    : shift-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+        }
+    | shift-op-expr
+        { $$ = $1; }
+;
+
+shift-op-expr
+    : shift-op-expr[lhs] OpLeftShift additive-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
+        }
+    | shift-op-expr[lhs] OpRightShift additive-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
+        }
+    | additive-op-expr
+        { $$ = $1; }
 ;
 
 additive-op-expr
@@ -440,7 +474,7 @@ unary-op
         { $$ = EUnaryOp::Plus; }
     | OpMinus
         { $$ = EUnaryOp::Minus; }
-    | KwNot
+    | OpExclamation
         { $$ = EUnaryOp::Not; }
 ;
 
