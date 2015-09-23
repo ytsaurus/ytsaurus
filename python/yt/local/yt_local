@@ -8,7 +8,6 @@ from yt.wrapper.keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 
 import argparse
 import logging
-import os
 import time
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
@@ -70,10 +69,6 @@ def start_func(**kwargs):
             logger.info("Stopping environment...")
             checking_thread.stop()
             environment.clear_environment(safe=False)
-            try:
-                os.remove(environment.pids_filename)
-            except OSError:
-                pass
 
         with KeyboardInterruptsCatcher(interrupt_action):
             while True:
@@ -126,7 +121,7 @@ def get_proxy_func(**kwargs):
 def add_get_proxy_subparser(subparsers):
     parser = subparsers.add_parser("get_proxy", help="Get proxy address for local YT with given id",
                                    func=get_proxy_func)
-    parser.add_argument("--id", required=True, help="local YT id")
+    parser.add_argument("id", help="local YT id")
 
 def main():
     options_parser = argparse.ArgumentParser(add_help=False)

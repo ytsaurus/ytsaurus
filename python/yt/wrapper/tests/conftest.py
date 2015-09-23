@@ -72,7 +72,7 @@ class YtTestEnvironment(object):
         self.config = update(get_default_config(), config)
         self.config["operation_tracker"]["poll_period"] = 100
         self.config.DEFAULT_STRATEGY = yt.WaitStrategy(print_progress=False)
-        self.config["proxy"]["url"] = self.env.get_proxy_address()
+        self.config["proxy"]["url"] = "localhost:" + self.env.get_proxy_address().split(":", 1)[1]
         self.config["enable_token"] = False
         self.config["clear_local_temp_files"] = True
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__

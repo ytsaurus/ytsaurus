@@ -126,10 +126,15 @@ class PerlItem(ExecutableItem):
         # XXX(sandello): This is a hacky way to set proper include path.
         inc = os.path.abspath(
             os.path.join(os.path.dirname(str(self.fspath)), ".."))
+
+        environment = {}
+        if env.NUM_MASTERS > 0:
+            environment["YT_DRIVER_CONFIG_PATH"] = env.config_paths["driver"]
+
         child = subprocess.Popen(
             ["perl", "-I" + inc, str(self.fspath)],
             cwd=self.sandbox_path,
-            env={"YT_MASTERS": ",".join(env.get_master_addresses())},
+            env=environment,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
