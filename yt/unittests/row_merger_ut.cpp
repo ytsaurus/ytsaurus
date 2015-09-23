@@ -759,7 +759,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge1)
 
     auto merger = New<TSchemafulRowMerger>(New<TRowBuffer>(), 4, 1, TColumnFilter());
 
-    auto reader = CreateSchemafulOverlappingChunkReader(
+    auto reader = CreateSchemafulOverlappingRangeChunkReader(
         boundaries,
         std::move(merger),
         [readers] (int index) {
@@ -802,7 +802,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge2)
 
     auto merger = New<TSchemafulRowMerger>(New<TRowBuffer>(), 4, 1, TColumnFilter());
 
-    auto reader = CreateSchemafulOverlappingChunkReader(
+    auto reader = CreateSchemafulOverlappingRangeChunkReader(
         boundaries,
         std::move(merger),
         [readers] (int index) {
@@ -843,7 +843,7 @@ TEST_F(TSchemafulMergingReaderTest, Lookup)
 
     auto merger = New<TSchemafulRowMerger>(New<TRowBuffer>(), 4, 1, TColumnFilter());
 
-    auto reader = CreateSchemafulOverlappingChunkLookupReader(
+    auto reader = CreateSchemafulOverlappingLookupChunkReader(
         std::move(merger),
         [readers, index = 0] () mutable -> IVersionedReaderPtr {
             if (index < readers.size()) {
@@ -907,7 +907,7 @@ TEST_F(TVersionedMergingReaderTest, Merge1)
     config->MinDataVersions = 2;
     auto merger = New<TVersionedRowMerger>(Buffer_, 1, config, SecondsToTimestamp(1000), 0);
 
-    auto reader = CreateVersionedOverlappingChunkReader(
+    auto reader = CreateVersionedOverlappingRangeChunkReader(
         boundaries,
         std::move(merger),
         [readers] (int index) {

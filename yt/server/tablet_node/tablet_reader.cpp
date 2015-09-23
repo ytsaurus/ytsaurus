@@ -28,6 +28,17 @@ static const auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+Stroka StoreRangeFormatter(const IStorePtr& store)
+{
+    return Format("<%v:%v>", store->GetMinKey(), store->GetMaxKey());
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 ISchemafulReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
@@ -59,9 +70,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         lowerBound,
         upperBound,
         JoinToString(stores, TStoreIdFormatter()),
-        JoinToString(stores, [] (const IStorePtr& store) {
-            return Stroka("<") + ToString(store->GetMinKey()) + ":" + ToString(store->GetMaxKey()) + ">";
-        }));
+        JoinToString(stores, StoreRangeFormatter));
 
     if (stores.size() > tabletSnapshot->Config->MaxReadFanIn) {
         THROW_ERROR_EXCEPTION("Read fan-in limit exceeded; please wait until your data is merged")
@@ -82,8 +91,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         boundaries.push_back(store->GetMinKey());
     }
 
-    return CreateSchemafulOverlappingChunkReader(
-        boundaries,
+    return CreateSchemafulOverlappingRangeChunkReader(
+        std::move(boundaries),
         std::move(rowMerger),
         [=, stores = std::move(stores)] (int index) {
             YASSERT(index < stores.size());
@@ -154,8 +163,8 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             timestamp,
             JoinToString(stores, TStoreIdFormatter()));
 
-        return CreateSchemafulOverlappingChunkLookupReader(
-            rowMerger,
+        return CreateSchemafulOverlappingLookupChunkReader(
+            std::move(rowMerger),
             [=, stores = std::move(stores), index = 0] () mutable -> IVersionedReaderPtr {
                 if (index < stores.size()) {
                     return stores[index++]->CreateReader(
@@ -227,9 +236,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         currentTimestamp,
         majorTimestamp,
         JoinToString(stores, TStoreIdFormatter()),
-        JoinToString(stores, [] (const IStorePtr& store) {
-            return Stroka("<") + ToString(store->GetMinKey()) + ":" + ToString(store->GetMaxKey()) + ">";
-        }));
+        JoinToString(stores, StoreRangeFormatter));
 
     auto rowMerger = New<TVersionedRowMerger>(
         New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
@@ -244,8 +251,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         boundaries.push_back(store->GetMinKey());
     }
 
-    return CreateVersionedOverlappingChunkReader(
-        boundaries,
+    return CreateVersionedOverlappingRangeChunkReader(
+        std::move(boundaries),
         std::move(rowMerger),
         [stores = std::move(stores), lowerBound, upperBound] (int index) {
             YASSERT(index < stores.size());

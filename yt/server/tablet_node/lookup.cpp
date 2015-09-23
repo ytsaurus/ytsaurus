@@ -43,7 +43,9 @@ public:
     TLookupSession()
         : RowBuffer_(New<TRowBuffer>(TRefCountedTypeTag<TLookupPoolTag>()))
         , RunCallback_(BIND(&TLookupSession::DoRun, this))
-    { }
+    {
+        Rows_.reserve(BufferCapacity);
+    }
 
     void Prepare(
         TTabletSnapshotPtr tabletSnapshot,
@@ -101,7 +103,6 @@ public:
         LookupKeys_ = TSharedRange<TUnversionedRow>();
         Reader_.Reset();
         Rows_.clear();
-        Rows_.reserve(BufferCapacity);
     }
 
 private:
