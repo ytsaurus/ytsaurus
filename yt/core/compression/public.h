@@ -18,6 +18,9 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
     ((Lz4HighCompression)         (5))
     ((QuickLz)                    (6))
     ((Zstd)                       (7))
+    ((Brotli3)                    (8))
+    ((Brotli5)                    (9))
+    ((Brotli8)                   (10))
 );
 
 ///////////////////////////////////////////////////////////////////////////////

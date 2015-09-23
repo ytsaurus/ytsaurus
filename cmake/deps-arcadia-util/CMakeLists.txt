@@ -276,6 +276,7 @@ target_link_libraries ( ytext-arcadia-util
   ytext-zlib
   ytext-quicklz
   ytext-zstd
+  ytext-brotli
 )
 
 if (CMAKE_COMPILER_IS_GNUCXX)
