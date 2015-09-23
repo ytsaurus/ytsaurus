@@ -293,7 +293,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // expression
       // or-op-expr
       // and-op-expr
-      // not-op-expr
+      // equal-op-expr
+      // shift-op-expr
       // relational-op-expr
       // additive-op-expr
       // multiplicative-op-expr
@@ -388,6 +389,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         DoubleLiteral = 1024,
         StringLiteral = 1025,
         OpModulo = 37,
+        OpLeftShift = 1026,
+        OpRightShift = 1027,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
@@ -397,11 +400,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1026,
+        OpLessOrEqual = 1028,
         OpEqual = 61,
-        OpNotEqual = 1027,
+        OpNotEqual = 1029,
         OpGreater = 62,
-        OpGreaterOrEqual = 1028
+        OpGreaterOrEqual = 1030
       };
     };
 
@@ -646,6 +649,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
+    make_OpLeftShift (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpRightShift (const location_type& l);
+
+    static inline
+    symbol_type
     make_LeftParenthesis (const location_type& l);
 
     static inline
@@ -785,7 +796,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const short int yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -900,13 +911,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 175,     ///< Last index in yytable_.
-      yynnts_ = 37,  ///< Number of nonterminal symbols.
+      yylast_ = 171,     ///< Last index in yytable_.
+      yynnts_ = 38,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 37, ///< Termination state number.
+      yyfinal_ = 38, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 46  ///< Number of tokens.
+      yyntokens_ = 48  ///< Number of tokens.
     };
 
 

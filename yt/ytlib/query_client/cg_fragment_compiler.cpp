@@ -784,6 +784,8 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                         OP(Modulo, SRem)
                                         OP(And, And)
                                         OP(Or, Or)
+                                        OP(LeftShift, Shl)
+                                        OP(RightShift, LShr)
                                         default:
                                             YUNREACHABLE();
                                     }
@@ -797,6 +799,8 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                         OP(Modulo, URem)
                                         OP(And, And)
                                         OP(Or, Or)
+                                        OP(LeftShift, Shl)
+                                        OP(RightShift, LShr)
                                         default:
                                             YUNREACHABLE();
                                     }

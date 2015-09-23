@@ -92,6 +92,8 @@
 
 
 %token OpModulo 37 "`%`"
+%token OpLeftShift "`<<`"
+%token OpRightShift "`>>`"
 
 %token LeftParenthesis 40 "`(`"
 %token RightParenthesis 41 "`)`"
@@ -119,7 +121,8 @@
 %type <TExpressionList> named-expression
 
 %type <TExpressionList> expression
-%type <TExpressionList> not-op-expr
+%type <TExpressionList> equal-op-expr
+%type <TExpressionList> shift-op-expr
 %type <TExpressionList> or-op-expr
 %type <TExpressionList> and-op-expr
 %type <TExpressionList> relational-op-expr
@@ -312,18 +315,37 @@ or-op-expr
 ;
 
 and-op-expr
-    : and-op-expr[lhs] KwAnd not-op-expr[rhs]
+    : and-op-expr[lhs] KwAnd equal-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
         }
-    | not-op-expr
+    | equal-op-expr
         { $$ = $1; }
 ;
 
-not-op-expr
-    : KwNot relational-op-expr[expr]
+
+equal-op-expr
+    : equal-op-expr[lhs] OpEqual shift-op-expr[rhs]
         {
-            $$ = MakeExpr<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Equal, $lhs, $rhs);
+        }
+
+    | equal-op-expr[lhs] OpNotEqual shift-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::NotEqual, $lhs, $rhs);
+        }
+    | shift-op-expr
+        { $$ = $1; }
+;
+
+shift-op-expr
+    : shift-op-expr[lhs] OpLeftShift relational-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
+        }
+    | shift-op-expr[lhs] OpRightShift relational-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
@@ -350,11 +372,7 @@ relational-op-expr
 ;
 
 relational-op
-    : OpEqual
-        { $$ = EBinaryOp::Equal; }
-    | OpNotEqual
-        { $$ = EBinaryOp::NotEqual; }
-    | OpLess
+    : OpLess
         { $$ = EBinaryOp::Less; }
     | OpLessOrEqual
         { $$ = EBinaryOp::LessOrEqual; }
@@ -422,6 +440,8 @@ unary-op
         { $$ = EUnaryOp::Plus; }
     | OpMinus
         { $$ = EUnaryOp::Minus; }
+    | KwNot
+        { $$ = EUnaryOp::Not; }
 ;
 
 qualified-identifier

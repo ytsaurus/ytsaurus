@@ -24,6 +24,8 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
         case EBinaryOp::Multiply:       return "*";
         case EBinaryOp::Divide:         return "/";
         case EBinaryOp::Modulo:         return "%";
+        case EBinaryOp::LeftShift:      return "<<";
+        case EBinaryOp::RightShift:     return ">>";
         case EBinaryOp::And:            return "AND";
         case EBinaryOp::Or:             return "OR";
         case EBinaryOp::Equal:          return "=";

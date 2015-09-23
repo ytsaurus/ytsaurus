@@ -26,6 +26,8 @@ DEFINE_ENUM(EBinaryOp,
     (Divide)
     // Integral operations.
     (Modulo)
+    (LeftShift)
+    (RightShift)
     // Logical operations.
     (And)
     (Or)
