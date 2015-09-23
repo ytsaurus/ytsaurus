@@ -280,11 +280,15 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
 
     try:
         if failed:
-            teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
-                sandbox_storage,
-                sandbox_archive),
-                status="WARNING")
-            shutil.copytree(sandbox_storage, sandbox_archive)
+            for dir in [sandbox_storage, sandbox_current]:
+                if not os.path.exists(dir):
+                    continue
+                teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
+                    dir,
+                    sandbox_archive),
+                    status="WARNING")
+                for obj in os.listdir(dir):
+                    shutil.copytree(os.path.join(dir, obj), sandbox_archive)
             artifact_path = os.path.join(sandbox_archive, "artifacts")
             core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
             mkdirp(artifact_path)
