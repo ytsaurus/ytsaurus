@@ -164,6 +164,8 @@ public:
 
     void CommitMutations(TEpochContextPtr epochContext, TVersion version);
 
+    bool HasPendingMutations() const;
+
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;

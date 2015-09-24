@@ -532,9 +532,10 @@ private:
             case EPeerState::FollowerRecovery: {
                 try {
                     CheckForSyncPing(startVersion);
-                    epochContext->FollowerRecovery->PostponeMutations(
-                        startVersion,
-                        request->Attachments());
+
+                    auto followerRecovery = epochContext->FollowerRecovery;
+                    followerRecovery->PostponeMutations(startVersion, request->Attachments());
+                    followerRecovery->SetCommittedVersion(committedVersion);
                 } catch (const std::exception& ex) {
                     if (Restart(epochContext)) {
                         LOG_ERROR(ex, "Error postponing mutations during recovery");
@@ -584,6 +585,7 @@ private:
 
             case EPeerState::FollowerRecovery:
                 CheckForSyncPing(loggedVersion);
+                epochContext->FollowerRecovery->SetCommittedVersion(committedVersion);
                 break;
 
             default:
