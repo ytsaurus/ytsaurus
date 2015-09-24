@@ -28,6 +28,7 @@ set( HDRS
   ${BASE}/chunk.h
   ${BASE}/chunk-inl.h
   ${BASE}/chunk_list.h
+  ${BASE}/chunk_list-inl.h
   ${BASE}/chunk_list_proxy.h
   ${BASE}/chunk_manager.h
   ${BASE}/chunk_owner_base.h
