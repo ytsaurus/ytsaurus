@@ -18,6 +18,8 @@
 #include <core/pipes/async_reader.h>
 #include <core/pipes/pipe.h>
 
+#include <core/profiling/scoped_timer.h>
+
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service.pb.h>
@@ -28,7 +30,6 @@
 #include <util/random/random.h>
 
 #include <util/system/file.h>
-#include <core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NHydra {
@@ -895,6 +896,13 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
     if (!ApplyPendingMutationsScheduled_) {
         ApplyPendingMutations(std::move(epochContext));
     }
+}
+
+bool TDecoratedAutomaton::HasPendingMutations() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    return !PendingMutations_.empty();
 }
 
 void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
