@@ -2478,6 +2478,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
     std::vector<Stroka> source = {
         "a=\"hello\"",
         "a=\"hell\"",
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -2487,6 +2488,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
     auto result = BuildRows({
         "x=%false",
         "x=%true",
+        "",
     }, resultSplit);
 
     Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
@@ -2503,6 +2505,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
     std::vector<Stroka> source = {
         "a=\"xx\"",
         "a=\"x43x\"",
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -2512,6 +2515,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
     auto result = BuildRows({
         "x=%false",
         "x=%true",
+        "",
     }, resultSplit);
 
     Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
@@ -2527,6 +2531,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
 
     std::vector<Stroka> source = {
         "a=\"x43x43x\"",
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -2535,6 +2540,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
 
     auto result = BuildRows({
         "x=\"x_x43x\"",
+        "",
     }, resultSplit);
 
     Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
@@ -2550,6 +2556,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
 
     std::vector<Stroka> source = {
         "a=\"x43x43x\"",
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -2558,6 +2565,7 @@ TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
 
     auto result = BuildRows({
         "x=\"x_x_x\"",
+        "",
     }, resultSplit);
 
     Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
@@ -2573,6 +2581,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
 
     std::vector<Stroka> source = {
         "a=\"Send root@ya.com an email.\"",
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -2581,6 +2590,7 @@ TEST_F(TQueryEvaluateTest, TestRegexExtract)
 
     auto result = BuildRows({
         "x=\"root at ya\"",
+        "",
     }, resultSplit);
 
     Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
@@ -2596,6 +2606,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
 
     std::vector<Stroka> source = {
         "a=\"1.5\"",
+        "",
     };
 
     auto resultSplit = MakeSplit({
@@ -2604,6 +2615,7 @@ TEST_F(TQueryEvaluateTest, TestRegexEscape)
 
     auto result = BuildRows({
         "x=\"1\\\\.5\"",
+        "",
     }, resultSplit);
 
     Evaluate("regex_escape(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());

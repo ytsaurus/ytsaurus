@@ -52,13 +52,17 @@ extern "C" void regex_full_match(
     TUnversionedValue* regexp,
     TUnversionedValue* input)
 {
-    regex_work(
-        functonContext,
-        regexp,
-        [=] (TData* data) {
-            result->Type = Boolean;
-            result->Data.Boolean = RegexFullMatch(data->Re2, input);
-        });
+    if (regexp->Type == Null || input->Type == Null) {
+        result->Type = Null;
+    } else {
+        regex_work(
+            functonContext,
+            regexp,
+            [=] (TData* data) {
+                result->Type = Boolean;
+                result->Data.Boolean = RegexFullMatch(data->Re2, input);
+            });
+    }
 }
 
 extern "C" void regex_partial_match(
@@ -68,13 +72,17 @@ extern "C" void regex_partial_match(
     TUnversionedValue* regexp,
     TUnversionedValue* input)
 {
-    regex_work(
-        functonContext,
-        regexp,
-        [=] (TData* data) {
-            result->Type = Boolean;
-            result->Data.Boolean = RegexPartialMatch(data->Re2, input);
-        });
+    if (regexp->Type == Null || input->Type == Null) {
+        result->Type = Null;
+    } else {
+        regex_work(
+            functonContext,
+            regexp,
+            [=] (TData* data) {
+                result->Type = Boolean;
+                result->Data.Boolean = RegexPartialMatch(data->Re2, input);
+            });
+    }
 }
 
 extern "C" void regex_replace_first(
@@ -85,12 +93,16 @@ extern "C" void regex_replace_first(
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    regex_work(
-        functonContext,
-        regexp,
-        [=] (TData* data) {
-            RegexReplaceFirst(executionContext, data->Re2, input, rewrite, result);
-        });
+    if (regexp->Type == Null || input->Type == Null || rewrite->Type == Null) {
+        result->Type = Null;
+    } else {
+        regex_work(
+            functonContext,
+            regexp,
+            [=] (TData* data) {
+                RegexReplaceFirst(executionContext, data->Re2, input, rewrite, result);
+            });
+    }
 }
 
 extern "C" void regex_replace_all(
@@ -101,12 +113,16 @@ extern "C" void regex_replace_all(
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    regex_work(
-        functonContext,
-        regexp,
-        [=] (TData* data) {
-            RegexReplaceAll(executionContext, data->Re2, input, rewrite, result);
-        });
+    if (regexp->Type == Null || input->Type == Null || rewrite->Type == Null) {
+        result->Type = Null;
+    } else {
+        regex_work(
+            functonContext,
+            regexp,
+            [=] (TData* data) {
+                RegexReplaceAll(executionContext, data->Re2, input, rewrite, result);
+            });
+    }
 }
 
 extern "C" void regex_extract(
@@ -117,12 +133,16 @@ extern "C" void regex_extract(
     TUnversionedValue* input,
     TUnversionedValue* rewrite)
 {
-    regex_work(
-        functonContext,
-        regexp,
-        [=] (TData* data) {
-            RegexExtract(executionContext, data->Re2, input, rewrite, result);
-        });
+    if (regexp->Type == Null || input->Type == Null || rewrite->Type == Null) {
+        result->Type = Null;
+    } else {
+        regex_work(
+            functonContext,
+            regexp,
+            [=] (TData* data) {
+                RegexExtract(executionContext, data->Re2, input, rewrite, result);
+            });
+    }
 }
 
 extern "C" void regex_escape(
@@ -131,6 +151,10 @@ extern "C" void regex_escape(
     TUnversionedValue* result,
     TUnversionedValue* input)
 {
-    RegexEscape(executionContext, input, result);
+    if (input->Type == Null) {
+        result->Type = Null;
+    } else {
+        RegexEscape(executionContext, input, result);
+    }
 }
 
