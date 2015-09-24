@@ -14,6 +14,8 @@ DEFINE_ENUM(EUnaryOp,
     // Arithmetical operations.
     (Plus)
     (Minus)
+    // Integral operations.
+    (BitNot)
     // Logical operations.
     (Not)
 );
@@ -28,6 +30,8 @@ DEFINE_ENUM(EBinaryOp,
     (Modulo)
     (LeftShift)
     (RightShift)
+    (BitOr)
+    (BitAnd)
     // Logical operations.
     (And)
     (Or)

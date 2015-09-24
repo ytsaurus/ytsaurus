@@ -391,7 +391,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Uint64Literal = 1023,
         DoubleLiteral = 1024,
         StringLiteral = 1025,
-        OpExclamation = 33,
+        OpTilde = 33,
         OpVerticalBar = 124,
         OpAmpersand = 38,
         OpModulo = 37,
@@ -651,7 +651,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
-    make_OpExclamation (const location_type& l);
+    make_OpTilde (const location_type& l);
 
     static inline
     symbol_type
@@ -814,7 +814,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const short int yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -929,7 +929,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 201,     ///< Last index in yytable_.
+      yylast_ = 198,     ///< Last index in yytable_.
       yynnts_ = 41,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 42, ///< Termination state number.
