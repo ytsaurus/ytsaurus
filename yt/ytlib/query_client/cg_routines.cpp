@@ -24,6 +24,7 @@
 #include <contrib/libs/re2/re2/re2.h>
 
 #include <mutex>
+#include <string.h>
 
 namespace llvm {
 
@@ -479,6 +480,85 @@ ui8 RegexFullMatch(re2::RE2* re2, TUnversionedValue* string)
     return re2::RE2::FullMatch(re2::StringPiece(string->Data.String, string->Length), *re2);
 }
 
+ui8 RegexPartialMatch(re2::RE2* re2, TUnversionedValue* string)
+{
+    YCHECK(string->Type == EValueType::String);
+
+    return re2::RE2::PartialMatch(re2::StringPiece(string->Data.String, string->Length), *re2);
+}
+
+void CopyString(TExecutionContext* context, TUnversionedValue* result, const std::string& str)
+{
+    char* data = AllocatePermanentBytes(context, str.size());
+    memcpy(data, str.c_str(), str.size());
+    result->Type = EValueType::String;
+    result->Length = str.size();
+    result->Data.String = data;
+}
+
+void RegexReplaceFirst(
+    TExecutionContext* context,
+    re2::RE2* re2,
+    TUnversionedValue* string,
+    TUnversionedValue* rewrite,
+    TUnversionedValue* result)
+{
+    YCHECK(string->Type == EValueType::String);
+    YCHECK(rewrite->Type == EValueType::String);
+
+    auto str = std::string(string->Data.String, string->Length);
+    re2::RE2::Replace(&str, *re2, re2::StringPiece(rewrite->Data.String, rewrite->Length));
+
+    CopyString(context, result, str);
+}
+
+
+void RegexReplaceAll(
+    TExecutionContext* context,
+    re2::RE2* re2,
+    TUnversionedValue* string,
+    TUnversionedValue* rewrite,
+    TUnversionedValue* result)
+{
+    YCHECK(string->Type == EValueType::String);
+    YCHECK(rewrite->Type == EValueType::String);
+
+    auto str = std::string(string->Data.String, string->Length);
+    re2::RE2::GlobalReplace(&str, *re2, re2::StringPiece(rewrite->Data.String, rewrite->Length));
+
+    CopyString(context, result, str);
+}
+
+void RegexExtract(
+    TExecutionContext* context,
+    re2::RE2* re2,
+    TUnversionedValue* string,
+    TUnversionedValue* rewrite,
+    TUnversionedValue* result)
+{
+    YCHECK(string->Type == EValueType::String);
+    YCHECK(rewrite->Type == EValueType::String);
+
+    std::string str;
+    re2::RE2::Extract(
+        re2::StringPiece(string->Data.String, string->Length),
+        *re2,
+        re2::StringPiece(rewrite->Data.String, rewrite->Length),
+        &str);
+
+    CopyString(context, result, str);
+}
+
+void RegexEscape(
+    TExecutionContext* context,
+    TUnversionedValue* string,
+    TUnversionedValue* result)
+{
+    auto str = re2::RE2::QuoteMeta(re2::StringPiece(string->Data.String, string->Length));
+
+    CopyString(context, result, str);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoutines
@@ -515,6 +595,11 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(RegexCreate);
     REGISTER_ROUTINE(RegexDestroy);
     REGISTER_ROUTINE(RegexFullMatch);
+    REGISTER_ROUTINE(RegexPartialMatch);
+    REGISTER_ROUTINE(RegexReplaceFirst);
+    REGISTER_ROUTINE(RegexReplaceAll);
+    REGISTER_ROUTINE(RegexExtract);
+    REGISTER_ROUTINE(RegexEscape);
 #undef REGISTER_ROUTINE
 
     registry->RegisterRoutine("memcmp", std::memcmp);
