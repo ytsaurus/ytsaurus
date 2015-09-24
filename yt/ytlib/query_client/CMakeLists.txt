@@ -110,10 +110,17 @@ udf_bc(
     ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
 )
 udf_bc(
-  ${BASE}/udf/regex_match.cpp
+  ${BASE}/udf/regex.cpp
   YT_SOURCE_FILES
   FILES
     ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/function_context.cpp
+  SYMBOLS
+    regex_full_match
+    regex_partial_match
+    regex_replace_first
+    regex_replace_all
+    regex_extract
+    regex_escape
 )
 udf_bc( ${BASE}/udf/double_cast.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/int64.c YT_SOURCE_FILES )
