@@ -2014,7 +2014,7 @@ private:
         if (!job) {
             switch (state) {
                 case EJobState::Completed:
-                    LOG_WARNING("Unknown job has completed, removal scheduled");
+                    LOG_INFO("Unknown job has completed, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
@@ -2029,12 +2029,12 @@ private:
                     break;
 
                 case EJobState::Running:
-                    LOG_WARNING("Unknown job is running, abort scheduled");
+                    LOG_INFO("Unknown job is running, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
                 case EJobState::Waiting:
-                    LOG_WARNING("Unknown job is waiting, abort scheduled");
+                    LOG_INFO("Unknown job is waiting, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
@@ -2083,7 +2083,7 @@ private:
 
             case EJobState::Failed: {
                 auto error = FromProto<TError>(jobStatus->result().error());
-                LOG_WARNING(error, "Job failed, removal scheduled");
+                LOG_INFO(error, "Job failed, removal scheduled");
                 OnJobFailed(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
