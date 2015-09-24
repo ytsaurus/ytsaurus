@@ -705,7 +705,8 @@ class PushStream(object):
 class Application(object):
     log = logging.getLogger("Application")
 
-    def __init__(self, proxy_path, logbroker_url, table_name,
+    def __init__(self, proxy_path, yt_token,
+                 logbroker_url, table_name,
                  service_id, source_id,
                  cluster_name, log_name,
                  chunk_size, logtype):
@@ -726,7 +727,7 @@ class Application(object):
         self._io_loop = ioloop.IOLoop.instance()
 
         set_proxy(proxy_path)
-        self._event_log = EventLog(client.Yt(proxy_path), table_name=table_name)
+        self._event_log = EventLog(client.Yt(proxy_path, token=yt_token), table_name=table_name)
         self._log_broker = None
 
     def start(self):
@@ -833,11 +834,13 @@ def get_last_seqno(**kwargs):
     return getter.get()
 
 
-def main(proxy_path, table_name, logbroker_url,
+def main(proxy_path, yt_token,
+         table_name, logbroker_url,
          service_id, source_id,
          cluster_name, log_name,
          chunk_size, **kwargs):
-    app = Application(proxy_path, logbroker_url, table_name,
+    app = Application(proxy_path, yt_token,
+                      logbroker_url, table_name,
                       service_id, source_id,
                       cluster_name, log_name,
                       chunk_size, logtype=kwargs["logtype"])
@@ -904,6 +907,7 @@ def run():
     options.define("chunk_size", default=4000, help="size of chunk in rows")
 
     options.define("cluster_name", default="", help="[logbroker] name of source cluster")
+    options.define("yt_token", help="[logbroker] yt token")
     options.define("log_name", default="yt-scheduler-log", help="[logbroker] name of source cluster")
     options.define("logtype", default="", help="[logbroker] log type")
     options.define("logbroker_url", default="", help="[logbroker] url to get adviced kafka endpoint")
