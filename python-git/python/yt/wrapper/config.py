@@ -191,7 +191,11 @@ class Config(types.ModuleType):
 
         config_path = self.config["config_path"]
         if config_path is None:
-            config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
+            home_config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
+            if os.path.isfile(home_config_path):
+                config_path = home_config_path
+            else:
+                config_path = "/etc/ytclient.conf"
         if os.path.isfile(config_path):
             load_func = None
             format = self.config["config_format"]
