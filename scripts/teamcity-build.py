@@ -288,7 +288,7 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                     sandbox_archive),
                     status="WARNING")
                 for obj in os.listdir(dir):
-                    shutil.copytree(os.path.join(dir, obj), sandbox_archive)
+                    shutil.copytree(os.path.join(dir, obj), os.path.join(sandbox_archive, obj))
             artifact_path = os.path.join(sandbox_archive, "artifacts")
             core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
             mkdirp(artifact_path)
