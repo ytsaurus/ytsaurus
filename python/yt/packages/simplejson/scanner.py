@@ -3,7 +3,7 @@
 import re
 def _import_c_make_scanner():
     try:
-        from yt.packages.simplejson._speedups import make_scanner
+        from simplejson._speedups import make_scanner
         return make_scanner
     except ImportError:
         return None
@@ -40,6 +40,9 @@ class JSONDecodeError(ValueError):
             self.endlineno, self.endcolno = linecol(doc, end)
         else:
             self.endlineno, self.endcolno = None, None
+
+    def __reduce__(self):
+        return self.__class__, (self.msg, self.doc, self.pos, self.end)
 
 
 def linecol(doc, pos):
@@ -115,6 +118,11 @@ def py_make_scanner(context):
             raise JSONDecodeError(errmsg, string, idx)
 
     def scan_once(string, idx):
+        if idx < 0:
+            # Ensure the same behavior as the C speedup, otherwise
+            # this would work for *some* negative string indices due
+            # to the behavior of __getitem__ for strings. #98
+            raise JSONDecodeError('Expecting value', string, idx)
         try:
             return _scan_once(string, idx)
         finally:
