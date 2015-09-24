@@ -47,6 +47,7 @@ public:
     virtual void BeginUpload(NChunkClient::EUpdateMode mode) override;
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
+        bool deriveStatistics,
         const std::vector<Stroka>& keyColumns) override;
     virtual bool IsSorted() const override;
 

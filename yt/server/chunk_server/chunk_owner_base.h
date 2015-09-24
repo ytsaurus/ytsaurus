@@ -37,12 +37,14 @@ public:
     virtual void BeginUpload(NChunkClient::EUpdateMode mode);
     virtual void EndUpload(
         const NChunkClient::NProto::TDataStatistics* statistics,
+        bool deriveStatistics,
         const std::vector<Stroka>& keyColumns);
     virtual bool IsSorted() const;
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
     NChunkClient::NProto::TDataStatistics ComputeTotalStatistics() const;
+    NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;

@@ -934,8 +934,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateTransaction();
     ValidateInUpdate();
 
-    const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     auto keyColumns = FromProto<Stroka>(request->key_columns());
+    const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
+    bool deriveStatistics = request->derive_statistics();
 
     context->SetRequestInfo("KeyColumns: [%v]",
         JoinToString(keyColumns));
@@ -944,10 +945,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     YCHECK(node->GetTransaction() == Transaction);
 
     if (node->IsExternal()) {
+        if (deriveStatistics) {
+            THROW_ERROR_EXCEPTION("Cannot derive data statistics for external node");
+        }
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    node->EndUpload(statistics, keyColumns);
+    node->EndUpload(statistics, deriveStatistics, keyColumns);
 
     SetModified();
 

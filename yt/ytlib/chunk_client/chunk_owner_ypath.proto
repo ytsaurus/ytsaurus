@@ -44,7 +44,8 @@ message TRspGetUploadParams
 message TReqEndUpload
 {
     optional TDataStatistics statistics = 1;
-    repeated string key_columns = 2;
+    optional bool derive_statistics = 2 [default = false];
+    repeated string key_columns = 3;
 }
 
 message TRspEndUpload
