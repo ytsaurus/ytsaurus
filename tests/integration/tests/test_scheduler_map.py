@@ -276,7 +276,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         jobs_path = "//sys/operations/" + op_id + "/jobs"
         assert get(jobs_path + "/@count") == expected_count
         for job_id in ls(jobs_path):
-            assert read_file(jobs_path + "/" + job_id + "/stderr") == expected_content
+            stderr_path = jobs_path + "/" + job_id + "/stderr"
+            assert get(stderr_path + "/@uncompressed_size") == len(expected_content)
+            assert read_file(stderr_path) == expected_content
 
     # check that stderr is captured for successfull job
     @linux_only
