@@ -217,7 +217,28 @@ def get_node_config():
 
         enable_cgroups = %false;
 
-        job_proxy_logging = { };
+        job_proxy_logging = {
+            rules = [
+                {
+                    min_level = info;
+                    writers = [ info ];
+                };
+                {
+                    min_level = debug;
+                    writers = [ debug ];
+                };
+            ];
+            writers = {
+                info = {
+                    type = file;
+                    file_name = "{path}/{name}.log";
+                };
+                debug = {
+                    type = file;
+                    file_name = "{path}/{name}.debug.log";
+                };
+            }
+        };
 
         job_proxy_tracing = { };
     };
@@ -236,7 +257,28 @@ def get_node_config():
 
     tracing = { };
 
-    logging = { };
+    logging = {
+        rules = [
+            {
+                min_level = info;
+                writers = [ info ];
+            };
+            {
+                min_level = debug;
+                writers = [ debug ];
+            };
+        ];
+        writers = {
+            info = {
+                type = file;
+                file_name = "{path}/{name}.log";
+            };
+            debug = {
+                type = file;
+                file_name = "{path}/{name}.debug.log";
+            };
+        }
+    };
 }
 """)
 
