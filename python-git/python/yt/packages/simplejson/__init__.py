@@ -5,9 +5,8 @@ interchange format.
 :mod:`simplejson` exposes an API familiar to users of the standard library
 :mod:`marshal` and :mod:`pickle` modules. It is the externally maintained
 version of the :mod:`json` library contained in Python 2.6, but maintains
-compatibility with Python 2.4 and Python 2.5 and (currently) has
-significant performance advantages, even without using the optional C
-extension for speedups.
+compatibility back to Python 2.5 and (currently) has significant performance
+advantages, even without using the optional C extension for speedups.
 
 Encoding basic Python object hierarchies::
 
@@ -98,7 +97,7 @@ Using simplejson.tool from the shell to validate and pretty-print::
     Expecting property name: line 1 column 3 (char 2)
 """
 from __future__ import absolute_import
-__version__ = '3.3.0'
+__version__ = '3.8.1'
 __all__ = [
     'dump', 'dumps', 'load', 'loads',
     'JSONDecoder', 'JSONDecodeError', 'JSONEncoder',
@@ -140,18 +139,21 @@ _default_encoder = JSONEncoder(
     use_decimal=True,
     namedtuple_as_object=True,
     tuple_as_array=True,
+    iterable_as_array=False,
     bigint_as_string=False,
     item_sort_key=None,
     for_json=False,
     ignore_nan=False,
+    int_as_string_bitcount=None,
 )
 
 def dump(obj, fp, skipkeys=False, ensure_ascii=True, check_circular=True,
-        allow_nan=True, cls=None, indent=None, separators=None,
-        encoding='utf-8', default=None, use_decimal=True,
-        namedtuple_as_object=True, tuple_as_array=True,
-        bigint_as_string=False, sort_keys=False, item_sort_key=None,
-        for_json=False, ignore_nan=False, **kw):
+         allow_nan=True, cls=None, indent=None, separators=None,
+         encoding='utf-8', default=None, use_decimal=True,
+         namedtuple_as_object=True, tuple_as_array=True,
+         bigint_as_string=False, sort_keys=False, item_sort_key=None,
+         for_json=False, ignore_nan=False, int_as_string_bitcount=None,
+         iterable_as_array=False, **kw):
     """Serialize ``obj`` as a JSON formatted stream to ``fp`` (a
     ``.write()``-supporting file-like object).
 
@@ -203,11 +205,19 @@ def dump(obj, fp, skipkeys=False, ensure_ascii=True, check_circular=True,
     If *tuple_as_array* is true (default: ``True``),
     :class:`tuple` (and subclasses) will be encoded as JSON arrays.
 
+    If *iterable_as_array* is true (default: ``False``),
+    any object not in the above table that implements ``__iter__()``
+    will be encoded as a JSON array.
+
     If *bigint_as_string* is true (default: ``False``), ints 2**53 and higher
     or lower than -2**53 will be encoded as strings. This is to avoid the
     rounding that happens in Javascript otherwise. Note that this is still a
     lossy operation that will not round-trip correctly and should be used
     sparingly.
+
+    If *int_as_string_bitcount* is a positive number (n), then int of size
+    greater than or equal to 2**n or lower than or equal to -2**n will be
+    encoded as strings.
 
     If specified, *item_sort_key* is a callable used to sort the items in
     each dictionary. This is useful if you want to sort items other than
@@ -237,9 +247,12 @@ def dump(obj, fp, skipkeys=False, ensure_ascii=True, check_circular=True,
         check_circular and allow_nan and
         cls is None and indent is None and separators is None and
         encoding == 'utf-8' and default is None and use_decimal
-        and namedtuple_as_object and tuple_as_array
-        and not bigint_as_string and not item_sort_key
-        and not for_json and not ignore_nan and not kw):
+        and namedtuple_as_object and tuple_as_array and not iterable_as_array
+        and not bigint_as_string and not sort_keys
+        and not item_sort_key and not for_json
+        and not ignore_nan and int_as_string_bitcount is None
+        and not kw
+    ):
         iterable = _default_encoder.iterencode(obj)
     else:
         if cls is None:
@@ -250,11 +263,13 @@ def dump(obj, fp, skipkeys=False, ensure_ascii=True, check_circular=True,
             default=default, use_decimal=use_decimal,
             namedtuple_as_object=namedtuple_as_object,
             tuple_as_array=tuple_as_array,
+            iterable_as_array=iterable_as_array,
             bigint_as_string=bigint_as_string,
             sort_keys=sort_keys,
             item_sort_key=item_sort_key,
             for_json=for_json,
             ignore_nan=ignore_nan,
+            int_as_string_bitcount=int_as_string_bitcount,
             **kw).iterencode(obj)
     # could accelerate with writelines in some versions of Python, at
     # a debuggability cost
@@ -263,11 +278,12 @@ def dump(obj, fp, skipkeys=False, ensure_ascii=True, check_circular=True,
 
 
 def dumps(obj, skipkeys=False, ensure_ascii=True, check_circular=True,
-        allow_nan=True, cls=None, indent=None, separators=None,
-        encoding='utf-8', default=None, use_decimal=True,
-        namedtuple_as_object=True, tuple_as_array=True,
-        bigint_as_string=False, sort_keys=False, item_sort_key=None,
-        for_json=False, ignore_nan=False, **kw):
+          allow_nan=True, cls=None, indent=None, separators=None,
+          encoding='utf-8', default=None, use_decimal=True,
+          namedtuple_as_object=True, tuple_as_array=True,
+          bigint_as_string=False, sort_keys=False, item_sort_key=None,
+          for_json=False, ignore_nan=False, int_as_string_bitcount=None,
+          iterable_as_array=False, **kw):
     """Serialize ``obj`` to a JSON formatted ``str``.
 
     If ``skipkeys`` is false then ``dict`` keys that are not basic types
@@ -315,9 +331,17 @@ def dumps(obj, skipkeys=False, ensure_ascii=True, check_circular=True,
     If *tuple_as_array* is true (default: ``True``),
     :class:`tuple` (and subclasses) will be encoded as JSON arrays.
 
+    If *iterable_as_array* is true (default: ``False``),
+    any object not in the above table that implements ``__iter__()``
+    will be encoded as a JSON array.
+
     If *bigint_as_string* is true (not the default), ints 2**53 and higher
     or lower than -2**53 will be encoded as strings. This is to avoid the
     rounding that happens in Javascript otherwise.
+
+    If *int_as_string_bitcount* is a positive number (n), then int of size
+    greater than or equal to 2**n or lower than or equal to -2**n will be
+    encoded as strings.
 
     If specified, *item_sort_key* is a callable used to sort the items in
     each dictionary. This is useful if you want to sort items other than
@@ -347,10 +371,12 @@ def dumps(obj, skipkeys=False, ensure_ascii=True, check_circular=True,
         check_circular and allow_nan and
         cls is None and indent is None and separators is None and
         encoding == 'utf-8' and default is None and use_decimal
-        and namedtuple_as_object and tuple_as_array
+        and namedtuple_as_object and tuple_as_array and not iterable_as_array
         and not bigint_as_string and not sort_keys
         and not item_sort_key and not for_json
-        and not ignore_nan and not kw):
+        and not ignore_nan and int_as_string_bitcount is None
+        and not kw
+    ):
         return _default_encoder.encode(obj)
     if cls is None:
         cls = JSONEncoder
@@ -361,11 +387,13 @@ def dumps(obj, skipkeys=False, ensure_ascii=True, check_circular=True,
         use_decimal=use_decimal,
         namedtuple_as_object=namedtuple_as_object,
         tuple_as_array=tuple_as_array,
+        iterable_as_array=iterable_as_array,
         bigint_as_string=bigint_as_string,
         sort_keys=sort_keys,
         item_sort_key=item_sort_key,
         for_json=for_json,
         ignore_nan=ignore_nan,
+        int_as_string_bitcount=int_as_string_bitcount,
         **kw).encode(obj)
 
 
