@@ -1513,6 +1513,7 @@ private:
                 }
                 {
                     auto req = TFileYPathProxy::EndUpload(FromObjectId(info.NodeId));
+                    req->set_derive_statistics(true);
                     SetTransactionId(req, info.UploadTransactionId);
                     GenerateMutationId(req);
                     batchReq->AddRequest(req, "end_upload");

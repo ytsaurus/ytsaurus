@@ -103,17 +103,28 @@ void TChunkOwnerBase::BeginUpload(EUpdateMode mode)
 
 void TChunkOwnerBase::EndUpload(
     const TDataStatistics* statistics,
+    bool deriveStatistics,
     const std::vector<Stroka>& /*keyColumns*/)
 {
+    TNullable<TDataStatistics> updateStatistics;
+
+    if (!IsExternal()) {
+        updateStatistics = ComputeUpdateStatistics();
+    }
+
+    if (deriveStatistics) {
+        statistics = &*updateStatistics;
+    } else if (statistics && updateStatistics) {
+        YCHECK(*statistics == *updateStatistics);
+    }
+
     if (statistics) {
         switch (UpdateMode_) {
             case EUpdateMode::Append:
-                YCHECK(IsExternal() || GetDeltaChunkList()->Statistics().ToDataStatistics() == *statistics);
                 DeltaStatistics_ = *statistics;
                 break;
 
             case EUpdateMode::Overwrite:
-                YCHECK(IsExternal() || GetSnapshotChunkList()->Statistics().ToDataStatistics() == *statistics);
                 SnapshotStatistics_ = *statistics;
                 break;
 
@@ -136,6 +147,22 @@ ENodeType TChunkOwnerBase::GetNodeType() const
 TDataStatistics TChunkOwnerBase::ComputeTotalStatistics() const
 {
     return SnapshotStatistics_ + DeltaStatistics_;
+}
+
+TDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
+{
+    YCHECK(!IsExternal());
+
+    switch (UpdateMode_) {
+        case EUpdateMode::Append:
+            return GetDeltaChunkList()->Statistics().ToDataStatistics();
+
+        case EUpdateMode::Overwrite:
+            return GetSnapshotChunkList()->Statistics().ToDataStatistics();
+
+        default:
+            YUNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

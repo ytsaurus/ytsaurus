@@ -58,9 +58,10 @@ void TTableNode::BeginUpload(EUpdateMode mode)
 
 void TTableNode::EndUpload(
     const TDataStatistics* statistics,
+    bool deriveStatistics,
     const std::vector<Stroka>& keyColumns)
 {
-    TChunkOwnerBase::EndUpload(statistics, keyColumns);
+    TChunkOwnerBase::EndUpload(statistics, deriveStatistics, keyColumns);
     if (!keyColumns.empty()) {
         KeyColumns_ = keyColumns;
         Sorted_ = true;
