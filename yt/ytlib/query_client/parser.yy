@@ -92,7 +92,7 @@
 
 
 
-%token OpExclamation 33 "`!`"
+%token OpTilde 33 "`~`"
 %token OpVerticalBar 124 "`|`"
 %token OpAmpersand 38 "`&`"
 %token OpModulo 37 "`%`"
@@ -214,7 +214,7 @@ join-clause
         {
             head->first.As<TQuery>().Joins.emplace_back($table, $fields);
         }
-    | join-clause KwJoin table-descriptor[table] KwOn additive-op-expr[lhs] OpEqual additive-op-expr[rhs]
+    | join-clause KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
         {
             head->first.As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
         }
@@ -388,7 +388,7 @@ relational-op
 bitor-op-expr
     : shift-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
         }
     | bitand-op-expr
         { $$ = $1; }
@@ -397,7 +397,7 @@ bitor-op-expr
 bitand-op-expr
     : shift-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
         {
-            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
         }
     | shift-op-expr
         { $$ = $1; }
@@ -474,8 +474,8 @@ unary-op
         { $$ = EUnaryOp::Plus; }
     | OpMinus
         { $$ = EUnaryOp::Minus; }
-    | OpExclamation
-        { $$ = EUnaryOp::Not; }
+    | OpTilde
+        { $$ = EUnaryOp::BitNot; }
 ;
 
 qualified-identifier

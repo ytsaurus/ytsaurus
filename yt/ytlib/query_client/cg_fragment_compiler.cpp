@@ -520,11 +520,8 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                         break;
 
                     case EUnaryOp::Not:
-                        evalData = builder.CreateXor(
-                            builder.CreateZExtOrBitCast(
-                                builder.getTrue(),
-                                TDataTypeBuilder::TBoolean::get(builder.getContext())),
-                            operandData);
+                    case EUnaryOp::BitNot:
+                        evalData = builder.CreateNot(operandData);
                         break;
 
                     default:
@@ -782,6 +779,8 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                         OP(Multiply, Mul)
                                         OP(Divide, SDiv)
                                         OP(Modulo, SRem)
+                                        OP(BitAnd, And)
+                                        OP(BitOr, Or)
                                         OP(And, And)
                                         OP(Or, Or)
                                         OP(LeftShift, Shl)
@@ -797,6 +796,8 @@ TCodegenExpression MakeCodegenBinaryOpExpr(
                                         OP(Multiply, Mul)
                                         OP(Divide, UDiv)
                                         OP(Modulo, URem)
+                                        OP(BitAnd, And)
+                                        OP(BitOr, Or)
                                         OP(And, And)
                                         OP(Or, Or)
                                         OP(LeftShift, Shl)
