@@ -117,16 +117,14 @@ def test_yamr_table_switcher():
                       [yt.Record("a", "b", tableIndex=0), yt.Record("a", "b", tableIndex=1)])
 
 def test_json_format():
-    yt.format.ujson = None
-    format = yt.JsonFormat()
+    format = yt.JsonFormat(enable_ujson=False)
     check_format(format, '{"a": 1}', {"a": 1})
 
     stream = StringIO('{"a": 1}\n{"b": 2}')
     assert list(format.load_rows(stream)) == [{"a": 1}, {"b": 2}]
 
 def test_json_format_table_index():
-    yt.format.ujson = None
-    format = yt.JsonFormat(process_table_index=True)
+    format = yt.JsonFormat(process_table_index=True, enable_ujson=False)
 
     stream = StringIO()
     format.dump_rows([{"a": 1, "@table_index": 1}], stream)

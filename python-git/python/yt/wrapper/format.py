@@ -7,20 +7,15 @@ parameters, and then by kwargs options.
 from config import get_config
 from common import get_value, require, filter_dict, merge_dicts, YtError
 from yamr_record import Record, SimpleRecord, SubkeyedRecord
-import yt.yson as yson
 import yt.logger as logger
-import yt.packages.simplejson as json
+import yt.json as json
+import yt.yson as yson
 
 from abc import ABCMeta, abstractmethod
 import copy
 import struct
 import itertools
 from cStringIO import StringIO
-
-try:
-    import ujson
-except ImportError:
-    ujson = None
 
 try:
     import statbox_bindings.tskv
@@ -538,29 +533,32 @@ class JsonFormat(Format):
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
 
-    def __init__(self, process_table_index=True, table_index_column="@table_index", attributes=None, raw=None):
+    def __init__(self, process_table_index=True, table_index_column="@table_index", attributes=None, raw=None, enable_ujson=True):
         attributes = get_value(attributes, {})
         super(JsonFormat, self).__init__("json", attributes, raw)
         self.process_table_index = process_table_index
         self.table_index_column = table_index_column
+        self.json_module = json
+
+        if enable_ujson:
+            try:
+                import ujson
+                self.json_module = ujson
+            except ImportError:
+                pass
+                ujson = None
 
     def _loads(self, string, raw):
         if raw:
             return string
         string = string.rstrip("\n")
-        if ujson is not None:
-            return ujson.loads(string)
-        return json.loads(string)
+        return self.json_module.loads(string)
 
     def _dump(self, obj, stream):
-        if ujson is not None:
-            return ujson.dump(obj, stream)
-        return json.dump(obj, stream)
+        return self.json_module.dump(obj, stream)
 
     def _dumps(self, obj):
-        if ujson is not None:
-            return ujson.dumps(obj)
-        return json.dumps(obj)
+        return self.json_module.dumps(obj)
 
     def load_row(self, stream, raw=None):
         row = stream.readline()

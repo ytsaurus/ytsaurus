@@ -2,7 +2,7 @@
 
 from yt.wrapper.client import Yt
 from yt.wrapper.common import parse_bool
-import yt.packages.simplejson as json
+import yt.json as json
 import yt.yson as yson
 import yt.wrapper as yt
 

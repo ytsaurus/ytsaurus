@@ -4,7 +4,7 @@ from cypress_commands import get
 from transaction_commands import _make_transactional_request
 
 from yt.yson.convert import json_to_yson
-import yt.packages.simplejson as json
+import yt.json as json
 
 import time
 from datetime import timedelta, datetime
