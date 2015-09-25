@@ -17,6 +17,8 @@
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
 
+#include <core/profiling/scoped_timer.h>
+
 #include <core/rpc/message.h>
 #include <core/rpc/response_keeper.h>
 
@@ -887,6 +889,7 @@ private:
             .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
             .Item("start_time").Value(operation->GetStartTime())
             .Item("finish_time").Value(operation->GetFinishTime())
+            .Item("controller_time_statistics").Value(operation->ControllerTimeStatistics())
             .Item("error").Value(error);
     }
 
@@ -1149,7 +1152,12 @@ private:
 
             auto controller = operation->GetController();
             auto asyncResult = controller->Prepare();
+
+            NProfiling::TScopedTimer timer;
             auto result = WaitFor(asyncResult);
+            auto prepareDuration = timer.GetElapsed();
+            operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
+
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
