@@ -43,9 +43,10 @@ public:
     TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
     void Profile(const TTableSchema& tableSchema, int keySize = std::numeric_limits<int>::max());
 
-    TFoldingProfiler& Set(llvm::FoldingSetNodeID* id);
-    TFoldingProfiler& Set(TCGVariables* variables);
-    TFoldingProfiler& Set(yhash_set<Stroka>* references);
+    void Set(llvm::FoldingSetNodeID* id);
+    void Set(TCGVariables* variables);
+    void Set(yhash_set<Stroka>* references);
+    void Set(std::vector<std::vector<bool>>* literalArgs);
 
 private:
     TCodegenExpression Profile(const TNamedItem& namedExpression, const TTableSchema& schema);
@@ -61,6 +62,8 @@ private:
     llvm::FoldingSetNodeID* Id_ = nullptr;
     TCGVariables* Variables_ = nullptr;
     yhash_set<Stroka>* References_ = nullptr;
+    std::vector<std::vector<bool>>* LiteralArgs_ = nullptr;
+
     const IFunctionRegistryPtr FunctionRegistry_;
 };
 
@@ -71,22 +74,24 @@ TFoldingProfiler::TFoldingProfiler(
     : FunctionRegistry_(functionRegistry)
 { }
 
-TFoldingProfiler& TFoldingProfiler::Set(llvm::FoldingSetNodeID* id)
+void TFoldingProfiler::Set(llvm::FoldingSetNodeID* id)
 {
     Id_ = id;
-    return *this;
 }
 
-TFoldingProfiler& TFoldingProfiler::Set(TCGVariables* variables)
+void TFoldingProfiler::Set(TCGVariables* variables)
 {
     Variables_ = variables;
-    return *this;
 }
 
-TFoldingProfiler& TFoldingProfiler::Set(yhash_set<Stroka>* references)
+void TFoldingProfiler::Set(yhash_set<Stroka>* references)
 {
     References_ = references;
-    return *this;
+}
+
+void TFoldingProfiler::Set(std::vector<std::vector<bool>>* literalArgs)
+{
+    LiteralArgs_ = literalArgs;
 }
 
 TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
@@ -226,7 +231,7 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
         Fold(static_cast<int>(EFoldingObjectType::LiteralExpr));
         Fold(static_cast<ui16>(TValue(literalExpr->Value).Type));
-        
+
         int index = Variables_
             ? Variables_->ConstantsRowBuilder.AddValue(TValue(literalExpr->Value))
             : -1;
@@ -247,13 +252,22 @@ TCodegenExpression TFoldingProfiler::Profile(TConstExpressionPtr expr, const TTa
 
         std::vector<TCodegenExpression> codegenArgs;
         std::vector<EValueType> argumentTypes;
+        std::vector<bool> literalArgs;
         for (const auto& argument : functionExpr->Arguments) {
             codegenArgs.push_back(Profile(argument, schema));
             argumentTypes.push_back(argument->Type);
+            literalArgs.push_back(argument->As<TLiteralExpression>() != nullptr);
+        }
+
+        int index = -1;
+        if (LiteralArgs_) {
+            index =  LiteralArgs_->size();
+            LiteralArgs_->push_back(std::move(literalArgs));
         }
 
         return FunctionRegistry_->GetFunction(functionExpr->FunctionName)
             ->MakeCodegenExpr(
+                MakeCodegenFunctionContext(index),
                 std::move(codegenArgs),
                 std::move(argumentTypes),
                 functionExpr->Type,
@@ -364,12 +378,14 @@ TCGQueryCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     yhash_set<Stroka>* references,
+    std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(id);
     profiler.Set(variables);
     profiler.Set(references);
+    profiler.Set(literalArgs);
 
     return [
             codegenSource = profiler.Profile(query)
@@ -384,11 +400,13 @@ TCGExpressionCallbackGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     yhash_set<Stroka>* references,
+    std::vector<std::vector<bool>>* literalArgs,
     const IFunctionRegistryPtr functionRegistry)
 {
     TFoldingProfiler profiler(functionRegistry);
     profiler.Set(variables);
     profiler.Set(references);
+    profiler.Set(literalArgs);
 
     return [
             codegenExpr = profiler.Profile(expr, schema)

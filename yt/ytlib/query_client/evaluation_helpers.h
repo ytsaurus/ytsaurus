@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "callbacks.h"
+#include "function_context.h"
 
 #include <ytlib/table_client/unversioned_row.h>
 
@@ -15,6 +16,8 @@
 #include <unordered_map>
 
 #include <sparsehash/dense_hash_set>
+
+#include <deque>
 
 namespace NYT {
 namespace NQueryClient {
@@ -45,9 +48,8 @@ struct TExpressionContext
     const TTableSchema* Schema;
 
     const std::vector<TSharedRange<TRow>>* LiteralRows;
-    
+
     TRowBufferPtr IntermediateBuffer;
-    
 };
 
 struct TExecutionContext
@@ -78,6 +80,8 @@ struct TExecutionContext
 
     std::vector<TJoinEvaluator> JoinEvaluators;
     TExecuteQuery ExecuteCallback;
+
+    std::deque<TFunctionContext> FunctionContexts;
 };
 
 namespace NDetail {
@@ -186,8 +190,8 @@ struct TCGVariables
     std::vector<TJoinEvaluator> JoinEvaluators;
 };
 
-typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
-typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*);
+typedef void (TCGQuerySignature)(TRow, TExecutionContext*, TFunctionContext**);
+typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*, TFunctionContext**);
 typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
 typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, TValue*, TValue*);
 typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, TValue*, TValue*);

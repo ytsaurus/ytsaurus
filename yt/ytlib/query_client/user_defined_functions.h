@@ -12,6 +12,7 @@ struct ICallingConvention
     : public TRefCounted
 {
     virtual TCodegenExpression MakeCodegenFunctionCall(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
         EValueType type,
@@ -35,9 +36,10 @@ class TUnversionedValueCallingConvention
     : public ICallingConvention
 {
 public:
-    TUnversionedValueCallingConvention(int repeatedArgIndex);
+    TUnversionedValueCallingConvention(int repeatedArgIndex, bool useFunctionContext = false);
 
     virtual TCodegenExpression MakeCodegenFunctionCall(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
         EValueType type,
@@ -50,6 +52,7 @@ public:
 
 private:
     int RepeatedArgIndex_;
+    bool UseFunctionContext_;
 };
 
 class TSimpleCallingConvention
@@ -57,6 +60,7 @@ class TSimpleCallingConvention
 {
 public:
     virtual TCodegenExpression MakeCodegenFunctionCall(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
         EValueType type,
@@ -91,6 +95,7 @@ public:
     { }
 
     virtual TCodegenExpression MakeCodegenExpr(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::vector<EValueType> argumentTypes,
         EValueType type,
@@ -136,7 +141,6 @@ public:
         TType resultType,
         TSharedRef implementationFile);
 
-private:
     TUserDefinedFunction(
         const Stroka& functionName,
         const Stroka& symbolName,

@@ -91,7 +91,13 @@
 %token <Stroka> StringLiteral "string literal"
 
 
+
+%token OpTilde 33 "`~`"
+%token OpVerticalBar 124 "`|`"
+%token OpAmpersand 38 "`&`"
 %token OpModulo 37 "`%`"
+%token OpLeftShift "`<<`"
+%token OpRightShift "`>>`"
 
 %token LeftParenthesis 40 "`(`"
 %token RightParenthesis 41 "`)`"
@@ -119,10 +125,14 @@
 %type <TExpressionList> named-expression
 
 %type <TExpressionList> expression
-%type <TExpressionList> not-op-expr
 %type <TExpressionList> or-op-expr
 %type <TExpressionList> and-op-expr
+%type <TExpressionList> not-op-expr
+%type <TExpressionList> equal-op-expr
 %type <TExpressionList> relational-op-expr
+%type <TExpressionList> bitor-op-expr
+%type <TExpressionList> bitand-op-expr
+%type <TExpressionList> shift-op-expr
 %type <TExpressionList> multiplicative-op-expr
 %type <TExpressionList> additive-op-expr
 %type <TExpressionList> unary-expr
@@ -204,7 +214,7 @@ join-clause
         {
             head->first.As<TQuery>().Joins.emplace_back($table, $fields);
         }
-    | join-clause KwJoin table-descriptor[table] KwOn additive-op-expr[lhs] OpEqual additive-op-expr[rhs]
+    | join-clause KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
         {
             head->first.As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
         }
@@ -312,6 +322,7 @@ or-op-expr
 ;
 
 and-op-expr
+
     : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
@@ -321,16 +332,30 @@ and-op-expr
 ;
 
 not-op-expr
-    : KwNot relational-op-expr[expr]
+    : KwNot equal-op-expr[expr]
         {
             $$ = MakeExpr<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
+        }
+    | equal-op-expr
+        { $$ = $1; }
+;
+
+equal-op-expr
+    : equal-op-expr[lhs] OpEqual relational-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Equal, $lhs, $rhs);
+        }
+
+    | equal-op-expr[lhs] OpNotEqual relational-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::NotEqual, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
 ;
 
 relational-op-expr
-    : relational-op-expr[lhs] relational-op[opcode] additive-op-expr[rhs]
+    : relational-op-expr[lhs] relational-op[opcode] bitor-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
@@ -345,16 +370,12 @@ relational-op-expr
         {
             $$ = MakeExpr<TInExpression>(@$, $expr, $args);
         }
-    | additive-op-expr
+    | bitor-op-expr
         { $$ = $1; }
 ;
 
 relational-op
-    : OpEqual
-        { $$ = EBinaryOp::Equal; }
-    | OpNotEqual
-        { $$ = EBinaryOp::NotEqual; }
-    | OpLess
+    : OpLess
         { $$ = EBinaryOp::Less; }
     | OpLessOrEqual
         { $$ = EBinaryOp::LessOrEqual; }
@@ -362,6 +383,37 @@ relational-op
         { $$ = EBinaryOp::Greater; }
     | OpGreaterOrEqual
         { $$ = EBinaryOp::GreaterOrEqual; }
+;
+
+bitor-op-expr
+    : shift-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
+        }
+    | bitand-op-expr
+        { $$ = $1; }
+;
+
+bitand-op-expr
+    : shift-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
+        }
+    | shift-op-expr
+        { $$ = $1; }
+;
+
+shift-op-expr
+    : shift-op-expr[lhs] OpLeftShift additive-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
+        }
+    | shift-op-expr[lhs] OpRightShift additive-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
+        }
+    | additive-op-expr
+        { $$ = $1; }
 ;
 
 additive-op-expr
@@ -422,6 +474,8 @@ unary-op
         { $$ = EUnaryOp::Plus; }
     | OpMinus
         { $$ = EUnaryOp::Minus; }
+    | OpTilde
+        { $$ = EUnaryOp::BitNot; }
 ;
 
 qualified-identifier

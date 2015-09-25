@@ -599,13 +599,14 @@ TEST_P(TArithmeticTest, Evaluate)
 
     TUnversionedValue result;
     TCGVariables variables;
+    std::vector<std::vector<bool>> allLiteralArgs;
     auto keyColumns = GetSampleKeyColumns();
     auto schema = GetSampleTableSchema();
     schema.Columns()[0].Type = type;
     schema.Columns()[1].Type = type;
 
     auto expr = PrepareExpression(Stroka("k") + op + "l", schema);
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
     auto row = NTableClient::BuildRow(Stroka("k=") + lhs + ";l=" + rhs, keyColumns, schema, true);
 
     TQueryStatistics statistics;
@@ -613,6 +614,7 @@ TEST_P(TArithmeticTest, Evaluate)
     auto outputBuffer = New<TRowBuffer>();
     auto intermediateBuffer = New<TRowBuffer>();
 
+    // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
     executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
@@ -625,7 +627,15 @@ TEST_P(TArithmeticTest, Evaluate)
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+    std::vector<TFunctionContext*> functionContexts;
+    for (auto& literalArgs : allLiteralArgs) {
+        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
+    }
+    for (auto& functionContext : executionContext.FunctionContexts) {
+        functionContexts.push_back(&functionContext);
+    }
+
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
 
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(row);
@@ -640,6 +650,10 @@ INSTANTIATE_TEST_CASE_P(
         TArithmeticTestParam(EValueType::Int64, "3", "*", "2", MakeInt64(6)),
         TArithmeticTestParam(EValueType::Int64, "6", "/", "2", MakeInt64(3)),
         TArithmeticTestParam(EValueType::Int64, "6", "%", "4", MakeInt64(2)),
+        TArithmeticTestParam(EValueType::Int64, "6", "<<", "2", MakeInt64(24)),
+        TArithmeticTestParam(EValueType::Int64, "6", ">>", "1", MakeInt64(3)),
+        TArithmeticTestParam(EValueType::Int64, "1234567", "|", "1111111", MakeInt64(1242823)),
+        TArithmeticTestParam(EValueType::Int64, "1234567", "&", "1111111", MakeInt64(1102855)),
         TArithmeticTestParam(EValueType::Int64, "6", ">", "4", MakeBoolean(true)),
         TArithmeticTestParam(EValueType::Int64, "6", "<", "4", MakeBoolean(false)),
         TArithmeticTestParam(EValueType::Int64, "6", ">=", "4", MakeBoolean(true)),
@@ -651,6 +665,10 @@ INSTANTIATE_TEST_CASE_P(
         TArithmeticTestParam(EValueType::Uint64, "3u", "*", "2u", MakeUint64(6)),
         TArithmeticTestParam(EValueType::Uint64, "6u", "/", "2u", MakeUint64(3)),
         TArithmeticTestParam(EValueType::Uint64, "6u", "%", "4u", MakeUint64(2)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", "<<", "2u", MakeUint64(24)),
+        TArithmeticTestParam(EValueType::Uint64, "6u", ">>", "1u", MakeUint64(3)),
+        TArithmeticTestParam(EValueType::Uint64, "1234567u", "|", "1111111u", MakeUint64(1242823)),
+        TArithmeticTestParam(EValueType::Uint64, "1234567u", "&", "1111111u", MakeUint64(1102855)),
         TArithmeticTestParam(EValueType::Uint64, "6u", ">", "4u", MakeBoolean(true)),
         TArithmeticTestParam(EValueType::Uint64, "6u", "<", "4u", MakeBoolean(false)),
         TArithmeticTestParam(EValueType::Uint64, "6u", ">=", "4u", MakeBoolean(true)),
@@ -682,14 +700,20 @@ TEST_P(TCompareWithNullTest, Simple)
 
     TUnversionedValue result;
     TCGVariables variables;
+    std::vector<std::vector<bool>> allLiteralArgs;
     auto schema = GetSampleTableSchema();
     auto keyColumns = GetSampleKeyColumns();
+
+    auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
+    auto expr = PrepareExpression(exprString, schema);
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
 
     TQueryStatistics statistics;
     auto permanentBuffer = New<TRowBuffer>();
     auto outputBuffer = New<TRowBuffer>();
     auto intermediateBuffer = New<TRowBuffer>();
 
+    // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
     executionContext.Schema = &schema;
     executionContext.PermanentBuffer = permanentBuffer;
@@ -701,11 +725,18 @@ TEST_P(TCompareWithNullTest, Simple)
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
-    auto expr = PrepareExpression(exprString, schema);
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
     executionContext.LiteralRows = &variables.LiteralRows;
-    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+
+    std::vector<TFunctionContext*> functionContexts;
+    for (auto& literalArgs : allLiteralArgs) {
+        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
+    }
+    for (auto& functionContext : executionContext.FunctionContexts) {
+        functionContexts.push_back(&functionContext);
+    }
+
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
+
     EXPECT_EQ(result, expected)
         << "row: " << ::testing::PrintToString(rowString) << std::endl
         << "expr: " << ::testing::PrintToString(exprString) << std::endl;
@@ -861,8 +892,9 @@ TEST_P(TEvaluateExpressionTest, Basic)
     auto expr = PrepareExpression(exprString, schema);
 
     TCGVariables variables;
+    std::vector<std::vector<bool>> allLiteralArgs;
 
-    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, CreateBuiltinFunctionRegistry())();
+    auto callback = Profile(expr, schema, nullptr, &variables, nullptr, &allLiteralArgs, CreateBuiltinFunctionRegistry())();
 
     auto row = NTableClient::BuildRow(rowString, keyColumns, schema, true);
     TUnversionedValue result;
@@ -872,6 +904,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
     auto outputBuffer = New<TRowBuffer>();
     auto intermediateBuffer = New<TRowBuffer>();
 
+    // NB: function contexts need to be destroyed before callback since it hosts destructors.
     TExecutionContext executionContext;
     executionContext.Schema = &schema;
     executionContext.LiteralRows = &variables.LiteralRows;
@@ -884,7 +917,15 @@ TEST_P(TEvaluateExpressionTest, Basic)
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
-    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext);
+    std::vector<TFunctionContext*> functionContexts;
+    for (auto& literalArgs : allLiteralArgs) {
+        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
+    }
+    for (auto& functionContext : executionContext.FunctionContexts) {
+        functionContexts.push_back(&functionContext);
+    }
+
+    callback(&result, row.Get(), variables.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
 
     EXPECT_EQ(result, expected);
 }

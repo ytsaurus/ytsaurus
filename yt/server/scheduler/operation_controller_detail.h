@@ -204,7 +204,7 @@ protected:
     {
         // Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
-        std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
+        std::vector<NChunkClient::TRefCountedChunkSpecPtr> Chunks;
         NTableClient::TKeyColumns KeyColumns;
 
         void Persist(TPersistenceContext& context);

@@ -688,7 +688,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
         ToProto(chunkSpec, *chunkSlice);
-        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
@@ -1654,7 +1654,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                     slices.end(),
                     inputStripe.Stripe->ChunkSlices.begin(),
                     [&] (TChunkSlicePtr slice) {
-                        return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
+                        return chunkId != FromProto<TChunkId>(slice->ChunkSpec()->chunk_id());
                     });
 
                 // Reinstall patched stripe.
@@ -1873,7 +1873,7 @@ void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
             if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
@@ -2553,7 +2553,9 @@ void TOperationControllerBase::FetchInputTables()
             const auto& rsp = rspOrError.Value();
             NodeDirectory->MergeFrom(rsp->node_directory());
             for (const auto& chunk : rsp->chunks()) {
-                table.Chunks.push_back(chunk);
+                auto chunkSpec = New<TRefCountedChunkSpec>(std::move(chunk));
+                chunkSpec->set_table_index(tableIndex);
+                table.Chunks.push_back(chunkSpec);
             }
         }
         LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
@@ -3020,8 +3022,8 @@ void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
-                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            if (IsUnavailable(*chunkSpec, NeedsAllChunkParts())) {
+                auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
                         THROW_ERROR_EXCEPTION("Input chunk %v is unavailable",
@@ -3044,7 +3046,7 @@ void TOperationControllerBase::CollectTotals()
             i64 chunkRowCount;
             i64 chunkValueCount;
             i64 chunkCompressedDataSize;
-            NChunkClient::GetStatistics(chunkSpec, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
+            NChunkClient::GetStatistics(*chunkSpec, &chunkDataSize, &chunkRowCount, &chunkValueCount, &chunkCompressedDataSize);
 
             TotalEstimatedInputDataSize += chunkDataSize;
             TotalEstimatedInputRowCount += chunkRowCount;
@@ -3069,10 +3071,9 @@ void TOperationControllerBase::CustomPrepare()
 std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunks() const
 {
     std::vector<TRefCountedChunkSpecPtr> result;
-    for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
-        const auto& table = InputTables[tableIndex];
+    for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(chunkSpec, NeedsAllChunkParts())) {
+            if (IsUnavailable(*chunkSpec, NeedsAllChunkParts())) {
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Skip:
                         continue;
@@ -3085,9 +3086,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
                         YUNREACHABLE();
                 }
             }
-            auto chunk = New<TRefCountedChunkSpec>(chunkSpec);
-            chunk->set_table_index(tableIndex);
-            result.push_back(chunk);
+            result.push_back(chunkSpec);
         }
     }
     return result;
@@ -3306,7 +3305,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
     for (const auto& slice : stripe->ChunkSlices) {
-        auto chunkSpec = slice->GetChunkSpec();
+        auto chunkSpec = slice->ChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
         auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
@@ -3332,7 +3331,7 @@ void TOperationControllerBase::RegisterIntermediate(
     TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSlice->ChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (IsIntermediateLivePreviewSupported()) {

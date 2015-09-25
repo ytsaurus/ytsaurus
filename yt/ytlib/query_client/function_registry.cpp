@@ -7,6 +7,7 @@
 #include "udf/hyperloglog.h"
 #include "udf/double_cast.h"
 #include "udf/farm_hash.h"
+#include "udf/regex.h"
 #include "udf/int64.h"
 #include "udf/is_null.h"
 #include "udf/is_substr.h"
@@ -217,6 +218,85 @@ void RegisterBuiltinFunctions(TIntrusivePtr<TFunctionRegistry>& registry)
             double_cast_bc,
             double_cast_bc_len,
             nullptr)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "regex_full_match",
+        "regex_full_match",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::Boolean,
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
+        New<TUnversionedValueCallingConvention>(-1, true)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "regex_partial_match",
+        "regex_partial_match",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::Boolean,
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
+        New<TUnversionedValueCallingConvention>(-1, true)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "regex_replace_first",
+        "regex_replace_first",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::String,
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
+        New<TUnversionedValueCallingConvention>(-1, true)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "regex_replace_all",
+        "regex_replace_all",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::String,
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
+        New<TUnversionedValueCallingConvention>(-1, true)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "regex_extract",
+        "regex_extract",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::String, EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::String,
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
+        New<TUnversionedValueCallingConvention>(-1, true)));
+
+    registry->RegisterFunction(New<TUserDefinedFunction>(
+        "regex_escape",
+        "regex_escape",
+        std::unordered_map<TTypeArgument, TUnionType>(),
+        std::vector<TType>{EValueType::String},
+        EValueType::Null,
+        EValueType::String,
+        TSharedRef(
+            regex_bc,
+            regex_bc_len,
+            nullptr),
+        New<TUnversionedValueCallingConvention>(-1, true)));
+
 
     registry->RegisterFunction(New<TIfFunction>());
     registry->RegisterFunction(New<TIsPrefixFunction>());
