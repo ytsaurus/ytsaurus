@@ -224,7 +224,7 @@ private:
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
-    void DoApplyMutation(TMutationContext* context, bool recovery);
+    void DoApplyMutation(TMutationContext* context);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();
@@ -239,6 +239,8 @@ private:
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();
+
+    bool IsRecovery();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
