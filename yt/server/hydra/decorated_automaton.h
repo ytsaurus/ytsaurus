@@ -162,7 +162,7 @@ public:
 
     TFuture<void> RotateChangelog(TEpochContextPtr epochContext);
 
-    void CommitMutations(TEpochContextPtr epochContext, TVersion version);
+    void CommitMutations(TEpochContextPtr epochContext, TVersion version, bool mayYield);
 
     bool HasReadyMutations() const;
 
@@ -235,7 +235,7 @@ private:
 
     void DoRotateChangelog();
 
-    void ApplyPendingMutations(TEpochContextPtr epochContext);
+    void ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield);
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();

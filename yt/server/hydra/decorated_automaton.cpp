@@ -881,7 +881,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
     LOG_INFO("Changelog rotated");
 }
 
-void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersion version)
+void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersion version, bool mayYield)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -894,7 +894,7 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
         version);
 
     if (!ApplyPendingMutationsScheduled_) {
-        ApplyPendingMutations(std::move(epochContext));
+        ApplyPendingMutations(std::move(epochContext), mayYield);
     }
 }
 
@@ -910,13 +910,13 @@ bool TDecoratedAutomaton::HasReadyMutations() const
     return pendingMutation.Version < CommittedVersion_;
 }
 
-void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
+void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield)
 {
     ApplyPendingMutationsScheduled_ = false;
 
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
-        while (!PendingMutations_.empty() && timer.GetElapsed() < Config_->MaxCommitBatchDuration) {
+        while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
             if (pendingMutation.Version >= CommittedVersion_)
                 break;
@@ -938,13 +938,14 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
             PendingMutations_.pop();
 
             MaybeStartSnapshotBuilder();
-        }
-    }
 
-    if (HasReadyMutations()) {
-        ApplyPendingMutationsScheduled_ = true;
-        epochContext->EpochUserAutomatonInvoker->Invoke(
-            BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
+            if (mayYield && timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
+                ApplyPendingMutationsScheduled_ = true;
+                epochContext->EpochUserAutomatonInvoker->Invoke(
+                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext, true));
+                break;
+            }
+        }
     }
 }
 
