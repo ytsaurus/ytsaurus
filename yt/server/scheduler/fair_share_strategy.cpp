@@ -6,7 +6,7 @@
 #include "master_connector.h"
 #include "job_resources.h"
 
-#include <iostream>
+#include <core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -1034,15 +1034,20 @@ public:
         auto operationLimits = ResourceLimits() - ResourceUsage();
         jobLimits = Min(jobLimits, operationLimits);
 
+        NProfiling::TScopedTimer timer;
         auto jobId = controller->ScheduleJob(context.SchedulingContext, jobLimits);
-        if (!jobId) {
-            context.DynamicAttributesMap.At(this).Active = false;
-        } else {
+        auto scheduleJobDuration = timer.GetElapsed();
+
+        if (jobId) {
             const auto& job = context.SchedulingContext->FindStartedJob(jobId);
 
             node->ResourceUsage() += job->ResourceUsage();
             OnJobStarted(jobId, job->ResourceUsage());
             UpdateDynamicAttributes(context.DynamicAttributesMap);
+            Operation_->UpdateControllerTimeStatistics("/schedule_job/success", scheduleJobDuration);
+        } else {
+            context.DynamicAttributesMap.At(this).Active = false;
+            Operation_->UpdateControllerTimeStatistics("/schedule_job/fail", scheduleJobDuration);
         }
 
         {

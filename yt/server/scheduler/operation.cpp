@@ -92,6 +92,13 @@ void TOperation::BuildJobStatistics(NYson::IYsonConsumer* consumer) const
         .Value(JobStatistics);
 }
 
+void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
+{
+    TStatistics statistics;
+    statistics.Add(name, value.MicroSeconds());
+    ControllerTimeStatistics_.AddSample(statistics);
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler
