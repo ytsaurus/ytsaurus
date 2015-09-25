@@ -352,7 +352,7 @@ void TFollowerRecovery::DoRun()
 
         DecoratedAutomaton_->CommitMutations(EpochContext_, committedVersion);
 
-        if (postponedMutations.empty() && !DecoratedAutomaton_->HasPendingMutations())
+        if (postponedMutations.empty() && !DecoratedAutomaton_->HasReadyMutations())
             break;
 
         if (!postponedMutations.empty()) {

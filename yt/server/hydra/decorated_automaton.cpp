@@ -898,11 +898,16 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
     }
 }
 
-bool TDecoratedAutomaton::HasPendingMutations() const
+bool TDecoratedAutomaton::HasReadyMutations() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return !PendingMutations_.empty();
+    if (PendingMutations_.empty()) {
+        return false;
+    }
+
+    const auto& pendingMutation = PendingMutations_.front();
+    return pendingMutation.Version < CommittedVersion_;
 }
 
 void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
@@ -911,17 +916,10 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
 
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
-        while (!PendingMutations_.empty()) {
+        while (!PendingMutations_.empty() && timer.GetElapsed() < Config_->MaxCommitBatchDuration) {
             auto& pendingMutation = PendingMutations_.front();
             if (pendingMutation.Version >= CommittedVersion_)
                 break;
-
-            if (timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
-                ApplyPendingMutationsScheduled_ = true;
-                epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
-                break;
-            }
 
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
@@ -941,6 +939,12 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
 
             MaybeStartSnapshotBuilder();
         }
+    }
+
+    if (HasReadyMutations()) {
+        ApplyPendingMutationsScheduled_ = true;
+        epochContext->EpochUserAutomatonInvoker->Invoke(
+            BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
     }
 }
 
