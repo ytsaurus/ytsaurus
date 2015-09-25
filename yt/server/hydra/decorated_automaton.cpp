@@ -752,7 +752,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         TInstant(header.timestamp()),
         header.random_seed());
 
-    DoApplyMutation(&context, true);
+    DoApplyMutation(&context);
 }
 
 void TDecoratedAutomaton::LogLeaderMutation(
@@ -931,7 +931,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed);
 
-            DoApplyMutation(&context, false);
+            DoApplyMutation(&context);
 
             if (pendingMutation.CommitPromise) {
                 pendingMutation.CommitPromise.Set(context.Response());
@@ -956,14 +956,14 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
     }
 }
 
-void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recovery)
+void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v)",
         automatonVersion,
         request.Type);
 
@@ -1088,6 +1088,13 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_))
        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_));
     SnapshotParamsPromise_.SetFrom(builder->Run());
+}
+
+bool TDecoratedAutomaton::IsRecovery()
+{
+    return
+        State_ == EPeerState::LeaderRecovery ||
+        State_ == EPeerState::FollowerRecovery;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
