@@ -2957,7 +2957,7 @@ void TOperationControllerBase::LockUserFiles(
             batchReq->AddRequest(req, "lock");
         }
         {
-            auto req = TYPathProxy::Get(path);
+            auto req = TYPathProxy::Get(objectIdPath);
             SetTransactionId(req, Operation->GetInputTransaction());
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
             if (file.Type == EObjectType::File) {
