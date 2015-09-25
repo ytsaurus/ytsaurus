@@ -30,12 +30,23 @@ GEN_PORT_ATTEMPTS = 10
 
 logger = logging.getLogger("Yt.local")
 
+def fix_yson_booleans(obj):
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            fix_yson_booleans(value)
+            if isinstance(value, yson.YsonBoolean):
+                obj[key] = True if value else False
+    elif isinstance(obj, list):
+        for value in obj:
+            fix_yson_booleans(value)
+    return obj
+
 def _write_config(config, filename, format="yson"):
     with open(filename, "wt") as f:
         if format == "yson":
             yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
         else:  # json
-            json.dump(config, f, indent=4)
+            json.dump(fix_yson_booleans(config), f, indent=4)
 
 def _is_binary_found(binary_name):
     for path in os.environ["PATH"].split(os.pathsep):
