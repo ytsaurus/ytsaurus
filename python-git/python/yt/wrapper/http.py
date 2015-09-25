@@ -5,7 +5,7 @@ from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectRespons
 from command import parse_commands
 
 import yt.yson as yson
-import yt.packages.simplejson as json
+import yt.json as json
 
 import os
 import random
