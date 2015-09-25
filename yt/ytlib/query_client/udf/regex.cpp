@@ -53,7 +53,8 @@ extern "C" void regex_full_match(
     TUnversionedValue* input)
 {
     if (regexp->Type == Null || input->Type == Null) {
-        result->Type = Null;
+        result->Type = Boolean;
+        result->Data.Boolean = false;
     } else {
         regex_work(
             functonContext,
@@ -73,7 +74,8 @@ extern "C" void regex_partial_match(
     TUnversionedValue* input)
 {
     if (regexp->Type == Null || input->Type == Null) {
-        result->Type = Null;
+        result->Type = Boolean;
+        result->Data.Boolean = false;
     } else {
         regex_work(
             functonContext,

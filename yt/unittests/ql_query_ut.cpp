@@ -2488,7 +2488,7 @@ TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
     auto result = BuildRows({
         "x=%false",
         "x=%true",
-        "",
+        "x=%false",
     }, resultSplit);
 
     Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
@@ -2515,7 +2515,7 @@ TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
     auto result = BuildRows({
         "x=%false",
         "x=%true",
-        "",
+        "x=%false",
     }, resultSplit);
 
     Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
