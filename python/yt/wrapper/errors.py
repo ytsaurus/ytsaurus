@@ -1,7 +1,7 @@
 """YT usage errors"""
 
 from yt.common import YtError
-import yt.packages.simplejson as json
+import yt.json as json
 
 from copy import deepcopy
 

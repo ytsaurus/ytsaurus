@@ -1,7 +1,7 @@
 from config import get_config, get_option
 import yt.logger as logger
 import yt.yson as yson
-import yt.packages.simplejson as json
+import yt.json as json
 from compression_wrapper import create_zlib_generator
 from common import require, generate_uuid, bool_to_string, get_value, get_version, total_seconds
 from errors import YtError, YtHttpResponseError, YtProxyUnavailable

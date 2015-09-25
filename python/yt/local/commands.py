@@ -6,7 +6,7 @@ from yt.wrapper.client import Yt
 from yt.common import YtError, require, update
 import yt.yson as yson
 import yt.wrapper as yt
-import yt.packages.simplejson as json
+import yt.json as json
 
 import os
 import signal

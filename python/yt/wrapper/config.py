@@ -2,7 +2,7 @@ import common
 import default_config
 
 import yt.yson as yson
-import yt.packages.simplejson as json
+import yt.json as json
 
 import os
 import sys

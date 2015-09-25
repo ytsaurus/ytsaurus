@@ -1,5 +1,5 @@
 import yt.yson as yson
-import yt.packages.simplejson as json
+import yt.json as json
 
 """This module provides default ytserver configs"""
 
