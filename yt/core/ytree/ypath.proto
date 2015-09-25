@@ -40,7 +40,7 @@ message TAttributeFilter
 message TReqGet
 {
     optional TAttributeFilter attribute_filter = 1;
-    optional int64 limit = 2 [default = 1000];
+    optional int64 limit = 2 [default = 10000];
     optional bool ignore_opaque = 3;
     optional NYT.NYTree.NProto.TAttributes options = 4;
 }
@@ -86,7 +86,7 @@ message TRspRemove
 message TReqList
 {
     optional TAttributeFilter attribute_filter = 1;
-    optional int64 limit = 2 [default = 1000];
+    optional int64 limit = 2 [default = 10000];
 }
 
 message TRspList
