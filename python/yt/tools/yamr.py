@@ -1,7 +1,7 @@
 import yt.logger as logger
 from yt.common import YtError
 from yt.wrapper.common import generate_uuid
-import yt.packages.simplejson as json
+import yt.json as json
 
 import os
 import sh

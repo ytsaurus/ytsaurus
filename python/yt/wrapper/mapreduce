@@ -28,7 +28,7 @@ from yt.wrapper.cypress_commands import remove_with_empty_dirs
 from yt.wrapper.common import flatten, first_not_none, bool_to_string, get_value, get_version, MB, chunk_iter_stream
 import yt.wrapper.config as config
 import yt.yson as yson
-import yt.packages.simplejson as json
+import yt.json as json
 import yt.wrapper as yt
 
 import os

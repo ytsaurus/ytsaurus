@@ -14,7 +14,7 @@ import socket
 import shutil
 import sys
 import getpass
-import yt.packages.simplejson as json
+import yt.json as json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import chain

@@ -7,7 +7,7 @@ from format import create_format
 
 import yt.yson as yson
 from yt.yson.convert import json_to_yson
-import yt.packages.simplejson as json
+import yt.json as json
 
 def make_request(command_name, params,
                  data=None, proxy=None,

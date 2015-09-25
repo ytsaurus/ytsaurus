@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from yt.wrapper.cli_helpers import die
-import yt.packages.simplejson as json
+import yt.json as json
 import yt.wrapper as yt
 
 import os

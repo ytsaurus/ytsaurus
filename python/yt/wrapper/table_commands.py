@@ -55,7 +55,7 @@ from driver import make_request, get_backend_type
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from table import TablePath, to_table, to_name, prepare_path
 from cypress_commands import exists, remove, remove_with_empty_dirs, get_attribute, copy, \
-                             move, mkdir, find_free_subpath, create, get, get_type, set_attribute, \
+                             move, mkdir, find_free_subpath, create, get, get_type, \
                              _make_formatted_transactional_request, has_attribute
 from file_commands import smart_upload_file
 from operation_commands import Operation, WaitStrategy
@@ -65,7 +65,7 @@ from format import create_format, YsonFormat, YamrFormat
 from heavy_commands import make_write_request, make_read_request
 from http import get_api_version
 import yt.logger as logger
-import yt.packages.simplejson as json
+import yt.json as json
 
 import os
 import sys
