@@ -192,9 +192,12 @@ process.on("message", function(message) {
 
 process.on("exit", binding.ShutdownSingletons);
 
-process.on("uncaughtException", function(ex) {
+process.on("uncaughtException", function(err) {
     console.error("*** Uncaught Exception");
-    console.error(ex.trace);
+    console.error(err);
+    if (err.trace) {
+        console.error(err.trace);
+    }
     binding.ShutdownSingletons();
     process.exit(1);
 });
