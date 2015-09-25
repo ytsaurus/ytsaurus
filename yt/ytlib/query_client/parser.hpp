@@ -294,7 +294,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // or-op-expr
       // and-op-expr
       // not-op-expr
+      // equal-op-expr
       // relational-op-expr
+      // bitor-op-expr
+      // bitand-op-expr
+      // shift-op-expr
       // additive-op-expr
       // multiplicative-op-expr
       // comma-expr
@@ -387,7 +391,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Uint64Literal = 1023,
         DoubleLiteral = 1024,
         StringLiteral = 1025,
+        OpTilde = 33,
+        OpVerticalBar = 124,
+        OpAmpersand = 38,
         OpModulo = 37,
+        OpLeftShift = 1026,
+        OpRightShift = 1027,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
@@ -397,11 +406,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1026,
+        OpLessOrEqual = 1028,
         OpEqual = 61,
-        OpNotEqual = 1027,
+        OpNotEqual = 1029,
         OpGreater = 62,
-        OpGreaterOrEqual = 1028
+        OpGreaterOrEqual = 1030
       };
     };
 
@@ -642,7 +651,27 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     static inline
     symbol_type
+    make_OpTilde (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpVerticalBar (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpAmpersand (const location_type& l);
+
+    static inline
+    symbol_type
     make_OpModulo (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpLeftShift (const location_type& l);
+
+    static inline
+    symbol_type
+    make_OpRightShift (const location_type& l);
 
     static inline
     symbol_type
@@ -785,7 +814,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const short int yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -900,13 +929,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 175,     ///< Last index in yytable_.
-      yynnts_ = 37,  ///< Number of nonterminal symbols.
+      yylast_ = 198,     ///< Last index in yytable_.
+      yynnts_ = 41,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 37, ///< Termination state number.
+      yyfinal_ = 42, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 46  ///< Number of tokens.
+      yyntokens_ = 51  ///< Number of tokens.
     };
 
 

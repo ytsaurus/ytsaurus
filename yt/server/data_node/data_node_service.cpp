@@ -117,7 +117,7 @@ public:
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
@@ -264,7 +264,7 @@ private:
             firstBlockIndex,
             request->Attachments(),
             populateCache);
-        
+
         // Flush blocks if needed.
         if (flushBlocks) {
             result = result.Apply(BIND([=] () {
@@ -498,12 +498,13 @@ private:
         }).Via(WorkerThread_->GetInvoker()));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
     {
-        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v, MinSplitSize: %v",
+        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v, MinSliceSize: %v, SliceByKeys: %v",
             request->key_columns_size(),
             request->chunk_specs_size(),
-            request->min_split_size());
+            request->slice_data_size(),
+            request->slice_by_keys());
 
         ValidateConnected();
 
@@ -511,7 +512,7 @@ private:
         auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
         for (const auto& chunkSpec : request->chunk_specs()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-            auto* splits = response->add_splits();
+            auto* slices = response->add_slices();
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
@@ -520,18 +521,19 @@ private:
                     "No such chunk %v",
                     chunkId);
                 LOG_WARNING(error);
-                ToProto(splits->mutable_error(), error);
+                ToProto(slices->mutable_error(), error);
                 continue;
             }
 
             auto asyncResult = chunk->ReadMeta(context->GetPriority());
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
-                    &TDataNodeService::MakeChunkSplits,
+                    &TDataNodeService::MakeChunkSlices,
                     MakeStrong(this),
                     &chunkSpec,
-                    splits,
-                    request->min_split_size(),
+                    slices,
+                    request->slice_data_size(),
+                    request->slice_by_keys(),
                     keyColumns)
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
@@ -539,10 +541,11 @@ private:
         context->ReplyFrom(Combine(asyncResults));
     }
 
-    void MakeChunkSplits(
+    void MakeChunkSlices(
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
-        NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splits,
-        i64 minSplitSize,
+        NChunkClient::NProto::TRspGetChunkSlices::TChunkSlices* result,
+        i64 sliceDataSize,
+        bool sliceByKeys,
         const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
@@ -572,17 +575,17 @@ private:
             auto newChunkSpec = *chunkSpec;
             *newChunkSpec.mutable_chunk_meta() = meta;
             auto slices = SliceChunkByKeys(
-                New<TRefCountedChunkSpec>(std::move(newChunkSpec)), 
-                minSplitSize, 
+                New<TRefCountedChunkSpec>(std::move(newChunkSpec)),
+                sliceDataSize,
                 keyColumns.size());
 
             for (const auto& slice : slices) {
-                ToProto(splits->add_chunk_specs(), *slice);
+                ToProto(result->add_chunk_slices(), *slice);
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
-            ToProto(splits->mutable_error(), error);
+            ToProto(result->mutable_error(), error);
         }
     }
 
@@ -766,8 +769,8 @@ private:
 
         int prefixLength = std::min(chunkKeyColumns.size(), keyColumns.size());
         bool isCompatibleKeyColumns = std::equal(
-            chunkKeyColumns.begin(), 
-            chunkKeyColumns.begin() + prefixLength, 
+            chunkKeyColumns.begin(),
+            chunkKeyColumns.begin() + prefixLength,
             keyColumns.begin());
 
         // Requested key can be wider than stored.
@@ -784,12 +787,12 @@ private:
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
         auto samples = FromProto<TOwningKey>(samplesExt.entries());
 
-        auto lowerKey = sampleRequest->has_lower_key() 
-            ? FromProto<TOwningKey>(sampleRequest->lower_key()) 
+        auto lowerKey = sampleRequest->has_lower_key()
+            ? FromProto<TOwningKey>(sampleRequest->lower_key())
             : MinKey();
 
-        auto upperKey = sampleRequest->has_upper_key() 
-            ? FromProto<TOwningKey>(sampleRequest->upper_key()) 
+        auto upperKey = sampleRequest->has_upper_key()
+            ? FromProto<TOwningKey>(sampleRequest->upper_key())
             : MaxKey();
 
         auto it = std::remove_if(
@@ -801,7 +804,7 @@ private:
 
         std::random_shuffle(samples.begin(), it);
         auto count = std::min(
-            static_cast<int>(std::distance(samples.begin(), it)), 
+            static_cast<int>(std::distance(samples.begin(), it)),
             sampleRequest->sample_count());
         samples.erase(samples.begin() + count, samples.end());
 
@@ -888,7 +891,7 @@ private:
         auto masterConnector = Bootstrap_->GetMasterConnector();
         if (!masterConnector->IsConnected()) {
             THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::MasterNotConnected, 
+                NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");
         }
     }

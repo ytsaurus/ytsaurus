@@ -51,6 +51,9 @@ public:
 
     bool IsTrivial() const;
 
+    void MergeLowerLimit(const NProto::TReadLimit& readLimit);
+    void MergeUpperLimit(const NProto::TReadLimit& readLimit);
+
     void Persist(NPhoenix::TPersistenceContext& context);
 
 private:

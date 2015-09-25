@@ -13,6 +13,7 @@ set( SRCS
   ${BASE}/evaluator.cpp
   ${BASE}/column_evaluator.cpp
   ${BASE}/range_inferrer.cpp
+  ${BASE}/function_context.cpp
 )
 
 set( HDRS
@@ -37,6 +38,7 @@ set( HDRS
   ${BASE}/evaluator.h
   ${BASE}/column_evaluator.h
   ${BASE}/range_inferrer.h
+  ${BASE}/function_context.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
@@ -77,6 +79,10 @@ list( APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
+include_directories(
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
+)
+
 bison( ${BASE}/parser.yy YT_SOURCE_FILES )
 ragel( ${BASE}/lexer.rl YT_SOURCE_FILES )
 
@@ -102,6 +108,19 @@ udf_bc(
   FILES
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
     ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
+)
+udf_bc(
+  ${BASE}/udf/regex.cpp
+  YT_SOURCE_FILES
+  FILES
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/function_context.cpp
+  SYMBOLS
+    regex_full_match
+    regex_partial_match
+    regex_replace_first
+    regex_replace_all
+    regex_extract
+    regex_escape
 )
 udf_bc( ${BASE}/udf/double_cast.c YT_SOURCE_FILES )
 udf_bc( ${BASE}/udf/int64.c YT_SOURCE_FILES )

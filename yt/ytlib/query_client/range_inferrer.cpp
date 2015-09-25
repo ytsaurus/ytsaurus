@@ -362,16 +362,24 @@ TDivisors GetDivisors(const std::vector<TColumnSchema>& columns, int keyIndex, T
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
         auto reference = binaryOp->Lhs->As<TReferenceExpression>();
         auto literal = binaryOp->Rhs->As<TLiteralExpression>();
-        if (binaryOp->Opcode == EBinaryOp::Divide
-            && reference
+
+        if (reference
             && literal
             && IsIntegralType(static_cast<TUnversionedValue>(literal->Value).Type)
             && reference->ColumnName == name)
         {
-            TUnversionedValue value = literal->Value;
-            value.Id = 0;
-            return TDivisors{value};
+            if (binaryOp->Opcode == EBinaryOp::Divide) {
+                TUnversionedValue value = literal->Value;
+                value.Id = 0;
+                return TDivisors{value};
+            } else if (binaryOp->Opcode == EBinaryOp::RightShift) {
+                TUnversionedValue value = literal->Value;
+                value.Data.Uint64 = 1 << value.Data.Uint64;
+                value.Id = 0;
+                return TDivisors{value};
+            }
         }
+
         auto lhs = GetDivisors(columns, keyIndex, binaryOp->Lhs);
         auto rhs = GetDivisors(columns, keyIndex, binaryOp->Rhs);
         lhs.append(rhs.begin(), rhs.end());

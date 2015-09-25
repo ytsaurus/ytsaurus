@@ -1,0 +1,22 @@
+package NYT.NChunkClient.NProto;
+
+import "yt/ytlib/chunk_client/schema.proto";
+import "yt/ytlib/chunk_client/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes a portion of TChunkSpec.
+message TChunkSlice
+{
+    required int32 part_index = 1;
+
+    // Lower boundary, inclusive.
+    required TReadLimit lower_limit = 2;
+
+    // Upper boundary, exclusive.
+    required TReadLimit upper_limit = 3;
+
+    required TSizeOverrideExt size_override_ext = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

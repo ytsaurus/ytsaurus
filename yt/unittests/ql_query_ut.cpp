@@ -2442,35 +2442,6 @@ TEST_F(TQueryEvaluateTest, TestObjectUdf)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, TestFunctionWhitelist)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64}
-    });
-
-    std::vector<Stroka> source = {
-        "a=3",
-        "a=4"
-    };
-
-    auto mallocUdf = New<TUserDefinedFunction>(
-        "malloc_udf",
-        std::vector<TType>{EValueType::Int64},
-        EValueType::Int64,
-        TSharedRef(
-            malloc_udf_bc,
-            malloc_udf_bc_len,
-            nullptr),
-        ECallingConvention::Simple);
-
-    auto registry = New<StrictMock<TFunctionRegistryMock>>();
-    registry->WithFunction(mallocUdf);
-
-    EvaluateExpectingError("malloc_udf(a) as x FROM [//t]", split, source, EFailureLocation::Codegen, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max(), registry);
-
-    SUCCEED();
-}
-
 TEST_F(TQueryEvaluateTest, TestFarmHash)
 {
     auto split = MakeSplit({
@@ -2497,6 +2468,161 @@ TEST_F(TQueryEvaluateTest, TestFarmHash)
 
     SUCCEED();
 }
+
+TEST_F(TQueryEvaluateTest, TestRegexFullMatch)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"hello\"",
+        "a=\"hell\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean},
+    });
+
+    auto result = BuildRows({
+        "x=%false",
+        "x=%true",
+        "x=%false",
+    }, resultSplit);
+
+    Evaluate("regex_full_match(\"hel[a-z]\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestRegexPartialMatch)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"xx\"",
+        "a=\"x43x\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Boolean},
+    });
+
+    auto result = BuildRows({
+        "x=%false",
+        "x=%true",
+        "x=%false",
+    }, resultSplit);
+
+    Evaluate("regex_partial_match(\"[0-9]+\", a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestRegexReplaceFirst)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"x43x43x\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+    });
+
+    auto result = BuildRows({
+        "x=\"x_x43x\"",
+        "",
+    }, resultSplit);
+
+    Evaluate("regex_replace_first(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestRegexReplaceAll)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"x43x43x\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+    });
+
+    auto result = BuildRows({
+        "x=\"x_x_x\"",
+        "",
+    }, resultSplit);
+
+    Evaluate("regex_replace_all(\"[0-9]+\", a, \"_\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestRegexExtract)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"Send root@ya.com an email.\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+    });
+
+    auto result = BuildRows({
+        "x=\"root at ya\"",
+        "",
+    }, resultSplit);
+
+    Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, TestRegexEscape)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String},
+    });
+
+    std::vector<Stroka> source = {
+        "a=\"1.5\"",
+        "",
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::String},
+    });
+
+    auto result = BuildRows({
+        "x=\"1\\\\.5\"",
+        "",
+    }, resultSplit);
+
+    Evaluate("regex_escape(a) as x FROM [//t]", split, source, result, std::numeric_limits<i64>::max(), std::numeric_limits<i64>::max());
+
+    SUCCEED();
+}
+
 
 TEST_F(TQueryEvaluateTest, TestAverageAgg)
 {

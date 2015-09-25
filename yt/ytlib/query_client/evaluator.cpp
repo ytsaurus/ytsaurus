@@ -86,7 +86,8 @@ public:
                 NProfiling::TAggregatingTimingGuard timingGuard(&wallTime);
 
                 TCGVariables fragmentParams;
-                auto cgQuery = Codegen(query, fragmentParams, functionRegistry, statistics, enableCodeCache);
+                std::vector<std::vector<bool>> allLiteralArgs;
+                auto cgQuery = Codegen(query, fragmentParams, functionRegistry, allLiteralArgs, statistics, enableCodeCache);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -97,6 +98,7 @@ public:
                 std::vector<TRow> outputBatchRows;
                 outputBatchRows.reserve(MaxRowsPerWrite);
 
+                // NB: function contexts need to be destroyed before cgQuery since it hosts destructors.
                 TExecutionContext executionContext;
                 executionContext.Reader = reader;
                 executionContext.Schema = &query->TableSchema;
@@ -114,6 +116,14 @@ public:
                 executionContext.JoinRowLimit = query->OutputRowLimit;
                 executionContext.Limit = query->Limit;
 
+                std::vector<TFunctionContext*> functionContexts;
+                for (auto& literalArgs : allLiteralArgs) {
+                    executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
+                }
+                for (auto& functionContext : executionContext.FunctionContexts) {
+                    functionContexts.push_back(&functionContext);
+                }
+
                 // Used in joins
                 executionContext.JoinEvaluators = fragmentParams.JoinEvaluators;
                 executionContext.ExecuteCallback = executeCallback;
@@ -123,7 +133,7 @@ public:
                 }
 
                 LOG_DEBUG("Evaluating query");
-                CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext);
+                CallCGQueryPtr(cgQuery, fragmentParams.ConstantsRowBuilder.GetRow(), &executionContext, &functionContexts[0]);
 
                 LOG_DEBUG("Flushing writer");
                 if (!outputBatchRows.empty()) {
@@ -184,12 +194,13 @@ private:
         TConstQueryPtr query,
         TCGVariables& variables,
         const IFunctionRegistryPtr functionRegistry,
+        std::vector<std::vector<bool>>& literalArgs,
         TQueryStatistics& statistics,
         bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, functionRegistry);
+        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, &literalArgs, functionRegistry);
 
         auto Logger = BuildLogger(query);
 
@@ -222,19 +233,21 @@ private:
     static void CallCGQuery(
         const TCGQueryCallback& cgQuery,
         TRow constants,
-        TExecutionContext* executionContext)
+        TExecutionContext* executionContext,
+        TFunctionContext** functionContexts)
     {
 #ifndef NDEBUG
         int dummy;
         executionContext->StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
-        cgQuery(constants, executionContext);
+        cgQuery(constants, executionContext, functionContexts);
     }
 
     void(*volatile CallCGQueryPtr)(
         const TCGQueryCallback& cgQuery,
         TRow constants,
-        TExecutionContext* executionContext) = CallCGQuery;
+        TExecutionContext* executionContext,
+        TFunctionContext**) = CallCGQuery;
 
 };
 

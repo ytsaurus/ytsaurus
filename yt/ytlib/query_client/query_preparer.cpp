@@ -57,6 +57,16 @@ EValueType InferUnaryExprType(EUnaryOp opCode, EValueType operandType, const TSt
                     << TErrorAttribute("operand_type", ToString(operandType));
             }
             return operandType;
+
+        case EUnaryOp::BitNot:
+            if (!IsIntegralType(operandType)) {
+                THROW_ERROR_EXCEPTION(
+                    "Expression %Qv requires integral operand",
+                    source)
+                    << TErrorAttribute("operand_type", ToString(operandType));
+            }
+            return operandType;
+
         case EUnaryOp::Not:
             if (operandType != EValueType::Boolean) {
                 THROW_ERROR_EXCEPTION(
@@ -107,6 +117,10 @@ EValueType InferBinaryExprType(
             return operandType;
 
         case EBinaryOp::Modulo:
+        case EBinaryOp::LeftShift:
+        case EBinaryOp::RightShift:
+        case EBinaryOp::BitOr:
+        case EBinaryOp::BitAnd:
             if (!IsIntegralType(operandType)) {
                 THROW_ERROR_EXCEPTION(
                     "Expression %Qv requires integral operands",
@@ -723,6 +737,20 @@ protected:
                             YUNREACHABLE();
                     }
                     return value;
+                } else if (opcode == EUnaryOp::BitNot) {
+                    TUnversionedValue value = literalExpr->Value;
+                    switch (value.Type) {
+                        case EValueType::Int64:
+                            value.Data.Int64 = ~value.Data.Int64;
+                            break;
+                        case EValueType::Uint64:
+                            value.Data.Uint64 = ~value.Data.Uint64;
+                            break;
+                            break;
+                        default:
+                            YUNREACHABLE();
+                    }
+                    return value;
                 }
             }
             return TNullable<TUnversionedValue>();
@@ -841,10 +869,61 @@ protected:
                                 break;
                         }
                         break;
+                    case EBinaryOp::LeftShift:
+                        switch (lhs.Type) {
+                            case EValueType::Int64:
+                                lhs.Data.Int64 <<= rhs.Data.Int64;
+                                return lhs;
+                            case EValueType::Uint64:
+                                lhs.Data.Uint64 <<= rhs.Data.Uint64;
+                                return lhs;
+                            default:
+                                break;
+                        }
+                        break;
+                    case EBinaryOp::RightShift:
+                        switch (lhs.Type) {
+                            case EValueType::Int64:
+                                lhs.Data.Int64 >>= rhs.Data.Int64;
+                                return lhs;
+                            case EValueType::Uint64:
+                                lhs.Data.Uint64 >>= rhs.Data.Uint64;
+                                return lhs;
+                            default:
+                                break;
+                        }
+                        break;
+                    case EBinaryOp::BitOr:
+                        switch (lhs.Type) {
+                            case EValueType::Uint64:
+                                lhs.Data.Uint64 = lhs.Data.Uint64 | rhs.Data.Uint64;
+                                return lhs;
+                            case EValueType::Int64:
+                                lhs.Data.Int64 = lhs.Data.Int64 | rhs.Data.Int64;
+                                return lhs;
+                            default:
+                                break;
+                        }
+                        break;
+                    case EBinaryOp::BitAnd:
+                        switch (lhs.Type) {
+                            case EValueType::Uint64:
+                                lhs.Data.Uint64 = lhs.Data.Uint64 & rhs.Data.Uint64;
+                                return lhs;
+                            case EValueType::Int64:
+                                lhs.Data.Int64 = lhs.Data.Int64 & rhs.Data.Int64;
+                                return lhs;
+                            default:
+                                break;
+                        }
+                        break;
                     case EBinaryOp::And:
                         switch (lhs.Type) {
-                            case EValueType::Boolean:
-                                lhs.Data.Boolean = lhs.Data.Boolean && rhs.Data.Boolean;
+                            case EValueType::Uint64:
+                                lhs.Data.Uint64 = lhs.Data.Uint64 & rhs.Data.Uint64;
+                                return lhs;
+                            case EValueType::Int64:
+                                lhs.Data.Int64 = lhs.Data.Int64 & rhs.Data.Int64;
                                 return lhs;
                             default:
                                 break;

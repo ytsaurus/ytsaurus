@@ -33,6 +33,7 @@ class TCGContext
 {
     Value* ConstantsRow_;
     Value* ExecutionContextPtr_;
+    Value* FunctionContextsPtr_;
 
 public:
     const TCGModulePtr Module;
@@ -41,10 +42,12 @@ public:
         const TCGModulePtr module,
         Value* constantsRow,
         Value* executionContextPtr,
+        Value* functionContextsPtr,
         llvm::BasicBlock* basicBlock)
-        : TCGIRBuilder(basicBlock)        
+        : TCGIRBuilder(basicBlock)
         , ConstantsRow_(constantsRow)
         , ExecutionContextPtr_(executionContextPtr)
+        , FunctionContextsPtr_(functionContextsPtr)
         , Module(std::move(module))
     { }
 
@@ -55,6 +58,7 @@ public:
         : TCGIRBuilder(function, parent, closurePtr)
         , ConstantsRow_(parent->ConstantsRow_)
         , ExecutionContextPtr_(parent->ExecutionContextPtr_)
+        , FunctionContextsPtr_(parent->FunctionContextsPtr_)
         , Module(parent->Module)
     { }
 
@@ -66,6 +70,12 @@ public:
     Value* GetExecutionContextPtr()
     {
         return ViaClosure(ExecutionContextPtr_, "executionContextPtr");
+    }
+
+    Value* GetFunctionContextPtr(int index)
+    {
+        auto* contexts = ViaClosure(FunctionContextsPtr_, "functionContextsPtr");
+        return CreateLoad(CreateConstGEP1_32(contexts, index), "functionContext." + Twine(index));
     }
 };
 

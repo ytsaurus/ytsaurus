@@ -357,7 +357,7 @@ void ValidateTableSchemaAndKeyColumns(const TTableSchema& schema, const TKeyColu
                 }
 
                 yhash_set<Stroka> references;
-                Profile(expr, schema, nullptr, nullptr, &references, functionRegistry);
+                Profile(expr, schema, nullptr, nullptr, &references, nullptr, functionRegistry);
                 for (const auto& ref : references) {
                     if (schema.GetColumnIndexOrThrow(ref) >= keyColumns.size()) {
                         THROW_ERROR_EXCEPTION("Computed column %Qv depends on a non-key column %Qv",
