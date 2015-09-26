@@ -342,18 +342,19 @@ void TFollowerRecovery::DoRun()
     LOG_INFO("Checkpoint reached; started catching up with leader");
 
     while (true) {
-        TPostponedMutations postponedMutations;
         TVersion committedVersion;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            postponedMutations.swap(PostponedMutations_);
             committedVersion = CommittedVersion_;
         }
 
         DecoratedAutomaton_->CommitMutations(EpochContext_, committedVersion, false);
 
-        if (postponedMutations.empty() && !DecoratedAutomaton_->HasReadyMutations())
-            break;
+        TPostponedMutations postponedMutations;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            postponedMutations.swap(PostponedMutations_);
+        }
 
         if (!postponedMutations.empty()) {
             LOG_INFO("Logging %v postponed mutations",
@@ -376,6 +377,9 @@ void TFollowerRecovery::DoRun()
                 }
             }
         }
+
+        if (postponedMutations.empty() && !DecoratedAutomaton_->HasReadyMutations())
+            break;
     }
 
     LOG_INFO("Finished catching up with leader");
