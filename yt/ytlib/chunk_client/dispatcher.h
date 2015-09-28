@@ -21,6 +21,8 @@ public:
 
     static TDispatcher* Get();
 
+    static void StaticShutdown();
+
     void Configure(TDispatcherConfigPtr config);
 
     virtual void Shutdown() override;

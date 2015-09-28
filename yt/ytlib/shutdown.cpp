@@ -30,17 +30,16 @@ namespace NYT {
 
 void Shutdown()
 {
-    NPipes::TIODispatcher::Get()->Shutdown();
-    NDriver::TDispatcher::Get()->Shutdown();
-    NChunkClient::TDispatcher::Get()->Shutdown();
-    NRpc::TDispatcher::Get()->Shutdown();
-    NBus::TTcpDispatcher::Get()->Shutdown();
-    NConcurrency::TDelayedExecutor::Shutdown();
-    NProfiling::TProfileManager::Get()->Shutdown();
-    TAddressResolver::Get()->Shutdown();
-    NLogging::TLogManager::Get()->Shutdown();
-    NTracing::TTraceManager::Get()->Shutdown();
-    NProfiling::TProfileManager::Get()->Shutdown();
+    NPipes::TIODispatcher::StaticShutdown();
+    NDriver::TDispatcher::StaticShutdown();
+    NChunkClient::TDispatcher::StaticShutdown();
+    NRpc::TDispatcher::StaticShutdown();
+    NBus::TTcpDispatcher::StaticShutdown();
+    NConcurrency::TDelayedExecutor::StaticShutdown();
+    TAddressResolver::StaticShutdown();
+    NLogging::TLogManager::StaticShutdown();
+    NTracing::TTraceManager::StaticShutdown();
+    NProfiling::TProfileManager::StaticShutdown();
     ShutdownFinalizerThread();
 }
 
