@@ -438,3 +438,26 @@ echo {v = 2} >&7
             '<"key_switch"=%true>#;\n' \
             '{"key"="b";"value"=""};\n' \
             '{"key"="b";"value"=""};\n'
+
+    def test_reduce_with_small_block_size(self):
+        create('table', '//tmp/in', attributes={"compression_codec": "none"})
+        create('table', '//tmp/out')
+
+        count = 100
+
+        write_table(
+            '//tmp/in',
+            [ {'key': "%05d"%num} for num in xrange(count) ],
+            sorted_by = ['key'],
+            table_writer = {"block_size": 1024})
+
+        reduce(
+            in_ = '//tmp/in',
+            out = '//tmp/out',
+            command = 'cat',
+            reduce_by=['key'],
+            spec={"reducer": {"format": "dsv"},
+                  "data_size_per_job": 500})
+
+        # Expected the same number of rows in output table
+        assert get("//tmp/out/@row_count") == count
