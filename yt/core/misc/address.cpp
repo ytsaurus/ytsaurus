@@ -5,6 +5,8 @@
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/periodic_executor.h>
 
+#include <core/misc/singleton.h>
+
 #include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
@@ -557,7 +559,14 @@ TAddressResolver::~TAddressResolver()
 
 TAddressResolver* TAddressResolver::Get()
 {
-    return Singleton<TAddressResolver>();
+    return TSingletonWithFlag<TAddressResolver>::Get();
+}
+
+void TAddressResolver::StaticShutdown()
+{
+    if (TSingletonWithFlag<TAddressResolver>::WasCreated()) {
+        TSingletonWithFlag<TAddressResolver>::Get()->Shutdown();
+    }
 }
 
 void TAddressResolver::Shutdown()

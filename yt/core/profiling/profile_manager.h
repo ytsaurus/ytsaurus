@@ -59,6 +59,9 @@ public:
     //! Returns the singleton instance.
     static TProfileManager* Get();
 
+    //! Destroys the singleton instance.
+    static void StaticShutdown();
+
     //! Starts profiling.
     /*!
      *  No samples are collected before this method is called.
