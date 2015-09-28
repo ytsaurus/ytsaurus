@@ -106,6 +106,16 @@ class _ScarceInformation(namedtuple("_ScarceInformation", ["tablets"])):
             ", ".join(tablet.tablet_id for tablet in self.tablets))
 
 
+def check_tablet_state(table, state):
+    return all(t["state"] == state for t in yt.get(table + "/@tablets"))
+
+
+def wait_tablet_state(table, state):
+    while not check_tablet_state(table, state):
+        logging.info("Waiting for tablets to become %s...", state)
+        time.sleep(1)
+
+
 def fill_span_partitions_from_tablets(tablets, span):
     """
     Fills in initial partition structure given by tablet statistics and pivot keys.
@@ -361,7 +371,7 @@ def rebalance_spans(tablets, spans, number_of_key_columns, desired_size,
     consider_increasing_key_columns = False
 
     for iteration in range(MAX_ITERATIONS):
-        logging.info("Rebalancing %s spans, iteration %s", len(spans), iteration + 1)
+        logging.info("Analyzing %s spans, iteration %s", len(spans), iteration + 1)
 
         # Sanity check.
         check_that_spans_are_disjoint(spans)
@@ -492,25 +502,16 @@ def rebalance_spans(tablets, spans, number_of_key_columns, desired_size,
     if consider_increasing_key_columns:
         logging.warning("Consider increasing `--key-columns` for better balance")
 
-    logging.info("Rebalancing completed, got %s spans", len(spans))
+    logging.info("Analysis completed, got %s spans", len(spans))
 
     return spans
 
 
 def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
-                    allow_oversized, allow_undersized,
-                    fitness_variance_coef, fitness_complexity_coef, yes):
-    def _check_tablet_state(table, state):
-        return all(t["state"] == state for t in yt.get(table + "/@tablets"))
-
-    def _wait_tablet_state(table, state):
-        while not _check_tablet_state(table, state):
-            logging.info("Waiting for tablets to become %s...", state)
-            time.sleep(1)
-
-    if not _check_tablet_state(table, "mounted"):
+                    allow_oversized, allow_undersized):
+    if not check_tablet_state(table, "mounted"):
         logging.warning("Table is not mounted; please, mount table aforehead; aborting")
-        return False
+        return None, None
 
     logging.info("Analyzing %s", table)
 
@@ -545,8 +546,13 @@ def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
     # Check if we are going to change anything at all.
     if len(balanced_spans) == 0:
         logging.warning("No altered spans; aborting")
-        return False
+        return None, None
 
+    return original_spans, balanced_spans
+
+
+def apply_changes(table, desired_size, fitness_variance_coef, fitness_complexity_coef,
+                  old_spans, new_spans, yes):
     # Check if it worth doing it.
     def _compute_fitness(spans):
         # Compute normalized variance with prior samples [DS; DS/2] = [1; 1/2]
@@ -570,19 +576,19 @@ def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
 
     logging.info("Cumulative difference follows")
 
-    for old_span, new_span in zip(original_spans, balanced_spans):
+    for old_span, new_span in zip(old_spans, new_spans):
         logging.info("Span %s |> -- {%s}", old_span.nice_str, old_span.nice_partitions_str)
         # logging.info("%s", map(lambda x: float(x) / GB, old_span.sizes))
         logging.info("Span %s |> ++ {%s}", new_span.nice_str, new_span.nice_partitions_str)
         # logging.info("%s", map(lambda x: float(x) / GB, new_span.sizes))
 
-    old_fitness = _compute_fitness(original_spans)
-    new_fitness = _compute_fitness(balanced_spans)
+    old_fitness = _compute_fitness(old_spans)
+    new_fitness = _compute_fitness(new_spans)
 
     logging.info("Cumulative fitness change is %.2f -> %.2f", old_fitness, new_fitness)
     if new_fitness > 0.999 * old_fitness:
         logging.warning("Fitness change is _not_ significant; aborting")
-        return False
+        return
     else:
         logging.info("Fitness change is significant; continuing")
 
@@ -596,10 +602,10 @@ def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
     if yes:
         logging.info("Unmounting %s", table)
         yt.unmount_table(table)
-        _wait_tablet_state(table, "unmounted")
+        wait_tablet_state(table, "unmounted")
 
     fmt = lambda x: "'" + yson.dumps(x)[1:-1] + "'"
-    for span in reversed(balanced_spans):
+    for span in reversed(new_spans):
         if yes:
             logging.info("Resharding tablets %s-%s in table %s", span.first_index, span.last_index, table)
             yt.reshard_table(table, span.pivot_keys,
@@ -611,11 +617,10 @@ def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
     if yes:
         logging.info("Mounting %s", table)
         yt.mount_table(table)
-        _wait_tablet_state(table, "mounted")
+        wait_tablet_state(table, "mounted")
 
     logging.info("Done!")
 
-    return True
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
@@ -645,7 +650,11 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-    rebalance_table(args.table, args.key_columns, args.threshold_gbs * GB, args.span,
-                    args.allow_oversized, args.allow_undersized,
-                    args.fitness_variance_coef, args.fitness_complexity_coef,
-                    args.yes)
+    old_spans, new_spans = rebalance_table(
+        args.table, args.key_columns, args.threshold_gbs * GB, args.span,
+        args.allow_oversized, args.allow_undersized)
+    if old_spans is not None and new_spans is not None:
+        apply_changes(
+            args.table, args.threshold_gbs * GB,
+            args.fitness_variance_coef, args.fitness_complexity_coef,
+            old_spans, new_spans, args.yes)
