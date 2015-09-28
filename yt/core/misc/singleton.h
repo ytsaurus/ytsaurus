@@ -35,6 +35,26 @@ TIntrusivePtr<T> RefCountedSingleton()
     return newInstance;
 }
 
+template <class T>
+struct TSingletonWithFlag
+{
+    static std::atomic<bool> SingletonWasCreated_;
+
+    static T* Get()
+    {
+        SingletonWasCreated_.store(true, std::memory_order_relaxed);
+        return Singleton<T>();
+    }
+
+    static bool WasCreated()
+    {
+        return SingletonWasCreated_.load(std::memory_order_seq_cst);
+    }
+};
+
+template <class T>
+std::atomic<bool> TSingletonWithFlag<T>::SingletonWasCreated_ = ATOMIC_VAR_INIT(false);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
