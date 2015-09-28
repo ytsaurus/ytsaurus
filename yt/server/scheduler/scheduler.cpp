@@ -945,13 +945,15 @@ private:
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
-                if (AddressToNode_.find(address) == AddressToNode_.end()) {
-                    LOG_WARNING("Node %v is not registered in scheduler", address);
-                    continue;
-                }
-
                 auto node = child.second;
                 auto newState = node->Attributes().Get<ENodeState>("state");
+
+                if (AddressToNode_.find(address) == AddressToNode_.end()) {
+                    if (newState == ENodeState::Online) {
+                        LOG_WARNING("Node %v is not registered in scheduler but online at master", address);
+                    }
+                    continue;
+                }
 
                 auto execNode = AddressToNode_[address];
                 auto oldState = execNode->GetMasterState();
@@ -2012,7 +2014,7 @@ private:
         if (!job) {
             switch (state) {
                 case EJobState::Completed:
-                    LOG_WARNING("Unknown job has completed, removal scheduled");
+                    LOG_INFO("Unknown job has completed, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
@@ -2027,12 +2029,12 @@ private:
                     break;
 
                 case EJobState::Running:
-                    LOG_WARNING("Unknown job is running, abort scheduled");
+                    LOG_INFO("Unknown job is running, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
                 case EJobState::Waiting:
-                    LOG_WARNING("Unknown job is waiting, abort scheduled");
+                    LOG_INFO("Unknown job is waiting, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
@@ -2081,7 +2083,7 @@ private:
 
             case EJobState::Failed: {
                 auto error = FromProto<TError>(jobStatus->result().error());
-                LOG_WARNING(error, "Job failed, removal scheduled");
+                LOG_INFO(error, "Job failed, removal scheduled");
                 OnJobFailed(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;

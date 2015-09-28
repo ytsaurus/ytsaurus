@@ -478,11 +478,11 @@ private:
         //
         // Additionally, it is vital for LogMutations, BuildSnapshot, and RotateChangelog handlers
         // to follow the same thread transition pattern (start in ControlThread, then switch to
-        // Automaton Thread) to ensure consisent callbacks ordering.
+        // Automaton Thread) to ensure consistent callbacks ordering.
         //
         // E.g. BulidSnapshot and RotateChangelog calls rely on the fact than all mutations
         // that were previously sent via LogMutations are accepted (and the logged version is
-        // propaged appropriately).
+        // propagated appropriately).
 
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -532,9 +532,10 @@ private:
             case EPeerState::FollowerRecovery: {
                 try {
                     CheckForSyncPing(startVersion);
-                    epochContext->FollowerRecovery->PostponeMutations(
-                        startVersion,
-                        request->Attachments());
+
+                    auto followerRecovery = epochContext->FollowerRecovery;
+                    followerRecovery->PostponeMutations(startVersion, request->Attachments());
+                    followerRecovery->SetCommittedVersion(committedVersion);
                 } catch (const std::exception& ex) {
                     if (Restart(epochContext)) {
                         LOG_ERROR(ex, "Error postponing mutations during recovery");
@@ -579,11 +580,12 @@ private:
         switch (ControlState_) {
             case EPeerState::Following:
                 epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, epochContext, committedVersion));
+                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, epochContext, committedVersion, true));
                 break;
 
             case EPeerState::FollowerRecovery:
                 CheckForSyncPing(loggedVersion);
+                epochContext->FollowerRecovery->SetCommittedVersion(committedVersion);
                 break;
 
             default:
