@@ -366,7 +366,7 @@ protected:
     }
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunk(TChunkSlicePtr chunkSlice)
+    void AddPendingChunkSlice(TChunkSlicePtr chunkSlice)
     {
         auto stripe = CurrentTaskStripes[chunkSlice->ChunkSpec()->table_index()];
         if (!stripe) {
@@ -562,7 +562,7 @@ private:
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
         for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
-            AddPendingChunk(slice);
+            AddPendingChunkSlice(slice);
             EndTaskIfLarge();
         }
     }
@@ -1307,7 +1307,7 @@ private:
                 {
                     auto it = globalOpenedSlices.find(endpoint.ChunkSlice);
                     if (it != globalOpenedSlices.end()) {
-                        AddPendingChunk(CreateChunkSlice((*it)->ChunkSpec(), lastBreakpoint));
+                        AddPendingChunkSlice(CreateChunkSlice(*it, lastBreakpoint));
                         globalOpenedSlices.erase(it);
                         ++currentIndex;
                         continue;
@@ -1339,10 +1339,7 @@ private:
                     nextBreakpoint);
 
                 for (const auto& chunkSlice : globalOpenedSlices) {
-                    this->AddPendingChunk(CreateChunkSlice(
-                        chunkSlice->ChunkSpec(),
-                        lastBreakpoint,
-                        nextBreakpoint));
+                    AddPendingChunkSlice(CreateChunkSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
                 }
                 lastBreakpoint = nextBreakpoint;
 
@@ -1350,7 +1347,7 @@ private:
             };
 
             while (!HasLargeActiveTask() && !maniacs.empty()) {
-                AddPendingChunk(maniacs.back());
+                AddPendingChunkSlice(maniacs.back());
                 maniacs.pop_back();
             }
 
@@ -1358,7 +1355,7 @@ private:
                 endTask();
 
                 for (auto& chunkSlice : maniacs) {
-                    AddPendingChunk(chunkSlice);
+                    AddPendingChunkSlice(chunkSlice);
                     if (HasLargeActiveTask()) {
                         EndManiacTask();
                     }
@@ -1712,7 +1709,7 @@ private:
 
                 auto it = openedSlices.find(endpoint.ChunkSlice);
                 YCHECK(it != openedSlices.end());
-                AddPendingChunk(CreateChunkSlice((*it)->ChunkSpec(), lastBreakpoint));
+                AddPendingChunkSlice(CreateChunkSlice(*it, lastBreakpoint));
                 openedSlices.erase(it);
                 ++currentIndex;
             }
@@ -1726,10 +1723,7 @@ private:
                     nextBreakpoint);
 
                 for (const auto& chunkSlice : openedSlices) {
-                    this->AddPendingChunk(CreateChunkSlice(
-                        chunkSlice->ChunkSpec(),
-                        lastBreakpoint,
-                        nextBreakpoint));
+                    AddPendingChunkSlice(CreateChunkSlice( chunkSlice, lastBreakpoint, nextBreakpoint));
                 }
                 lastBreakpoint = nextBreakpoint;
 

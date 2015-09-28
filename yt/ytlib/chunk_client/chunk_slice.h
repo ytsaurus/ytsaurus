@@ -32,6 +32,11 @@ public:
         const TNullable<NTableClient::TOwningKey>& upperKey);
 
     TChunkSlice(
+        TChunkSlicePtr other,
+        const TNullable<NTableClient::TOwningKey>& lowerKey,
+        const TNullable<NTableClient::TOwningKey>& upperKey);
+
+    TChunkSlice(
         TRefCountedChunkSpecPtr chunkSpec,
         int partIndex,
         i64 lowerRowIndex,
@@ -77,10 +82,17 @@ DEFINE_REFCOUNTED_TYPE(TChunkSlice)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Constructs a new chunk slice from the original one, restricting
+//! Constructs a new chunk slice from the chunk spec, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TChunkSlicePtr CreateChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
+    const TNullable<NTableClient::TOwningKey>& lowerKey = Null,
+    const TNullable<NTableClient::TOwningKey>& upperKey = Null);
+
+//! Constructs a new chunk slice from another slice, restricting
+//! it to a given range. The original chunk may already contain non-trivial limits.
+TChunkSlicePtr CreateChunkSlice(
+    TChunkSlicePtr other,
     const TNullable<NTableClient::TOwningKey>& lowerKey = Null,
     const TNullable<NTableClient::TOwningKey>& upperKey = Null);
 
