@@ -121,6 +121,7 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     // Chunk Manager stuff.
+    void ReserveStoredReplicas(int sizeHint);
     bool AddReplica(TChunkPtrWithIndex replica, bool cached);
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;

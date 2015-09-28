@@ -132,10 +132,13 @@ public:
     //! Postpones an incoming request for changelog rotation.
     void PostponeChangelogRotation(TVersion version);
 
-    //! Postpones incoming changes.
+    //! Postpones incoming mutations.
     void PostponeMutations(
         TVersion version,
         const std::vector<TSharedRef>& recordsData);
+
+    //! Notifies the recovery process about the latest committed version available at leader.
+    void SetCommittedVersion(TVersion version);
 
 private:
     struct TPostponedMutation
@@ -167,6 +170,7 @@ private:
     TSpinLock SpinLock_;
     TPostponedMutations PostponedMutations_;
     TVersion PostponedVersion_;
+    TVersion CommittedVersion_;
 
     void DoRun();
 
