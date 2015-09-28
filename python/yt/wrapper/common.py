@@ -139,6 +139,6 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
                 raise
             if except_action:
                 except_action()
-            sleep_backoff = timedelta(seconds=backoff) * i - total_seconds(datetime.now() - start_time)
+            sleep_backoff = timedelta(seconds=backoff) * iter - total_seconds(datetime.now() - start_time)
             if sleep_backoff > 0.0:
                 time.sleep(sleep_backoff)
