@@ -1909,6 +1909,66 @@ TEST_F(TQueryEvaluateTest, TestJoin)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, TestLeftJoin)
+{
+    std::map<Stroka, TDataSplit> splits;
+    std::vector<std::vector<Stroka>> sources;
+
+    auto leftSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
+
+    splits["//left"] = leftSplit;
+    sources.push_back({
+        "a=1;b=10",
+        "a=2;b=20",
+        "a=3;b=30",
+        "a=4;b=40",
+        "a=5;b=50",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80",
+        "a=9;b=90"
+    });
+
+    auto rightSplit = MakeSplit({
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    splits["//right"] = rightSplit;
+    sources.push_back({
+        "c=1;b=10",
+        "c=3;b=30",
+        "c=5;b=50",
+        "c=8;b=80",
+        "c=9;b=90"
+    });
+
+    auto resultSplit = MakeSplit({
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64},
+        {"c", EValueType::Int64}
+    });
+
+    auto result = BuildRows({
+        "a=1;b=10;c=1",
+        "a=2;b=20",
+        "a=3;b=30;c=3",
+        "a=4;b=40",
+        "a=5;b=50;c=5",
+        "a=6;b=60",
+        "a=7;b=70",
+        "a=8;b=80;c=8",
+        "a=9;b=90;c=9"
+    }, resultSplit);
+
+    Evaluate("a, b, c FROM [//left] left join [//right] using b", splits, sources, result);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, ComplexAlias)
 {
     auto split = MakeSplit({

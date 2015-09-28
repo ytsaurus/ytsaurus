@@ -339,6 +339,7 @@ void ToProto(NProto::TJoinClause* proto, TConstJoinClausePtr original)
     ToProto(proto->mutable_renamed_table_schema(), original->RenamedTableSchema);
     proto->set_foreign_key_columns_count(original->ForeignKeyColumnsCount);
     ToProto(proto->mutable_foreign_data_id(), original->ForeignDataId);
+    proto->set_is_left(original->IsLeft);
 }
 
 void ToProto(NProto::TGroupClause* proto, TConstGroupClausePtr original)
@@ -452,6 +453,7 @@ TJoinClausePtr FromProto(const NProto::TJoinClause& serialized)
     FromProto(&result->RenamedTableSchema, serialized.renamed_table_schema());
     FromProto(&result->ForeignKeyColumnsCount, serialized.foreign_key_columns_count());
     FromProto(&result->ForeignDataId, serialized.foreign_data_id());
+    FromProto(&result->IsLeft, serialized.is_left());
 
     return result;
 }

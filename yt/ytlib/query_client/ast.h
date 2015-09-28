@@ -185,21 +185,26 @@ struct TQuery
     struct TJoin
     {
         TJoin(
+            bool isLeft,
             const TTableDescriptor& table,
             const TIdentifierList& fields)
-            : Table(table)
+            : IsLeft(isLeft)
+            , Table(table)
             , Fields(fields)
         { }
 
         TJoin(
+            bool isLeft,
             const TTableDescriptor& table,
             const TExpressionList& left,
             const TExpressionList& right)
-            : Table(table)
+            : IsLeft(isLeft)
+            , Table(table)
             , Left(left)
             , Right(right)
         { }
 
+        bool IsLeft;
         TTableDescriptor Table;
         TIdentifierList Fields;
 
