@@ -1,5 +1,5 @@
 import yt.wrapper as yt
-from yt.transfer_manager import pattern_matching
+from yt.transfer_manager.server import pattern_matching
 import pytest
 
 class TestPatternMatching(object):
