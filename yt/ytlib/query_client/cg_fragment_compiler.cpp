@@ -519,10 +519,17 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
                         }
                         break;
 
-                    case EUnaryOp::Not:
+
                     case EUnaryOp::BitNot:
                         evalData = builder.CreateNot(operandData);
                         break;
+
+                    case EUnaryOp::Not:
+                        evalData = builder.CreateXor(
+                            builder.CreateZExtOrBitCast(
+                                builder.getTrue(),
+                                TDataTypeBuilder::TBoolean::get(builder.getContext())),
+                            operandData);
 
                     default:
                         YUNREACHABLE();
