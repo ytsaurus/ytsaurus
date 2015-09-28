@@ -246,6 +246,8 @@ struct TJoinClause
 
     std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> Equations;
 
+    bool IsLeft = false;
+
     TGuid ForeignDataId;
 
     // TODO: Use ITableSchemaInterface

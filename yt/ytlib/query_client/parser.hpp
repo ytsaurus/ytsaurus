@@ -329,6 +329,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // table-descriptor
       char dummy11[sizeof(TTableDescriptor)];
 
+      // is-left
       // is-desc
       char dummy12[sizeof(bool)];
 
@@ -377,26 +378,27 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwOrderBy = 1009,
         KwAsc = 1010,
         KwDesc = 1011,
-        KwAs = 1012,
-        KwOn = 1013,
-        KwAnd = 1014,
-        KwOr = 1015,
-        KwNot = 1016,
-        KwBetween = 1017,
-        KwIn = 1018,
-        KwFalse = 1019,
-        KwTrue = 1020,
-        Identifier = 1021,
-        Int64Literal = 1022,
-        Uint64Literal = 1023,
-        DoubleLiteral = 1024,
-        StringLiteral = 1025,
+        KwLeft = 1012,
+        KwAs = 1013,
+        KwOn = 1014,
+        KwAnd = 1015,
+        KwOr = 1016,
+        KwNot = 1017,
+        KwBetween = 1018,
+        KwIn = 1019,
+        KwFalse = 1020,
+        KwTrue = 1021,
+        Identifier = 1022,
+        Int64Literal = 1023,
+        Uint64Literal = 1024,
+        DoubleLiteral = 1025,
+        StringLiteral = 1026,
         OpTilde = 33,
         OpVerticalBar = 124,
         OpAmpersand = 38,
         OpModulo = 37,
-        OpLeftShift = 1026,
-        OpRightShift = 1027,
+        OpLeftShift = 1027,
+        OpRightShift = 1028,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
@@ -406,11 +408,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1028,
+        OpLessOrEqual = 1029,
         OpEqual = 61,
-        OpNotEqual = 1029,
+        OpNotEqual = 1030,
         OpGreater = 62,
-        OpGreaterOrEqual = 1030
+        OpGreaterOrEqual = 1031
       };
     };
 
@@ -592,6 +594,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_KwDesc (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwLeft (const location_type& l);
 
     static inline
     symbol_type
@@ -812,7 +818,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
   // positive, shift that token.  If negative, reduce the rule whose
   // number is the opposite.  If YYTABLE_NINF, syntax error.
-  static const unsigned char yytable_[];
+  static const short int yytable_[];
 
   static const unsigned char yycheck_[];
 
@@ -929,13 +935,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 198,     ///< Last index in yytable_.
-      yynnts_ = 41,  ///< Number of nonterminal symbols.
+      yylast_ = 200,     ///< Last index in yytable_.
+      yynnts_ = 42,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 42, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 51  ///< Number of tokens.
+      yyntokens_ = 52  ///< Number of tokens.
     };
 
 

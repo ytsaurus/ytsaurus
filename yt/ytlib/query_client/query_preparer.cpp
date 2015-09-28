@@ -1424,6 +1424,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
         joinClause->ForeignKeyColumnsCount = foreignKeyColumns.size();
         joinClause->ForeignDataId = GetObjectIdFromDataSplit(foreignDataSplit);
+        joinClause->IsLeft = join.IsLeft;
 
         auto foreignSourceProxy = New<TScanSchemaProxy>(
             &joinClause->RenamedTableSchema,

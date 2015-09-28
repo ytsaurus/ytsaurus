@@ -32,6 +32,7 @@ typedef TParser::token_type TToken;
     kw_order_by = 'order'i wss 'by'i;
     kw_asc = 'asc'i;
     kw_desc = 'desc'i;
+    kw_left = 'left'i;
     kw_as = 'as'i;
     kw_on = 'on'i;
     kw_and = 'and'i;
@@ -44,7 +45,7 @@ typedef TParser::token_type TToken;
 
     keyword =
         kw_from | kw_where | kw_having |kw_limit | kw_join | kw_using |
-        kw_group_by | kw_order_by | kw_asc | kw_desc | kw_as | kw_on | kw_and | kw_or | kw_not | kw_between |
+        kw_group_by | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_not | kw_between |
         kw_in | kw_false | kw_true;
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
@@ -88,6 +89,7 @@ typedef TParser::token_type TToken;
         kw_order_by => { type = TToken::KwOrderBy; fbreak; };
         kw_asc => { type = TToken::KwAsc; fbreak; };
         kw_desc => { type = TToken::KwDesc; fbreak; };
+        kw_left => { type = TToken::KwLeft; fbreak; };
         kw_as => { type = TToken::KwAs; fbreak; };
         kw_on => { type = TToken::KwOn; fbreak; };
         kw_and => { type = TToken::KwAnd; fbreak; };

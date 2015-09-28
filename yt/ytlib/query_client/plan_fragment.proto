@@ -110,6 +110,7 @@ message TJoinClause
     required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
     required int64 foreign_key_columns_count = 4;
     required NYT.NProto.TGuid foreign_data_id = 5;
+    required bool is_left = 7;
 }
 
 message TGroupClause

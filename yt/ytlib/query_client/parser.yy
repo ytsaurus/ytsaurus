@@ -71,6 +71,7 @@
 %token KwOrderBy "keyword `ORDER BY`"
 %token KwAsc "keyword `ASC`"
 %token KwDesc "keyword `DESC`"
+%token KwLeft "keyword `LEFT`"
 %token KwAs "keyword `AS`"
 %token KwOn "keyword `ON`"
 
@@ -119,6 +120,7 @@
 %type <TTableDescriptor> table-descriptor
 
 %type <bool> is-desc
+%type <bool> is-left
 
 %type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
@@ -210,15 +212,26 @@ from-clause
 ;
 
 join-clause
-    : join-clause KwJoin table-descriptor[table] KwUsing identifier-list[fields]
+    : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields]
         {
-            head->first.As<TQuery>().Joins.emplace_back($table, $fields);
+            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $fields);
         }
-    | join-clause KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
+    | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
         {
-            head->first.As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
+            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $lhs, $rhs);
         }
     |
+;
+
+is-left
+    : KwLeft
+        {
+            $$ = true;
+        }
+    |
+        {
+            $$ = false;
+        }
 ;
 
 where-clause
