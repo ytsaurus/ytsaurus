@@ -180,13 +180,6 @@ EValueType InferFunctionExprType(
     }
 }
 
-Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName = TStringBuf())
-{
-    return tableName.empty()
-        ? Stroka(name)
-        : Format("%v.%v", tableName, name);
-}
-
 DECLARE_REFCOUNTED_CLASS(TSchemaProxy)
 
 class TSchemaProxy
@@ -214,7 +207,7 @@ public:
             auto index = resultColumns.size();
             Lookup_.insert(MakePair(MakePair(Stroka(name), Stroka(tableName)), index));
             resultColumns.push_back(*original);
-            resultColumns.back().Name = FormatColumn(name, tableName);
+            resultColumns.back().Name = NAst::FormatColumn(name, tableName);
             return &resultColumns.back();
         }
         return nullptr;
@@ -322,7 +315,7 @@ protected:
                 }
 
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-                    FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
+                    NAst::FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName));
             }
 
             return New<TReferenceExpression>(column->Type, column->Name);
@@ -1096,7 +1089,7 @@ public:
         if ((column = Self_->GetColumnPtr(name, tableName))) {
             if (Foreign_->GetColumnPtr(name, tableName)) {
                 THROW_ERROR_EXCEPTION("Column %Qv occurs both in main and joined tables",
-                    FormatColumn(name, tableName));
+                    NAst::FormatColumn(name, tableName));
             }
         } else {
             column = Foreign_->GetColumnPtr(name, tableName);
@@ -1344,7 +1337,7 @@ void PrepareQuery(
             const auto* column = schemaProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
             if (!column) {
                 THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-                    FormatColumn(reference->ColumnName, reference->TableName));
+                    NAst::FormatColumn(reference->ColumnName, reference->TableName));
             }
 
             orderClause->OrderColumns.push_back(column->Name);
@@ -1450,12 +1443,12 @@ TPlanFragmentPtr PreparePlanFragment(
 
             if (!selfColumn || !foreignColumn) {
                 THROW_ERROR_EXCEPTION("Column %Qv not found",
-                    FormatColumn(reference->ColumnName, reference->TableName));
+                    NAst::FormatColumn(reference->ColumnName, reference->TableName));
             }
 
             if (selfColumn->Type != foreignColumn->Type) {
                 THROW_ERROR_EXCEPTION("Column type %Qv mismatch",
-                    FormatColumn(reference->ColumnName, reference->TableName))
+                    NAst::FormatColumn(reference->ColumnName, reference->TableName))
                     << TErrorAttribute("self_type", selfColumn->Type)
                     << TErrorAttribute("foreign_type", foreignColumn->Type);
             }
