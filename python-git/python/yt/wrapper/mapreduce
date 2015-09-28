@@ -575,7 +575,8 @@ Examples:
     if args.memlimit is not None:
         config["memory_limit"] = int(args.memlimit) * MB
 
-    config["detached"] = (args.detached is None) or bool(args.detached)
+    if args.detached is not None:
+        config["detached"] = bool(args.detached)
 
     attributes = {}
 
