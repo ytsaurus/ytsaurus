@@ -9,6 +9,7 @@
 #include <core/misc/id_generator.h>
 #include <core/misc/hash.h>
 #include <core/misc/lock_free.h>
+#include <core/misc/singleton.h>
 
 #include <core/concurrency/scheduler_thread.h>
 
@@ -396,7 +397,14 @@ TProfileManager::~TProfileManager()
 
 TProfileManager* TProfileManager::Get()
 {
-    return Singleton<TProfileManager>();
+    return TSingletonWithFlag<TProfileManager>::Get();
+}
+
+void TProfileManager::StaticShutdown()
+{
+    if (TSingletonWithFlag<TProfileManager>::WasCreated()) {
+        TSingletonWithFlag<TProfileManager>::Get()->Shutdown();
+    }
 }
 
 void TProfileManager::Start()
