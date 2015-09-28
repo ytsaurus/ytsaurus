@@ -4,13 +4,12 @@ import yt.transfer_manager.client as tm
 from yt.transfer_manager.client.global_client import init_client
 
 from yt.wrapper.cli_helpers import run_main
-from yt.common import YtError, filter_dict
-
+from yt.common import YtError, filter_dict, get_value
+import yt.json as json
 import yt.logger as logger
 
 import argparse
 import logging
-import simplejson as json
 from functools import partial
 
 DESCRIPTION = """Command-line utility for working with Transfer Manager.
@@ -43,7 +42,7 @@ def add_task_func(**kwargs):
     kwargs["destination_cluster"] = kwargs.pop("dst_cluster")
     kwargs["destination_table"] = kwargs.pop("dst_table")
 
-    params = kwargs.pop("params", "{}")
+    params = get_value(kwargs.pop("params", None), "{}")
     print tm.add_task(params=json.loads(params), **kwargs)
 
 def add_tasks_func(**kwargs):
@@ -53,7 +52,7 @@ def add_tasks_func(**kwargs):
     kwargs["destination_cluster"] = kwargs.pop("dst_cluster")
     kwargs["destination_pattern"] = kwargs.pop("dst_pattern")
 
-    params = kwargs.pop("params", "{}")
+    params = get_value(kwargs.pop("params", None), "{}")
     for task in tm.add_tasks(params=json.loads(params), **kwargs):
         print task
 
