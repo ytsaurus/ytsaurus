@@ -153,6 +153,7 @@ struct TInExpression
     TLiteralValueTupleList Values;
 };
 
+Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName = TStringBuf());
 Stroka InferName(const TExpressionList& exprs, bool omitValues = false);
 Stroka InferName(const TExpression* expr, bool omitValues = false);
 
