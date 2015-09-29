@@ -443,16 +443,21 @@ echo {v = 2} >&7
         create('table', '//tmp/in', attributes={"compression_codec": "none"})
         create('table', '//tmp/out')
 
-        count = 100
+        count = 300
 
         write_table(
             '//tmp/in',
             [ {'key': "%05d"%num} for num in xrange(count) ],
             sorted_by = ['key'],
             table_writer = {"block_size": 1024})
+        write_table(
+            '<append=true>//tmp/in',
+            [ {'key': "%05d"%num} for num in xrange(count, 2*count) ],
+            sorted_by = ['key'],
+            table_writer = {"block_size": 1024})
 
         reduce(
-            in_ = '//tmp/in',
+            in_ = '<ranges=[{lower_limit={row_index=100;key=["00010"]};upper_limit={row_index=540;key=["00560"]}}]>//tmp/in',
             out = '//tmp/out',
             command = 'cat',
             reduce_by=['key'],
@@ -460,4 +465,4 @@ echo {v = 2} >&7
                   "data_size_per_job": 500})
 
         # Expected the same number of rows in output table
-        assert get("//tmp/out/@row_count") == count
+        assert get("//tmp/out/@row_count") == 440
