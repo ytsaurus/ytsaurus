@@ -128,6 +128,7 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
     if (query->OrderClause) {
         str = JoinToString(query->OrderClause->OrderColumns);
         clauses.push_back(Stroka("ORDER BY ") + str);
+        clauses.push_back(query->OrderClause->IsDescending ? Stroka("DESC") : Stroka("ASC"));
     }
     if (query->Limit < std::numeric_limits<i64>::max()) {
         str = ToString(query->Limit);
