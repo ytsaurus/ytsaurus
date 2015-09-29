@@ -140,6 +140,7 @@ public:
     void RemoveReplica(TChunkPtrWithIndex replica, bool cached);
     bool HasReplica(TChunkPtrWithIndex, bool cached) const;
     TChunkPtrWithIndex PickRandomReplica();
+    void ClearReplicas();
 
     void AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp);
     bool HasUnapprovedReplica(TChunkPtrWithIndex replica) const;
@@ -155,7 +156,7 @@ public:
     void RemoveFromChunkSealQueue(TChunk* chunk);
 
     void ClearSessionHints();
-    
+
     void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
 
     int GetSessionCount(NChunkClient::EWriteSessionType sessionType) const;
@@ -167,6 +168,9 @@ public:
     TTabletSlot* GetTabletSlot(const NTabletServer::TTabletCell* cell);
 
     void DetachTabletCell(const NTabletServer::TTabletCell* cell);
+
+    void InitTabletSlots();
+    void ClearTabletSlots();
 
     void ShrinkHashTables();
 

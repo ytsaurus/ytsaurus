@@ -986,12 +986,14 @@ private:
             RemoveChunkReplica(node, replica, true, ERemoveReplicaReason::NodeRemoved);
         }
 
+        node->ClearReplicas();
+
         if (ChunkPlacement_) {
-            ChunkPlacement_->OnNodeRemoved(node);
+            ChunkPlacement_->OnNodeDisposed(node);
         }
 
         if (ChunkReplicator_) {
-            ChunkReplicator_->OnNodeRemoved(node);
+            ChunkReplicator_->OnNodeDisposed(node);
         }
     }
 
