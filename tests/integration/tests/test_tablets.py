@@ -166,20 +166,32 @@ class TestTablets(YTEnvSetup):
     def test_read_table(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
+        reshard_table("//tmp/t", [[], [10]])
         self.sync_mount_table("//tmp/t")
+
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
 
         assert read_table("//tmp/t") == rows1
+        assert read_table("//tmp/t", tx=tx) == []
+
+        abort_transaction(tx)
+
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
 
         self.sync_mount_table("//tmp/t")
         rows2 = [{"key": i, "value": str(i)} for i in xrange(10, 20)]
         insert_rows("//tmp/t", rows2)
         self.sync_unmount_table("//tmp/t")
+        reshard_table("//tmp/t", [[]])
 
         assert read_table("//tmp/t") == rows1 + rows2
+        assert read_table("//tmp/t", tx=tx) == rows1
 
     def test_write_table(self):
         self.sync_create_cells(1, 1)
