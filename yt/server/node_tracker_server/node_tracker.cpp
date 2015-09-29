@@ -631,59 +631,57 @@ private:
         }
 
         // Kick-out any previous incarnation.
-        auto* existingNode = FindNodeByAddress(address);
-        if (IsObjectAlive(existingNode)) {
-            if (existingNode->GetBanned()) {
+        auto* node = FindNodeByAddress(address);
+        if (IsObjectAlive(node)) {
+            if (node->GetBanned()) {
                 THROW_ERROR_EXCEPTION("Node %v is banned", address);
             }
 
-            RemoveFromAddressMaps(existingNode);
-
-            auto existingState = existingNode->GetLocalState();
+            auto existingState = node->GetLocalState();
             if (existingState != ENodeState::Offline) {
-                if (existingState == ENodeState::Registered || existingState == ENodeState::Online) {
-                    UnregisterNode(existingNode, false);
-                }
-                if (existingNode->GetLocalState() == ENodeState::Unregistered) {
-                    DisposeNode(existingNode);
-                }
-                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (Address: %v, ExistingNodeId: %v, ExistingNodeState: %v)",
+                LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (NodeId: %v, Address: %v, ExistingState: %v)",
+                    node->GetId(),
                     address,
-                    existingNode->GetId(),
                     existingState);
+                if (existingState == ENodeState::Registered || existingState == ENodeState::Online) {
+                    UnregisterNode(node, false);
+                }
+                if (node->GetLocalState() == ENodeState::Unregistered) {
+                    DisposeNode(node);
+                }
             }
+        } else {
+            auto nodeId = request.has_node_id() ? request.node_id() : GenerateNodeId();
+            node = CreateNode(nodeId, addresses);
         }
 
-        auto nodeId = request.has_node_id() ? request.node_id() : GenerateNodeId();
-        auto* newNode = RegisterNode(
-            nodeId,
-            addresses,
-            statistics,
-            leaseTransaction);
+        node->SetLocalState(ENodeState::Registered);
+        node->Statistics() = statistics;
 
-        if (existingNode) {
-            SetNodeBanned(newNode, existingNode->GetBanned());
-            SetNodeDecommissioned(newNode, existingNode->GetDecommissioned());
-            const auto* newAttributes = newNode->GetAttributes();
-            auto* existingAttributes = existingNode->GetMutableAttributes();
-            if (newAttributes) {
-                existingAttributes->Attributes() = newAttributes->Attributes();
-            } else {
-                existingAttributes->Attributes().clear();
-            }
-            NodeMap_.Remove(ObjectIdFromNodeId(existingNode->GetId()));
+        UpdateNodeCounters(node, +1);
+
+        if (leaseTransaction) {
+            node->SetLeaseTransaction(leaseTransaction);
+            RegisterLeaseTransaction(node);
         }
+
+        LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
+            node->GetId(),
+            address,
+            statistics);
+
+        NodeRegistered_.Fire(node);
 
         if (Bootstrap_->IsPrimaryMaster()) {
             auto replicatedRequest = request;
-            replicatedRequest.set_node_id(nodeId);
+            replicatedRequest.set_node_id(node->GetId());
 
             auto multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToSecondaryMasters(replicatedRequest);
         }
 
         TRspRegisterNode response;
-        response.set_node_id(nodeId);
+        response.set_node_id(node->GetId());
         return response;
     }
 
@@ -1022,11 +1020,7 @@ private:
     }
 
 
-    TNode* RegisterNode(
-        TNodeId nodeId,
-        const TAddressMap& addresses,
-        const TNodeStatistics& statistics,
-        TTransaction* leaseTransaction)
+    TNode* CreateNode(TNodeId nodeId, const TAddressMap& addresses)
     {
         PROFILE_TIMING ("/node_register_time") {
             const auto& address = GetDefaultAddress(addresses);
@@ -1046,20 +1040,11 @@ private:
             YCHECK(node->RefObject() == 1);
 
             InitializeNodeStates(node);
-            node->SetLocalState(ENodeState::Registered);
-            node->Statistics() = statistics;
-
             InsertToAddressMaps(node);
-            UpdateNodeCounters(node, +1);
 
             auto objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             auto nodePath = GetNodePath(node);
-
-            if (leaseTransaction) {
-                node->SetLeaseTransaction(leaseTransaction);
-                RegisterLeaseTransaction(node);
-            }
 
             try {
                 // Create Cypress node.
@@ -1086,13 +1071,6 @@ private:
             } catch (const std::exception& ex) {
                 LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
             }
-
-            LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, %v)",
-                node->GetId(),
-                address,
-                statistics);
-
-            NodeRegistered_.Fire(node);
 
             return node;
         }

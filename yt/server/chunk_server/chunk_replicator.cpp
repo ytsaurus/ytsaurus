@@ -419,7 +419,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
     node->Reset();
 }
 
-void TChunkReplicator::OnNodeRemoved(TNode* node)
+void TChunkReplicator::OnNodeDisposed(TNode* node)
 {
     YCHECK(node->Jobs().empty());
 }
