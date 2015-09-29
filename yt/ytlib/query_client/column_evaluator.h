@@ -50,6 +50,7 @@ private:
     std::vector<TCGVariables> Variables_;
     std::vector<std::vector<int>> ReferenceIds_;
     std::vector<TConstExpressionPtr> Expressions_;
+    std::vector<std::vector<std::vector<bool>>> AllLiteralArgs_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnEvaluator);

@@ -158,7 +158,7 @@ private:
     void CheckLockFile();
 
     void OnHealthCheckFailed(const TError& error);
-    void MakeDisabled();
+    void MarkAsDisabled(const std::exception& ex);
 
     i64 GetTotalSpace() const;
 

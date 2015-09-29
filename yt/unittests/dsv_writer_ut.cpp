@@ -1,8 +1,13 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/name_table.h>
+
 #include <ytlib/formats/dsv_writer.h>
 #include <ytlib/formats/dsv_parser.h>
+
+#include <core/concurrency/async_stream.h>
 
 namespace NYT {
 namespace NFormats {
@@ -10,46 +15,10 @@ namespace {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TEST(TDsvWriterTest, SimpleTabular)
-{
-    TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream);
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("integer");
-        consumer.OnInt64Scalar(42);
-        consumer.OnKeyedItem("string");
-        consumer.OnStringScalar("some");
-        consumer.OnKeyedItem("double");
-        consumer.OnDoubleScalar(10.);     // let's hope that 10. will be serialized as 10.
-    consumer.OnEndMap();
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("foo");
-        consumer.OnStringScalar("bar");
-        consumer.OnKeyedItem("one");
-        consumer.OnInt64Scalar(1);
-    consumer.OnEndMap();
-
-    Stroka output =
-        "integer=42\tstring=some\tdouble=10.\n"
-        "foo=bar\tone=1\n";
-    EXPECT_EQ(output, outputStream.Str());
-}
-
-TEST(TDsvWriterTest, TabularWithAttributes)
-{
-    TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream);
-
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-    EXPECT_ANY_THROW(consumer.OnKeyedItem("index"));
-}
 
 TEST(TDsvWriterTest, StringScalar)
 {
@@ -134,46 +103,6 @@ TEST(TDsvWriterTest, WithoutEsacping)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// OnRaw tests:
-
-TEST(TDsvWriterTest, TabularUsingOnRaw)
-{
-    TStringStream outputStream;
-    auto config = New<TDsvFormatConfig>();
-    config->EnableTableIndex = true;
-    TDsvTabularConsumer consumer(&outputStream, config);
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("integer");
-        consumer.OnRaw("42", EYsonType::Node);
-        consumer.OnKeyedItem("string");
-        consumer.OnRaw("some", EYsonType::Node);
-        consumer.OnKeyedItem("double");
-        consumer.OnRaw("10.", EYsonType::Node);
-    consumer.OnEndMap();
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-    consumer.OnKeyedItem("table_index");
-    consumer.OnInt64Scalar(2);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("foo");
-        consumer.OnRaw("bar", EYsonType::Node);
-        consumer.OnKeyedItem("one");
-        consumer.OnRaw("1", EYsonType::Node);
-    consumer.OnEndMap();
-
-    Stroka output =
-        "integer=42\tstring=some\tdouble=10.\t@table_index=0\n"
-        "foo=bar\tone=1\t@table_index=2\n";
-
-    EXPECT_EQ(output, outputStream.Str());
-}
-
 TEST(TDsvWriterTest, ListUsingOnRaw)
 {
     TStringStream outputStream;
@@ -199,84 +128,117 @@ TEST(TDsvWriterTest, MapUsingOnRaw)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
-TEST(TDsvWriterTest, ListInTable)
+TEST(TDsvWriterTest, SimpleTabular)
 {
+    auto nameTable = New<TNameTable>();
+    auto integerId = nameTable->RegisterName("integer");
+    auto stringId = nameTable->RegisterName("string");
+    auto doubleId = nameTable->RegisterName("double");
+    auto fooId = nameTable->RegisterName("foo");
+    auto oneId = nameTable->RegisterName("one");
+
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedInt64Value(42, integerId));
+    row1.AddValue(MakeUnversionedStringValue("some", stringId));
+    row1.AddValue(MakeUnversionedDoubleValue(10., doubleId));
+
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("bar", fooId));
+    row2.AddValue(MakeUnversionedSentinelValue(EValueType::Null, integerId));
+    row2.AddValue(MakeUnversionedInt64Value(1, oneId));
+
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow()};
+
     TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream);
+    auto config = New<TDsvFormatConfig>();
+    config->EnableTableIndex = true;
+    auto writer = New<TSchemalessDsvWriter>(
+        nameTable, 
+        false, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        config);
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
+    writer->WriteTableIndex(2);
+    EXPECT_EQ(true, writer->Write(rows));
+    writer->Close()
+        .Get()
+        .ThrowOnError();
 
-    EXPECT_ANY_THROW(consumer.OnRaw("[10; 20; 30]", EYsonType::Node));
+    Stroka output =
+        "integer=42\tstring=some\tdouble=10.\t@table_index=2\n"
+        "foo=bar\tone=1\t@table_index=2\n";
+    EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TDsvWriterTest, MapInTable)
+TEST(TDsvWriterTest, AnyTabular)
 {
+    auto nameTable = New<TNameTable>();
+    auto anyId = nameTable->RegisterName("any");
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedAnyValue("[]", anyId));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
     TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream);
+    auto writer = New<TSchemalessDsvWriter>(
+        nameTable, 
+        false, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
-
-    EXPECT_ANY_THROW(consumer.OnRaw("{a=10}", EYsonType::Node));
+    EXPECT_FALSE    (writer->Write(rows));
+    EXPECT_ANY_THROW(writer->GetReadyEvent().Get().ThrowOnError());
 }
 
-TEST(TDsvWriterTest, AttributesInTable)
+TEST(TDsvWriterTest, RangeAndRowIndex)
 {
+    auto nameTable = New<TNameTable>();
     TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream);
+    auto writer = New<TSchemalessDsvWriter>(
+        nameTable, 
+        false, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
-
-    EXPECT_ANY_THROW(consumer.OnRaw("<a=10>string", EYsonType::Node));
-}
-
-TEST(TDsvWriterTest, EntityInTable)
-{
-    TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream);
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
-
-    EXPECT_ANY_THROW(consumer.OnRaw("#", EYsonType::Node));
+    EXPECT_ANY_THROW(writer->WriteRangeIndex(1));
+    EXPECT_ANY_THROW(writer->WriteRowIndex(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TTskvWriterTest, SimpleTabular)
 {
+    auto nameTable = New<TNameTable>();
+    auto id1 = nameTable->RegisterName("id");
+    auto id2 = nameTable->RegisterName("guid");
+    
+    TUnversionedRowBuilder row1;
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("1", id1));
+    row2.AddValue(MakeUnversionedInt64Value(100500, id2));
+    
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedStringValue("2", id1));
+    row3.AddValue(MakeUnversionedInt64Value(20025, id2));
+
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow(), row3.GetRow() };
+
+    TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream, config);
+    auto writer = New<TSchemalessDsvWriter>(
+        nameTable, 
+        false, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        config);
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-    consumer.OnEndMap();
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("id");
-        consumer.OnStringScalar("1");
-        consumer.OnKeyedItem("guid");
-        consumer.OnInt64Scalar(100500);
-    consumer.OnEndMap();
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("id");
-        consumer.OnStringScalar("2");
-        consumer.OnKeyedItem("guid");
-        consumer.OnInt64Scalar(20025);
-    consumer.OnEndMap();
+    EXPECT_EQ(true, writer->Write(rows));
+    writer->Close()
+        .Get()
+        .ThrowOnError();
 
     Stroka output =
         "tskv\n"
@@ -288,19 +250,32 @@ TEST(TTskvWriterTest, SimpleTabular)
 
 TEST(TTskvWriterTest, Escaping)
 {
+    auto key1 = Stroka("\0 is escaped", 12);
+
+    auto nameTable = New<TNameTable>();
+    auto id1 = nameTable->RegisterName(key1);
+    auto id2 = nameTable->RegisterName("Escaping in in key: \r \t \n \\ =");
+    
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue(key1, id1));
+    row.AddValue(MakeUnversionedStringValue("Escaping in value: \r \t \n \\ =", id2));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    TStringStream outputStream;
-    TDsvTabularConsumer consumer(&outputStream, config);
+    auto writer = New<TSchemalessDsvWriter>(
+        nameTable, 
+        false, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        config);
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem(Stroka("\0 is escaped", 12));
-        consumer.OnStringScalar(Stroka("\0 is escaped", 12));
-        consumer.OnKeyedItem("Escaping in in key: \r \t \n \\ =");
-        consumer.OnStringScalar("Escaping in value: \r \t \n \\ =");
-    consumer.OnEndMap();
+    EXPECT_EQ(true, writer->Write(rows));
+    writer->Close()
+        .Get()
+        .ThrowOnError();
 
     Stroka output =
         "tskv"
@@ -321,29 +296,8 @@ TEST(TTskvWriterTest, Escaping)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TTskvWriterTest, EscapingOfCustomSeparator)
-{
-    auto config = New<TDsvFormatConfig>();
-    config->KeyValueSeparator = ':';
-
-    TStringStream outputStreamA;
-    TDsvTabularConsumer writerA(&outputStreamA, config);
-
-    writerA.OnListItem();
-    writerA.OnBeginMap();
-        writerA.OnKeyedItem(Stroka("=my\\:key"));
-        writerA.OnStringScalar(Stroka("42"));
-    writerA.OnEndMap();
-
-    TStringStream outputStreamB;
-    TDsvTabularConsumer writerB(&outputStreamB, config);
-    ParseDsv(outputStreamA.Str(), &writerB, config);
-
-    EXPECT_EQ(outputStreamA.Str(), outputStreamB.Str());
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NDriver
+} // namespace NFormats
 } // namespace NYT

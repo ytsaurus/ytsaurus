@@ -50,8 +50,7 @@ public:
         TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
         : THydraServiceBase(
-            slot->GetHydraManager()->CreateGuardedAutomatonInvoker(
-                slot->GetAutomatonInvoker()),
+            slot->GetGuardedAutomatonInvoker(),
             TServiceId(TTabletServiceProxy::GetServiceName(), slot->GetCellId()),
             TabletNodeLogger,
             TTabletServiceProxy::GetProtocolVersion())
@@ -176,6 +175,10 @@ private:
             THROW_ERROR_EXCEPTION("Invalid atomicity mode: %Qlv instead of %Qlv",
                 atomicity,
                 tabletSnapshot->Atomicity);
+        }
+
+        if (tabletSnapshot->Config->ReadOnly) {
+            THROW_ERROR_EXCEPTION("Table is read-only");
         }
 
         auto requestData = NCompression::DecompressWithEnvelope(request->Attachments());

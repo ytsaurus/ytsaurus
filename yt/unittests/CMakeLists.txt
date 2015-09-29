@@ -43,7 +43,11 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/pipes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/query_client_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker_ut.cpp
@@ -66,6 +70,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/string_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/subprocess_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sync_file_changelog_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/table_consumer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp

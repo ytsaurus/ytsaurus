@@ -20,12 +20,12 @@ DEFINE_ENUM(EErrorCode,
     ((ResourceOverdraft)     (1102))
 );
 
-DEFINE_ENUM(ESandboxIndex,
+DEFINE_ENUM(ESandboxKind,
     (User)
     (Udf)
 );
 
-extern const TEnumIndexedVector<Stroka, ESandboxIndex> SandboxDirectoryNames;
+extern const TEnumIndexedVector<Stroka, ESandboxKind> SandboxDirectoryNames;
 
 extern const Stroka ProxyConfigFileName;
 

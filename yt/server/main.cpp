@@ -94,6 +94,7 @@ public:
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
         , Uid("", "uid", "set uid  (for executor mode)", false, -1, "NUM")
+        , Environment("", "env", "set environment variable  (for executor mode)", false, "ENV")
         , Command("", "command", "command (for executor mode)", false, "", "COMMAND")
 #endif
     {
@@ -116,6 +117,7 @@ public:
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDump);
         CmdLine.add(Uid);
+        CmdLine.add(Environment);
         CmdLine.add(Command);
 #endif
     }
@@ -142,6 +144,7 @@ public:
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDump;
     TCLAP::ValueArg<int> Uid;
+    TCLAP::MultiArg<Stroka> Environment;
     TCLAP::ValueArg<Stroka> Command;
 #endif
 
@@ -246,22 +249,23 @@ EExitCode GuardedMain(int argc, const char* argv[])
             TIFStream configStream(configFileName);
             configNode = ConvertToNode(&configStream);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading server configuration")
+            THROW_ERROR_EXCEPTION("Error parsing server configuration")
                 << ex;
         }
 
         // Deserialize as a generic server config.
-        auto config = New<TServerConfig>();
-        config->Load(configNode);
+        auto genericConfig = New<TServerConfig>();
+        genericConfig->Load(configNode);
 
         // Configure singletons.
+
         if (!isMasterSnapshotDump && !isMasterSnapshotValidate) {
             NLogging::TLogManager::Get()->Configure(configFileName, "/logging");
         } else {
             NLogging::TLogManager::Get()->Configure(NLogging::TLogConfig::CreateQuiet());
         }
-        TAddressResolver::Get()->Configure(config->AddressResolver);
-        NChunkClient::TDispatcher::Get()->Configure(config->ChunkClientDispatcher);
+        TAddressResolver::Get()->Configure(genericConfig->AddressResolver);
+        NChunkClient::TDispatcher::Get()->Configure(genericConfig->ChunkClientDispatcher);
         NTracing::TTraceManager::Get()->Configure(configFileName, "/tracing");
         NProfiling::TProfileManager::Get()->Start();
     }
@@ -322,12 +326,18 @@ EExitCode GuardedMain(int argc, const char* argv[])
             YCHECK(setuid(uid) == 0);
         }
 
-        auto command = parser.Command.getValue();
-        execl("/bin/sh",
-            "/bin/sh",
-            "-c",
-            ~command,
-            (void*)NULL);
+        std::vector<char*> env; 
+        for (auto envVar : parser.Environment.getValue()) {
+            env.push_back(const_cast<char*>(~envVar));
+        }
+        env.push_back(nullptr);
+
+        char* command = const_cast<char*>(~parser.Command.getValue());
+        std::vector<char*> args { "/bin/sh", "-c", command, nullptr };
+
+        TryExecve("/bin/sh",
+            args.data(),
+            env.data());
         return EExitCode::ExecutorError;
     }
 #endif
@@ -336,48 +346,34 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isNode) {
         NConcurrency::SetCurrentThreadName("NodeMain");
 
-        auto config = New<NCellNode::TCellNodeConfig>();
         if (printConfigTemplate) {
+            auto config = New<NCellNode::TCellNodeConfig>();
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
         }
 
-        try {
-            config->Load(configNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing cell node configuration")
-                << ex;
-        }
-
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellNode::TBootstrap(configFileName, config);
+        auto* bootstrap = new NCellNode::TBootstrap(configNode);
         bootstrap->Run();
     }
 
     if (isMaster || isMasterSnapshotDump || isMasterSnapshotValidate) {
         NConcurrency::SetCurrentThreadName("MasterMain");
 
-        auto config = New<NCellMaster::TCellMasterConfig>();
         if (printConfigTemplate) {
+            auto config = New<NCellMaster::TCellMasterConfig>();
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
         }
 
-        try {
-            config->Load(configNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing cell master configuration")
-                << ex;
-        }
-
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellMaster::TBootstrap(configFileName, config);
+        auto* bootstrap = new NCellMaster::TBootstrap(configNode);
         bootstrap->Initialize();
         if (isMaster) {
             bootstrap->Run();
@@ -393,33 +389,25 @@ EExitCode GuardedMain(int argc, const char* argv[])
     if (isScheduler) {
         NConcurrency::SetCurrentThreadName("SchedulerMain");
 
-        auto config = New<NCellScheduler::TCellSchedulerConfig>();
         if (printConfigTemplate) {
+            auto config = New<NCellScheduler::TCellSchedulerConfig>();
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
         }
 
-        try {
-            config->Load(configNode);
-            config->Validate();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing cell scheduler configuration")
-                << ex;
-        }
-
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellScheduler::TBootstrap(configFileName, config);
+        auto* bootstrap = new NCellScheduler::TBootstrap(configNode);
         bootstrap->Run();
     }
 
     if (isJobProxy) {
         NConcurrency::SetCurrentThreadName("JobProxyMain");
 
-        auto config = New<NJobProxy::TJobProxyConfig>();
         if (printConfigTemplate) {
+            auto config = New<NJobProxy::TJobProxyConfig>();
             TYsonWriter writer(&Cout, EYsonFormat::Pretty);
             config->Save(&writer);
             return EExitCode::OK;
@@ -433,14 +421,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
                 << ex;
         }
 
-        try {
-            config->Load(configNode);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing job proxy configuration")
-                << ex;
-        }
-
-        auto jobProxy = New<TJobProxy>(config, jobId);
+        auto jobProxy = New<TJobProxy>(configNode, jobId);
         jobProxy->Run();
     }
 

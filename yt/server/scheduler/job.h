@@ -7,11 +7,14 @@
 
 #include <core/actions/callback.h>
 
+#include <ytlib/chunk_client/data_statistics.h>
+
 #include <ytlib/job_tracker_client/job.pb.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/node_tracker_client/node.pb.h>
 
-#include <ytlib/scheduler/statistics.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 namespace NYT {
 namespace NScheduler {
@@ -58,7 +61,8 @@ public:
     void SetResult(NJobTrackerClient::NProto::TJobResult&& result);
 
     // Custom and builtin job statistics.
-    DEFINE_BYREF_RO_PROPERTY(TStatistics, Statistics);
+    DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TStatistics, Statistics);
+    NJobTrackerClient::TStatistics GetStatisticsWithSuffix() const;
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -90,31 +94,28 @@ DEFINE_REFCOUNTED_TYPE(TJob)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCompletedJobSummary
+struct TJobSummary
 {
-    explicit TCompletedJobSummary(TJobPtr job);
+    explicit TJobSummary(TJobPtr job);
+    explicit TJobSummary(const TJobId& id);
 
     const TRefCountedJobResultPtr Result;
     const TJobId Id;
-    const TStatistics Statistics;
+    const NChunkClient::NProto::TDataStatistics InputDataStatistics;
+    const NChunkClient::NProto::TDataStatistics OutputDataStatistics;
+    const NJobTrackerClient::TStatistics Statistics;
 };
 
-struct TFailedJobSummary
-{
-    explicit TFailedJobSummary(TJobPtr job);
-
-    const TRefCountedJobResultPtr Result;
-    const TJobId Id;
-};
+using TCompletedJobSummary = TJobSummary;
+using TFailedJobSummary = TJobSummary;
 
 struct TAbortedJobSummary
+    : public TJobSummary
 {
     explicit TAbortedJobSummary(TJobPtr job);
 
     TAbortedJobSummary(const TJobId& id, EAbortReason abortReason);
 
-    const TRefCountedJobResultPtr Result;
-    const TJobId Id;
     const EAbortReason AbortReason;
 };
 

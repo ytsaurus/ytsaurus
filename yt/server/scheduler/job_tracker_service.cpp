@@ -16,6 +16,7 @@ using namespace NRpc;
 using namespace NCellScheduler;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -56,8 +57,17 @@ private:
 
         // NB: Don't call ValidateConnected.
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
-        auto scheduler = Bootstrap_->GetScheduler();
+        auto scheduler = Bootstrap->GetScheduler();
+        scheduler->ValidateConnected();
+
         auto node = scheduler->GetOrRegisterNode(addresses);
+        if (node->GetMasterState() != ENodeState::Online) {
+            // NB: Resource limits should be considered even if node is offline.
+            // It is necessary to avoid incorrect total limits when node becomes online.
+            // XXX(ignat): Should we consider resource usage here?
+            node->ResourceLimits() = context->Request().resource_limits();
+            THROW_ERROR_EXCEPTION("Node is not online");
+        }
         try {
             scheduler->ProcessHeartbeat(node, context);
         } catch (const std::exception& ex) {

@@ -14,13 +14,28 @@ message TJobSpec
     extensions 100 to max;
 }
 
+message TStatistics
+{
+    message TSummary
+    {
+        required int64 min = 1;
+        required int64 max = 2;
+        required int64 sum = 3;
+        required int64 count = 4;
+        required string path = 5;
+    }
+
+    repeated TSummary summaries = 1;
+}
+
 // Describes the outcome of the job, in particular if it has finished successfully.
 message TJobResult
 {
     required NYT.NProto.TError error = 1;
-    required bytes statistics = 2;
+    // Deprecated = 2.
     optional int64 prepare_time = 3;
     optional int64 exec_time = 4;
+    required TStatistics statistics = 5;
 
     extensions 100 to max;
 }

@@ -9,14 +9,13 @@ namespace NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 template <class T>
-TPtrWithIndex<T>::TPtrWithIndex()
+FORCED_INLINE TPtrWithIndex<T>::TPtrWithIndex()
     : Value_(0)
 { }
 
 template <class T>
-TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
+FORCED_INLINE TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
     : Value_(reinterpret_cast<uintptr_t>(ptr) | (static_cast<uintptr_t>(index) << 56))
 {
     YASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xff00000000000000LL) == 0);
@@ -24,72 +23,72 @@ TPtrWithIndex<T>::TPtrWithIndex(T* ptr, int index)
 }
 
 template <class T>
-T* TPtrWithIndex<T>::GetPtr() const
+FORCED_INLINE T* TPtrWithIndex<T>::GetPtr() const
 {
     return reinterpret_cast<T*>(Value_ & 0x00ffffffffffffffLL);
 }
 
 template <class T>
-int TPtrWithIndex<T>::GetIndex() const
+FORCED_INLINE int TPtrWithIndex<T>::GetIndex() const
 {
     return Value_ >> 56;
 }
 
 template <class T>
-size_t TPtrWithIndex<T>::GetHash() const
+FORCED_INLINE size_t TPtrWithIndex<T>::GetHash() const
 {
     return static_cast<size_t>(Value_);
 }
 
 template <class T>
-bool TPtrWithIndex<T>::operator == (TPtrWithIndex other) const
+FORCED_INLINE bool TPtrWithIndex<T>::operator == (TPtrWithIndex other) const
 {
     return Value_ == other.Value_;
 }
 
 template <class T>
-bool TPtrWithIndex<T>::operator != (TPtrWithIndex other) const
+FORCED_INLINE bool TPtrWithIndex<T>::operator != (TPtrWithIndex other) const
 {
     return Value_ != other.Value_;
 }
 
 template <class T>
-bool TPtrWithIndex<T>::operator < (TPtrWithIndex other) const
+FORCED_INLINE bool TPtrWithIndex<T>::operator < (TPtrWithIndex other) const
 {
-    int thisIndex = GetIndex();
-    int otherIndex = other.GetIndex();
+    const auto& thisIndex = GetIndex();
+    const auto& otherIndex = other.GetIndex();
     if (thisIndex != otherIndex) {
         return thisIndex < otherIndex;
     }
-    return GetPtr()->GetId() < other.GetPtr()->GetId();
+    return GetIndex() < other.GetIndex();
 }
 
 template <class T>
-bool TPtrWithIndex<T>::operator <= (TPtrWithIndex other) const
+FORCED_INLINE bool TPtrWithIndex<T>::operator <= (TPtrWithIndex other) const
 {
-    int thisIndex = GetIndex();
-    int otherIndex = other.GetIndex();
+    const auto& thisIndex = GetIndex();
+    const auto& otherIndex = other.GetIndex();
     if (thisIndex != otherIndex) {
         return thisIndex < otherIndex;
     }
-    return GetPtr()->GetId() <= other.GetPtr()->GetId();
+    return GetIndex() <= other.GetIndex();
 }
 
 template <class T>
-bool TPtrWithIndex<T>::operator > (TPtrWithIndex other) const
+FORCED_INLINE bool TPtrWithIndex<T>::operator > (TPtrWithIndex other) const
 {
     return other < *this;
 }
 
 template <class T>
-bool TPtrWithIndex<T>::operator >= (TPtrWithIndex other) const
+FORCED_INLINE bool TPtrWithIndex<T>::operator >= (TPtrWithIndex other) const
 {
     return other <= *this;
 }
 
 template <class T>
 template <class C>
-void TPtrWithIndex<T>::Save(C& context) const
+FORCED_INLINE void TPtrWithIndex<T>::Save(C& context) const
 {
     using NYT::Save;
     Save(context, GetPtr());
@@ -98,7 +97,7 @@ void TPtrWithIndex<T>::Save(C& context) const
 
 template <class T>
 template <class C>
-void TPtrWithIndex<T>::Load(C& context)
+FORCED_INLINE void TPtrWithIndex<T>::Load(C& context)
 {
     using NYT::Load;
     auto* ptr = Load<T*>(context);
@@ -112,9 +111,9 @@ void TPtrWithIndex<T>::Load(C& context)
 } // namespace NYT
 
 template <class T>
-struct hash< NYT::NChunkServer::TPtrWithIndex<T> >
+struct hash<NYT::NChunkServer::TPtrWithIndex<T>>
 {
-    size_t operator()(NYT::NChunkServer::TPtrWithIndex<T> value) const
+    FORCED_INLINE size_t operator()(NYT::NChunkServer::TPtrWithIndex<T> value) const
     {
         return value.GetHash();
     }

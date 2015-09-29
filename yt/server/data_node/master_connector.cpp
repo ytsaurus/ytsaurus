@@ -481,7 +481,8 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.IncrementalHeartbeat()
-        ->SetCodec(NCompression::ECodec::Lz4);
+        ->SetCodec(NCompression::ECodec::Lz4)
+        ->SetTimeout(Config_->IncrementalHeartbeatTimeout);
 
     YCHECK(NodeId_ != InvalidNodeId);
     request->set_node_id(NodeId_);

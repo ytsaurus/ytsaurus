@@ -32,10 +32,28 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////
 
+bool operator==(const TSample& lhs, const TSample& rhs)
+{
+    return lhs.Key == rhs.Key;
+}
+
+bool operator<(const TSample& lhs, const TSample& rhs)
+{
+    auto result = CompareRows(lhs.Key, rhs.Key);
+    if (result == 0) {
+        return lhs.Incomplete < rhs.Incomplete;
+    }
+
+    return result < 0;
+}
+
+////////////////////////////////////////////////////////////////////
+
 TSamplesFetcher::TSamplesFetcher(
     TFetcherConfigPtr config,
     i64 desiredSampleCount,
     const TKeyColumns& keyColumns,
+    i32 maxSampleSize,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     TScrapeChunksCallback scraperCallback,
@@ -43,6 +61,7 @@ TSamplesFetcher::TSamplesFetcher(
     : TFetcherBase(config, nodeDirectory, invoker, scraperCallback, logger)
     , KeyColumns_(keyColumns)
     , DesiredSampleCount_(desiredSampleCount)
+    , MaxSampleSize_(maxSampleSize)
 {
     YCHECK(DesiredSampleCount_ > 0);
 }
@@ -71,7 +90,7 @@ TFuture<void> TSamplesFetcher::Fetch()
     return TFetcherBase::Fetch();
 }
 
-const std::vector<TOwningKey>& TSamplesFetcher::GetSamples() const
+const std::vector<TSample>& TSamplesFetcher::GetSamples() const
 {
     return Samples_;
 }
@@ -90,6 +109,7 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
 
     auto req = proxy.GetTableSamples();
     NYT::ToProto(req->mutable_key_columns(), KeyColumns_);
+    req->set_max_sample_size(MaxSampleSize_);
 
     i64 currentSize = SizeBetweenSamples_;
     i64 currentSampleCount = 0;
@@ -146,11 +166,17 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
         }
 
         LOG_TRACE("Received %v samples for chunk #%v",
-            sampleResponse.keys_size(),
+            sampleResponse.samples_size(),
             requestedChunkIndexes[index]);
 
-        for (const auto& sample : sampleResponse.keys()) {
-            Samples_.push_back(FromProto<TOwningKey>(sample));
+        for (const auto& protoSample : sampleResponse.samples()) {
+            TSample sample = {
+                FromProto<TOwningKey>(protoSample.key()),
+                protoSample.incomplete()
+            };
+
+            YCHECK(sample.Key.GetCount() == KeyColumns_.size());
+            Samples_.push_back(sample);
         }
     }
 }

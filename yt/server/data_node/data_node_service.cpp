@@ -66,7 +66,6 @@ using namespace NTableClient::NProto;
 static const auto& Profiler = DataNodeProfiler;
 
 static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
-static const size_t MaxSampleSize = 4 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,7 +117,7 @@ public:
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSplits)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
@@ -265,7 +264,7 @@ private:
             firstBlockIndex,
             request->Attachments(),
             populateCache);
-        
+
         // Flush blocks if needed.
         if (flushBlocks) {
             result = result.Apply(BIND([=] () {
@@ -499,12 +498,13 @@ private:
         }).Via(WorkerThread_->GetInvoker()));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSplits)
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
     {
-        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v, MinSplitSize: %v",
+        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v, MinSliceSize: %v, SliceByKeys: %v",
             request->key_columns_size(),
             request->chunk_specs_size(),
-            request->min_split_size());
+            request->slice_data_size(),
+            request->slice_by_keys());
 
         ValidateConnected();
 
@@ -512,7 +512,7 @@ private:
         auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
         for (const auto& chunkSpec : request->chunk_specs()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-            auto* splits = response->add_splits();
+            auto* slices = response->add_slices();
             auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
 
             if (!chunk) {
@@ -521,18 +521,19 @@ private:
                     "No such chunk %v",
                     chunkId);
                 LOG_WARNING(error);
-                ToProto(splits->mutable_error(), error);
+                ToProto(slices->mutable_error(), error);
                 continue;
             }
 
             auto asyncResult = chunk->ReadMeta(context->GetPriority());
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
-                    &TDataNodeService::MakeChunkSplits,
+                    &TDataNodeService::MakeChunkSlices,
                     MakeStrong(this),
                     &chunkSpec,
-                    splits,
-                    request->min_split_size(),
+                    slices,
+                    request->slice_data_size(),
+                    request->slice_by_keys(),
                     keyColumns)
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
@@ -540,10 +541,11 @@ private:
         context->ReplyFrom(Combine(asyncResults));
     }
 
-    void MakeChunkSplits(
+    void MakeChunkSlices(
         const NChunkClient::NProto::TChunkSpec* chunkSpec,
-        NChunkClient::NProto::TRspGetChunkSplits::TChunkSplits* splits,
-        i64 minSplitSize,
+        NChunkClient::NProto::TRspGetChunkSlices::TChunkSlices* result,
+        i64 sliceDataSize,
+        bool sliceByKeys,
         const TKeyColumns& keyColumns,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
@@ -573,17 +575,17 @@ private:
             auto newChunkSpec = *chunkSpec;
             *newChunkSpec.mutable_chunk_meta() = meta;
             auto slices = SliceChunkByKeys(
-                New<TRefCountedChunkSpec>(std::move(newChunkSpec)), 
-                minSplitSize, 
+                New<TRefCountedChunkSpec>(std::move(newChunkSpec)),
+                sliceDataSize,
                 keyColumns.size());
 
             for (const auto& slice : slices) {
-                ToProto(splits->add_chunk_specs(), *slice);
+                ToProto(result->add_chunk_slices(), *slice);
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             LOG_WARNING(error);
-            ToProto(splits->mutable_error(), error);
+            ToProto(result->mutable_error(), error);
         }
     }
 
@@ -622,7 +624,8 @@ private:
                     MakeStrong(this),
                     &sampleRequest,
                     sampleResponse,
-                    keyColumns)
+                    keyColumns,
+                    request->max_sample_size())
                 .AsyncVia(WorkerThread_->GetInvoker())));
         }
 
@@ -633,6 +636,7 @@ private:
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* sampleResponse,
         const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         auto chunkId = FromProto<TChunkId>(sampleRequest->chunk_id());
@@ -652,7 +656,7 @@ private:
             auto formatVersion = ETableChunkFormat(meta.version());
             switch (formatVersion) {
                 case ETableChunkFormat::Old:
-                    ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    ProcessOldChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
                     break;
 
                 case ETableChunkFormat::VersionedSimple:
@@ -660,7 +664,7 @@ private:
                     break;
 
                 case ETableChunkFormat::SchemalessHorizontal:
-                    ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, meta);
+                    ProcessUnversionedChunkSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, meta);
                     break;
 
                 default:
@@ -675,10 +679,36 @@ private:
         }
     }
 
+    static void SerializeSample(
+        TRspGetTableSamples::TSample* protoSample, 
+        std::vector<TUnversionedValue> values, 
+        i32 maxSampleSize)
+    {
+        size_t size = 0;
+        bool incomplete = false;
+        for (auto& value : values) {
+            auto valueSize = GetByteSize(value);
+            if (incomplete) {
+                value = MakeUnversionedSentinelValue(EValueType::Null);
+            } else if (size + valueSize > maxSampleSize && IsStringLikeType(value.Type)) {
+                value.Length = maxSampleSize - size;
+                size += value.Length;
+                incomplete = true;
+            } else {
+                size += valueSize;
+            }
+        }
+
+        ToProto(protoSample->mutable_key(), values.data(), values.data() + values.size());
+        protoSample->set_incomplete(incomplete);
+    }
+
+
     void ProcessOldChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
         const TChunkMeta& chunkMeta)
     {
         auto samplesExt = GetProtoExtension<TOldSamplesExt>(chunkMeta.extensions());
@@ -690,13 +720,9 @@ private:
             sampleRequest->sample_count());
 
         for (const auto& sample : samples) {
-            TUnversionedRowBuilder rowBuilder;
-            auto* key = chunkSamples->add_keys();
-            size_t size = 0;
-            for (const auto& column : keyColumns) {
-                if (size >= MaxSampleSize)
-                    break;
+            std::vector<TUnversionedValue> values;
 
+            for (const auto& column : keyColumns) {
                 auto it = std::lower_bound(
                     sample.parts().begin(),
                     sample.parts().end(),
@@ -706,7 +732,6 @@ private:
                     });
 
                 auto keyPart = MakeUnversionedSentinelValue(EValueType::Null);
-                size += sizeof(keyPart); // part type
                 if (it != sample.parts().end() && it->column() == column) {
                     switch (ELegacyKeyPartType(it->key_part().type())) {
                         case ELegacyKeyPartType::Composite:
@@ -718,20 +743,16 @@ private:
                         case ELegacyKeyPartType::Double:
                             keyPart = MakeUnversionedDoubleValue(it->key_part().double_value());
                             break;
-                        case ELegacyKeyPartType::String: {
-                            auto partSize = std::min(it->key_part().str_value().size(), MaxSampleSize - size);
-                            auto value = TStringBuf(it->key_part().str_value().begin(), partSize);
-                            keyPart = MakeUnversionedStringValue(value);
-                            size += partSize;
+                        case ELegacyKeyPartType::String:
+                            keyPart = MakeUnversionedStringValue(it->key_part().str_value());
                             break;
-                        }
                         default:
                             YUNREACHABLE();
                     }
                 }
-                rowBuilder.AddValue(keyPart);
+                values.push_back(keyPart);
             }
-            ToProto(key, rowBuilder.GetRow());
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize);
         }
     }
 
@@ -748,8 +769,8 @@ private:
 
         int prefixLength = std::min(chunkKeyColumns.size(), keyColumns.size());
         bool isCompatibleKeyColumns = std::equal(
-            chunkKeyColumns.begin(), 
-            chunkKeyColumns.begin() + prefixLength, 
+            chunkKeyColumns.begin(),
+            chunkKeyColumns.begin() + prefixLength,
             keyColumns.begin());
 
         // Requested key can be wider than stored.
@@ -766,12 +787,12 @@ private:
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
         auto samples = FromProto<TOwningKey>(samplesExt.entries());
 
-        auto lowerKey = sampleRequest->has_lower_key() 
-            ? FromProto<TOwningKey>(sampleRequest->lower_key()) 
+        auto lowerKey = sampleRequest->has_lower_key()
+            ? FromProto<TOwningKey>(sampleRequest->lower_key())
             : MinKey();
 
-        auto upperKey = sampleRequest->has_upper_key() 
-            ? FromProto<TOwningKey>(sampleRequest->upper_key()) 
+        auto upperKey = sampleRequest->has_upper_key()
+            ? FromProto<TOwningKey>(sampleRequest->upper_key())
             : MaxKey();
 
         auto it = std::remove_if(
@@ -783,22 +804,25 @@ private:
 
         std::random_shuffle(samples.begin(), it);
         auto count = std::min(
-            static_cast<int>(std::distance(samples.begin(), it)), 
+            static_cast<int>(std::distance(samples.begin(), it)),
             sampleRequest->sample_count());
         samples.erase(samples.begin() + count, samples.end());
 
-        for (int i = 0; i < samples.size(); ++i) {
-            YCHECK(samples[i].GetCount() == chunkKeyColumns.size());
-            samples[i] = WidenKey(samples[i], keyColumns.size());
+        for (const auto& sample : samples) {
+            YCHECK(sample.GetCount() == chunkKeyColumns.size());
+            auto* protoSample = chunkSamples->add_samples();
+            ToProto(
+                protoSample->mutable_key(), 
+                WidenKey(sample, keyColumns.size()));
+            protoSample->set_incomplete(false);
         }
-
-        ToProto(chunkSamples->mutable_keys(), samples);
     }
 
     void ProcessUnversionedChunkSamples(
         const TReqGetTableSamples::TSampleRequest* sampleRequest,
         TRspGetTableSamples::TChunkSamples* chunkSamples,
         const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
         const TChunkMeta& chunkMeta)
     {
         auto nameTableExt = GetProtoExtension<TNameTableExt>(chunkMeta.extensions());
@@ -825,8 +849,10 @@ private:
             sampleRequest->sample_count());
 
         for (const auto& protoSample : samples) {
-            std::vector<TUnversionedValue> keyValues(keyColumns.size(), MakeUnversionedSentinelValue(EValueType::Null));
             TUnversionedOwningRow row = FromProto<TUnversionedOwningRow>(protoSample);
+            std::vector<TUnversionedValue> values(
+                keyColumns.size(),
+                MakeUnversionedSentinelValue(EValueType::Null));
 
             for (int i = 0; i < row.GetCount(); ++i) {
                 auto& value = row[i];
@@ -834,28 +860,10 @@ private:
                 if (keyIndex < 0) {
                     continue;
                 }
-
-                keyValues[keyIndex] = value;
+                values[keyIndex] = value;
             }
 
-            size_t size = 0;
-            for (const auto& value : keyValues) {
-                size += GetByteSize(value);
-            }
-
-            while (size > MaxSampleSize && keyValues.size() > 1) {
-                size -= GetByteSize(keyValues.back());
-                keyValues.pop_back();
-            }
-
-            if (size > MaxSampleSize) {
-                YCHECK(keyValues.size() == 1);
-                YCHECK(keyValues.front().Type == EValueType::String);
-                keyValues.front().Length = MaxSampleSize;
-            }
-
-            auto* key = chunkSamples->add_keys();
-            ToProto(key, keyValues.data(), keyValues.data() + keyValues.size());
+            SerializeSample(chunkSamples->add_samples(), std::move(values), maxSampleSize);
         }
     }
 
@@ -883,7 +891,7 @@ private:
         auto masterConnector = Bootstrap_->GetMasterConnector();
         if (!masterConnector->IsConnected()) {
             THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::MasterNotConnected, 
+                NChunkClient::EErrorCode::MasterNotConnected,
                 "Master is not connected");
         }
     }

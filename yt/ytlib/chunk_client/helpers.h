@@ -1,12 +1,12 @@
 #include "public.h"
 #include "chunk_owner_ypath_proxy.h"
 
+#include <core/actions/public.h>
+#include <core/rpc/public.h>
+
 #include <ytlib/api/public.h>
 
-#include <ytlib/object_client/public.h>
-
-#include <ytlib/transaction_client/public.h>
-
+#include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/node_tracker_client/public.h>
 
 #include <core/logging/public.h>
@@ -16,14 +16,12 @@ namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Synchronously creates a new chunk at a given cell.
-NChunkClient::TChunkId CreateChunk(
+TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     NApi::IClientPtr client,
     NObjectClient::TCellTag cellTag,
-    TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    NObjectClient::EObjectType chunkType,
-    const NTransactionClient::TTransactionId& transactionId,
+    const NObjectClient::TTransactionId& transactionId,
+    const TChunkListId& chunkListId,
     const NLogging::TLogger& logger);
 
 //! Synchronously parses #fetchResponse, populates #nodeDirectory,

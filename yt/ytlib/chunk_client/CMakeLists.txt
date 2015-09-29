@@ -18,6 +18,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/lazy_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader_base.cpp
@@ -40,6 +41,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_reader_base.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_replica.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_replica-inl.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_scraper.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_service_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice.h
@@ -61,6 +63,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/file_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/format.h
   ${CMAKE_CURRENT_LIST_DIR}/helpers.h
+  ${CMAKE_CURRENT_LIST_DIR}/lazy_chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader.h
@@ -95,3 +98,4 @@ protoc( ${CMAKE_CURRENT_LIST_DIR}/chunk_service.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/chunk_ypath.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/chunk_list_ypath.proto YT_SOURCE_FILES )
 protoc( ${CMAKE_CURRENT_LIST_DIR}/data_statistics.proto YT_SOURCE_FILES )
+protoc( ${CMAKE_CURRENT_LIST_DIR}/chunk_slice.proto YT_SOURCE_FILES )

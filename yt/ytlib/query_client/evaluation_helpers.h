@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "callbacks.h"
+#include "function_context.h"
 
 #include <ytlib/table_client/unversioned_row.h>
 
@@ -16,6 +17,8 @@
 
 #include <sparsehash/dense_hash_set>
 
+#include <deque>
+
 namespace NYT {
 namespace NQueryClient {
 
@@ -23,19 +26,17 @@ namespace NQueryClient {
 
 static const size_t InitialGroupOpHashtableCapacity = 1024;
 
-using THasherFunction = ui64 (*)(TRow);
-using TComparerFunction = char (*)(TRow, TRow);
+using THasherFunction = ui64(TRow);
+using TComparerFunction = char(TRow, TRow);
 
 struct TExecutionContext;
 
 using TJoinEvaluator = std::function<void(
     TExecutionContext* executionContext,
-    THasherFunction hasher,
-    TComparerFunction comparer,
-    // TODO(babenko): TSharedRange?
-    const std::vector<TRow>& keys,
-    // TODO(babenko): TSharedRange?
-    const std::vector<TRow>& allRows,
+    THasherFunction* hasher,
+    TComparerFunction* comparer,
+    TSharedRange<TRow> keys,
+    TSharedRange<TRow> allRows,
     // TODO(babenko): TSharedRange?
     std::vector<TRow>* joinedRows)>;
 
@@ -47,9 +48,8 @@ struct TExpressionContext
     const TTableSchema* Schema;
 
     const std::vector<TSharedRange<TRow>>* LiteralRows;
-    
+
     TRowBufferPtr IntermediateBuffer;
-    
 };
 
 struct TExecutionContext
@@ -61,7 +61,7 @@ struct TExecutionContext
     TRowBufferPtr PermanentBuffer;
     TRowBufferPtr OutputBuffer;
 
-    // TODO(babenko): TSharedRange?
+    // Rows stored in OutputBuffer
     std::vector<TRow>* OutputRowsBatch;
 
     TQueryStatistics* Statistics;
@@ -80,15 +80,15 @@ struct TExecutionContext
 
     std::vector<TJoinEvaluator> JoinEvaluators;
     TExecuteQuery ExecuteCallback;
+
+    std::deque<TFunctionContext> FunctionContexts;
 };
 
 namespace NDetail {
-
-using THasherFunc = ui64 (*)(TRow);
 struct TGroupHasher
 {
-    THasherFunc Ptr_;
-    TGroupHasher(THasherFunc ptr)
+    THasherFunction* Ptr_;
+    TGroupHasher(THasherFunction* ptr)
         : Ptr_(ptr)
     { }
 
@@ -98,11 +98,10 @@ struct TGroupHasher
     }
 };
 
-using TComparerFunc = char (*)(TRow, TRow);
 struct TRowComparer
 {
 public:
-    TRowComparer(TComparerFunc ptr)
+    TRowComparer(TComparerFunction* ptr)
         : Ptr_(ptr)
     { }
 
@@ -112,9 +111,8 @@ public:
     }
 
 private:
-    NDetail::TComparerFunc Ptr_;
+    TComparerFunction* Ptr_;
 };
-
 } // namespace NDetail
 
 using TLookupRows = google::sparsehash::dense_hash_set<
@@ -132,7 +130,7 @@ class TTopCollector
     class TComparer
     {
     public:
-        explicit TComparer(NDetail::TComparerFunc ptr)
+        explicit TComparer(TComparerFunction* ptr)
             : Ptr_(ptr)
         { }
 
@@ -147,11 +145,11 @@ class TTopCollector
         }
 
     private:
-        const NDetail::TComparerFunc Ptr_;
+        TComparerFunction* const Ptr_;
     };
 
 public:
-    TTopCollector(i64 limit, NDetail::TComparerFunc comparer);
+    TTopCollector(i64 limit, TComparerFunction* comparer);
 
     // TODO(babenko): TSharedRange?
     std::vector<TRow> GetRows() const
@@ -192,8 +190,8 @@ struct TCGVariables
     std::vector<TJoinEvaluator> JoinEvaluators;
 };
 
-typedef void (TCGQuerySignature)(TRow, TExecutionContext*);
-typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*);
+typedef void (TCGQuerySignature)(TRow, TExecutionContext*, TFunctionContext**);
+typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*, TFunctionContext**);
 typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
 typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, TValue*, TValue*);
 typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, TValue*, TValue*);

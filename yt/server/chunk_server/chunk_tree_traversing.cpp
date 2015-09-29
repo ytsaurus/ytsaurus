@@ -391,8 +391,10 @@ public:
             lowerBound,
             upperBound));
 
-        // Run first iteration synchronously.
-        DoTraverse();
+        // Do actual traversing in proper queue.
+        Callbacks_
+            ->GetInvoker()
+            ->Invoke(BIND(&TChunkTreeTraverser::DoTraverse, MakeStrong(this)));
     }
 
 };
@@ -407,6 +409,7 @@ void TraverseChunkTree(
     auto traverser = New<TChunkTreeTraverser>(
         std::move(traverserCallbacks),
         std::move(visitor));
+
     traverser->Run(root, lowerLimit, upperLimit);
 }
 

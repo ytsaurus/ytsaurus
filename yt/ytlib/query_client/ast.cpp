@@ -34,7 +34,16 @@ TStringBuf TExpression::GetSource(const TStringBuf& source) const
     return source.substr(begin, end - begin);
 }
 
-Stroka InferName(const TExpression* expr)
+TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source)
+{
+    auto begin = sourceLocation.first;
+    auto end = sourceLocation.second;
+
+    return source.substr(begin, end - begin);
+}
+
+
+Stroka InferName(const TExpressionList& exprs, bool omitValues)
 {
     auto canOmitParenthesis = [] (const TExpression* expr) {
         return
@@ -43,62 +52,62 @@ Stroka InferName(const TExpression* expr)
             expr->As<TFunctionExpression>();
     };
 
-    if (auto commaExpr = expr->As<TCommaExpression>()) {
-        return InferName(commaExpr->Lhs.Get()) + ", " + InferName(commaExpr->Rhs.Get());
-    } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return LiteralValueToString(literalExpr->Value);
+    return JoinToString(exprs, [&] (const TExpressionPtr& expr) {
+            auto name = InferName(expr.Get(), omitValues);
+            return canOmitParenthesis(expr.Get()) ? name : "(" + name + ")";
+        }, ", ");
+}
+
+Stroka InferName(const TExpression* expr, bool omitValues)
+{
+    if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        return omitValues
+            ? ToString("?")
+            : LiteralValueToString(literalExpr->Value);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return referenceExpr->ColumnName;
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Stroka result = functionExpr->FunctionName;
         result += "(";
-        result += InferName(functionExpr->Arguments.Get());
+        result += InferName(functionExpr->Arguments, omitValues);
         result += ")";
         return result;
     } else if (auto unaryExpr = expr->As<TUnaryOpExpression>()) {
-        auto rhsName = InferName(unaryExpr->Operand.Get());
-        if (!canOmitParenthesis(unaryExpr->Operand.Get())) {
-            rhsName = "(" + rhsName + ")";
-        }
-        return Stroka(GetUnaryOpcodeLexeme(unaryExpr->Opcode)) + " " + rhsName;
-    } else if (expr->As<TEmptyExpression>()) {
-        return "";
+        return Stroka(GetUnaryOpcodeLexeme(unaryExpr->Opcode)) + " " + InferName(unaryExpr->Operand);
     } else if (auto binaryExpr = expr->As<TBinaryOpExpression>()) {
-        auto lhsName = InferName(binaryExpr->Lhs.Get());
-        if (!canOmitParenthesis(binaryExpr->Lhs.Get())) {
-            lhsName = "(" + lhsName + ")";
-        }
-        auto rhsName = InferName(binaryExpr->Rhs.Get());
-        if (!canOmitParenthesis(binaryExpr->Rhs.Get())) {
-            rhsName = "(" + rhsName + ")";
-        }
         return
-            lhsName +
+            InferName(binaryExpr->Lhs, omitValues) +
             " " + GetBinaryOpcodeLexeme(binaryExpr->Opcode) + " " +
-            rhsName;
+            InferName(binaryExpr->Rhs, omitValues);
     } else if (auto inExpr = expr->As<TInExpression>()) {
-        auto result = InferName(inExpr->Expr.Get());
+        auto result = InferName(inExpr->Expr, omitValues);
         result += " in (";
-        for (int i = 0; i < inExpr->Values.size(); ++i) {
-            if (i) {
-                result += ", ";
-            }
 
-            if (inExpr->Values[i].size() > 1) {
-                result += "(";
-            }
-
-            for (int j = 0; j < inExpr->Values[i].size(); ++j) {
-                if (j) {
+        if (omitValues) {
+            result += "??";
+        } else {
+            for (int i = 0; i < inExpr->Values.size(); ++i) {
+                if (i) {
                     result += ", ";
                 }
-                result += LiteralValueToString(inExpr->Values[i][j]);
-            }
 
-            if (inExpr->Values[i].size() > 1) {
-                result += ")";
+                if (inExpr->Values[i].size() > 1) {
+                    result += "(";
+                }
+
+                for (int j = 0; j < inExpr->Values[i].size(); ++j) {
+                    if (j) {
+                        result += ", ";
+                    }
+                    result += LiteralValueToString(inExpr->Values[i][j]);
+                }
+
+                if (inExpr->Values[i].size() > 1) {
+                    result += ")";
+                }
             }
         }
+
         result += ")";
         return result;
     } else {

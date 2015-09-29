@@ -10,25 +10,13 @@ function YtEioWatcher(logger, config) {
     this.logger = logger;
     this.thread_limit = config.thread_limit;
     this.spare_threads = config.spare_threads;
-
-    __DBG("Concurrency: " + this.thread_limit + " (w/ " + this.spare_threads + " spare threads)");
+    this.semaphore_limit = config.concurrency_limit || config.thread_limit;
+    this.semaphore = 1; // Preallocate a thread for internal needs.
 
     binding.SetEioConcurrency(this.thread_limit);
 }
 
-YtEioWatcher.prototype.tackle = function() {
-    var info = binding.GetEioInformation();
-
-    __DBG("Information: " + JSON.stringify(info));
-
-    if (info.nthreads === this.thread_limit &&
-        info.nthreads === info.nreqs && info.nready > 0)
-    {
-        this.logger.info("Eio is saturated; consider increasing thread limit", info);
-    }
-};
-
-YtEioWatcher.prototype.is_choking = function() {
+YtEioWatcher.prototype.isChoking = function() {
     var info = binding.GetEioInformation();
 
     if (this.thread_limit - this.spare_threads <= info.nreqs - info.npending) {
@@ -37,6 +25,19 @@ YtEioWatcher.prototype.is_choking = function() {
     } else {
         return false;
     }
+};
+
+YtEioWatcher.prototype.acquireThread = function() {
+    if (this.semaphore < this.semaphore_limit) {
+        ++this.semaphore;
+        return true;
+    } else {
+        return false;
+    }
+};
+
+YtEioWatcher.prototype.releaseThread = function() {
+    --this.semaphore;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

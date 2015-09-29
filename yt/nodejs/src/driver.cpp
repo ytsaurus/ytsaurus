@@ -287,6 +287,7 @@ struct TExecuteRequest
         INodePtr parameters,
         ui64 requestId)
     {
+        DriverRequest.Id = requestId;
         DriverRequest.CommandName = std::move(commandName);
         DriverRequest.AuthenticatedUser = std::move(authenticatedUser);
         DriverRequest.Parameters = parameters->AsMap();

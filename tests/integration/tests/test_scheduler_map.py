@@ -174,6 +174,12 @@ class TestSchedulerMapCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler" : {
+            "watchers_update_period" : 100
+        }
+    }
+
     def test_empty_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -187,8 +193,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
         op_id = map(dont_track=True,
-            in_="//tmp/t1", out="//tmp/t2", command=r'cat; echo "{v1=\"$V1\"};{v2=\"$V2\"}"',
-            spec={"mapper": {"environment": {"V1": "Some data", "V2": "$(SandboxPath)/mytmp"}},
+            in_="//tmp/t1", out="//tmp/t2", command=r'cat; echo "{v1=\"$V1\"};{v2=\"$TMPDIR\"}"',
+            spec={"mapper": {"environment": {"V1": "Some data", "TMPDIR": "$(SandboxPath)/mytmp"}},
                   "title": "MyTitle"})
 
         get("//sys/operations/%s/@spec" % op_id)
@@ -525,13 +531,13 @@ class TestSchedulerMapCommands(YTEnvSetup):
         for i in xrange(2):
             write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
 
-        command = """cat >/dev/null; 
+        command = """cat >/dev/null;
            if [ "$YT_JOB_INDEX" = "0" ]; then
-               k1=0; k2=1; 
+               k1=0; k2=1;
            else
-               k1=0; k2=0; 
+               k1=0; k2=0;
            fi
-           echo "{key=$k1; value=one}; {key=$k2; value=two}" 
+           echo "{key=$k1; value=one}; {key=$k2; value=two}"
         """
 
         map(in_="//tmp/t1",
@@ -557,7 +563,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 out="<sorted_by=[key]>//tmp/t2",
                 command=command,
                 spec={"job_count": 2})
-            print read("//tmp/t2")
+            print read_table("//tmp/t2")
 
     def test_sorted_output_job_failure(self):
         create("table", "//tmp/t1")
@@ -1090,17 +1096,24 @@ class TestJobQuery(YTEnvSetup):
             {"a": 7, "c": 8}]
         write_table("//tmp/t1", rows)
 
+        schema = [{"name": "z", "type": "int64"},
+            {"name": "a", "type": "int64"},
+            {"name": "y", "type": "int64"},
+            {"name": "b", "type": "int64"},
+            {"name": "x", "type": "int64"},
+            {"name": "c", "type": "int64"},
+            {"name": "u", "type": "int64"}]
+
+        for row in rows:
+            for column in schema:
+                if column["name"] not in row.keys():
+                    row[column["name"]] = None
+
+        yamred_format = yson.to_yson_type("yamred_dsv", attributes={"has_subkey": False, "key_column_names": ["a", "b"]})
         map(in_="//tmp/t1", out="//tmp/t2", command="cat",
             spec={
                 "input_query": "* where a > 0 or b > 0",
-                "input_schema": [
-                    {"name": "z", "type": "int64"},
-                    {"name": "a", "type": "int64"},
-                    {"name": "y", "type": "int64"},
-                    {"name": "b", "type": "int64"},
-                    {"name": "x", "type": "int64"},
-                    {"name": "c", "type": "int64"},
-                    {"name": "u", "type": "int64"}]})
+                "input_schema": schema})
 
         assert_items_equal(read_table("//tmp/t2"), rows)
 
@@ -1128,7 +1141,6 @@ class TestJobQuery(YTEnvSetup):
                 spec={"ordered": True, "data_size_per_job": 1})
 
         track_op(op_id)
-        get("//sys/operations/" + op_id + "/jobs/@count")
 
         assert get("//sys/operations/" + op_id + "/jobs/@count") == 10
         assert read_table("//tmp/t_output") == original_data

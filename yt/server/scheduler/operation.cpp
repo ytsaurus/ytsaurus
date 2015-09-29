@@ -72,33 +72,6 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
-void TOperation::UpdateJobStatistics(const TJobPtr& job)
-{
-    Stroka suffix;
-    if (job->GetRestarted()) {
-        suffix = Format("/$/lost/%lv", job->GetType());
-    } else {
-        suffix = Format("/$/%lv/%lv", job->GetState(), job->GetType());
-    }
-
-    auto statistics = job->Statistics();
-    statistics.AddSuffixToNames(suffix);
-    JobStatistics.AddSample(statistics);
-}
-
-void TOperation::BuildJobStatistics(NYson::IYsonConsumer* consumer) const
-{
-    NYTree::BuildYsonFluently(consumer)
-        .Value(JobStatistics);
-}
-
-void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
-{
-    TStatistics statistics;
-    statistics.Add(name, value.MicroSeconds());
-    ControllerTimeStatistics_.AddSample(statistics);
-}
-
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

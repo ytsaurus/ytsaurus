@@ -59,11 +59,12 @@ class TConnection
     : public IConnection
 {
 public:
-    explicit TConnection(TConnectionConfigPtr config)
+    TConnection(TConnectionConfigPtr config, const TConnectionOptions& options)
         : Config_(config)
+        , Options_(options)
     { }
 
-    void Initialize(TCallback<bool(const TError&)> isRetriableError)
+    void Initialize()
     {
         PrimaryMasterCellId_ = Config_->PrimaryMaster->CellId;
         PrimaryMasterCellTag_ = CellTagFromId(PrimaryMasterCellId_);
@@ -77,10 +78,7 @@ public:
             EPeerKind peerKind)
         {
             auto cellTag = CellTagFromId(config->CellId);
-            MasterChannels_[channelKind][cellTag] = CreatePeerChannel(
-                config,
-                isRetriableError,
-                peerKind);
+            MasterChannels_[channelKind][cellTag] = CreatePeerChannel(config, peerKind);
         };
         auto initMasterChannels = [&] (const TMasterConnectionConfigPtr& config) {
             initMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader);
@@ -236,6 +234,7 @@ public:
 
 private:
     const TConnectionConfigPtr Config_;
+    const TConnectionOptions Options_;
 
     TCellId PrimaryMasterCellId_;
     TCellTag PrimaryMasterCellTag_;
@@ -253,19 +252,24 @@ private:
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
 
-    static IChannelPtr CreatePeerChannel(
-        TMasterConnectionConfigPtr config,
-        TCallback<bool(const TError&)> isRetriableError,
-        EPeerKind kind)
+    IChannelPtr CreatePeerChannel(TMasterConnectionConfigPtr config, EPeerKind kind)
     {
         auto channel = NHydra::CreatePeerChannel(
             config,
             GetBusChannelFactory(),
             kind);
+        auto isRetryableError = BIND([options = Options_] (const TError& error) {
+            if (options.RetryRequestRateLimitExceeded &&
+                error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded)
+            {
+                return true;
+            }
+            return IsRetriableError(error);
+        });
         auto retryingChannel = CreateRetryingChannel(
             config,
             channel,
-            isRetriableError);
+            isRetryableError);
         retryingChannel->SetDefaultTimeout(config->RpcTimeout);
         return retryingChannel;
     }
@@ -274,10 +278,10 @@ private:
 
 IConnectionPtr CreateConnection(
     TConnectionConfigPtr config,
-    TCallback<bool(const TError&)> isRetriableError)
+    const TConnectionOptions& options)
 {
-    auto connection = New<TConnection>(config);
-    connection->Initialize(isRetriableError);
+    auto connection = New<TConnection>(config, options);
+    connection->Initialize();
     return connection;
 }
 

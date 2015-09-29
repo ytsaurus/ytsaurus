@@ -12,7 +12,8 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const ui32 UncommittedRevision = 0;
-static const ui32 MaxRevision = std::numeric_limits<ui32>::max();
+static const ui32 InvalidRevision = std::numeric_limits<ui32>::max();
+static const ui32 MaxRevision = std::numeric_limits<ui32>::max() - 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,6 +12,7 @@ import yt.wrapper as yt
 from dateutil.parser import parse
 from collections import namedtuple, Counter
 from datetime import datetime, timedelta
+from yt.tools.conversion_tools import get_filter_factors
 from threading import Thread
 from logging import Formatter
 

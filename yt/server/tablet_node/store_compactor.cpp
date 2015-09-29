@@ -91,11 +91,11 @@ private:
     TAsyncSemaphore CompactionSemaphore_;
     TAsyncSemaphore PartitioningSemaphore_;
 
-
     void ScanSlot(TTabletSlotPtr slot)
     {
-        if (slot->GetAutomatonState() != EPeerState::Leading)
+        if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
+        }
 
         auto tabletManager = slot->GetTabletManager();
         for (const auto& pair : tabletManager->Tablets()) {
@@ -106,8 +106,9 @@ private:
 
     void ScanTablet(TTabletSlotPtr slot, TTablet* tablet)
     {
-        if (tablet->GetState() != ETabletState::Mounted)
+        if (tablet->GetState() != ETabletState::Mounted) {
             return;
+        }
 
         ScanPartitionForCompaction(slot, tablet->GetEden());
         ScanEdenForPartitioning(slot, tablet->GetEden());
@@ -119,30 +120,33 @@ private:
 
     void ScanEdenForPartitioning(TTabletSlotPtr slot, TPartition* eden)
     {
-        if (eden->GetState() != EPartitionState::Normal)
+        if (eden->GetState() != EPartitionState::Normal) {
             return;
+        }
 
         auto* tablet = eden->GetTablet();
         auto storeManager = tablet->GetStoreManager();
 
         auto stores = PickStoresForPartitioning(eden);
-        if (stores.empty())
+        if (stores.empty()) {
             return;
-
-        auto guard = TAsyncSemaphoreGuard::TryAcquire(&PartitioningSemaphore_);
-        if (!guard)
-            return;
-
-        for (auto store : stores) {
-            storeManager->BeginStoreCompaction(store);
         }
 
-        eden->SetState(EPartitionState::Partitioning);
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(&PartitioningSemaphore_);
+        if (!guard) {
+            return;
+        }
 
         std::vector<TOwningKey> pivotKeys;
         for (const auto& partition : tablet->Partitions()) {
             pivotKeys.push_back(partition->GetPivotKey());
         }
+
+        for (const auto& store : stores) {
+            storeManager->BeginStoreCompaction(store);
+        }
+
+        eden->CheckedSetState(EPartitionState::Normal, EPartitionState::Partitioning);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreCompactor::PartitionEden,
@@ -155,22 +159,17 @@ private:
 
     void ScanPartitionForCompaction(TTabletSlotPtr slot, TPartition* partition)
     {
-        if (partition->GetState() != EPartitionState::Normal)
+        if (partition->GetState() != EPartitionState::Normal) {
             return;
+        }
 
         auto* tablet = partition->GetTablet();
         auto storeManager = tablet->GetStoreManager();
-        auto config = tablet->GetConfig();
-
-        // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
-        // Let Partition Balancer do its job.
-        if (!partition->IsEden() &&
-            partition->GetUncompressedDataSize() > config->MaxPartitionDataSize)
-            return;
 
         auto stores = PickStoresForCompaction(partition);
-        if (stores.empty())
+        if (stores.empty()) {
             return;
+        }
 
         auto guard = TAsyncSemaphoreGuard::TryAcquire(&CompactionSemaphore_);
         if (!guard)
@@ -178,11 +177,11 @@ private:
 
         auto majorTimestamp = ComputeMajorTimestamp(partition, stores);
 
-        for (auto store : stores) {
+        for (const auto& store : stores) {
             storeManager->BeginStoreCompaction(store);
         }
 
-        partition->SetState(EPartitionState::Compacting);
+        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
         tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
             &TStoreCompactor::CompactPartition,
@@ -200,12 +199,14 @@ private:
 
         std::vector<TChunkStorePtr> candidates;
         std::vector<TChunkStorePtr> forcedCandidates;
-        for (auto store : eden->Stores()) {
-            if (!TStoreManager::IsStoreCompactable(store))
+        for (const auto& store : eden->Stores()) {
+            if (!TStoreManager::IsStoreCompactable(store)) {
                 continue;
+            }
 
             auto candidate = store->AsChunk();
             candidates.push_back(candidate);
+
             if (IsCompactionForced(candidate) &&
                 candidate->GetUncompressedDataSize() >= config->MinPartitionDataSize &&
                 forcedCandidates.size() < config->MaxPartitioningStoreCount)
@@ -252,21 +253,28 @@ private:
     {
         auto config = partition->GetTablet()->GetConfig();
 
+        // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
+        // Let Partition Balancer do its job.
+        if (!partition->IsEden() && partition->GetUncompressedDataSize() > config->MaxPartitionDataSize) {
+            return std::vector<TChunkStorePtr>();
+        }
+
         std::vector<TChunkStorePtr> candidates;
         std::vector<TChunkStorePtr> forcedCandidates;
-        for (auto store : partition->Stores()) {
-            if (!TStoreManager::IsStoreCompactable(store))
+        for (const auto& store : partition->Stores()) {
+            if (!TStoreManager::IsStoreCompactable(store)) {
                 continue;
+            }
 
             // Don't compact large Eden stores.
-            if (partition->IsEden() && store->GetUncompressedDataSize() >= config->MinPartitioningDataSize)
+            if (partition->IsEden() && store->GetUncompressedDataSize() >= config->MinPartitioningDataSize) {
                 continue;
+            }
 
             auto candidate = store->AsChunk();
             candidates.push_back(candidate);
-            if (IsCompactionForced(candidate) &&
-                forcedCandidates.size() < config->MaxCompactionStoreCount)
-            {
+
+            if (IsCompactionForced(candidate) && forcedCandidates.size() < config->MaxCompactionStoreCount) {
                 forcedCandidates.push_back(candidate);
             }
         }
@@ -289,12 +297,14 @@ private:
             int j = i;
             while (j < candidates.size()) {
                 int storeCount = j - i;
-                if (storeCount > config->MaxCompactionStoreCount)
-                    break;
+                if (storeCount > config->MaxCompactionStoreCount) {
+                   break;
+                }
                 i64 dataSize = candidates[j]->GetUncompressedDataSize();
                 if (dataSize > config->CompactionDataSizeBase &&
-                    dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio)
+                    dataSizeSum > 0 && dataSize > dataSizeSum * config->CompactionDataSizeRatio) {
                     break;
+                }
                 dataSizeSum += dataSize;
                 ++j;
             }
@@ -319,11 +329,11 @@ private:
 
         auto* tablet = partition->GetTablet();
         auto* eden = tablet->GetEden();
-        for (auto store : eden->Stores()) {
+        for (const auto& store : eden->Stores()) {
             handleStore(store);
         }
 
-        for (auto store : partition->Stores()) {
+        for (const auto& store : partition->Stores()) {
             if (store->GetType() == EStoreType::Chunk) {
                 if (std::find(stores.begin(), stores.end(), store->AsChunk()) == stores.end()) {
                     handleStore(store);
@@ -364,7 +374,7 @@ private:
 
         try {
             i64 dataSize = 0;
-            for (auto store : stores) {
+            for (const auto& store : stores) {
                 dataSize += store->GetUncompressedDataSize();
             }
 
@@ -392,6 +402,7 @@ private:
             ITransactionPtr transaction;
             {
                 LOG_INFO("Creating Eden partitioning transaction");
+
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
@@ -424,7 +435,7 @@ private:
             TReqCommitTabletStoresUpdate hydraRequest;
             ToProto(hydraRequest.mutable_tablet_id(), tabletId);
             ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            for (auto store : stores) {
+            for (const auto& store : stores) {
                 auto* descriptor = hydraRequest.add_stores_to_remove();
                 ToProto(descriptor->mutable_store_id(), store->GetId());
             }
@@ -539,14 +550,16 @@ private:
 
                 while (true) {
                     auto row = peekInputRow();
-                    if (!row)
+                    if (!row) {
                         break;
+                    }
 
                     // NB: pivot keys can be of arbitrary schema and length.
                     YCHECK(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
 
-                    if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0)
+                    if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0) {
                         break;
+                    }
 
                     skipInputRow();
                     writeOutputRow(row);
@@ -558,8 +571,13 @@ private:
             SwitchTo(automatonInvoker);
 
             YCHECK(readRowCount == writeRowCount);
+
             LOG_INFO("Eden partitioning completed (RowCount: %v)",
                 readRowCount);
+
+            for (const auto& store : stores) {
+                storeManager->EndStoreCompaction(store);
+            }
 
             tablet->SetLastPartitioningTime(TInstant::Now());
 
@@ -577,15 +595,14 @@ private:
 
             SwitchTo(automatonInvoker);
 
-            for (auto store : stores) {
+            for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
         }
 
         SwitchTo(automatonInvoker);
 
-        YCHECK(eden->GetState() == EPartitionState::Partitioning);
-        eden->SetState(EPartitionState::Normal);
+        eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
     }
 
     void CompactPartition(
@@ -620,7 +637,7 @@ private:
 
         try {
             i64 dataSize = 0;
-            for (auto store : stores) {
+            for (const auto& store : stores) {
                 dataSize += store->GetUncompressedDataSize();
             }
 
@@ -644,12 +661,11 @@ private:
                 majorTimestamp);
 
             SwitchTo(poolInvoker);
-
-            auto transactionManager = Bootstrap_->GetMasterClient()->GetTransactionManager();
         
             ITransactionPtr transaction;
             {
                 LOG_INFO("Creating partition compaction transaction");
+
                 NTransactionClient::TTransactionStartOptions options;
                 options.AutoAbort = false;
                 auto attributes = CreateEphemeralAttributes();
@@ -665,14 +681,6 @@ private:
 
                 LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
                     transaction->GetId());
-            }
-
-            TReqCommitTabletStoresUpdate hydraRequest;
-            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
-            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
-            for (auto store : stores) {
-                auto* descriptor = hydraRequest.add_stores_to_remove();
-                ToProto(descriptor->mutable_store_id(), store->GetId());
             }
 
             auto inMemoryManager = Bootstrap_->GetInMemoryManager();
@@ -720,21 +728,30 @@ private:
             WaitFor(writer->Close())
                 .ThrowOnError();
 
+            SwitchTo(automatonInvoker);
+
+            YCHECK(readRowCount == writeRowCount);
+
+            LOG_INFO("Partition compaction completed (RowCount: %v)",
+                readRowCount);
+
+            for (const auto& store : stores) {
+                storeManager->EndStoreCompaction(store);
+            }
+
+            TReqCommitTabletStoresUpdate hydraRequest;
+            ToProto(hydraRequest.mutable_tablet_id(), tabletId);
+            ToProto(hydraRequest.mutable_transaction_id(), transaction->GetId());
+
+            for (const auto& store : stores) {
+                auto* descriptor = hydraRequest.add_stores_to_remove();
+                ToProto(descriptor->mutable_store_id(), store->GetId());
+            }
+
             for (const auto& chunkSpec : writer->GetWrittenChunks()) {
                 auto* descriptor = hydraRequest.add_stores_to_add();
                 descriptor->mutable_store_id()->CopyFrom(chunkSpec.chunk_id());
                 descriptor->mutable_chunk_meta()->CopyFrom(chunkSpec.chunk_meta());
-            }
-
-            SwitchTo(automatonInvoker);
-
-            YCHECK(readRowCount == writeRowCount);
-            LOG_INFO("Partition compaction completed (RowCount: %v)",
-                readRowCount);
-
-            for (auto store : stores) {
-                storeManager->EndStoreCompaction(store);
-                store->SetStoreState(EStoreState::Removing);
             }
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
@@ -751,15 +768,14 @@ private:
 
             SwitchTo(automatonInvoker);
 
-            for (auto store : stores) {
+            for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
         }
 
         SwitchTo(automatonInvoker);
 
-        YCHECK(partition->GetState() == EPartitionState::Compacting);
-        partition->SetState(EPartitionState::Normal);
+        partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }
 
 

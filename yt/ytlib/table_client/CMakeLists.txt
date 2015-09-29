@@ -3,7 +3,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/cached_versioned_chunk_meta.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_extensions.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_reader_base.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_splits_fetcher.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_slices_fetcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_writer_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/legacy_channel_reader.cpp
@@ -40,6 +40,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/unordered_schemaful_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_value.cpp
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_row.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_chunk_reader.cpp
@@ -52,7 +53,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/cached_versioned_chunk_meta.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_extensions.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_reader_base.h
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_splits_fetcher.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_slices_fetcher.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_writer_base.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
   ${CMAKE_CURRENT_LIST_DIR}/helpers.h
@@ -99,6 +100,8 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_value.h
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_row.h
   ${CMAKE_CURRENT_LIST_DIR}/unversioned_writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer.h
+  ${CMAKE_CURRENT_LIST_DIR}/value_consumer-mock.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_block_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/versioned_chunk_reader.h

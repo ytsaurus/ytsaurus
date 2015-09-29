@@ -2,6 +2,7 @@ var util = require("util");
 
 var buffertools = require("buffertools");
 var Q = require("bluebird");
+var _ = require("underscore");
 
 var YtError = require("./error").that;
 var YtReadableStream = require("./readable_stream").that;
@@ -96,6 +97,16 @@ function promisinglyPipe(source, destination)
     });
 }
 
+function parseJsonRows(rowData) {
+    // Last row is in fact empty string
+    var rows = rowData
+        .split('\n')
+        .slice(0, -1);
+
+    rows = _.map(rows, JSON.parse);
+    return rows;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 function YtDriver(config, echo)
@@ -118,8 +129,8 @@ YtDriver.prototype.execute = function(
     input_stream, input_compression,
     output_stream, output_compression,
     parameters, request_id, pause,
-    response_parameters_consumer
-)
+    response_parameters_consumer,
+    result_interceptor)
 {
     this.__DBG("execute");
 
@@ -166,6 +177,11 @@ YtDriver.prototype.execute = function(
             // XXX(sandello): Can we move |_endSoon| to C++?
             wrapped_output_stream._endSoon();
 
+            if (typeof(result_interceptor) === "function") {
+                self.__DBG("execute -> (interceptor)");
+                result_interceptor(result);
+            }
+
             if (result.code === 0) {
                 self.__DBG("execute -> execute_promise has been resolved");
                 deferred.resolve(Array.prototype.slice.call(arguments));
@@ -200,13 +216,17 @@ YtDriver.prototype.executeSimple = function(name, parameters, data)
     parameters.input_format = "json";
     parameters.output_format = "json";
 
+    var descriptor = this.find_command_descriptor(name);
+
     return this.execute(name, _SIMPLE_EXECUTE_USER,
         input_stream, binding.ECompression_None,
         output_stream, binding.ECompression_None,
         binding.CreateV8Node(parameters), null, pause, function(){})
     .then(function(result) {
         var body = buffertools.concat.apply(undefined, output_stream.chunks);
-        if (body.length) {
+        if (descriptor.output_type === "tabular") {
+            return parseJsonRows(body.toString());
+        } else if (body.length) {
             return JSON.parse(body);
         }
     });

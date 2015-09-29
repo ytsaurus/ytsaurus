@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt.yson import YsonEntity
 
 from yt.environment.helpers import assert_items_equal
 
@@ -256,7 +257,7 @@ class TestTablets(YTEnvSetup):
         self.sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
-        expected = [{"key1": 1, "key2": 1, "value1": "2"}]
+        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2" : YsonEntity()}]
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert actual == expected
 
@@ -478,8 +479,7 @@ class TestTablets(YTEnvSetup):
         tablet_data = self._find_tablet_orchid(address, tablet_id)
         assert len(tablet_data["eden"]["stores"]) == 1
         assert len(tablet_data["partitions"]) == 1
-        # Getting 2 stores is also possible since the rotation may happen while the rows were locked.
-        assert len(tablet_data["partitions"][0]["stores"]) >= 1
+        assert len(tablet_data["partitions"][0]["stores"]) == 1
 
     def _test_in_memory(self, mode):
         self.sync_create_cells(1, 1)
@@ -601,7 +601,7 @@ class TestTablets(YTEnvSetup):
         rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows2)
         
-        assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "value": "77"}]
+        assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "key2": YsonEntity(), "value": "77"}]
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
         assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
@@ -712,3 +712,22 @@ class TestTablets(YTEnvSetup):
                 values.pop(key)
 
             verify()
+
+    def test_read_only_mode(self):
+        self._sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        set("//tmp/t/@read_only", True)
+        self._sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(1)]
+
+        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
+
+        remove("//tmp/t/@read_only")
+        remount_table("//tmp/t")
+
+        insert_rows("//tmp/t", rows)
+
+        set("//tmp/t/@read_only", True)
+        remount_table("//tmp/t")
+

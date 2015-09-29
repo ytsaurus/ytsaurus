@@ -72,8 +72,8 @@ struct TKeyTrie
         return nullptr;
     }
 
-    static TKeyTriePtr FromLowerBound(const TKey& bound);
-    static TKeyTriePtr FromUpperBound(const TKey& bound);
+    static TKeyTriePtr FromLowerBound(const TOwningKey & bound);
+    static TKeyTriePtr FromUpperBound(const TOwningKey & bound);
     static TKeyTriePtr FromRange(const TKeyRange& range);
 
     friend TKeyTriePtr UniteKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs);
@@ -87,7 +87,8 @@ TRowRanges GetRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
     TRowBufferPtr rowBuffer,
-    bool insertUndefined = false);
+    bool insertUndefined = false,
+    ui64 rangeCountLimit = std::numeric_limits<ui64>::max());
 
 Stroka ToString(TKeyTriePtr node);
 

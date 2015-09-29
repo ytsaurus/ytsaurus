@@ -1,7 +1,6 @@
 #pragma once
 
 #include "functions.h"
-#include "builtin_functions.h"
 #include "udf_descriptor.h"
 
 namespace NYT {
@@ -13,6 +12,7 @@ struct ICallingConvention
     : public TRefCounted
 {
     virtual TCodegenExpression MakeCodegenFunctionCall(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
         EValueType type,
@@ -36,9 +36,10 @@ class TUnversionedValueCallingConvention
     : public ICallingConvention
 {
 public:
-    TUnversionedValueCallingConvention(int repeatedArgIndex);
+    TUnversionedValueCallingConvention(int repeatedArgIndex, bool useFunctionContext = false);
 
     virtual TCodegenExpression MakeCodegenFunctionCall(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
         EValueType type,
@@ -51,6 +52,7 @@ public:
 
 private:
     int RepeatedArgIndex_;
+    bool UseFunctionContext_;
 };
 
 class TSimpleCallingConvention
@@ -58,6 +60,7 @@ class TSimpleCallingConvention
 {
 public:
     virtual TCodegenExpression MakeCodegenFunctionCall(
+        TCodegenValue codegenFunctionContext,
         std::vector<TCodegenExpression> codegenArgs,
         std::function<Value*(std::vector<Value*>, TCGContext&)> codegenBody,
         EValueType type,
@@ -69,11 +72,49 @@ public:
         EValueType resultType) const override;
 };
 
+ICallingConventionPtr GetCallingConvention(
+    ECallingConvention callingConvention,
+    int repeatedArgIndex,
+    TType repeatedArgType);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExternallyDefinedFunction
+    : public virtual IFunctionDescriptor
+{
+public:
+    TExternallyDefinedFunction(
+        const Stroka& functionName,
+        const Stroka& symbolName,
+        TSharedRef implementationFile,
+        ICallingConventionPtr callingConvention)
+        : FunctionName_(functionName)
+        , SymbolName_(symbolName)
+        , ImplementationFile_(implementationFile)
+        , CallingConvention_(callingConvention)
+    { }
+
+    virtual TCodegenExpression MakeCodegenExpr(
+        TCodegenValue codegenFunctionContext,
+        std::vector<TCodegenExpression> codegenArgs,
+        std::vector<EValueType> argumentTypes,
+        EValueType type,
+        const Stroka& name) const override;
+
+private:
+    Stroka FunctionName_;
+    Stroka SymbolName_;
+    TSharedRef ImplementationFile_;
+    ICallingConventionPtr CallingConvention_;
+
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserDefinedFunction
     : public TTypedFunction
     , public TUniversalRangeFunction
+    , public TExternallyDefinedFunction
 {
 public:
     TUserDefinedFunction(
@@ -99,20 +140,6 @@ public:
         TType repeatedArgType,
         TType resultType,
         TSharedRef implementationFile);
-
-    virtual TCodegenExpression MakeCodegenExpr(
-        std::vector<TCodegenExpression> codegenArgs,
-        std::vector<EValueType> argumentTypes,
-        EValueType type,
-        const Stroka& name) const override;
-
-private:
-    Stroka FunctionName_;
-    Stroka SymbolName_;
-    TSharedRef ImplementationFile_;
-    TType ResultType_;
-    std::vector<TType> ArgumentTypes_;
-    ICallingConventionPtr CallingConvention_;
 
     TUserDefinedFunction(
         const Stroka& functionName,

@@ -67,8 +67,6 @@ protected:
     bool ModificationTrackingSuppressed = false;
 
 
-    virtual NLogging::TLogger CreateLogger() const override;
-
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
     virtual NSecurityServer::TAccessControlDescriptor* FindThisAcd() override;
 
@@ -150,8 +148,6 @@ protected:
 
 
     ICypressNodeProxyPtr GetProxy(TCypressNodeBase* trunkNode) const;
-    static TIntrusivePtr<ICypressNodeProxy>ToProxy(NYTree::INodePtr node);
-    static TIntrusivePtr<const ICypressNodeProxy> ToProxy(NYTree::IConstNodePtr node);
 
     virtual std::unique_ptr<NYTree::IAttributeDictionary> DoCreateCustomAttributes() override;
     
@@ -184,6 +180,8 @@ protected:
         const NYPath::TYPath& path,
         NYTree::INodePtr child,
         bool recursive);
+
+    NSecurityServer::TClusterResources GetResourceUsage() const;
 
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);

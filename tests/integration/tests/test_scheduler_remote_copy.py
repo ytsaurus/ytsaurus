@@ -66,6 +66,18 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    def test_cluster_connection_config(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        cluster_connection = get("//sys/clusters/remote")
+
+        remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_connection": cluster_connection})
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
     def test_multi_chunk_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("<append=true>//tmp/t1", {"a": "b"}, driver=self.remote_driver)

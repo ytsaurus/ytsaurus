@@ -24,7 +24,7 @@ static const auto& Logger = QueryClientLogger;
 const i64 PoolChunkSize = 32 * 1024;
 const i64 BufferLimit = 32 * PoolChunkSize;
 
-TTopCollector::TTopCollector(i64 limit, NDetail::TComparerFunc comparer)
+TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer)
     : Comparer_(comparer)
 {
     Rows_.reserve(limit);
@@ -186,18 +186,17 @@ TJoinEvaluator GetJoinEvaluator(
 
     return [=] (
         TExecutionContext* context,
-        ui64 (*groupHasher)(TRow),
-        char (*groupComparer)(TRow, TRow),
-        const std::vector<TRow>& keys,
-        const std::vector<TRow>& allRows,
+        THasherFunction* groupHasher,
+        TComparerFunction* groupComparer,
+        TSharedRange<TRow> keys,
+        TSharedRange<TRow> allRows,
         std::vector<TRow>* joinedRows)
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
 
         subquery->WhereClause = New<TInOpExpression>(
             joinKeyExprs,
-            // TODO(babenko): fixme
-            TSharedRange<TRow>(MakeRange(keys), nullptr));
+            keys);
 
         if (foreignPredicate) {
             subquery->WhereClause = MakeAndExpression(
@@ -237,7 +236,7 @@ TJoinEvaluator GetJoinEvaluator(
         // Join rowsets.
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
-        for (auto row : allRows) {
+        for (auto row : allRows.ToVector()) {
             auto equalRange = foreignLookup.equal_range(row);
             for (auto it = equalRange.first; it != equalRange.second; ++it) {
                 rowBuilder.Reset();

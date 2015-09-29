@@ -65,6 +65,10 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ObjectServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectProxyBase::TCustomAttributeDictionary
     : public IAttributeDictionary
 {
@@ -260,19 +264,15 @@ void TObjectProxyBase::Invoke(IServiceContextPtr context)
         objectManager->ValidatePrerequisites(prerequiesitesExt);
     }
 
-    auto objectId = GetVersionedId();
-    const auto& Logger = ObjectServerLogger;
-    LOG_DEBUG_UNLESS(IsRecovery(), "Invoke: %v:%v %v (ObjectId: %v, Mutating: %v, User: %v, Leader: %v)",
+    LOG_DEBUG_IF(IsFollower(), "Invoke: %v:%v %v (ObjectId: %v, User: %v)",
         context->GetService(),
         context->GetMethod(),
         ypathExt.path(),
-        objectId,
-        ypathExt.mutating(),
-        user->GetName(),
-        hydraManager->IsLeader());
+        GetVersionedId(),
+        user->GetName());
 
     NProfiling::TTagIdList tagIds;
-    tagIds.push_back(objectManager->GetTypeTagId(TypeFromId(objectId.ObjectId)));
+    tagIds.push_back(objectManager->GetTypeTagId(Object_->GetType()));
     tagIds.push_back(objectManager->GetMethodTagId(context->GetMethod()));
     const auto& Profiler = objectManager->GetProfiler();
     static const auto profilingPath = TYPath("/verb_execute_time");
@@ -731,16 +731,6 @@ void TObjectProxyBase::PostToMaster(IServiceContextPtr context, TCellTag cellTag
         cellTag);
 }
 
-bool TObjectProxyBase::IsLoggingEnabled() const
-{
-    return !IsRecovery();
-}
-
-NLogging::TLogger TObjectProxyBase::CreateLogger() const
-{
-    return ObjectServerLogger;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase(
@@ -758,6 +748,7 @@ bool TNontemplateNonversionedObjectProxyBase::DoInvoke(IServiceContextPtr contex
 void TNontemplateNonversionedObjectProxyBase::GetSelf(TReqGet* /*request*/, TRspGet* response, TCtxGetPtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
+    context->SetRequestInfo();
 
     response->set_value("#");
     context->Reply();
@@ -771,6 +762,7 @@ void TNontemplateNonversionedObjectProxyBase::ValidateRemoval()
 void TNontemplateNonversionedObjectProxyBase::RemoveSelf(TReqRemove* /*request*/, TRspRemove* /*response*/, TCtxRemovePtr context)
 {
     ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
+
     ValidateRemoval();
 
     if (Object_->GetObjectRefCounter() != 1) {

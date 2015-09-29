@@ -15,6 +15,19 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSample {
+    TOwningKey Key;
+
+    // Is true, if sample is trimmed to fulfil #MaxSampleSize_.
+    bool Incomplete;
+};
+
+bool operator==(const TSample& lhs, const TSample& rhs);
+
+bool operator<(const TSample& lhs, const TSample& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Fetches samples for a bunch of table chunks by requesting
 //! them directly from data nodes.
 class TSamplesFetcher
@@ -25,6 +38,7 @@ public:
         NChunkClient::TFetcherConfigPtr config,
         i64 desiredSampleCount,
         const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
         IInvokerPtr invoker,
         NChunkClient::TScrapeChunksCallback scraperCallback,
@@ -33,17 +47,18 @@ public:
     virtual void AddChunk(NChunkClient::TRefCountedChunkSpecPtr chunk) override;
     virtual TFuture<void> Fetch() override;
 
-    const std::vector<TOwningKey>& GetSamples() const;
+    const std::vector<TSample>& GetSamples() const;
 
 private:
     const TKeyColumns KeyColumns_;
     const i64 DesiredSampleCount_;
+    const i32 MaxSampleSize_;
 
     i64 SizeBetweenSamples_ = 0;
     i64 TotalDataSize_ = 0;
 
     //! All samples fetched so far.
-    std::vector<TOwningKey> Samples_;
+    std::vector<TSample> Samples_;
 
     virtual TFuture<void> FetchFromNode(
         NNodeTrackerClient::TNodeId nodeId,

@@ -78,28 +78,6 @@ IYPathService::TResolveResult TYPathServiceBase::ResolveRecursive(
     THROW_ERROR_EXCEPTION("Object cannot have children");
 }
 
-void TYPathServiceBase::EnsureLoggerCreated() const
-{
-    if (!LoggerCreated_) {
-        if (IsLoggingEnabled()) {
-            Logger = CreateLogger();
-        }
-        LoggerCreated_ = true;
-    }
-}
-
-bool TYPathServiceBase::IsLoggingEnabled() const
-{
-    // Logging is enabled by default...
-    return true;
-}
-
-NLogging::TLogger TYPathServiceBase::CreateLogger() const
-{
-    // ... but a null logger is returned :)
-    return NLogging::TLogger();
-}
-
 void TYPathServiceBase::Invoke(IServiceContextPtr context)
 {
     TError error;
@@ -120,9 +98,7 @@ void TYPathServiceBase::Invoke(IServiceContextPtr context)
 }
 
 void TYPathServiceBase::BeforeInvoke(IServiceContextPtr /*context*/)
-{
-    EnsureLoggerCreated();
-}
+{ }
 
 bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
 {
@@ -132,16 +108,10 @@ bool TYPathServiceBase::DoInvoke(IServiceContextPtr /*context*/)
 void TYPathServiceBase::AfterInvoke(IServiceContextPtr /*context*/)
 { }
 
-NLogging::TLogger TYPathServiceBase::GetLogger() const
-{
-    EnsureLoggerCreated();
-    return Logger;
-}
-
 void TYPathServiceBase::WriteAttributesFragment(
-    IAsyncYsonConsumer* /*consumer*/,
-    const TAttributeFilter& /*filter*/,
-    bool /*sortKeys*/)
+    NYson::IAsyncYsonConsumer* /* consumer */,
+    const TAttributeFilter& /* filter */,
+    bool /* sortKeys */)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -412,6 +382,8 @@ void TSupportsAttributes::GetAttribute(
     TRspGet* response,
     TCtxGetPtr context)
 {
+    context->SetRequestInfo();
+
     DoGetAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (!ysonOrError.IsOK()) {
             context->Reply(ysonOrError);
@@ -505,6 +477,8 @@ void TSupportsAttributes::ListAttribute(
     TRspList* response,
     TCtxListPtr context)
 {
+    context->SetRequestInfo();
+
     DoListAttribute(path).Subscribe(BIND([=] (const TErrorOr<TYsonString>& ysonOrError) {
         if (ysonOrError.IsOK()) {
             response->set_value(ysonOrError.Value().Data());
@@ -1095,32 +1069,48 @@ public:
     TYPathServiceContext(
         TSharedRefArray requestMessage,
         const NLogging::TLogger& logger,
-        NLogging::ELogLevel logLevel)
+        NLogging::ELogLevel logLevel,
+        const Stroka& requestInfo,
+        const Stroka& responseInfo)
         : TServiceContextBase(
             std::move(requestMessage),
             logger,
             logLevel)
+        , ExternalRequestInfo_(requestInfo)
+        , ExternalResponseInfo_(responseInfo)
     { }
 
     TYPathServiceContext(
         std::unique_ptr<TRequestHeader> requestHeader,
         TSharedRefArray requestMessage,
         const NLogging::TLogger& logger,
-        NLogging::ELogLevel logLevel)
+        NLogging::ELogLevel logLevel,
+        const Stroka& requestInfo,
+        const Stroka& responseInfo)
         : TServiceContextBase(
             std::move(requestHeader),
             std::move(requestMessage),
             logger,
             logLevel)
+        , ExternalRequestInfo_(requestInfo)
+        , ExternalResponseInfo_(responseInfo)
     { }
 
 protected:
+    const Stroka ExternalRequestInfo_;
+    const Stroka ExternalResponseInfo_;
+
+
     virtual void DoReply() override
     { }
 
     virtual void LogRequest() override
     {
         TStringBuilder builder;
+
+        if (!ExternalRequestInfo_.empty()) {
+            AppendInfo(&builder, ExternalRequestInfo_);
+        }
 
         auto mutationId = GetMutationId(*RequestHeader_);
         if (mutationId) {
@@ -1130,7 +1120,7 @@ protected:
         AppendInfo(&builder, "Retry: %v", IsRetry());
 
         if (!RequestInfo_.empty()) {
-            AppendInfo(&builder, "%v", RequestInfo_);
+            AppendInfo(&builder, RequestInfo_);
         }
 
         LOG_DEBUG("%v:%v %v <- %v",
@@ -1144,11 +1134,15 @@ protected:
     {
         TStringBuilder builder;
 
-        AppendInfo(&builder, "Error: %v", error);
+        if (!ExternalResponseInfo_.empty()) {
+            AppendInfo(&builder, ExternalResponseInfo_);
+        }
 
         if (!ResponseInfo_.empty()) {
-            AppendInfo(&builder, "%v", ResponseInfo_);
+            AppendInfo(&builder, ResponseInfo_);
         }
+
+        AppendInfo(&builder, "Error: %v", error);
 
         LOG_DEBUG("%v:%v %v -> %v",
             GetService(),
@@ -1162,21 +1156,27 @@ protected:
 IServiceContextPtr CreateYPathContext(
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger,
-    NLogging::ELogLevel logLevel)
+    NLogging::ELogLevel logLevel,
+    const Stroka& requestInfo,
+    const Stroka& responseInfo)
 {
     YASSERT(requestMessage);
 
     return New<TYPathServiceContext>(
         std::move(requestMessage),
         logger,
-        logLevel);
+        logLevel,
+        requestInfo,
+        responseInfo);
 }
 
 IServiceContextPtr CreateYPathContext(
     std::unique_ptr<TRequestHeader> requestHeader,
     TSharedRefArray requestMessage,
     const NLogging::TLogger& logger,
-    NLogging::ELogLevel logLevel)
+    NLogging::ELogLevel logLevel,
+    const Stroka& requestInfo,
+    const Stroka& responseInfo)
 {
     YASSERT(requestMessage);
 
@@ -1184,7 +1184,9 @@ IServiceContextPtr CreateYPathContext(
         std::move(requestHeader),
         std::move(requestMessage),
         logger,
-        logLevel);
+        logLevel,
+        requestInfo,
+        responseInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1214,11 +1216,7 @@ public:
         return TResolveResult::There(UnderlyingService_, tokenizer.GetSuffix());
     }
 
-    virtual NLogging::TLogger GetLogger() const override
-    {
-        return UnderlyingService_->GetLogger();
-    }
-
+    // TODO(panin): remove this when getting rid of IAttributeProvider
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* consumer,
         const TAttributeFilter& filter,

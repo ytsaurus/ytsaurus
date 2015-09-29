@@ -169,7 +169,7 @@ public:
 
     TFuture<void> RotateChangelog(TEpochContextPtr epochContext);
 
-    void CommitMutations(TVersion version);
+    void CommitMutations(TEpochContextPtr epochContext, TVersion version);
 
 private:
     friend class TUserLockGuard;
@@ -200,8 +200,11 @@ private:
     TEpochId Epoch_;
     IChangelogPtr Changelog_;
 
+    // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     std::atomic<TVersion> LoggedVersion_;
-    std::atomic<TVersion> CommittedVersion_;
+    std::atomic<TVersion> AutomatonVersion_;
+    TVersion CommittedVersion_;
+    bool ApplyPendingMutationsScheduled_ = false;
 
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
@@ -236,6 +239,8 @@ private:
     void Reset();
 
     void DoRotateChangelog();
+
+    void ApplyPendingMutations(TEpochContextPtr epochContext);
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();

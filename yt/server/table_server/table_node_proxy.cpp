@@ -71,12 +71,6 @@ public:
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TTableNode> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return TableServerLogger;
-    }
-
-
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);

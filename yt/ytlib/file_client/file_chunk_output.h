@@ -37,11 +37,9 @@ public:
         NApi::TFileWriterConfigPtr config,
         NChunkClient::TMultiChunkWriterOptionsPtr options,
         NApi::IClientPtr client,
-        const NObjectClient::TTransactionId& transactionId);
+        const NObjectClient::TTransactionId& transactionId,
+        i64 sizeLimit = std::numeric_limits<i64>::max());
 
-    ~TFileChunkOutput() throw();
-
-    void Open();
     NChunkClient::TChunkId GetChunkId() const;
     i64 GetSize() const;
 
@@ -51,26 +49,23 @@ private:
      *  This portion does not necessary makes up a block. The writer maintains an internal buffer
      *  and splits the input data into parts of equal size (see #TConfig::BlockSize).
      */
-    void DoWrite(const void* buf, size_t len);
+    virtual void DoWrite(const void* buf, size_t len) override;
 
     //! Closes the writer.
-    void DoFinish();
+    virtual void DoFinish() override;
     void FlushBlock();
 
     const NApi::TFileWriterConfigPtr Config;
     const NChunkClient::TMultiChunkWriterOptionsPtr Options;
 
-    bool IsOpen = false;
-
     NApi::IClientPtr Client;
     NObjectClient::TTransactionId TransactionId;
 
-    NChunkClient::TChunkId ChunkId;
-
-    std::vector<NChunkClient::TChunkReplica> Replicas;
-
     NChunkClient::IChunkWriterPtr ChunkWriter;
     IFileChunkWriterPtr Writer;
+
+    const i64 SizeLimit;
+
     NLogging::TLogger Logger;
 };
 

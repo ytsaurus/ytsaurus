@@ -106,8 +106,8 @@ private:
             : Connection_->GetConfig()->PrimaryMaster->CellId;
         auto channel = cellDirectory->GetChannelOrThrow(cellId);
 
-        THydraServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Null); // infinity
+            THydraServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(TDuration::Hours(1)); // effective infinity
 
         auto req = proxy.ForceBuildSnapshot();
         req->set_set_read_only(options.SetReadOnly);

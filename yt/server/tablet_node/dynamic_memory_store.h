@@ -62,6 +62,18 @@ public:
     ~TDynamicMemoryStore();
 
 
+    //! Sets the store state, as expected.
+    //! Additionally, when the store transitions from |ActiveDynamic| to |PassiveDynamic|,
+    //! its current revision is stored for future use in #CreateFlushReader.
+    virtual void SetStoreState(EStoreState state);
+
+    //! Returns the reader to be used during flush.
+    NTableClient::IVersionedReaderPtr CreateFlushReader();
+
+    //! Returns the reader to be used during store serialization.
+    NTableClient::IVersionedReaderPtr CreateSnapshotReader();
+
+
     //! Returns the cached instance of row key comparer
     //! (obtained by calling TTablet::GetRowKeyComparer).
     const TDynamicRowKeyComparer& GetRowKeyComparer() const;
@@ -183,6 +195,8 @@ private:
     class TLookupReader;
 
     const TTabletManagerConfigPtr Config_;
+
+    ui32 FlushRevision_ = InvalidRevision;
 
     int StoreLockCount_ = 0;
     int StoreValueCount_ = 0;

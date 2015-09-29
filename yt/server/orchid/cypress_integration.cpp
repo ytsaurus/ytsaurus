@@ -119,10 +119,6 @@ public:
             .Via(OrchidQueue->GetInvoker()));
     }
 
-    virtual NLogging::TLogger GetLogger() const override
-    {
-        return OrchidLogger;
-    }
 
     virtual void WriteAttributesFragment(
         IAsyncYsonConsumer* /*consumer*/,

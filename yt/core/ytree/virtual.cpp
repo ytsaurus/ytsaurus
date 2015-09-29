@@ -67,7 +67,7 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
     i64 limit = request->limit();
 
     auto keys = GetKeys(limit);
-    i64 size = GetSize();
+    size_t size = GetSize();
 
     TAsyncYsonWriter writer;
 
@@ -111,7 +111,7 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
     i64 limit = request->limit();
 
     auto keys = GetKeys(limit);
-    i64 size = GetSize();
+    size_t size = GetSize();
 
     TAsyncYsonWriter writer;
 

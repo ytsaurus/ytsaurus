@@ -6,6 +6,7 @@ import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
 import "yt/ytlib/chunk_client/chunk_spec.proto";
+import "yt/ytlib/chunk_client/chunk_slice.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,15 +186,22 @@ message TReqGetTableSamples
 
     repeated TSampleRequest sample_requests = 1;
     repeated string key_columns = 2;
+    required int32 max_sample_size = 3;
 }
 
 message TRspGetTableSamples
 {
+    message TSample
+    {
+        required bytes key = 1;
+        required bool incomplete = 2;
+    }
+
     message TChunkSamples
     {
         optional NYT.NProto.TError error = 1;
         // Deprecated = 2;
-        repeated bytes keys = 3;
+        repeated TSample samples = 3;
     }
 
     repeated TChunkSamples sample_responses = 1;
@@ -202,23 +210,29 @@ message TRspGetTableSamples
 ////////////////////////////////////////////////////////////////////////////////
 
 // For sorted chunks only.
-// Scheduler calls this method to perform sorted merge.
-message TReqGetChunkSplits
+// Scheduler calls this method to perform sorted merge and join merge.
+message TReqGetChunkSlices
 {
     repeated NChunkClient.NProto.TChunkSpec chunk_specs = 1;
     repeated string key_columns = 2;
-    required int64 min_split_size = 3;
+    required int64 slice_data_size = 3;
+    // If false, chunks are sliced by row indexes and
+    // lower_key and upper_key contains estimated values.
+    // If true, chunks are sliced by key,
+    // each slice contains the whole key
+    required bool slice_by_keys = 4;
 }
 
-message TRspGetChunkSplits
+message TRspGetChunkSlices
 {
-    message TChunkSplits
+    message TChunkSlices
     {
         optional NYT.NProto.TError error = 1;
-        repeated NChunkClient.NProto.TChunkSpec chunk_specs = 2;
+        // Deprecated = 2;
+        repeated NChunkClient.NProto.TChunkSlice chunk_slices = 3;
     }
 
-    repeated TChunkSplits splits = 1;
+    repeated TChunkSlices slices = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

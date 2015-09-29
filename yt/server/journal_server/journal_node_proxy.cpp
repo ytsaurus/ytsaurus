@@ -25,6 +25,10 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = JournalServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJournalNodeProxy
     : public TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode>
 {
@@ -43,11 +47,6 @@ public:
 
 private:
     typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode> TBase;
-
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return JournalServerLogger;
-    }
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
@@ -133,7 +132,6 @@ private:
             THROW_ERROR_EXCEPTION("Journal is not sealed");
         }
     }
-
 
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {

@@ -57,6 +57,10 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFetchChunkVisitor
     : public IChunkVisitor
 {
@@ -97,12 +101,7 @@ public:
             return;
         }
 
-        TraverseChunkTree(
-            CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
-            this,
-            ChunkList_,
-            Ranges_[CurrentRangeIndex_].LowerLimit(),
-            Ranges_[CurrentRangeIndex_].UpperLimit());
+        TraverseCurrentRange();
     }
 
 private:
@@ -121,6 +120,16 @@ private:
     bool Finished_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    void TraverseCurrentRange()
+    {
+        TraverseChunkTree(
+            CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
+            this,
+            ChunkList_,
+            Ranges_[CurrentRangeIndex_].LowerLimit(),
+            Ranges_[CurrentRangeIndex_].UpperLimit());
+    }
 
     void ReplySuccess()
     {
@@ -283,18 +292,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        CurrentRangeIndex_ += 1;
+        if (Finished_) {
+            return;
+        }
+
+        ++CurrentRangeIndex_;
         if (CurrentRangeIndex_ == Ranges_.size()) {
-            if (CurrentRangeIndex_ == Ranges_.size() && !Finished_) {
-                ReplySuccess();
-            }
+            ReplySuccess();
         } else {
-            TraverseChunkTree(
-                CreatePreemptableChunkTraverserCallbacks(Bootstrap_),
-                this,
-                ChunkList_,
-                Ranges_[CurrentRangeIndex_].LowerLimit(),
-                Ranges_[CurrentRangeIndex_].UpperLimit());
+            TraverseCurrentRange();
         }
     }
 

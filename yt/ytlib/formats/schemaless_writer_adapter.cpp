@@ -24,7 +24,105 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t BufferSize = 1024 * 1024;
+const i64 ContextBufferSize = (i64) 1024 * 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
+    TNameTablePtr nameTable,
+    bool enableContextSaving,
+    IAsyncOutputStreamPtr output)
+    : EnableContextSaving_(enableContextSaving)
+    , Output_(CreateSyncAdapter(output))
+    , NameTable_(nameTable)
+{
+    CurrentBuffer_.Reserve(ContextBufferSize);
+
+    if (EnableContextSaving_) {
+        PreviousBuffer_.Reserve(ContextBufferSize);
+    }
+}
+
+TFuture<void> TSchemalessFormatWriterBase::Open()
+{
+    return VoidFuture;
+}
+
+TFuture<void> TSchemalessFormatWriterBase::GetReadyEvent()
+{
+    return MakeFuture(Error_);
+}
+
+TFuture<void> TSchemalessFormatWriterBase::Close()
+{
+    try {
+        DoFlushBuffer(true);
+        Output_->Finish();
+    } catch (const std::exception& ex) {
+        Error_ = TError(ex);
+    }
+
+    return MakeFuture(Error_);
+}
+
+bool TSchemalessFormatWriterBase::IsSorted() const 
+{
+    return false;
+}
+
+TNameTablePtr TSchemalessFormatWriterBase::GetNameTable() const
+{
+    return NameTable_;
+}
+
+TOutputStream* TSchemalessFormatWriterBase::GetOutputStream()
+{
+    return &CurrentBuffer_;
+}
+
+TBlob TSchemalessFormatWriterBase::GetContext() const
+{
+    TBlob result;
+    result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
+    result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
+    return result;
+}
+
+void TSchemalessFormatWriterBase::TryFlushBuffer()
+{
+    DoFlushBuffer(false);
+}
+
+void TSchemalessFormatWriterBase::DoFlushBuffer(bool force)
+{
+    if (CurrentBuffer_.Size() == 0) {
+        return;
+    }
+
+    if (!force && CurrentBuffer_.Size() < ContextBufferSize && EnableContextSaving_) {
+        return;
+    }
+
+    const auto& buffer = CurrentBuffer_.Blob();
+    Output_->Write(buffer.Begin(), buffer.Size());
+
+    if (EnableContextSaving_) {
+        std::swap(PreviousBuffer_, CurrentBuffer_);
+    }
+    CurrentBuffer_.Clear();
+}
+
+bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows)
+{
+    try {
+        DoWrite(rows);
+    } catch (const std::exception& ex) {
+        Error_ = TError(ex);
+        return false;
+    }
+
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,90 +133,38 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
-    : NameTable_(nameTable)
-    , Output_(CreateSyncAdapter(std::move(output)))
-    , EnableContextSaving_(enableContextSaving)
+    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
     , EnableKeySwitch_(enableKeySwitch)
     , KeyColumnCount_(keyColumnCount)
 {
-    CurrentBuffer_.Reserve(BufferSize);
-    Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, &CurrentBuffer_);
-
-    if (EnableContextSaving_) {
-        PreviousBuffer_.Reserve(BufferSize);
-    }
+    Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
-TFuture<void> TSchemalessWriterAdapter::Open()
+void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
-    return VoidFuture;
-}
-
-bool TSchemalessWriterAdapter::Write(const std::vector<TUnversionedRow> &rows)
-{
-    try {
-        for (const auto& row : rows) {
-            if (EnableKeySwitch_) {
-                try {
-                    if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                        WriteControlAttribute(EControlAttribute::KeySwitch, true);
-                    }
-                    CurrentKey_ = row;
-                } catch (const std::exception& ex) {
-                    // COMPAT(psushin): composite values are not comparable anymore.
-                    THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
+    for (const auto& row : rows) {
+        if (EnableKeySwitch_) {
+            try {
+                if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
+                    WriteControlAttribute(EControlAttribute::KeySwitch, true);
                 }
-            }
-
-            ConsumeRow(row);
-
-            if (CurrentBuffer_.Size() >= BufferSize) {
-                FlushBuffer();
+                CurrentKey_ = row;
+            } catch (const std::exception& ex) {
+                // COMPAT(psushin): composite values are not comparable anymore.
+                THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
             }
         }
 
-        if (!EnableContextSaving_ && CurrentBuffer_.Size() > 0) {
-            // If context saving is not enabled, flush buffer asap.
-            FlushBuffer();
-        }
-
-        if (EnableKeySwitch_ && CurrentKey_) {
-            LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
-            CurrentKey_ = LastKey_.Get();
-        }
-    } catch (const std::exception& ex) {
-        Error_ = TError(ex);
-        return false;
+        ConsumeRow(row);
+        TryFlushBuffer();
     }
 
-    return true;
-}
+    TryFlushBuffer();
 
-TFuture<void> TSchemalessWriterAdapter::GetReadyEvent()
-{
-    return MakeFuture(Error_);
-}
-
-TFuture<void> TSchemalessWriterAdapter::Close()
-{
-    try {
-        FlushBuffer();
-        Output_->Finish();
-    } catch (const std::exception& ex) {
-        Error_ = TError(ex);
+    if (EnableKeySwitch_ && CurrentKey_) {
+        LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
+        CurrentKey_ = LastKey_.Get();
     }
-
-    return MakeFuture(Error_);
-}
-
-TNameTablePtr TSchemalessWriterAdapter::GetNameTable() const
-{
-    return NameTable_;
-}
-
-bool TSchemalessWriterAdapter::IsSorted() const
-{
-    return false;
 }
 
 void TSchemalessWriterAdapter::WriteTableIndex(int tableIndex)
@@ -136,14 +182,6 @@ void TSchemalessWriterAdapter::WriteRowIndex(i64 rowIndex)
     WriteControlAttribute(EControlAttribute::RowIndex, rowIndex);
 }
 
-TBlob TSchemalessWriterAdapter::GetContext() const
-{
-    TBlob result;
-    result.Append(TRef::FromBlob(PreviousBuffer_.Blob()));
-    result.Append(TRef::FromBlob(CurrentBuffer_.Blob()));
-    return result;
-}
-
 template <class T>
 void TSchemalessWriterAdapter::WriteControlAttribute(
     EControlAttribute controlAttribute,
@@ -159,17 +197,13 @@ void TSchemalessWriterAdapter::WriteControlAttribute(
 
 void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
 {
+    auto nameTable = GetNameTable();
     Consumer_->OnListItem();
     Consumer_->OnBeginMap();
     for (auto* it = row.Begin(); it != row.End(); ++it) {
         auto& value = *it;
 
-        if (value.Type == EValueType::Null) {
-            // Simply skip null values.
-            continue;
-        }
-
-        Consumer_->OnKeyedItem(NameTable_->GetName(value.Id));
+        Consumer_->OnKeyedItem(nameTable->GetName(value.Id));
         switch (value.Type) {
             case EValueType::Int64:
                 Consumer_->OnInt64Scalar(value.Data.Int64);
@@ -186,6 +220,9 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
             case EValueType::String:
                 Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
                 break;
+            case EValueType::Null:
+                Consumer_->OnEntity();
+                break;
             case EValueType::Any:
                 Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                 break;
@@ -194,17 +231,6 @@ void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
         }
     }
     Consumer_->OnEndMap();
-}
-
-void TSchemalessWriterAdapter::FlushBuffer()
-{
-    const auto& buffer = CurrentBuffer_.Blob();
-    Output_->Write(buffer.Begin(), buffer.Size());
-
-    if (EnableContextSaving_) {
-        std::swap(PreviousBuffer_, CurrentBuffer_);
-    }
-    CurrentBuffer_.Clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

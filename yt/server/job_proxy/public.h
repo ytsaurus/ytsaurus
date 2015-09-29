@@ -11,8 +11,6 @@ namespace NJobProxy {
 
 struct IUserJobIO;
 
-class TErrorOutput;
-
 DECLARE_REFCOUNTED_CLASS(TJobProxyConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IJob)

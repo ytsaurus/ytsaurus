@@ -1,83 +1,112 @@
 #include "stdafx.h"
 #include "framework.h"
 
-#include <server/job_proxy/table_output.h>
-
-#include <ytlib/scheduler/statistics.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <ytlib/formats/format.h>
 #include <ytlib/formats/parser.h>
 
 #include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
+#include <core/misc/protobuf_helpers.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NJobTrackerClient {
 namespace {
 
 using namespace NFormats;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////
 
-TEST(TSummary, MergeBasic)
+TEST(TStatistics, Summary)
 {
-    TSummary sum;
+    TSummary summary;
 
-    sum.AddSample(10);
-    sum.AddSample(20);
+    summary.AddSample(10);
+    summary.AddSample(20);
 
-    EXPECT_EQ(10, sum.GetMin());
-    EXPECT_EQ(20, sum.GetMax());
-    EXPECT_EQ(2, sum.GetCount());
-    EXPECT_EQ(30, sum.GetSum());
+    EXPECT_EQ(10, summary.GetMin());
+    EXPECT_EQ(20, summary.GetMax());
+    EXPECT_EQ(2, summary.GetCount());
+    EXPECT_EQ(30, summary.GetSum());
+
+    summary.Update(summary);
+    EXPECT_EQ(10, summary.GetMin());
+    EXPECT_EQ(20, summary.GetMax());
+    EXPECT_EQ(4, summary.GetCount());
+    EXPECT_EQ(60, summary.GetSum());
+
+    summary.Reset();
+    EXPECT_EQ(0, summary.GetCount());
+    EXPECT_EQ(0, summary.GetSum());
 }
 
 ////////////////////////////////////////////////////////////////////
+
+i64 GetSum(const TStatistics& statistics, const NYPath::TYPath& path)
+{
+    auto getValue = [] (const TSummary& summary) {
+        return summary.GetSum();
+    };
+    return GetValues<i64>(statistics, path, getValue);
+}
 
 TStatistics CreateStatistics(std::initializer_list<std::pair<NYPath::TYPath, i64>> data)
 {
     TStatistics result;
     for (const auto& item : data) {
-        result.Add(item.first, item.second);
+        result.AddSample(item.first, item.second);
     }
     return result;
 }
 
-TEST(TStatistics, Add)
+TEST(TStatistics, AddSample)
 {
-    auto statistics = CreateStatistics({{"key", 10}});
-
-    EXPECT_EQ(10, statistics.Get("key"));
-}
-
-TEST(TStatistics, AddComplex)
-{
-    yhash_map<Stroka, int> raw;
-    raw["x"] = 5;
-    raw["y"] = 7;
+    std::map<Stroka, int> origin = {{"x", 5}, {"y", 7}};
 
     TStatistics statistics;
-    statistics.AddComplex(
+    statistics.AddSample(
         "/key/subkey",
-        raw);
+        origin);
 
-    EXPECT_EQ(5, statistics.Get("/key/subkey/x"));
-    EXPECT_EQ(7, statistics.Get("/key/subkey/y"));
-}
+    EXPECT_EQ(5, GetSum(statistics, "/key/subkey/x"));
+    EXPECT_EQ(7, GetSum(statistics, "/key/subkey/y"));
 
-TEST(TStatistics, GetComplex)
-{
-    yhash_map<Stroka, int> raw;
-    raw["x"] = 5;
-    raw["y"] = 7;
+    auto getValue = [] (const TSummary& summary) {
+        return summary.GetSum();
+    };
+    auto stored = GetValues<std::map<Stroka, int>>(statistics, "/key/subkey", getValue);
+    EXPECT_EQ(origin, stored);
 
-    TStatistics statistics;
-    statistics.AddComplex(
-        "/key/subkey",
-        raw);
+    statistics.AddSample("/key/sub", 42);
+    EXPECT_EQ(42, GetSum(statistics, "/key/sub"));
 
-    auto complexStatistics = statistics.GetComplex<yhash_map<Stroka, int>>("/key/subkey");
-    EXPECT_EQ(5, complexStatistics["x"]);
-    EXPECT_EQ(7, complexStatistics["y"]);
+    // Cannot add sample to the map node.
+    EXPECT_THROW(statistics.AddSample("/key/subkey", 24), std::exception);
+
+    statistics.Update(CreateStatistics({
+        {"/key/subkey/x", 5}, 
+        {"/key/subkey/z", 9}}));
+
+    EXPECT_EQ(10, GetSum(statistics, "/key/subkey/x"));
+    EXPECT_EQ(7, GetSum(statistics, "/key/subkey/y"));
+    EXPECT_EQ(9, GetSum(statistics, "/key/subkey/z"));
+
+    EXPECT_THROW(
+        statistics.Update(CreateStatistics({{"/key", 5}})), 
+        std::exception);
+
+    statistics.AddSample("/key/subkey/x", 10);
+    EXPECT_EQ(20, GetSum(statistics, "/key/subkey/x"));
+
+    NJobTrackerClient::NProto::TStatistics protoStatistics;
+    ToProto(&protoStatistics, statistics);
+
+    TStatistics deserializedStatistics;
+    FromProto(&deserializedStatistics, protoStatistics);
+    EXPECT_EQ(20, GetSum(deserializedStatistics, "/key/subkey/x"));
+    EXPECT_EQ(42, GetSum(deserializedStatistics, "/key/sub"));
 }
 
 TEST(TStatistics, AddSuffixToNames)
@@ -86,50 +115,17 @@ TEST(TStatistics, AddSuffixToNames)
 
     statistics.AddSuffixToNames("/$/completed/map");
 
-    EXPECT_EQ(10, statistics.Get("/key/$/completed/map"));
-}
-
-TEST(TStatistics, MergeDifferent)
-{
-    auto statistics = CreateStatistics({{"key", 10}});
-    auto other = CreateStatistics({{"other_key", 40}});
-
-    statistics.Merge(other);
-
-    EXPECT_EQ(10, statistics.Get("key"));
-    EXPECT_EQ(40, statistics.Get("other_key"));
-}
-
-TEST(TStatistics, MergeTheSameKey)
-{
-    auto statistics = CreateStatistics({{"key", 10}});
-    auto other = CreateStatistics({{"key", 40}});
-
-    statistics.Merge(other);
-
-    EXPECT_EQ(40, statistics.Get("key"));
-}
-
-TEST(TStatistics, Serialization)
-{
-    auto statistics = CreateStatistics({
-        {"/key", 10},
-        {"/other_key", 40}});
-
-    auto newStatistics = NYTree::ConvertTo<TStatistics>(NYTree::ConvertToYsonString(statistics));
-
-    EXPECT_EQ(10, statistics.Get("/key"));
-    EXPECT_EQ(40, statistics.Get("/other_key"));
+    EXPECT_EQ(10, GetSum(statistics, "/key/$/completed/map"));
 }
 
 ////////////////////////////////////////////////////////////////////
 
-class TMergeStatisticsConsumer
+class TStatisticsUpdater
 {
 public:
-    void Consume(const TStatistics& arg)
+    void AddSample(const INodePtr& node)
     {
-        Statistics_.Merge(arg);
+        Statistics_.AddSample("/custom", node);
     }
 
     const TStatistics& GetStatistics()
@@ -141,35 +137,37 @@ private:
     TStatistics Statistics_;
 };
 
-TEST(TStatisticsConsumer, Integration)
+TEST(TStatistics, Consumer)
 {
-    TMergeStatisticsConsumer statisticsConsumer;
-    auto consumer = std::make_unique<TStatisticsConsumer>(BIND(&TMergeStatisticsConsumer::Consume, &statisticsConsumer), "/something");
-    auto parser = CreateParserForFormat(TFormat(EFormatType::Yson), EDataType::Tabular, consumer.get());
-    NJobProxy::TTableOutput output(std::move(parser), std::move(consumer));
-    output.Write("{k1=4}; {k2=-7}; {key={subkey=42}}");
+    TStatisticsUpdater statisticsUpdater;
+    TStatisticsConsumer consumer(BIND(&TStatisticsUpdater::AddSample, &statisticsUpdater));
+    BuildYsonListFluently(&consumer)
+        .Item()
+            .BeginMap()
+                .Item("k1").Value(4)
+            .EndMap()
+        .Item()
+            .BeginMap()
+                .Item("k2").Value(-7)
+            .EndMap()
+        .Item()
+            .BeginMap()
+                .Item("key")
+                .BeginMap()
+                    .Item("subkey")
+                    .Value(42)
+                .EndMap()
+            .EndMap();
 
-    const auto& stats = statisticsConsumer.GetStatistics();
-    EXPECT_EQ(4, stats.Get("/something/k1"));
-    EXPECT_EQ(-7, stats.Get("/something/k2"));
-    EXPECT_EQ(42, stats.Get("/something/key/subkey"));
-}
-
-////////////////////////////////////////////////////////////////////
-
-TEST(TAggregatedStatistics, Integration)
-{
-    TAggregatedStatistics statistics;
-    statistics.AddSample(CreateStatistics({{"key", 10}}));
-    auto summary = statistics.Get("key");
-
-    EXPECT_EQ(1, summary.GetCount());
-    EXPECT_EQ(10, summary.GetSum());
+    const auto& statistics = statisticsUpdater.GetStatistics();
+    EXPECT_EQ(4, GetSum(statistics, "/custom/k1"));
+    EXPECT_EQ(-7, GetSum(statistics, "/custom/k2"));
+    EXPECT_EQ(42, GetSum(statistics, "/custom/key/subkey"));
 }
 
 ////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NJobProxy
+} // namespace NJobTrackerClient
 } // namespace NYT
 

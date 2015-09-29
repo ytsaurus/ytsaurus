@@ -203,5 +203,27 @@ const Stroka& TTokenizer::GetLiteralValue() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HasPrefix(const TYPath& fullPath, const TYPath& prefixPath)
+{
+    TTokenizer fullTokenizer(fullPath);
+    TTokenizer prefixTokenizer(prefixPath);
+
+    while (true) {
+        if (prefixTokenizer.Advance() == ETokenType::EndOfStream) {
+            return true;
+        }
+
+        if (fullTokenizer.Advance() == ETokenType::EndOfStream) {
+            return false;
+        }
+
+        if (prefixTokenizer.GetToken() != fullTokenizer.GetToken()) {
+            return false;
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYPath
 } // namespace NYT
