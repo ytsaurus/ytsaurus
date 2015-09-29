@@ -47,6 +47,8 @@
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 
+#include <server/journal_server/journal_manager.h>
+
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/transaction.h>
 
@@ -617,7 +619,8 @@ public:
 
         // NB: This is true for non-journal chunks.
         if (chunk->IsSealed()) {
-            OnChunkSealed(chunk);
+            auto journalManager = Bootstrap_->GetJournalManager();
+            journalManager->OnChunkSealed(chunk);
         }
 
         // Increase staged resource usage.
@@ -1288,28 +1291,6 @@ private:
 
         LOG_INFO("Finished recomputing statistics");
     }
-
-    void OnChunkSealed(TChunk* chunk)
-    {
-        YASSERT(chunk->IsSealed());
-
-        if (chunk->Parents().empty())
-            return;
-
-        // Go upwards and apply delta.
-        YCHECK(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
-
-        auto statisticsDelta = chunk->GetStatistics();
-        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
-
-        auto owningNodes = GetOwningNodes(chunk);
-        auto securityManager = Bootstrap_->GetSecurityManager();
-        for (auto* node : owningNodes) {
-            securityManager->UpdateAccountNodeUsage(node);
-        }
-    }
-
 
     virtual void OnRecoveryStarted() override
     {
