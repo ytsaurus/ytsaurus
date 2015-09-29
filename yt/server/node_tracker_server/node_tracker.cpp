@@ -220,8 +220,11 @@ public:
         objectManager->RegisterHandler(New<TClusterNodeTypeHandler>(this));
         objectManager->RegisterHandler(New<TRackTypeHandler>(this));
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->SubscribeSecondaryMasterRegistered(
+                BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+        }
     }
 
     bool TryAcquireNodeRegistrationSemaphore()
@@ -1023,7 +1026,6 @@ private:
     TNode* CreateNode(TNodeId nodeId, const TAddressMap& addresses)
     {
         PROFILE_TIMING ("/node_register_time") {
-            const auto& address = GetDefaultAddress(addresses);
             auto objectId = ObjectIdFromNodeId(nodeId);
 
             const auto* mutationContext = GetCurrentMutationContext();
