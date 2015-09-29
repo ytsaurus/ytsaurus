@@ -231,7 +231,7 @@ TSelectRowsExecutor::TSelectRowsExecutor()
     , RangeExpansionLimitArg("", "range_expansion_limit", "range expansion limit", false, 1000, "INTEGER")
     , VerboseLoggingArg("", "verbose_logging", "verbose logging", false)
     , EnableCodeCacheArg("", "enable_code_cache", "enable_code_cache", true)
-    , MaxSubqueriesArg("", "max_subqueries", "max subqueries", false, 0, "INTEGER")
+    , MaxSubqueriesArg("", "max_subqueries", "max subqueries", false, std::numeric_limits<int>::max(), "INTEGER")
 {
     CmdLine.add(QueryArg);
     CmdLine.add(TimestampArg);

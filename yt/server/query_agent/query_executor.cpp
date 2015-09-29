@@ -249,9 +249,7 @@ private:
 
         LOG_DEBUG("Grouping %v splits", splits.size());
 
-        auto maxSubqueries = fragment->MaxSubqueries > 0
-            ? fragment->MaxSubqueries
-            : Config_->MaxSubqueries;
+        auto maxSubqueries = std::min(fragment->MaxSubqueries, Config_->MaxSubqueries);
 
         for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / maxSubqueries;

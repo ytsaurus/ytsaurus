@@ -193,7 +193,7 @@ struct TSelectRowsOptions
     //! If |true| then logging is more verbose.
     bool VerboseLogging = false;
     //! Limits maximum parallel subqueries.
-    ui64 MaxSubqueries = 0;
+    int MaxSubqueries = std::numeric_limits<int>::max();
     //! Enables generated code caching.
     bool EnableCodeCache = true;
 };
