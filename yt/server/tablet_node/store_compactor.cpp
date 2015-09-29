@@ -207,10 +207,7 @@ private:
             auto candidate = store->AsChunk();
             candidates.push_back(candidate);
 
-            if (IsCompactionForced(candidate) &&
-                candidate->GetUncompressedDataSize() >= config->MinPartitionDataSize &&
-                forcedCandidates.size() < config->MaxPartitioningStoreCount)
-            {
+            if (IsCompactionForced(candidate) && forcedCandidates.size() < config->MaxPartitioningStoreCount) {
                 forcedCandidates.push_back(candidate);
             }
         }
