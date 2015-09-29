@@ -20,5 +20,6 @@ def KeyboardInterruptsCatcher(keyboard_interrupt_action, enable=True, limit=10):
                     else:
                         raise
                 break
+            raise
     else:
         yield
