@@ -53,6 +53,7 @@ struct TChunkTreeStatistics
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    bool operator == (const TChunkTreeStatistics& other) const;
 };
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);

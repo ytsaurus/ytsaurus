@@ -671,8 +671,7 @@ public:
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         auto& tablets = table->Tablets();
-        auto& chunkLists = table->GetChunkList()->Children();
-        YCHECK(tablets.size() == chunkLists.size());
+        YCHECK(tablets.size() == table->GetChunkList()->Children().size());
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
         int newTabletCount = static_cast<int>(pivotKeys.size());
@@ -747,9 +746,13 @@ public:
             tablet->SetIndex(index);
         }
 
+        // Copy chunk tree if somebody holds a reference.
+        CopyChunkListIfShared(table, firstTabletIndex, lastTabletIndex);
+
         // Update chunk lists.
-        auto* oldRootChunkList = table->GetChunkList();
         auto* newRootChunkList = chunkManager->CreateChunkList();
+        auto* oldRootChunkList = table->GetChunkList();
+        auto& chunkLists = oldRootChunkList->Children();
         chunkManager->AttachToChunkList(
             newRootChunkList,
             chunkLists.data(),
@@ -1263,6 +1266,66 @@ private:
         objectManager->UnrefObject(cell);
     }
 
+    void CopyChunkListIfShared(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex)
+    {
+        auto* oldRootChunkList = table->GetChunkList();
+        auto& chunkLists = oldRootChunkList->Children();
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        auto objectManager = Bootstrap_->GetObjectManager();
+
+        if (table->GetChunkList()->GetObjectRefCounter() > 1) {
+            auto statistics = oldRootChunkList->Statistics();
+            auto* newRootChunkList = chunkManager->CreateChunkList();
+
+            chunkManager->AttachToChunkList(
+                newRootChunkList,
+                chunkLists.data(),
+                chunkLists.data() + firstTabletIndex);
+
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tabletChunkList = chunkLists[index]->AsChunkList();
+                auto* newTabletChunkList = chunkManager->CreateChunkList();
+                chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
+                chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
+            }
+
+            chunkManager->AttachToChunkList(
+                newRootChunkList,
+                chunkLists.data() + lastTabletIndex + 1,
+                chunkLists.data() + chunkLists.size());
+
+            // Replace root chunk list.
+            table->SetChunkList(newRootChunkList);
+            YCHECK(newRootChunkList->OwningNodes().insert(table).second);
+            objectManager->RefObject(newRootChunkList);
+            YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
+            objectManager->UnrefObject(oldRootChunkList);
+            YCHECK(newRootChunkList->Statistics() == statistics);
+        } else {
+            auto statistics = oldRootChunkList->Statistics();
+
+            for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+                auto* tabletChunkList = chunkLists[index]->AsChunkList();
+                if (tabletChunkList->GetObjectRefCounter() > 1) {
+                    auto* newTabletChunkList = chunkManager->CreateChunkList();
+                    chunkManager->AttachToChunkList(newTabletChunkList, tabletChunkList->Children());
+                    chunkLists[index] = newTabletChunkList;
+
+                    // TODO(savrus): make a helper to replace a tablet chunk list.
+                    newTabletChunkList->Parents().insert(oldRootChunkList);
+                    objectManager->RefObject(newTabletChunkList);
+                    YCHECK(tabletChunkList->Parents().erase(oldRootChunkList) == 1);
+                    objectManager->UnrefObject(tabletChunkList);
+                }
+            }
+
+            YCHECK(oldRootChunkList->Statistics() == statistics);
+        }
+    }
+
     void HydraUpdateTabletStores(const TReqUpdateTabletStores& request)
     {
         auto tabletId = FromProto<TTabletId>(request.tablet_id());
@@ -1325,6 +1388,9 @@ private:
                     chunksToDetach.push_back(chunk);
                 }
             }
+
+            // Copy chunk tree if somebody holds a reference.
+            CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
 
             // Apply all requested changes.
             cell->TotalStatistics() -= GetTabletStatistics(tablet);

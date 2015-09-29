@@ -72,6 +72,20 @@ void TChunkTreeStatistics::Load(NCellMaster::TLoadContext& context)
     Load(context, Sealed);
 }
 
+bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
+{
+    return RowCount == other.RowCount &&
+        UncompressedDataSize == other.UncompressedDataSize &&
+        CompressedDataSize == other.CompressedDataSize &&
+        DataWeight == other.DataWeight &&
+        RegularDiskSpace == other.RegularDiskSpace &&
+        ErasureDiskSpace == other.ErasureDiskSpace &&
+        ChunkCount == other.ChunkCount &&
+        ChunkListCount == other.ChunkListCount &&
+        Rank == other.Rank &&
+        Sealed == other.Sealed;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)
