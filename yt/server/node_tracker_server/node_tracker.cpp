@@ -707,6 +707,10 @@ private:
 
     void HydraDisposeNode(const TReqDisposeNode& request)
     {
+        if (IsLeader()) {
+            YCHECK(--PendingDisposeNodeMutationCount_ >= 0);
+        }
+
         auto nodeId = request.node_id();
 
         auto* node = FindNode(nodeId);
@@ -715,10 +719,6 @@ private:
 
         if (node->GetLocalState() != ENodeState::Unregistered)
             return;
-
-        if (IsLeader()) {
-            YCHECK(--PendingDisposeNodeMutationCount_ >= 0);
-        }
 
         DisposeNode(node);
     }
