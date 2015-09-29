@@ -433,8 +433,11 @@ public:
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->SubscribeSecondaryMasterRegistered(
+                BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+        }
     }
 
     TTransaction* StartTransaction(

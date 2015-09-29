@@ -156,37 +156,42 @@ public:
 
     bool IsRegisteredSecondaryMaster(TCellTag cellTag)
     {
-        return FindSecondaryCellEntry(cellTag) != nullptr;
+        return FindMasterEntry(cellTag) != nullptr;
     }
 
-    std::vector<NObjectClient::TCellTag> GetRegisteredSecondaryMasterCellTags()
+    std::vector<NObjectClient::TCellTag> GetRegisteredMasterCellTags()
     {
-        return GetKeys(RegisteredSecondaryCellMap_);
+        return GetKeys(RegisteredMasterMap_);
+    }
+
+    int GetRegisteredMasterCellIndex(TCellTag cellTag)
+    {
+        return GetMasterEntry(cellTag)->Index;
     }
 
     TCellTag PickCellForNode()
     {
         YCHECK(Bootstrap_->IsPrimaryMaster());
 
-        if (RegisteredSecondaryCellMap_.empty()) {
+        if (RegisteredMasterMap_.empty()) {
             return InvalidCellTag;
         }
 
         // Compute the average number of chunks.
         int chunkCountSum = 0;
-        for (const auto& pair : RegisteredSecondaryCellMap_) {
+        for (const auto& pair : RegisteredMasterMap_) {
             const auto& entry = pair.second;
             chunkCountSum += entry.Statistics.chunk_count();
         }
 
-        int avgChunkCount = chunkCountSum / RegisteredSecondaryCellMap_.size();
+        int avgChunkCount = chunkCountSum / RegisteredMasterMap_.size();
 
         // Construct PickCellList_ by putting each secondary cell
         // * once if the number of chunks there is at least the average
         // * twice otherwise
-        PickCellList_.reserve(RegisteredSecondaryCellMap_.size() * 2);
+        PickCellList_.reserve(RegisteredMasterMap_.size() * 2);
         PickCellList_.clear();
-        for (const auto& pair : RegisteredSecondaryCellMap_) {
+        for (const auto& pair : RegisteredMasterMap_) {
             auto cellTag = pair.first;
             const auto& entry = pair.second;
             PickCellList_.push_back(cellTag);
@@ -206,9 +211,9 @@ public:
 private:
     const TMulticellManagerConfigPtr Config_;
 
-    struct TSecondaryCellEntry
+    struct TMasterEntry
     {
-        TMailbox* Mailbox = nullptr;
+        int Index = -1;
         NProto::TCellStatistics Statistics;
 
         void Persist(NCellMaster::TPersistenceContext& context)
@@ -220,7 +225,7 @@ private:
     };
 
     // NB: Must ensure stable order.
-    std::map<TCellTag, TSecondaryCellEntry> RegisteredSecondaryCellMap_;
+    std::map<TCellTag, TMasterEntry> RegisteredMasterMap_;
     bool RegisteredAtPrimaryMaster_ = false;
 
     TMailbox* PrimaryMasterMailbox_ = nullptr;
@@ -236,11 +241,12 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        for (auto& pair : RegisteredSecondaryCellMap_) {
+        int index = 0;
+        for (auto& pair : RegisteredMasterMap_) {
             auto cellTag = pair.first;
-            auto* entry = &pair.second;
+            auto& entry = pair.second;
+            entry.Index = index++;
             ValidateSecondaryCellTag(cellTag);
-            InitializeSecondaryMailbox(cellTag, entry);
         }
     }
 
@@ -248,7 +254,11 @@ private:
     {
         TMasterAutomatonPart::Clear();
 
-        RegisteredSecondaryCellMap_.clear();
+        RegisteredMasterMap_.clear();
+        if (Bootstrap_->IsSecondaryMaster()) {
+            RegisterMasterEntry(Bootstrap_->GetPrimaryCellTag());
+        }
+
         RegisteredAtPrimaryMaster_ = false;
         PrimaryMasterMailbox_ = nullptr;
     }
@@ -258,7 +268,7 @@ private:
     {
         using NYT::Load;
 
-        Load(context, RegisteredSecondaryCellMap_);
+        Load(context, RegisteredMasterMap_);
         Load(context, RegisteredAtPrimaryMaster_);
     }
 
@@ -266,7 +276,7 @@ private:
     {
         using NYT::Save;
 
-        Save(context, RegisteredSecondaryCellMap_);
+        Save(context, RegisteredMasterMap_);
         Save(context, RegisteredAtPrimaryMaster_);
     }
 
@@ -311,17 +321,24 @@ private:
         auto cellTag = request.cell_tag();
         ValidateSecondaryCellTag(cellTag);
 
-        if (FindSecondaryCellEntry(cellTag))  {
+        if (FindMasterEntry(cellTag))  {
             LOG_ERROR_UNLESS(IsRecovery(), "Attempted to re-register secondary master (CellTag: %v)", cellTag);
             return;
         }
 
         LOG_INFO_UNLESS(IsRecovery(), "Secondary master registered (CellTag: %v)", cellTag);
 
-        auto* entry = RegisterSecondaryCellEntry(cellTag);
-        InitializeSecondaryMailbox(cellTag, entry);
+        RegisterMasterEntry(cellTag);
 
         SecondaryMasterRegistered_.Fire(cellTag);
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            for (const auto& pair : RegisteredMasterMap_) {
+                if (pair.first != cellTag) {
+                    PostToMaster(request, pair.first, true);
+                }
+            }
+        }
     }
 
     void HydraRegisterAtPrimaryMaster(const NProto::TReqRegisterAtPrimaryMaster& /*request*/)
@@ -347,7 +364,7 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
             cellTag);
 
-        auto* entry = GetSecondaryCellEntry(cellTag);
+        auto* entry = GetMasterEntry(cellTag);
         entry->Statistics = request.statistics();
     }
 
@@ -361,6 +378,7 @@ private:
         LOG_FATAL("Unknown secondary master cell tag %v", cellTag);
     }
 
+
     void InitializePrimaryMailbox()
     {
         if (RegisteredAtPrimaryMaster_ && !PrimaryMasterMailbox_) {
@@ -370,33 +388,26 @@ private:
         }
     }
 
-    void InitializeSecondaryMailbox(TCellTag cellTag, TSecondaryCellEntry* entry)
-    {
-        auto hiveManager = Bootstrap_->GetHiveManager();
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
-        YCHECK(!entry->Mailbox);
-        entry->Mailbox = hiveManager->GetOrCreateMailbox(cellId);
-    }
 
-
-    TSecondaryCellEntry* RegisterSecondaryCellEntry(TCellTag cellTag)
+    void RegisterMasterEntry(TCellTag cellTag)
     {
-        auto pair = RegisteredSecondaryCellMap_.insert(std::make_pair(cellTag, TSecondaryCellEntry()));
+        int index = RegisteredMasterMap_.empty() ? 0 : RegisteredMasterMap_.rbegin()->second.Index + 1;
+        auto pair = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
         YCHECK(pair.second);
-        return &pair.first->second;
+        auto& entry = pair.first->second;
+        entry.Index = index;
     }
 
-    TSecondaryCellEntry* FindSecondaryCellEntry(TCellTag cellTag)
+    TMasterEntry* FindMasterEntry(TCellTag cellTag)
     {
-        auto it = RegisteredSecondaryCellMap_.find(cellTag);
-        return it == RegisteredSecondaryCellMap_.end() ? nullptr : &it->second;
+        auto it = RegisteredMasterMap_.find(cellTag);
+        return it == RegisteredMasterMap_.end() ? nullptr : &it->second;
     }
 
-    TSecondaryCellEntry* GetSecondaryCellEntry(TCellTag cellTag)
+    TMasterEntry* GetMasterEntry(TCellTag cellTag)
     {
-        auto it = RegisteredSecondaryCellMap_.find(cellTag);
-        YCHECK(it != RegisteredSecondaryCellMap_.end());
+        auto it = RegisteredMasterMap_.find(cellTag);
+        YCHECK(it != RegisteredMasterMap_.end());
         return &it->second;
     }
 
@@ -485,9 +496,11 @@ private:
 
             hiveManager->PostMessage(PrimaryMasterMailbox_, requestMessage, reliable);
         } else if (cellTag == AllSecondaryMastersCellTag) {
-            for (const auto& pair : RegisteredSecondaryCellMap_) {
-                const auto& entry = pair.second;
-                hiveManager->PostMessage(entry.Mailbox, requestMessage, reliable);
+            YCHECK(Bootstrap_->IsPrimaryMaster());
+            for (const auto& pair : RegisteredMasterMap_) {
+                auto currentCellId = Bootstrap_->GetSecondaryCellId(pair.first);
+                auto* currentMailbox = hiveManager->GetOrCreateMailbox(currentCellId);
+                hiveManager->PostMessage(currentMailbox, requestMessage, reliable);
             }
         } else {
             YUNREACHABLE();
@@ -569,17 +582,22 @@ void TMulticellManager::PostToSecondaryMasters(
     Impl_->PostToSecondaryMasters(std::move(requestMessage), reliable);
 }
 
-bool TMulticellManager::IsRegisteredSecondaryMaster(TCellTag cellTag)
+bool TMulticellManager::IsRegisteredMasterCell(TCellTag cellTag)
 {
     return Impl_->IsRegisteredSecondaryMaster(cellTag);
 }
 
-std::vector<NObjectClient::TCellTag> TMulticellManager::GetRegisteredSecondaryMasterCellTags()
+std::vector<NObjectClient::TCellTag> TMulticellManager::GetRegisteredMasterCellTags()
 {
-    return Impl_->GetRegisteredSecondaryMasterCellTags();
+    return Impl_->GetRegisteredMasterCellTags();
 }
 
-TCellTag TMulticellManager::PickCellForNode()
+int TMulticellManager::GetRegisteredMasterCellIndex(TCellTag cellTag)
+{
+    return Impl_->GetRegisteredMasterCellIndex(cellTag);
+}
+
+TCellTag TMulticellManager::PickSecondaryMasterCell()
 {
     return Impl_->PickCellForNode();
 }

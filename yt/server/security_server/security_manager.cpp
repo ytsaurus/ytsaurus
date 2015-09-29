@@ -309,8 +309,11 @@ public:
         objectManager->RegisterHandler(New<TUserTypeHandler>(this));
         objectManager->RegisterHandler(New<TGroupTypeHandler>(this));
 
-        auto multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+        if (Bootstrap_->IsPrimaryMaster()) {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            multicellManager->SubscribeSecondaryMasterRegistered(
+                BIND(&TImpl::OnSecondaryMasterRegistered, MakeWeak(this)));
+        }
     }
 
 
