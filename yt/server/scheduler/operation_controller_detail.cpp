@@ -1275,7 +1275,7 @@ void TOperationControllerBase::InitChunkListPool()
         AuthenticatedOutputMasterClient,
         CancelableControlInvoker,
         Operation->GetId(),
-        Operation->OutputTransactionId);
+        OutputTransactionId);
 
     for (const auto& table : OutputTables) {
         ++CellTagToOutputTableCount[table.CellTag];
@@ -2661,7 +2661,7 @@ void TOperationControllerBase::FetchInputTables()
         auto rspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspFetch>("fetch");
         for (const auto& rspOrError : rspsOrError) {
             const auto& rsp = rspOrError.Value();
-            std::vector<TChunkSpec> chunkSpecs;
+            std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
             ProcessFetchResponse(
                 AuthenticatedInputMasterClient,
                 rsp,
@@ -2671,7 +2671,7 @@ void TOperationControllerBase::FetchInputTables()
                 Logger,
                 &chunkSpecs);
 
-            for (auto& chunkSpec : chunkSpecs) {
+            for (auto& chunk : chunkSpecs) {
                 auto chunkSpec = New<TRefCountedChunkSpec>(std::move(chunk));
                 chunkSpec->set_table_index(tableIndex);
                 table.Chunks.push_back(chunkSpec);
@@ -2969,7 +2969,6 @@ void TOperationControllerBase::LockUserFiles(
 
     for (const auto& file : *files) {
         auto objectIdPath = FromObjectId(file.ObjectId);
-        const auto& path = file.Path.GetPath();
 
         {
             auto req = TCypressYPathProxy::Lock(objectIdPath);

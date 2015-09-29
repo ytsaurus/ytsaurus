@@ -57,7 +57,7 @@ private:
 
         // NB: Don't call ValidateConnected.
         // ProcessHeartbeat can be called even in disconnected state to update cell statistics.
-        auto scheduler = Bootstrap->GetScheduler();
+        auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
         auto node = scheduler->GetOrRegisterNode(addresses);
