@@ -263,20 +263,31 @@ def test_keyboard_interrupts_catcher():
     result = []
 
     def action():
+
+        raise KeyboardInterrupt()
         result.append(True)
         if len(result) in [1, 3, 4, 5]:
             raise KeyboardInterrupt()
 
-    with KeyboardInterruptsCatcher(action, limit=5):
+    with pytest.raises(KeyboardInterrupt):
+        with KeyboardInterruptsCatcher(lambda: None):
+            raise KeyboardInterrupt()
+
+    list = []
+    def append_and_raise():
+        list.append(None)
         raise KeyboardInterrupt()
 
     with pytest.raises(KeyboardInterrupt):
-        with KeyboardInterruptsCatcher(action, limit=2):
+        with KeyboardInterruptsCatcher(append_and_raise, limit=2):
             raise KeyboardInterrupt()
+    assert len(list) == 3
 
+    list = []
     with pytest.raises(KeyboardInterrupt):
-        with KeyboardInterruptsCatcher(action, enable=False):
+        with KeyboardInterruptsCatcher(append_and_raise, enable=False):
             raise KeyboardInterrupt()
+    assert len(list) == 0
 
 def test_verified_dict():
     vdict = VerifiedDict(["a"], {"b": 1, "c": True, "a": {"k": "v"}, "d": {"x": "y"}})
