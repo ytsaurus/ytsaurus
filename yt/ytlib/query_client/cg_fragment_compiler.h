@@ -125,10 +125,10 @@ TCodegenSource MakeCodegenGroupOp(
     int groupRowSize);
 
 TCodegenSource MakeCodegenOrderOp(
-    std::vector<Stroka> orderColumns,
+    std::vector<TCodegenExpression> codegenExprs,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource,
-    bool isDesc);
+    const std::vector<bool>& isDesc);
 
 TCodegenSource MakeCodegenProjectOp(
     std::vector<TCodegenExpression> codegenArgs,

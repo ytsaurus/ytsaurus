@@ -122,10 +122,15 @@ message TGroupClause
     required bool is_final = 5;
 }
 
+message TOrderItem
+{
+    required TExpression expression = 1;
+    required bool is_descending = 2;
+}
+
 message TOrderClause
 {
-    repeated string order_columns = 1;
-    required bool is_descending = 2;
+    repeated TOrderItem order_items = 1;
 }
 
 message TProjectClause

@@ -198,16 +198,21 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
 
     if (auto orderClause = query->OrderClause.Get()) {
         Fold(static_cast<int>(EFoldingObjectType::OrderOp));
-        for (const auto& column : orderClause->OrderColumns) {
-            Fold(column.c_str());
+
+        std::vector<TCodegenExpression> codegenOrderExprs;
+        std::vector<bool> isDesc;
+
+        for (const auto& item : orderClause->OrderItems) {
+            codegenOrderExprs.push_back(Profile(item.first, schema));
+            Fold(item.second);
+            isDesc.push_back(item.second);
         }
-        Fold(orderClause->IsDescending);
 
         codegenSource = MakeCodegenOrderOp(
-            orderClause->OrderColumns,
+            codegenOrderExprs,
             schema,
             std::move(codegenSource),
-            orderClause->IsDescending);
+            isDesc);
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {

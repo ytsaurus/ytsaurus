@@ -1330,17 +1330,19 @@ void PrepareQuery(
             aliasMap);
     }
 
-    if (ast.OrderFields) {
+    if (!ast.OrderExpressions.empty()) {
         auto orderClause = New<TOrderClause>();
-        orderClause->IsDescending = ast.IsDescendingOrder;
-        for (const auto& reference : ast.OrderFields.Get()) {
-            const auto* column = schemaProxy->GetColumnPtr(reference->ColumnName, reference->TableName);
-            if (!column) {
-                THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-                    NAst::FormatColumn(reference->ColumnName, reference->TableName));
-            }
 
-            orderClause->OrderColumns.push_back(column->Name);
+        for (const auto& orderExpr : ast.OrderExpressions) {
+            for (const auto& expressionAst : orderExpr.first) {
+                auto typedExpr = schemaProxy->BuildTypedExpression(
+                    expressionAst.Get(),
+                    source,
+                    functionRegistry,
+                    aliasMap);
+
+                orderClause->OrderItems.emplace_back(typedExpr, orderExpr.second);
+            }
         }
 
         query->OrderClause = std::move(orderClause);

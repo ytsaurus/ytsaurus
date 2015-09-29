@@ -326,13 +326,14 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topN),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag))
+    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag),
+    int rowSize)
 {
     auto limit = context->Limit;
 
     TTopCollector topN(limit, comparer);
     collectRows(collectRowsClosure, &topN);
-    auto rows = topN.GetRows();
+    auto rows = topN.GetRows(rowSize);
 
     // Consume joined rows.
     context->StopFlag = false;

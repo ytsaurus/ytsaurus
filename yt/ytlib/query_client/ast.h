@@ -162,6 +162,8 @@ Stroka InferName(const TExpression* expr, bool omitValues = false);
 typedef std::vector<TReferenceExpressionPtr> TIdentifierList;
 typedef TNullable<TIdentifierList> TNullableIdentifierList;
 
+typedef std::vector<std::pair<TExpressionList, bool>> TOrderExpressionList;
+
 struct TTableDescriptor
 {
     TTableDescriptor()
@@ -219,8 +221,7 @@ struct TQuery
     TNullableExpressionList GroupExprs;
     TNullableExpressionList HavingPredicate;
 
-    TNullableIdentifierList OrderFields;
-    bool IsDescendingOrder = false;
+    TOrderExpressionList OrderExpressions;
 
     i64 Limit = 0;
 };
