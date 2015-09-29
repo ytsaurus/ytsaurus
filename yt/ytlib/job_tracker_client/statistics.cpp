@@ -222,11 +222,14 @@ TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics)
     try {
         auto outputStatistics =  GetValues<yhash_map<int, TDataStatistics>>(statistics, "/data/output", getValue);
 
-    TDataStatistics result;
-    for (const auto& pair : outputStatistics) {
-        result += pair.second;
+        TDataStatistics result;
+        for (const auto& pair : outputStatistics) {
+            result += pair.second;
+        }
+        return result;
+    } catch (const std::exception&) {
+        return TDataStatistics();
     }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

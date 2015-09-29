@@ -66,6 +66,8 @@ private:
             .SetPresent(isGood));
         descriptors->push_back(TAttributeDescriptor("tablet_slots")
             .SetPresent(isGood));
+        descriptors->push_back(TAttributeDescriptor("io_weight")
+            .SetPresent(isGood));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -210,6 +212,13 @@ private:
                     });
                 return true;
             }
+
+            if (key == "stored_replica_count") {
+                BuildYsonFluently(consumer)
+                    .Value(node->GetIOWeight());
+                return true;
+            }
+
         }
 
         return TNonversionedObjectProxyBase::GetBuiltinAttribute(key, consumer);

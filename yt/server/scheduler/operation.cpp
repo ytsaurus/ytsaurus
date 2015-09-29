@@ -72,6 +72,11 @@ bool TOperation::IsFinishingState() const
     return IsOperationFinishing(State_);
 }
 
+void TOperation::UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value)
+{
+    ControllerTimeStatistics_.AddSample(name, value.MicroSeconds());
+}
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NScheduler

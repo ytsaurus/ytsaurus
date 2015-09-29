@@ -592,12 +592,12 @@ void GetRangesFromTrieWithinRangeImpl(
                 builder.AddValue(prefix[j]);
             }
 
-        if (upperBoundRefined) {
-            for (size_t j = offset; j < upperBoundSize; ++j) {
-                builder.AddValue(makeValue(keyRange.second[j], j));
-            }
-        } else {
-            builder.AddValue(upper.Value);
+            if (refineUpper && max.Included && max.Value == keyRange.second[offset]) {
+                for (size_t j = offset; j < upperBoundSize; ++j) {
+                    builder.AddValue(makeValue(keyRange.second[j], j));
+                }
+            } else {
+                builder.AddValue(max.Value);
 
                 if (max.Included) {
                     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
