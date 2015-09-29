@@ -152,7 +152,7 @@ public:
     TTopCollector(i64 limit, TComparerFunction* comparer);
 
     // TODO(babenko): TSharedRange?
-    std::vector<TRow> GetRows() const
+    std::vector<TRow> GetRows(int rowSize) const
     {
         std::vector<TRow> result;
         result.reserve(Rows_.size());
@@ -160,6 +160,9 @@ public:
             result.push_back(pair.first);
         }
         std::sort(result.begin(), result.end(), Comparer_);
+        for (auto& row : result) {
+            row.SetCount(rowSize);
+        }
         return result;
     }
 

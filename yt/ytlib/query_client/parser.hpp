@@ -289,7 +289,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // "string literal"
       char dummy3[sizeof(Stroka)];
 
-      // named-expression
       // expression
       // or-op-expr
       // and-op-expr
@@ -320,27 +319,30 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // const-value
       char dummy8[sizeof(TNullable<TLiteralValue>)];
 
+      // order-expr-list
+      char dummy9[sizeof(TOrderExpressionList)];
+
       // qualified-identifier
-      char dummy9[sizeof(TReferenceExpressionPtr)];
+      char dummy10[sizeof(TReferenceExpressionPtr)];
 
       // "identifier"
-      char dummy10[sizeof(TStringBuf)];
+      char dummy11[sizeof(TStringBuf)];
 
       // table-descriptor
-      char dummy11[sizeof(TTableDescriptor)];
+      char dummy12[sizeof(TTableDescriptor)];
 
       // is-left
       // is-desc
-      char dummy12[sizeof(bool)];
+      char dummy13[sizeof(bool)];
 
       // "double literal"
-      char dummy13[sizeof(double)];
+      char dummy14[sizeof(double)];
 
       // "int64 literal"
-      char dummy14[sizeof(i64)];
+      char dummy15[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy15[sizeof(ui64)];
+      char dummy16[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -462,6 +464,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TOrderExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l);
 
@@ -820,7 +824,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const short int yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const short int yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -935,10 +939,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 200,     ///< Last index in yytable_.
+      yylast_ = 204,     ///< Last index in yytable_.
       yynnts_ = 42,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 42, ///< Termination state number.
+      yyfinal_ = 41, ///< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
       yyntokens_ = 52  ///< Number of tokens.

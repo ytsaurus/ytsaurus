@@ -103,6 +103,12 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
             item.Name);
     };
 
+    auto orderItemFormatter = [&] (const TOrderItem& item) {
+        return Format("%v %v",
+            InferName(item.first, omitValues),
+            item.second ? Stroka("DESC") : Stroka("ASC"));
+    };
+
     std::vector<Stroka> clauses;
     Stroka str;
 
@@ -126,9 +132,8 @@ Stroka InferName(TConstQueryPtr query, bool omitValues)
         clauses.push_back(Stroka("HAVING ") + str);
     }
     if (query->OrderClause) {
-        str = JoinToString(query->OrderClause->OrderColumns);
+        str = JoinToString(query->OrderClause->OrderItems, orderItemFormatter);
         clauses.push_back(Stroka("ORDER BY ") + str);
-        clauses.push_back(query->OrderClause->IsDescending ? Stroka("DESC") : Stroka("ASC"));
     }
     if (query->Limit < std::numeric_limits<i64>::max()) {
         str = ToString(query->Limit);
@@ -357,10 +362,15 @@ void ToProto(NProto::TProjectClause* proto, TConstProjectClausePtr original)
     ToProto(proto->mutable_projections(), original->Projections);
 }
 
+void ToProto(NProto::TOrderItem* serialized, const TOrderItem& original)
+{
+    ToProto(serialized->mutable_expression(), original.first);
+    serialized->set_is_descending(original.second);
+}
+
 void ToProto(NProto::TOrderClause* proto, TConstOrderClausePtr original)
 {
-    ToProto(proto->mutable_order_columns(), original->OrderColumns);
-    proto->set_is_descending(original->IsDescending);
+    ToProto(proto->mutable_order_items(), original->OrderItems);
 }
 
 void ToProto(NProto::TQuery* proto, TConstQueryPtr original)
@@ -490,15 +500,20 @@ TProjectClausePtr FromProto(const NProto::TProjectClause& serialized)
     return result;
 }
 
+TOrderItem FromProto(const NProto::TOrderItem& serialized)
+{
+    return TOrderItem(
+        FromProto(serialized.expression()),
+        serialized.is_descending());
+}
+
 TOrderClausePtr FromProto(const NProto::TOrderClause& serialized)
 {
     auto result = New<TOrderClause>();
 
-    result->IsDescending = serialized.is_descending();
-
-    result->OrderColumns.reserve(serialized.order_columns_size());
-    for (int i = 0; i < serialized.order_columns_size(); ++i) {
-        result->OrderColumns.push_back(serialized.order_columns(i));
+    result->OrderItems.reserve(serialized.order_items_size());
+    for (int i = 0; i < serialized.order_items_size(); ++i) {
+        result->OrderItems.push_back(FromProto(serialized.order_items(i)));
     }
 
     return result;

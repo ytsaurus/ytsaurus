@@ -269,17 +269,13 @@ Function* CodegenGroupHasherFunction(
 Function* CodegenTupleComparerFunction(
     const std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>>& codegenArgs,
     const TCGModule& module,
-    bool isDesc = false)
+    const std::vector<bool>& isDesc = std::vector<bool>())
 {
     return MakeFunction<TComparerFunction>(module.GetModule(), "RowComparer", [&] (
         TCGIRBuilder& builder,
         Value* lhsRow,
         Value* rhsRow
     ) {
-        if (isDesc) {
-            std::swap(lhsRow, rhsRow);
-        }
-
         auto returnIf = [&] (Value* condition, const TCodegenBlock& codegenInner) {
             auto* thenBB = builder.CreateBBHere("then");
             auto* elseBB = builder.CreateBBHere("else");
@@ -293,6 +289,10 @@ Function* CodegenTupleComparerFunction(
             const auto& codegenArg = codegenArgs[index];
             auto lhsValue = codegenArg(builder, lhsRow);
             auto rhsValue = codegenArg(builder, rhsRow);
+
+            if (index < isDesc.size() && isDesc[index]) {
+                std::swap(lhsValue, rhsValue);
+            }
 
             auto type = lhsValue.GetStaticType();
 
@@ -1383,30 +1383,63 @@ TCodegenSource MakeCodegenGroupOp(
 }
 
 TCodegenSource MakeCodegenOrderOp(
-    std::vector<Stroka> orderColumns,
+    std::vector<TCodegenExpression> codegenExprs,
     TTableSchema sourceSchema,
     TCodegenSource codegenSource,
-    bool isDesc)
+    const std::vector<bool>& isDesc)
 {
     return [
         isDesc,
-        MOVE(orderColumns),
+        MOVE(codegenExprs),
         MOVE(sourceSchema),
         codegenSource = std::move(codegenSource)
     ] (TCGContext& builder, const TCodegenConsumer& codegenConsumer) {
+        auto schemaSize = sourceSchema.Columns().size();
+        std::vector<EValueType> orderColumnTypes;
+
         auto collectRows = MakeClosure<void(void*)>(builder, "CollectRows", [&] (
             TCGContext& builder,
             Value* topN
         ) {
+            Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
+
+            builder.CreateCall3(
+                builder.Module->GetRoutine("AllocatePermanentRow"),
+                builder.GetExecutionContextPtr(),
+                builder.getInt32(sourceSchema.Columns().size() + codegenExprs.size()),
+                newRowPtr);
+
+            Value* newRow = builder.CreateLoad(newRowPtr);
+
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
                     Value* topNRef = builder.ViaClosure(topN);
+                    Value* newRowRef = builder.ViaClosure(newRow);
+
+                    for (size_t index = 0; index < schemaSize; ++index) {
+                        auto type = sourceSchema.Columns()[index].Type;
+                        TCGValue::CreateFromRow(
+                            builder,
+                            row,
+                            index,
+                            type)
+                            .StoreToRow(builder, newRowRef, index, index);
+                    }
+
+                    for (size_t index = 0; index < codegenExprs.size(); ++index) {
+                        auto columnIndex = schemaSize + index;
+
+                        auto orderValue = codegenExprs[index](builder, row);
+                        orderColumnTypes.push_back(orderValue.GetStaticType());
+
+                        orderValue.StoreToRow(builder, newRowRef, columnIndex, columnIndex);
+                    }
 
                     builder.CreateCall2(
                         builder.Module->GetRoutine("AddRow"),
                         topNRef,
-                        row);
+                        newRowRef);
                 });
 
             builder.CreateRetVoid();
@@ -1428,9 +1461,9 @@ TCodegenSource MakeCodegenOrderOp(
         });
 
         std::vector<std::function<TCGValue(TCGIRBuilder& builder, Value* row)>> compareArgs;
-        for (int index = 0; index < orderColumns.size(); ++index) {
-            auto columnIndex = sourceSchema.GetColumnIndexOrThrow(orderColumns[index]);
-            auto type = sourceSchema.FindColumn(orderColumns[index])->Type;
+        for (int index = 0; index < codegenExprs.size(); ++index) {
+            auto columnIndex = schemaSize + index;
+            auto type = orderColumnTypes[index];
 
             compareArgs.push_back([columnIndex, type] (TCGIRBuilder& builder, Value* row) {
                 return TCGValue::CreateFromRow(
@@ -1451,7 +1484,8 @@ TCodegenSource MakeCodegenOrderOp(
                 collectRows.Function,
 
                 consumeOrderedRows.ClosurePtr,
-                consumeOrderedRows.Function
+                consumeOrderedRows.Function,
+                builder.getInt32(schemaSize)
             });
     };
 }

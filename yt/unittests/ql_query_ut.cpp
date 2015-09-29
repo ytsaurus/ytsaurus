@@ -2107,11 +2107,11 @@ TEST_F(TQueryEvaluateTest, TestOrderBy)
 
     std::sort(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
-    Evaluate("* FROM [//t] order by a limit 100", split, source, limitedResult);
+    Evaluate("* FROM [//t] order by a * a limit 100", split, source, limitedResult);
 
     std::reverse(result.begin(), result.end());
     limitedResult.assign(result.begin(), result.begin() + 100);
-    Evaluate("* FROM [//t] order by a desc limit 100", split, source, limitedResult);
+    Evaluate("* FROM [//t] order by a * 3 - 1 desc limit 100", split, source, limitedResult);
 
     SUCCEED();
 }

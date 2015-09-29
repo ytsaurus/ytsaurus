@@ -291,11 +291,12 @@ struct TGroupClause
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
 
+typedef std::pair<TConstExpressionPtr, bool> TOrderItem;
+
 struct TOrderClause
     : public TIntrinsicRefCounted
 {
-    std::vector<Stroka> OrderColumns;
-    bool IsDescending = false;
+    std::vector<TOrderItem> OrderItems;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderClause)
