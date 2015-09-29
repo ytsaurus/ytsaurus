@@ -431,9 +431,10 @@ void GetRangesFromTrieWithinRangeImpl(
             value.Id = id;
             return value;
         };
+
         if (trieOffset > offset) {
             if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
-                prefix.emplace_back(makeValue(keyRange.first[offset], offset));
+                prefix.emplace_back(keyRange.first[offset]);
                 states.push_back(TState{trie, std::move(prefix), true, true});
             } else if (trie && insertUndefined) {
                 prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::TheBottom));
@@ -441,7 +442,7 @@ void GetRangesFromTrieWithinRangeImpl(
             } else {
                 std::pair<TRow, TRow> range;
                 for (size_t i = 0; i < offset; ++i) {
-                    builder.AddValue(prefix[i]);
+                    builder.AddValue(makeValue(prefix[i], i));
                 }
 
                 if (refineLower) {
@@ -454,7 +455,7 @@ void GetRangesFromTrieWithinRangeImpl(
 
 
                 for (size_t i = 0; i < offset; ++i) {
-                    builder.AddValue(prefix[i]);
+                    builder.AddValue(makeValue(prefix[i], i));
                 }
 
                 if (refineUpper) {
@@ -570,7 +571,7 @@ void GetRangesFromTrieWithinRangeImpl(
             std::pair<TRow, TRow> range;
 
             for (size_t j = 0; j < offset; ++j) {
-                builder.AddValue(prefix[j]);
+                builder.AddValue(makeValue(prefix[j], j));
             }
 
             if (refineLower && min.Included && min.Value == keyRange.first[offset]) {
@@ -578,7 +579,7 @@ void GetRangesFromTrieWithinRangeImpl(
                     builder.AddValue(makeValue(keyRange.first[j], j));
                 }
             } else {
-                builder.AddValue(min.Value);
+                builder.AddValue(makeValue(min.Value, offset));
 
                 if (!min.Included) {
                     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
@@ -589,7 +590,7 @@ void GetRangesFromTrieWithinRangeImpl(
             builder.Reset();
 
             for (size_t j = 0; j < offset; ++j) {
-                builder.AddValue(prefix[j]);
+                builder.AddValue(makeValue(prefix[j], j));
             }
 
             if (refineUpper && max.Included && max.Value == keyRange.second[offset]) {
@@ -597,7 +598,7 @@ void GetRangesFromTrieWithinRangeImpl(
                     builder.AddValue(makeValue(keyRange.second[j], j));
                 }
             } else {
-                builder.AddValue(max.Value);
+                builder.AddValue(makeValue(max.Value, offset));
 
                 if (max.Included) {
                     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
@@ -626,10 +627,10 @@ void GetRangesFromTrieWithinRangeImpl(
 
             if (lowerBoundRefined) {
                 for (size_t j = offset; j < lowerBoundSize; ++j) {
-                    builder.AddValue(keyRange.first[j]);
+                    builder.AddValue(makeValue(keyRange.first[j], j));
                 }
             } else {
-                builder.AddValue(lower.Value);
+                builder.AddValue(makeValue(lower.Value, offset));
 
                 if (!lower.Included) {
                     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
@@ -640,15 +641,15 @@ void GetRangesFromTrieWithinRangeImpl(
             builder.Reset();
 
             for (size_t j = 0; j < offset; ++j) {
-                builder.AddValue(prefix[j]);
+                builder.AddValue(makeValue(prefix[j], j));
             }
 
             if (upperBoundRefined) {
                 for (size_t j = offset; j < upperBoundSize; ++j) {
-                    builder.AddValue(keyRange.second[j]);
+                    builder.AddValue(makeValue(keyRange.second[j], j));
                 }
             } else {
-                builder.AddValue(upper.Value);
+                builder.AddValue(makeValue(upper.Value, offset));
 
                 if (upper.Included) {
                     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
