@@ -2947,7 +2947,6 @@ void TOperationControllerBase::LockUserFiles(
 
     for (const auto& file : *files) {
         auto objectIdPath = FromObjectId(file.ObjectId);
-        const auto& path = file.Path.GetPath();
 
         {
             auto req = TCypressYPathProxy::Lock(objectIdPath);
