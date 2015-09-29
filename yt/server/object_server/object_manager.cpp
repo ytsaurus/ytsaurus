@@ -447,8 +447,11 @@ TObjectManager::TObjectManager(
 
 void TObjectManager::Initialize()
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TObjectManager::OnSecondaryMasterRegistered, MakeWeak(this)));
+    if (Bootstrap_->IsPrimaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(
+            BIND(&TObjectManager::OnSecondaryMasterRegistered, MakeWeak(this)));
+    }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
