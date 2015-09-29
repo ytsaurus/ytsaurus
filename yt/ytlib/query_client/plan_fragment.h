@@ -422,7 +422,7 @@ struct TPlanFragment
     TConstQueryPtr Query;
     bool Ordered = false;
     bool VerboseLogging = false;
-    ui64 MaxSubqueries = 0;
+    int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
     bool EnableCodeCache = true;
 };

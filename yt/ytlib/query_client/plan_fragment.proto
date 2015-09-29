@@ -164,7 +164,7 @@ message TPlanFragment
     required TQuery query = 5;
     required bool ordered = 6;
     optional bool verbose_logging = 7 [default = false];
-    optional uint64 max_subqueries = 9 [default = 16];
+    optional int64 max_subqueries = 9 [default = 16];
     optional bool enable_code_cache = 10 [default = true];
 }
 
