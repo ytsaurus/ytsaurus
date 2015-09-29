@@ -201,6 +201,7 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         for (const auto& column : orderClause->OrderColumns) {
             Fold(column.c_str());
         }
+        Fold(orderClause->IsDescending);
 
         codegenSource = MakeCodegenOrderOp(
             orderClause->OrderColumns,
