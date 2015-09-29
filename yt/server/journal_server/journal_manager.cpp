@@ -65,45 +65,7 @@ public:
         }
 
         chunk->Seal(info);
-
-        // Go upwards and apply delta.
-        YCHECK(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
-
-        TChunkTreeStatistics statisticsDelta;
-        statisticsDelta.Sealed = true;
-        statisticsDelta.RowCount = info.row_count();
-        statisticsDelta.UncompressedDataSize = info.uncompressed_data_size();
-        statisticsDelta.CompressedDataSize = info.compressed_data_size();
-        statisticsDelta.RegularDiskSpace = info.compressed_data_size();
-
-        VisitUniqueAncestors(
-            chunkList,
-            [&] (TChunkList* current) {
-                ++statisticsDelta.Rank;
-                current->Statistics().Accumulate(statisticsDelta);
-            });
-
-        bool hasUpdates = false;
-        TJournalNode* trunkOwningNode = nullptr;
-        auto owningNodes = GetOwningNodes(chunk);
-        for (auto* node : owningNodes) {
-            YCHECK(node->GetType() == EObjectType::Journal);
-            auto* journalNode = static_cast<TJournalNode*>(node);
-            if (journalNode->GetUpdateMode() != EUpdateMode::None) {
-                hasUpdates = true;
-            }
-            if (trunkOwningNode) {
-                YCHECK(journalNode->GetTrunkNode() == trunkOwningNode);
-            } else {
-                trunkOwningNode = journalNode->GetTrunkNode();
-            }
-        }
-
-        if (!hasUpdates && IsObjectAlive(trunkOwningNode)) {
-            auto cypressManager = Bootstrap_->GetCypressManager();
-            SealJournal(trunkOwningNode, nullptr);
-        }
+        OnChunkSealed(chunk);
 
         if (IsLeader()) {
             auto chunkManager = Bootstrap_->GetChunkManager();
@@ -145,9 +107,30 @@ public:
         }
     }
 
+
+    void OnChunkSealed(TChunk* chunk)
+    {
+        YASSERT(chunk->IsSealed());
+
+        if (chunk->Parents().empty())
+            return;
+
+        // Go upwards and apply delta.
+        YCHECK(chunk->Parents().size() == 1);
+        auto* chunkList = chunk->Parents()[0];
+
+        auto statisticsDelta = chunk->GetStatistics();
+        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+
+        auto owningNodes = GetOwningNodes(chunk);
+        auto securityManager = Bootstrap_->GetSecurityManager();
+        for (auto* node : owningNodes) {
+            securityManager->UpdateAccountNodeUsage(node);
+        }
+    }
+
 private:
     const TJournalManagerConfigPtr Config_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +147,11 @@ TJournalManager::~TJournalManager()
 void TJournalManager::SealChunk(TChunk* chunk, const TMiscExt& info)
 {
     Impl_->SealChunk(chunk, info);
+}
+
+void TJournalManager::OnChunkSealed(TChunk* chunk)
+{
+    Impl_->OnChunkSealed(chunk);
 }
 
 void TJournalManager::SealJournal(
