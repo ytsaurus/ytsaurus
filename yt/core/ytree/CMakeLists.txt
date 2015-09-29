@@ -18,7 +18,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ypath_client.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_detail.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_service.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/yson_file_service.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_serializable.cpp
 )
 set( HDRS
@@ -48,7 +47,6 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/ypath_detail.h
   ${CMAKE_CURRENT_LIST_DIR}/ypath_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/ypath_service.h
-  ${CMAKE_CURRENT_LIST_DIR}/yson_file_service.h
   ${CMAKE_CURRENT_LIST_DIR}/yson_serializable-inl.h
   ${CMAKE_CURRENT_LIST_DIR}/yson_serializable.h
 )

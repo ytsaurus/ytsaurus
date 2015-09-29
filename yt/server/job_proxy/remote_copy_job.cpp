@@ -47,6 +47,9 @@ using namespace NScheduler;
 using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
 using namespace NApi;
+using namespace NErasure;
+
+using NJobTrackerClient::TStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,6 +107,9 @@ public:
         return result;
     }
 
+    virtual void Abort() override
+    { }
+
     virtual double GetProgress() const override
     {
         // Caution: progress calculated approximately (assuming all chunks have equal size).
@@ -122,8 +128,11 @@ public:
     virtual TStatistics GetStatistics() const override
     {
         TStatistics result;
-        result.AddComplex("/data/input", DataStatistics_);
-        result.AddComplex("/data/output/" + NYPath::ToYPathLiteral(0), DataStatistics_);
+        result.AddSample("/data/input", DataStatistics_);
+        result.AddSample(
+            "/data/output/" + NYPath::ToYPathLiteral(0),
+            DataStatistics_);
+
         return result;
     }
 
@@ -173,24 +182,28 @@ private:
         writerOptions->ErasureCodec = erasureCodecId;
 
         auto inputReplicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(inputChunkSpec.replicas());
-
-        bool isErasure = IsErasureChunkId(inputChunkId);
-
+        auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         LOG_INFO("Creating output chunk");
 
         // Create output chunk.
         TChunkId outputChunkId;
         {
-            auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-
-            outputChunkId = CreateChunk(
+            auto writerNodeDirectory = New<TNodeDirectory>();
+            auto rspOrError = WaitFor(CreateChunk(
                 host->GetClient(),
-                outputCellTag,
-                WriterConfig_,
+                CellTagFromId(OutputChunkListId_),
                 writerOptions,
-                isErasure ? EObjectType::ErasureChunk : EObjectType::Chunk,
                 transactionId,
-                Logger);
+                OutputChunkListId_,
+                Logger));
+
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                NChunkClient::EErrorCode::ChunkCreationFailed,
+                "Error creating chunk");
+
+            const auto& rsp = rspOrError.Value();
+            outputChunkId = FromProto<TChunkId>(rsp->object_ids(0));
         }
 
         LOG_INFO("Output chunk created (ChunkId: %v)",
@@ -203,7 +216,7 @@ private:
         TChunkMeta chunkMeta;
         TChunkReplicaList writtenReplicas;
 
-        if (isErasure) {
+        if (erasureCodecId != NErasure::ECodec::None) {
             auto erasureCodec = NErasure::GetCodec(erasureCodecId);
             auto readers = CreateErasureAllPartsReaders(
                 ReaderConfig_,
@@ -315,18 +328,8 @@ private:
             NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
             auto rspOrError = WaitFor(outputObjectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error confirming chunk");
-        }
-
-        // Attach chunk.
-        LOG_INFO("Attaching output chunk");
-        {
-            auto req = TChunkListYPathProxy::Attach(FromObjectId(OutputChunkListId_));
-            ToProto(req->add_children_ids(), outputChunkId);
-            GenerateMutationId(req);
-
-            auto rspOrError = WaitFor(outputObjectProxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunk");
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to confirm chunk %v",
+                outputChunkId);
         }
     }
 

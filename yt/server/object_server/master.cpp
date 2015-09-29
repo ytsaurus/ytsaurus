@@ -43,11 +43,6 @@ public:
 private:
     typedef TNonversionedObjectProxyBase<TMasterObject> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return ObjectServerLogger;
-    }
-
     virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(CreateObjects);

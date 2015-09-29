@@ -54,6 +54,7 @@ public:
     // Transient properties.
     DEFINE_BYVAL_RW_PROPERTY(ui64, VisitMark);
     DEFINE_BYVAL_RW_PROPERTY(int, LoadRank);
+    DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
 
     using TMulticellStates = yhash_map<NObjectClient::TCellTag, ENodeState>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStates, MulticellStates);

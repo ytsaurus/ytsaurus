@@ -7,10 +7,12 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ast.cpp
   ${CMAKE_CURRENT_LIST_DIR}/plan_fragment.cpp
   ${CMAKE_CURRENT_LIST_DIR}/plan_fragment_common.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/query_preparer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/query_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/evaluator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/column_evaluator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/range_inferrer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/function_context.cpp
 )
 
 set( HDRS
@@ -30,10 +32,12 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/ast.h
   ${CMAKE_CURRENT_LIST_DIR}/plan_fragment.h
   ${CMAKE_CURRENT_LIST_DIR}/plan_fragment_common.h
+  ${CMAKE_CURRENT_LIST_DIR}/query_preparer.h
   ${CMAKE_CURRENT_LIST_DIR}/query_statistics.h
   ${CMAKE_CURRENT_LIST_DIR}/evaluator.h
   ${CMAKE_CURRENT_LIST_DIR}/column_evaluator.h
   ${CMAKE_CURRENT_LIST_DIR}/range_inferrer.h
+  ${CMAKE_CURRENT_LIST_DIR}/function_context.h
 )
 
 if (YT_BUILD_ENABLE_LLVM)
@@ -41,9 +45,11 @@ if (YT_BUILD_ENABLE_LLVM)
     ${SRCS}
     ${CMAKE_CURRENT_LIST_DIR}/cg_routines.cpp
     ${CMAKE_CURRENT_LIST_DIR}/cg_ir_builder.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/cg_helpers.cpp
     ${CMAKE_CURRENT_LIST_DIR}/cg_fragment_compiler.cpp
     ${CMAKE_CURRENT_LIST_DIR}/folding_profiler.cpp
     ${CMAKE_CURRENT_LIST_DIR}/evaluation_helpers.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/functions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/builtin_functions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/user_defined_functions.cpp
     ${CMAKE_CURRENT_LIST_DIR}/function_registry.cpp
@@ -55,6 +61,7 @@ if (YT_BUILD_ENABLE_LLVM)
     ${CMAKE_CURRENT_LIST_DIR}/cg_types.h
     ${CMAKE_CURRENT_LIST_DIR}/cg_routines.h
     ${CMAKE_CURRENT_LIST_DIR}/cg_ir_builder.h
+    ${CMAKE_CURRENT_LIST_DIR}/cg_helpers.h
     ${CMAKE_CURRENT_LIST_DIR}/cg_fragment_compiler.h
     ${CMAKE_CURRENT_LIST_DIR}/folding_profiler.h
     ${CMAKE_CURRENT_LIST_DIR}/evaluation_helpers.h
@@ -69,6 +76,10 @@ endif()
 list( APPEND YT_SOURCE_FILES
   ${SRCS}
   ${HDRS}
+)
+
+include_directories(
+  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
 )
 
 bison( ${CMAKE_CURRENT_LIST_DIR}/parser.yy YT_SOURCE_FILES )
@@ -97,12 +108,25 @@ udf_bc(
     ${CMAKE_SOURCE_DIR}/yt/ytlib/table_client/unversioned_value.cpp
     ${CMAKE_SOURCE_DIR}/contrib/libs/farmhash/farmhash.cc
 )
+udf_bc(
+  ${CMAKE_CURRENT_LIST_DIR}/udf/regex.cpp
+  YT_SOURCE_FILES
+  FILES
+    ${CMAKE_SOURCE_DIR}/yt/ytlib/query_client/function_context.cpp
+  SYMBOLS
+    regex_full_match
+    regex_partial_match
+    regex_replace_first
+    regex_replace_all
+    regex_extract
+    regex_escape
+)
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/double_cast.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/int64.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_null.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_substr.c YT_SOURCE_FILES )
+udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/is_prefix.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/lower.c YT_SOURCE_FILES )
-udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/simple_hash.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/sleep.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/uint64.c YT_SOURCE_FILES )
 udf_bc( ${CMAKE_CURRENT_LIST_DIR}/udf/min.c YT_SOURCE_FILES )

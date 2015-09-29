@@ -71,6 +71,8 @@ public:
         TOwningKey pivotKey = TOwningKey(),
         TOwningKey nextPivotKey = TOwningKey());
 
+    void CheckedSetState(EPartitionState oldState, EPartitionState newState);
+
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 

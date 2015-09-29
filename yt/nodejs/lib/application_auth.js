@@ -78,7 +78,7 @@ YtApplicationAuth.prototype._dispatchError = function(req, rsp, err)
         }
         return utils.dispatchAs(rsp, error.toJson(), "application/json");
     } else {
-        var sent_headers = !!req._header;
+        var sent_headers = !!rsp._header;
         if (sent_headers) {
             return void 0;
         }

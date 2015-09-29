@@ -134,6 +134,7 @@ config = {
     number_of_workers : 4,
     memory_limit      : 32 * 1024 * 1024,
     thread_limit      : 32,
+    concurrency_limit : undefined,
     spare_threads     : 4,
     user_interface    : opts.argv.user_interface,
     read_only         : opts.argv.read_only,
@@ -204,8 +205,6 @@ config = {
         afd_window_size: 24,
         afd_phi_threshold: 4,
         death_age: 300000,
-        failure_threshold: 5,
-        failure_timeout: 60000,
     },
     min_python_wrapper_version: {
         enable: true,

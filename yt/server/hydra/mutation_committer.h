@@ -35,7 +35,7 @@ protected:
     const TDistributedHydraManagerConfigPtr Config_;
     const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
-    const TEpochContext* EpochContext_;
+    TEpochContext* EpochContext_;
 
     NProfiling::TSimpleCounter CommitCounter_;
     NProfiling::TSimpleCounter FlushCounter_;

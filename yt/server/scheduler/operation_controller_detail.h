@@ -38,7 +38,7 @@
 #include <ytlib/node_tracker_client/public.h>
 #include <ytlib/node_tracker_client/helpers.h>
 
-#include <ytlib/scheduler/statistics.h>
+#include <ytlib/job_tracker_client/statistics.h>
 
 #include <server/chunk_server/public.h>
 
@@ -176,6 +176,13 @@ protected:
     // Maps node ids to descriptors for job auxiliary chunks.
     NNodeTrackerClient::TNodeDirectoryPtr AuxNodeDirectory;
 
+    // Operation transactions ids are stored here to avoid their retrieval from
+    // potentially dangling Operation pointer.
+    NObjectClient::TTransactionId AsyncSchedulerTransactionId;
+    NObjectClient::TTransactionId SyncSchedulerTransactionId;
+    NObjectClient::TTransactionId InputTransactionId;
+    NObjectClient::TTransactionId OutputTransactionId;
+
     struct TUserObjectBase
     {
         NYPath::TRichYPath Path;
@@ -202,7 +209,7 @@ protected:
     {
         //! Number of chunks in the whole table (without range selectors).
         int ChunkCount = -1;
-        std::vector<NChunkClient::NProto::TChunkSpec> Chunks;
+        std::vector<NChunkClient::TRefCountedChunkSpecPtr> Chunks;
         NTableClient::TKeyColumns KeyColumns;
 
         void Persist(TPersistenceContext& context);
@@ -529,6 +536,10 @@ protected:
         //! Local tasks keyed by address.
         yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
 
+        TTaskGroup()
+        {
+            MinNeededResources.set_user_slots(1);
+        }
 
         void Persist(TPersistenceContext& context);
 
@@ -847,6 +858,11 @@ private:
     //! Increments each time a new job is scheduled.
     TIdGenerator JobIndexGenerator;
 
+    //! Aggregates job statistics.
+    NJobTrackerClient::TStatistics JobStatistics;
+
+
+    void UpdateJobStatistics(const TJobSummary& jobSummary);
 
     NApi::IClientPtr CreateClient();
 

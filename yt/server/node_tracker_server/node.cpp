@@ -65,6 +65,7 @@ void TNode::Init()
 {
     VisitMark_ = 0;
     LoadRank_ = -1;
+    IOWeight_ = 0.0;
     Banned_ = false;
     Decommissioned_ = false;
     Rack_ = nullptr;

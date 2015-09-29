@@ -213,11 +213,6 @@ private:
     private:
         std::deque<TStoredSample> Samples;
 
-        virtual NLogging::TLogger CreateLogger() const override
-        {
-            return NProfiling::Logger;
-        }
-
         virtual bool DoInvoke(NRpc::IServiceContextPtr context) override
         {
             DISPATCH_YPATH_SERVICE_METHOD(Get);

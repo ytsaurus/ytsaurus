@@ -42,9 +42,6 @@ void GetStatistics(
 
 i64 GetCumulativeRowCount(const std::vector<NProto::TChunkSpec>& chunkSpecs);
 
-//! Constructs a new chunk slice removing any limits from origin.
-TRefCountedChunkSpecPtr CreateCompleteChunk(TRefCountedChunkSpecPtr chunkSpec);
-
 TChunkId EncodeChunkId(
     const NProto::TChunkSpec& chunkSpec,
     NNodeTrackerClient::TNodeId nodeId);

@@ -16,6 +16,8 @@ typedef TVariant<i64, ui64, double, bool, Stroka> TLiteralValue;
 typedef std::vector<TLiteralValue> TLiteralValueList;
 typedef std::vector<std::vector<TLiteralValue>> TLiteralValueTupleList;
 
+TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source);
+
 struct TExpression
     : public TIntrinsicRefCounted
 {
@@ -44,6 +46,13 @@ DECLARE_REFCOUNTED_STRUCT(TExpression)
 DEFINE_REFCOUNTED_TYPE(TExpression)
 
 typedef std::vector<TExpressionPtr> TExpressionList;
+typedef TNullable<TExpressionList> TNullableExpressionList;
+
+template <class T, class... TArgs>
+TExpressionList MakeExpr(TArgs&&... args)
+{
+    return TExpressionList(1, New<T>(args...));
+}
 
 struct TLiteralExpression
     : public TExpression
@@ -77,45 +86,20 @@ struct TReferenceExpression
 DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
 DEFINE_REFCOUNTED_TYPE(TReferenceExpression)
 
-struct TCommaExpression
-    : public TExpression
-{
-    TCommaExpression(
-        const TSourceLocation& sourceLocation,
-        TExpressionPtr lhs,
-        TExpressionPtr rhs)
-        : TExpression(sourceLocation)
-        , Lhs(std::move(lhs))
-        , Rhs(std::move(rhs))
-    { }
-
-    TExpressionPtr Lhs;
-    TExpressionPtr Rhs;
-};
-
 struct TFunctionExpression
     : public TExpression
 {
     TFunctionExpression(
         const TSourceLocation& sourceLocation,
         const TStringBuf& functionName,
-        TExpressionPtr arguments)
+        TExpressionList arguments)
         : TExpression(sourceLocation)
         , FunctionName(functionName)
         , Arguments(std::move(arguments))
     { }
 
     Stroka FunctionName;
-    TExpressionPtr Arguments;
-};
-
-struct TEmptyExpression
-    : public TExpression
-{
-    TEmptyExpression(
-        const TSourceLocation& sourceLocation)
-        : TExpression(sourceLocation)
-    { }
+    TExpressionList Arguments;
 };
 
 struct TUnaryOpExpression
@@ -124,14 +108,14 @@ struct TUnaryOpExpression
     TUnaryOpExpression(
         const TSourceLocation& sourceLocation,
         EUnaryOp opcode,
-        TExpressionPtr operand)
+        TExpressionList operand)
         : TExpression(sourceLocation)
         , Opcode(opcode)
         , Operand(std::move(operand))
     { }
 
     EUnaryOp Opcode;
-    TExpressionPtr Operand;
+    TExpressionList Operand;
 };
 
 struct TBinaryOpExpression
@@ -140,8 +124,8 @@ struct TBinaryOpExpression
     TBinaryOpExpression(
         const TSourceLocation& sourceLocation,
         EBinaryOp opcode,
-        TExpressionPtr lhs,
-        TExpressionPtr rhs)
+        TExpressionList lhs,
+        TExpressionList rhs)
         : TExpression(sourceLocation)
         , Opcode(opcode)
         , Lhs(std::move(lhs))
@@ -149,8 +133,8 @@ struct TBinaryOpExpression
     { }
 
     EBinaryOp Opcode;
-    TExpressionPtr Lhs;
-    TExpressionPtr Rhs;
+    TExpressionList Lhs;
+    TExpressionList Rhs;
 };
 
 struct TInExpression
@@ -158,24 +142,21 @@ struct TInExpression
 {
     TInExpression(
         const TSourceLocation& sourceLocation,
-        TExpressionPtr expression,
+        TExpressionList expression,
         const TLiteralValueTupleList& values)
         : TExpression(sourceLocation)
         , Expr(std::move(expression))
         , Values(values)
     { }
 
-    TExpressionPtr Expr;
+    TExpressionList Expr;
     TLiteralValueTupleList Values;
 };
 
-Stroka InferName(const TExpression* expr);
+Stroka InferName(const TExpressionList& exprs, bool omitValues = false);
+Stroka InferName(const TExpression* expr, bool omitValues = false);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-typedef std::pair<TExpressionPtr, Stroka> TNamedExpression;
-typedef std::vector<TNamedExpression> TNamedExpressionList;
-typedef TNullable<TNamedExpressionList> TNullableNamedExpressionList;
 
 typedef std::vector<TReferenceExpressionPtr> TIdentifierList;
 typedef TNullable<TIdentifierList> TNullableIdentifierList;
@@ -211,8 +192,8 @@ struct TQuery
 
         TJoin(
             const TTableDescriptor& table,
-            const TExpressionPtr& left,
-            const TExpressionPtr& right)
+            const TExpressionList& left,
+            const TExpressionList& right)
             : Table(table)
             , Left(left)
             , Right(right)
@@ -221,16 +202,16 @@ struct TQuery
         TTableDescriptor Table;
         TIdentifierList Fields;
 
-        TExpressionPtr Left;
-        TExpressionPtr Right;
+        TExpressionList Left;
+        TExpressionList Right;
     };
 
     std::vector<TJoin> Joins;
 
-    TNullableNamedExpressionList SelectExprs;
-    TExpressionPtr WherePredicate;
-    TNullableNamedExpressionList GroupExprs;
-    TExpressionPtr HavingPredicate;
+    TNullableExpressionList SelectExprs;
+    TNullableExpressionList WherePredicate;
+    TNullableExpressionList GroupExprs;
+    TNullableExpressionList HavingPredicate;
 
     TNullableIdentifierList OrderFields;
     bool IsDescendingOrder = false;
@@ -238,7 +219,9 @@ struct TQuery
     i64 Limit = 0;
 };
 
-typedef TVariant<TQuery, TExpressionPtr> TAstHead;
+typedef yhash_map<Stroka, TExpressionPtr> TAliasMap;
+
+typedef std::pair<TVariant<TQuery, TExpressionPtr>, TAliasMap> TAstHead;
 
 ////////////////////////////////////////////////////////////////////////////////
 

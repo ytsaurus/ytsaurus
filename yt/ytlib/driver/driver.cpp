@@ -54,9 +54,7 @@ using namespace NApi;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDriverRequest::TDriverRequest()
-    : InputStream(nullptr)
-    , OutputStream(nullptr)
-    , ResponseParametersConsumer(GetNullYsonConsumer())
+    : ResponseParametersConsumer(GetNullYsonConsumer())
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

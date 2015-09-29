@@ -52,6 +52,7 @@
 #include <ytlib/table_client/name_table.h>
 
 #include <ytlib/query_client/plan_fragment.h>
+#include <ytlib/query_client/query_preparer.h>
 #include <ytlib/query_client/plan_helpers.h>
 #include <ytlib/query_client/coordinator.h>
 #include <ytlib/query_client/helpers.h>

@@ -33,6 +33,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ChunkTraverser)
     (FullHeartbeat)
     (IncrementalHeartbeat)
+    (RpcService)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

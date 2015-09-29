@@ -71,6 +71,7 @@ private:
 
 
     void OnSweep();
+    bool IsRecovery();
 
 };
 

@@ -91,7 +91,13 @@
 %token <Stroka> StringLiteral "string literal"
 
 
+
+%token OpTilde 33 "`~`"
+%token OpVerticalBar 124 "`|`"
+%token OpAmpersand 38 "`&`"
 %token OpModulo 37 "`%`"
+%token OpLeftShift "`<<`"
+%token OpRightShift "`>>`"
 
 %token LeftParenthesis 40 "`(`"
 %token RightParenthesis 41 "`)`"
@@ -116,19 +122,22 @@
 
 %type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
-%type <TNamedExpressionList> named-expression-list
-%type <TNamedExpression> named-expression
+%type <TExpressionList> named-expression
 
-%type <TExpressionPtr> expression
-%type <TExpressionPtr> not-op-expr
-%type <TExpressionPtr> or-op-expr
-%type <TExpressionPtr> and-op-expr
-%type <TExpressionPtr> relational-op-expr
-%type <TExpressionPtr> multiplicative-op-expr
-%type <TExpressionPtr> additive-op-expr
-%type <TExpressionPtr> unary-expr
-%type <TExpressionPtr> atomic-expr
-%type <TExpressionPtr> comma-expr
+%type <TExpressionList> expression
+%type <TExpressionList> or-op-expr
+%type <TExpressionList> and-op-expr
+%type <TExpressionList> not-op-expr
+%type <TExpressionList> equal-op-expr
+%type <TExpressionList> relational-op-expr
+%type <TExpressionList> bitor-op-expr
+%type <TExpressionList> bitand-op-expr
+%type <TExpressionList> shift-op-expr
+%type <TExpressionList> multiplicative-op-expr
+%type <TExpressionList> additive-op-expr
+%type <TExpressionList> unary-expr
+%type <TExpressionList> atomic-expr
+%type <TExpressionList> comma-expr
 %type <TNullable<TLiteralValue>> literal-value
 %type <TNullable<TLiteralValue>> const-value
 %type <TLiteralValueList> const-list
@@ -162,19 +171,20 @@ parse-job-query
 parse-expression
     : expression[expr]
         {
-            head->As<TExpressionPtr>() = $expr;
+            if ($expr.size() != 1) {
+                THROW_ERROR_EXCEPTION("Expected scalar expression, got %Qv", GetSource(@$, source));
+            }
+            head->first.As<TExpressionPtr>() = $expr.front();
         }
 ;
 
 select-clause
-    : named-expression-list[projections]
+    : comma-expr[projections]
         {
-            head->As<TQuery>().SelectExprs = $projections;
+            head->first.As<TQuery>().SelectExprs = $projections;
         }
     | Asterisk
-        {
-            head->As<TQuery>().SelectExprs = TNullableNamedExpressionList();
-        }
+        { }
 ;
 
 table-descriptor
@@ -195,18 +205,18 @@ table-descriptor
 from-clause
     : KwFrom table-descriptor[table] join-clause
         {
-            head->As<TQuery>().Table = $table;
+            head->first.As<TQuery>().Table = $table;
         }
 ;
 
 join-clause
     : join-clause KwJoin table-descriptor[table] KwUsing identifier-list[fields]
         {
-            head->As<TQuery>().Joins.emplace_back($table, $fields);
+            head->first.As<TQuery>().Joins.emplace_back($table, $fields);
         }
-    | join-clause KwJoin table-descriptor[table] KwOn additive-op-expr[lhs] OpEqual additive-op-expr[rhs]
+    | join-clause KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
         {
-            head->As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
+            head->first.As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
         }
     |
 ;
@@ -214,15 +224,15 @@ join-clause
 where-clause
     : KwWhere or-op-expr[predicate]
         {
-            head->As<TQuery>().WherePredicate = $predicate;
+            head->first.As<TQuery>().WherePredicate = $predicate;
         }
     |
 ;
 
 group-by-clause
-    : KwGroupBy named-expression-list[exprs]
+    : KwGroupBy comma-expr[exprs]
         {
-            head->As<TQuery>().GroupExprs = $exprs;
+            head->first.As<TQuery>().GroupExprs = $exprs;
         }
     |
 ;
@@ -230,7 +240,7 @@ group-by-clause
 having-clause
     : KwHaving or-op-expr[predicate]
         {
-            head->As<TQuery>().HavingPredicate = $predicate;
+            head->first.As<TQuery>().HavingPredicate = $predicate;
         }
     |
 ;
@@ -238,8 +248,8 @@ having-clause
 order-by-clause
     : KwOrderBy identifier-list[fields] is-desc[isDesc]
         {
-            head->As<TQuery>().OrderFields = $fields;
-            head->As<TQuery>().IsOrderDesc = $isDesc;
+            head->first.As<TQuery>().OrderFields = $fields;
+            head->first.As<TQuery>().IsDescendingOrder = $isDesc;
         }
     |
 ;
@@ -262,7 +272,7 @@ is-desc
 limit-clause
     : KwLimit Int64Literal[limit]
         {
-            head->As<TQuery>().Limit = $limit;
+            head->first.As<TQuery>().Limit = $limit;
         }
     |
 ;
@@ -279,26 +289,21 @@ identifier-list
         }
 ;
 
-named-expression-list
-    : named-expression-list[ps] Comma named-expression[p]
-        {
-            $$.swap($ps);
-            $$.push_back($p);
-        }
-    | named-expression[p]
-        {
-            $$.push_back($p);
-        }
-;
-
 named-expression
     : expression[expr]
         {
-            $$ = TNamedExpression($expr, InferName($expr.Get()));
+            $$ = $expr;
         }
     | expression[expr] KwAs Identifier[name]
         {
-            $$ = TNamedExpression($expr, Stroka($name));
+            if ($expr.size() != 1) {
+                THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
+            }
+            auto inserted = head->second.insert(MakePair(Stroka($name), $expr.front()));
+            if (!inserted.second) {
+                THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
+            }
+            $$ = MakeExpr<TReferenceExpression>(@$, $name);
         }
 ;
 
@@ -310,56 +315,67 @@ expression
 or-op-expr
     : or-op-expr[lhs] KwOr and-op-expr[rhs]
         {
-            $$ = New<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
         }
     | and-op-expr
         { $$ = $1; }
 ;
 
 and-op-expr
+
     : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
-            $$ = New<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
         }
     | not-op-expr
         { $$ = $1; }
 ;
 
 not-op-expr
-    : KwNot relational-op-expr[expr]
+    : KwNot equal-op-expr[expr]
         {
-            $$ = New<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
+            $$ = MakeExpr<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
+        }
+    | equal-op-expr
+        { $$ = $1; }
+;
+
+equal-op-expr
+    : equal-op-expr[lhs] OpEqual relational-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::Equal, $lhs, $rhs);
+        }
+
+    | equal-op-expr[lhs] OpNotEqual relational-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::NotEqual, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
 ;
 
 relational-op-expr
-    : relational-op-expr[lhs] relational-op[opcode] additive-op-expr[rhs]
+    : relational-op-expr[lhs] relational-op[opcode] bitor-op-expr[rhs]
         {
-            $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | unary-expr[expr] KwBetween unary-expr[lbexpr] KwAnd unary-expr[rbexpr]
         {
-            $$ = New<TBinaryOpExpression>(@$, EBinaryOp::And,
-                New<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr),
-                New<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::And,
+                MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, $lbexpr),
+                MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, $rbexpr));
 
         }
     | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
-            $$ = New<TInExpression>(@$, $expr, $args);
+            $$ = MakeExpr<TInExpression>(@$, $expr, $args);
         }
-    | additive-op-expr
+    | bitor-op-expr
         { $$ = $1; }
 ;
 
 relational-op
-    : OpEqual
-        { $$ = EBinaryOp::Equal; }
-    | OpNotEqual
-        { $$ = EBinaryOp::NotEqual; }
-    | OpLess
+    : OpLess
         { $$ = EBinaryOp::Less; }
     | OpLessOrEqual
         { $$ = EBinaryOp::LessOrEqual; }
@@ -369,10 +385,41 @@ relational-op
         { $$ = EBinaryOp::GreaterOrEqual; }
 ;
 
+bitor-op-expr
+    : shift-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
+        }
+    | bitand-op-expr
+        { $$ = $1; }
+;
+
+bitand-op-expr
+    : shift-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
+        }
+    | shift-op-expr
+        { $$ = $1; }
+;
+
+shift-op-expr
+    : shift-op-expr[lhs] OpLeftShift additive-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
+        }
+    | shift-op-expr[lhs] OpRightShift additive-op-expr[rhs]
+        {
+            $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
+        }
+    | additive-op-expr
+        { $$ = $1; }
+;
+
 additive-op-expr
     : additive-op-expr[lhs] additive-op[opcode] multiplicative-op-expr[rhs]
         {
-            $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | multiplicative-op-expr
         { $$ = $1; }
@@ -388,7 +435,7 @@ additive-op
 multiplicative-op-expr
     : multiplicative-op-expr[lhs] multiplicative-op[opcode] unary-expr[rhs]
         {
-            $$ = New<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpr<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
         }
     | unary-expr
         { $$ = $1; }
@@ -404,18 +451,19 @@ multiplicative-op
 ;
 
 comma-expr
-    : comma-expr[lhs] Comma expression[rhs]
+    : comma-expr[lhs] Comma named-expression[rhs]
         {
-            $$ = New<TCommaExpression>(@$, $lhs, $rhs);
+            $$ = $lhs;
+            $$.insert($$.end(), $rhs.begin(), $rhs.end());
         }
-    | expression
+    | named-expression
         { $$ = $1; }
 ;
 
 unary-expr
     : unary-op[opcode] atomic-expr[rhs]
         {
-            $$ = New<TUnaryOpExpression>(@$, $opcode, $rhs);
+            $$ = MakeExpr<TUnaryOpExpression>(@$, $opcode, $rhs);
         }
     | atomic-expr
         { $$ = $1; }
@@ -426,6 +474,8 @@ unary-op
         { $$ = EUnaryOp::Plus; }
     | OpMinus
         { $$ = EUnaryOp::Minus; }
+    | OpTilde
+        { $$ = EUnaryOp::BitNot; }
 ;
 
 qualified-identifier
@@ -442,15 +492,15 @@ qualified-identifier
 atomic-expr
     : qualified-identifier[identifier]
         {
-            $$ = $identifier;
+            $$ = TExpressionList(1, $identifier);
         }
     | Identifier[name] LeftParenthesis RightParenthesis
         {
-            $$ = New<TFunctionExpression>(@$, $name, New<TEmptyExpression>(@$));
+            $$ = MakeExpr<TFunctionExpression>(@$, $name, TExpressionList());
         }
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
-            $$ = New<TFunctionExpression>(@$, $name, $args);
+            $$ = MakeExpr<TFunctionExpression>(@$, $name, $args);
         }
     | LeftParenthesis comma-expr[expr] RightParenthesis
         {
@@ -458,7 +508,7 @@ atomic-expr
         }
     | literal-value[value]
         {
-            $$ = New<TLiteralExpression>(@$, *$value);
+            $$ = MakeExpr<TLiteralExpression>(@$, *$value);
         }
 ;
 

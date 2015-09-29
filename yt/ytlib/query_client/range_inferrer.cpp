@@ -362,16 +362,24 @@ TDivisors GetDivisors(const std::vector<TColumnSchema>& columns, int keyIndex, T
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
         auto reference = binaryOp->Lhs->As<TReferenceExpression>();
         auto literal = binaryOp->Rhs->As<TLiteralExpression>();
-        if (binaryOp->Opcode == EBinaryOp::Divide
-            && reference
+
+        if (reference
             && literal
             && IsIntegralType(static_cast<TUnversionedValue>(literal->Value).Type)
             && reference->ColumnName == name)
         {
-            TUnversionedValue value = literal->Value;
-            value.Id = 0;
-            return TDivisors{value};
+            if (binaryOp->Opcode == EBinaryOp::Divide) {
+                TUnversionedValue value = literal->Value;
+                value.Id = 0;
+                return TDivisors{value};
+            } else if (binaryOp->Opcode == EBinaryOp::RightShift) {
+                TUnversionedValue value = literal->Value;
+                value.Data.Uint64 = 1 << value.Data.Uint64;
+                value.Id = 0;
+                return TDivisors{value};
+            }
         }
+
         auto lhs = GetDivisors(columns, keyIndex, binaryOp->Lhs);
         auto rhs = GetDivisors(columns, keyIndex, binaryOp->Rhs);
         lhs.append(rhs.begin(), rhs.end());
@@ -415,8 +423,8 @@ void EnrichKeyRange(
     const TColumnEvaluator& evaluator,
     const std::vector<TColumnSchema>& columns,
     TRowBuffer* buffer,
-    std::pair<TRow, TRow>& range,
-    std::vector<std::pair<TRow, TRow>>& ranges,
+    TRowRange& range,
+    std::vector<TRowRange>& ranges,
     size_t keySize,
     ui64* rangeExpansionLeft)
 {
@@ -510,7 +518,7 @@ void EnrichKeyRange(
             rangeCount * estimation <= *rangeExpansionLeft)
         {
             rangeCount *= estimation;
-        } else {
+        } else if (estimation > 1) {
             break;
         }
 
@@ -676,6 +684,41 @@ void EnrichKeyRange(
     }
 }
 
+ui64 GetRangeCountLimit(
+    const TColumnEvaluator& evaluator,
+    const std::vector<TColumnSchema>& columns,
+    size_t keySize,
+    ui64 rangeExpansionLimit)
+{
+    ui64 moduloExpansion = 1;
+    for (int index = 0; index < keySize; ++index) {
+        if (columns[index].Expression) {
+            auto expr = evaluator.GetExpression(index)->As<TBinaryOpExpression>();
+            if (expr && expr->Opcode == EBinaryOp::Modulo) {
+                if (auto literalExpr = expr->Rhs->As<TLiteralExpression>()) {
+                    TUnversionedValue value = literalExpr->Value;
+                    switch (value.Type) {
+                        case EValueType::Int64:
+                            moduloExpansion *= value.Data.Int64 * 2;
+                            break;
+
+                        case EValueType::Uint64:
+                            moduloExpansion *= value.Data.Uint64 + 1;
+                            break;
+
+                        default:
+                            break;
+                    }
+                }
+            }
+        }
+    }
+
+    return moduloExpansion == 1
+        ? std::numeric_limits<ui64>::max()
+        : rangeExpansionLimit / moduloExpansion;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRangeInferrer CreateHeavyRangeInferrer(
@@ -691,7 +734,6 @@ TRangeInferrer CreateHeavyRangeInferrer(
     auto keySize = renamedKeyColumns.size();
 
     auto evaluator = evaluatorCache->Find(schema, keySize);
-    // TODO(savrus): use enriched key columns here.
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         renamedKeyColumns,
@@ -704,11 +746,19 @@ TRangeInferrer CreateHeavyRangeInferrer(
         InferName(predicate),
         keyTrie);
 
+    //TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
+    auto rangeCountLimit = GetRangeCountLimit(
+        *evaluator,
+        schema.Columns(),
+        keySize,
+        rangeExpansionLimit);
+
     auto ranges = GetRangesFromTrieWithinRange(
         TRowRange(buffer->Capture(MinKey().Get()), buffer->Capture(MaxKey().Get())),
         keyTrie,
         buffer,
-        true);
+        true,
+        rangeCountLimit);
 
     LOG_DEBUG_IF(
         verboseLogging,

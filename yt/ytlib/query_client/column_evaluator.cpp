@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include "cg_fragment_compiler.h"
+#include "query_preparer.h"
 #include "query_statistics.h"
 #include "folding_profiler.h"
 
@@ -27,6 +28,7 @@ TColumnEvaluator::TColumnEvaluator(
     , Variables_(keySize)
     , ReferenceIds_(keySize)
     , Expressions_(keySize)
+    , AllLiteralArgs_(keySize)
 { }
 
 void TColumnEvaluator::PrepareEvaluator()
@@ -47,6 +49,7 @@ void TColumnEvaluator::PrepareEvaluator()
                 nullptr,
                 &Variables_[index],
                 &references,
+                &AllLiteralArgs_[index],
                 FunctionRegistry_)();
 
             for (const auto& reference : references) {
@@ -74,11 +77,20 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, in
     executionContext.StackSizeGuardHelper = reinterpret_cast<size_t>(&dummy);
 #endif
 
+    std::vector<TFunctionContext*> functionContexts;
+    for (auto& literalArgs : AllLiteralArgs_[index]) {
+        executionContext.FunctionContexts.emplace_back(std::move(literalArgs));
+    }
+    for (auto& functionContext : executionContext.FunctionContexts) {
+        functionContexts.push_back(&functionContext);
+    }
+
     Evaluators_[index](
         &fullRow[index],
         fullRow,
         const_cast<TRowBuilder&>(Variables_[index].ConstantsRowBuilder).GetRow(),
-        &executionContext);
+        &executionContext,
+        &functionContexts[0]);
 
     fullRow[index].Id = index;
 }

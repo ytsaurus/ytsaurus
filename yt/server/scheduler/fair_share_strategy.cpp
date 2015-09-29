@@ -98,6 +98,8 @@ struct ISchedulerElement
     virtual const TDynamicAttributes& DynamicAttributes() const = 0;
     virtual TDynamicAttributes& DynamicAttributes() = 0;
 
+    virtual int GetPendingJobCount() const = 0;
+
     virtual Stroka GetId() const = 0;
 
     virtual double GetWeight() const = 0;
@@ -444,6 +446,7 @@ public:
 
     virtual void UpdateBottomUp() override
     {
+        PendingJobCount = 0;
         ResourceDemand_ = ZeroNodeResources();
         auto maxPossibleChildrenResourceUsage_ = ZeroNodeResources();
         Attributes_.BestAllocationRatio = 0.0;
@@ -455,6 +458,8 @@ public:
             Attributes_.BestAllocationRatio = std::max(
                 Attributes_.BestAllocationRatio,
                 child->Attributes().BestAllocationRatio);
+
+            PendingJobCount += child->GetPendingJobCount();
         }
         MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage_, ResourceLimits_);
         TSchedulerElementBase::UpdateBottomUp();
@@ -590,6 +595,11 @@ public:
         }
     }
 
+    virtual int GetPendingJobCount() const override
+    {
+        return PendingJobCount;
+    }
+
     virtual bool IsRoot() const
     {
         return false;
@@ -643,6 +653,8 @@ public:
 
 protected:
     ESchedulingMode Mode;
+    std::vector<EFifoSortParameter> FifoSortParameters;
+    int PendingJobCount;
 
     yhash_set<ISchedulerElementPtr> Children;
     yhash_set<ISchedulerElementPtr> DisabledChildren;
@@ -791,14 +803,32 @@ protected:
 
     ISchedulerElementPtr GetBestActiveChildFifo(const TDynamicAttributesMap& dynamicAttributesMap) const
     {
-        auto isBetter = [&dynamicAttributesMap] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
-            if (lhs->GetWeight() > rhs->GetWeight()) {
-                return true;
+        auto isBetter = [this, &dynamicAttributesMap] (const ISchedulerElementPtr& lhs, const ISchedulerElementPtr& rhs) -> bool {
+            for (auto parameter : FifoSortParameters) {
+                switch (parameter) {
+                    case EFifoSortParameter::Weight:
+                        if (lhs->GetWeight() != rhs->GetWeight()) {
+                            return lhs->GetWeight() > rhs->GetWeight();
+                        }
+                        break;
+                    case EFifoSortParameter::StartTime: {
+                        const auto& lhsStartTime = dynamicAttributesMap.At(lhs).MinSubtreeStartTime;
+                        const auto& rhsStartTime = dynamicAttributesMap.At(rhs).MinSubtreeStartTime;
+                        if (lhsStartTime != rhsStartTime) {
+                            return lhsStartTime < rhsStartTime;
+                        }
+                        break;
+                    }
+                    case EFifoSortParameter::PendingJobCount:
+                        if (lhs->GetPendingJobCount() != rhs->GetPendingJobCount()) {
+                            return lhs->GetPendingJobCount() < rhs->GetPendingJobCount();
+                        }
+                        break;
+                    default:
+                        YUNREACHABLE();
+                }
             }
-            if (lhs->GetWeight() < rhs->GetWeight()) {
-                return false;
-            }
-            return dynamicAttributesMap.At(lhs).MinSubtreeStartTime < dynamicAttributesMap.At(rhs).MinSubtreeStartTime;
+            return false;
         };
 
         ISchedulerElementPtr bestChild;
@@ -824,7 +854,6 @@ protected:
         }
         return bestChild;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -842,6 +871,7 @@ public:
         , Id(id)
         , StrategyConfig_(strategyConfig)
     {
+        DynamicAttributesMap.Initialize(this);
         SetDefaultConfig();
     }
 
@@ -948,7 +978,18 @@ private:
     void DoSetConfig(TPoolConfigPtr newConfig)
     {
         Config_ = newConfig;
+
+        bool update = false;
+        if (FifoSortParameters != Config_->FifoSortParameters || Mode != Config_->Mode) {
+            update = true;
+        }
+
+        FifoSortParameters = Config_->FifoSortParameters;
         Mode = Config_->Mode;
+
+        if (update) {
+            Update();
+        }
     }
 
     TNodeResources ComputeResourceLimits() const
@@ -980,14 +1021,18 @@ public:
         , ResourceUsage_(ZeroNodeResources())
         , NonpreemptableResourceUsage_(ZeroNodeResources())
         , Config(config)
-    { }
+    {
+        DynamicAttributesMap.Initialize(this);
+        DynamicAttributesMap.At(this).MinSubtreeStartTime = operation->GetStartTime();
+        DynamicAttributesMap.At(this).BestLeafDescendant = MakeWeak(this);
+    }
 
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
-        const auto& node = context.SchedulingContext->GetNode();
         context.DynamicAttributesMap.Initialize(this, DynamicAttributesMap.At(this));
         auto& attributes = context.DynamicAttributesMap.At(this);
+        const auto& node = context.SchedulingContext->GetNode();
 
         attributes.Active = true;
 
@@ -1058,6 +1103,12 @@ public:
             }
         }
         return jobId != NJobTrackerClient::NullJobId;
+    }
+
+    virtual int GetPendingJobCount() const override
+    {
+        auto controller = Operation_->GetController();
+        return controller->GetPendingJobCount();
     }
 
     virtual Stroka GetId() const override
@@ -1324,9 +1375,11 @@ public:
     TRootElement(ISchedulerStrategyHost* host, TDynamicAttributesMap& dynamicAttributesMap)
         : TCompositeSchedulerElement(host, dynamicAttributesMap)
     {
+        DynamicAttributesMap.Initialize(this);
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
         Mode = ESchedulingMode::FairShare;
+        Update();
     }
 
     virtual bool IsRoot() const override
@@ -1383,7 +1436,6 @@ public:
             BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
         RootElement = New<TRootElement>(Host, DynamicAttributesMap);
-        DynamicAttributesMap.Initialize(RootElement);
     }
 
 
@@ -1749,9 +1801,6 @@ private:
             operation,
             DynamicAttributesMap);
         YCHECK(OperationToElement.insert(std::make_pair(operation->GetId(), operationElement)).second);
-        DynamicAttributesMap.Initialize(operationElement);
-        DynamicAttributesMap.At(operationElement).MinSubtreeStartTime = operation->GetStartTime();
-        DynamicAttributesMap.At(operationElement).BestLeafDescendant = operationElement;
 
         auto poolName = spec->Pool ? *spec->Pool : operation->GetAuthenticatedUser();
         auto pool = FindPool(poolName);
@@ -1892,14 +1941,12 @@ private:
     void RegisterPool(TPoolPtr pool)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        DynamicAttributesMap.Initialize(pool);
         LOG_INFO("Pool registered (Pool: %v)", pool->GetId());
     }
 
     void RegisterPool(TPoolPtr pool, TCompositeSchedulerElementPtr parent)
     {
         YCHECK(Pools.insert(std::make_pair(pool->GetId(), pool)).second);
-        DynamicAttributesMap.Initialize(pool);
         pool->SetParent(parent.Get());
         parent->AddChild(pool);
 

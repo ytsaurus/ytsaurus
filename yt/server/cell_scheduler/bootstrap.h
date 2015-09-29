@@ -36,9 +36,7 @@ DEFINE_ENUM(EControlQueue,
 class TBootstrap
 {
 public:
-    TBootstrap(
-        const Stroka& configFileName,
-        TCellSchedulerConfigPtr config);
+    explicit TBootstrap(const NYTree::INodePtr configNode);
     ~TBootstrap();
 
     TCellSchedulerConfigPtr GetConfig() const;
@@ -53,9 +51,9 @@ public:
     void Run();
 
 private:
-    Stroka ConfigFileName_;
-    TCellSchedulerConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
 
+    TCellSchedulerConfigPtr Config_;
     NConcurrency::TFairShareActionQueuePtr ControlQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;

@@ -126,13 +126,13 @@ void TGarbageCollector::DestroyZombie(TObjectBase* object)
     handler->DestroyObject(object);
 
     if (object->GetObjectWeakRefCounter() > 0) {
-        LOG_DEBUG("Zombie has become ghost (ObjectId: %v, WeakRefCounter: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Zombie has become ghost (ObjectId: %v, WeakRefCounter: %v)",
             object->GetId(),
             object->GetObjectWeakRefCounter());
         YCHECK(Ghosts_.insert(object).second);
         object->SetDestroyed();
     } else {
-        LOG_DEBUG("Zombie disposed (ObjectId: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Zombie disposed (ObjectId: %v)",
             object->GetId(),
             object->GetObjectWeakRefCounter());
         delete object;
@@ -168,8 +168,7 @@ void TGarbageCollector::CheckEmpty()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies_.empty()) {
-        auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        LOG_DEBUG_UNLESS(hydraManager->IsRecovery(), "Zombie queue is empty");
+        LOG_DEBUG_UNLESS(IsRecovery(), "Zombie queue is empty");
         CollectPromise_.Set();
     }
 }
@@ -221,6 +220,11 @@ int TGarbageCollector::GetZombieCount() const
 int TGarbageCollector::GetGhostCount() const
 {
     return static_cast<int>(Ghosts_.size());
+}
+
+bool TGarbageCollector::IsRecovery()
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

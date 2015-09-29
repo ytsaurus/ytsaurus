@@ -614,7 +614,8 @@ private:
                 auto result = WaitFor(Combine(asyncResults));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Chunk open attempt failed");
+                LOG_WARNING(ex, "Error starting sessions for %v at nodes",
+                    CurrentSession_->ChunkId);
                 CurrentSession_.Reset();
                 return false;
             }
@@ -628,9 +629,8 @@ private:
                 node->PingExecutor->Start();
             }
 
+            LOG_INFO("Attaching chunk");
             {
-                LOG_INFO("Attaching chunk");
-
                 TObjectServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
 
@@ -650,16 +650,14 @@ private:
                 {
                     auto req = TChunkListYPathProxy::Attach(FromObjectId(ChunkListId_));
                     ToProto(req->add_children_ids(), CurrentSession_->ChunkId);
-                    req->set_request_statistics(false);
                     GenerateMutationId(req);
                     batchReq->AddRequest(req, "attach");
                 }
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error attaching chunk");
-
-                LOG_INFO("Chunk attached");
             }
+            LOG_INFO("Chunk attached");
 
             for (auto batch : PendingBatches_) {
                 EnqueueBatchToSession(batch);

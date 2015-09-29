@@ -2,13 +2,13 @@
 #include "config.h"
 #include "chunk_service_proxy.h"
 
+#include <ytlib/api/client.h>
+
 #include <ytlib/object_client/object_service_proxy.h>
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
-
-#include <ytlib/api/client.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -19,35 +19,39 @@ namespace NChunkClient {
 
 using namespace NApi;
 using namespace NRpc;
+using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NObjectClient;
+using namespace NErasure;
 using namespace NNodeTrackerClient;
-using namespace NConcurrency;
 
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkClient::TChunkId CreateChunk(
+TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     IClientPtr client,
     TCellTag cellTag,
-    TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    EObjectType chunkType,
     const TTransactionId& transactionId,
+    const TChunkListId& chunkListId,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;
 
-    auto uploadReplicationFactor = std::min(options->ReplicationFactor, config->UploadReplicationFactor);
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, UploadReplicationFactor: %v)",
-        options->ReplicationFactor,
-        uploadReplicationFactor);
+    LOG_DEBUG(
+        "Creating chunk (ReplicationFactor: %v, TransactionId: %v)", 
+        options->ReplicationFactor, 
+        transactionId);
 
     auto channel = client->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
 
-    auto req = TMasterYPathProxy::CreateObject();
+    auto chunkType = options->ErasureCodec == ECodec::None
+         ? EObjectType::Chunk
+         : EObjectType::ErasureChunk;
+
+    auto req = TMasterYPathProxy::CreateObjects();
     ToProto(req->mutable_transaction_id(), transactionId);
     GenerateMutationId(req);
     req->set_type(static_cast<int>(chunkType));
@@ -58,15 +62,11 @@ NChunkClient::TChunkId CreateChunk(
     reqExt->set_movable(options->ChunksMovable);
     reqExt->set_vital(options->ChunksVital);
     reqExt->set_erasure_codec(static_cast<int>(options->ErasureCodec));
+    if (chunkListId != NullChunkListId) {
+        ToProto(reqExt->mutable_chunk_list_id(), chunkListId);
+    }
 
-    auto rspOrError = WaitFor(proxy.Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        rspOrError,
-        NChunkClient::EErrorCode::ChunkCreationFailed,
-        "Error creating chunk");
-
-    const auto& rsp = rspOrError.Value();
-    return FromProto<TChunkId>(rsp->object_id());
+    return proxy.Execute(req);
 }
 
 void ProcessFetchResponse(

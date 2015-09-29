@@ -70,6 +70,12 @@ struct ICypressNodeProxy
         NSecurityServer::TAccount* account,
         bool preserveAccount) const = 0;
 
+
+    static ICypressNodeProxy* FromNode(NYTree::INode* ptr);
+    static TIntrusivePtr<ICypressNodeProxy> FromNode(const TIntrusivePtr<NYTree::INode>& ptr);
+    static const ICypressNodeProxy* FromNode(const NYTree::INode* ptr);
+    static TIntrusivePtr<const ICypressNodeProxy> FromNode(const TIntrusivePtr<const NYTree::INode>& ptr);
+
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressNodeProxy)

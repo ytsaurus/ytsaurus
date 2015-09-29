@@ -9,6 +9,8 @@
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
 
+#include <server/node_tracker_server/node.h>
+
 namespace NYT {
 namespace NScheduler {
 
@@ -26,7 +28,7 @@ class TExecNode
 
     //! Resource limits, as reported by the node.
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceLimits);
-    
+
     //! A set of scheduling tags assigned to this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<Stroka>, SchedulingTags);
 
@@ -41,6 +43,9 @@ class TExecNode
 
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
+
+    //! State of node at master.
+    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
 public:
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;

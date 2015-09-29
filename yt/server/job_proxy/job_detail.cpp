@@ -35,6 +35,8 @@ using namespace NScheduler;
 using namespace NQueryClient;
 using namespace NExecAgent;
 
+using NJobTrackerClient::TStatistics;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = JobProxyProfiler;
@@ -95,7 +97,7 @@ TJobResult TSimpleJobBase::Run()
             for (const auto& descriptor : FromProto<Stroka>(querySpec.udf_descriptors())) {
                 descriptors.push_back(ConvertTo<TUdfDescriptorPtr>(TYsonString(descriptor)));
             }
-            auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxIndex::Udf]);
+            auto registry = CreateJobFunctionRegistry(descriptors, SandboxDirectoryNames[ESandboxKind::Udf]);
             auto evaluator = New<TEvaluator>(New<TExecutorConfig>());
             auto reader = WaitFor(CreateSchemafulReaderAdapter(ReaderFactory_, query->TableSchema))
                 .ValueOrThrow();
@@ -137,6 +139,9 @@ TJobResult TSimpleJobBase::Run()
     }
 }
 
+void TSimpleJobBase::Abort()
+{ }
+
 double TSimpleJobBase::GetProgress() const
 {
     if (TotalRowCount_ == 0) {
@@ -159,13 +164,15 @@ TStatistics TSimpleJobBase::GetStatistics() const
 {
     TStatistics result;
     if (Reader_) {
-        result.AddComplex("/data/input", Reader_->GetDataStatistics());
+        result.AddSample("/data/input", Reader_->GetDataStatistics());
     }
+    
     if (Writer_) {
-        result.AddComplex(
+        result.AddSample(
             "/data/output/" + NYPath::ToYPathLiteral(0),
             Writer_->GetDataStatistics());
     }
+
     return result;
 }
 

@@ -34,6 +34,8 @@ TEST(TYamredDsvWriterTest, Simple)
         consumer.OnStringScalar("2");
         consumer.OnKeyedItem("subkey");
         consumer.OnStringScalar("3");
+        consumer.OnKeyedItem("null");
+        consumer.OnEntity();
         consumer.OnKeyedItem("key_a");
         consumer.OnStringScalar("xxx");
     consumer.OnEndMap();
@@ -41,6 +43,29 @@ TEST(TYamredDsvWriterTest, Simple)
     Stroka output =
         "a b\t\t\n"
         "xxx 1\t\tcolumn=2\tsubkey=3\n";
+
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYamredDsvWriterTest, RowIndex)
+{
+    TStringStream outputStream;
+    auto config = New<TYamredDsvFormatConfig>();
+    config->Lenval = true;
+    TYamredDsvConsumer consumer(&outputStream, config);
+
+    consumer.OnListItem();
+    consumer.OnBeginAttributes();
+        consumer.OnKeyedItem("row_index");
+        consumer.OnInt64Scalar(10);
+    consumer.OnEndAttributes();
+    consumer.OnEntity();
+
+    Stroka output(
+        "\xfc\xff\xff\xff" "\x0a\x00\x00\x00" "\x00\x00\x00\x00",
+        4 + 4 + 4);
 
     EXPECT_EQ(output, outputStream.Str());
 }

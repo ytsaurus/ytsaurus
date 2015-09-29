@@ -16,6 +16,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NChunkClient::NProto;
+using namespace NTableClient;
 using namespace NTableClient::NProto;
 
 using NChunkClient::TReadLimit;
@@ -43,7 +44,7 @@ TKeyColumns GetKeyColumnsFromDataSplit(const TDataSplit& dataSplit)
     return FromProto<TKeyColumns>(keyColumnsExt);
 }
 
-TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
+TOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_lower_limit()) {
         auto readLimit = FromProto<TReadLimit>(dataSplit.lower_limit());
@@ -53,7 +54,7 @@ TKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
     }
 }
 
-TKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
+TOwningKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_upper_limit()) {
         auto readLimit = FromProto<TReadLimit>(dataSplit.upper_limit());
@@ -101,7 +102,7 @@ void SetKeyColumns(TDataSplit* dataSplit, const TKeyColumns& keyColumns)
         ToProto<TKeyColumnsExt>(keyColumns));
 }
 
-void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound)
+void SetLowerBound(TDataSplit* dataSplit, const TOwningKey & lowerBound)
 {
     if (lowerBound == MinKey()) {
         dataSplit->clear_lower_limit();
@@ -112,7 +113,7 @@ void SetLowerBound(TDataSplit* dataSplit, const TKey& lowerBound)
     ToProto(dataSplit->mutable_lower_limit(), readLimit);
 }
 
-void SetUpperBound(TDataSplit* dataSplit, const TKey& upperBound)
+void SetUpperBound(TDataSplit* dataSplit, const TOwningKey & upperBound)
 {
     if (upperBound == MaxKey()) {
         dataSplit->clear_upper_limit();
@@ -149,6 +150,27 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted)
     SetProtoExtension<TMiscExt>(
         dataSplit->mutable_chunk_meta()->mutable_extensions(),
         *miscProto);
+}
+
+TKeyColumns TableSchemaToKeyColumns(const TTableSchema& schema, size_t keySize)
+{
+    TKeyColumns keyColumns;
+    keySize = std::min(keySize, schema.Columns().size());
+    for (size_t i = 0; i < keySize; ++ i) {
+        keyColumns.push_back(schema.Columns()[i].Name);
+    }
+    return keyColumns;
+}
+
+//! Computes key index for a given column name.
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const Stroka& columnName)
+{
+    for (int index = 0; index < keyColumns.size(); ++index) {
+        if (keyColumns[index] == columnName) {
+            return index;
+        }
+    }
+    return -1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

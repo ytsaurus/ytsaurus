@@ -52,24 +52,25 @@ TChunk::TChunk(const TChunkId& id)
 
 TChunkTreeStatistics TChunk::GetStatistics() const
 {
-    YASSERT(IsConfirmed());
-
     TChunkTreeStatistics result;
-    result.RowCount = MiscExt_.row_count();
-    result.UncompressedDataSize = MiscExt_.uncompressed_data_size();
-    result.CompressedDataSize = MiscExt_.compressed_data_size();
-    result.DataWeight = MiscExt_.data_weight();
+    if (IsSealed()) {
+        result.RowCount = MiscExt_.row_count();
+        result.UncompressedDataSize = MiscExt_.uncompressed_data_size();
+        result.CompressedDataSize = MiscExt_.compressed_data_size();
+        result.DataWeight = MiscExt_.data_weight();
 
-    if (IsErasure()) {
-        result.ErasureDiskSpace = ChunkInfo_.disk_space();
+        if (IsErasure()) {
+            result.ErasureDiskSpace = ChunkInfo_.disk_space();
+        } else {
+            result.RegularDiskSpace = ChunkInfo_.disk_space();
+        }
+
+        result.ChunkCount = 1;
+        result.Rank = 0;
+        result.Sealed = IsSealed();
     } else {
-        result.RegularDiskSpace = ChunkInfo_.disk_space();
+        result.Sealed = false;
     }
-
-    result.ChunkCount = 1;
-    result.Rank = 0;
-    result.Sealed = IsSealed();
-
     return result;
 }
 
@@ -259,7 +260,7 @@ i64 TChunk::GetSealedRowCount() const
 
 void TChunk::Seal(const TMiscExt& info)
 {
-    YASSERT(IsConfirmed());
+    YCHECK(IsConfirmed() && !IsSealed());
 
     // NB: Just a sanity check.
     YCHECK(!MiscExt_.sealed());

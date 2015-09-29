@@ -22,7 +22,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/replication_writer.h>
+#include <ytlib/chunk_client/lazy_chunk_writer.h>
 #include <ytlib/chunk_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -48,68 +48,44 @@ TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
     NChunkClient::TMultiChunkWriterOptionsPtr options,
     NApi::IClientPtr client,
-    const NObjectClient::TTransactionId& transactionId)
+    const NObjectClient::TTransactionId& transactionId,
+    i64 sizeLimit)
     : Config(config)
     , Options(options)
     , Client(client)
     , TransactionId(transactionId)
+    , SizeLimit(sizeLimit)
     , Logger(FileClientLogger)
 {
     YCHECK(config);
     YCHECK(client);
-}
 
-void TFileChunkOutput::Open()
-{
-    LOG_INFO("Opening file chunk output (TransactionId: %v, Account: %v, ReplicationFactor: %v, UploadReplicationFactor: %v)",
+    LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, UploadReplicationFactor: %v)",
         TransactionId,
         Options->Account,
         Options->ReplicationFactor,
         Config->UploadReplicationFactor);
 
-    ChunkId = CreateChunk(
-        Client,
-        Client->GetConnection()->GetPrimaryMasterCellTag(),
-        Config,
-        Options,
-        EObjectType::Chunk,
-        TransactionId,
-        Logger);
-
-    Logger.AddTag("ChunkId: %v", ChunkId);
-
-    LOG_INFO("Chunk created");
-
     auto nodeDirectory = New<TNodeDirectory>();
-    ChunkWriter = CreateReplicationWriter(
+    ChunkWriter = CreateLazyChunkWriter(
         Config,
         Options,
-        ChunkId,
-        TChunkReplicaList(),
+        TransactionId,
+        NullChunkListId,
         nodeDirectory,
         Client);
-
-    auto error = ChunkWriter->Open().Get();
-    THROW_ERROR_EXCEPTION_IF_FAILED(error)
 
     Writer = CreateFileChunkWriter(
         Config,
         New<TEncodingWriterOptions>(),
         ChunkWriter);
-
-    IsOpen = true;
-
-    LOG_INFO("File chunk output opened");
-}
-
-TFileChunkOutput::~TFileChunkOutput() throw()
-{
-    LOG_DEBUG_IF(IsOpen, "Writer canceled");
 }
 
 void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 {
-    YCHECK(IsOpen);
+    if (GetSize() > SizeLimit) {
+        return;
+    }
 
     if (!Writer->Write(TRef(const_cast<void*>(buf), len))) {
         WaitFor(Writer->GetReadyEvent())
@@ -119,43 +95,19 @@ void TFileChunkOutput::DoWrite(const void* buf, size_t len)
 
 void TFileChunkOutput::DoFinish()
 {
-    if (!IsOpen)
-        return;
+    if (GetSize() > 0) {
+        LOG_INFO("Closing file writer");
 
-    IsOpen = false;
-
-    LOG_INFO("Closing file writer");
-
-    WaitFor(Writer->Close())
-        .ThrowOnError();
-
-    LOG_INFO("Confirming chunk");
-    auto writtenReplicas = ChunkWriter->GetWrittenChunkReplicas();
-    YCHECK(!writtenReplicas.empty());
-    {
-        auto channel = Client->GetMasterChannel(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
-        auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId));
-        *req->mutable_chunk_info() = ChunkWriter->GetChunkInfo();
-        *req->mutable_chunk_meta() = Writer->GetMasterMeta();
-        ToProto(req->mutable_replicas(), writtenReplicas);
-        GenerateMutationId(req);
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, 
-            NChunkClient::EErrorCode::MasterCommunicationFailed, 
-            "Error confirming chunk");
+        WaitFor(Writer->Close())
+            .ThrowOnError();
     }
-    LOG_INFO("Chunk confirmed");
 
     LOG_INFO("File writer closed");
 }
 
 TChunkId TFileChunkOutput::GetChunkId() const
 {
-    return ChunkId;
+    return ChunkWriter->GetChunkId();
 }
 
 i64 TFileChunkOutput::GetSize() const

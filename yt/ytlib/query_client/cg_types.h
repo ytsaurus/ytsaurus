@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "evaluation_helpers.h"
+#include "function_context.h"
 
 #include <ytlib/table_client/llvm_types.h>
 
@@ -10,6 +11,7 @@ namespace llvm {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NYT::NQueryClient::TExpressionContext;
+using NYT::NQueryClient::TFunctionContext;
 using NYT::NQueryClient::TExecutionContext;
 using NYT::NQueryClient::TRow;
 using NYT::NQueryClient::TRowHeader;
@@ -23,6 +25,11 @@ using NYT::NQueryClient::TTopCollector;
 
 template <bool Cross>
 class TypeBuilder<TExpressionContext*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<TFunctionContext*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 

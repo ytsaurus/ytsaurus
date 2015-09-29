@@ -66,22 +66,10 @@ void AttachToChunkList(
     if (childrenBegin == childrenEnd)
         return;
 
-    for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        auto* child = *it;
-        auto type = child->GetType();
-        if (type == NObjectClient::EObjectType::Chunk ||
-            type == NObjectClient::EObjectType::ErasureChunk ||
-            type == NObjectClient::EObjectType::JournalChunk)
-        {
-            child->AsChunk()->ValidateConfirmed();
-        }
-    }
-
-    chunkList->IncrementVersion();
-
     // NB: Accumulate statistics from left to right to get Sealed flag correct.
     TChunkTreeStatistics statisticsDelta;
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        chunkList->ValidateSealed();
         auto* child = *it;
         AccumulateChildStatistics(chunkList, child, &statisticsDelta);
         chunkList->Children().push_back(child);
@@ -89,13 +77,10 @@ void AttachToChunkList(
         childAction(child);
     }
 
+    chunkList->IncrementVersion();
+
     // Go upwards and apply delta.
-    VisitUniqueAncestors(
-        chunkList,
-        [&] (TChunkList* current) {
-            ++statisticsDelta.Rank;
-            current->Statistics().Accumulate(statisticsDelta);
-        });
+    AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
 }
 
 template <class F>

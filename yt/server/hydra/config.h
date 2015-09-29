@@ -39,7 +39,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default((i64) 10 * 1024 * 1024);
         RegisterParameter("flush_period", FlushPeriod)
-            .Default(TDuration::MilliSeconds(50));
+            .Default(TDuration::MilliSeconds(10));
     }
 };
 
@@ -149,6 +149,10 @@ class TDistributedHydraManagerConfig
     : public NElection::TElectionManagerConfig
 {
 public:
+    //! The maximum time interval mutations are allowed to occupy the automaton thread
+    //! before yielding control other callbacks.
+    TDuration MaxCommitBatchDuration;
+
     //! Interval between consequent lease lease checks.
     TDuration LeaderLeaseCheckPeriod;
 
@@ -216,6 +220,8 @@ public:
 
     TDistributedHydraManagerConfig()
     {
+        RegisterParameter("max_commit_batch_duration", MaxCommitBatchDuration)
+            .Default(TDuration::MilliSeconds(100));
         RegisterParameter("leader_lease_check_period", LeaderLeaseCheckPeriod)
             .Default(TDuration::Seconds(2));
         RegisterParameter("leader_lease_timeout", LeaderLeaseTimeout)

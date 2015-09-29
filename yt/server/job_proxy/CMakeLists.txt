@@ -14,7 +14,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/simple_sort_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_merge_job.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sorted_reduce_job_io.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/stderr_output.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stracer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/table_output.cpp
   ${CMAKE_CURRENT_LIST_DIR}/user_job.cpp
@@ -38,7 +37,6 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/simple_sort_job.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_merge_job.h
   ${CMAKE_CURRENT_LIST_DIR}/sorted_reduce_job_io.h
-  ${CMAKE_CURRENT_LIST_DIR}/stderr_output.h
   ${CMAKE_CURRENT_LIST_DIR}/stracer.h
   ${CMAKE_CURRENT_LIST_DIR}/table_output.h
   ${CMAKE_CURRENT_LIST_DIR}/user_job.h

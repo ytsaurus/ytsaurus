@@ -13,7 +13,6 @@
 #include <ytlib/transaction_client/transaction_manager.h>
 
 #include <ytlib/scheduler/scheduler_service.pb.h>
-#include <ytlib/scheduler/statistics.h>
 
 #include <ytlib/hydra/public.h>
 
@@ -117,12 +116,6 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    void UpdateJobStatistics(const TJobPtr& job);
-
-    void BuildJobStatistics(NYson::IYsonConsumer* consumer) const;
-
-    void UpdateControllerTimeStatistics(const NYPath::TYPath& name, TDuration value);
-
     TOperation(
         const TOperationId& operationId,
         EOperationType type,
@@ -135,7 +128,6 @@ public:
         bool suspended = false);
 
 private:
-    TAggregatedStatistics JobStatistics;
     TPromise<void> StartedPromise;
     TPromise<void> FinishedPromise;
 

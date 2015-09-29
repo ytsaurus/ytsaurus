@@ -85,6 +85,7 @@ yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     new yt.utils.TaggedLogger(logger, { wid: cluster.worker.id, pid: process.pid }),
     yt.YtRegistry.get("driver"),
     yt.YtRegistry.get("fqdn")));
+yt.YtRegistry.set("eio_watcher", new yt.YtEioWatcher(logger, config));
 
 // Hoist variable declaration.
 var application;

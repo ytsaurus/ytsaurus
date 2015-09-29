@@ -79,7 +79,7 @@ struct IOperationHost
     //! Returns the manager of the throttlers to limit #LocateChunk requests from chunk scraper.
     virtual NChunkClient::TThrottlerManagerPtr GetChunkLocationThrottlerManager() const = 0;
 
-    //! Returns the list of currently active exec nodes.
+    //! Returns the list of currently online exec nodes.
     /*!
      *  \note Thread affinity: ControlThread
      */

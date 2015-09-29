@@ -12,6 +12,7 @@ const char* GetUnaryOpcodeLexeme(EUnaryOp opcode)
         case EUnaryOp::Plus:  return "+";
         case EUnaryOp::Minus: return "-";
         case EUnaryOp::Not:   return "NOT";
+        case EUnaryOp::BitNot:return "~";
         default:              YUNREACHABLE();
     }
 }
@@ -24,6 +25,10 @@ const char* GetBinaryOpcodeLexeme(EBinaryOp opcode)
         case EBinaryOp::Multiply:       return "*";
         case EBinaryOp::Divide:         return "/";
         case EBinaryOp::Modulo:         return "%";
+        case EBinaryOp::LeftShift:      return "<<";
+        case EBinaryOp::RightShift:     return ">>";
+        case EBinaryOp::BitAnd:         return "&";
+        case EBinaryOp::BitOr:          return "|";
         case EBinaryOp::And:            return "AND";
         case EBinaryOp::Or:             return "OR";
         case EBinaryOp::Equal:          return "=";
@@ -77,6 +82,10 @@ bool IsIntegralBinaryOp(EBinaryOp opcode)
 {
     switch (opcode) {
         case EBinaryOp::Modulo:
+        case EBinaryOp::LeftShift:
+        case EBinaryOp::RightShift:
+        case EBinaryOp::BitOr:
+        case EBinaryOp::BitAnd:
             return true;
         default:
             return false;

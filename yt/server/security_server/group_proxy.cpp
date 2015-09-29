@@ -27,11 +27,6 @@ public:
 private:
     typedef TSubjectProxy<TGroup> TBase;
 
-    virtual NLogging::TLogger CreateLogger() const override
-    {
-        return SecurityServerLogger;
-    }
-
     virtual void ValidateRemoval() override
     {
         const auto* group = GetThisTypedImpl();
@@ -41,7 +36,7 @@ private:
         }
     }
 
-    virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
+    virtual void ListSystemAttributes(std::vector<NYTree::ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
         TBase::ListSystemAttributes(descriptors);
 

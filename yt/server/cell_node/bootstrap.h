@@ -43,9 +43,7 @@ namespace NCellNode {
 class TBootstrap
 {
 public:
-    TBootstrap(
-        const Stroka& configFileName,
-        TCellNodeConfigPtr config);
+    explicit TBootstrap(NYTree::INodePtr configNode);
     ~TBootstrap();
 
     TCellNodeConfigPtr GetConfig() const;
@@ -91,7 +89,8 @@ public:
     void Run();
 
 private:
-    Stroka ConfigFileName;
+    const NYTree::INodePtr ConfigNode;
+
     TCellNodeConfigPtr Config;
 
     NConcurrency::TActionQueuePtr ControlQueue;

@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include "format.h"
+
 #include <core/misc/error.h>
 
 #include <core/yson/format.h>

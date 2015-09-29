@@ -2,19 +2,20 @@
 #include "chunk_slice.h"
 #include "chunk_meta_extensions.h"
 #include "schema.h"
+#include "private.h"
 
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <core/misc/protobuf_helpers.h>
 
 #include <core/erasure/codec.h>
+#include <core/logging/log.h>
 
 #include <cmath>
 
 namespace NYT {
 namespace NChunkClient {
 
-using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 
@@ -25,31 +26,105 @@ static int DefaultPartIndex = -1;
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSlice::TChunkSlice()
-    : PartIndex(DefaultPartIndex)
+    : PartIndex_(DefaultPartIndex)
 { }
 
 TChunkSlice::TChunkSlice(const TChunkSlice& other)
-    : LowerLimit(other.LowerLimit)
-    , UpperLimit(other.UpperLimit)
+    : ChunkSpec_(other.ChunkSpec_)
+    , PartIndex_(other.PartIndex_)
+    , LowerLimit_(other.LowerLimit_)
+    , UpperLimit_(other.UpperLimit_)
 {
-    ChunkSpec = other.ChunkSpec;
-    PartIndex = other.PartIndex;
-    SizeOverrideExt.CopyFrom(other.SizeOverrideExt);
+    SizeOverrideExt_.CopyFrom(other.SizeOverrideExt_);
 }
 
 TChunkSlice::TChunkSlice(TChunkSlice&& other)
-    : LowerLimit(other.LowerLimit)
-    , UpperLimit(other.UpperLimit)
+    : ChunkSpec_(std::move(other.ChunkSpec_))
+    , PartIndex_(other.PartIndex_)
+    , LowerLimit_(std::move(other.LowerLimit_))
+    , UpperLimit_(std::move(other.UpperLimit_))
 {
-    ChunkSpec = std::move(other.ChunkSpec);
-
-    PartIndex = other.PartIndex;
-    other.PartIndex = DefaultPartIndex;
-    SizeOverrideExt.Swap(&other.SizeOverrideExt);
+    SizeOverrideExt_.Swap(&other.SizeOverrideExt_);
+    other.PartIndex_ = DefaultPartIndex;
 }
 
-TChunkSlice::~TChunkSlice()
-{ }
+TChunkSlice::TChunkSlice(
+    TRefCountedChunkSpecPtr chunkSpec,
+    const TNullable<NTableClient::TOwningKey>& lowerKey,
+    const TNullable<NTableClient::TOwningKey>& upperKey)
+    : ChunkSpec_(chunkSpec)
+    , PartIndex_(DefaultPartIndex)
+{
+    i64 dataSize;
+    i64 rowCount;
+    GetStatistics(*chunkSpec, &dataSize, &rowCount);
+
+    SizeOverrideExt_.set_uncompressed_data_size(dataSize);
+    SizeOverrideExt_.set_row_count(rowCount);
+
+    if (chunkSpec->has_lower_limit()) {
+        LowerLimit_ = chunkSpec->lower_limit();
+    }
+
+    if (chunkSpec->has_upper_limit()) {
+        UpperLimit_ = chunkSpec->upper_limit();
+    }
+
+    if (lowerKey && (!LowerLimit_.HasKey() || LowerLimit_.GetKey() < *lowerKey)) {
+        LowerLimit_.SetKey(*lowerKey);
+    }
+
+    if (upperKey && (!UpperLimit_.HasKey() || UpperLimit_.GetKey() > *upperKey)) {
+        UpperLimit_.SetKey(*upperKey);
+    }
+}
+
+TChunkSlice::TChunkSlice(
+    TRefCountedChunkSpecPtr chunkSpec,
+    int partIndex,
+    i64 lowerRowIndex,
+    i64 upperRowIndex,
+    i64 dataSize)
+    : ChunkSpec_(chunkSpec)
+    , PartIndex_(partIndex)
+{
+    if (chunkSpec->has_lower_limit()) {
+        LowerLimit_ = chunkSpec->lower_limit();
+    }
+
+    if (chunkSpec->has_upper_limit()) {
+        UpperLimit_ = chunkSpec->upper_limit();
+    }
+
+    if (!LowerLimit_.HasRowIndex() || LowerLimit_.GetRowIndex() < lowerRowIndex) {
+        LowerLimit_.SetRowIndex(lowerRowIndex);
+    }
+
+    if (!UpperLimit_.HasRowIndex() || UpperLimit_.GetRowIndex() > upperRowIndex) {
+        UpperLimit_.SetRowIndex(upperRowIndex);
+    }
+
+    SizeOverrideExt_.set_row_count(UpperLimit_.GetRowIndex() - LowerLimit_.GetRowIndex());
+    SizeOverrideExt_.set_uncompressed_data_size(dataSize);
+}
+
+TChunkSlice::TChunkSlice(
+    TRefCountedChunkSpecPtr chunkSpec,
+    const NProto::TChunkSlice& protoChunkSlice)
+    : ChunkSpec_(chunkSpec)
+    , PartIndex_(protoChunkSlice.part_index())
+    , LowerLimit_(protoChunkSlice.lower_limit())
+    , UpperLimit_(protoChunkSlice.upper_limit())
+    , SizeOverrideExt_(protoChunkSlice.size_override_ext())
+{
+    // merge limits
+    if (chunkSpec->has_lower_limit()) {
+        LowerLimit_.MergeLowerLimit(chunkSpec->lower_limit());
+    }
+    if (chunkSpec->has_upper_limit()) {
+        LowerLimit_.MergeUpperLimit(chunkSpec->upper_limit());
+    }
+}
 
 std::vector<TChunkSlicePtr> TChunkSlice::SliceEvenly(i64 sliceDataSize) const
 {
@@ -61,21 +136,21 @@ std::vector<TChunkSlicePtr> TChunkSlice::SliceEvenly(i64 sliceDataSize) const
     i64 rowCount = GetRowCount();
 
     // Inclusive.
-    i64 LowerRowIndex = LowerLimit.HasRowIndex() ? LowerLimit.GetRowIndex() : 0;
-    i64 UpperRowIndex = UpperLimit.HasRowIndex() ? UpperLimit.GetRowIndex() : rowCount;
+    i64 LowerRowIndex = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
+    i64 UpperRowIndex = UpperLimit_.HasRowIndex() ? UpperLimit_.GetRowIndex() : rowCount;
 
     rowCount = UpperRowIndex - LowerRowIndex;
-    int count = std::ceil((double)dataSize / (double)sliceDataSize);
+    int count = (dataSize + sliceDataSize - 1) / sliceDataSize;
 
     for (int i = 0; i < count; ++i) {
         i64 sliceLowerRowIndex = LowerRowIndex + rowCount * i / count;
         i64 sliceUpperRowIndex = LowerRowIndex + rowCount * (i + 1) / count;
         if (sliceLowerRowIndex < sliceUpperRowIndex) {
             auto chunkSlice = New<TChunkSlice>(*this);
-            chunkSlice->LowerLimit.SetRowIndex(sliceLowerRowIndex);
-            chunkSlice->UpperLimit.SetRowIndex(sliceUpperRowIndex);
-            chunkSlice->SizeOverrideExt.set_row_count(sliceUpperRowIndex - sliceLowerRowIndex);
-            chunkSlice->SizeOverrideExt.set_uncompressed_data_size((dataSize + count - 1) / count);
+            chunkSlice->LowerLimit_.SetRowIndex(sliceLowerRowIndex);
+            chunkSlice->UpperLimit_.SetRowIndex(sliceUpperRowIndex);
+            chunkSlice->SetRowCount(sliceUpperRowIndex - sliceLowerRowIndex);
+            chunkSlice->SetDataSize((dataSize + count - 1) / count);
             result.emplace_back(std::move(chunkSlice));
         }
     }
@@ -87,51 +162,99 @@ i64 TChunkSlice::GetLocality(int replicaPartIndex) const
 {
     i64 result = GetDataSize();
 
-    if (PartIndex == DefaultPartIndex) {
+    if (PartIndex_ == DefaultPartIndex) {
         // For erasure chunks without specified part index,
         // data size is assumed to be split evenly between data parts.
-        auto codecId = NErasure::ECodec(ChunkSpec->erasure_codec());
+        auto codecId = NErasure::ECodec(ChunkSpec_->erasure_codec());
         if (codecId != NErasure::ECodec::None) {
             auto* codec = NErasure::GetCodec(codecId);
             int dataPartCount = codec->GetDataPartCount();
             result = (result + dataPartCount - 1) / dataPartCount;
         }
-    } else if (PartIndex != replicaPartIndex) {
+    } else if (PartIndex_ != replicaPartIndex) {
         result = 0;
     }
 
     return result;
 }
 
-TRefCountedChunkSpecPtr TChunkSlice::GetChunkSpec() const
+TRefCountedChunkSpecPtr TChunkSlice::ChunkSpec() const
 {
-    return ChunkSpec;
+    return ChunkSpec_;
+}
+
+int TChunkSlice::GetPartIndex() const
+{
+    return PartIndex_;
+}
+
+const TReadLimit& TChunkSlice::LowerLimit() const
+{
+    return LowerLimit_;
+}
+
+const TReadLimit& TChunkSlice::UpperLimit() const
+{
+    return UpperLimit_;
+}
+
+const NProto::TSizeOverrideExt& TChunkSlice::SizeOverrideExt() const
+{
+    return SizeOverrideExt_;
 }
 
 i64 TChunkSlice::GetMaxBlockSize() const
 {
-    auto miscExt = GetProtoExtension<TMiscExt>(ChunkSpec->chunk_meta().extensions());
+    auto miscExt = GetProtoExtension<NProto::TMiscExt>(ChunkSpec_->chunk_meta().extensions());
     return miscExt.max_block_size();
 }
 
 i64 TChunkSlice::GetDataSize() const
 {
-    return SizeOverrideExt.uncompressed_data_size();
+    return SizeOverrideExt_.uncompressed_data_size();
 }
 
 i64 TChunkSlice::GetRowCount() const
 {
-    return SizeOverrideExt.row_count();
+    return SizeOverrideExt_.row_count();
+}
+
+void TChunkSlice::SetDataSize(i64 dataSize)
+{
+    SizeOverrideExt_.set_uncompressed_data_size(dataSize);
+}
+
+void TChunkSlice::SetRowCount(i64 rowCount)
+{
+    SizeOverrideExt_.set_row_count(rowCount);
+}
+
+void TChunkSlice::SetLowerRowIndex(i64 lowerRowIndex)
+{
+    if (!LowerLimit_.HasRowIndex() || LowerLimit_.GetRowIndex() < lowerRowIndex) {
+        LowerLimit_.SetRowIndex(lowerRowIndex);
+    }
+}
+
+void TChunkSlice::SetKeys(const NTableClient::TOwningKey& lowerKey, const NTableClient::TOwningKey& upperKey)
+{
+    if (!LowerLimit_.HasKey() || LowerLimit_.GetKey() < lowerKey) {
+        LowerLimit_.SetKey(lowerKey);
+    }
+
+    if (!UpperLimit_.HasKey() || UpperLimit_.GetKey() > upperKey) {
+        UpperLimit_.SetKey(upperKey);
+    }
 }
 
 void TChunkSlice::Persist(NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, ChunkSpec);
-    Persist(context, PartIndex);
-    Persist(context, LowerLimit);
-    Persist(context, UpperLimit);
-    Persist(context, SizeOverrideExt);
+    Persist(context, ChunkSpec_);
+    Persist(context, PartIndex_);
+    Persist(context, LowerLimit_);
+    Persist(context, UpperLimit_);
+    Persist(context, SizeOverrideExt_);
 }
 
 TChunkSlicePtr CreateChunkSlice(
@@ -139,33 +262,14 @@ TChunkSlicePtr CreateChunkSlice(
     const TNullable<NTableClient::TOwningKey>& lowerKey,
     const TNullable<NTableClient::TOwningKey>& upperKey)
 {
-    i64 dataSize;
-    i64 rowCount;
-    GetStatistics(*chunkSpec, &dataSize, &rowCount);
+    return New<TChunkSlice>(chunkSpec, lowerKey, upperKey);
+}
 
-    auto result = New<TChunkSlice>();
-    result->ChunkSpec = chunkSpec;
-    result->SizeOverrideExt.set_uncompressed_data_size(dataSize);
-    result->SizeOverrideExt.set_row_count(rowCount);
-    result->PartIndex = DefaultPartIndex;
-
-    if (chunkSpec->has_lower_limit()) {
-        result->LowerLimit = chunkSpec->lower_limit();
-    }
-
-    if (chunkSpec->has_upper_limit()) {
-        result->UpperLimit = chunkSpec->upper_limit();
-    }
-
-    if (lowerKey && (!result->LowerLimit.HasKey() || result->LowerLimit.GetKey() < *lowerKey)) {
-        result->LowerLimit.SetKey(*lowerKey);
-    }
-
-    if (upperKey && (!result->UpperLimit.HasKey() || result->UpperLimit.GetKey() > *upperKey)) {
-        result->UpperLimit.SetKey(*upperKey);
-    }
-
-    return result;
+TChunkSlicePtr CreateChunkSlice(
+    TRefCountedChunkSpecPtr chunkSpec,
+    const NProto::TChunkSlice& protoChunkSlice)
+{
+    return New<TChunkSlice>(chunkSpec, protoChunkSlice);
 }
 
 std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
@@ -185,13 +289,12 @@ std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
         i64 sliceLowerRowIndex = rowCount * partIndex / dataPartCount;
         i64 sliceUpperRowIndex = rowCount * (partIndex + 1) / dataPartCount;
         if (sliceLowerRowIndex < sliceUpperRowIndex) {
-            auto slicedChunk = New<TChunkSlice>();
-            slicedChunk->ChunkSpec = chunkSpec;
-            slicedChunk->PartIndex = partIndex;
-            slicedChunk->LowerLimit.SetRowIndex(sliceLowerRowIndex);
-            slicedChunk->UpperLimit.SetRowIndex(sliceUpperRowIndex);
-            slicedChunk->SizeOverrideExt.set_row_count(sliceUpperRowIndex - sliceLowerRowIndex);
-            slicedChunk->SizeOverrideExt.set_uncompressed_data_size((dataSize + dataPartCount - 1) / dataPartCount);
+            auto slicedChunk = New<TChunkSlice>(
+                chunkSpec,
+                partIndex,
+                sliceLowerRowIndex,
+                sliceUpperRowIndex,
+                (dataSize + dataPartCount - 1) / dataPartCount);
             slices.emplace_back(std::move(slicedChunk));
         }
     }
@@ -199,15 +302,15 @@ std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
     return slices;
 }
 
-std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(TRefCountedChunkSpecPtr chunkSpec, i64 maxSliceSize)
+std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(TRefCountedChunkSpecPtr chunkSpec, i64 sliceDataSize)
 {
-    return CreateChunkSlice(chunkSpec)->SliceEvenly(maxSliceSize);
+    return CreateChunkSlice(chunkSpec)->SliceEvenly(sliceDataSize);
 }
 
 std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
-    TRefCountedChunkSpecPtr chunkSpec, 
-    int keyColumnCount, 
-    i64 maxSliceSize)
+    TRefCountedChunkSpecPtr chunkSpec,
+    i64 sliceDataSize,
+    int keyColumnCount)
 {
     const auto& meta = chunkSpec->chunk_meta();
 
@@ -219,8 +322,8 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
 
     auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta.extensions());
     if (blockMetaExt.blocks_size() == 1) {
-        // Only one block available - no need to split.
-        return { CreateChunkSlice(chunkSpec, lowerKey, upperKey) };
+        // Only one block available - no need to slice.
+        return { New<TChunkSlice>(chunkSpec, lowerKey, upperKey) };
     }
 
     std::vector<TOwningKey> indexKeys(blockMetaExt.blocks_size(), TOwningKey());
@@ -248,8 +351,8 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
 
         if (limit.HasKey()) {
             result += CompareRows(
-                limit.GetKey(), 
-                indexKeys[blockMeta.block_index()], 
+                limit.GetKey(),
+                indexKeys[blockMeta.block_index()],
                 keyColumnCount);
         }
 
@@ -278,7 +381,7 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
 
     if (std::distance(beginIt, endIt) < 2) {
         // Too small distance between given read limits.
-        return { CreateChunkSlice(chunkSpec, lowerKey, upperKey) };
+        return { New<TChunkSlice>(chunkSpec, lowerKey, upperKey) };
     }
 
     std::vector<TChunkSlicePtr> slices;
@@ -299,16 +402,16 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
             continue;
         }
 
-        if (dataSize > maxSliceSize) {
+        if (dataSize > sliceDataSize) {
             // Sanity check.
             YCHECK(CompareRows(lowerKey, key) <= 0);
-    
+
             i64 endRowIndex = currentIt->chunk_row_count();
             key = GetKeyPrefixSuccessor(key.Get(), keyColumnCount);
 
-            auto slice = CreateChunkSlice(chunkSpec, lowerKey, key);
-            slice->SizeOverrideExt.set_row_count(endRowIndex - startRowIndex);
-            slice->SizeOverrideExt.set_uncompressed_data_size(dataSize);
+            auto slice = New<TChunkSlice>(chunkSpec, lowerKey, key);
+            slice->SetRowCount(endRowIndex - startRowIndex);
+            slice->SetDataSize(dataSize);
             slices.emplace_back(std::move(slice));
 
             lowerKey = key;
@@ -319,18 +422,18 @@ std::vector<TChunkSlicePtr> SliceNewChunkByKeys(
 
     YCHECK(CompareRows(lowerKey, upperKey) <= 0);
     i64 endRowIndex = (--endIt)->chunk_row_count();
-    auto slice = CreateChunkSlice(chunkSpec, lowerKey, upperKey);
-    slice->SizeOverrideExt.set_row_count(endRowIndex - startRowIndex);
-    slice->SizeOverrideExt.set_uncompressed_data_size(dataSize);
+    auto slice = New<TChunkSlice>(chunkSpec, lowerKey, upperKey);
+    slice->SetRowCount(endRowIndex - startRowIndex);
+    slice->SetDataSize(dataSize);
     slices.emplace_back(std::move(slice));
 
     return slices;
 }
 
 std::vector<TChunkSlicePtr> SliceOldChunkByKeys(
-    TRefCountedChunkSpecPtr chunkSpec, 
-    int keyColumnCount, 
-    i64 maxSliceSize)
+    TRefCountedChunkSpecPtr chunkSpec,
+    i64 sliceDataSize,
+    int keyColumnCount)
 {
     const auto& meta = chunkSpec->chunk_meta();
 
@@ -341,11 +444,11 @@ std::vector<TChunkSlicePtr> SliceOldChunkByKeys(
 
     auto indexExt = GetProtoExtension<TIndexExt>(meta.extensions());
     if (indexExt.items_size() == 1) {
-        // Only one index entry available - no need to split.
-        return { CreateChunkSlice(chunkSpec, lowerKey, upperKey) };
+        // Only one index entry available - no need to slice.
+        return { New<TChunkSlice>(chunkSpec, lowerKey, upperKey) };
     }
 
-    auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+    auto miscExt = GetProtoExtension<NProto::TMiscExt>(meta.extensions());
     i64 dataSizeBetweenSamples = miscExt.uncompressed_data_size() / indexExt.items_size();
     YCHECK(dataSizeBetweenSamples > 0);
 
@@ -397,7 +500,7 @@ std::vector<TChunkSlicePtr> SliceOldChunkByKeys(
 
     if (std::distance(beginIt, endIt) < 2) {
         // Too small distance between given read limits.
-        return { CreateChunkSlice(chunkSpec, lowerKey, upperKey) };
+        return { New<TChunkSlice>(chunkSpec, lowerKey, upperKey) };
     }
 
     std::vector<TChunkSlicePtr> slices;
@@ -420,16 +523,16 @@ std::vector<TChunkSlicePtr> SliceOldChunkByKeys(
             continue;
         }
 
-        if (dataSize > maxSliceSize) {
+        if (dataSize > sliceDataSize) {
             // Sanity check.
             YCHECK(CompareRows(lowerKey, key, keyColumnCount) <= 0);
-    
+
             i64 endRowIndex = beginIt->row_index();
             key = GetKeyPrefixSuccessor(key.Get(), keyColumnCount);
 
-            auto slice = CreateChunkSlice(chunkSpec, lowerKey, key);
-            slice->SizeOverrideExt.set_row_count(endRowIndex - startRowIndex);
-            slice->SizeOverrideExt.set_uncompressed_data_size(dataSize);
+            auto slice = New<TChunkSlice>(chunkSpec, lowerKey, key);
+            slice->SetRowCount(endRowIndex - startRowIndex);
+            slice->SetDataSize(dataSize);
             slices.emplace_back(std::move(slice));
 
             lowerKey = key;
@@ -441,18 +544,18 @@ std::vector<TChunkSlicePtr> SliceOldChunkByKeys(
     // Sanity check.
     YCHECK (CompareRows(lowerKey, upperKey, keyColumnCount) <= 0);
     i64 endRowIndex = (--endIt)->row_index();
-    auto slice = CreateChunkSlice(chunkSpec, lowerKey, upperKey);
-    slice->SizeOverrideExt.set_row_count(endRowIndex - startRowIndex);
-    slice->SizeOverrideExt.set_uncompressed_data_size(dataSize);
+    auto slice = New<TChunkSlice>(chunkSpec, lowerKey, upperKey);
+    slice->SetRowCount(endRowIndex - startRowIndex);
+    slice->SetDataSize(dataSize);
     slices.emplace_back(std::move(slice));
-    
+
     return slices;
 }
 
 std::vector<TChunkSlicePtr> SliceChunkByKeys(
-    TRefCountedChunkSpecPtr chunkSpec, 
-    int keyColumnCount, 
-    i64 maxSliceSize)
+    TRefCountedChunkSpecPtr chunkSpec,
+    i64 sliceDataSize,
+    int keyColumnCount)
 {
     const auto& meta = chunkSpec->chunk_meta();
     auto chunkFormat = ETableChunkFormat(meta.version());
@@ -460,14 +563,14 @@ std::vector<TChunkSlicePtr> SliceChunkByKeys(
         case ETableChunkFormat::Old:
             return SliceOldChunkByKeys(
                 chunkSpec,
-                maxSliceSize,
+                sliceDataSize,
                 keyColumnCount);
 
         case ETableChunkFormat::SchemalessHorizontal:
         case ETableChunkFormat::VersionedSimple:
             return SliceNewChunkByKeys(
                 chunkSpec,
-                maxSliceSize,
+                sliceDataSize,
                 keyColumnCount);
 
         default: {
@@ -480,29 +583,41 @@ std::vector<TChunkSlicePtr> SliceChunkByKeys(
     }
 }
 
-void ToProto(TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice)
 {
-    chunkSpec->CopyFrom(*chunkSlice.ChunkSpec);
+    chunkSpec->CopyFrom(*chunkSlice.ChunkSpec());
 
-    if (IsNontrivial(chunkSlice.LowerLimit)) {
-        ToProto(chunkSpec->mutable_lower_limit(), chunkSlice.LowerLimit);
+    if (IsNontrivial(chunkSlice.LowerLimit())) {
+        ToProto(chunkSpec->mutable_lower_limit(), chunkSlice.LowerLimit());
     }
 
-    if (IsNontrivial(chunkSlice.UpperLimit)) {
-        ToProto(chunkSpec->mutable_upper_limit(), chunkSlice.UpperLimit);
+    if (IsNontrivial(chunkSlice.UpperLimit())) {
+        ToProto(chunkSpec->mutable_upper_limit(), chunkSlice.UpperLimit());
     }
 
-    SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), chunkSlice.SizeOverrideExt);
+    SetProtoExtension(chunkSpec->mutable_chunk_meta()->mutable_extensions(), chunkSlice.SizeOverrideExt());
 
     // NB(psushin): probably, #ToProto should never ever filter anything...
-    // ToDo(psushin): get rid of this after refactoring get of GetChunkSplits.
+    // ToDo(psushin): get rid of this after refactoring get of GetChunkSlices.
     std::vector<int> extensionTags = {
-        TProtoExtensionTag<TMiscExt>::Value,
+        TProtoExtensionTag<NProto::TMiscExt>::Value,
         TProtoExtensionTag<TBoundaryKeysExt>::Value,
         TProtoExtensionTag<TOldBoundaryKeysExt>::Value,
-        TProtoExtensionTag<TSizeOverrideExt>::Value };
+        TProtoExtensionTag<NProto::TSizeOverrideExt>::Value };
     auto filteredMeta = FilterChunkMetaByExtensionTags(chunkSpec->chunk_meta(), extensionTags);
     *chunkSpec->mutable_chunk_meta() = filteredMeta;
+}
+
+void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice)
+{
+    protoChunkSlice->set_part_index(chunkSlice.GetPartIndex());
+    if (IsNontrivial(chunkSlice.LowerLimit())) {
+        ToProto(protoChunkSlice->mutable_lower_limit(), chunkSlice.LowerLimit());
+    }
+    if (IsNontrivial(chunkSlice.UpperLimit())) {
+        ToProto(protoChunkSlice->mutable_upper_limit(), chunkSlice.UpperLimit());
+    }
+    protoChunkSlice->mutable_size_override_ext()->CopyFrom(chunkSlice.SizeOverrideExt());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

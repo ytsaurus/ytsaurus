@@ -212,14 +212,14 @@ public:
     virtual double GetProgress() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
-        return Progress_;
+        return Progress;
     }
 
     virtual void SetProgress(double value) override
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (JobState == EJobState::Running) {
-            Progress_ = value;
+            Progress = value;
         }
     }
 
@@ -233,7 +233,7 @@ public:
         return jobProberProxy;
     }
 
-    virtual void SetStatistics(const TYsonString& statistics) override
+    virtual void SetStatistics(const NJobTrackerClient::NProto::TStatistics& statistics) override
     {
         TGuard<TSpinLock> guard(SpinLock);
         if (JobState == EJobState::Running) {
@@ -279,8 +279,8 @@ private:
 
     TCancelableContextPtr CancelableContext = New<TCancelableContext>();
 
-    double Progress_ = 0.0;
-    TYsonString Statistics = SerializedEmptyStatistics;
+    double Progress = 0.0;
+    NJobTrackerClient::NProto::TStatistics Statistics;
 
     TNullable<TJobResult> JobResult;
 
@@ -347,7 +347,7 @@ private:
     {
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
-        ToProto(jobResult.mutable_statistics(), Statistics.Data());
+        *jobResult.mutable_statistics() = Statistics;
         DoSetResult(jobResult);
     }
 
@@ -462,14 +462,14 @@ private:
         if (schedulerJobSpecExt.has_user_job_spec()) {
             const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
             for (const auto& descriptor : userJobSpec.files()) {
-                PrepareFile(ESandboxIndex::User, descriptor);
+                PrepareFile(ESandboxKind::User, descriptor);
             }
         }
 
         if (schedulerJobSpecExt.has_input_query_spec()) {
             const auto& querySpec = schedulerJobSpecExt.input_query_spec();
             for (const auto& descriptor : querySpec.udf_files()) {
-                PrepareFile(ESandboxIndex::Udf, descriptor);
+                PrepareFile(ESandboxKind::Udf, descriptor);
             }
         }
     }
@@ -542,7 +542,7 @@ private:
         FinalizeJob();
     }
 
-    void PrepareFile(ESandboxIndex sandboxIndex, const TFileDescriptor& descriptor)
+    void PrepareFile(ESandboxKind sandboxKind, const TFileDescriptor& descriptor)
     {
         const auto& fileName = descriptor.file_name();
         LOG_INFO("Preparing user file (FileName: %v)",
@@ -564,7 +564,7 @@ private:
 
         try {
             Slot->MakeLink(
-                sandboxIndex,
+                sandboxKind,
                 chunk->GetFileName(),
                 fileName,
                 descriptor.executable());

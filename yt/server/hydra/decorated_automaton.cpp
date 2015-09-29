@@ -28,6 +28,7 @@
 #include <util/random/random.h>
 
 #include <util/system/file.h>
+#include <core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NHydra {
@@ -696,7 +697,9 @@ void TDecoratedAutomaton::Clear()
 
     Automaton_->Clear();
     Reset();
+    AutomatonVersion_ = TVersion();
     CommittedVersion_ = TVersion();
+    ApplyPendingMutationsScheduled_ = false;
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -885,18 +888,40 @@ void TDecoratedAutomaton::DoRotateChangelog()
     LOG_INFO("Changelog rotated");
 }
 
-void TDecoratedAutomaton::CommitMutations(TVersion version)
+void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersion version)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    LOG_DEBUG("Applying mutations upto version %v",
+    if (version < CommittedVersion_)
+        return;
+
+    CommittedVersion_ = version;
+
+    LOG_DEBUG("Committed version promoted to %v",
         version);
 
+    if (!ApplyPendingMutationsScheduled_) {
+        ApplyPendingMutations(std::move(epochContext));
+    }
+}
+
+void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
+{
+    ApplyPendingMutationsScheduled_ = false;
+
+    NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
             auto& pendingMutation = PendingMutations_.front();
-            if (pendingMutation.Version >= version)
+            if (pendingMutation.Version >= CommittedVersion_)
                 break;
+
+            if (timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
+                ApplyPendingMutationsScheduled_ = true;
+                epochContext->EpochUserAutomatonInvoker->Invoke(
+                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
+                break;
+            }
 
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 

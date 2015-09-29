@@ -17,7 +17,7 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
     const NLogging::TLogger& logger,
     int protocolVersion)
     : THydraServiceBase(
-        bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(),
+        bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::RpcService),
         NRpc::TServiceId(serviceName, bootstrap->GetCellId()),
         logger,
         protocolVersion)

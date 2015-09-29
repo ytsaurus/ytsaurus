@@ -870,8 +870,9 @@ void ValidateReadTimestamp(TTimestamp timestamp)
 
 TOwningKey GetKeySuccessorImpl(TKey key, int prefixLength, EValueType sentinelType)
 {
-    TUnversionedOwningRowBuilder builder(key.GetCount() + 1);
-    for (int index = 0; index < prefixLength; ++index) {
+    auto length = std::min(prefixLength, key.GetCount());
+    TUnversionedOwningRowBuilder builder(length + 1);
+    for (int index = 0; index < length; ++index) {
         builder.AddValue(key[index]);
     }
     builder.AddValue(MakeUnversionedSentinelValue(sentinelType));
@@ -888,7 +889,6 @@ TOwningKey GetKeySuccessor(TKey key)
 
 TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
 {
-    YASSERT(prefixLength <= key.GetCount());
     return GetKeySuccessorImpl(
         key,
         prefixLength,
