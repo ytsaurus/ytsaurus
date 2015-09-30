@@ -43,11 +43,11 @@ struct IHydraManager
      */
     virtual EPeerState GetAutomatonState() const = 0;
 
-    //! Returns the current committed version.
+    //! Returns the current automaton version.
     /*!
      *  \note Thread affinity: AutomatonThread
      */
-    virtual TVersion GetCommittedVersion() const = 0;
+    virtual TVersion GetAutomatonVersion() const = 0;
 
     //! Returns a wrapper invoker used for accessing the automaton.
     /*!

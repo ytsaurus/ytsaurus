@@ -61,7 +61,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto currentVersion = DecoratedAutomaton_->GetCommittedVersion();
+    auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     YCHECK(currentVersion <= targetVersion);
 
     int snapshotId = InvalidSegmentId;
@@ -113,7 +113,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
             .ValueOrThrow();
         if (!changelog) {
-            auto currentVersion = DecoratedAutomaton_->GetCommittedVersion();
+            auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
 
             LOG_INFO("Changelog %v is missing and will be created at version %v",
                 changelogId,
@@ -205,7 +205,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto currentVersion = DecoratedAutomaton_->GetCommittedVersion();
+    auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
     LOG_INFO("Replaying changelog %v from version %v to version %v",
         changelogId,
         currentVersion,
@@ -229,7 +229,7 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     }
 
     while (true) {
-        int startRecordId = DecoratedAutomaton_->GetCommittedVersion().RecordId;
+        int startRecordId = DecoratedAutomaton_->GetAutomatonVersion().RecordId;
         int recordsNeeded = targetRecordId - startRecordId;
         YCHECK(recordsNeeded >= 0);
         if (recordsNeeded == 0)

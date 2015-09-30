@@ -247,11 +247,11 @@ public:
         return DecoratedAutomaton_->GetState();
     }
 
-    virtual TVersion GetCommittedVersion() const override
+    virtual TVersion GetAutomatonVersion() const override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return DecoratedAutomaton_->GetCommittedVersion();
+        return DecoratedAutomaton_->GetAutomatonVersion();
     }
 
     virtual IInvokerPtr CreateGuardedAutomatonInvoker(IInvokerPtr underlyingInvoker) override
@@ -343,6 +343,7 @@ public:
                 .BeginMap()
                     .Item("state").Value(ControlState_)
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
+                    .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
                     .Item("active_leader").Value(IsActiveLeader())
