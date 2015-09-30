@@ -1557,17 +1557,20 @@ private:
         }
     }
 
+    void IncreaseRunningOperationCount(TCompositeSchedulerElement* element, int delta)
+    {
+        while (element) {
+            RunningOperationCount[element->GetId()] += delta;
+            element = element->GetParent();
+        }
+    }
+
     void ActivateOperation(TOperationPtr operation)
     {
         auto operationElement = GetOperationElement(operation);
         auto pool = operationElement->GetPool();
         pool->EnableChild(operationElement);
-
-        TCompositeSchedulerElement* element = pool;
-        while (element) {
-            RunningOperationCount[element->GetId()] += 1;
-            element = element->GetParent();
-        }
+        IncreaseRunningOperationCount(pool, 1);
 
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
             operation->GetId(),
@@ -1601,11 +1604,7 @@ private:
         }
 
         if (!IsPending) {
-            TCompositeSchedulerElement* element = pool;
-            while (element) {
-                RunningOperationCount[element->GetId()] -= 1;
-                element = element->GetParent();
-            }
+            IncreaseRunningOperationCount(pool, -1);
 
             // Try to run operations from queue.
             auto it = OperationQueue.begin();
@@ -1727,6 +1726,7 @@ private:
         auto* oldParent = pool->GetParent();
         if (oldParent) {
             oldParent->IncreaseUsage(-pool->ResourceUsage());
+            IncreaseRunningOperationCount(oldParent, -RunningOperationCount[pool->GetId()]);
             oldParent->RemoveChild(pool);
         }
 
@@ -1734,6 +1734,7 @@ private:
         if (parent) {
             parent->AddChild(pool);
             parent->IncreaseUsage(pool->ResourceUsage());
+            IncreaseRunningOperationCount(parent.Get(), RunningOperationCount[pool->GetId()]);
 
             LOG_INFO("Set parent pool (Pool: %v, Parent: %v)",
                 pool->GetId(),
