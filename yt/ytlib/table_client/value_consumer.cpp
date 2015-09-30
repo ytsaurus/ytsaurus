@@ -65,6 +65,7 @@ void TBuildingValueConsumer::OnBeginRow()
 
 TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedValue& value)
 {
+    ValueWriter_.Reset();
     switch (value.Type) {
         case EValueType::Int64:
             ValueWriter_.OnInt64Scalar(value.Data.Int64);
