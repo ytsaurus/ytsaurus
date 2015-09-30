@@ -1118,15 +1118,20 @@ private:
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
         auto transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
-
         if (transaction->GetPersistentState() != ETransactionState::Active) {
             transaction->ThrowInvalidState();
         }
 
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+
         for (const auto& exportData : request.chunks()) {
             auto chunkId = FromProto<TChunkId>(exportData.id());
             auto* chunk = GetChunkOrThrow(chunkId);
+
             auto cellTag = exportData.destination_cell_tag();
+            if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
+                THROW_ERROR_EXCEPTION("Cell %v is not registered");
+            }
 
             transactionManager->ExportObject(transaction, chunk, cellTag);
 
