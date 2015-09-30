@@ -3,7 +3,7 @@
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
 from yt.wrapper.http import get_api_version
-from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, MB
+from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper as yt
 import yt.yson as yson
@@ -148,7 +148,10 @@ class ParseStructuredArguments(Action):
 
 class ParseStructuredArgument(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, parse_arguments(values))
+        # Multiple times specified arguments are merged into single dict.
+        old_value = get_value(getattr(namespace, self.dest), {})
+        new_value = update(old_value, parse_arguments(values))
+        setattr(namespace, self.dest, new_value)
 
 class ParseStructuredData(Action):
     def __call__(self, parser, namespace, values, option_string=None):
