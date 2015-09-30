@@ -17,6 +17,8 @@ public:
 
     static TIODispatcher* Get();
 
+    static void StaticShutdown();
+
     virtual void Shutdown() override;
 
 private:

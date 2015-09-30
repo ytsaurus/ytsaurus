@@ -40,7 +40,7 @@ public:
 
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
-    void OnNodeRemoved(TNode* node);
+    void OnNodeDisposed(TNode* node);
 
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostChunks);
     DEFINE_BYREF_RO_PROPERTY(yhash_set<TChunk*>, LostVitalChunks);

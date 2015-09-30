@@ -15,6 +15,16 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTransaction::TExportEntry::Persist(NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Object);
+    Persist(context, DestinationCellTag);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTransaction::TTransaction(const TTransactionId& id)
     : TNonversionedObjectBase(id)
     , AccountingEnabled_(true)

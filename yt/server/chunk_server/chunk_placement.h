@@ -27,7 +27,7 @@ public:
     void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
     void OnNodeUpdated(TNode* node);
-    void OnNodeRemoved(TNode* node);
+    void OnNodeDisposed(TNode* node);
 
     double GetFillFactor(TNode* node) const;
 

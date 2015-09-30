@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import yt.logger as logger
 import yt.wrapper as yt
 

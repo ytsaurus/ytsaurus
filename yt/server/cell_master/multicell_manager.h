@@ -58,17 +58,23 @@ public:
         TSharedRefArray requestMessage,
         bool reliable = true);
 
-    //! Returns |true| if there is a registered secondary master with a given cell tag.
-    bool IsRegisteredSecondaryMaster(NObjectClient::TCellTag cellTag);
+    //! Returns |true| if there is a registered master cell with a given cell tag.
+    bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag);
 
-    //! Returns the list of cell tags for all registered secondary masters,
+    //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
-    std::vector<NObjectClient::TCellTag> GetRegisteredSecondaryMasterCellTags();
+    /*!
+     *  For secondary masters, the primary master is always the first element.
+     */
+    std::vector<NObjectClient::TCellTag> GetRegisteredMasterCellTags();
 
-    //! Picks a random (but deterministically chosen) secondary cell for
-    //! a new chunk owner. Cells with less-than-average number of chunks are preferred.
+    //! Returns a stable index of a given (registered) master cell (other than the local one).
+    int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag);
+
+    //! Picks a random (but deterministically chosen) secondary master cell for
+    //! a new chunk owner node. Cells with less-than-average number of chunks are preferred.
     //! If no secondary cells are registered then #InvalidCellTag is returned.
-    NObjectClient::TCellTag PickCellForNode();
+    NObjectClient::TCellTag PickSecondaryMasterCell();
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
 

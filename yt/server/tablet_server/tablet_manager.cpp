@@ -901,8 +901,7 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
-        const auto& statistics = node->Statistics();
-        node->TabletSlots().resize(statistics.available_tablet_slots() + statistics.used_tablet_slots());
+        node->InitTabletSlots();
     }
 
     void OnNodeUnregistered(TNode* node)
@@ -917,6 +916,7 @@ private:
                 cell->DetachPeer(node);
             }
         }
+        node->ClearTabletSlots();
     }
 
     void OnIncrementalHeartbeat(

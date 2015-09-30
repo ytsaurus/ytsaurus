@@ -35,7 +35,7 @@ bool TExecNode::HasSpareResources(const TNodeResources& resourceDiscount) const
     return HasEnoughResources(MinSpareNodeResources() - resourceDiscount);
 }
 
-Stroka TExecNode::GetDefaultAddress()
+const Stroka& TExecNode::GetDefaultAddress()
 {
     return NNodeTrackerClient::GetDefaultAddress(Addresses_);
 }

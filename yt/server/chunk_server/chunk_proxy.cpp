@@ -32,6 +32,7 @@
 #include <server/journal_server/journal_manager.h>
 
 #include <server/cell_master/bootstrap.h>
+#include <server/cell_master/multicell_manager.h>
 
 namespace NYT {
 namespace NChunkServer {
@@ -108,6 +109,8 @@ private:
         descriptors->push_back("master_meta_size");
         descriptors->push_back(TAttributeDescriptor("owning_nodes")
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("exports")
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("disk_space")
             .SetPresent(chunk->IsConfirmed()));
         descriptors->push_back(TAttributeDescriptor("chunk_type")
@@ -163,6 +166,8 @@ private:
 
         auto objectManager = Bootstrap_->GetObjectManager();
         auto isForeign = objectManager->IsForeign(chunk);
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
 
         typedef std::function<void(TFluentList fluent, TNodePtrWithIndex replica)> TReplicaSerializer;
 
@@ -301,6 +306,23 @@ private:
         if (key == "master_meta_size") {
             BuildYsonFluently(consumer)
                 .Value(chunk->ChunkMeta().ByteSize());
+            return true;
+        }
+
+        if (key == "exports") {
+            auto multicellManager = Bootstrap_->GetMulticellManager();
+            auto cellTags = multicellManager->GetRegisteredMasterCellTags();
+            BuildYsonFluently(consumer)
+                .DoMapFor(0, static_cast<int>(cellTags.size()) - 1, [&] (TFluentMap fluent, int index) {
+                    auto cellTag = cellTags[index];
+                    const auto& exportData = chunk->GetExportData(index);
+                    if (exportData.RefCounter > 0) {
+                        fluent
+                            .Item(ToString(cellTag)).BeginMap()
+                                .Item("ref_counter").Value(exportData.RefCounter)
+                            .EndMap();
+                    }
+                });
             return true;
         }
 

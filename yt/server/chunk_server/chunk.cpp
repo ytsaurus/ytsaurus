@@ -44,6 +44,7 @@ TChunk::TChunk(const TChunkId& id)
     , ReadQuorum_(0)
     , WriteQuorum_(0)
     , ErasureCodec_(NErasure::ECodec::None)
+    , ExportDataList_ {}
 {
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
@@ -98,6 +99,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
     TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
+    TRangeSerializer::Save(context, TRef::FromPod(ExportDataList_));
 }
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
@@ -116,6 +118,10 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     Load(context, Parents_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 201) {
+        TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
+    }
     
     if (IsConfirmed()) {
         MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
@@ -300,6 +306,25 @@ int TChunk::GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) cons
 
         default:
             YUNREACHABLE();
+    }
+}
+
+const TChunkExportData& TChunk::GetExportData(int cellIndex) const
+{
+    return ExportDataList_[cellIndex];
+}
+
+void TChunk::Export(int cellIndex)
+{
+    auto& data = ExportDataList_[cellIndex];
+    ++data.RefCounter;
+}
+
+void TChunk::Unexport(int cellIndex, int importRefCounter)
+{
+    auto& data = ExportDataList_[cellIndex];
+    if ((data.RefCounter -= importRefCounter) == 0) {
+        data = TChunkExportData();
     }
 }
 

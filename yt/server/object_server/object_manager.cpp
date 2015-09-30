@@ -438,8 +438,11 @@ TObjectManager::TObjectManager(
 
 void TObjectManager::Initialize()
 {
-    auto multicellManager = Bootstrap_->GetMulticellManager();
-    multicellManager->SubscribeSecondaryMasterRegistered(BIND(&TObjectManager::OnSecondaryMasterRegistered, MakeWeak(this)));
+    if (Bootstrap_->IsPrimaryMaster()) {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->SubscribeSecondaryMasterRegistered(
+            BIND(&TObjectManager::OnSecondaryMasterRegistered, MakeWeak(this)));
+    }
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(),
@@ -1266,6 +1269,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
 
         if (IsForeign(object) && object->GetImportRefCounter() > 0) {
             auto& request = unrefRequestMap[CellTagFromId(id)];
+            request.set_cell_tag(Bootstrap_->GetCellTag());
             auto* entry = request.add_entries();
             ToProto(entry->mutable_object_id(), id);
             entry->set_import_ref_counter(object->GetImportRefCounter());
@@ -1354,13 +1358,21 @@ void TObjectManager::HydraRemoveForeignObject(const NProto::TReqRemoveForeignObj
 
 void TObjectManager::HydraUnrefExportedObjects(const NProto::TReqUnrefExportedObjects& request) noexcept
 {
+    auto cellTag = request.cell_tag();
+
     for (const auto& entry : request.entries()) {
         auto objectId = FromProto<TObjectId>(entry.object_id());
+        auto importRefCounter = entry.import_ref_counter();
+
         auto* object = GetObject(objectId);
-        UnrefObject(object, entry.import_ref_counter());
+        UnrefObject(object, importRefCounter);
+
+        const auto& handler = GetHandler(object);
+        handler->UnexportObject(object, cellTag, importRefCounter);
     }
 
-    LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (Count: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Exported objects unreferenced (CellTag: %v, Count: %v)",
+        cellTag,
         request.entries_size());
 }
 
