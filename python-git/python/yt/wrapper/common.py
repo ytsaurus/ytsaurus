@@ -1,6 +1,6 @@
 """Some common useful misc"""
 
-from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value
+from yt.common import require, flatten, update, which, YtError, update_from_env, unlist, get_value, filter_dict
 import yt.yson as yson
 
 import sys
@@ -74,9 +74,6 @@ def dict_depth(obj):
 def first_not_none(iter):
     return ifilter(None, iter).next()
 
-def filter_dict(predicate, dictionary):
-    return dict([(k, v) for (k, v) in dictionary.iteritems() if predicate(k, v)])
-
 def merge_dicts(*dicts):
     return dict(chain(*[d.iteritems() for d in dicts]))
 
@@ -136,13 +133,12 @@ def run_with_retries(action, retry_count=6, backoff=20.0, exceptions=(YtError,),
     start_time = datetime.now()
     for iter in xrange(retry_count):
         try:
-            action()
-            break
+            return action()
         except exceptions:
             if iter + 1 == retry_count:
                 raise
             if except_action:
                 except_action()
-            sleep_backoff = timedelta(seconds=backoff) * i - total_seconds(datetime.now() - start_time)
+            sleep_backoff = timedelta(seconds=backoff) * iter - total_seconds(datetime.now() - start_time)
             if sleep_backoff > 0.0:
                 time.sleep(sleep_backoff)

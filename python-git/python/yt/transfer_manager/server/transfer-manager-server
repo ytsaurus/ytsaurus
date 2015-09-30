@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-import yt.transfer_manager.traceback_helpers as traceback_helpers
-from yt.transfer_manager.flask_helpers import process_gzip
-from yt.transfer_manager.logger import TaskIdLogger
-from yt.transfer_manager.pattern_matching import match_copy_pattern
-from yt.transfer_manager.message_queue import MessageReader, MessageWriter
-from yt.transfer_manager.yt_client import YtClientWithNotifications
+import yt.transfer_manager.server.traceback_helpers as traceback_helpers
+from yt.transfer_manager.server.flask_helpers import process_gzip
+from yt.transfer_manager.server.logger import TaskIdLogger
+from yt.transfer_manager.server.pattern_matching import match_copy_pattern
+from yt.transfer_manager.server.message_queue import MessageReader, MessageWriter
+from yt.transfer_manager.server.yt_client import YtClientWithNotifications
 
 from yt.tools.logging_server import LogRecordSocketReceiver
 from yt.tools.yamr import Yamr, YamrError
@@ -659,7 +659,7 @@ class Application(object):
                source_client._type == "yt" and (
                     not source_client.exists(task.source_table) or
                     source_client.get_attribute(task.source_table, "row_count") == 0):
-                raise yt.YtError("Source table {} is empty".format(task.source_table))
+                raise yt.YtError("Source table {} is empty or does not exist".format(task.source_table))
 
             if source_client._type == "yt" and destination_client._type == "yamr":
                 path = yt.TablePath(task.source_table, end_index=1, simplify=False, client=source_client)
@@ -829,7 +829,7 @@ class Application(object):
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
 
-                    task_process = subprocess.Popen(["transfer_manager", "--execute-task", "--config", self._config_path],
+                    task_process = subprocess.Popen(["transfer-manager-server", "--execute-task", "--config", self._config_path],
                                                     stdout=subprocess.PIPE, stdin=subprocess.PIPE,
                                                     preexec_fn=lambda: prctl.set_pdeathsig(signal.SIGINT))
                     task_process.stdin.write(json.dumps(self._tasks[id].dict()))
@@ -1146,7 +1146,7 @@ class Application(object):
 
     def get_task(self, id):
         if id not in self._tasks:
-            return "Unknown task " + id, 400
+            raise RequestFailed("Unknown task " + id)
 
         tasks = {}
         with self._mutex:
@@ -1170,7 +1170,7 @@ class Application(object):
 
     def delete_task(self, id):
         if id not in self._tasks:
-            return "Unknown task " + id, 400
+            raise RequestFailed("Unknown task " + id)
 
         self._check_permission(id, request.headers, "Deleting")
 

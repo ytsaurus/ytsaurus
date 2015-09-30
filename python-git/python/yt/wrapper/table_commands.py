@@ -1058,8 +1058,14 @@ class Finalizer(object):
         if chunk_size > get_config(self.client)["auto_merge_output"]["max_chunk_size"]:
             return
 
+        # NB: just get the limit lower than in default scheduler config.
+        chunk_count_per_job_limit = 10000
+
         compression_ratio = get_attribute(table, "compression_ratio", client=self.client)
         data_size_per_job = min(16 * 1024 * MB, int(500 * MB / float(compression_ratio)))
+
+        data_size = get_attribute(table, "uncompressed_data_size", client=self.client)
+        data_size_per_job = min(data_size_per_job, data_size / max(1, chunk_count / chunk_count_per_job_limit))
 
         mode = "sorted" if is_sorted(table, client=self.client) else "unordered"
 
