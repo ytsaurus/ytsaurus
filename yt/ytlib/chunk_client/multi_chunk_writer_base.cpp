@@ -116,11 +116,11 @@ TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
 TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
 {
     TGuard<TSpinLock> guard(SpinLock_);
+    auto result = DataStatistics_;
     if (CurrentSession_.IsActive()) {
-        return DataStatistics_ + CurrentSession_.TemplateWriter->GetDataStatistics();
-    } else {
-        return DataStatistics_;
+        result += CurrentSession_.TemplateWriter->GetDataStatistics();
     }
+    return result;
 }
 
 void TNontemplateMultiChunkWriterBase::SwitchSession()
@@ -201,7 +201,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
             Options_->ErasureCodec != ECodec::None || 
             CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",
+            LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %v, DesiredChunkSize: %v)",
                 CurrentSession_.TemplateWriter->GetDataSize(),
                 expectedInputSize,
                 Config_->DesiredChunkSize);

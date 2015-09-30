@@ -42,6 +42,13 @@ struct IChunkWriter
      */
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const = 0;
 
+    //! Returns the chunk data statistics.
+    /*!
+     *  This method can only be called when the writer is successfully closed.
+     *  Currently only lazy chunk writer supports this call.
+     */
+    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const = 0;
+
     //! Return the indices of replicas that were successfully written.
     /*!
      *  Can only be called when the writer is successfully closed.

@@ -62,6 +62,8 @@ void TEncodingChunkWriter::Close()
 
     WaitFor(ChunkWriter_->Close(Meta_))
         .ThrowOnError();
+
+    Closed_ = true;
 }
 
 TFuture<void> TEncodingChunkWriter::GetReadyEvent() const
@@ -81,14 +83,17 @@ double TEncodingChunkWriter::GetCompressionRatio() const
 
 NProto::TDataStatistics TEncodingChunkWriter::GetDataStatistics() const
 {
-    NProto::TDataStatistics result;
-    if (CurrentBlockIndex_ > 0) {
-        result.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
-        result.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
-        result.set_chunk_count(1);
+    if (Closed_) {
+        return ChunkWriter_->GetDataStatistics();
+    } else {
+        NProto::TDataStatistics result;
+        if (CurrentBlockIndex_ > 0) {
+            result.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
+            result.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
+            result.set_chunk_count(1);
+        }
+        return result;
     }
-
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

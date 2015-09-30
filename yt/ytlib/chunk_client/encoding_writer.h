@@ -42,12 +42,12 @@ public:
 
 private:
     const TEncodingWriterConfigPtr Config_;
-    TEncodingWriterOptionsPtr Options_;
+    const TEncodingWriterOptionsPtr Options_;
     const IChunkWriterPtr ChunkWriter_;
     const IBlockCachePtr BlockCache_;
 
-    std::atomic<i64> UncompressedSize_ = { 0 };
-    std::atomic<i64> CompressedSize_ = { 0 };
+    std::atomic<i64> UncompressedSize_ = {0};
+    std::atomic<i64> CompressedSize_ = {0};
 
     int AddedBlockIndex_ = 0;
     int WrittenBlockIndex_ = 0;

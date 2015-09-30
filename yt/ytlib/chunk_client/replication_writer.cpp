@@ -163,6 +163,7 @@ public:
     virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
 
     virtual const TChunkInfo& GetChunkInfo() const override;
+    virtual const TDataStatistics& GetDataStatistics() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
     virtual TChunkId GetChunkId() const override;
@@ -1008,6 +1009,13 @@ const TChunkInfo& TReplicationWriter::GetChunkInfo() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return ChunkInfo_;
+}
+
+const TDataStatistics& TReplicationWriter::GetDataStatistics() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YUNREACHABLE();
 }
 
 TChunkReplicaList TReplicationWriter::GetWrittenChunkReplicas() const

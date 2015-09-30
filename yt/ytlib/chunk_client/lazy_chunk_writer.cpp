@@ -34,7 +34,7 @@ namespace NYT {
 namespace NChunkClient {
 
 using namespace NApi;
-using namespace NProto;
+using namespace NChunkClient::NProto;
 using namespace NRpc;
 using namespace NObjectClient;
 using namespace NErasure;
@@ -65,10 +65,11 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
 
-    virtual const NProto::TChunkInfo& GetChunkInfo() const override;
-
+    virtual const TChunkInfo& GetChunkInfo() const override;
+    virtual const TDataStatistics& GetDataStatistics() const override;
+    
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
     virtual TChunkId GetChunkId() const override;
@@ -87,13 +88,16 @@ private:
 
     IChunkWriterPtr UnderlyingWriter_;
 
-    std::atomic<bool> Initialized_ = { false };
-    TChunkId ChunkId_ = NullChunkId;
+    std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> Closed_ = {false};
+
+    TChunkId ChunkId_;
     std::vector<TSharedRef> PendingBlocks_;
 
     TFuture<void> OpenedFuture_ = VoidFuture;
 
-    NProto::TChunkMeta ChunkMeta_;
+    TChunkMeta ChunkMeta_;
+    TDataStatistics DataStatistics_;
 
     NLogging::TLogger Logger;
 
@@ -167,16 +171,21 @@ TFuture<void> TLazyChunkWriter::GetReadyEvent()
 TFuture<void> TLazyChunkWriter::Close(const TChunkMeta& chunkMeta)
 {
     ChunkMeta_ = chunkMeta;
-    return OpenedFuture_.Apply(BIND(
-        &TLazyChunkWriter::DoClose,
-        MakeWeak(this))
-    .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
+    return OpenedFuture_.Apply(
+        BIND(&TLazyChunkWriter::DoClose,MakeWeak(this))
+            .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
 }
 
 const TChunkInfo& TLazyChunkWriter::GetChunkInfo() const
 {
-    YCHECK(UnderlyingWriter_);
+    YCHECK(Closed_);
     return UnderlyingWriter_->GetChunkInfo();
+}
+
+const TDataStatistics& TLazyChunkWriter::GetDataStatistics() const
+{
+    YCHECK(Closed_);
+    return DataStatistics_;
 }
 
 TChunkReplicaList TLazyChunkWriter::GetWrittenChunkReplicas() const
@@ -299,14 +308,18 @@ void TLazyChunkWriter::DoClose()
         ChunkMeta_.extensions(),
         masterMetaTags);
 
+    auto cellTag = CellTagFromId(ChunkId_);
+    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    TObjectServiceProxy objectProxy(channel);
+    
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId_));
     GenerateMutationId(req);
     *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
     *req->mutable_chunk_meta() = masterChunkMeta;
+    req->set_request_statistics(true);
 
     NYT::ToProto(req->mutable_replicas(), replicas);
 
-    TObjectServiceProxy objectProxy(Client_->GetMasterChannel(EMasterChannelKind::Leader));
     auto rspOrError = WaitFor(objectProxy.Execute(req));
 
     THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -314,6 +327,11 @@ void TLazyChunkWriter::DoClose()
         EErrorCode::MasterCommunicationFailed,
         "Failed to confirm chunk %v",
         ChunkId_);
+
+    const auto& rsp = rspOrError.Value();
+    DataStatistics_ = rsp->statistics();
+
+    Closed_ = true;
 
     LOG_DEBUG("Chunk confirmed");
 }
