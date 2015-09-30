@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/sandello/yt/source/yt/ytlib/query_client/parser.hpp
+ ** \file /home/lukyan/yt/src/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -306,11 +306,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // identifier-list
       char dummy5[sizeof(TIdentifierList)];
 
-      // literal-list
-      // literal-tuple
+      // const-list
+      // const-tuple
       char dummy6[sizeof(TLiteralValueList)];
 
-      // literal-tuple-list
+      // const-tuple-list
       char dummy7[sizeof(TLiteralValueTupleList)];
 
       // named-expression
@@ -321,6 +321,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       char dummy9[sizeof(TNamedExpressionList)];
 
       // literal-value
+      // const-value
       char dummy10[sizeof(TNullable<TLiteralValue>)];
 
       // select-clause-impl
@@ -752,7 +753,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   static const unsigned char yydefact_[];
 
   // YYPGOTO[NTERM-NUM].
-  static const signed char yypgoto_[];
+  static const short int yypgoto_[];
 
   // YYDEFGOTO[NTERM-NUM].
   static const signed char yydefgoto_[];
@@ -762,7 +763,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const unsigned char yytable_[];
 
-  static const signed char yycheck_[];
+  static const unsigned char yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -877,8 +878,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 133,     ///< Last index in yytable_.
-      yynnts_ = 37,  ///< Number of nonterminal symbols.
+      yylast_ = 143,     ///< Last index in yytable_.
+      yynnts_ = 38,  ///< Number of nonterminal symbols.
       yyempty_ = -2,
       yyfinal_ = 37, ///< Termination state number.
       yyterror_ = 1,
@@ -899,4 +900,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_SANDELLO_YT_SOURCE_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

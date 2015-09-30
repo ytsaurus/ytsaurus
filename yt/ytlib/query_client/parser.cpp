@@ -264,12 +264,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TIdentifierList > (other.value);
         break;
 
-      case 75: // literal-list
-      case 76: // literal-tuple
+      case 76: // const-list
+      case 77: // const-tuple
         value.copy< TLiteralValueList > (other.value);
         break;
 
-      case 77: // literal-tuple-list
+      case 78: // const-tuple-list
         value.copy< TLiteralValueTupleList > (other.value);
         break;
 
@@ -283,6 +283,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 74: // literal-value
+      case 75: // const-value
         value.copy< TNullable<TLiteralValue> > (other.value);
         break;
 
@@ -357,12 +358,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TIdentifierList > (v);
         break;
 
-      case 75: // literal-list
-      case 76: // literal-tuple
+      case 76: // const-list
+      case 77: // const-tuple
         value.copy< TLiteralValueList > (v);
         break;
 
-      case 77: // literal-tuple-list
+      case 78: // const-tuple-list
         value.copy< TLiteralValueTupleList > (v);
         break;
 
@@ -376,6 +377,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 74: // literal-value
+      case 75: // const-value
         value.copy< TNullable<TLiteralValue> > (v);
         break;
 
@@ -569,12 +571,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.template destroy< TIdentifierList > ();
         break;
 
-      case 75: // literal-list
-      case 76: // literal-tuple
+      case 76: // const-list
+      case 77: // const-tuple
         value.template destroy< TLiteralValueList > ();
         break;
 
-      case 77: // literal-tuple-list
+      case 78: // const-tuple-list
         value.template destroy< TLiteralValueTupleList > ();
         break;
 
@@ -588,6 +590,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 74: // literal-value
+      case 75: // const-value
         value.template destroy< TNullable<TLiteralValue> > ();
         break;
 
@@ -659,12 +662,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TIdentifierList > (s.value);
         break;
 
-      case 75: // literal-list
-      case 76: // literal-tuple
+      case 76: // const-list
+      case 77: // const-tuple
         value.move< TLiteralValueList > (s.value);
         break;
 
-      case 77: // literal-tuple-list
+      case 78: // const-tuple-list
         value.move< TLiteralValueTupleList > (s.value);
         break;
 
@@ -678,6 +681,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 74: // literal-value
+      case 75: // const-value
         value.move< TNullable<TLiteralValue> > (s.value);
         break;
 
@@ -1051,12 +1055,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TIdentifierList > (that.value);
         break;
 
-      case 75: // literal-list
-      case 76: // literal-tuple
+      case 76: // const-list
+      case 77: // const-tuple
         value.move< TLiteralValueList > (that.value);
         break;
 
-      case 77: // literal-tuple-list
+      case 78: // const-tuple-list
         value.move< TLiteralValueTupleList > (that.value);
         break;
 
@@ -1070,6 +1074,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 74: // literal-value
+      case 75: // const-value
         value.move< TNullable<TLiteralValue> > (that.value);
         break;
 
@@ -1142,12 +1147,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TIdentifierList > (that.value);
         break;
 
-      case 75: // literal-list
-      case 76: // literal-tuple
+      case 76: // const-list
+      case 77: // const-tuple
         value.copy< TLiteralValueList > (that.value);
         break;
 
-      case 77: // literal-tuple-list
+      case 78: // const-tuple-list
         value.copy< TLiteralValueTupleList > (that.value);
         break;
 
@@ -1161,6 +1166,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 74: // literal-value
+      case 75: // const-value
         value.copy< TNullable<TLiteralValue> > (that.value);
         break;
 
@@ -1448,12 +1454,12 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         yylhs.value.build< TIdentifierList > ();
         break;
 
-      case 75: // literal-list
-      case 76: // literal-tuple
+      case 76: // const-list
+      case 77: // const-tuple
         yylhs.value.build< TLiteralValueList > ();
         break;
 
-      case 77: // literal-tuple-list
+      case 78: // const-tuple-list
         yylhs.value.build< TLiteralValueTupleList > ();
         break;
 
@@ -1467,6 +1473,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 74: // literal-value
+      case 75: // const-value
         yylhs.value.build< TNullable<TLiteralValue> > ();
         break;
 
@@ -1831,37 +1838,66 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 73:
     {
-            yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+            switch (yystack_[1].value.as< EUnaryOp > ()) {
+                case EUnaryOp::Minus: {
+                    if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<i64>()) {
+                        yylhs.value.as< TNullable<TLiteralValue> > () = i64(0) - *data;
+                    } else if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<ui64>()) {
+                        yylhs.value.as< TNullable<TLiteralValue> > () = ui64(0) - *data;
+                    } else if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<double>()) {
+                        yylhs.value.as< TNullable<TLiteralValue> > () = double(0) - *data;
+                    } else {
+                        THROW_ERROR_EXCEPTION("Negation of unsupported type");
+                    }
+                    break;
+                }
+                case EUnaryOp::Plus:
+                    yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > ();
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+
         }
     break;
 
   case 74:
-    {
-            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
-        }
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > (); }
     break;
 
   case 75:
     {
+            yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
             yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 76:
     {
-            yylhs.value.as< TLiteralValueList > () = yystack_[1].value.as< TLiteralValueList > ();
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
         }
     break;
 
   case 77:
+    {
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+        }
+    break;
+
+  case 78:
+    {
+            yylhs.value.as< TLiteralValueList > () = yystack_[1].value.as< TLiteralValueList > ();
+        }
+    break;
+
+  case 79:
     {
             yylhs.value.as< TLiteralValueTupleList > ().swap(yystack_[2].value.as< TLiteralValueTupleList > ());
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
     break;
 
-  case 78:
+  case 80:
     {
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
@@ -2122,25 +2158,26 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   }
 
 
-  const signed char TParser::yypact_ninf_ = -81;
+  const signed char TParser::yypact_ninf_ = -85;
 
   const signed char TParser::yytable_ninf_ = -1;
 
   const signed char
   TParser::yypact_[] =
   {
-      99,    -5,    -5,    18,     5,    32,   -81,   -81,   -21,   -81,
-     -81,   -81,   -81,    18,   -81,   -81,   -81,   -81,     6,   -81,
-     -18,   -81,     8,    17,    35,   -81,    58,    -2,     0,    82,
-      48,   -81,   -81,   -81,    39,   -81,   -81,   -81,    58,    18,
-     -81,   -26,    42,    39,    18,    44,    18,    18,   -81,   -81,
-     -81,   -81,   -81,   -81,    32,   -81,   -81,    32,   -81,   -81,
-     -81,    32,    32,    33,   -81,    18,   -81,   -81,    16,   -81,
-      18,    65,    67,   -81,   -81,    35,   -81,    -2,   -81,     0,
-     -81,    69,    57,    17,   -81,   -81,    84,    18,    75,   -81,
-      32,    66,   -81,   -81,    30,    96,   -18,    86,   100,   -81,
-     -81,   -81,    70,   -81,    57,    86,   -81,    78,    88,   -81,
-     -81,   -81,    66,   -81,    78,    90,   -81,   -81,   -81
+      89,    22,    22,    37,    13,    -5,   -85,   -85,    -4,   -85,
+     -85,   -85,   -85,    37,   -85,   -85,   -85,   -85,    33,   -85,
+       9,   -85,    42,    48,    68,   -85,    80,    18,    39,    15,
+      79,   -85,   -85,   -85,    72,   -85,   -85,   -85,    80,    37,
+     -85,   -26,    70,    72,    37,    75,    37,    37,   -85,   -85,
+     -85,   -85,   -85,   -85,    -5,   -85,   -85,    -5,   -85,   -85,
+     -85,    -5,    -5,    59,   -85,    37,   -85,   -85,    -7,   -85,
+      37,    96,    98,   -85,   -85,    68,   -85,    18,   -85,    39,
+     -85,   106,    51,    48,   -85,   -85,   100,    37,   110,   -85,
+      -5,    65,    88,   -85,   -85,   -85,     0,   113,     9,   103,
+     117,   -85,   -85,   -85,    49,   -85,   -85,    51,   103,   -85,
+      95,   105,   -85,   -85,   -85,    65,   -85,    95,   107,   -85,
+     -85,   -85
   };
 
   const unsigned char
@@ -2155,65 +2192,68 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       55,     0,     0,     0,    59,     0,     6,    11,     0,    65,
        0,     9,    14,    27,    30,    32,    34,    38,    53,    48,
       52,     0,     0,    21,    64,    57,     0,     0,    16,    13,
-       0,     0,    75,    78,     0,     0,    22,     0,    18,    15,
-      39,    74,     0,    40,     0,     0,    26,    23,     0,     5,
-      17,    76,     0,    77,    10,     0,    24,    73,    25
+       0,     0,     0,    74,    77,    80,     0,     0,    22,     0,
+      18,    15,    39,    76,     0,    73,    40,     0,     0,    26,
+      23,     0,     5,    17,    78,     0,    79,    10,     0,    24,
+      75,    25
   };
 
-  const signed char
+  const short int
   TParser::yypgoto_[] =
   {
-     -81,   -81,   -81,   -81,   -81,   111,   -81,    71,   -81,   -81,
-     -81,   -81,   -81,   -81,   -81,   -81,    10,    29,    73,    -3,
-      53,    74,    72,   116,   -81,    68,   -81,    76,   -81,    85,
-     -53,   -81,    93,   -80,   -81,    21,   -81
+     -85,   -85,   -85,   -85,   -85,   128,   -85,    90,   -85,   -85,
+     -85,   -85,   -85,   -85,   -85,   -85,    23,    45,    91,    -3,
+      69,    92,    93,   131,   -85,    83,   -85,    82,   -85,   102,
+     -53,   -77,   112,   -80,   -84,   -85,    36,   -85
   };
 
   const signed char
   TParser::yydefgoto_[] =
   {
-      -1,     4,    17,    33,    35,    18,    43,    66,    88,    98,
-     109,    19,    67,    89,    99,   110,   107,    20,    21,    22,
+      -1,     4,    17,    33,    35,    18,    43,    66,    88,   100,
+     112,    19,    67,    89,   101,   113,   110,    20,    21,    22,
       23,    24,    25,    26,    54,    27,    57,    28,    61,    41,
-      29,    30,    31,    32,   102,    93,    94
+      29,    30,    31,    32,    94,   104,    95,    96
   };
 
   const unsigned char
   TParser::yytable_[] =
   {
-      36,    78,    92,    69,    78,    37,    70,    39,    80,    81,
-      40,   101,     5,    42,    44,     6,     7,     8,     9,    10,
-      11,    12,    45,    13,    92,    14,    15,    58,    16,    55,
-      59,    56,   117,    46,    60,     5,    40,   100,     6,     7,
-       8,     9,    10,    11,    12,    84,    13,    65,    70,    15,
-      47,    16,     6,     7,     8,     9,    10,    11,    12,   103,
-      13,    82,   104,    15,    71,    16,    74,    85,     6,     7,
-       8,     9,    10,    11,    12,    86,    13,     6,     7,    87,
-       9,    10,    11,    12,    90,    91,     6,     7,    97,     9,
-      10,    11,    12,    48,    49,    50,    51,    52,    53,   111,
-      62,    63,   112,     1,     2,     3,    95,   105,   106,   108,
-     115,   116,   118,    34,    72,   114,    96,    73,    83,    76,
-      75,    38,    77,    64,    68,   113,     0,     0,     0,     0,
-       0,     0,     0,    79
+      36,    78,    93,    69,    78,    92,    70,   103,    80,    81,
+      40,    93,   105,    37,    92,     6,     7,     8,     9,    10,
+      11,    12,    84,    13,    39,    70,    15,    93,    16,   106,
+      92,   120,   107,    62,    63,    93,    40,   102,    92,     5,
+      42,    44,     6,     7,     8,     9,    10,    11,    12,    55,
+      13,    56,    14,    15,     5,    16,    45,     6,     7,     8,
+       9,    10,    11,    12,    46,    13,    58,    85,    15,    59,
+      16,     6,     7,    60,     9,    10,    11,    12,   114,    91,
+      65,   115,    15,    47,    16,     6,     7,    82,     9,    10,
+      11,    12,    71,     1,     2,     3,    15,    74,    16,     6,
+       7,     8,     9,    10,    11,    12,    86,    13,     6,     7,
+      87,     9,    10,    11,    12,    48,    49,    50,    51,    52,
+      53,    90,    97,    99,   108,   109,   111,   118,   119,   121,
+      34,   117,    98,    72,    83,    73,    38,    77,    75,    79,
+      76,    68,    64,   116
   };
 
-  const signed char
+  const unsigned char
   TParser::yycheck_[] =
   {
-       3,    54,    82,    29,    57,     0,    32,    28,    61,    62,
-      13,    91,    17,     7,    32,    20,    21,    22,    23,    24,
-      25,    26,    14,    28,   104,    30,    31,    27,    33,    31,
-      30,    33,   112,    16,    34,    17,    39,    90,    20,    21,
-      22,    23,    24,    25,    26,    29,    28,     8,    32,    31,
-      15,    33,    20,    21,    22,    23,    24,    25,    26,    29,
-      28,    28,    32,    31,    22,    33,    22,    70,    20,    21,
-      22,    23,    24,    25,    26,    10,    28,    20,    21,    12,
-      23,    24,    25,    26,    15,    28,    20,    21,    13,    23,
-      24,    25,    26,    35,    36,    37,    38,    39,    40,    29,
-      18,    19,    32,     4,     5,     6,    22,    11,    22,     9,
-      32,    23,    22,     2,    43,   105,    87,    44,    65,    47,
-      46,     5,    54,    30,    39,   104,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    57
+       3,    54,    82,    29,    57,    82,    32,    91,    61,    62,
+      13,    91,    92,     0,    91,    20,    21,    22,    23,    24,
+      25,    26,    29,    28,    28,    32,    31,   107,    33,    29,
+     107,   115,    32,    18,    19,   115,    39,    90,   115,    17,
+       7,    32,    20,    21,    22,    23,    24,    25,    26,    31,
+      28,    33,    30,    31,    17,    33,    14,    20,    21,    22,
+      23,    24,    25,    26,    16,    28,    27,    70,    31,    30,
+      33,    20,    21,    34,    23,    24,    25,    26,    29,    28,
+       8,    32,    31,    15,    33,    20,    21,    28,    23,    24,
+      25,    26,    22,     4,     5,     6,    31,    22,    33,    20,
+      21,    22,    23,    24,    25,    26,    10,    28,    20,    21,
+      12,    23,    24,    25,    26,    35,    36,    37,    38,    39,
+      40,    15,    22,    13,    11,    22,     9,    32,    23,    22,
+       2,   108,    87,    43,    65,    44,     5,    54,    46,    57,
+      47,    39,    30,   107
   };
 
   const unsigned char
@@ -2228,9 +2268,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       34,    69,    18,    19,    73,     8,    48,    53,    70,    29,
       32,    22,    48,    59,    22,    62,    63,    66,    71,    68,
       71,    71,    28,    61,    29,    60,    10,    12,    49,    54,
-      15,    28,    74,    76,    77,    22,    58,    13,    50,    55,
-      71,    74,    75,    29,    32,    11,    22,    57,     9,    51,
-      56,    29,    32,    76,    57,    32,    23,    74,    22
+      15,    28,    72,    74,    75,    77,    78,    22,    58,    13,
+      50,    55,    71,    75,    76,    74,    29,    32,    11,    22,
+      57,     9,    51,    56,    29,    32,    77,    57,    32,    23,
+      75,    22
   };
 
   const unsigned char
@@ -2243,7 +2284,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       64,    64,    65,    65,    65,    65,    65,    65,    66,    66,
       67,    67,    68,    68,    69,    69,    69,    70,    70,    71,
       71,    72,    72,    73,    73,    73,    73,    74,    74,    74,
-      74,    74,    74,    75,    75,    76,    76,    77,    77
+      74,    74,    74,    75,    75,    76,    76,    77,    77,    78,
+      78
   };
 
   const unsigned char
@@ -2256,7 +2298,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
        5,     1,     1,     1,     1,     1,     1,     1,     3,     1,
        1,     1,     3,     1,     1,     1,     1,     3,     1,     2,
        1,     1,     1,     1,     4,     3,     1,     1,     1,     1,
-       1,     1,     1,     3,     1,     1,     3,     3,     1
+       1,     1,     1,     2,     1,     3,     1,     1,     3,     3,
+       1
   };
 
 
@@ -2286,22 +2329,23 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   "and-op-expr", "not-op-expr", "relational-op-expr", "relational-op",
   "additive-op-expr", "additive-op", "multiplicative-op-expr",
   "multiplicative-op", "comma-expr", "unary-expr", "unary-op",
-  "atomic-expr", "literal-value", "literal-list", "literal-tuple",
-  "literal-tuple-list", YY_NULLPTR
+  "atomic-expr", "literal-value", "const-value", "const-list",
+  "const-tuple", "const-tuple-list", YY_NULLPTR
   };
 
 #if YT_QL_YYDEBUG
   const unsigned short int
   TParser::yyrline_[] =
   {
-       0,   143,   143,   144,   145,   149,   153,   157,   164,   171,
-     175,   182,   186,   190,   194,   198,   202,   206,   210,   214,
-     218,   225,   232,   239,   246,   253,   258,   265,   270,   277,
-     281,   288,   293,   297,   302,   306,   311,   315,   320,   324,
-     331,   335,   340,   342,   344,   346,   348,   350,   355,   359,
-     364,   366,   371,   375,   380,   382,   384,   389,   393,   398,
-     402,   407,   409,   414,   418,   422,   426,   433,   435,   437,
-     439,   441,   443,   448,   453,   460,   464,   471,   476
+       0,   145,   145,   146,   147,   151,   155,   159,   166,   173,
+     177,   184,   188,   192,   196,   200,   204,   208,   212,   216,
+     220,   227,   234,   241,   248,   255,   260,   267,   272,   279,
+     283,   290,   295,   299,   304,   308,   313,   317,   322,   326,
+     333,   337,   342,   344,   346,   348,   350,   352,   357,   361,
+     366,   368,   373,   377,   382,   384,   386,   391,   395,   400,
+     404,   409,   411,   416,   420,   424,   428,   435,   437,   439,
+     441,   443,   445,   450,   473,   479,   484,   491,   495,   502,
+     507
   };
 
   // Print the state stack on the debug stream.
