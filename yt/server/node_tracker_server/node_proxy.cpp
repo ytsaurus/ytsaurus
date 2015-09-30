@@ -213,7 +213,7 @@ private:
                 return true;
             }
 
-            if (key == "stored_replica_count") {
+            if (key == "io_weight") {
                 BuildYsonFluently(consumer)
                     .Value(node->GetIOWeight());
                 return true;
