@@ -247,7 +247,7 @@ private:
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
 
-        LOG_DEBUG("Grouping %v splits", splits.size());
+        LOG_DEBUG("Grouping %v splits", splitCount);
 
         auto maxSubqueries = std::min(fragment->MaxSubqueries, Config_->MaxSubqueries);
 
