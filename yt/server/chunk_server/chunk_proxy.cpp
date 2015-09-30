@@ -516,6 +516,10 @@ private:
             request->mutable_chunk_info(),
             request->mutable_chunk_meta());
 
+        if (request->request_statistics()) {
+            *response->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
+        }
+
         context->Reply();
     }
 
