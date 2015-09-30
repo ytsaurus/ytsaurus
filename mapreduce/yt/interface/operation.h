@@ -202,6 +202,7 @@ struct TOperationOptions
 
     FLUENT_FIELD_OPTION(TNode, Spec);
     FLUENT_FIELD_DEFAULT(bool, Wait, true);
+    FLUENT_FIELD_DEFAULT(bool, UseTableFormats, false);
 };
 
 struct IOperationClient

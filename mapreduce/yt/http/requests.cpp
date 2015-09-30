@@ -132,7 +132,7 @@ bool Exists(const TAuth& auth, const TYPath& path)
 
 TOperationId StartOperation(
     const TAuth& auth,
-    const TGUID& transactionId,
+    const TTransactionId& transactionId,
     const Stroka& operationName,
     const Stroka& ysonSpec,
     bool wait)

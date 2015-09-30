@@ -178,6 +178,7 @@ private:
 void BuildUserJobFluently(
     const Stroka& command,
     const yvector<TFileUploader::TFile>& files,
+    TMaybe<TNode> format,
     const TMultiFormatDesc& inputDesc,
     const TMultiFormatDesc& outputDesc,
     TFluentMap fluent)
@@ -199,14 +200,18 @@ void BuildUserJobFluently(
         .EndAttributes()
         .Value("yson");
     })
-    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YAMR, [] (TFluentMap fluent) {
-        fluent
-        .Item("input_format").BeginAttributes()
-            .Item("lenval").Value(true)
-            .Item("has_subkey").Value(true)
-            .Item("enable_table_index").Value(true)
-        .EndAttributes()
-        .Value("yamr");
+    .DoIf(inputDesc.Format == TMultiFormatDesc::F_YAMR, [&] (TFluentMap fluent) {
+        if (!format) {
+            fluent
+            .Item("input_format").BeginAttributes()
+                .Item("lenval").Value(true)
+                .Item("has_subkey").Value(true)
+                .Item("enable_table_index").Value(true)
+            .EndAttributes()
+            .Value("yamr");
+        } else {
+            fluent.Item("input_format").Value(format.GetRef());
+        }
     })
     .DoIf(outputDesc.Format == TMultiFormatDesc::F_YSON, [] (TFluentMap fluent) {
         fluent
@@ -224,17 +229,6 @@ void BuildUserJobFluently(
         .Value("yamr");
     })
     .Item("command").Value(command);
-}
-
-void BuildStartedBy(TFluentMap fluent)
-{
-    const TProcessProperties* properties = TProcessProperties::Get();
-    fluent
-        .Item("hostname").Value(properties->HostName)
-        .Item("pid").Value(properties->Pid)
-        .Item("user").Value(properties->UserName)
-        .Item("command").List(properties->CommandLine)
-        .Item("wrapper_version").Value(properties->ClientVersion);
 }
 
 void BuildCommonOperationPart(TFluentMap fluent)
@@ -273,6 +267,78 @@ Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMaybe<TNode> GetAndValidateTableFormats(
+    const TAuth& auth,
+    const yvector<TRichYPath>& inputs)
+{
+    TMaybe<TNode> result;
+    bool start = true;
+
+    for (auto& table : inputs) {
+        auto path = AddPathPrefix(table);
+        auto formatPath = path.Path_ + "/@_format";
+
+        TMaybe<TNode> format;
+        if (Exists(auth, formatPath)) {
+            format = NodeFromYsonString(Get(auth, formatPath));
+        }
+
+        if (format.Defined()) {
+            if (format.Get()->AsString() != "yamred_dsv")
+            {
+                ythrow yexception() <<
+                    "Input table '" << path.Path_ << "': only 'yamred_dsv' format is supported";
+            }
+
+            auto formatAttrs = format.Get()->Attributes();
+            if (!formatAttrs.HasKey("key_column_names")) {
+                 ythrow yexception() <<
+                    "Input table '" << path.Path_ << "': attribute 'key_column_names' is required";
+            }
+        }
+
+        if (start) {
+            result = format;
+            start = false;
+            continue;
+        }
+
+        if (result.Defined() != format.Defined()) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        if (!result.Defined()) {
+            continue;
+        }
+
+        auto& resultAttrs = result.Get()->Attributes();
+        auto& formatAttrs = format.Get()->Attributes();
+
+        if (resultAttrs["key_column_names"] != formatAttrs["key_column_names"]) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        bool hasSubkeyColumns = resultAttrs.HasKey("subkey_column_names");
+        if (hasSubkeyColumns != formatAttrs.HasKey("subkey_column_names")) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        if (hasSubkeyColumns &&
+            resultAttrs["subkey_column_names"] != formatAttrs["subkey_column_names"])
+        {
+            ythrow yexception() << "Different formats of input tables";
+        }
+    }
+
+    if (result) {
+        TNode& attrs = result.Get()->Attributes();
+        attrs["has_subkey"] = true;
+        attrs["lenval"] = true;
+    }
+
+    return result;
+}
+
 TOperationId ExecuteMap(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -282,6 +348,13 @@ TOperationId ExecuteMap(
 {
     TFileUploader uploader(auth);
     uploader.UploadFiles(spec.MapperSpec_, mapper);
+
+    TMaybe<TNode> format;
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+        options.UseTableFormats_)
+    {
+        format = GetAndValidateTableFormats(auth, spec.Inputs_);
+    }
 
     Stroka command = Sprintf("./cppbinary --yt-map \"%s\" %" PRISZT " %d",
         ~TJobFactory::Get()->GetJobName(mapper),
@@ -294,6 +367,7 @@ TOperationId ExecuteMap(
             BuildUserJobFluently,
             command,
             uploader.GetFiles(),
+            format,
             spec.InputDesc_,
             spec.OutputDesc_))
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
@@ -321,6 +395,19 @@ TOperationId ExecuteReduce(
     IJob* reducer,
     const TOperationOptions& options)
 {
+    TMaybe<TNode> format;
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+        options.UseTableFormats_)
+    {
+        format = GetAndValidateTableFormats(auth, spec.Inputs_);
+    }
+
+    TKeyColumns reduceBy(spec.ReduceBy_);
+
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
+        reduceBy = TKeyColumns("key");
+    }
+
     TFileUploader uploader(auth);
     uploader.UploadFiles(spec.ReducerSpec_, reducer);
 
@@ -335,9 +422,10 @@ TOperationId ExecuteReduce(
             BuildUserJobFluently,
             command,
             uploader.GetFiles(),
+            format,
             spec.InputDesc_,
             spec.OutputDesc_))
-        .Item("reduce_by").Value(spec.ReduceBy_)
+        .Item("reduce_by").Value(reduceBy)
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
         .Item("job_io").BeginMap()
@@ -367,6 +455,41 @@ TOperationId ExecuteMapReduce(
     const TMultiFormatDesc& inputReducerDesc,
     const TOperationOptions& options)
 {
+    TMaybe<TNode> format;
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
+        options.UseTableFormats_)
+    {
+        format = GetAndValidateTableFormats(auth, spec.Inputs_);
+    }
+
+    TKeyColumns sortBy(spec.SortBy_);
+    TKeyColumns reduceBy(spec.ReduceBy_);
+
+    if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
+        if (!mapper && format) {
+            auto& attrs = format.Get()->Attributes();
+            auto& keyColumns = attrs["key_column_names"].AsList();
+
+            sortBy.Parts_.clear();
+            reduceBy.Parts_.clear();
+
+            for (auto& column : keyColumns) {
+                sortBy.Parts_.push_back(column.AsString());
+                reduceBy.Parts_.push_back(column.AsString());
+            }
+
+            if (attrs.HasKey("subkey_column_names")) {
+                auto& subkeyColumns = attrs["subkey_column_names"].AsList();
+                for (auto& column : subkeyColumns) {
+                    sortBy.Parts_.push_back(column.AsString());
+                }
+            }
+        } else {
+            sortBy = TKeyColumns("key", "subkey");
+            reduceBy = TKeyColumns("key");
+        }
+    }
+
     TFileUploader mapUploader(auth);
     if (mapper) {
         mapUploader.UploadFiles(spec.MapperSpec_, mapper);
@@ -394,6 +517,7 @@ TOperationId ExecuteMapReduce(
                 BuildUserJobFluently,
                 mapCommand,
                 mapUploader.GetFiles(),
+                format,
                 spec.InputDesc_,
                 outputMapperDesc));
         })
@@ -401,10 +525,11 @@ TOperationId ExecuteMapReduce(
             BuildUserJobFluently,
             reduceCommand,
             reduceUploader.GetFiles(),
+            mapper ? TMaybe<TNode>() : format,
             inputReducerDesc,
             spec.OutputDesc_))
-        .Item("sort_by").Value(spec.SortBy_)
-        .Item("reduce_by").Value(spec.ReduceBy_)
+        .Item("sort_by").Value(sortBy)
+        .Item("reduce_by").Value(reduceBy)
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
         .Item("map_job_io").BeginMap()
