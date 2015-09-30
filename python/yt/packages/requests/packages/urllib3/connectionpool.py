@@ -212,9 +212,6 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
         conn = None
         try:
             conn = self.pool.get(block=self.block, timeout=timeout)
-            if timeout is not None:
-                conn.timeout = timeout
-
         except AttributeError: # self.pool is None
             raise ClosedPoolError(self, "Pool is closed.")
 
@@ -230,7 +227,12 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
             log.info("Resetting dropped connection: %s" % self.host)
             conn.close()
 
-        return conn or self._new_conn()
+        conn = conn or self._new_conn()
+
+        if timeout is not None:
+            conn.timeout = timeout
+
+        return conn
 
     def _put_conn(self, conn):
         """
