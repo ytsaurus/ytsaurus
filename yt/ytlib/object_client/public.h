@@ -68,6 +68,9 @@ const TCellTag PrimaryMasterCellTag = 0xf003;
 //! A sentinel cell tag meaning nothing.
 const TCellTag InvalidCellTag = 0xf004;
 
+//! A static limit for the number of secondary master cells.
+const int MaxSecondaryMasterCells = 8;
+
 //! Describes the runtime type of an object.
 DEFINE_ENUM(EObjectType,
     // Does not represent any actual type.

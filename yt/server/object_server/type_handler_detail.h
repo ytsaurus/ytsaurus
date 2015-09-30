@@ -105,6 +105,21 @@ public:
         DoPopulateObjectReplicationRequest(static_cast<const TObject*>(object), request);
     }
 
+    virtual void ExportObject(
+        TObjectBase* object,
+        NObjectClient::TCellTag destinationCellTag) override
+    {
+        DoExportObject(static_cast<TObject*>(object), destinationCellTag);
+    }
+
+    virtual void UnexportObject(
+        TObjectBase* object,
+        NObjectClient::TCellTag destinationCellTag,
+        int importRefCounter) override
+    {
+        DoUnexportObject(static_cast<TObject*>(object), destinationCellTag, importRefCounter);
+    }
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -144,6 +159,21 @@ protected:
         const TObject* /*object*/,
         NObjectServer::NProto::TReqCreateForeignObject* /*request*/)
     { }
+
+    virtual void DoExportObject(
+        TObject* /*object*/,
+        NObjectClient::TCellTag /*destinationCellTag*/)
+    {
+        YUNREACHABLE();
+    }
+
+    virtual void DoUnexportObject(
+        TObject* /*object*/,
+        NObjectClient::TCellTag /*destinationCellTag*/,
+        int /*importRefCounter*/)
+    {
+        YUNREACHABLE();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,7 +55,7 @@ private:
 
         NChunkClient::TChunkId ChunkId;
         NObjectClient::TCellTag DestinationCellTag;
-        NChunkClient::NProto::TChunkTeleportData Data;
+        NChunkClient::NProto::TChunkImportData Data;
     };
 
     std::vector<TChunkEntry> Chunks_;

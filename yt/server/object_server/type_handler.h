@@ -146,6 +146,18 @@ struct IObjectTypeHandler
         const TObjectBase* object,
         NObjectServer::NProto::TReqCreateForeignObject* request) = 0;
 
+    //! Informs #object that it has been exported (once) to cell #cellTag.
+    virtual void ExportObject(
+        TObjectBase* object,
+        NObjectClient::TCellTag destinationCellTag) = 0;
+
+    //! Informs #object that #importRefCounter of its exports to cell #cellTag
+    //! have been canceled.
+    virtual void UnexportObject(
+        TObjectBase* object,
+        NObjectClient::TCellTag destinationCellTag,
+        int importRefCounter) = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectTypeHandler)

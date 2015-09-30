@@ -57,6 +57,10 @@ TCellMasterConfig::TCellMasterConfig()
         .Default(true);
 
     RegisterValidator([&] () {
+        if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
+            THROW_ERROR_EXCEPTION("Too many secondary master cells");
+        }
+
         const auto& cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(PrimaryMaster->CellId);
         yhash_set<TCellTag> cellTags = {primaryCellTag};

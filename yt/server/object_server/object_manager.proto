@@ -48,7 +48,8 @@ message TReqUnrefExportedObjects
         required int32 import_ref_counter = 2;
     }
 
-    repeated TUnrefEntry entries = 1;
+    required int32 cell_tag = 1;
+    repeated TUnrefEntry entries = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
