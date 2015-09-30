@@ -39,6 +39,12 @@ def _check_call(command, silent=False, **kwargs):
         proc.wait()
         raise
 
+    # NB: We need to convert stderr string to utf-8, because we can try to dump it to json later.
+    try:
+        stderrdata = stderrdata.decode("cp1251").encode("utf-8")
+    except Exception:
+        pass
+
     if proc.returncode != 0:
         raise YamrError("Command '{0}' failed".format(command), code=proc.returncode, attributes={"stderrs": stderrdata})
 
