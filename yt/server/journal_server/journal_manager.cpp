@@ -87,7 +87,7 @@ public:
 
         trunkNode->SnapshotStatistics() = statistics
             ? *statistics
-            :  trunkNode->SnapshotStatistics() = trunkNode->GetChunkList()->Statistics().ToDataStatistics();
+            :  trunkNode->GetChunkList()->Statistics().ToDataStatistics();
 
         trunkNode->SetSealed(true);
 
@@ -122,10 +122,29 @@ public:
         auto statisticsDelta = chunk->GetStatistics();
         AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
 
-        auto owningNodes = GetOwningNodes(chunk);
         auto securityManager = Bootstrap_->GetSecurityManager();
+
+        auto owningNodes = GetOwningNodes(chunk);
+
+        bool journalNodeLocked = false;
+        TJournalNode* trunkJournalNode = nullptr;
         for (auto* node : owningNodes) {
             securityManager->UpdateAccountNodeUsage(node);
+            if (node->GetType() == EObjectType::Journal) {
+                auto* journalNode = static_cast<TJournalNode*>(node);
+                if (journalNode->GetUpdateMode() != EUpdateMode::None) {
+                    journalNodeLocked = true;
+                }
+                if (trunkJournalNode) {
+                    YCHECK(journalNode->GetTrunkNode() == trunkJournalNode);
+                } else {
+                    trunkJournalNode = journalNode->GetTrunkNode();
+                }    
+            }
+        }
+
+        if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
+            SealJournal(trunkJournalNode, nullptr);
         }
     }
 
