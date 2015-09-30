@@ -3,13 +3,13 @@ from helpers import get_version, prepare_files
 from setuptools import setup
 
 def main():
-    requires =["yandex-yt", "yandex-yt-tools", "flask", "python-prctl"]
-    scripts, data_files = prepare_files(["yt/transfer_manager/transfer_manager"])
+    requires = ["yandex-yt", "yandex-yt-tools", "flask", "python-prctl"]
+    scripts, data_files = prepare_files(["yt/transfer_manager/server/transfer-manager-server"])
 
     setup(
         name = "yandex-yt-transfer-manager",
         version = get_version(),
-        packages = ["yt.transfer_manager"],
+        packages = ["yt.transfer_manager.server"],
 
         scripts = scripts,
         data_files = data_files,

@@ -257,8 +257,8 @@ class ConfigsProvider_17_3(ConfigsProvider_17):
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
                 config["hydra_manager"] = {
-                    "leader_lease_check_period": 100,
-                    "leader_lease_timeout": 200,
+                    "leader_lease_check_period": 1000,
+                    "leader_lease_timeout": 3000,
                     "disable_leader_lease_grace_delay": True,
                     "response_keeper": {
                         "expiration_time": 25000,
