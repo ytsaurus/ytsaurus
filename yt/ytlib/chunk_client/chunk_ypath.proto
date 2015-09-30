@@ -4,6 +4,7 @@ import "yt/core/misc/guid.proto";
 
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
+import "yt/ytlib/chunk_client/data_statistics.proto";
 import "yt/ytlib/object_client/master_ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,12 +12,15 @@ import "yt/ytlib/object_client/master_ypath.proto";
 message TReqConfirm
 {
     repeated fixed32 replicas = 1;
-    required NChunkClient.NProto.TChunkMeta chunk_meta = 2;
-    required NChunkClient.NProto.TChunkInfo chunk_info = 3;
+    required TChunkMeta chunk_meta = 2;
+    required TChunkInfo chunk_info = 3;
+    optional bool request_statistics = 4 [default = false];
 }
 
 message TRspConfirm
-{ }
+{
+    optional TDataStatistics statistics = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
