@@ -166,42 +166,42 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGzipCodec
+class TZlibCodec
     : public TCodecBase
 {
 public:
-    explicit TGzipCodec(int level)
+    explicit TZlibCodec(int level)
         : Compressor_(std::bind(NCompression::ZlibCompress, level, std::placeholders::_1, std::placeholders::_2))
         , Level_(level)
     { }
 
     virtual TSharedRef Compress(const TSharedRef& block) override
     {
-        return Run<TGzipCodec>(Compressor_, true, block);
+        return Run<TZlibCodec>(Compressor_, true, block);
     }
 
     virtual TSharedRef Compress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TGzipCodec>(Compressor_, true, blocks);
+        return Run<TZlibCodec>(Compressor_, true, blocks);
     }
 
     virtual TSharedRef Decompress(const TSharedRef& block) override
     {
-        return Run<TGzipCodec>(NCompression::ZlibDecompress, false, block);
+        return Run<TZlibCodec>(NCompression::ZlibDecompress, false, block);
     }
 
     virtual TSharedRef Decompress(const std::vector<TSharedRef>& blocks) override
     {
-        return Run<TGzipCodec>(NCompression::ZlibDecompress, false, blocks);
+        return Run<TZlibCodec>(NCompression::ZlibDecompress, false, blocks);
     }
 
     virtual ECodec GetId() const override
     {
         switch (Level_) {
             case 6:
-                return ECodec::GzipNormal;
+                return ECodec::Zlib6;
             case 9:
-                return ECodec::GzipBestCompression;
+                return ECodec::Zlib9;
             default:
                 YUNREACHABLE();
         }
@@ -339,13 +339,13 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
 
-        case ECodec::GzipNormal: {
-            static TGzipCodec result(6);
+        case ECodec::Zlib6: {
+            static TZlibCodec result(6);
             return &result;
         }
 
-        case ECodec::GzipBestCompression: {
-            static TGzipCodec result(9);
+        case ECodec::Zlib9: {
+            static TZlibCodec result(9);
             return &result;
         }
 

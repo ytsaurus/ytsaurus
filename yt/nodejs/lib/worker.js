@@ -192,6 +192,16 @@ process.on("message", function(message) {
 
 process.on("exit", binding.ShutdownSingletons);
 
+process.on("uncaughtException", function(err) {
+    console.error("*** Uncaught Exception");
+    console.error(err);
+    if (err.trace) {
+        console.error(err.trace);
+    }
+    binding.ShutdownSingletons();
+    process.exit(1);
+});
+
 // Fire up the head.
 logger.info("Starting HTTP proxy worker", { wid : cluster.worker.id, pid : process.pid });
 

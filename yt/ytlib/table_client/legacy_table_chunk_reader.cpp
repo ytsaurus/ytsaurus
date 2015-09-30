@@ -538,7 +538,7 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
         }
     }
 
-    if (CurrentRow_.empty()) {
+    if (IsFinished_) {
         return false;
     }
 
@@ -552,7 +552,7 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
             ++RowCount_;
         }
 
-        if (!FetchNextRow() || CurrentRow_.empty()) {
+        if (!FetchNextRow() || IsFinished_) {
             return true;
         }
     }
@@ -586,7 +586,7 @@ void TLegacyTableChunkReader::ResetCurrentRow()
 void TLegacyTableChunkReader::FinishReader()
 {
     LOG_DEBUG("Chunk reader finished");
-    CurrentRow_.clear();
+    IsFinished_ = true;
     --CurrentRowIndex_;
 }
 
@@ -634,7 +634,7 @@ bool TLegacyTableChunkReader::DoFetchNextRow()
 void TLegacyTableChunkReader::SkipToKey(const TOwningKey& key)
 {
     while (true) {
-        if (CurrentRow_.empty()) {
+        if (IsFinished_) {
             return;
         }
 

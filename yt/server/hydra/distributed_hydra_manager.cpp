@@ -588,9 +588,9 @@ private:
             case EPeerState::FollowerRecovery: {
                 try {
                     CheckForInitialPing(startVersion);
-                    epochContext->FollowerRecovery->PostponeMutations(
-                        startVersion,
-                        request->Attachments());
+                    auto followerRecovery = epochContext->FollowerRecovery;
+                    followerRecovery->PostponeMutations(startVersion, request->Attachments());
+                    followerRecovery->SetCommittedVersion(committedVersion);
                     response->set_logged(false);
                 } catch (const std::exception& ex) {
                     if (Restart(epochContext)) {
@@ -632,15 +632,13 @@ private:
 
         switch (ControlState_) {
             case EPeerState::Following:
-                epochContext->EpochUserAutomatonInvoker->Invoke(BIND(
-                    &TDistributedHydraManager::CommitMutationsAtFollower,
-                    MakeStrong(this),
-                    std::move(epochContext),
-                    committedVersion));
+                epochContext->EpochUserAutomatonInvoker->Invoke(
+                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, epochContext, committedVersion, true));
                 break;
 
             case EPeerState::FollowerRecovery:
                 CheckForInitialPing(loggedVersion);
+                epochContext->FollowerRecovery->SetCommittedVersion(committedVersion);
                 break;
 
             default:
@@ -1444,7 +1442,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        DecoratedAutomaton_->CommitMutations(epochContext, committedVersion);
+        DecoratedAutomaton_->CommitMutations(epochContext, committedVersion, true);
         CheckForPendingLeaderSync(std::move(epochContext));
     }
 

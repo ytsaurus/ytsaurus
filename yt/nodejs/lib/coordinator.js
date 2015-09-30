@@ -55,8 +55,12 @@ function YtCoordinatedHost(config, host)
     Object.defineProperty(this, "role", {
         get: function() { return role; },
         set: function(value) {
+            if (typeof(value) !== "string") {
+                throw new TypeError("Role must be string");
+            }
+
             if (value !== "control" && value !== "data") {
-                throw new TypeError("Role has to be either 'control' or 'data'");
+                throw new TypeError("Role has to be either 'control' or 'data'; got '" + value + "'");
             }
 
             role = value;
@@ -230,19 +234,17 @@ YtCoordinator.prototype._initialize = function()
 
     return self.driver.executeSimple("create", {
         type: "map_node",
-        path: path
+        path: path,
+        attributes: {
+            role: "data",
+            banned: "false",
+        },
     })
     .then(
-    function(create) {
-        var req1 = self.driver.executeSimple(
-            "set",
-            { path: path + "/@role" },
-            "data");
-        var req2 = self.driver.executeSimple(
-            "set",
-            { path: path + "/@banned" },
-            "false");
-        return Q.all([ req1, req2 ]);
+    function() {
+        self.logger.debug("Presence initialized at " + path);
+        self.initialized = true;
+        return self._refresh();
     },
     function(error) {
         if (error.checkFor(501)) {
@@ -251,12 +253,6 @@ YtCoordinator.prototype._initialize = function()
         } else {
             return Q.reject(error);
         }
-    })
-    .then(function() {
-        self.logger.debug("Presence initialized at " + path);
-        self.initialized = true;
-
-        return self._refresh();
     })
     .catch(function(err) {
         var error = YtError.ensureWrapped(err);
@@ -358,10 +354,17 @@ YtCoordinator.prototype._refresh = function()
 
             self.__DBG("Proxy '%s' has been updated to %j", host, entry);
 
-            ref.role = utils.getYsonAttribute(entry, "role");
-            ref.banned = utils.getYsonAttribute(entry, "banned");
-            ref.ban_message = utils.getYsonAttribute(entry, "ban_message");
-            ref.liveness = utils.getYsonAttribute(entry, "liveness");
+            try {
+                ref.role = utils.getYsonAttribute(entry, "role");
+                ref.banned = utils.getYsonAttribute(entry, "banned");
+                ref.ban_message = utils.getYsonAttribute(entry, "ban_message");
+                ref.liveness = utils.getYsonAttribute(entry, "liveness");
+            } catch (err) {
+                var error = YtError.ensureWrapped(err);
+                self.logger.error(
+                    "Failed to update coordination information for " + host,
+                    { error: error.toJson() });
+            }
         });
     })
     .catch(function(err) {

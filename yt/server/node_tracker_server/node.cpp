@@ -137,6 +137,11 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletSlots_);
 }
 
+void TNode::ReserveStoredReplicas(int sizeHint)
+{
+    StoredReplicas_.resize(sizeHint);
+}
+
 bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
 {
     auto* chunk = replica.GetPtr();

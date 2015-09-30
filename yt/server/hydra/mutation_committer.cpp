@@ -479,7 +479,7 @@ void TLeaderCommitter::OnBatchCommitted(TBatchPtr batch, const TError& error)
     if (!error.IsOK())
         return;
 
-    DecoratedAutomaton_->CommitMutations(EpochContext_, batch->GetCommittedVersion());
+    DecoratedAutomaton_->CommitMutations(EpochContext_, batch->GetCommittedVersion(), true);
 }
 
 void TLeaderCommitter::OnAutoCheckpointCheck()

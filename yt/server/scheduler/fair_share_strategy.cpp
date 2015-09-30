@@ -1804,13 +1804,7 @@ private:
             RegisterPool(pool);
         }
         if (!pool->GetParent()) {
-            auto defaultParentPool = FindPool(Config->DefaultParentPool);
-            if (!defaultParentPool) {
-                LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
-                SetPoolParent(pool, RootElement);
-            } else {
-                SetPoolParent(pool, defaultParentPool);
-            }
+            SetPoolDefaultParent(pool);
         }
         pool->AddChild(operationElement, false);
         pool->IncreaseUsage(operationElement->ResourceUsage());
@@ -1984,6 +1978,17 @@ private:
         }
     }
 
+    void SetPoolDefaultParent(TPoolPtr pool)
+    {
+        auto defaultParentPool = FindPool(Config->DefaultParentPool);
+        if (!defaultParentPool) {
+            LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+            SetPoolParent(pool, RootElement);
+        } else {
+            SetPoolParent(pool, defaultParentPool);
+        }
+    }
+
     TPoolPtr FindPool(const Stroka& id)
     {
         auto it = Pools.find(id);
@@ -2078,7 +2083,7 @@ private:
                     UnregisterPool(pool);
                 } else {
                     pool->SetDefaultConfig();
-                    SetPoolParent(pool, RootElement);
+                    SetPoolDefaultParent(pool);
                 }
             }
 

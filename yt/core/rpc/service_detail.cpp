@@ -352,7 +352,10 @@ private:
                 auto now = GetCpuInstant();
 
                 {
-                    auto value = CpuDurationToValue(now - StartTime_);
+                    i64 value = 0;
+                    if (Started_) {
+                        value = CpuDurationToValue(now - StartTime_);
+                    }
                     Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, value);
                 }
 
