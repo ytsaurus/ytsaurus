@@ -36,7 +36,6 @@ void Shutdown()
     NRpc::TDispatcher::Get()->Shutdown();
     NBus::TTcpDispatcher::Get()->Shutdown();
     NConcurrency::TDelayedExecutor::Shutdown();
-    NProfiling::TProfileManager::Get()->Shutdown();
     TAddressResolver::Get()->Shutdown();
     NLogging::TLogManager::Get()->Shutdown();
     NTracing::TTraceManager::Get()->Shutdown();
