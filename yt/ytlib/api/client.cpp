@@ -1324,6 +1324,7 @@ private:
         fragment->RangeExpansionLimit = options.RangeExpansionLimit;
         fragment->VerboseLogging = options.VerboseLogging;
         fragment->EnableCodeCache = options.EnableCodeCache;
+        fragment->MaxSubqueries = options.MaxSubqueries;
 
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;
