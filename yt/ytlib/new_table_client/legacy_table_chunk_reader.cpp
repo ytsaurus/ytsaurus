@@ -161,6 +161,7 @@ public:
             tableChunkReader->CurrentRowIndex_ = tableChunkReader->BeginRowIndex_;
             if (tableChunkReader->CurrentRowIndex_ >= tableChunkReader->EndRowIndex_) {
                 LOG_WARNING("Nothing to read from current chunk");
+                tableChunkReader->FinishReader();
                 return;
             }
 
