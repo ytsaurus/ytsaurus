@@ -234,6 +234,7 @@ void TNode::ClearReplicas()
 {
     StoredReplicas_.clear();
     CachedReplicas_.clear();
+    UnapprovedReplicas_.clear();
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
