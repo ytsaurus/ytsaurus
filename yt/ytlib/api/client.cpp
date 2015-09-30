@@ -64,6 +64,7 @@
 
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/read_limit.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 #include <ytlib/scheduler/job_prober_service_proxy.h>
@@ -75,6 +76,8 @@
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/row_merger.h>
 #include <ytlib/table_client/row_base.h>
+
+#include <unordered_map>
 
 namespace NYT {
 namespace NApi {
@@ -349,9 +352,13 @@ private:
 
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
+        std::unordered_map<int, ui64> nodeDataSize;
+
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
+            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+            auto chunkSize = miscExt.uncompressed_data_size();
 
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
@@ -371,7 +378,28 @@ private:
                 THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
                     objectId);
             }
-            auto replica = replicas[RandomNumber(replicas.size())];
+
+            // Select least busy replica.
+            TChunkReplica selectedReplica;
+            {
+                ui64 minNodeDataSize = std::numeric_limits<ui64>::max();
+
+                for (const auto& replica : replicas) {
+                    auto nodeId = replica.GetNodeId();
+                    auto nodeDataSizeIt = nodeDataSize.find(nodeId);
+
+                    if (nodeDataSizeIt == nodeDataSize.end()) {
+                        nodeDataSize[nodeId] = 0;
+                        selectedReplica = replica;
+                        break;
+                    } else if (nodeDataSizeIt->second < minNodeDataSize) {
+                        minNodeDataSize = nodeDataSizeIt->second;
+                        selectedReplica = replica;
+                    }
+                }
+
+                nodeDataSize[selectedReplica.GetNodeId()] += chunkSize;
+            }
 
             auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
 
@@ -379,7 +407,7 @@ private:
                 GetObjectIdFromDataSplit(chunkSpec),
                 TRowRange(rowBuffer->Capture(keyRange.first.Get()), rowBuffer->Capture(keyRange.second.Get()))};
 
-            const auto& descriptor = nodeDirectory->GetDescriptor(replica);
+            const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
             const auto& address = descriptor.GetAddressOrThrow(networkName);
             result.emplace_back(dataSource, address);
         }
