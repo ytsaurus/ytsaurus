@@ -333,9 +333,19 @@ private:
         SecondaryMasterRegistered_.Fire(cellTag);
 
         if (Bootstrap_->IsPrimaryMaster()) {
+            // Inform others about the new secondary.
             for (const auto& pair : RegisteredMasterMap_) {
                 if (pair.first != cellTag) {
                     PostToMaster(request, pair.first, true);
+                }
+            }
+
+            // Inform the new secondary about others.
+            for (const auto& pair : RegisteredMasterMap_) {
+                if (pair.first != cellTag) {
+                    NProto::TReqRegisterSecondaryMaster request;
+                    request.set_cell_tag(pair.first);
+                    PostToMaster(request, cellTag, true);
                 }
             }
         }
