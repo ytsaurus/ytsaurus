@@ -222,21 +222,20 @@ void TLazyChunkWriter::OpenSession()
 
 TChunkId TLazyChunkWriter::CreateChunk() const
 {
-    auto rspOrError = WaitFor(NChunkClient::CreateChunk(
-        Client_,
-        CellTagFromId(ParentChunkListId_),
-        Options_,
-        TransactionId_,
-        ParentChunkListId_,
-        Logger));
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        rspOrError,
-        EErrorCode::MasterCommunicationFailed,
-        "Error creating chunk");
-
-    const auto& rsp = rspOrError.Value();
-    return NYT::FromProto<TChunkId>(rsp->object_ids(0));
+    try {
+        return NChunkClient::CreateChunk(
+            Client_,
+            CellTagFromId(ParentChunkListId_),
+            Options_,
+            TransactionId_,
+            ParentChunkListId_,
+            Logger);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::MasterCommunicationFailed,
+            "Error creating chunk")
+            << ex;
+    }
 }
 
 IChunkWriterPtr TLazyChunkWriter::CreateUnderlyingWriter() const

@@ -187,23 +187,19 @@ private:
 
         // Create output chunk.
         TChunkId outputChunkId;
-        {
-            auto writerNodeDirectory = New<TNodeDirectory>();
-            auto rspOrError = WaitFor(CreateChunk(
+        try {
+            outputChunkId = CreateChunk(
                 host->GetClient(),
                 CellTagFromId(OutputChunkListId_),
                 writerOptions,
                 transactionId,
                 OutputChunkListId_,
-                Logger));
-
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                rspOrError,
+                Logger);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::ChunkCreationFailed,
-                "Error creating chunk");
-
-            const auto& rsp = rspOrError.Value();
-            outputChunkId = FromProto<TChunkId>(rsp->object_ids(0));
+                "Error creating chunk")
+                << ex;
         }
 
         LOG_INFO("Output chunk created (ChunkId: %v)",
