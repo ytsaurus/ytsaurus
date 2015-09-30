@@ -714,10 +714,10 @@ class TestTablets(YTEnvSetup):
             verify()
 
     def test_read_only_mode(self):
-        self._sync_create_cells(1, 1)
+        self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
         set("//tmp/t/@read_only", True)
-        self._sync_mount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(1)]
 
