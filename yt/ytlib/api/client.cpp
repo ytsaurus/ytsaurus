@@ -386,15 +386,10 @@ private:
 
                 for (const auto& replica : replicas) {
                     auto nodeId = replica.GetNodeId();
-                    auto nodeDataSizeIt = nodeDataSize.find(nodeId);
-
-                    if (nodeDataSizeIt == nodeDataSize.end()) {
-                        nodeDataSize[nodeId] = 0;
+                    auto curNodeDataSize = nodeDataSize[nodeId];
+                    if (curNodeDataSize < minNodeDataSize) {
                         selectedReplica = replica;
-                        break;
-                    } else if (nodeDataSizeIt->second < minNodeDataSize) {
-                        minNodeDataSize = nodeDataSizeIt->second;
-                        selectedReplica = replica;
+                        minNodeDataSize = curNodeDataSize;
                     }
                 }
 
