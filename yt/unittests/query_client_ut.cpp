@@ -2528,16 +2528,16 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
 
     std::vector<Stroka> source = {
         "a=4;b=5", 
-        "a=10;b=11",
+        "a=-10;b=11",
         "a=15;b=11"
     };
 
     auto result = BuildRows({
         "a=4;b=5",
-        "a=10;b=11"
+        "a=-10;b=11"
     }, split);
 
-    Evaluate("a, b FROM [//t] where a in (4, 10)", split, source, result);
+    Evaluate("a, b FROM [//t] where a in (4, -10)", split, source, result);
 }
 
 TEST_F(TQueryEvaluateTest, SimpleWithNull)
