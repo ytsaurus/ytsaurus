@@ -659,7 +659,7 @@ class Application(object):
                source_client._type == "yt" and (
                     not source_client.exists(task.source_table) or
                     source_client.get_attribute(task.source_table, "row_count") == 0):
-                raise yt.YtError("Source table {} is empty".format(task.source_table))
+                raise yt.YtError("Source table {} is empty or does not exist".format(task.source_table))
 
             if source_client._type == "yt" and destination_client._type == "yamr":
                 path = yt.TablePath(task.source_table, end_index=1, simplify=False, client=source_client)
