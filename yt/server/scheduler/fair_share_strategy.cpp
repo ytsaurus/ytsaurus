@@ -514,6 +514,8 @@ public:
         return Children.empty() && DisabledChildren.empty();
     }
 
+    virtual int GetMaxRunningOperationCount() const = 0;
+
     DEFINE_BYVAL_RW_PROPERTY(TCompositeSchedulerElement*, Parent);
 
     DEFINE_BYREF_RW_PROPERTY(TNodeResources, ResourceDemand);
@@ -843,6 +845,13 @@ public:
         }
     }
 
+    virtual int GetMaxRunningOperationCount() const override
+    {
+        return Config_->MaxRunningOperations
+            ? *(Config_->MaxRunningOperations)
+            : StrategyConfig_->MaxRunningOperationsPerPool;
+    }
+
 private:
     Stroka Id;
 
@@ -1105,8 +1114,9 @@ class TRootElement
     : public TCompositeSchedulerElement
 {
 public:
-    explicit TRootElement(ISchedulerStrategyHost* host)
+    TRootElement(ISchedulerStrategyHost* host, TFairShareStrategyConfigPtr strategyConfig)
         : TCompositeSchedulerElement(host)
+        , StrategyConfig_(strategyConfig)
     {
         Attributes_.FairShareRatio = 1.0;
         Attributes_.AdjustedMinShareRatio = 1.0;
@@ -1143,6 +1153,14 @@ public:
     {
         return Null;
     }
+
+    virtual int GetMaxRunningOperationCount() const override
+    {
+        return StrategyConfig_->MaxRunningOperations;
+    }
+
+private:
+    TFairShareStrategyConfigPtr StrategyConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1168,7 +1186,7 @@ public:
         Host->SubscribeOperationRuntimeParamsUpdated(
             BIND(&TFairShareStrategy::OnOperationRuntimeParamsUpdated, this));
 
-        RootElement = New<TRootElement>(Host);
+        RootElement = New<TRootElement>(Host, config);
     }
 
 
@@ -1401,7 +1419,7 @@ public:
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
                         .Item("running_operation_count").Value(RunningOperationCount[pool->GetId()])
-                        .Item("max_running_operation_count").Value(GetPoolMaxRunningOperationCount(pool))
+                        .Item("max_running_operation_count").Value(pool->GetMaxRunningOperationCount())
                         .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                             fluent
                                 .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
@@ -1494,22 +1512,11 @@ private:
         return params;
     }
 
-    int GetPoolMaxRunningOperationCount(TPoolPtr pool)
-    {
-        return pool->GetConfig()->MaxRunningOperations
-            ? *(pool->GetConfig()->MaxRunningOperations)
-            : Config->MaxRunningOperationsPerPool;
-    }
-
     bool CanAddOperationToPool(TPoolPtr pool)
     {
         TCompositeSchedulerElement* element = pool.Get();
         while (element) {
-            if (element->IsRoot()) {
-                break;
-            }
-            auto poolName = element->GetId();
-            if (RunningOperationCount[poolName] >= GetPoolMaxRunningOperationCount(pool)) {
+            if (RunningOperationCount[element->GetId()] >= element->GetMaxRunningOperationCount()) {
                 return false;
             }
             element = element->GetParent();
@@ -1542,7 +1549,7 @@ private:
         pool->IncreaseUsage(operationElement->ResourceUsage());
         operationElement->SetPool(pool.Get());
 
-        if (CanAddOperationToPool(pool.Get()) && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
+        if (CanAddOperationToPool(pool.Get())) {
             ActivateOperation(operation);
         } else {
             OperationQueue.push_back(operation);
