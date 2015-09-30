@@ -94,11 +94,10 @@ class YTEnvSetup(YTEnv):
 
     def _wait_nodes(self):
         for attempt in xrange(1, 100):
-            while True:
-                if yt_commands.get("//sys/nodes/@offline"):
-                    sleep(0.1)
-                else:
-                    break
+            if yt_commands.get("//sys/nodes/@offline"):
+                sleep(0.1)
+            else:
+                break
 
     def _sync_create_cells(self, size, count):
         ids = []

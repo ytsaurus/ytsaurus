@@ -69,16 +69,6 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, DataSizeSums_);
 }
 
-ui64 TChunkList::GetVisitMark() const
-{
-    return GetDynamicData()->VisitMark;
-}
-
-void TChunkList::SetVisitMark(ui64 value)
-{
-    GetDynamicData()->VisitMark = value;
-}
-
 ui64 TChunkList::GenerateVisitMark()
 {
     static std::atomic<ui64> counter(0);

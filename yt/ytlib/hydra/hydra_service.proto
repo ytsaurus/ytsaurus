@@ -67,7 +67,7 @@ message TReqLogMutations
 
 message TRspLogMutations
 {
-    optional bool logged = 1;
+    required bool logged = 1;
 }
                                                                               
 ////////////////////////////////////////////////////////////////////////////////

@@ -126,8 +126,6 @@ Handle<Value> ShutdownSingletons(const Arguments& args)
     THREAD_AFFINITY_IS_V8();
     HandleScope scope;
 
-    YCHECK(args.Length());
-
     Shutdown();
 
     return Undefined();

@@ -86,6 +86,7 @@ private:
         attributes->push_back("confirmed");
         attributes->push_back("available");
         attributes->push_back("master_meta_size");
+        attributes->push_back("sealed");
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         attributes->push_back(TAttributeInfo("disk_space", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
@@ -96,7 +97,6 @@ private:
         attributes->push_back(TAttributeInfo("compression_codec", chunk->IsConfirmed() && miscExt->has_compression_codec(), false, true));
         attributes->push_back(TAttributeInfo("row_count", chunk->IsConfirmed() && miscExt->has_row_count()));
         attributes->push_back(TAttributeInfo("quorum_row_count", chunk->IsJournal(), true));
-        attributes->push_back(TAttributeInfo("sealed", chunk->IsJournal()));
         attributes->push_back(TAttributeInfo("value_count", chunk->IsConfirmed() && miscExt->has_value_count()));
         attributes->push_back(TAttributeInfo("sorted", chunk->IsConfirmed() && miscExt->has_sorted()));
         attributes->push_back(TAttributeInfo("min_timestamp", chunk->IsConfirmed() && miscExt->has_min_timestamp()));
@@ -257,6 +257,12 @@ private:
             return true;
         }
 
+        if (key == "sealed") {
+            BuildYsonFluently(consumer)
+                .Value(chunk->IsSealed());
+            return true;
+        }
+
         if (key == "owning_nodes") {
             SerializeOwningNodesPaths(
                 cypressManager,
@@ -314,12 +320,6 @@ private:
             if (key == "row_count" && miscExt.has_row_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.row_count());
-                return true;
-            }
-
-            if (key == "sealed" && chunk->IsJournal()) {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->IsSealed());
                 return true;
             }
 
