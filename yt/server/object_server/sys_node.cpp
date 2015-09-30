@@ -84,7 +84,7 @@ private:
         if (key == "current_commit_revision") {
             auto hydraManager = hydraFacade->GetHydraManager();
             BuildYsonFluently(consumer)
-                .Value(hydraManager->GetCommittedVersion().ToRevision());
+                .Value(hydraManager->GetAutomatonVersion().ToRevision());
             return true;
         }
 

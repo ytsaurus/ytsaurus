@@ -145,8 +145,10 @@ public:
     i64 GetLoggedDataSize() const;
     TInstant GetLastSnapshotTime() const;
 
-    TVersion GetCommittedVersion() const;
+    TVersion GetAutomatonVersion() const;
     void RotateAutomatonVersion(int segmentId);
+
+    TVersion GetCommittedVersion() const;
 
     void Clear();
     void LoadSnapshot(TVersion version, NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
@@ -203,7 +205,7 @@ private:
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     std::atomic<TVersion> LoggedVersion_;
     std::atomic<TVersion> AutomatonVersion_;
-    TVersion CommittedVersion_;
+    std::atomic<TVersion> CommittedVersion_;
     bool ApplyPendingMutationsScheduled_ = false;
 
     TVersion SnapshotVersion_;
