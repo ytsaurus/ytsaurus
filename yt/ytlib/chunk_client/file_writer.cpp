@@ -185,6 +185,13 @@ const TChunkInfo& TFileWriter::GetChunkInfo() const
     return ChunkInfo_;
 }
 
+const TDataStatistics& TFileWriter::GetDataStatistics() const
+{
+    YCHECK(IsClosed_);
+
+    YUNREACHABLE();
+}
+
 const TChunkMeta& TFileWriter::GetChunkMeta() const
 {
     YCHECK(IsClosed_);

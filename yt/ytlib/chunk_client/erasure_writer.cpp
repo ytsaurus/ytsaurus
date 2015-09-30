@@ -12,6 +12,7 @@
 
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 #include <ytlib/chunk_client/chunk_info.pb.h>
+#include <ytlib/chunk_client/data_statistics.pb.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
 
@@ -30,6 +31,7 @@ namespace NChunkClient {
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -185,9 +187,14 @@ public:
         return error;
     }
 
-    virtual const NProto::TChunkInfo& GetChunkInfo() const override
+    virtual const TChunkInfo& GetChunkInfo() const override
     {
         return ChunkInfo_;
+    }
+
+    virtual const TDataStatistics& GetDataStatistics() const override
+    {
+        YUNREACHABLE();
     }
 
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override
@@ -203,7 +210,7 @@ public:
         return result;
     }
 
-    virtual TFuture<void> Close(const NProto::TChunkMeta& chunkMeta) override;
+    virtual TFuture<void> Close(const TChunkMeta& chunkMeta) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -213,7 +220,7 @@ public:
 private:
     void PrepareBlocks();
 
-    void PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta);
+    void PrepareChunkMeta(const TChunkMeta& chunkMeta);
 
     void DoOpen();
 
@@ -247,8 +254,8 @@ private:
     int WindowCount_;
 
     // Chunk meta with information about block placement
-    NProto::TChunkMeta ChunkMeta_;
-    NProto::TChunkInfo ChunkInfo_;
+    TChunkMeta ChunkMeta_;
+    TChunkInfo ChunkInfo_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
@@ -285,10 +292,10 @@ void TErasureWriter::PrepareBlocks()
     }
 }
 
-void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
+void TErasureWriter::PrepareChunkMeta(const TChunkMeta& chunkMeta)
 {
     int start = 0;
-    NProto::TErasurePlacementExt placementExt;
+    TErasurePlacementExt placementExt;
     for (const auto& group : Groups_) {
         auto* info = placementExt.add_part_infos();
         info->set_first_block_index(start);
@@ -407,7 +414,7 @@ TFuture<void> TErasureWriter::CloseParityWriters()
     return Combine(asyncResults);
 }
 
-TFuture<void> TErasureWriter::Close(const NProto::TChunkMeta& chunkMeta)
+TFuture<void> TErasureWriter::Close(const TChunkMeta& chunkMeta)
 {
     YCHECK(IsOpen_);
 

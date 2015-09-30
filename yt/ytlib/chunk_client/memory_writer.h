@@ -24,6 +24,8 @@ public:
     //! Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;
     //! Unimplemented.
+    virtual const NProto::TDataStatistics& GetDataStatistics() const override;
+    //! Unimplemented.
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
     //! Returns #NullChunkId.
     virtual TChunkId GetChunkId() const override;

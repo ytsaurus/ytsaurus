@@ -36,6 +36,7 @@ public:
     virtual TFuture<void> Close(const NChunkClient::NProto::TChunkMeta& chunkMeta) override;
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
+    virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
     virtual TChunkId GetChunkId() const override;

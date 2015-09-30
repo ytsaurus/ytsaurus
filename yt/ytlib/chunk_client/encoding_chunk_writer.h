@@ -47,6 +47,8 @@ private:
     int CurrentBlockIndex_ = 0;
     i64 LargestBlockSize_ = 0;
 
+    bool Closed_ = false;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TEncodingChunkWriter)

@@ -62,6 +62,11 @@ const TChunkInfo& TMemoryWriter::GetChunkInfo() const
     YUNIMPLEMENTED();
 }
 
+const TDataStatistics& TMemoryWriter::GetDataStatistics() const
+{
+    YUNIMPLEMENTED();
+}
+
 TChunkReplicaList TMemoryWriter::GetWrittenChunkReplicas() const
 {
     YUNIMPLEMENTED();
