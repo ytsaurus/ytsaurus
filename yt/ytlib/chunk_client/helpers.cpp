@@ -29,7 +29,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
+TChunkId CreateChunk(
     IClientPtr client,
     TCellTag cellTag,
     TMultiChunkWriterOptionsPtr options,
@@ -39,8 +39,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG(
-        "Creating chunk (ReplicationFactor: %v, TransactionId: %v)", 
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v)", 
         options->ReplicationFactor, 
         transactionId);
 
@@ -51,7 +50,7 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
          ? EObjectType::Chunk
          : EObjectType::ErasureChunk;
 
-    auto req = TMasterYPathProxy::CreateObjects();
+    auto req = TMasterYPathProxy::CreateObject();
     ToProto(req->mutable_transaction_id(), transactionId);
     GenerateMutationId(req);
     req->set_type(static_cast<int>(chunkType));
@@ -66,7 +65,9 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
         ToProto(reqExt->mutable_chunk_list_id(), chunkListId);
     }
 
-    return proxy.Execute(req);
+    auto rspOrError = WaitFor(proxy.Execute(req));
+    const auto& rsp = rspOrError.ValueOrThrow();
+    return FromProto<TChunkId>(rsp->object_id());
 }
 
 void ProcessFetchResponse(
