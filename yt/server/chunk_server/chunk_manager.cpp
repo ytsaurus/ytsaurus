@@ -46,6 +46,7 @@
 #include <server/cell_master/serialize.h>
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 
 #include <server/transaction_server/transaction_manager.h>
 #include <server/transaction_server/transaction.h>
@@ -197,6 +198,25 @@ protected:
     {
         TObjectTypeHandlerWithMapBase::DoResetObject(chunk);
         chunk->Reset();
+    }
+
+    virtual void DoExportObject(
+        TChunk* chunk,
+        TCellTag destinationCellTag) override
+    {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
+        chunk->Export(cellIndex);
+    }
+
+    virtual void DoUnexportObject(
+        TChunk* chunk,
+        TCellTag destinationCellTag,
+        int importRefCounter) override
+    {
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellIndex = multicellManager->GetRegisteredMasterCellIndex(destinationCellTag);
+        chunk->Unexport(cellIndex, importRefCounter);
     }
 };
 
@@ -1103,24 +1123,25 @@ private:
             transaction->ThrowInvalidState();
         }
 
-        for (const auto& protoChunkId : request.chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
+        for (const auto& exportData : request.chunks()) {
+            auto chunkId = FromProto<TChunkId>(exportData.id());
             auto* chunk = GetChunkOrThrow(chunkId);
+            auto cellTag = exportData.destination_cell_tag();
 
-            transactionManager->ExportObject(transaction, chunk);
+            transactionManager->ExportObject(transaction, chunk, cellTag);
 
             if (response) {
-                auto* chunkData = response->add_chunks();
-                ToProto(chunkData->mutable_id(), chunkId);
-                chunkData->mutable_info()->CopyFrom(chunk->ChunkInfo());
-                chunkData->mutable_meta()->CopyFrom(chunk->ChunkMeta());
-                chunkData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+                auto* importData = response->add_chunks();
+                ToProto(importData->mutable_id(), chunkId);
+                importData->mutable_info()->CopyFrom(chunk->ChunkInfo());
+                importData->mutable_meta()->CopyFrom(chunk->ChunkMeta());
+                importData->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
             }
         }
 
         LOG_INFO("Chunks exported (TransactionId: %v, ChunkCount: %v)",
             transactionId,
-            request.chunk_ids_size());
+            request.chunks_size());
     }
 
     void HydraImportChunks(
@@ -1135,14 +1156,14 @@ private:
             transaction->ThrowInvalidState();
         }
 
-        for (auto& chunkData : *request.mutable_chunks()) {
-            auto chunkId = FromProto<TChunkId>(chunkData.id());
+        for (auto& importData : *request.mutable_chunks()) {
+            auto chunkId = FromProto<TChunkId>(importData.id());
             auto* chunk = ChunkMap_.Find(chunkId);
             if (!chunk) {
                 auto chunkHolder = std::make_unique<TChunk>(chunkId);
                 chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
-                chunk->Confirm(chunkData.mutable_info(), chunkData.mutable_meta());
-                chunk->SetErasureCodec(NErasure::ECodec(chunkData.erasure_codec()));
+                chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
+                chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
             }
 
             transactionManager->ImportObject(transaction, chunk);

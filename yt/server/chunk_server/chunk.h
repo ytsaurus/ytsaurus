@@ -51,6 +51,18 @@ struct TChunkDynamicData
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChunkExportData
+{
+    ui32 RefCounter : 24;
+    // XXX(babenko): to be used later
+    ui32 Unused : 8;
+};
+
+static_assert(sizeof(TChunkExportData) == 4, "sizeof(TChunkExportData) != 4");
+using TChunkExportDataList = TChunkExportData[NObjectClient::MaxSecondaryMasterCells];
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunk
     : public TChunkTree
     , public TRefTracked<TChunk>
@@ -164,6 +176,18 @@ public:
      */
     int GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const;
 
+    //! Returns the export data w.r.t. to a cell with a given #index.
+    /*!
+     *  \see #TMultiCellManager::GetRegisteredMasterCellIndex
+     */
+    const TChunkExportData& GetExportData(int cellIndex) const;
+
+    //! Increments export ref counter.
+    void Export(int cellIndex);
+
+    //! Decrements export ref counter.
+    void Unexport(int cellIndex, int importRefCounter);
+
 private:
     struct {
         bool Movable : 1;
@@ -174,6 +198,7 @@ private:
     i8 ReadQuorum_;
     i8 WriteQuorum_;
     NErasure::ECodec ErasureCodec_;
+    TChunkExportDataList ExportDataList_;
 
 };
 
@@ -181,6 +206,8 @@ private:
 
 } // namespace NChunkServer
 } // namespace NYT
+
+DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataList)
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"

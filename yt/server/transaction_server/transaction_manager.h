@@ -84,7 +84,8 @@ public:
     //! The same object as be exported more than once.
     void ExportObject(
         TTransaction* transaction,
-        NObjectServer::TObjectBase* object);
+        NObjectServer::TObjectBase* object,
+        NObjectClient::TCellTag destinationCellTag);
 
     //! Registers and references the object with the transaction.
     //! The reference is dropped if the transaction aborts or aborts.

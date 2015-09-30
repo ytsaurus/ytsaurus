@@ -161,8 +161,12 @@ private:
 
         if (key == "exported_object_ids") {
             BuildYsonFluently(consumer)
-                .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TObjectBase* object) {
-                    fluent.Item().Value(object->GetId());
+                .DoListFor(transaction->ExportedObjects(), [=] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
+                    fluent
+                        .Item().BeginMap()
+                            .Item("id").Value(entry.Object->GetId())
+                            .Item("destination_cell_tag").Value(entry.DestinationCellTag)
+                        .EndMap();
                 });
             return true;
         }
@@ -648,13 +652,17 @@ public:
         object->ImportRefObject();
     }
 
-    void ExportObject(TTransaction* transaction, TObjectBase* object)
+    void ExportObject(TTransaction* transaction, TObjectBase* object, TCellTag destinationCellTag)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        transaction->ExportedObjects().push_back(object);
+        transaction->ExportedObjects().push_back({object, destinationCellTag});
+
         auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(object);
+
+        const auto& handler = objectManager->GetHandler(object);
+        handler->ExportObject(object, destinationCellTag);
     }
 
 
@@ -821,9 +829,12 @@ private:
         }
         transaction->StagedNodes().clear();
 
-        for (auto* object : transaction->ExportedObjects()) {
+        for (const auto& entry : transaction->ExportedObjects()) {
             if (transaction->GetState() == ETransactionState::Aborted) {
+                auto* object = entry.Object;
                 objectManager->UnrefObject(object);
+                const auto& handler = objectManager->GetHandler(object);
+                handler->UnexportObject(object, entry.DestinationCellTag, 1);
             }
         }
         transaction->ExportedObjects().clear();
@@ -1111,9 +1122,10 @@ void TTransactionManager::StageNode(
 
 void TTransactionManager::ExportObject(
     TTransaction* transaction,
-    TObjectBase* object)
+    TObjectBase* object,
+    TCellTag destinationCellTag)
 {
-    Impl_->ExportObject(transaction, object);
+    Impl_->ExportObject(transaction, object, destinationCellTag);
 }
 
 void TTransactionManager::ImportObject(
