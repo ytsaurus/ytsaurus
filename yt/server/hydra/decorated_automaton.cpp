@@ -692,7 +692,6 @@ void TDecoratedAutomaton::Clear()
     Reset();
     AutomatonVersion_ = TVersion();
     CommittedVersion_ = TVersion();
-    ApplyPendingMutationsScheduled_ = false;
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -893,9 +892,7 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
     LOG_DEBUG("Committed version promoted to %v",
         version);
 
-    if (!ApplyPendingMutationsScheduled_) {
-        ApplyPendingMutations(std::move(epochContext), mayYield);
-    }
+    ApplyPendingMutations(std::move(epochContext), mayYield);
 }
 
 bool TDecoratedAutomaton::HasReadyMutations() const
@@ -912,8 +909,6 @@ bool TDecoratedAutomaton::HasReadyMutations() const
 
 void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield)
 {
-    ApplyPendingMutationsScheduled_ = false;
-
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
@@ -940,7 +935,6 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, b
             MaybeStartSnapshotBuilder();
 
             if (mayYield && timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
-                ApplyPendingMutationsScheduled_ = true;
                 epochContext->EpochUserAutomatonInvoker->Invoke(
                     BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext, true));
                 break;
