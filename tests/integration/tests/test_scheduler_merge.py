@@ -386,6 +386,8 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         assert get("#" + chunk_id1 + "/@ref_counter") == 1
         assert get("#" + chunk_id2 + "/@ref_counter") == 1
+        assert get("#" + chunk_id1 + "/@exports") == {}
+        assert get("#" + chunk_id2 + "/@exports") == {}
         
         create("table", "//tmp/t", attributes={"external": False})
         merge(mode="ordered",
@@ -395,7 +397,9 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         assert get("//tmp/t/@chunk_ids") == [chunk_id1, chunk_id2]
         assert get("#" + chunk_id1 + "/@ref_counter") == 2
         assert get("#" + chunk_id2 + "/@ref_counter") == 2
-
+        assert get("#" + chunk_id1 + "/@exports") == {"0": {"ref_counter": 1}}
+        assert get("#" + chunk_id2 + "/@exports") == {"0": {"ref_counter": 1}}
+        
         assert read_table("//tmp/t") == [{"a": 1}, {"a": 2}]
         
         remove("//tmp/t")
@@ -404,6 +408,8 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         multicell_sleep()
         assert get("#" + chunk_id1 + "/@ref_counter") == 1
         assert get("#" + chunk_id2 + "/@ref_counter") == 1
+        get("#" + chunk_id1 + "/@exports") == {}
+        get("#" + chunk_id2 + "/@exports") == {}
         
     def test_multicell_merge_multi_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
@@ -411,6 +417,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         chunk_id = get("//tmp/t1/@chunk_ids/0")
 
         assert get("#" + chunk_id + "/@ref_counter") == 1
+        assert get("#" + chunk_id + "/@exports") == {}
         assert not get("#" + chunk_id + "/@foreign")
         assert not exists("#" + chunk_id + "&")
         
@@ -421,6 +428,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         assert get("//tmp/t2/@chunk_ids") == [chunk_id, chunk_id]
         assert get("#" + chunk_id + "/@ref_counter") == 3
+        assert get("#" + chunk_id + "/@exports") == {"0": {"ref_counter": 2}}
         assert get("#" + chunk_id + "&/@import_ref_counter") == 2
         
         assert read_table("//tmp/t2") == [{"a": 1}, {"a": 1}]
@@ -432,6 +440,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         assert get("//tmp/t3/@chunk_ids") == [chunk_id, chunk_id]
         assert get("#" + chunk_id + "/@ref_counter") == 5
+        assert get("#" + chunk_id + "/@exports") == {"0": {"ref_counter": 4}}
         assert get("#" + chunk_id + "&/@import_ref_counter") == 4
 
         assert read_table("//tmp/t3") == [{"a": 1}, {"a": 1}]
@@ -441,13 +450,15 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         gc_collect()
         multicell_sleep()
         assert get("#" + chunk_id + "/@ref_counter") == 5
+        assert get("#" + chunk_id + "/@exports") == {"0": {"ref_counter": 4}}
         
         remove("//tmp/t3")
 
         gc_collect()
         multicell_sleep()
         assert get("#" + chunk_id + "/@ref_counter") == 1
-
+        assert get("#" + chunk_id + "/@exports") == {}
+        
         remove("//tmp/t1")
 
         gc_collect()
