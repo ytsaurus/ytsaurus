@@ -275,10 +275,7 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         }
     }
 
-    def test_operations_pool_limit(self):
-        create("map_node", "//sys/pools/test_pool_1")
-        create("map_node", "//sys/pools/test_pool_2")
-
+    def _run_operations(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
@@ -319,6 +316,18 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         assert read("//tmp/out1") == []
         assert read("//tmp/out2") == []
         assert read("//tmp/out3") == []
+
+    def test_operations_pool_limit(self):
+        create("map_node", "//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2")
+        self._run_operations()
+
+    def test_operations_recursive_pool_limit(self):
+        create("map_node", "//sys/pools/research")
+        set("//sys/pools/research/@max_running_operations", 2)
+        create("map_node", "//sys/pools/research/test_pool_1")
+        create("map_node", "//sys/pools/research/test_pool_2")
+        self._run_operations()
 
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
