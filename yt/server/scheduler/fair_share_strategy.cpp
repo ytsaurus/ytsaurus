@@ -1400,6 +1400,12 @@ public:
                 fluent
                     .Item(id).BeginMap()
                         .Item("mode").Value(config->Mode)
+                        .Item("running_operation_count").Value(RunningOperationCount[pool->GetId()])
+                        .Item("max_running_operation_count").Value(GetPoolMaxRunningOperationCount(pool))
+                        .DoIf(config->Mode == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
+                            fluent
+                                .Item("fifo_sort_parameters").Value(config->FifoSortParameters);
+                        })
                         .DoIf(pool->GetParent(), [&] (TFluentMap fluent) {
                             fluent
                                 .Item("parent").Value(pool->GetParent()->GetId());
@@ -1488,6 +1494,13 @@ private:
         return params;
     }
 
+    int GetPoolMaxRunningOperationCount(TPoolPtr pool)
+    {
+        return pool->GetConfig()->MaxRunningOperations
+            ? *(pool->GetConfig()->MaxRunningOperations)
+            : Config->MaxRunningOperationsPerPool;
+    }
+
     bool CanAddOperationToPool(TPoolPtr pool)
     {
         TCompositeSchedulerElement* element = pool.Get();
@@ -1496,10 +1509,7 @@ private:
                 break;
             }
             auto poolName = element->GetId();
-            int MaxRunningOperations = pool->GetConfig()->MaxRunningOperations
-                ? *(pool->GetConfig()->MaxRunningOperations)
-                : Config->MaxRunningOperationsPerPool;
-            if (RunningOperationCount[poolName] >= MaxRunningOperations) {
+            if (RunningOperationCount[poolName] >= GetPoolMaxRunningOperationCount(pool)) {
                 return false;
             }
             element = element->GetParent();
