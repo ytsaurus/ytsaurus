@@ -149,7 +149,7 @@ void TChunkPlacement::OnNodeUpdated(TNode* node)
     OnNodeRegistered(node);
 }
 
-void TChunkPlacement::OnNodeRemoved(TNode* node)
+void TChunkPlacement::OnNodeDisposed(TNode* node)
 {
     YCHECK(node->GetLoadRank() < 0);
 }

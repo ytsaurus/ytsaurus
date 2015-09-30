@@ -231,6 +231,13 @@ TChunkPtrWithIndex TNode::PickRandomReplica()
     return *(RandomReplicaIt_++);
 }
 
+void TNode::ClearReplicas()
+{
+    StoredReplicas_.clear();
+    CachedReplicas_.clear();
+    UnapprovedReplicas_.clear();
+}
+
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndex replica, TInstant timestamp)
 {
     YCHECK(UnapprovedReplicas_.insert(std::make_pair(
@@ -359,6 +366,17 @@ void TNode::DetachTabletCell(const TTabletCell* cell)
     if (slot) {
         *slot = TTabletSlot();
     }
+}
+
+void TNode::InitTabletSlots()
+{
+    YCHECK(TabletSlots_.empty());
+    TabletSlots_.resize(Statistics_.available_tablet_slots() + Statistics_.used_tablet_slots());
+}
+
+void TNode::ClearTabletSlots()
+{
+    TabletSlots_.clear();
 }
 
 void TNode::ShrinkHashTables()

@@ -407,10 +407,11 @@ public:
                 }
 
                 if (!LeaderLease_->IsValid()) {
-                    Restart(epochContext);
-                    return MakeFuture<TMutationResponse>(TError(
+                    auto error = TError(
                         NHydra::EErrorCode::InvalidState,
-                        "Leader lease is no longer valid"));
+                        "Leader lease is no longer valid");
+                    Restart(error, epochContext);
+                    return MakeFuture<TMutationResponse>(error);
                 }
 
                 return epochContext->LeaderCommitter->Commit(request);
@@ -579,10 +580,10 @@ private:
                         .ThrowOnError();
                     response->set_logged(true);
                 } catch (const std::exception& ex) {
-                    if (Restart(epochContext)) {
-                        LOG_ERROR(ex, "Error logging mutations");
-                    }
-                    throw;
+                    auto wrappedError = TError("Error logging mutations")
+                        << ex;
+                    Restart(wrappedError, epochContext);
+                    THROW_ERROR wrappedError;
                 }
                 break;
             }
@@ -595,9 +596,9 @@ private:
                         request->Attachments());
                     response->set_logged(false);
                 } catch (const std::exception& ex) {
-                    if (Restart(epochContext)) {
-                        LOG_ERROR(ex, "Error postponing mutations during recovery");
-                    }
+                    auto wrappedError = TError("Error postponing mutations during recovery")
+                        << ex;
+                    Restart(wrappedError, epochContext);
                     throw;
                 }
                 break;
@@ -680,12 +681,13 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (DecoratedAutomaton_->GetLoggedVersion() != version) {
-            Restart(epochContext);
-            context->Reply(TError(
+            auto error = TError(
                 NHydra::EErrorCode::InvalidVersion,
                 "Invalid logged version: expected %v, actual %v",
                 version,
-                DecoratedAutomaton_->GetLoggedVersion()));
+                DecoratedAutomaton_->GetLoggedVersion());
+            Restart(error, epochContext);
+            context->Reply(error);
             return;
         }
 
@@ -769,9 +771,9 @@ private:
 
                     followerCommitter->ResumeLogging();
                 } catch (const std::exception& ex) {
-                    if (Restart(epochContext)) {
-                        LOG_ERROR(ex, "Error rotating changelog");
-                    }
+                    auto wrappedError = TError("Error rotating changelog")
+                        << ex;
+                    Restart(wrappedError, epochContext);
                     throw;
                 }
 
@@ -790,10 +792,10 @@ private:
                 try {
                     followerRecovery->PostponeChangelogRotation(version);
                 } catch (const std::exception& ex) {
-                    if (Restart(epochContext)) {
-                        LOG_ERROR(ex, "Error postponing changelog rotation during recovery");
-                    }
-                    throw;
+                    auto wrappedError = TError("Error postponing changelog rotation during recovery")
+                        << ex;
+                    Restart(wrappedError, epochContext);
+                    THROW_ERROR wrappedError;
                 }
 
                 break;
@@ -875,21 +877,20 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
-    bool Restart(TEpochContextPtr epochContext)
+    void Restart(const TError& error, TEpochContextPtr epochContext)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         
         bool expected = false;
-        if (!epochContext->Restarting.compare_exchange_strong(expected, true)) {
-            return false;
-        }
+        if (!epochContext->Restarting.compare_exchange_strong(expected, true))
+            return;
+
+        LOG_ERROR(error, "Restarting Hydra instance");
 
         CancelableControlInvoker_->Invoke(BIND(
             &TDistributedHydraManager::DoRestart,
             MakeWeak(this),
             epochContext));
-
-        return true;
     }
 
 
@@ -979,11 +980,11 @@ private:
         if (!epochContext)
             return;
 
-        DecoratedAutomaton_->CancelPendingLeaderMutations(error);
+        auto wrappedError = TError("Error committing mutation")
+            << error;
 
-        if (Restart(epochContext)) {
-            LOG_ERROR(error, "Error committing mutation, restarting");
-        }
+        DecoratedAutomaton_->CancelPendingLeaderMutations(wrappedError);
+        Restart(wrappedError, epochContext);
     }
 
     void OnLeaderLeaseLost(TWeakPtr<TEpochContext> epochContext_, const TError& error)
@@ -994,9 +995,9 @@ private:
         if (!epochContext)
             return;
 
-        if (Restart(epochContext)) {
-            LOG_ERROR(error, "Leader lease is lost, restarting");
-        }
+        auto wrappedError = TError("Leader lease is lost")
+            << error;
+        Restart(wrappedError, epochContext);
     }
 
 
@@ -1027,13 +1028,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (error.IsOK()) {
-            LOG_INFO("Distributed changelog rotation succeeded");
-        } else {
-            if (Restart(epochContext)) {
-                LOG_ERROR(error, "Distributed changelog rotation failed");
-            }
+        if (!error.IsOK()) {
+            auto wrappedError = TError("Distributed changelog rotation failed")
+                << error;
+            Restart(wrappedError, epochContext);
+            return;
         }
+
+        LOG_INFO("Distributed changelog rotation succeeded");
     }
 
 
@@ -1154,9 +1156,9 @@ private:
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Leader recovery failed, backing off and restarting");
+            LOG_ERROR(ex, "Leader recovery failed, backing off");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
-            Restart(epochContext);
+            Restart(TError(ex), epochContext);
         }
     }
 
@@ -1246,9 +1248,9 @@ private:
 
             SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Follower recovery failed, backing off and restarting");
+            LOG_ERROR(ex, "Follower recovery failed, backing off");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
-            Restart(epochContext);
+            Restart(TError(ex), epochContext);
         }
     }
 

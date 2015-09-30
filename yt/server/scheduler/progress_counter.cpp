@@ -22,7 +22,6 @@ TProgressCounter::TProgressCounter()
 
 TProgressCounter::TProgressCounter(i64 total)
 {
-
     Set(total);
 }
 

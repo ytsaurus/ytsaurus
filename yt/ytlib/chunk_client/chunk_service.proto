@@ -58,13 +58,13 @@ message TRspAllocateWriteTargets
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqExportChunks
+message TChunkExportData
 {
-    required NYT.NProto.TGuid transaction_id = 1;
-    repeated NYT.NProto.TGuid chunk_ids = 2;
+    required NYT.NProto.TGuid id = 1;
+    required int32 destination_cell_tag = 2;
 }
 
-message TChunkTeleportData
+message TChunkImportData
 {
     required NYT.NProto.TGuid id = 1;
     required NYT.NChunkClient.NProto.TChunkInfo info = 2;
@@ -72,9 +72,15 @@ message TChunkTeleportData
     required int32 erasure_codec = 4; // NErasure::ECodec
 }
 
+message TReqExportChunks
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated TChunkExportData chunks = 2;
+}
+
 message TRspExportChunks
 {
-    repeated TChunkTeleportData chunks = 1;
+    repeated TChunkImportData chunks = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +88,7 @@ message TRspExportChunks
 message TReqImportChunks
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    repeated TChunkTeleportData chunks = 2;
+    repeated TChunkImportData chunks = 2;
 }
 
 message TRspImportChunks

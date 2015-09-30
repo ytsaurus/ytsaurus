@@ -12,6 +12,8 @@
 
 #include <ytlib/node_tracker_client/public.h>
 
+#include <ytlib/transaction_client/public.h>
+
 #include <core/rpc/public.h>
 
 #include <core/concurrency/throughput_throttler.h>
@@ -100,6 +102,21 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiChunkReader(
     TNameTablePtr nameTable,
     TColumnFilter columnFilter = TColumnFilter(),
     const TKeyColumns& keyColumns = TKeyColumns(),
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
+    TTableReaderConfigPtr config,
+    NChunkClient::TMultiChunkReaderOptionsPtr options,
+    NApi::IClientPtr client,
+    NChunkClient::IBlockCachePtr blockCache,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+    TNameTablePtr nameTable,
+    TColumnFilter columnFilter,
+    const TTableSchema& tableSchema,
+    const TKeyColumns& keyColumns,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
 ////////////////////////////////////////////////////////////////////////////////

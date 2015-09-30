@@ -22,6 +22,7 @@
 #include <ytlib/table_client/schemaless_chunk_reader.h>
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/name_table.h>
+#include <ytlib/table_client/chunk_meta_extensions.h>
 
 #include <ytlib/ypath/rich.h>
 
@@ -89,7 +90,6 @@ private:
     const TRemoteReaderOptionsPtr Options_;
     const IClientPtr Client_;
     const TTransactionPtr Transaction_;
-    const IBlockCachePtr BlockCache_;
     const TRichYPath RichPath_;
 
     const TTransactionId TransactionId_;
@@ -100,7 +100,7 @@ private:
     NLogging::TLogger Logger = ApiLogger;
 
     void DoOpen();
-
+    void RemoveUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,14 +116,12 @@ TSchemalessTableReader::TSchemalessTableReader(
     , Options_(options)
     , Client_(client)
     , Transaction_(transaction)
-    , BlockCache_(client->GetConnection()->GetBlockCache())
     , RichPath_(richPath)
     , TransactionId_(transaction ? transaction->GetId() : NullTransactionId)
     , Unordered_(unordered)
 {
     YCHECK(Config_);
     YCHECK(Client_);
-    YCHECK(BlockCache_);
 
     Logger.AddTag("Path: %v, TransactionId: %v",
         RichPath_.GetPath(),
@@ -183,6 +181,41 @@ void TSchemalessTableReader::DoOpen()
         }
     }
 
+    bool dynamic;
+    TTableSchema schema;
+    TKeyColumns keyColumns;
+
+    {
+        LOG_INFO("Requesting table schema");
+
+        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
+
+        auto req = TYPathProxy::Get(objectIdPath);
+        SetTransactionId(req, Transaction_);
+        SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
+        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+        attributeFilter.Keys.push_back("dynamic");
+        attributeFilter.Keys.push_back("schema");
+        attributeFilter.Keys.push_back("key_columns");
+        ToProto(req->mutable_attribute_filter(), attributeFilter);
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table schema %v",
+            path);
+
+        const auto& rsp = rspOrError.Value();
+        auto node = ConvertToNode(TYsonString(rsp->value()));
+        const auto& attributes = node->Attributes();
+
+        dynamic = attributes.Get<bool>("dynamic");
+
+        if (dynamic) {
+            schema = attributes.Get<TTableSchema>("schema");
+            keyColumns = attributes.Get<TKeyColumns>("key_columns");
+        }
+    }
+
     auto nodeDirectory = New<TNodeDirectory>();
     std::vector<TChunkSpec> chunkSpecs;
 
@@ -195,6 +228,7 @@ void TSchemalessTableReader::DoOpen()
         auto req = TTableYPathProxy::Fetch(objectIdPath);
         InitializeFetchRequest(req.Get(), RichPath_);
         req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
         SetTransactionId(req, Transaction_);
         SetSuppressAccessTracking(req, Config_->SuppressAccessTracking);
 
@@ -211,18 +245,23 @@ void TSchemalessTableReader::DoOpen()
             Config_->MaxChunksPerLocateRequest,
             Logger,
             &chunkSpecs);
+
+        RemoveUnavailableChunks(&chunkSpecs);
     }
 
-    if (!Config_->IgnoreUnavailableChunks) {
-        for (const auto& chunkSpec : chunkSpecs) {
-            if (IsUnavailable(chunkSpec)) {
-                THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
-                    NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
-            }
-        }
-    }
-
-    {
+    if (dynamic) {
+        UnderlyingReader_ = CreateSchemalessMergingMultiChunkReader(
+            Config_,
+            New<TMultiChunkReaderOptions>(),
+            Client_,
+            Client_->GetConnection()->GetBlockCache(),
+            nodeDirectory,
+            std::move(chunkSpecs),
+            New<TNameTable>(),
+            TColumnFilter(),
+            schema,
+            keyColumns);
+    } else {
         auto factory = Unordered_
             ? CreateSchemalessParallelMultiChunkReader
             : CreateSchemalessSequentialMultiChunkReader;
@@ -237,9 +276,10 @@ void TSchemalessTableReader::DoOpen()
             TColumnFilter(),
             TKeyColumns(),
             NConcurrency::GetUnlimitedThrottler());
-        WaitFor(UnderlyingReader_->Open())
-            .ThrowOnError();
     }
+
+    WaitFor(UnderlyingReader_->Open())
+        .ThrowOnError();
 
     if (Transaction_) {
         ListenTransaction(Transaction_);
@@ -327,6 +367,24 @@ std::vector<TChunkId> TSchemalessTableReader::GetFailedChunkIds() const
 {
     YCHECK(UnderlyingReader_);
     return UnderlyingReader_->GetFailedChunkIds();
+}
+
+void TSchemalessTableReader::RemoveUnavailableChunks(std::vector<TChunkSpec>* chunkSpecs) const
+{
+    std::vector<TChunkSpec> availableChunkSpecs;
+
+    for (auto& chunkSpec : *chunkSpecs) {
+        if (IsUnavailable(chunkSpec)) {
+            if (!Config_->IgnoreUnavailableChunks) {
+                THROW_ERROR_EXCEPTION("Chunk %v is unavailable",
+                    NYT::FromProto<TChunkId>(chunkSpec.chunk_id()));
+            }
+        } else {
+            availableChunkSpecs.push_back(std::move(chunkSpec));
+        }
+    }
+
+    *chunkSpecs = std::move(availableChunkSpecs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

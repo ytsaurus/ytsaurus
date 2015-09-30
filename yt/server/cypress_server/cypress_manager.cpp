@@ -200,7 +200,7 @@ public:
             attributes->Remove("external");
         } else {
             isExternal = Bootstrap_->IsPrimaryMaster() &&
-                !multicellManager->GetRegisteredSecondaryMasterCellTags().empty() &&
+                !multicellManager->GetRegisteredMasterCellTags().empty() &&
                 handler->IsExternalizable();
         }
 
@@ -218,12 +218,12 @@ public:
             auto maybeExternalCellTag = attributes->Find<TCellTag>("external_cell_tag");
             if (maybeExternalCellTag) {
                 cellTag = *maybeExternalCellTag;
-                if (!multicellManager->IsRegisteredSecondaryMaster(cellTag)) {
+                if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
                     THROW_ERROR_EXCEPTION("Unknown cell tag %v", cellTag);
                 }
                 attributes->Remove("external_cell_tag");
             } else {
-                cellTag = multicellManager->PickCellForNode();
+                cellTag = multicellManager->PickSecondaryMasterCell();
                 if (cellTag == InvalidCellTag) {
                     THROW_ERROR_EXCEPTION("No secondary masters registered");
                 }

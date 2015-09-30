@@ -207,7 +207,7 @@ void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
     RefCountedSingleton<TImpl>()->CancelAndClear(entry);
 }
 
-void TDelayedExecutor::Shutdown()
+void TDelayedExecutor::StaticShutdown()
 {
     RefCountedSingleton<TImpl>()->Shutdown();
 }

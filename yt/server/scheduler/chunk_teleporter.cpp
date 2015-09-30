@@ -82,12 +82,15 @@ void TChunkTeleporter::Export()
             auto req = proxy.ExportChunks();
             ToProto(req->mutable_transaction_id(), TransactionId_);
             for (int index = beginIndex; index < endIndex; ++index) {
-                ToProto(req->add_chunk_ids(), chunks[index]->ChunkId);
+                auto* protoData = req->add_chunks();
+                const auto* entry = chunks[index];
+                ToProto(protoData->mutable_id(), entry->ChunkId);
+                protoData->set_destination_cell_tag(entry->DestinationCellTag);
             }
 
             LOG_INFO("Exporting chunks (CellTag: %v, ChunkCount: %v)",
                 cellTag,
-                req->chunk_ids_size());
+                req->chunks_size());
 
             auto rspOrError = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error exporting chunks from cell %v",

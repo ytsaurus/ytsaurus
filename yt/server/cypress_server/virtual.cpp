@@ -290,7 +290,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
     if (Bootstrap_->IsPrimaryMaster()) {
         auto multicellManager = Bootstrap_->GetMulticellManager();
         auto cellDirectory = Bootstrap_->GetCellDirectory();
-        for (auto cellTag : multicellManager->GetRegisteredSecondaryMasterCellTags()) {
+        for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
             auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
             auto channel = cellDirectory->FindChannel(cellId);
             if (channel) {
@@ -327,7 +327,7 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
     auto session = New<TFetchItemsSession>();
     session->Limit = limit;
     session->AttributeFilter = attributeFilter;
-    session->CellTags = multicellManager->GetRegisteredSecondaryMasterCellTags();
+    session->CellTags = multicellManager->GetRegisteredMasterCellTags();
 
     auto promise = NewPromise<TFetchItemsSessionPtr>();
     FetchItemsFromAnywhere(session, promise);

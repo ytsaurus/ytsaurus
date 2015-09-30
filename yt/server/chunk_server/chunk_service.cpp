@@ -167,7 +167,7 @@ private:
 
         context->SetRequestInfo("TransactionId: %v, ChunkCount: %v",
             transactionId,
-            request->chunk_ids_size());
+            request->chunks_size());
 
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
