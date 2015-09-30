@@ -699,7 +699,6 @@ void TDecoratedAutomaton::Clear()
     Automaton_->Clear();
     Reset();
     AutomatonVersion_ = TVersion();
-    CommittedVersion_ = TVersion();
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -1080,6 +1079,7 @@ void TDecoratedAutomaton::Reset()
     PendingMutations_.clear();
     Changelog_.Reset();
     SnapshotVersion_ = TVersion();
+    CommittedVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
         SnapshotParamsPromise_.ToFuture().Cancel();
         SnapshotParamsPromise_.Reset();
