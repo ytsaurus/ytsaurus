@@ -120,14 +120,14 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             command='cat > /dev/stderr',
             spec={
                 "reducer" : {"format" : yson.loads("<format=text>yson")},
-                "job_io" : 
-                    {"control_attributes" : 
-                        {"enable_table_index" : "true", 
+                "job_io" :
+                    {"control_attributes" :
+                        {"enable_table_index" : "true",
                          "enable_row_index" : "true"}},
                 "job_count" : 1})
-        
+
         track_op(op_id)
-        
+
         job_ids = ls('//sys/operations/{0}/jobs'.format(op_id))
         assert len(job_ids) == 1
         assert read_file('//sys/operations/{0}/jobs/{1}/stderr'.format(op_id, job_ids[0])) == \
@@ -343,7 +343,7 @@ echo {v = 2} >&7
         assert read_table(output_tables[0]) == [{'v': 0}]
         assert read_table(output_tables[1]) == [{'v': 1}]
         assert read_table(output_tables[2]) == [{'v': 2}]
-        
+
     def test_job_count(self):
         create('table', '//tmp/in', attributes={"compression_codec": "none"})
         create('table', '//tmp/out')

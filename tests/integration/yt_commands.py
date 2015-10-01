@@ -89,7 +89,7 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
             output_stream = cStringIO.StringIO()
 
     parameters = prepare_parameters(parameters)
-    
+
     yson_format = yson.to_yson_type("yson", attributes={"format": "text"})
     description = driver.get_command_descriptor(command_name)
     if description.input_type() != "null" and parameters.get("input_format") is None:
@@ -415,7 +415,7 @@ def gc_collect():
 
 def clear_metadata_caches():
     get_driver().clear_metadata_caches()
-    
+
 def create_account(name, **kwargs):
     kwargs["type"] = "account"
     if "attributes" not in kwargs:

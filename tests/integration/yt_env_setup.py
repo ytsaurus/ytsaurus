@@ -140,7 +140,7 @@ class YTEnvSetup(YTEnv):
         for group in groups:
             if not group.attributes['builtin']:
                 yt_commands.remove_group(str(group))
-    
+
     def _remove_tablet_cells(self):
         cells = yt_commands.get_tablet_cells()
         for id in cells:

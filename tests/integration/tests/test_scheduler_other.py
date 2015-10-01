@@ -24,7 +24,7 @@ def set_banned_flag(value, nodes=None):
         set("//sys/nodes/{0}/@banned".format(address), flag)
 
     # Give it enough time to register or unregister the node
-    time.sleep(1.0) 
+    time.sleep(1.0)
 
     for address in nodes:
         assert get("//sys/nodes/{0}/@state".format(address)) == state

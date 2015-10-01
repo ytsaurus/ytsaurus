@@ -45,10 +45,10 @@ class TestAccounts(YTEnvSetup):
 
     def _is_account_node_count_limit_violated(self, account):
         return get("//sys/accounts/{0}/@violated_resource_limits/node_count".format(account))
-    
+
     def _is_account_chunk_count_limit_violated(self, account):
         return get("//sys/accounts/{0}/@violated_resource_limits/chunk_count".format(account))
-    
+
     def _get_tx_disk_space(self, tx, account):
         return get("#{0}/@resource_usage/{1}/disk_space".format(tx, account))
 
@@ -112,12 +112,12 @@ class TestAccounts(YTEnvSetup):
 
         tmp_node_count = self._get_account_node_count("tmp")
         tmp_chunk_count = self._get_account_chunk_count("tmp")
-        
+
         set("//tmp/t/@account", "max")
 
         assert self._get_account_node_count("tmp") == tmp_node_count - 1
         assert self._get_account_node_count("max") == 1
-        
+
         assert self._get_account_chunk_count("tmp") == tmp_chunk_count - 1
         assert self._get_account_chunk_count("max") == 1
 

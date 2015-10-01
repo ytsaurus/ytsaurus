@@ -23,7 +23,7 @@ def check_attributes(op_id, options):
     if "output_table_path" in options:
         assert get(brief_spec_path + "/output_table_paths/@count") == len(list(get(spec_path + "/output_table_paths")))
         assert get(spec_path + "/output_table_paths/0") == get(brief_spec_path + "/output_table_paths/0")
-    
+
     if "output_table_path_1" in options:
         assert get(brief_spec_path + "/output_table_paths/@count") == 1
         assert get(spec_path + "/output_table_path") == get(brief_spec_path + "/output_table_paths/0")
@@ -38,7 +38,7 @@ class TestBriefSpec(YTEnvSetup):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         op_id = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
-        
+
         check_attributes(op_id, ["mapper", "input_table_path", "output_table_path"])
 
     def test_sort(self):
@@ -59,9 +59,9 @@ class TestBriefSpec(YTEnvSetup):
 
         create("table", "//tmp/t2")
         op_id = reduce(in_="//tmp/t1", out="//tmp/t2", command="cat", reduce_by = "key")
-        
+
         check_attributes(op_id, ["reducer", "input_table_path", "output_table_path"])
-    
+
     def test_map_reduce(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -71,7 +71,7 @@ class TestBriefSpec(YTEnvSetup):
                mapper_command="cat",
                reduce_combiner_command="cat",
                reducer_command="cat")
-        
+
         check_attributes(op_id, ["mapper", "reducer", "input_table_path", "output_table_path"])
 
     def test_merge(self):
@@ -82,9 +82,9 @@ class TestBriefSpec(YTEnvSetup):
         op_id = merge(mode="unordered",
               in_=["//tmp/t1", "//tmp/t2"],
               out="//tmp/t3")
-        
+
         check_attributes(op_id, ["input_table_path", "output_table_path_1"])
-    
+
     def test_erase(self):
         create("table", "//tmp/t1")
 
