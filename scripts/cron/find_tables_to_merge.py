@@ -40,6 +40,9 @@ if __name__ == "__main__":
 
     number_of_chunks = 0
 
+    if not yt.exists(args.root):
+        return
+
     for table in yt.search(args.root,
                            node_type="table",
                            attributes=["compressed_data_size", "chunk_count", "modification_time", "suppress_nightly_merge"],
