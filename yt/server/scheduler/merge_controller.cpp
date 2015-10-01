@@ -1213,7 +1213,7 @@ private:
         int openedSlicesCount = 0;
         TRefCountedChunkSpecPtr currentChunkSpec = nullptr;
         int startTeleportIndex = -1;
-        for (int i = 0; i < Endpoints.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
             auto& endpoint = Endpoints[i];
             auto& chunkSlice = endpoint.ChunkSlice;
 
@@ -1265,7 +1265,7 @@ private:
         TNullable<TOwningKey> lastBreakpoint = Null;
 
         int startIndex = 0;
-        while (startIndex < Endpoints.size()) {
+        while (startIndex < static_cast<int>(Endpoints.size())) {
             auto& key = Endpoints[startIndex].GetKey();
 
             yhash_set<TRefCountedChunkSpecPtr> teleportChunks;
@@ -1275,7 +1275,7 @@ private:
             std::vector<TChunkSlicePtr> maniacs;
 
             int currentIndex = startIndex;
-            while (currentIndex < Endpoints.size()) {
+            while (currentIndex < static_cast<int>(Endpoints.size())) {
                 // Iterate over endpoints with equal keys.
                 auto& endpoint = Endpoints[currentIndex];
                 auto& currentKey = endpoint.GetKey();
@@ -1288,7 +1288,7 @@ private:
                 if (endpoint.IsTeleport) {
                     auto chunkSpec = endpoint.ChunkSlice->ChunkSpec();
                     YCHECK(teleportChunks.insert(chunkSpec).second);
-                    while (currentIndex < Endpoints.size() &&
+                    while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSlice->ChunkSpec() == chunkSpec)
                     {
@@ -1576,7 +1576,7 @@ private:
 
         {
             int teleportOutputCount = 0;
-            for (int i = 0; i < OutputTables.size(); ++i) {
+            for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
                 if (OutputTables[i].Path.Attributes().Get<bool>("teleport", false)) {
                     ++teleportOutputCount;
                     TeleportOutputTable = i;
@@ -1594,7 +1594,7 @@ private:
         int openedSlicesCount = 0;
         auto previousKey = EmptyKey();
 
-        for (int i = 0; i < Endpoints.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
             auto& endpoint = Endpoints[i];
             auto& key = endpoint.GetKey();
 
@@ -1653,7 +1653,7 @@ private:
             TOwningKey maxKey, minKey;
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
             if (CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) {
-                for (int j = startTeleportIndex; j < Endpoints.size(); ++j) {
+                for (int j = startTeleportIndex; j < static_cast<int>(Endpoints.size()); ++j) {
                     Endpoints[j].IsTeleport = true;
                 }
             }
@@ -1668,11 +1668,11 @@ private:
         TNullable<TOwningKey> lastBreakpoint = Null;
 
         int startIndex = 0;
-        while (startIndex < Endpoints.size()) {
+        while (startIndex < static_cast<int>(Endpoints.size())) {
             auto& key = Endpoints[startIndex].GetKey();
 
             int currentIndex = startIndex;
-            while (currentIndex < Endpoints.size()) {
+            while (currentIndex < static_cast<int>(Endpoints.size())) {
                 // Iterate over endpoints with equal keys.
                 auto& endpoint = Endpoints[currentIndex];
                 auto& currentKey = endpoint.GetKey();
@@ -1689,7 +1689,7 @@ private:
                     auto chunkSpec = endpoint.ChunkSlice->ChunkSpec();
                     AddTeleportChunk(chunkSpec);
 
-                    while (currentIndex < Endpoints.size() &&
+                    while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSlice->ChunkSpec() == chunkSpec)
                     {
@@ -1840,7 +1840,7 @@ private:
             }
 
             int i = 0;
-            for (; i < sortBy.size(); ++i) {
+            for (; i < static_cast<int>(sortBy.size()); ++i) {
                 if (sortBy[i] != table.KeyColumns[i]) {
                     break;
                 }
