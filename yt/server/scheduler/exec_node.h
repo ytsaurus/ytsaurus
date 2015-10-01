@@ -21,8 +21,8 @@ class TExecNode
     : public TRefCounted
 {
 public:
-    //! Address map as reported by node.
-    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TAddressMap, Addresses);
+    DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, Id);
+    DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::TNodeDescriptor, Descriptor);
 
     //! Jobs that are currently running on this node.
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TJobPtr>, Jobs);
@@ -49,12 +49,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
 public:
-    explicit TExecNode(const NNodeTrackerClient::TAddressMap& addresses);
+    TExecNode(
+        NNodeTrackerClient::TNodeId id,
+        const NNodeTrackerClient::TNodeDescriptor& descriptor);
 
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
     bool HasSpareResources(const NNodeTrackerClient::NProto::TNodeResources& resourceDiscount) const;
 
-    const Stroka& GetDefaultAddress();
+    const Stroka& GetDefaultAddress() const;
+    const Stroka& GetInterconnectAddress() const;
 
     //! Checks if the node can handle jobs demanding a certain #tag.
     bool CanSchedule(const TNullable<Stroka>& tag) const;

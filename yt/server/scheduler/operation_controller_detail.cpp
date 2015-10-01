@@ -9,6 +9,7 @@
 
 #include <ytlib/transaction_client/helpers.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
 #include <ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
@@ -43,7 +44,6 @@
 namespace NYT {
 namespace NScheduler {
 
-using namespace NNodeTrackerClient;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NFileClient;
@@ -65,6 +65,7 @@ using namespace NRpc;
 using namespace NTableClient;
 using namespace NQueryClient;
 
+using NNodeTrackerClient::TNodeId;
 using NTableClient::NProto::TBoundaryKeysExt;
 
 ////////////////////////////////////////////////////////////////////
@@ -169,7 +170,7 @@ void TOperationControllerBase::TCompletedJob::Persist(TPersistenceContext& conte
     Persist(context, OutputCookie);
     Persist(context, DestinationPool);
     Persist(context, InputCookie);
-    Persist(context, Address);
+    Persist(context, NodeId);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -221,7 +222,7 @@ void TOperationControllerBase::TTaskGroup::Persist(TPersistenceContext& context)
             >,
             TUnsortedTag
         >
-    >(context, LocalTasks);
+    >(context, NodeIdToTasks);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -316,9 +317,11 @@ bool TOperationControllerBase::TTask::IsIntermediateOutput() const
     return false;
 }
 
-i64 TOperationControllerBase::TTask::GetLocality(const Stroka& address) const
+i64 TOperationControllerBase::TTask::GetLocality(TNodeId nodeId) const
 {
-    return GetChunkPoolOutput()->GetLocality(address);
+    return HasInputLocality()
+        ? GetChunkPoolOutput()->GetLocality(nodeId)
+        : 0;
 }
 
 bool TOperationControllerBase::TTask::HasInputLocality() const
@@ -375,9 +378,12 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
     auto joblet = New<TJoblet>(this, jobIndex);
 
     const auto& nodeResourceLimits = context->ResourceLimits();
+    auto nodeId = context->GetNode()->GetId();
     const auto& address = context->GetAddress();
+
     auto* chunkPoolOutput = GetChunkPoolOutput();
-    joblet->OutputCookie = chunkPoolOutput->Extract(address);
+    auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
+    joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
     if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
         LOG_DEBUG("Job input is empty");
         return NullJobId;
@@ -439,7 +445,8 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         jobSpecBuilder);
 
     joblet->JobType = jobType;
-    joblet->Address = context->GetAddress();
+    joblet->Address = address;
+    joblet->NodeId = nodeId;
 
     LOG_INFO(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, ChunkCount: %v (%v local), "
@@ -447,7 +454,7 @@ TJobId TOperationControllerBase::TTask::ScheduleJob(
         joblet->JobId,
         Controller->OperationId,
         jobType,
-        joblet->Address,
+        address,
         jobIndex,
         joblet->InputStripeList->TotalChunkCount,
         joblet->InputStripeList->LocalChunkCount,
@@ -555,8 +562,7 @@ void TOperationControllerBase::TTask::ReinstallJob(TJobletPtr joblet, EJobReinst
 
     auto* chunkPoolOutput = GetChunkPoolOutput();
 
-    auto list =
-        HasInputLocality()
+    auto list = HasInputLocality()
         ? chunkPoolOutput->GetStripeList(joblet->OutputCookie)
         : nullptr;
 
@@ -662,9 +668,9 @@ void TOperationControllerBase::TTask::AddPendingHint()
     Controller->AddTaskPendingHint(this);
 }
 
-void TOperationControllerBase::TTask::AddLocalityHint(const Stroka& address)
+void TOperationControllerBase::TTask::AddLocalityHint(TNodeId nodeId)
 {
-    Controller->AddTaskLocalityHint(this, address);
+    Controller->AddTaskLocalityHint(this, nodeId);
 }
 
 void TOperationControllerBase::TTask::AddSequentialInputSpec(
@@ -708,7 +714,7 @@ void TOperationControllerBase::TTask::AddChunksToInputSpec(
     for (const auto& chunkSlice : stripe->ChunkSlices) {
         auto* chunkSpec = inputSpec->add_chunks();
         ToProto(chunkSpec, *chunkSlice);
-        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<TChunkReplica>(protoReplica);
             directoryBuilder->Add(replica);
         }
@@ -826,7 +832,8 @@ void TOperationControllerBase::TTask::RegisterIntermediate(
         joblet->OutputCookie,
         destinationPool,
         inputCookie,
-        joblet->Address);
+        joblet->Address,
+        joblet->NodeId);
 
     Controller->RegisterIntermediate(
         joblet,
@@ -1568,16 +1575,15 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     auto joblet = GetJoblet(jobId);
-    auto address = joblet->Address;
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(joblet->JobId)
         .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
-        .Item("node_address").Value(address)
+        .Item("node_address").Value(joblet->Address)
         .Item("job_type").Value(joblet->JobType)
         .Item("total_data_size").Value(joblet->InputStripeList->TotalDataSize)
         .Item("local_data_size").Value(joblet->InputStripeList->LocalDataSize)
-        .Item("scheduling_locality").Value(joblet->Task->GetLocality(address));
+        .Item("scheduling_locality").Value(joblet->Task->GetLocality(joblet->NodeId));
 
     JobCounter.Start(1);
 }
@@ -1759,7 +1765,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(const TChunkId& chunkId, 
                     slices.end(),
                     inputStripe.Stripe->ChunkSlices.begin(),
                     [&] (TChunkSlicePtr slice) {
-                        return chunkId != FromProto<TChunkId>(slice->ChunkSpec()->chunk_id());
+                        return chunkId != FromProto<TChunkId>(slice->GetChunkSpec()->chunk_id());
                     });
 
                 // Reinstall patched stripe.
@@ -1959,31 +1965,30 @@ void TOperationControllerBase::AddAllTaskPendingHints()
     }
 }
 
-void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address)
+void TOperationControllerBase::DoAddTaskLocalityHint(TTaskPtr task, TNodeId nodeId)
 {
     auto group = task->GetGroup();
-    if (group->LocalTasks[address].insert(task).second) {
+    if (group->NodeIdToTasks[nodeId].insert(task).second) {
         LOG_TRACE("Task locality hint added (Task: %v, Address: %v)",
             task->GetId(),
-            address);
+            InputNodeDirectory->GetDescriptor(nodeId).GetDefaultAddress());
     }
 }
 
-void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, const Stroka& address)
+void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TNodeId nodeId)
 {
-    DoAddTaskLocalityHint(task, address);
+    DoAddTaskLocalityHint(task, nodeId);
     UpdateTask(task);
 }
 
 void TOperationControllerBase::AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
             auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-
-            if (chunkSlice->GetLocality(replica.GetIndex()) > 0) {
-                const auto& descriptor = InputNodeDirectory->GetDescriptor(replica);
-                DoAddTaskLocalityHint(task, descriptor.GetDefaultAddress());
+            auto locality = chunkSlice->GetLocality(replica.GetIndex());
+            if (locality > 0) {
+                DoAddTaskLocalityHint(task, replica.GetNodeId());
             }
         }
     }
@@ -2040,14 +2045,15 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
 {
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetAddress();
+    auto nodeId = context->GetNode()->GetId();
 
-    for (auto group : TaskGroups) {
+    for (const auto& group : TaskGroups) {
         if (!Dominates(jobLimits, group->MinNeededResources)) {
             continue;
         }
 
-        auto localTasksIt = group->LocalTasks.find(address);
-        if (localTasksIt == group->LocalTasks.end()) {
+        auto localTasksIt = group->NodeIdToTasks.find(nodeId);
+        if (localTasksIt == group->NodeIdToTasks.end()) {
             continue;
         }
 
@@ -2060,9 +2066,9 @@ TJobId TOperationControllerBase::DoScheduleLocalJob(
             auto jt = it++;
             auto task = *jt;
 
-            // Make sure that the task have positive locality.
+            // Make sure that the task has positive locality.
             // Remove pending hint if not.
-            i64 locality = task->GetLocality(address);
+            auto locality = task->GetLocality(nodeId);
             if (locality <= 0) {
                 localTasks.erase(jt);
                 LOG_TRACE("Task locality hint removed (Task: %v, Address: %v)",
@@ -3431,7 +3437,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
     stripeDescriptor.Cookie = task->GetChunkPoolInput()->Add(stripe);
 
     for (const auto& slice : stripe->ChunkSlices) {
-        auto chunkSpec = slice->ChunkSpec();
+        auto chunkSpec = slice->GetChunkSpec();
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
 
         auto pair = InputChunkMap.insert(std::make_pair(chunkId, TInputChunkDescriptor()));
@@ -3457,7 +3463,7 @@ void TOperationControllerBase::RegisterIntermediate(
     TChunkStripePtr stripe)
 {
     for (const auto& chunkSlice : stripe->ChunkSlices) {
-        auto chunkId = FromProto<TChunkId>(chunkSlice->ChunkSpec()->chunk_id());
+        auto chunkId = FromProto<TChunkId>(chunkSlice->GetChunkSpec()->chunk_id());
         YCHECK(ChunkOriginMap.insert(std::make_pair(chunkId, completedJob)).second);
 
         if (IsIntermediateLivePreviewSupported()) {

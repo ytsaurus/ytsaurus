@@ -12,12 +12,16 @@ namespace NScheduler {
 
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerServer;
+
 using NNodeTrackerClient::NProto::TNodeResources;
 
 ////////////////////////////////////////////////////////////////////
 
-TExecNode::TExecNode(const TAddressMap& addresses)
-    : Addresses_(addresses)
+TExecNode::TExecNode(
+    TNodeId id,
+    const TNodeDescriptor& descriptor)
+    : Id_(id)
+    , Descriptor_(descriptor)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUsage_(ZeroNodeResources())
     , MasterState_(ENodeState::Offline)
@@ -35,9 +39,14 @@ bool TExecNode::HasSpareResources(const TNodeResources& resourceDiscount) const
     return HasEnoughResources(MinSpareNodeResources() - resourceDiscount);
 }
 
-const Stroka& TExecNode::GetDefaultAddress()
+const Stroka& TExecNode::GetDefaultAddress() const
 {
-    return NNodeTrackerClient::GetDefaultAddress(Addresses_);
+    return Descriptor_.GetDefaultAddress();
+}
+
+const Stroka& TExecNode::GetInterconnectAddress() const
+{
+    return Descriptor_.GetInterconnectAddress();
 }
 
 bool TExecNode::CanSchedule(const TNullable<Stroka>& tag) const

@@ -97,7 +97,7 @@ private:
         TRemoteCopyTask(TRemoteCopyController* controller, int index)
             : TTask(controller)
             , Controller_(controller)
-            , ChunkPool_(CreateAtomicChunkPool(Controller_->InputNodeDirectory))
+            , ChunkPool_(CreateAtomicChunkPool())
             , Index_(index)
         { }
 
@@ -114,6 +114,11 @@ private:
         virtual TDuration GetLocalityTimeout() const override
         {
             return TDuration::Zero();
+        }
+
+        virtual bool HasInputLocality() const override
+        {
+            return false;
         }
 
         virtual TNodeResources GetNeededResources(TJobletPtr joblet) const override
@@ -213,7 +218,7 @@ private:
                 for (const auto& chunkSlice : stripe->ChunkSlices) {
                     auto* chunkSpec = inputSpec->add_chunks();
                     ToProto(chunkSpec, *chunkSlice);
-                    for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+                    for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                         auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                         directoryBuilder.Add(replica);
                     }

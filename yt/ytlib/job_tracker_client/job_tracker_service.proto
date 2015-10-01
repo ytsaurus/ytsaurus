@@ -11,7 +11,7 @@ import "yt/ytlib/node_tracker_client/node.proto";
 message TReqHeartbeat
 {
     required int32 node_id = 1;
-    required NNodeTrackerClient.NProto.TAddressMap addresses = 2;
+    required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
     required NNodeTrackerClient.NProto.TNodeResources resource_usage = 3;
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;
     repeated TJobStatus jobs = 5;
