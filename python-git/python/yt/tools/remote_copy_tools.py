@@ -98,6 +98,7 @@ def _split_rows_yt(yt_client, table, split_size):
 def _set_mapper_settings_for_read_from_yt(spec):
     if "mapper" not in spec:
         spec["mapper"] = {}
+    # NB: yt2 read usually consumpt less than 600 Mb, but sometimes can use more than 1Gb of memory.
     spec["mapper"]["memory_limit"] = 4 * 1024 * 1024 * 1024
     spec["mapper"]["memory_reserve_factor"] = 0.2
 
@@ -490,7 +491,15 @@ while True:
     spec["data_size_per_job"] = 1
     spec["locality_timeout"] = 0
     spec["pool"] = "transfer_kiwi"
-    spec["mapper"] = {"cpu_limit": 0}
+    # After investigation of several copy jobs we have found the following:
+    # 1) kwworm memory consumption is in range (200-500MB)
+    # 2) yt2 read consumption is in range (200-600MB)
+    # 3) In some corner cases yt2 can use above than 1GB.
+    # 4) Other processes uses less than 100 MB.
+    spec["mapper"] = {
+        "cpu_limit": 0,
+        "memory_limit": 4 * 1024 * 1024 * 1024,
+        "memory_reserve_factor": 0.35}
     _set_mapper_settings_for_read_from_yt(spec)
     if "max_failed_job_count" not in spec:
         spec["max_failed_job_count"] = 1000
