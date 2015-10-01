@@ -2507,7 +2507,7 @@ void TOperationControllerBase::FetchInputTables()
 
     auto batchReq = proxy.ExecuteBatch();
 
-    for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         const auto& table = InputTables[tableIndex];
 
         for (const auto& range : table.Path.GetRanges()) {
@@ -2540,7 +2540,7 @@ void TOperationControllerBase::FetchInputTables()
     THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error fetching input tables");
     const auto& batchRsp = batchRspOrError.Value();
 
-    for (int tableIndex = 0; tableIndex < InputTables.size(); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
         auto& table = InputTables[tableIndex];
 
         if (table.Path.GetRanges().empty()) {

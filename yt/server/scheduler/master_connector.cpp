@@ -1499,7 +1499,7 @@ private:
 
         auto rspsOrError = batchRsp->GetResponses<TFileYPathProxy::TRspPrepareForUpdate>(Format("prepare_for_update_%v", tag));
         YCHECK(chunkIds.size() == rspsOrError.size());
-        for (int i = 0; i < chunkIds.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(chunkIds.size()); ++i) {
             const auto &rspOrError = rspsOrError[i];
             auto chunkListId = FromProto<TChunkListId>(rspOrError.Value()->chunk_list_id());
             auto req = TChunkListYPathProxy::Attach(FromObjectId(chunkListId));
