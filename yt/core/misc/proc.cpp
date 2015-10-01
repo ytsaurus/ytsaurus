@@ -407,6 +407,13 @@ void CloseAllDescriptors(const std::vector<int>& exceptFor)
 #endif
 }
 
+void CreateStderrFile(Stroka fileName)
+{
+#ifdef _linux_
+    YCHECK(freopen(~fileName, "a", stderr) != nullptr);
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRemoveDirAsRootTool::operator()(const Stroka& arg) const

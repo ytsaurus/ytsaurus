@@ -31,6 +31,8 @@ void SafeDup2(int oldFD, int newFD);
 
 bool TryExecve(const char* path, char* const argv[], char* const env[]);
 
+void CreateStderrFile(Stroka fileName);
+
 // Returns a pipe with CLOSE_EXEC flag.
 void SafePipe(int fd[2]);
 
