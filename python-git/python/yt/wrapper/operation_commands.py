@@ -133,9 +133,15 @@ def get_operation_state(operation, client=None):
 
 def get_operation_progress(operation, client=None):
     operation_path = os.path.join(OPERATIONS_PATH, operation)
-    progress = get_attribute(operation_path, "progress/jobs", client=client)
-    if isinstance(progress["aborted"], dict):
-        progress["aborted"] = progress["aborted"]["total"]
+    try:
+        progress = get_attribute(operation_path, "progress/jobs", client=client)
+        if isinstance(progress["aborted"], dict):
+            progress["aborted"] = progress["aborted"]["total"]
+    except YtError as err:
+        if err.is_resolve_error():
+            progress = {}
+        else:
+            raise
     return progress
 
 def order_progress(progress):
