@@ -17,6 +17,10 @@ class TFileReader
 {
 public:
     //! Creates a new reader.
+    /*!
+     *  For chunk meta version 2+, #chunkId is validated against that stored
+     *  in the meta file. Passing #NullChunkId in #chunkId suppresses this check.
+     */
     TFileReader(
         const TChunkId& chunkId,
         const Stroka& fileName,
