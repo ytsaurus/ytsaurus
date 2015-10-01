@@ -3,7 +3,7 @@
 import sys
 import yt.wrapper as yt
 import yt.yson as yson
-from yt.tools.conversion_tools import get_filter_factors
+from clear_operations import get_filter_factors
 
 OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id"
 
