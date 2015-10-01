@@ -41,7 +41,7 @@ public:
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override;
-    
+
     virtual TFuture<NProto::TChunkMeta> GetMeta(
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override;
@@ -55,7 +55,7 @@ private:
 
     bool Opened_ = false;
     std::unique_ptr<TFile> DataFile_;
-    
+
     i64 MetaSize_ = -1;
     i64 DataSize_ = -1;
 

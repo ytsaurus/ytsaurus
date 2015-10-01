@@ -25,7 +25,7 @@ struct ISchemalessChunkReader
     : public virtual NChunkClient::IChunkReaderBase
     , public ISchemalessReader
 {
-    virtual i64 GetTableRowIndex() const = 0; 
+    virtual i64 GetTableRowIndex() const = 0;
 
     virtual i32 GetRangeIndex() const = 0;
 };

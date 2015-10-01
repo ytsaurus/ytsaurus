@@ -465,7 +465,7 @@ protected:
         }
 
         auto backoffMultiplier = std::min(
-            std::pow(reader->Config_->PassBackoffTimeMultiplier, PassIndex_ - 1), 
+            std::pow(reader->Config_->PassBackoffTimeMultiplier, PassIndex_ - 1),
             MaxBackoffMultiplier);
 
         auto backoffTime = reader->Config_->MinPassBackoffTime * backoffMultiplier;

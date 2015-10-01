@@ -35,7 +35,7 @@ TEncodingWriter::TEncodingWriter(
     , Semaphore_(Config_->EncodeWindowSize)
     , Codec_(NCompression::GetCodec(options->CompressionCodec))
     , WritePendingBlockCallback_(BIND(
-        &TEncodingWriter::WritePendingBlock, 
+        &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)))
 {
     Logger = ChunkClientLogger;

@@ -189,7 +189,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 
         SwitchSession();
         return true;
-    } 
+    }
 
     if (CurrentSession_.TemplateWriter->GetDataSize() > Config_->DesiredChunkSize) {
         i64 currentDataSize = DataStatistics_.compressed_data_size() + CurrentSession_.TemplateWriter->GetDataSize();
@@ -197,7 +197,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 
         if (expectedInputSize > Config_->DesiredChunkSize ||
             // On erasure chunks switch immediately, otherwise we can consume too much memory.
-            Options_->ErasureCodec != ECodec::None || 
+            Options_->ErasureCodec != ECodec::None ||
             CurrentSession_.TemplateWriter->GetDataSize() > 2 * Config_->DesiredChunkSize)
         {
             LOG_DEBUG("Switching to next chunk: data is too large (CurrentSessionSize: %v, ExpectedInputSize: %" PRId64 ", DesiredChunkSize: %" PRId64 ")",

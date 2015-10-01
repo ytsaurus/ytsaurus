@@ -502,7 +502,7 @@ bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, 
         Error_ = TError(
             EErrorCode::SortOrderViolation,
             "Sort order violation: %v > %v",
-            leftBuilder.FinishRow().Get(), 
+            leftBuilder.FinishRow().Get(),
             rightBuilder.FinishRow().Get());
     } catch (const std::exception& ex) {
         // NB: e.g. incomparable type.
@@ -664,10 +664,10 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 
     auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
         return CreateSchemalessChunkWriter(
-            config, 
-            options, 
-            nameTable, 
-            keyColumns, 
+            config,
+            options,
+            nameTable,
+            keyColumns,
             underlyingWriter,
             blockCache);
     };
@@ -889,7 +889,7 @@ void TSchemalessTableWriter::CreateUploadTransaction()
         options));
 
     THROW_ERROR_EXCEPTION_IF_FAILED(
-        transactionOrError, 
+        transactionOrError,
         "Error creating upload transaction");
 
     UploadTransaction_ = transactionOrError.Value();
@@ -945,7 +945,7 @@ void TSchemalessTableWriter::FetchTableInfo()
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
-        GetCumulativeError(batchRspOrError), 
+        GetCumulativeError(batchRspOrError),
         "Error requesting table info for %v",
         path);
     const auto& batchRsp = batchRspOrError.Value();
@@ -1031,7 +1031,7 @@ void TSchemalessTableWriter::DoOpen()
 
     auto error = WaitFor(UnderlyingWriter_->Open());
     THROW_ERROR_EXCEPTION_IF_FAILED(
-        error, 
+        error,
         "Error opening table chunk writer");
 
     if (Transaction_) {
@@ -1064,7 +1064,7 @@ void TSchemalessTableWriter::DoClose()
         auto rspOrError = WaitFor(objectProxy.Execute(req));
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError, 
+            rspOrError,
             "Error marking table %v as sorted",
             path);
 
@@ -1075,7 +1075,7 @@ void TSchemalessTableWriter::DoClose()
     {
         auto error = WaitFor(UploadTransaction_->Commit());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            error, 
+            error,
             "Error committing upload transaction",
             RichPath_.GetPath());
     }

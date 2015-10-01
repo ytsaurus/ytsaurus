@@ -272,8 +272,8 @@ TVersionedRow TVersionedRowBuilder::FinishRow()
     auto row = TVersionedRow::Allocate(
         Buffer_->GetPool(),
         Keys_.size(),
-        Values_.size(), 
-        WriteTimestamps_.size(), 
+        Values_.size(),
+        WriteTimestamps_.size(),
         DeleteTimestamps_.size());
 
     memcpy(row.BeginKeys(), Keys_.data(), sizeof (TUnversionedValue) * Keys_.size());

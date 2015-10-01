@@ -405,7 +405,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                     auto value = MakeVersionedSentinelValue(EValueType::TheBottom, *timestampIt);
                     ColumnValues_.push_back(value);
                     ++timestampIt;
-                } 
+                }
             }
         }
 
