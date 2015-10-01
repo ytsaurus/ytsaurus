@@ -196,7 +196,11 @@ class Config(types.ModuleType):
                 config_path = home_config_path
             else:
                 config_path = "/etc/ytclient.conf"
-        if os.path.isfile(config_path):
+                try:
+                    open(config_path)
+                except IOError:
+                    config_path = None
+        if config_path and os.path.isfile(config_path):
             load_func = None
             format = self.config["config_format"]
             if format == "yson":
