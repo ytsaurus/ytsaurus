@@ -70,7 +70,10 @@ def find_file(path):
 def create_modules_archive(tempfiles_manager, client):
     create_modules_archive_function = get_config(client)["pickling"]["create_modules_archive_function"]
     if create_modules_archive_function is not None:
-        return create_modules_archive_function()
+        args_spec = inspect.getargspec(create_modules_archive_function)
+        if len(args_spec.args) - len(args_spec.defaults) == 0:
+            return create_modules_archive_function()
+        return create_modules_archive_function(tempfiles_manager)
 
     for module_name in OPERATION_REQUIRED_MODULES:
         module_info = imp.find_module(module_name, [LOCATION])
