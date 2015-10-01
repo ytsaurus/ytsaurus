@@ -202,7 +202,8 @@ void TFetcherBase::StartFetchingRound()
     }
 
     if (!unavailableChunks.empty() && ScraperCallback_) {
-        LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)");
+        LOG_DEBUG("Found unavailable chunks, starting scraper (UnavailableChunkCount: %v)",
+            unavailableChunks.size());
         auto error = WaitFor(ScraperCallback_.Run(std::move(unavailableChunks)));
         LOG_DEBUG("All unavailable chunks are located");
         DeadNodes_.clear();

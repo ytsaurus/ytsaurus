@@ -1723,7 +1723,7 @@ private:
                     nextBreakpoint);
 
                 for (const auto& chunkSlice : openedSlices) {
-                    AddPendingChunkSlice(CreateChunkSlice( chunkSlice, lastBreakpoint, nextBreakpoint));
+                    AddPendingChunkSlice(CreateChunkSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
                 }
                 lastBreakpoint = nextBreakpoint;
 
