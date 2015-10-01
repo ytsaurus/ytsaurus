@@ -45,7 +45,7 @@ bool THorizontalSchemalessBlockReader::SkipToRowIndex(i64 rowIndex)
     YCHECK(rowIndex >= RowIndex_);
     return JumpToRowIndex(rowIndex);
 }
-    
+
 bool THorizontalSchemalessBlockReader::SkipToKey(const TOwningKey& key)
 {
     if (GetKey() >= key) {
@@ -82,8 +82,8 @@ TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* mem
             if (value.Type == EValueType::Any) {
                 // Try to unpack any value.
                 value = MakeUnversionedValue(
-                    TStringBuf(value.Data.String, value.Length), 
-                    value.Id, 
+                    TStringBuf(value.Data.String, value.Length),
+                    value.Id,
                     Lexer_);
             }
             row[valueCount] = value;

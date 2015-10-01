@@ -44,7 +44,7 @@ message TReqCreateChunkExt
 
     // Minimum number of replicas to read during seal. Journal chunks only.
     optional int32 read_quorum = 2 [default = 0];
- 
+
     // Minimum number of replicas to flush during write. Journal chunks only.
     optional int32 write_quorum = 3 [default = 0];
 

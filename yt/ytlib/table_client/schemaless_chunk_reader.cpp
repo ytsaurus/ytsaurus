@@ -107,9 +107,9 @@ private:
     std::vector<TSequentialReader::TBlockInfo> CreateBlockSequence(int beginIndex, int endIndex);
     void DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag = Null);
 
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequencePartition(); 
+    std::vector<TSequentialReader::TBlockInfo> GetBlockSequencePartition();
     std::vector<TSequentialReader::TBlockInfo> GetBlockSequenceSorted();
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequenceUnsorted(); 
+    std::vector<TSequentialReader::TBlockInfo> GetBlockSequenceUnsorted();
 
 };
 
@@ -132,10 +132,10 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     i32 rangeIndex,
     TNullable<int> partitionTag)
     : TChunkReaderBase(
-        config, 
+        config,
         lowerLimit,
         upperLimit,
-        underlyingReader, 
+        underlyingReader,
         GetProtoExtension<TMiscExt>(masterMeta.extensions()),
         blockCache)
     , Config_(config)
@@ -207,7 +207,7 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
     }
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequenceSorted() 
+std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequenceSorted()
 {
     if (!Misc_.sorted()) {
         THROW_ERROR_EXCEPTION("Requested sorted read for unsorted chunk");
@@ -234,7 +234,7 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     return CreateBlockSequence(beginIndex, endIndex);
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequencePartition() 
+std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequencePartition()
 {
     YCHECK(LowerLimit_.IsTrivial());
     YCHECK(UpperLimit_.IsTrivial());
@@ -243,7 +243,7 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
     return CreateBlockSequence(0, BlockMetaExt_.blocks_size());
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequenceUnsorted() 
+std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequenceUnsorted()
 {
     DownloadChunkMeta(std::vector<int>());
 
@@ -554,7 +554,7 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
         RowIndex_ += rows->size();
         return true;
     }
-    
+
     if (TBase::OnEmptyRead(readerFinished)) {
         return true;
     } else {

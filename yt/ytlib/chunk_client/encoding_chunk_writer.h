@@ -28,7 +28,7 @@ public:
 
     void WriteBlock(std::vector<TSharedRef> vectorizedBlock);
     void WriteBlock(TSharedRef block);
-    
+
     void Close();
 
     TFuture<void> GetReadyEvent() const;

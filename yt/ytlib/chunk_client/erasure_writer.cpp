@@ -484,8 +484,8 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto rspOrError = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
         rspOrError,
-        EErrorCode::MasterCommunicationFailed, 
-        "Failed to allocate write targets for chunk %v", 
+        EErrorCode::MasterCommunicationFailed,
+        "Failed to allocate write targets for chunk %v",
         chunkId);
     auto rsp = rspOrError.Value();
 

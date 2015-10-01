@@ -34,8 +34,8 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TOldBoundaryKeysExt, 13)
 namespace NTableClient {
 
 bool TryGetBoundaryKeys(
-    const NChunkClient::NProto::TChunkMeta& chunkMeta, 
-    TOwningKey* minKey, 
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    TOwningKey* minKey,
     TOwningKey* maxKey);
 
 NChunkClient::NProto::TChunkMeta FilterChunkMetaByPartitionTag(

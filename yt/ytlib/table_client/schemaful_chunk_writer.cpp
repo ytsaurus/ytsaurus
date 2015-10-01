@@ -281,7 +281,7 @@ void TChunkWriter::WriteValue(const TUnversionedValue& value)
                 columnDescriptor.PreviousValue.Double = value.Data.Double;
             }
             break;
-        
+
         case EValueType::Boolean:
             YASSERT(value.Type == EValueType::Boolean || value.Type == EValueType::Null);
             CurrentBlock->WriteBoolean(value, columnDescriptor.IndexInBlock);

@@ -4,7 +4,7 @@
 #include <core/misc/format.h>
 
 #include <core/erasure/public.h>
-        
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/object_client/helpers.h>

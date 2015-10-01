@@ -40,7 +40,7 @@ private:
 
     virtual TDuration GetTimeout() const override;
     virtual void RunChild() override;
-    
+
     void Build(const TJob& job);
     void OnBuilt();
 

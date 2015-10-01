@@ -117,7 +117,7 @@ struct IOperationController
      *  The diagnostics is returned to the client, no Cypress node is created.
      */
     virtual void Initialize() = 0;
-    
+
     //! TODO(ignat): make reasonable comment
     virtual void Essentiate() = 0;
 

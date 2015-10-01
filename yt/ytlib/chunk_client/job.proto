@@ -24,7 +24,7 @@ message TReplicateChunkJobSpecExt
     }
 
     // Deprecated = 1;
-    
+
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
     repeated fixed32 targets = 3;
 }

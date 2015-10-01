@@ -107,7 +107,7 @@ message TRspGetBlockSet
     required bool throttling = 4;
 
     // Blocks are returned via attachments and correpond to block_indexes
-    // list in the request. Some blocks may be null. 
+    // list in the request. Some blocks may be null.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,7 +15,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockWriter 
+class TBlockWriter
 {
 public:
     struct TBlock

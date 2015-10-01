@@ -71,7 +71,7 @@ private:
         {
             return bool(TemplateWriter);
         }
-        
+
         void Reset()
         {
             TemplateWriter.Reset();
@@ -130,10 +130,10 @@ public:
         NConcurrency::IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TNontemplateMultiChunkWriterBase(
-            config, 
-            options, 
-            client, 
-            transactionId, 
+            config,
+            options,
+            client,
+            transactionId,
             parentChunkListId,
             throttler,
             blockCache)

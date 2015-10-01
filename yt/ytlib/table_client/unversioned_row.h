@@ -90,7 +90,7 @@ private:
         if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
             auto newString = new char[Value_.Length];
             ::memcpy(newString, Value_.Data.String, Value_.Length);
-            Value_.Data.String = newString;                
+            Value_.Data.String = newString;
         }
     }
 
@@ -295,7 +295,7 @@ public:
     static TUnversionedRow Allocate(
         TChunkedMemoryPool* pool,
         int valueCount);
-    
+
 
     explicit operator bool() const
     {

@@ -491,7 +491,7 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
 
     if (!Options_->AllowAllocatingNewTargetNodes) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::MasterCommunicationFailed, 
+            EErrorCode::MasterCommunicationFailed,
             "Allocating new target nodes is disabled");
     }
 
@@ -514,8 +514,8 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
     auto rspOrError = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
         rspOrError,
-        EErrorCode::MasterCommunicationFailed, 
-        "Failed to allocate targets for chunk %v", 
+        EErrorCode::MasterCommunicationFailed,
+        "Failed to allocate targets for chunk %v",
         ChunkId_);
     const auto& rsp = rspOrError.Value();
 
@@ -990,7 +990,7 @@ TFuture<void> TReplicationWriter::Close(const TChunkMeta& chunkMeta)
     ChunkMeta_ = chunkMeta;
 
     LOG_DEBUG("Requesting writer to close");
-    
+
     State_.StartOperation();
 
     TDispatcher::Get()->GetWriterInvoker()->Invoke(

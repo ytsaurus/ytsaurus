@@ -58,7 +58,7 @@ TColumnFilter CreateColumnFilter(const NChunkClient::TChannel& channel, TNameTab
         auto id = nameTable->GetIdOrRegisterName(column);
         columnFilter.Indexes.push_back(id);
     }
-    
+
     return columnFilter;
 }
 

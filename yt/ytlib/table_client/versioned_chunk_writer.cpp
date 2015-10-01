@@ -315,7 +315,7 @@ void TVersionedChunkWriter::FillCommonMeta(TChunkMeta* meta) const
     SetProtoExtension(meta->mutable_extensions(), BoundaryKeysExt_);
 }
 
-i64 TVersionedChunkWriter::GetUncompressedSize() const 
+i64 TVersionedChunkWriter::GetUncompressedSize() const
 {
     i64 size = EncodingChunkWriter_->GetDataStatistics().uncompressed_data_size();
     if (BlockWriter_) {

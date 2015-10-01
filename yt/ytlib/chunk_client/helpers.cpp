@@ -28,8 +28,8 @@ TFuture<TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
     const TChunkListId& chunkListId)
 {
     LOG_DEBUG(
-        "Creating chunk (ReplicationFactor: %v, TransactionId: %v)", 
-        options->ReplicationFactor, 
+        "Creating chunk (ReplicationFactor: %v, TransactionId: %v)",
+        options->ReplicationFactor,
         transactionId);
 
     TObjectServiceProxy objectProxy(masterChannel);

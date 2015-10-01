@@ -133,7 +133,7 @@ TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer, bool f
     YCHECK(Writer_);
 }
 
-void TWritingValueConsumer::Flush() 
+void TWritingValueConsumer::Flush()
 {
     if (!Writer_->Write(Rows_)) {
         auto error = WaitFor(Writer_->GetReadyEvent());
@@ -145,25 +145,25 @@ void TWritingValueConsumer::Flush()
     CurrentBufferSize_ = 0;
 }
 
-TNameTablePtr TWritingValueConsumer::GetNameTable() const 
+TNameTablePtr TWritingValueConsumer::GetNameTable() const
 {
     return Writer_->GetNameTable();
 }
 
-bool TWritingValueConsumer::GetAllowUnknownColumns() const 
+bool TWritingValueConsumer::GetAllowUnknownColumns() const
 {
     return true;
 }
 
-void TWritingValueConsumer::OnBeginRow() 
+void TWritingValueConsumer::OnBeginRow()
 { }
 
-void TWritingValueConsumer::OnValue(const TUnversionedValue& value) 
+void TWritingValueConsumer::OnValue(const TUnversionedValue& value)
 {
     Builder_.AddValue(value);
 }
 
-void TWritingValueConsumer::OnEndRow() 
+void TWritingValueConsumer::OnEndRow()
 {
     OwningRows_.emplace_back(Builder_.FinishRow());
     const auto& row = OwningRows_.back();
