@@ -68,7 +68,7 @@ if __name__ == "__main__":
         ])
 
     for schema in ["chunk", "erasure_chunk", "chunk_list"]:
-        yt.set("//sys/schemas/account/@acl",
+        yt.set("//sys/schemas/{0}/@acl".format(schema),
             [
                 {"action": "allow", "subjects": ["users"], "permissions": ["read", "write", "remove", "create"]},
             ])
