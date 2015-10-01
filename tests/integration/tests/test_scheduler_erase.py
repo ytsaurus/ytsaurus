@@ -49,7 +49,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         erase(self.table + "[#0:#1]")
         assert read_table(self.table) == self.v[3:]
         assert get(self.table + "/@chunk_count") == 2
-                
+
         erase(self.table + "[#1:]")
         assert read_table(self.table) == [self.v[3]]
         assert get(self.table + "/@chunk_count") == 1
@@ -86,7 +86,7 @@ class TestSchedulerEraseCommands(YTEnvSetup):
     def test_by_column(self):
         create("table", "//tmp/table")
         write_table("//tmp/table", {"v" : 42})
-        
+
         with pytest.raises(YtError):
             erase("//tmp/table{v}")
 
@@ -110,13 +110,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
                   {"key" : -1},
                   {"key" : 7}]
 
-        write_table("<append=true>" + self.table, self.v[0:2]) 
-        write_table("<append=true>" + self.table, self.v[2:4]) 
-        write_table("<append=true>" + self.table, self.v[4:6]) 
-        write_table("<append=true>" + self.table, self.v[6:8]) 
+        write_table("<append=true>" + self.table, self.v[0:2])
+        write_table("<append=true>" + self.table, self.v[2:4])
+        write_table("<append=true>" + self.table, self.v[4:6])
+        write_table("<append=true>" + self.table, self.v[6:8])
 
         assert get(self.table + "/@chunk_count") == 4
-    
+
     def test_one_side_chunk(self):
         self._prepare_medium_chunks()
         erase(self.table + "[#1:#4]")

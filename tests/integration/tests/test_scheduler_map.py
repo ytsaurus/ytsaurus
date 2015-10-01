@@ -971,7 +971,7 @@ print row + table_index
         map(in_="//tmp/t1", out="//tmp/t2", command="head -1",
             spec={"mapper": {"input_format" : "dsv", "output_format" : "dsv"}})
 
-        assert read_table("//tmp/t2") == [{"foo": "bar"}] 
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
     def test_live_preview(self):
         create_user("u")

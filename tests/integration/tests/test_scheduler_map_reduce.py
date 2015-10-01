@@ -109,10 +109,10 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                        reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                        reducer_command="python reducer.py",
                        reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                       spec={"partition_count": 2, 
-                             "map_job_count": 2, 
-                             "mapper": {"format": "dsv"}, 
-                             "reduce_combiner": {"format": "dsv"}, 
+                       spec={"partition_count": 2,
+                             "map_job_count": 2,
+                             "mapper": {"format": "dsv"},
+                             "reduce_combiner": {"format": "dsv"},
                              "reducer": {"format": "dsv"},
                              "data_size_per_sort_job": 10},
                        tx=tx)
@@ -135,10 +135,10 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                        reduce_combiner_command="cat >/dev/null",
                        reducer_command="python reducer.py",
                        reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                       spec={"partition_count": 2, 
-                             "map_job_count": 2, 
-                             "mapper": {"format": "dsv"}, 
-                             "reduce_combiner": {"format": "dsv"}, 
+                       spec={"partition_count": 2,
+                             "map_job_count": 2,
+                             "mapper": {"format": "dsv"},
+                             "reduce_combiner": {"format": "dsv"},
                              "reducer": {"format": "dsv"},
                              "data_size_per_sort_job": 10},
                        tx=tx)
@@ -195,7 +195,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                               {"x": 1, "y" : 1},
                               {"x": 1, "y" : 3} ])
 
-        write_table("<append=true>//tmp/t_in", 
+        write_table("<append=true>//tmp/t_in",
                             [ {"x": 2, "y" : 3},
                               {"x": 2, "y" : 2},
                               {"x": 2, "y" : 4} ])
@@ -225,7 +225,7 @@ print "x={0}\ty={1}".format(x, y)
                    reducer_file=["//tmp/reducer.py"],
                    reducer_command="python reducer.py",
                    spec={
-                     "partition_count": 2, 
+                     "partition_count": 2,
                      "reducer": {"format": "dsv"}})
 
         assert read_table("//tmp/t_out") == [{"x": "1", "y" : "1"},
@@ -340,5 +340,5 @@ print "x={0}\ty={1}".format(x, y)
         with pytest.raises(YtError):
             map_reduce(mapper_command="cat", reducer_command="cat",
                        in_="//tmp/t1", out="//tmp/t2",
-                       sort_by=["foo"], 
+                       sort_by=["foo"],
                        spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})

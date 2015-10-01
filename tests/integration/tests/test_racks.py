@@ -91,7 +91,7 @@ class TestRacks(YTEnvSetup):
         create_rack("r1")
         n = get_nodes()[0]
         self._set_rack(n, "r1")
-        
+
         set("//sys/racks/r1/@name", "r2")
         assert get("//sys/racks/r2/@name") == "r2"
         assert self._get_rack(n) == "r2"
@@ -115,7 +115,7 @@ class TestRacks(YTEnvSetup):
         for node in nodes:
             assert self._get_rack(node) == "r"
         self.assertItemsEqual(get("//sys/racks/r/@nodes"), nodes)
-        
+
     def test_remove(self):
         create_rack("r")
         nodes = get_nodes()
@@ -124,7 +124,7 @@ class TestRacks(YTEnvSetup):
         remove_rack("r")
         for node in nodes:
             assert not self._has_rack(node)
-            
+
     def test_assign_fail(self):
         n = get_nodes()[0]
         with pytest.raises(YtError): self._set_rack(n, "r")
@@ -143,11 +143,11 @@ class TestRacks(YTEnvSetup):
         self._init_n_racks(3)
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
-        
+
     def test_unsafely_placed(self):
         create("file", "//tmp/file", file_writer={"upload_replication_factor": 3})
         write_file("//tmp/file", self.FILE_DATA)
-        
+
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
@@ -166,7 +166,7 @@ class TestRacks(YTEnvSetup):
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
         write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
-        
+
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
@@ -185,13 +185,13 @@ class TestRacks(YTEnvSetup):
         self._set_rack_map(map)
 
         self._wait_for_safely_placed(chunk_id, 3)
-        
+
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 2
 
     def test_erasure_move_to_safe_place(self):
         create("file", "//tmp/file", attributes={"erasure_codec": "lrc_12_2_2"})
         write_file("//tmp/file", self.FILE_DATA)
-        
+
         chunk_ids = get("//tmp/file/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
@@ -229,18 +229,18 @@ class TestRacks(YTEnvSetup):
             replicas_plus_nodes[17] : "r6",
             replicas_plus_nodes[18] : "r6",
             replicas_plus_nodes[19] : "r6",
-        }        
+        }
         self._set_rack_map(map)
 
         self._wait_for_safely_placed(chunk_id, 16)
-        
+
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 3
 
     def test_journal_move_to_safe_place(self):
         create("journal", "//tmp/j")
         write_journal("//tmp/j", self.JOURNAL_DATA)
         assert get("//tmp/j/@sealed")
-        
+
         chunk_ids = get("//tmp/j/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
@@ -258,7 +258,7 @@ class TestRacks(YTEnvSetup):
         self._set_rack_map(map)
 
         self._wait_for_safely_placed(chunk_id, 3)
-        
+
         assert self._get_max_replicas_per_rack(map, chunk_id) <= 1
 
     def test_journals_with_degraded_racks(self):

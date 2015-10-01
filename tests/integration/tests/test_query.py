@@ -60,8 +60,8 @@ class TestQuery(YTEnvSetup):
             attributes = {
                 "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]
             })
-        data = [{"a" : 1, "b" : 2}, 
-                {"a" : 1, "b" : 2.2}, 
+        data = [{"a" : 1, "b" : 2},
+                {"a" : 1, "b" : 2.2},
                 {"a" : 1, "b" : "smth"}]
 
         write_table("<sorted_by=[a; b]>" + path, data)
@@ -307,7 +307,7 @@ class TestQuery(YTEnvSetup):
             {"a": 4, "c": "a", "b": 100, "d": "X", "e": 1234},
             {"a": 4, "c": "a", "b": 400, "d": "Y", "e": 5678}]
 
-        actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)") 
+        actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)")
         assert sorted(expected) == sorted(actual)
 
     def test_types(self):
