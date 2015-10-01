@@ -157,6 +157,7 @@ protected:
     IInvokerPtr CancelableInvoker;
 
     EControllerState State;
+    NConcurrency::TReaderWriterSpinLock StateLock;
 
     // These totals are approximate.
     int TotalEstimatedInputChunkCount;
@@ -726,6 +727,8 @@ protected:
 
     virtual bool IsCompleted() const = 0;
 
+    void SetState(EControllerState state);
+
     //! Returns |true| when the controller is prepared.
     /*!
      *  Preparation happens in a controller thread.
@@ -739,7 +742,6 @@ protected:
 
     //! Returns |true| when operation completion event is scheduled to control invoker.
     virtual bool IsFinished() const;
-
 
     // Unsorted helpers.
 

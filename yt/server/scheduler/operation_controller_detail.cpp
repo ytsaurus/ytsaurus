@@ -1030,7 +1030,7 @@ void TOperationControllerBase::Prepare()
 
     CheckTimeLimitExecutor->Start();
 
-    State = EControllerState::Running;
+    SetState(EControllerState::Running);
 }
 
 void TOperationControllerBase::SaveSnapshot(TOutputStream* output)
@@ -1067,7 +1067,7 @@ void TOperationControllerBase::Revive()
 
     CheckTimeLimitExecutor->Start();
 
-    State = EControllerState::Running;
+    SetState(EControllerState::Running);
 }
 
 void TOperationControllerBase::InitializeTransactions()
@@ -1806,7 +1806,7 @@ void TOperationControllerBase::Abort()
 
     LOG_INFO("Aborting operation");
 
-    State = EControllerState::Finished;
+    SetState(EControllerState::Finished);
 
     CancelableContext->Cancel();
 
@@ -2308,7 +2308,7 @@ void TOperationControllerBase::OnOperationCompleted()
 
     LOG_INFO("Operation completed");
 
-    State = EControllerState::Finished;
+    SetState(EControllerState::Finished);
 
     Host->OnOperationCompleted(Operation);
 }
@@ -2322,23 +2322,32 @@ void TOperationControllerBase::OnOperationFailed(const TError& error)
         return;
     }
 
-    State = EControllerState::Finished;
+    SetState(EControllerState::Finished);
 
     Host->OnOperationFailed(Operation, error);
 }
 
+void TOperationControllerBase::SetState(EControllerState state)
+{
+    TWriterGuard guard(StateLock);
+    State = state;
+}
+
 bool TOperationControllerBase::IsPrepared() const
 {
+    TReaderGuard guard(StateLock);
     return State != EControllerState::Preparing;
 }
 
 bool TOperationControllerBase::IsRunning() const
 {
+    TReaderGuard guard(StateLock);
     return State == EControllerState::Running;
 }
 
 bool TOperationControllerBase::IsFinished() const
 {
+    TReaderGuard guard(StateLock);
     return State == EControllerState::Finished;
 }
 
