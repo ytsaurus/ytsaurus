@@ -1,7 +1,7 @@
 from configs_provider import ConfigsProviderFactory, init_logging
-from helpers import versions_cmp
+from helpers import versions_cmp, is_binary_found, makedirp, read_config, write_config, collect_events_from_logs
 
-from yt.common import update, YtError
+from yt.common import update, YtError, get_value
 import yt.yson as yson
 
 import logging
@@ -9,15 +9,14 @@ import os
 import re
 import time
 import signal
-import errno
 import socket
 import shutil
 import sys
 import getpass
-import yt.json as json
 from collections import defaultdict
 from ctypes import cdll
 from threading import RLock
+from itertools import takewhile
 
 try:
     import subprocess32 as subprocess
@@ -27,43 +26,10 @@ except ImportError:
                             "because subprocess32 library is not installed."
     import subprocess
 
-GEN_PORT_ATTEMPTS = 10
-
 logger = logging.getLogger("Yt.local")
 
-def fix_yson_booleans(obj):
-    if isinstance(obj, dict):
-        for key, value in obj.items():
-            fix_yson_booleans(value)
-            if isinstance(value, yson.YsonBoolean):
-                obj[key] = True if value else False
-    elif isinstance(obj, list):
-        for value in obj:
-            fix_yson_booleans(value)
-    return obj
-
-def _write_config(config, filename, format="yson"):
-    with open(filename, "wt") as f:
-        if format == "yson":
-            yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
-        else:  # json
-            json.dump(fix_yson_booleans(config), f, indent=4)
-
-def _read_config(filename, format="yson"):
-    with open(filename, "r") as f:
-        if format == "yson":
-            return yson.load(f)
-        else:  # json
-            return json.load(f)
-
-def _is_binary_found(binary_name):
-    for path in os.environ["PATH"].split(os.pathsep):
-        if os.access(os.path.join(path, binary_name), os.X_OK):
-            return True
-    return False
-
 def _get_ytserver_version():
-    if not _is_binary_found("ytserver"):
+    if not is_binary_found("ytserver"):
         raise YtError("Failed to start ytserver. Make sure that ytserver binary is installed")
     # Output example: "\nytserver  version: 0.17.3-unknown~debug~0+local\n\n"
     output = subprocess.check_output(["ytserver", "--version"])
@@ -78,16 +44,7 @@ def _config_safe_get(config, config_path, key):
             raise YtError('Failed to get required key "{0}" from config file {1}.'.format(key, config_path))
     return d
 
-def _makedirp(path):
-    try:
-        os.makedirs(path)
-    except OSError as err:
-        if err.errno != errno.EEXIST:
-            raise
-
 class YTEnv(object):
-    failureException = Exception
-
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
@@ -137,7 +94,7 @@ class YTEnv(object):
         if os.path.exists(self.path_to_run):
             if not preserve_working_dir:
                 shutil.rmtree(self.path_to_run, ignore_errors=True)
-                _makedirp(self.path_to_run)
+                makedirp(self.path_to_run)
             else:
                 load_existing_environment = True
 
@@ -268,7 +225,7 @@ class YTEnv(object):
         proc.poll()
         if proc.returncode is not None:
             logger.warning("%s (pid: %d, working directory: %s) is already terminated with exit code %d\n",
-                           name, proc.pid, os.path.join(self.path_to_run), proc.returncode)
+                           name, proc.pid, os.path.join(self.path_to_run, name), proc.returncode)
             return
 
         os.killpg(proc.pid, signal.SIGKILL)
@@ -313,7 +270,7 @@ class YTEnv(object):
     def _run_ytserver(self, service_name, name):
         logger.info("Starting %s", name)
 
-        if not _is_binary_found("ytserver"):
+        if not is_binary_found("ytserver"):
             raise YtError("Failed to start ytserver. Make sure that ytserver binary is installed")
 
         for i in xrange(len(self.configs[name])):
@@ -364,7 +321,7 @@ class YTEnv(object):
                         raise YtError("Master config {0} not found. "
                                       "It is possible that you requested more masters than configs exist".format(config_path))
 
-                    configs.append(_read_config(config_path))
+                    configs.append(read_config(config_path))
 
                 master_configs.append(configs)
 
@@ -378,7 +335,6 @@ class YTEnv(object):
             return
 
         self._master_cell_tags = {}
-        self._primary_masters = {}
 
         dirs = []
         tmpfs_dirs = [] if self.tmpfs_path else None
@@ -386,10 +342,10 @@ class YTEnv(object):
         for cell_index in xrange(secondary_master_cell_count + 1):
             name = self._get_master_name(master_name, cell_index)
             dirs.append([os.path.join(self.path_to_run, name, str(i)) for i in xrange(masters_count)])
-            map(_makedirp, dirs[cell_index])
+            map(makedirp, dirs[cell_index])
             if self.tmpfs_path is not None and not self._load_existing_environment:
                 tmpfs_dirs.append([os.path.join(self.tmpfs_path, name, str(i)) for i in xrange(masters_count)])
-                map(_makedirp, tmpfs_dirs[cell_index])
+                map(makedirp, tmpfs_dirs[cell_index])
 
         configs = self._get_master_configs(masters_count, master_name, secondary_master_cell_count, cell_tag,
                                            dirs, tmpfs_dirs)
@@ -399,7 +355,6 @@ class YTEnv(object):
 
             # Will be used for waiting
             self._master_cell_tags[current_master_name] = cell_tag + cell_index
-            self._primary_masters[current_master_name] = master_name
 
             for master_index, config in enumerate(configs[cell_index]):
                 current_path = os.path.join(self.path_to_run, current_master_name, str(master_index))
@@ -409,7 +364,7 @@ class YTEnv(object):
 
                 config_path = os.path.join(current_path, "master_config.yson")
                 if not self._load_existing_environment:
-                    _write_config(config, config_path)
+                    write_config(config, config_path)
 
                 self.configs[current_master_name].append(config)
                 self.config_paths[current_master_name].append(config_path)
@@ -417,8 +372,12 @@ class YTEnv(object):
                     _config_safe_get(config, config_path, "logging/writers/info/file_name"))
 
     def start_masters(self, master_name, secondary=None):
-        if secondary is None:
-            secondary = "secondary" in master_name
+        primary_master_name = master_name
+        secondary = get_value(secondary, "secondary" in master_name)
+
+        if secondary:
+            # e.g. master_remote_secondary_0 -> master_remote
+            primary_master_name = master_name[:master_name.find("secondary")-1]
 
         masters_count = len(self.log_paths[master_name])
         if masters_count == 0:
@@ -426,45 +385,39 @@ class YTEnv(object):
 
         self._run_ytserver("master", master_name)
 
-        def masters_ready():
-            leader_ready_markers = ["Leader active", "Initial changelog rotated"]
+        is_leader_ready_marker = lambda line: "Leader active" in line or "Initial changelog rotated" in line
+        is_restart_occured_marker = lambda line: "Logging started" in line or "Stopped leading" in line
+        is_world_init_completed_marker = lambda line: "World initialization completed" in line
 
-            world_init_completed_marker = "World initialization completed"
+        # First version is less precise and will be used for quick filtering.
+        is_secondary_master_registered_marker = lambda line: "Secondary master registered" in line
+        secondary_master_registered_pattern = r"Secondary master registered.*CellTag: {0}"
 
-            bad_markers = ["Logging started", "Stopped leading"]
-
-            secondary_master_registered = re.compile(r"Secondary master registered.*CellTag: {0}"\
-                    .format(self._master_cell_tags[master_name]))
-
+        def is_quorum_ready(starting_master_events):
             is_world_initialization_done = False
             is_leader_ready = False
 
-            ok = False
-
             master_id = 0
 
-            for logging_file in self.log_paths[master_name]:
-                if not os.path.exists(logging_file):
-                    continue
+            ok = False
 
+            for replica_index, lines in enumerate(starting_master_events):
                 if ok:
                     break
 
                 restart_occured_and_not_ready = False
 
-                for line in reversed(open(logging_file).readlines()):
-                    if any([bad_marker in line for bad_marker in bad_markers]) and \
-                            not is_leader_ready:
+                for line in lines:
+                    if is_restart_occured_marker(line) and not is_leader_ready:
                         restart_occured_and_not_ready = True
 
-                    if world_init_completed_marker in line:
+                    if is_world_init_completed_marker(line):
                         is_world_initialization_done = True
 
-                    if any([marker in line for marker in leader_ready_markers]) and \
-                            not restart_occured_and_not_ready:
+                    if is_leader_ready_marker(line) and not restart_occured_and_not_ready:
                         is_leader_ready = True
                         if not secondary:
-                            self.leader_log = logging_file
+                            self.leader_log = self.log_paths[master_name][replica_index]
                             self.leader_id = master_id
 
                     if is_leader_ready and is_world_initialization_done:
@@ -473,27 +426,46 @@ class YTEnv(object):
 
                 master_id += 1
 
-            if not ok:
+            return ok
+
+        def masters_ready():
+            event_filters = [is_leader_ready_marker, is_world_init_completed_marker, is_restart_occured_marker]
+            if secondary:
+                event_filters.append(is_secondary_master_registered_marker)
+            # Each element is a list with log lines of each replica of the cell.
+            current_master_events = collect_events_from_logs(self.log_paths[master_name], event_filters)
+
+            if not is_quorum_ready(current_master_events):
                 return False
 
             if secondary:
-                ok = False
-                primary_master_name = self._primary_masters[master_name]
-                for logging_file in self.log_paths[primary_master_name]:
-                    if not os.path.exists(logging_file):
+                current_master_cell_registered_marker = re.compile(
+                    secondary_master_registered_pattern.format(self._master_cell_tags[master_name]))
+
+                for name in self._process_to_kill:
+                    if name == master_name or not name.startswith(primary_master_name):
                         continue
 
-                    if ok:
-                        break
+                    master_cell_events = collect_events_from_logs(self.log_paths[name], [
+                        lambda line: current_master_cell_registered_marker.search(line)])
 
-                    for line in reversed(open(logging_file).readlines()):
-                        if secondary_master_registered.search(line):
-                            ok = True
-                            break
+                    if not filter(None, master_cell_events):
+                        return False
 
-            return ok
+                    if name != primary_master_name:
+                        secondary_cell_registered_marker = re.compile(
+                            secondary_master_registered_pattern.format(self._master_cell_tags[name]))
+
+                        for event_list in current_master_events:
+                            if filter(lambda line: secondary_cell_registered_marker.search(line), event_list):
+                                break
+                        else:
+                            return False
+
+            return True
 
         self._wait_for(masters_ready, name=master_name, max_wait_time=30)
+
         if secondary:
             logger.info("Secondary master %s registered", master_name.rsplit("_", 1)[1])
         else:
@@ -520,7 +492,7 @@ class YTEnv(object):
                     raise YtError("Node config {0} not found. "
                                   "It is possible that you requested more nodes than configs exist".format(config_path))
 
-                configs.append(_read_config(config_path))
+                configs.append(read_config(config_path))
 
             return configs
         else:
@@ -533,7 +505,7 @@ class YTEnv(object):
 
         dirs = [os.path.join(self.path_to_run, node_name, str(i))
                 for i in xrange(nodes_count)]
-        map(_makedirp, dirs)
+        map(makedirp, dirs)
 
         configs = self._get_node_configs(nodes_count, node_name, dirs)
 
@@ -545,7 +517,7 @@ class YTEnv(object):
 
             config_path = os.path.join(current_path, "node_config.yson")
             if not self._load_existing_environment:
-                _write_config(config, config_path)
+                write_config(config, config_path)
 
             self.configs[node_name].append(config)
             self.config_paths[node_name].append(config_path)
@@ -561,47 +533,36 @@ class YTEnv(object):
         scheduler_logs = self.log_paths[node_name.replace("node", "scheduler", 1)]
 
         def all_nodes_ready():
-            nodes_status = {}
-
-            scheduler_good_marker = re.compile(r".*Node online.*")
-            scheduler_bad_marker = "Logging started"
+            is_scheduler_bad_marker = lambda line: "Logging started" in line
+            is_scheduler_good_marker = lambda line: "Node online" in line
 
             node_good_marker = re.compile(r".*Node online .*Address: ([a-zA-z0-9:_\-.]+).*")
             node_bad_marker = re.compile(r".*Node unregistered .*Address: ([a-zA-z0-9:_\-.]+).*")
 
-            def update_status(marker, line, status, value):
+            node_statuses = {}
+
+            def update_node_status(marker, line, value):
                 match = marker.match(line)
                 if match:
                     address = match.group(1)
-                    if address not in status:
-                        status[address] = value
+                    if address not in node_statuses:
+                        node_statuses[address] = value
 
             for line in reversed(open(self.leader_log).readlines()):
-                update_status(node_bad_marker, line, nodes_status, False)
-                update_status(node_good_marker, line, nodes_status, True)
+                update_node_status(node_good_marker, line, True)
+                update_node_status(node_bad_marker, line, False)
 
-            schedulers_ready = False
             if scheduler_logs:
-                for log in scheduler_logs:
-                    discovered_node_count = 0
-                    for line in reversed(open(log).readlines()):
-                        if scheduler_bad_marker in line:
-                            break
-                        if scheduler_good_marker.match(line):
-                            discovered_node_count += 1
-                            if discovered_node_count == nodes_count:
-                                schedulers_ready = True
-                                break
-            else:
-                schedulers_ready = True
+                for events in collect_events_from_logs(scheduler_logs, [is_scheduler_bad_marker, is_scheduler_good_marker]):
+                    filtered_events = takewhile(lambda line: not is_scheduler_bad_marker(line), events)
+                    if len(list(filtered_events)) >= nodes_count:
+                        break
+                else:
+                    return False
 
-            if len(nodes_status) != nodes_count:
-                return False
+            return len(node_statuses) == nodes_count and all(node_statuses.values())
 
-            return all(nodes_status.values()) and schedulers_ready
-
-        self._wait_for(all_nodes_ready, name=node_name,
-                       max_wait_time=max(nodes_count * 6.0, 20))
+        self._wait_for(all_nodes_ready, name=node_name, max_wait_time=max(nodes_count * 6.0, 20))
 
     def _run_nodes(self, nodes_count, node_name):
         self._prepare_nodes(nodes_count, node_name)
@@ -617,7 +578,7 @@ class YTEnv(object):
                     raise YtError("Scheduler config {0} not found. "
                                   "It is possible that you requested more schedulers than configs exist".format(config_path))
 
-                configs.append(_read_config(config_path))
+                configs.append(read_config(config_path))
 
             return configs
         else:
@@ -629,7 +590,7 @@ class YTEnv(object):
 
         dirs = [os.path.join(self.path_to_run, scheduler_name, str(i))
                 for i in xrange(schedulers_count)]
-        map(_makedirp, dirs)
+        map(makedirp, dirs)
 
         configs = self._get_scheduler_configs(schedulers_count, scheduler_name, dirs)
 
@@ -639,7 +600,7 @@ class YTEnv(object):
 
             config_path = os.path.join(self.path_to_run, scheduler_name, str(i), "scheduler_config.yson")
             if not self._load_existing_environment:
-                _write_config(config, config_path)
+                write_config(config, config_path)
 
             self.configs[scheduler_name].append(config)
             self.config_paths[scheduler_name].append(config_path)
@@ -653,33 +614,27 @@ class YTEnv(object):
         self._run_ytserver("scheduler", scheduler_name)
 
         def scheduler_ready():
-            bad_marker = "Logging started"
-            good_marker_for_primary_scheduler = re.compile(r".*Master connected.*")
-            good_marker_for_secondary_scheduler = re.compile(r"Cannot.*lock.*//sys/scheduler/lock")
+            is_scheduler_bad_marker = lambda line: "Logging started" in line
+            is_primary_scheduler_good_marker = lambda line: "Master connected" in line
+            secondary_scheduler_good_marker_regex = re.compile(r"Cannot.*lock.*//sys/scheduler/lock")
+            is_secondary_scheduler_good_marker = lambda line: secondary_scheduler_good_marker_regex.search(line)
 
             is_primary_scheduler_exists = False
             ready_schedulers_count = 0
 
-            for log in self.log_paths[scheduler_name]:
-                if not os.path.exists(log):
-                    return False
+            events = collect_events_from_logs(self.log_paths[scheduler_name], [
+                is_primary_scheduler_good_marker, is_secondary_scheduler_good_marker, is_scheduler_bad_marker
+            ])
 
-                for line in reversed(open(log).readlines()):
-                    if bad_marker in line:
-                        break
+            for lines in events:
+                filtered_lines = takewhile(lambda line: not is_scheduler_bad_marker(line), lines)
+                if filter(is_primary_scheduler_good_marker, filtered_lines):
+                    ready_schedulers_count += 1
+                    is_primary_scheduler_exists = True
+                if filter(is_secondary_scheduler_good_marker, filtered_lines):
+                    ready_schedulers_count += 1
 
-                    if good_marker_for_primary_scheduler.search(line):
-                        is_primary_scheduler_exists = True
-                        ready_schedulers_count += 1
-                        break
-                    elif good_marker_for_secondary_scheduler.search(line):
-                        ready_schedulers_count += 1
-                        break
-
-            if ready_schedulers_count != schedulers_count or not is_primary_scheduler_exists:
-                return False
-
-            return True
+            return ready_schedulers_count == schedulers_count and is_primary_scheduler_exists
 
         self._wait_for(scheduler_ready, name=scheduler_name)
 
@@ -697,8 +652,8 @@ class YTEnv(object):
         if self._load_existing_environment:
             configs = []
             for cell_index in xrange(secondary_master_cell_count + 1):
-                configs.append(_read_config(os.path.join(self.path_to_run,
-                                                         self._get_driver_name(driver_name, cell_index) + ".yson")))
+                configs.append(read_config(os.path.join(self.path_to_run,
+                                                        self._get_driver_name(driver_name, cell_index) + ".yson")))
 
             return configs
         else:
@@ -711,7 +666,7 @@ class YTEnv(object):
 
             config_path = os.path.join(self.path_to_run, current_driver_name + ".yson")
             if not self._load_existing_environment:
-                _write_config(config, config_path)
+                write_config(config, config_path)
 
             self.configs[current_driver_name] = config
             self.config_paths[current_driver_name] = config_path
@@ -724,11 +679,11 @@ class YTEnv(object):
 
             config["driver"] = driver_config
             config["logging"] = init_logging(config["logging"], self.path_to_run, "console_driver",
-                                              self._enable_debug_logging)
+                                             self._enable_debug_logging)
 
             config_path = os.path.join(self.path_to_run, "console_driver_config.yson")
 
-            _write_config(config, config_path)
+            write_config(config, config_path)
 
             self.configs[console_driver_name].append(config)
             self.config_paths[console_driver_name].append(config_path)
@@ -741,7 +696,7 @@ class YTEnv(object):
             if not os.path.isfile(config_path):
                 raise YtError("Proxy config {0} not found.".format(config_path))
 
-            return _read_config(config_path, format="json")
+            return read_config(config_path, format="json")
         else:
             return self._configs_provider.get_proxy_config(proxy_dir, proxy_port)
 
@@ -750,7 +705,7 @@ class YTEnv(object):
             return
 
         proxy_dir = os.path.join(self.path_to_run, proxy_name)
-        _makedirp(proxy_dir)
+        makedirp(proxy_dir)
 
         proxy_config = self._get_proxy_config(proxy_name, proxy_dir, proxy_port)
 
@@ -759,7 +714,7 @@ class YTEnv(object):
 
         config_path = os.path.join(proxy_dir, "proxy_config.json")
         if not self._load_existing_environment:
-            _write_config(proxy_config, config_path, format="json")
+            write_config(proxy_config, config_path, format="json")
 
         self.configs[proxy_name] = proxy_config
         self.config_paths[proxy_name] = config_path
@@ -796,7 +751,7 @@ class YTEnv(object):
         if use_proxy_from_package:
             self._start_proxy_from_package(proxy_name)
         else:
-            if not _is_binary_found("run_proxy.sh"):
+            if not is_binary_found("run_proxy.sh"):
                 raise YtError("Failed to start proxy from source tree. "
                               "Make sure you added directory with run_proxy.sh to PATH")
             self._run(["run_proxy.sh",
