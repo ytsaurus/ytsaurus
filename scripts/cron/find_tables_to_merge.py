@@ -21,11 +21,13 @@ if __name__ == "__main__":
     parser.add_argument("--proxy")
     parser.add_argument("--queue-path")
 
+    parser.add_argument("--root", default="/")
     parser.add_argument("--minimum-number-of-chunks", type=int, default=100)
     parser.add_argument("--maximum-chunk-size", type=int, default=100 *1024 * 1024)
     parser.add_argument("--minimal-age", type=int, default=0)
     parser.add_argument("--filter-out", action="append")
     parser.add_argument("--ignore-suppress-nightly-merge", action="store_true", default=False)
+    parser.add_argument("--append", action="store_true", default=False)
     parser.add_argument("--print-only", action="store_true", default=False)
 
     args = parser.parse_args()
@@ -38,7 +40,7 @@ if __name__ == "__main__":
 
     number_of_chunks = 0
 
-    for table in yt.search("/",
+    for table in yt.search(args.root,
                            node_type="table",
                            attributes=["compressed_data_size", "chunk_count", "modification_time", "suppress_nightly_merge"],
                            subtree_filter=lambda path, obj:
@@ -64,6 +66,8 @@ if __name__ == "__main__":
 
     if not args.print_only:
         tables_to_merge = map(lambda x: x[1], sorted(tables_to_merge))
+        if args.append:
+            tables_to_merge = yt.get(args.queue_path) + tables_to_merge
         yt.set(args.queue_path, tables_to_merge)
         logger.info("Number of small chunks: %d", number_of_chunks)
 
