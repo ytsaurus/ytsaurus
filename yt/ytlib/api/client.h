@@ -285,6 +285,14 @@ struct TLinkNodeOptions
     bool IgnoreExisting = false;
 };
 
+struct TConcatenateNodesOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMutatingOptions
+{
+    bool Append = false;
+};
+
 struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
@@ -446,6 +454,11 @@ struct IClientBase
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
+    
+    virtual TFuture<void> ConcatenateNodes(
+        const std::vector<NYPath::TYPath>& srcPaths,
+        const NYPath::TYPath& dstPath,
+        TConcatenateNodesOptions options = TConcatenateNodesOptions()) = 0;
 
     virtual TFuture<bool> NodeExists(
         const NYPath::TYPath& path,

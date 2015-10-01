@@ -649,3 +649,41 @@ class TestTables(YTEnvSetup):
         format = yson.loads("<format=text>yson")
         write("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
         assert '{"x"=1u};\n{"x"=4u};\n{"x"=9u};\n' == read("//tmp/t", output_format=format)
+
+    def test_concatenate(self):
+        create("table", "//tmp/t1")
+        write("//tmp/t1", {"key": "x"})
+        assert read("//tmp/t1") == [{"key": "x"}]
+
+        create("table", "//tmp/t2")
+        write("//tmp/t2", {"key": "y"})
+        assert read("//tmp/t2") == [{"key": "y"}]
+
+        create("table", "//tmp/union")
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
+        assert read("//tmp/union") == [{"key": "x"}, {"key": "y"}]
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
+        assert read("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
+
+    def test_concatenate_sorted(self):
+        create("table", "//tmp/t1")
+        write("//tmp/t1", {"key": "x"})
+        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+        assert read("//tmp/t1") == [{"key": "x"}]
+        assert get("//tmp/t1/@sorted", "true")
+
+        create("table", "//tmp/t2")
+        write("//tmp/t2", {"key": "y"})
+        sort(in_="//tmp/t2", out="//tmp/t2", sort_by="key")
+        assert read("//tmp/t2") == [{"key": "y"}]
+        assert get("//tmp/t2/@sorted", "true")
+
+        create("table", "//tmp/union")
+        sort(in_="//tmp/union", out="//tmp/union", sort_by="key")
+        assert get("//tmp/union/@sorted", "true")
+
+        concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
+        assert read("//tmp/union") == [{"key": "y"}, {"key": "x"}]
+        assert get("//tmp/union/@sorted", "false")

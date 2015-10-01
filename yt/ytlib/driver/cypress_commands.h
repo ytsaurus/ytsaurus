@@ -327,6 +327,41 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TConcatenateRequest
+    : public TTransactionalRequest
+    , public TMutatingRequest
+{
+    std::vector<NYPath::TRichYPath> SourcePaths;
+    NYPath::TRichYPath DestinationPath;
+
+    TConcatenateRequest()
+    {
+        RegisterParameter("source_paths", SourcePaths);
+        RegisterParameter("destination_path", DestinationPath);
+    }
+
+    virtual void OnLoaded() override
+    {
+        TTransactionalRequest::OnLoaded();
+
+        for (auto& path : SourcePaths) {
+            path = path.Normalize();
+        }
+        DestinationPath = DestinationPath.Normalize();
+    }
+};
+
+class TConcatenateCommand
+    : public TTypedCommand<TConcatenateRequest>
+{
+private:
+    virtual void DoExecute() override;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NDriver
 } // namespace NYT
 

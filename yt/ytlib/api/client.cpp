@@ -59,6 +59,7 @@
 #include <ytlib/query_client/column_evaluator.h>
 #include <ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
 
+#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/read_limit.h>
 
@@ -440,7 +441,7 @@ private:
                     return key < tabletInfo->PivotKey.Get();
                 }) - 1;
 
-        
+
             for (auto it = startIt; it != tableInfo->Tablets.end(); ++it) {
                 const auto& tabletInfo = *it;
                 if (upperBound <= tabletInfo->PivotKey)
@@ -508,7 +509,7 @@ private:
 
                 Stroka address;
                 std::tie(subfragment->DataSources, address) = getSubsources(index);
-                
+
                 LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v)",
                     subquery->Id,
                     address);
@@ -882,6 +883,11 @@ public:
         const TYPath& dstPath,
         const TLinkNodeOptions& options),
         (srcPath, dstPath, options))
+    IMPLEMENT_METHOD(void, ConcatenateNodes, (
+        const std::vector<TYPath>& srcPaths,
+        const TYPath& dstPath,
+        TConcatenateNodesOptions options),
+        (srcPaths, dstPath, options))
     IMPLEMENT_METHOD(bool, NodeExists, (
         const TYPath& path,
         const TNodeExistsOptions& options),
@@ -1668,6 +1674,157 @@ private:
         return FromProto<TNodeId>(rsp->node_id());
     }
 
+    void DoConcatenateNodes(
+        const std::vector<TYPath>& srcPaths,
+        const TYPath& dstPath,
+        TConcatenateNodesOptions options)
+    {
+        const auto& objectProxy = ObjectProxies_[EMasterChannelKind::Leader];
+
+        try {
+            // Get source objects ids.
+            std::vector<NObjectClient::TObjectId> srcIds;
+            NObjectClient::TObjectId dstId;
+            {
+                auto batchReq = objectProxy->ExecuteBatch();
+                auto requestAttributes = [&] (const Stroka& key, const TYPath& path) {
+                    auto req = TObjectYPathProxy::GetBasicAttributes(path);
+                    SetTransactionId(req, options, true);
+                    batchReq->AddRequest(req, key);
+                };
+
+                for (const auto& path : srcPaths) {
+                    requestAttributes("get_src_attributes", path);
+                }
+                requestAttributes("get_dst_attributes", dstPath);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting paths attributes");
+                const auto& batchRsp = batchRspOrError.Value();
+
+                TNullable<EObjectType> commonType;
+                auto checkType = [&] (EObjectType type, const TYPath& path) {
+                    if (type != EObjectType::Table && type != EObjectType::File) {
+                        THROW_ERROR_EXCEPTION("Type of source %v must be %Qlv or %Qlv",
+                            path,
+                            EObjectType::Table,
+                            EObjectType::File);
+                    }
+                    if (commonType && *commonType != type) {
+                        THROW_ERROR_EXCEPTION("Types of all sources must be same: %Qlv != %Qlv",
+                            type,
+                            *commonType);
+                    }
+                    commonType = type;
+                };
+
+                {
+                    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_src_attributes");
+                    for (int index = 0; index < srcPaths.size(); ++index) {
+                        THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[index], "Error getting attributes of %v", srcPaths[index]);
+                        auto rsp = rspsOrError[index].Value();
+                        const auto& path = srcPaths[index];
+                        auto type = EObjectType(rsp->type());
+                        checkType(type, path);
+
+                        auto id = FromProto<TObjectId>(rsp->id());
+                        srcIds.push_back(id);
+                    }
+                }
+
+                {
+                    auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_dst_attributes");
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError[0], "Error getting attributes of %v", dstPath);
+                    auto rsp = rspsOrError[0].Value();
+                    auto type = EObjectType(rsp->type());
+                    checkType(type, dstPath);
+                    dstId = FromProto<TObjectId>(rsp->id());
+                }
+            }
+
+            // Get source chunk ids.
+            std::vector<TChunkId> chunkIds;
+            {
+                auto batchReq = objectProxy->ExecuteBatch();
+                for (const auto& srcId : srcIds) {
+                    auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcId));
+                    SetTransactionId(req, options, true);
+                    ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+                    batchReq->AddRequest(req, "get_ids");
+                }
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error getting source chunk ids");
+                const auto& batchRsp = batchRspOrError.Value();
+
+                auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("get_ids");
+                for (int index = 0; index < srcPaths.size(); ++index) {
+                    auto rspOrError = rspsOrError[index];
+                    const auto& path = srcPaths[index];
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting chunk ids of %v", path);
+                    auto rsp = rspOrError.Value();
+
+                    for (const auto& chunk : rsp->chunks()) {
+                        chunkIds.push_back(FromProto<TChunkId>(chunk.chunk_id()));
+                    }
+                }
+            }
+
+            // Start outer transaction.
+            ITransactionPtr transaction;
+            {
+                TTransactionStartOptions startOptions;
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set(
+                    "title",
+                    Format("Concatenating [%v] to %v",
+                        JoinToString(srcPaths),
+                        dstPath));
+                startOptions.Attributes = std::move(attributes);
+                startOptions.ParentId = options.TransactionId;
+                auto startTxFuture = StartTransaction(
+                    NTransactionClient::ETransactionType::Master,
+                    startOptions);
+                transaction = WaitFor(startTxFuture)
+                    .ValueOrThrow();
+            }
+
+            // Prepare for update.
+            TChunkListId outputChunkListId;
+            {
+                auto req = TTableYPathProxy::PrepareForUpdate(dstPath);
+                NCypressClient::SetTransactionId(req, transaction->GetId());
+                GenerateMutationId(req, options);
+                req->set_update_mode(static_cast<int>(options.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+                auto rspOrError = WaitFor(objectProxy->Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to prepare %v for update", dstPath);
+                const auto& rsp = rspOrError.Value();
+                outputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+            }
+
+            // Attach chunk ids to chunk list.
+            {
+                auto req = TChunkListYPathProxy::Attach(FromObjectId(outputChunkListId));
+                NCypressClient::SetTransactionId(req, transaction->GetId());
+                GenerateMutationId(req, options);
+                for (const auto& chunkId : chunkIds) {
+                    ToProto(req->add_children_ids(), chunkId);
+                }
+
+                auto rspOrError = WaitFor(objectProxy->Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to attach chunks");
+            }
+
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to concatenate [%v] to %v",
+                JoinToString(srcPaths),
+                dstPath)
+                << ex;
+        }
+    }
+
     bool DoNodeExists(
         const TYPath& path,
         const TNodeExistsOptions& options)
@@ -2080,6 +2237,11 @@ public:
         const TYPath& dstPath,
         const TLinkNodeOptions& options),
         (srcPath, dstPath, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ConcatenateNodes, (
+        const std::vector<TYPath>& srcPaths,
+        const TYPath& dstPath,
+        TConcatenateNodesOptions options),
+        (srcPaths, dstPath, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<bool>, NodeExists, (
         const TYPath& path,
         const TNodeExistsOptions& options),
