@@ -794,6 +794,7 @@ def main():
         yt.config.TRANSACTION = config_args.tx
         yt.config.PING_ANCESTOR_TRANSACTIONS = config_args.ping_ancestor_txs
     if config_args.proxy is not None:
+        yt.config["backend"] = "http"
         yt.config["proxy"]["url"] = config_args.proxy
     if config_args.prefix is not None:
         yt.config["prefix"] = config_args.prefix
