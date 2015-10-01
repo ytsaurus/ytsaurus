@@ -504,8 +504,7 @@ void TServiceBase::HandleRequest(
         {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::ProtocolError,
-                "Protocol version mismatch for service %v: expected %v, received %v",
-                ServiceId_.ServiceName,
+                "Protocol version mismatch: expected %v, received %v",
                 ProtocolVersion_,
                 requestProtocolVersion);
         }
@@ -514,17 +513,13 @@ void TServiceBase::HandleRequest(
         if (!runtimeInfo) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::NoSuchMethod,
-                "Unknown method %v:%v",
-                ServiceId_.ServiceName,
-                method);
+                "Unknown method");
         }
 
         if (runtimeInfo->Descriptor.OneWay != oneWay) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::ProtocolError,
-                "One-way flag mismatch for method %v:%v: expected %v, actual %v",
-                ServiceId_.ServiceName,
-                method,
+                "One-way flag mismatch: expected %v, actual %v",
                 runtimeInfo->Descriptor.OneWay,
                 oneWay);
         }
@@ -533,12 +528,14 @@ void TServiceBase::HandleRequest(
         if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::Unavailable,
-                "Request queue limit %v reached",
-                runtimeInfo->Descriptor.MaxQueueSize);
+                "Request queue limit reached")
+                << TErrorAttribute("limit", runtimeInfo->Descriptor.MaxQueueSize);
         }
     } catch (const std::exception& ex) {
         auto error = TError(ex)
-            << TErrorAttribute("request_id", requestId);
+            << TErrorAttribute("request_id", requestId)
+            << TErrorAttribute("service", ServiceId_.ServiceName)
+            << TErrorAttribute("method", method);
         LOG_WARNING(error);
         if (!oneWay) {
             auto errorMessage = CreateErrorResponseMessage(requestId, error);
