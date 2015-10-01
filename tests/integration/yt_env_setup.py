@@ -68,13 +68,10 @@ class YTEnvSetup(YTEnv):
     def teardown_method(self, method):
         self.Env.check_liveness(callback_func=_pytest_finalize_func)
         if self.Env.NUM_MASTERS > 0:
-            for tx in yt_commands.get_transactions():
-                try:
-                    title = yt_commands.get("#{0}/@title".format(tx))
-                    if "Scheduler lock" in title or "Lease for node" in title:
-                        continue
-                except:
-                    pass
+            for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                if "Scheduler lock" in title or "Lease for node" in title:
+                    continue
                 try:
                     yt_commands.abort_transaction(tx)
                 except:
