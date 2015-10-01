@@ -49,16 +49,17 @@ class YTEnvSetup(YTEnv):
         cls.Env.clear_environment()
         gc.collect()
 
-    def setup_method(self, method):
-        if self.Env.NUM_MASTERS > 0:
-            self.transactions_at_start = set(yt_commands.get_transactions())
-
     def teardown_method(self, method):
         self.Env.check_liveness()
         if self.Env.NUM_MASTERS > 0:
-            current_txs = set(yt_commands.get_transactions())
-            txs_to_abort = current_txs.difference(self.transactions_at_start)
-            self._abort_transactions(list(txs_to_abort))
+            for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                if "Scheduler lock" in title or "Lease for node" in title:
+                    continue
+                try:
+                    yt_commands.abort_transaction(tx)
+                except:
+                    pass
 
             yt_commands.set('//tmp', {})
             yt_commands.gc_collect()
@@ -71,13 +72,6 @@ class YTEnvSetup(YTEnv):
             self._remove_racks()
 
             yt_commands.gc_collect()
-
-    def _abort_transactions(self, txs):
-        for tx in txs:
-            try:
-                yt_commands.abort_transaction(tx)
-            except:
-                pass
 
     def _remove_accounts(self):
         accounts = yt_commands.ls('//sys/accounts', attr=['builtin'])
@@ -96,7 +90,7 @@ class YTEnvSetup(YTEnv):
         for group in groups:
             if not group.attributes['builtin']:
                 yt_commands.remove_group(str(group))
-    
+
     def _remove_tablet_cells(self):
         cells = yt_commands.get_tablet_cells()
         for id in cells:
