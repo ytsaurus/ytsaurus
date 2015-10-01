@@ -86,7 +86,6 @@ public:
 #ifdef _linux_
         , Tool("", "tool", "tool id", false, "", "ID")
         , Spec("", "spec", "tool spec", false, "", "SPEC")
-        , CloseAllFDs("", "close-all-fds", "close all file descriptors")
         , CGroups("", "cgroup", "run in cgroup", false, "")
         , Executor("", "executor", "start a user job")
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
@@ -108,7 +107,6 @@ public:
 #ifdef _linux_
         CmdLine.add(Tool);
         CmdLine.add(Spec);
-        CmdLine.add(CloseAllFDs);
         CmdLine.add(CGroups);
         CmdLine.add(Executor);
         CmdLine.add(PreparePipes);
@@ -134,7 +132,6 @@ public:
 #ifdef _linux_
     TCLAP::ValueArg<Stroka> Tool;
     TCLAP::ValueArg<Stroka> Spec;
-    TCLAP::SwitchArg CloseAllFDs;
     TCLAP::MultiArg<Stroka> CGroups;
     TCLAP::SwitchArg Executor;
     TCLAP::MultiArg<int> PreparePipes;
@@ -168,7 +165,6 @@ EExitCode GuardedMain(int argc, const char* argv[])
 #ifdef _linux_
     Stroka toolName = parser.Tool.getValue();
     bool isExecutor = parser.Executor.getValue();
-    bool doCloseAllFDs = parser.CloseAllFDs.getValue();
 #endif
 
     bool printConfigTemplate = parser.ConfigTemplate.getValue();
@@ -208,14 +204,13 @@ EExitCode GuardedMain(int argc, const char* argv[])
         return EExitCode::OptionsError;
     }
 
-#ifdef _linux_
-    if (doCloseAllFDs) {
-        CloseAllDescriptors();
-    }
-#endif
-
     if (!workingDirectory.empty()) {
         ChDir(workingDirectory);
+    }
+
+    if (isJobProxy) {
+        CloseAllDescriptors();
+        CreateStderrFile("stderr");
     }
 
 #ifdef _linux_
