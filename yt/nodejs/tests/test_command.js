@@ -290,6 +290,7 @@ describe("YtCommand - command descriptors", function() {
             'suspend_op',
             'upload',
             'write',
+            'concatenate',
         ];
         ask("GET", "/v2", {},
         function(rsp) {
@@ -351,6 +352,7 @@ describe("YtCommand - command descriptors", function() {
             'write_file',
             'write_journal',
             'write_table',
+            'concatenate',
         ];
         ask("GET", "/v3", {},
         function(rsp) {
