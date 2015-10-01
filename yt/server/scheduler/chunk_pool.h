@@ -65,8 +65,6 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripe)
 struct TChunkStripeList
     : public TIntrinsicRefCounted
 {
-    TChunkStripeList();
-
     TChunkStripeStatisticsVector GetStatistics() const;
     TChunkStripeStatistics GetAggregateStatistics() const;
 
@@ -77,15 +75,15 @@ struct TChunkStripeList
     TNullable<int> PartitionTag;
 
     //! If True then TotalDataSize and TotalRowCount are approximate (and are hopefully upper bounds).
-    bool IsApproximate;
+    bool IsApproximate = false;
 
-    i64 TotalDataSize;
-    i64 LocalDataSize;
+    i64 TotalDataSize = 0;
+    i64 LocalDataSize = 0;
 
-    i64 TotalRowCount;
+    i64 TotalRowCount = 0;
 
-    int TotalChunkCount;
-    int LocalChunkCount;
+    int TotalChunkCount = 0;
+    int LocalChunkCount = 0;
 
 };
 
@@ -130,9 +128,9 @@ struct IChunkPoolOutput
     //! Approximate average stripe list statistics to estimate memory usage.
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const = 0;
 
-    virtual i64 GetLocality(const Stroka& address) const = 0;
+    virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
-    virtual TCookie Extract(const Stroka& address) = 0;
+    virtual TCookie Extract(NNodeTrackerClient::TNodeId nodeId) = 0;
 
     virtual TChunkStripeListPtr GetStripeList(TCookie cookie) = 0;
 
@@ -150,11 +148,9 @@ struct IChunkPool
     , public virtual IChunkPoolOutput
 { };
 
-std::unique_ptr<IChunkPool> CreateAtomicChunkPool(
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+std::unique_ptr<IChunkPool> CreateAtomicChunkPool();
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int jobCount,
     int maxChunkStripesPerJob);
 
@@ -168,7 +164,6 @@ struct IShuffleChunkPool
 };
 
 std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     int partitionCount,
     i64 dataSizeThreshold);
 

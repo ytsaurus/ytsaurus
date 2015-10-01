@@ -47,7 +47,7 @@ public:
 
     i64 GetLocality(int replicaIndex) const;
 
-    TRefCountedChunkSpecPtr ChunkSpec() const;
+    TRefCountedChunkSpecPtr GetChunkSpec() const;
     int GetPartIndex() const;
     const TReadLimit& LowerLimit() const;
     const TReadLimit& UpperLimit() const;

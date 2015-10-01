@@ -311,8 +311,12 @@ protected:
 
         TJobId JobId;
         EJobType JobType;
+
         Stroka Address;
+        NNodeTrackerClient::TNodeId NodeId;
+
         NNodeTrackerClient::NProto::TNodeResources ResourceLimits;
+
         TChunkStripeListPtr InputStripeList;
         IChunkPoolOutput::TCookie OutputCookie;
 
@@ -343,7 +347,8 @@ protected:
             IChunkPoolOutput::TCookie outputCookie,
             IChunkPoolInput* destinationPool,
             IChunkPoolInput::TCookie inputCookie,
-            const Stroka& address)
+            const Stroka& address,
+            NNodeTrackerClient::TNodeId nodeId)
             : IsLost(false)
             , JobId(jobId)
             , SourceTask(std::move(sourceTask))
@@ -351,6 +356,7 @@ protected:
             , DestinationPool(destinationPool)
             , InputCookie(inputCookie)
             , Address(address)
+            , NodeId(nodeId)
         { }
 
         bool IsLost;
@@ -364,6 +370,7 @@ protected:
         IChunkPoolInput::TCookie InputCookie;
 
         Stroka Address;
+        NNodeTrackerClient::TNodeId NodeId;
 
         void Persist(TPersistenceContext& context);
 
@@ -395,7 +402,7 @@ protected:
         virtual bool IsIntermediateOutput() const;
 
         virtual TDuration GetLocalityTimeout() const = 0;
-        virtual i64 GetLocality(const Stroka& address) const;
+        virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const;
         virtual bool HasInputLocality() const;
 
         const NNodeTrackerClient::NProto::TNodeResources& GetMinNeededResources() const;
@@ -474,7 +481,7 @@ protected:
         virtual bool IsMemoryReserveEnabled() const = 0;
 
         void AddPendingHint();
-        void AddLocalityHint(const Stroka& address);
+        void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
 
         void ReinstallJob(TJobletPtr joblet, EJobReinstallReason reason);
 
@@ -533,8 +540,8 @@ protected:
         //! Non-local tasks keyed by deadline.
         std::multimap<TInstant, TTaskPtr> DelayedTasks;
 
-        //! Local tasks keyed by address.
-        yhash_map<Stroka, yhash_set<TTaskPtr>> LocalTasks;
+        //! Local tasks keyed by node id.
+        yhash_map<NNodeTrackerClient::TNodeId, yhash_set<TTaskPtr>> NodeIdToTasks;
 
         TTaskGroup()
         {
@@ -558,8 +565,8 @@ protected:
     virtual void CustomizeJoblet(TJobletPtr joblet);
     virtual void CustomizeJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec);
 
-    void DoAddTaskLocalityHint(TTaskPtr task, const Stroka& address);
-    void AddTaskLocalityHint(TTaskPtr task, const Stroka& address);
+    void DoAddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
+    void AddTaskLocalityHint(TTaskPtr task, NNodeTrackerClient::TNodeId nodeId);
     void AddTaskLocalityHint(TTaskPtr task, TChunkStripePtr stripe);
     void AddTaskPendingHint(TTaskPtr task);
     void ResetTaskLocalityDelays();

@@ -48,10 +48,6 @@ public:
     TOperationPtr FindOperation(const TOperationId& id);
     TOperationPtr GetOperationOrThrow(const TOperationId& id);
 
-    TExecNodePtr FindNode(const Stroka& address);
-    TExecNodePtr GetNode(const Stroka& address);
-    TExecNodePtr GetOrRegisterNode(const NNodeTrackerClient::TAddressMap& descriptor);
-
     TFuture<TOperationPtr> StartOperation(
         EOperationType type,
         const NTransactionClient::TTransactionId& transactionId,
@@ -75,9 +71,7 @@ public:
             NJobTrackerClient::NProto::TRspHeartbeat>
         TCtxHeartbeat;
     typedef TIntrusivePtr<TCtxHeartbeat> TCtxHeartbeatPtr;
-    void ProcessHeartbeat(
-        TExecNodePtr node,
-        TCtxHeartbeatPtr context);
+    void ProcessHeartbeat(TCtxHeartbeatPtr context);
 
 private:
     class TImpl;

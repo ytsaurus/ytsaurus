@@ -35,6 +35,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 
 using NTableClient::TOwningKey;
+using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -208,11 +209,11 @@ protected:
         //! Does the partition consist of rows with the same key?
         bool Maniac;
 
-        //! Number of sorted bytes residing at a given node.
-        yhash_map<Stroka, i64> AddressToLocality;
+        //! Number of sorted bytes residing at a given host.
+        yhash_map<TNodeId, i64> NodeIdToLocality;
 
-        //! A statically assigned partition address, if any.
-        TNullable<Stroka> AssignedAddress;
+        //! The node assigned to this partition, #InvalidNodeId if none.
+        NNodeTrackerClient::TNodeId AssignedNodeId = NNodeTrackerClient::InvalidNodeId;
 
         // Tasks.
         TSortTaskPtr SortTask;
@@ -235,8 +236,8 @@ protected:
 
             Persist(context, Maniac);
 
-            Persist(context, AddressToLocality);
-            Persist(context, AssignedAddress);
+            Persist(context, NodeIdToLocality);
+            Persist(context, AssignedNodeId);
 
             Persist(context, SortTask);
             Persist(context, SortedMergeTask);
@@ -291,7 +292,6 @@ protected:
             : TTask(controller)
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
-                Controller->InputNodeDirectory,
                 Controller->PartitionJobCounter.GetTotal(),
                 Controller->Config->MaxChunkStripesPerJob))
         { }
@@ -708,9 +708,8 @@ protected:
             auto stripeList = completedJob->SourceTask->GetChunkPoolOutput()->GetStripeList(completedJob->OutputCookie);
             Controller->SortDataSizeCounter.Lost(stripeList->TotalDataSize);
 
-            const auto& address = completedJob->Address;
-            Partition->AddressToLocality[address] -= stripeList->TotalDataSize;
-            YCHECK(Partition->AddressToLocality[address] >= 0);
+            auto nodeId = completedJob->NodeId;
+            YCHECK((Partition->NodeIdToLocality[nodeId] -= stripeList->TotalDataSize) >= 0);
 
             Controller->ResetTaskLocalityDelays();
 
@@ -751,21 +750,20 @@ protected:
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return
-                Partition->AssignedAddress
+            return Partition->AssignedNodeId != InvalidNodeId
                 ? Controller->Spec->SortAssignmentTimeout
                 : Controller->Spec->SortLocalityTimeout;
         }
 
-        virtual i64 GetLocality(const Stroka& address) const override
+        virtual i64 GetLocality(TNodeId nodeId) const override
         {
-            if (Partition->AssignedAddress && *Partition->AssignedAddress == address) {
+            if (Partition->AssignedNodeId == nodeId) {
                 // Handle initially assigned address.
                 return 1;
             } else {
                 // Handle data-driven locality.
-                auto it = Partition->AddressToLocality.find(address);
-                return it == Partition->AddressToLocality.end() ? 0 : it->second;
+                auto it = Partition->NodeIdToLocality.find(nodeId);
+                return it == Partition->NodeIdToLocality.end() ? 0 : it->second;
             }
         }
 
@@ -786,14 +784,13 @@ protected:
         {
             // Increase data size for this address to ensure subsequent sort jobs
             // to be scheduled to this very node.
-            const auto& address = joblet->Address;
-            Partition->AddressToLocality[address] += joblet->InputStripeList->TotalDataSize;
+            Partition->NodeIdToLocality[joblet->NodeId] += joblet->InputStripeList->TotalDataSize;
 
             // Don't rely on static assignment anymore.
-            Partition->AssignedAddress = Null;
+            Partition->AssignedNodeId = InvalidNodeId;
 
             // Also add a hint to ensure that subsequent jobs are also scheduled here.
-            AddLocalityHint(address);
+            AddLocalityHint(joblet->NodeId);
 
             TSortTask::OnJobStarted(joblet);
         }
@@ -872,7 +869,7 @@ protected:
 
         TSortedMergeTask(TSortControllerBase* controller, TPartition* partition)
             : TMergeTask(controller, partition)
-            , ChunkPool(CreateAtomicChunkPool(Controller->InputNodeDirectory))
+            , ChunkPool(CreateAtomicChunkPool())
         { }
 
         virtual Stroka GetId() const override
@@ -1001,7 +998,7 @@ protected:
             return Format("UnorderedMerge(%v)", Partition->Index);
         }
 
-        virtual i64 GetLocality(const Stroka& address) const override
+        virtual i64 GetLocality(TNodeId /*nodeId*/) const override
         {
             // Locality is unimportant.
             return 0;
@@ -1135,12 +1132,11 @@ protected:
             TAssignedNode(TExecNodePtr node, double weight)
                 : Node(node)
                 , Weight(weight)
-                , AssignedDataSize(0)
             { }
 
             TExecNodePtr Node;
             double Weight;
-            i64 AssignedDataSize;
+            i64 AssignedDataSize = 0;
         };
 
         typedef TIntrusivePtr<TAssignedNode> TAssignedNodePtr;
@@ -1161,9 +1157,8 @@ protected:
         for (auto node : nodes) {
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
         }
-        for (auto node : nodes) {
-            double weight = std::min(
-                    1.0, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
+        for (const auto& node : nodes) {
+            double weight = std::min(1.0, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
@@ -1173,7 +1168,7 @@ protected:
         std::vector<TPartitionPtr> partitionsToAssign;
         for (auto partition : Partitions) {
             // Only take partitions for which no jobs are launched yet.
-            if (partition->AddressToLocality.empty()) {
+            if (partition->NodeIdToLocality.empty()) {
                 partitionsToAssign.push_back(partition);
             }
         }
@@ -1184,16 +1179,16 @@ protected:
 
         LOG_DEBUG("Assigning partitions");
 
-        for (auto partition : partitionsToAssign) {
+        for (const auto& partition : partitionsToAssign) {
             auto node = nodeHeap.front();
-            const auto& address = node->Node->GetDefaultAddress();
+            auto nodeId = node->Node->GetId();
 
-            partition->AssignedAddress = address;
+            partition->AssignedNodeId = nodeId;
             auto task = partition->Maniac
                 ? static_cast<TTaskPtr>(partition->UnorderedMergeTask)
                 : static_cast<TTaskPtr>(partition->SortTask);
 
-            AddTaskLocalityHint(task, address);
+            AddTaskLocalityHint(task, nodeId);
 
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             node->AssignedDataSize += partition->ChunkPoolOutput->GetTotalDataSize();
@@ -1202,7 +1197,7 @@ protected:
             LOG_DEBUG("Partition assigned (Index: %v, DataSize: %v, Address: %v)",
                 partition->Index,
                 partition->ChunkPoolOutput->GetTotalDataSize(),
-                address);
+                node->Node->GetDefaultAddress());
         }
 
         for (auto node : nodeHeap) {
@@ -1221,7 +1216,6 @@ protected:
     void InitShufflePool()
     {
         ShufflePool = CreateShuffleChunkPool(
-            InputNodeDirectory,
             static_cast<int>(Partitions.size()),
             Spec->DataSizePerSortJob);
 
@@ -1233,7 +1227,6 @@ protected:
     void InitSimpleSortPool(int sortJobCount)
     {
         SimpleSortPool = CreateUnorderedChunkPool(
-            InputNodeDirectory,
             sortJobCount,
             Config->MaxChunkStripesPerJob);
     }

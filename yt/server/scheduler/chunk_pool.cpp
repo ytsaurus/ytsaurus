@@ -4,6 +4,8 @@
 
 #include <ytlib/chunk_client/chunk_slice.h>
 
+#include <ytlib/node_tracker_client/node_directory.h>
+
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
 namespace NYT {
@@ -29,38 +31,39 @@ void TChunkStripeStatistics::Persist(TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////
 
+namespace {
+
 void AddStripeToList(
     const TChunkStripePtr& stripe,
-    const TNodeDirectoryPtr& nodeDirectory,
     i64 stripeDataSize,
     i64 stripeRowCount,
     const TChunkStripeListPtr& list,
-    const TNullable<Stroka>& address)
+    TNodeId nodeId)
 {
     list->Stripes.push_back(stripe);
     list->TotalDataSize += stripeDataSize;
     list->TotalRowCount += stripeRowCount;
-
     list->TotalChunkCount += stripe->ChunkSlices.size();
-    if (address) {
-        for (const auto& chunkSlice : stripe->ChunkSlices) {
-            bool isLocal = false;
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
-                auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = nodeDirectory->GetDescriptor(replica);
+    for (const auto& chunkSlice : stripe->ChunkSlices) {
+        bool isLocal = false;
+        for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
+            auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
+            if (replica.GetNodeId() == nodeId) {
                 i64 locality = chunkSlice->GetLocality(replica.GetIndex());
-                if (descriptor.GetDefaultAddress() == *address && locality > 0) {
+                if (locality > 0) {
                     list->LocalDataSize += locality;
                     isLocal = true;
                 }
             }
+        }
 
-            if (isLocal) {
-                ++list->LocalChunkCount;
-            }
+        if (isLocal) {
+            ++list->LocalChunkCount;
         }
     }
 }
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////
 
@@ -137,15 +140,6 @@ TChunkStripeStatisticsVector AggregateStatistics(
 
 ////////////////////////////////////////////////////////////////////
 
-TChunkStripeList::TChunkStripeList()
-    : IsApproximate(false)
-    , TotalDataSize(0)
-    , LocalDataSize(0)
-    , TotalRowCount(0)
-    , TotalChunkCount(0)
-    , LocalChunkCount(0)
-{ }
-
 TChunkStripeStatisticsVector TChunkStripeList::GetStatistics() const
 {
     TChunkStripeStatisticsVector result;
@@ -189,16 +183,6 @@ class TChunkPoolInputBase
     : public virtual IChunkPoolInput
 {
 public:
-    //! For persistence only.
-    TChunkPoolInputBase()
-        : Finished(false)
-    { }
-
-    explicit TChunkPoolInputBase(TNodeDirectoryPtr nodeDirectory)
-        : NodeDirectory(nodeDirectory)
-        , Finished(false)
-    { }
-
     // IChunkPoolInput implementation.
 
     virtual void Finish() override
@@ -211,13 +195,11 @@ public:
     virtual void Persist(TPersistenceContext& context) override
     {
         using NYT::Persist;
-        Persist(context, NodeDirectory);
         Persist(context, Finished);
     }
 
 protected:
-    TNodeDirectoryPtr NodeDirectory;
-    bool Finished;
+    bool Finished = false;
 
 };
 
@@ -225,18 +207,17 @@ protected:
 
 class TSuspendableStripe
 {
+public:
     DEFINE_BYVAL_RW_PROPERTY(IChunkPoolOutput::TCookie, ExtractedCookie);
 
 public:
     TSuspendableStripe()
         : ExtractedCookie_(IChunkPoolOutput::NullCookie)
-        , Suspended(false)
     { }
 
     explicit TSuspendableStripe(TChunkStripePtr stripe)
         : ExtractedCookie_(IChunkPoolOutput::NullCookie)
         , Stripe(std::move(stripe))
-        , Suspended(false)
         , Statistics(Stripe->GetStatistics())
     { }
 
@@ -284,7 +265,7 @@ public:
 
 private:
     TChunkStripePtr Stripe;
-    bool Suspended;
+    bool Suspended = false;
     TChunkStripeStatistics Statistics;
 
 };
@@ -353,14 +334,7 @@ class TAtomicChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
-    //! For persistence only.
     TAtomicChunkPool()
-        : SuspendedStripeCount(-1)
-    { }
-
-    explicit TAtomicChunkPool(TNodeDirectoryPtr nodeDirectory)
-        : TChunkPoolInputBase(nodeDirectory)
-        , SuspendedStripeCount(0)
     {
         JobCounter.Set(1);
     }
@@ -438,17 +412,17 @@ public:
             ? 1 : 0;
     }
 
-    virtual i64 GetLocality(const Stroka& address) const override
+    virtual i64 GetLocality(TNodeId nodeId) const override
     {
         if (ExtractedList) {
             return 0;
         }
 
-        auto it = AddressToLocality.find(address);
-        return it == AddressToLocality.end() ? 0 : it->second;
+        auto it = NodeIdToLocality.find(nodeId);
+        return it == NodeIdToLocality.end() ? 0 : it->second;
     }
 
-    virtual IChunkPoolOutput::TCookie Extract(const Stroka& address) override
+    virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
     {
         YCHECK(Finished);
         YCHECK(SuspendedStripeCount == 0);
@@ -461,7 +435,12 @@ public:
         for (const auto& suspendableStripe : Stripes) {
             auto stripe = suspendableStripe.GetStripe();
             auto stat = stripe->GetStatistics();
-            AddStripeToList(stripe, NodeDirectory, stat.DataSize, stat.RowCount, ExtractedList, address);
+            AddStripeToList(
+                stripe,
+                stat.DataSize,
+                stat.RowCount,
+                ExtractedList,
+                nodeId);
         }
 
         JobCounter.Start(1);
@@ -539,7 +518,7 @@ public:
 
         using NYT::Persist;
         Persist(context, Stripes);
-        Persist(context, AddressToLocality);
+        Persist(context, NodeIdToLocality);
         Persist(context, ExtractedList);
         Persist(context, SuspendedStripeCount);
     }
@@ -548,18 +527,17 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool, 0x76bac510);
 
     std::vector<TSuspendableStripe> Stripes;
-    yhash_map<Stroka, i64> AddressToLocality;
+    yhash_map<TNodeId, i64> NodeIdToLocality;
     TChunkStripeListPtr ExtractedList;
-    int SuspendedStripeCount;
+    int SuspendedStripeCount = 0;
 
     void UpdateLocality(TChunkStripePtr stripe, int delta)
     {
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
-                const auto& descriptor = NodeDirectory->GetDescriptor(replica);
                 i64 localityDelta = chunkSlice->GetLocality(replica.GetIndex()) * delta;
-                AddressToLocality[descriptor.GetDefaultAddress()] += localityDelta;
+                NodeIdToLocality[replica.GetNodeId()] += localityDelta;
             }
         }
     }
@@ -568,9 +546,9 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAtomicChunkPool);
 
-std::unique_ptr<IChunkPool> CreateAtomicChunkPool(TNodeDirectoryPtr nodeDirectory)
+std::unique_ptr<IChunkPool> CreateAtomicChunkPool()
 {
-    return std::unique_ptr<IChunkPool>(new TAtomicChunkPool(nodeDirectory));
+    return std::unique_ptr<IChunkPool>(new TAtomicChunkPool());
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -590,12 +568,10 @@ public:
         , MaxChunkStripesPerJob(-1)
     { }
 
-    explicit TUnorderedChunkPool(
-        TNodeDirectoryPtr nodeDirectory,
+    TUnorderedChunkPool(
         int jobCount,
         int maxChunkStripesPerJob)
-        : TChunkPoolInputBase(nodeDirectory)
-        , FreePendingDataSize(0)
+        : FreePendingDataSize(0)
         , SuspendedDataSize(0)
         , UnavailableLostCookieCount(0)
         , MaxChunkStripesPerJob(maxChunkStripesPerJob)
@@ -747,13 +723,13 @@ public:
         return result;
     }
 
-    virtual i64 GetLocality(const Stroka& address) const override
+    virtual i64 GetLocality(TNodeId nodeId) const override
     {
-        auto it = PendingLocalChunks.find(address);
-        return it == PendingLocalChunks.end() ? 0 : it->second.Locality;
+        auto it = NodeIdToEntry.find(nodeId);
+        return it == NodeIdToEntry.end() ? 0 : it->second.Locality;
     }
 
-    virtual IChunkPoolOutput::TCookie Extract(const Stroka& address) override
+    virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
     {
         YCHECK(Finished);
 
@@ -776,16 +752,18 @@ public:
             i64 idealDataSizePerJob = GetIdealDataSizePerJob();
 
             // Take local chunks first.
-            auto it = PendingLocalChunks.find(address);
-            if (it != PendingLocalChunks.end()) {
-                const auto& entry = it->second;
-                AddAndUnregisterStripes(
-                    extractedStripeList,
-                    cookie,
-                    entry.StripeIndexes.begin(),
-                    entry.StripeIndexes.end(),
-                    address,
-                    idealDataSizePerJob);
+            if (nodeId != InvalidNodeId) {
+                auto it = NodeIdToEntry.find(nodeId);
+                if (it != NodeIdToEntry.end()) {
+                    const auto& entry = it->second;
+                    AddAndUnregisterStripes(
+                        extractedStripeList,
+                        cookie,
+                        entry.StripeIndexes.begin(),
+                        entry.StripeIndexes.end(),
+                        nodeId,
+                        idealDataSizePerJob);
+                }
             }
 
             // Take non-local chunks.
@@ -794,7 +772,7 @@ public:
                 cookie,
                 PendingGlobalStripes.begin(),
                 PendingGlobalStripes.end(),
-                address,
+                nodeId,
                 idealDataSizePerJob);
         } else {
             auto lostIt = LostCookies.begin();
@@ -906,7 +884,7 @@ public:
         Persist(context, SuspendedDataSize);
         Persist(context, UnavailableLostCookieCount);
         Persist(context, MaxChunkStripesPerJob);
-        Persist(context, PendingLocalChunks);
+        Persist(context, NodeIdToEntry);
         Persist(context, OutputCookieGenerator);
         Persist(context, ExtractedLists);
         Persist(context, LostCookies);
@@ -932,7 +910,7 @@ private:
             : Locality(0)
         { }
 
-        //! The total locality associated with this address.
+        //! The total locality associated with this node.
         i64 Locality;
 
         //! Indexes in #Stripes.
@@ -965,7 +943,7 @@ private:
         }
     };
 
-    yhash_map<Stroka, TLocalityEntry> PendingLocalChunks;
+    yhash_map<TNodeId, TLocalityEntry> NodeIdToEntry;
 
     TIdGenerator OutputCookieGenerator;
 
@@ -995,13 +973,12 @@ private:
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
 
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
-                    const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                    auto& entry = PendingLocalChunks[descriptor.GetDefaultAddress()];
+                    auto& entry = NodeIdToEntry[replica.GetNodeId()];
                     // NB: do not check that stripe is unique, it may have already been inserted,
                     // since different replicas may reside on the same node during rebalancing.
                     entry.StripeIndexes.insert(stripeIndex);
@@ -1020,12 +997,11 @@ private:
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& chunkSlice : stripe->ChunkSlices) {
-            for (ui32 protoReplica : chunkSlice->ChunkSpec()->replicas()) {
+            for (ui32 protoReplica : chunkSlice->GetChunkSpec()->replicas()) {
                 auto replica = FromProto<NChunkClient::TChunkReplica>(protoReplica);
                 auto locality = chunkSlice->GetLocality(replica.GetIndex());
                 if (locality > 0) {
-                    const auto& descriptor = NodeDirectory->GetDescriptor(replica);
-                    auto& entry = PendingLocalChunks[descriptor.GetDefaultAddress()];
+                    auto& entry = NodeIdToEntry[replica.GetNodeId()];
                     auto it = entry.StripeIndexes.find(stripeIndex);
                     if (it != entry.StripeIndexes.end()) {
                         entry.StripeIndexes.erase(it);
@@ -1045,7 +1021,7 @@ private:
         IChunkPoolOutput::TCookie cookie,
         const TIterator& begin,
         const TIterator& end,
-        const Stroka& address,
+        TNodeId nodeId,
         i64 idealDataSizePerJob)
     {
         auto& list = extractedStripeList.StripeList;
@@ -1066,11 +1042,10 @@ private:
             auto stat = suspendableStripe.GetStatistics();
             AddStripeToList(
                 suspendableStripe.GetStripe(),
-                NodeDirectory,
                 stat.DataSize,
                 stat.RowCount,
                 list,
-                address);
+                nodeId);
         }
         size_t newSize = list->Stripes.size();
 
@@ -1107,12 +1082,10 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedChunkPool);
 
 std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
-    TNodeDirectoryPtr nodeDirectory,
     int jobCount,
     int maxChunkStripesPerJob)
 {
     return std::unique_ptr<IChunkPool>(new TUnorderedChunkPool(
-        nodeDirectory,
         jobCount,
         maxChunkStripesPerJob));
 }
@@ -1138,11 +1111,9 @@ public:
     { }
 
     TShuffleChunkPool(
-        TNodeDirectoryPtr nodeDirectory,
         int partitionCount,
         i64 dataSizeThreshold)
-        : TChunkPoolInputBase(nodeDirectory)
-        , DataSizeThreshold(dataSizeThreshold)
+        : DataSizeThreshold(dataSizeThreshold)
     {
         Outputs.resize(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
@@ -1179,7 +1150,7 @@ public:
             ElementaryStripes.push_back(elementaryStripe);
 
             auto partitionsExt = GetProtoExtension<TPartitionsExt>(
-                chunkSlice->ChunkSpec()->chunk_meta().extensions());
+                chunkSlice->GetChunkSpec()->chunk_meta().extensions());
 
             YCHECK(partitionsExt.partitions_size() == Outputs.size());
 
@@ -1192,7 +1163,7 @@ public:
             }
 
             RemoveProtoExtension<TPartitionsExt>(
-                chunkSlice->ChunkSpec()->mutable_chunk_meta()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
@@ -1216,7 +1187,7 @@ public:
         // Remove all partition extensions.
         for (auto chunkSlice : stripe->ChunkSlices) {
             RemoveProtoExtension<TPartitionsExt>(
-                chunkSlice->ChunkSpec()->mutable_chunk_meta()->mutable_extensions());
+                chunkSlice->GetChunkSpec()->mutable_chunk_meta()->mutable_extensions());
         }
 
         // Although the sizes and even the row count may have changed (mind unordered reader and
@@ -1410,13 +1381,12 @@ private:
             return static_cast<int>(PendingRuns.size());
         }
 
-        virtual i64 GetLocality(const Stroka& address) const override
+        virtual i64 GetLocality(TNodeId /*nodeId*/) const override
         {
-            UNUSED(address);
             YUNREACHABLE();
         }
 
-        virtual TCookie Extract(const Stroka& address) override
+        virtual TCookie Extract(TNodeId /*nodeId*/) override
         {
             if (GetPendingJobCount() == 0) {
                 return NullCookie;
@@ -1633,12 +1603,10 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput);
 
 std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
-    TNodeDirectoryPtr nodeDirectory,
     int partitionCount,
     i64 dataSizeThreshold)
 {
     return std::unique_ptr<IShuffleChunkPool>(new TShuffleChunkPool(
-        nodeDirectory,
         partitionCount,
         dataSizeThreshold));
 }

@@ -81,7 +81,6 @@ protected:
             : TTask(controller)
             , Controller(controller)
             , ChunkPool(CreateUnorderedChunkPool(
-                Controller->InputNodeDirectory,
                 jobCount,
                 Controller->Config->MaxChunkStripesPerJob))
         { }

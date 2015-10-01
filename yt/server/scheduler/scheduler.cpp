@@ -62,7 +62,9 @@ using namespace NNodeTrackerServer;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 
-using NNodeTrackerClient::TAddressMap;
+using NNodeTrackerClient::TNodeId;
+using NNodeTrackerClient::TNodeDescriptor;
+using NNodeTrackerClient::TNodeDirectory;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -85,7 +87,7 @@ public:
         TSchedulerConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
-        , ConfigAtStart_(ConvertToNode(Config_))
+        , InitialConfig_(ConvertToNode(Config_))
         , Bootstrap_(bootstrap)
         , BackgroundQueue_(New<TActionQueue>("Background"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
@@ -242,33 +244,6 @@ public:
                 id);
         }
         return operation;
-    }
-
-
-    TExecNodePtr FindNode(const Stroka& address)
-    {
-        auto it = AddressToNode_.find(address);
-        return it == AddressToNode_.end() ? nullptr : it->second;
-    }
-
-    TExecNodePtr GetNode(const Stroka& address)
-    {
-        auto node = FindNode(address);
-        YCHECK(node);
-        return node;
-    }
-
-    TExecNodePtr GetOrRegisterNode(const TAddressMap& addresses)
-    {
-        auto it = AddressToNode_.find(GetDefaultAddress(addresses));
-        if (it == AddressToNode_.end()) {
-            return RegisterNode(addresses);
-        }
-
-        // Update the current descriptor, just in case.
-        auto node = it->second;
-        node->Addresses() = addresses;
-        return node;
     }
 
 
@@ -466,7 +441,7 @@ public:
 
     TJobProberServiceProxy CreateJobProberProxy(TJobPtr job)
     {
-        const auto& address = GetInterconnectAddress(job->GetNode()->Addresses());
+        const auto& address = job->GetNode()->GetInterconnectAddress();
         auto channel = NChunkClient::LightNodeChannelFactory->CreateChannel(address);
 
         TJobProberServiceProxy proxy(channel);
@@ -474,10 +449,21 @@ public:
         return proxy;
     }
 
-    void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
+    void ProcessHeartbeat(TCtxHeartbeatPtr context)
     {
         auto* request = &context->Request();
         auto* response = &context->Response();
+
+        auto nodeId = request->node_id();
+        auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
+        auto node = GetOrRegisterNode(nodeId, descriptor);
+        if (node->GetMasterState() != ENodeState::Online) {
+            // NB: Resource limits should be updated even if node is offline
+            // to avoid getting incorrect total limits when node becomes online.
+            // XXX(ignat): Should we consider resource usage here?
+            node->ResourceLimits() = context->Request().resource_limits();
+            THROW_ERROR_EXCEPTION("Node is not online");
+        }
 
         TLeaseManager::RenewLease(node->GetLease());
 
@@ -492,17 +478,13 @@ public:
         TotalResourceLimits_ -= oldResourceLimits;
         TotalResourceLimits_ += node->ResourceLimits();
 
-        auto updateResourceUsage = [&] () {
-            TotalResourceUsage_ -= oldResourceUsage;
-            TotalResourceUsage_ += node->ResourceUsage();
-        };
-
         for (const auto& tag : node->SchedulingTags()) {
             auto& resources = SchedulingTagResources_[tag];
             resources -= oldResourceLimits;
             resources += node->ResourceLimits();
         }
 
+        // NB: No exception must leave this try/catch block.
         try {
             std::vector<TJobPtr> runningJobs;
             bool hasWaitingJobs = false;
@@ -611,15 +593,14 @@ public:
             for (auto operation : operationsToLog) {
                 LogOperationProgress(operation);
             }
-        } catch (const std::exception&) {
-            // Do not forget to update resource usage if heartbeat failed.
-            updateResourceUsage();
-            throw;
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Failed to process heartbeat");
         }
 
         // Update total resource usage _after_ processing the heartbeat to avoid
         // "unsaturated CPU" phenomenon.
-        updateResourceUsage();
+        TotalResourceUsage_ -= oldResourceUsage;
+        TotalResourceUsage_ += node->ResourceUsage();
     }
 
 
@@ -746,9 +727,9 @@ public:
 
 
 private:
-    TSchedulerConfigPtr Config_;
-    INodePtr ConfigAtStart_;
-    TBootstrap* Bootstrap_;
+    const TSchedulerConfigPtr Config_;
+    const INodePtr InitialConfig_;
+    TBootstrap* const Bootstrap_;
 
     TActionQueuePtr BackgroundQueue_;
     TActionQueuePtr SnapshotIOQueue_;
@@ -759,6 +740,8 @@ private:
 
     typedef yhash_map<Stroka, TExecNodePtr> TExecNodeMap;
     TExecNodeMap AddressToNode_;
+
+    TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
 
     typedef yhash_map<TOperationId, TOperationPtr> TOperationIdMap;
     TOperationIdMap IdToOperation_;
@@ -1066,7 +1049,7 @@ private:
             auto configFromCypress = ConvertToNode(TYsonString(rsp->value()));
 
             try {
-                Config_->Load(ConfigAtStart_, /* validate */ true, /* setDefaults */ true);
+                Config_->Load(InitialConfig_, /* validate */ true, /* setDefaults */ true);
                 Config_->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Error updating cell scheduler configuration");
@@ -1300,11 +1283,24 @@ private:
     }
 
 
-    TExecNodePtr RegisterNode(const TAddressMap& addresses)
+    TExecNodePtr GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
+    {
+        auto it = AddressToNode_.find(descriptor.GetDefaultAddress());
+        if (it == AddressToNode_.end()) {
+            return RegisterNode(nodeId, descriptor);
+        }
+
+        // Update the current descriptor, just in case.
+        auto node = it->second;
+        node->Descriptor() = descriptor;
+        return node;
+    }
+
+    TExecNodePtr RegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto node = New<TExecNode>(addresses);
+        auto node = New<TExecNode>(nodeId, descriptor);
         const auto& address = node->GetDefaultAddress();
 
         auto lease = TLeaseManager::CreateLease(
@@ -2271,21 +2267,6 @@ TOperationPtr TScheduler::GetOperationOrThrow(const TOperationId& id)
     return Impl_->GetOperationOrThrow(id);
 }
 
-TExecNodePtr TScheduler::FindNode(const Stroka& address)
-{
-    return Impl_->FindNode(address);
-}
-
-TExecNodePtr TScheduler::GetNode(const Stroka& address)
-{
-    return Impl_->GetNode(address);
-}
-
-TExecNodePtr TScheduler::GetOrRegisterNode(const TAddressMap& descriptor)
-{
-    return Impl_->GetOrRegisterNode(descriptor);
-}
-
 TFuture<TOperationPtr> TScheduler::StartOperation(
     EOperationType type,
     const TTransactionId& transactionId,
@@ -2328,9 +2309,9 @@ TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const TYPath& pa
     return Impl_->DumpInputContext(jobId, path);
 }
 
-void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
+void TScheduler::ProcessHeartbeat(TCtxHeartbeatPtr context)
 {
-    Impl_->ProcessHeartbeat(node, context);
+    Impl_->ProcessHeartbeat(context);
 }
 
 ////////////////////////////////////////////////////////////////////
