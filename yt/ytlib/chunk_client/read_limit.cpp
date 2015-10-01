@@ -202,31 +202,29 @@ Stroka ToString(const TReadLimit& limit)
     using ::ToString;
 
     Stroka result;
-    auto append = [&] (const TStringBuf& part) {
-        if (result.empty()) {
-            result.append(" ");
+    auto append = [&] (const char* label, const TStringBuf& value) {
+        if (!result.empty()) {
+            result.append(", ");
         }
-        result.append(part);
+        result.append(label);
+        result.append(": ");
+        result.append(value);
     };
 
     if (limit.HasKey()) {
-        append("Key: ");
-        append(ToString(limit.GetKey()));
+        append("Key", ToString(limit.GetKey()));
     }
 
     if (limit.HasRowIndex()) {
-        append("RowIndex: ");
-        append(ToString(limit.GetRowIndex()));
+        append("RowIndex", ToString(limit.GetRowIndex()));
     }
 
     if (limit.HasOffset()) {
-        append("Offset: ");
-        append(ToString(limit.GetOffset()));
+        append("Offset", ToString(limit.GetOffset()));
     }
 
     if (limit.HasChunkIndex()) {
-        append("ChunkIndex: ");
-        append(ToString(limit.GetOffset()));
+        append("ChunkIndex", ToString(limit.GetOffset()));
     }
 
     return result;
