@@ -71,7 +71,7 @@ public:
    
     void Initialize(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
-    void Finalize();
+    TFuture<void> Finalize();
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 
