@@ -1,5 +1,9 @@
-import re
+import yt.json as json
+import yt.yson as yson
+
 import socket
+import os
+import errno
 
 GEN_PORT_ATTEMPTS = 10
 
@@ -96,3 +100,60 @@ def versions_cmp(version1, version2):
     def normalize(v):
         return map(int, v.split("."))
     return cmp(normalize(version1), normalize(version2))
+
+def is_binary_found(binary_name):
+    for path in os.environ["PATH"].split(os.pathsep):
+        if os.access(os.path.join(path, binary_name), os.X_OK):
+            return True
+    return False
+
+def makedirp(path):
+    try:
+        os.makedirs(path)
+    except OSError as err:
+        if err.errno != errno.EEXIST:
+            raise
+
+def collect_events_from_logs(log_files, event_filters):
+    all_events = []
+
+    def filter_func(event):
+        for event_filter in event_filters:
+            if event_filter(event):
+                return True
+        return False
+
+    for log in log_files:
+        if not os.path.exists(log):
+            all_events.append([])
+            continue
+
+        with open(log) as f:
+            all_events.append(filter(filter_func, reversed(f.readlines())))
+
+    return all_events
+
+def _fix_yson_booleans(obj):
+    if isinstance(obj, dict):
+        for key, value in obj.items():
+            _fix_yson_booleans(value)
+            if isinstance(value, yson.YsonBoolean):
+                obj[key] = True if value else False
+    elif isinstance(obj, list):
+        for value in obj:
+            _fix_yson_booleans(value)
+    return obj
+
+def write_config(config, filename, format="yson"):
+    with open(filename, "wt") as f:
+        if format == "yson":
+            yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
+        else:  # json
+            json.dump(_fix_yson_booleans(config), f, indent=4)
+
+def read_config(filename, format="yson"):
+    with open(filename, "r") as f:
+        if format == "yson":
+            return yson.load(f)
+        else:  # json
+            return json.load(f)
