@@ -282,16 +282,18 @@ template <class TPivot>
 typename TSkipList<TKey, TComparer>::TNode* TSkipList<TKey, TComparer>::DoFindGreaterThanOrEqualTo(const TPivot& pivot, TNode** prevs) const
 {
     auto* current = Head_;
+    auto* lastChecked = Head_;
     int height = Height_ - 1;
     while (true) {
         auto* next = current->GetNext(height);
-        if (next != Head_ && Comparer_(next->GetKey(), pivot) < 0) {
+        if (next != Head_ && next != lastChecked && Comparer_(next->GetKey(), pivot) < 0) {
             current = next;
         } else {
             if (prevs) {
                 prevs[height] = current;
             }
             if (height > 0) {
+                lastChecked = next;
                 --height;
             } else {
                 return next;
