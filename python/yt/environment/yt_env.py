@@ -257,7 +257,6 @@ class YTEnv(object):
             self._write_environment_info_to_file(has_proxy)
         except Exception as err:
             self.clear_environment(safe=False)
-            logger.exception(str(err))
             raise YtError("Failed to start environment", inner_errors=[err])
 
     def _write_environment_info_to_file(self, has_proxy):
