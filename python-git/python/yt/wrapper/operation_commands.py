@@ -148,7 +148,8 @@ def order_progress(progress):
     keys = ["running", "completed", "pending", "failed", "aborted", "lost", "total"]
     result = []
     for key in keys:
-        result.append((key, progress[key]))
+        if key in progress:
+            result.append((key, progress[key]))
     for key, value in progress.iteritems():
         if key not in keys:
             result.append((key, value))
