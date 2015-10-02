@@ -1,5 +1,7 @@
 #include "client_reader.h"
 
+#include "yamr_table_reader.h"
+
 #include <mapreduce/yt/common/log.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/serialize.h>
@@ -100,6 +102,13 @@ void TClientReader::CreateRequest(bool initial)
             header.AddTransactionId(ReadTransaction_->GetId());
             header.AddParam("control_attributes[enable_row_index]", true);
             header.SetDataStreamFormat(Format_);
+
+            if (Format_ == DSF_YAMR_LENVAL) {
+                auto format = GetTableFormat(Auth_, Path_);
+                if (format) {
+                    header.SetFormat(NodeToJsonString(format.GetRef()));
+                }
+            }
 
             // for now assume we always use only the first range
             if (initial) {

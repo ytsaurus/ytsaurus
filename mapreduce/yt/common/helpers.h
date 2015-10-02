@@ -15,6 +15,8 @@ TNode NodeFromYsonString(const Stroka& input, EYsonType type = YT_NODE);
 
 Stroka NodeToYsonString(const TNode& node);
 
+Stroka NodeToJsonString(const TNode& node);
+
 Stroka NodeListToYsonString(const TNode::TList& nodes);
 
 Stroka YPathToJsonString(const TRichYPath& path);

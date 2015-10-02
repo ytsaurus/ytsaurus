@@ -267,78 +267,6 @@ Stroka MergeSpec(TNode& dst, const TOperationOptions& options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMaybe<TNode> GetAndValidateTableFormats(
-    const TAuth& auth,
-    const yvector<TRichYPath>& inputs)
-{
-    TMaybe<TNode> result;
-    bool start = true;
-
-    for (auto& table : inputs) {
-        auto path = AddPathPrefix(table);
-        auto formatPath = path.Path_ + "/@_format";
-
-        TMaybe<TNode> format;
-        if (Exists(auth, formatPath)) {
-            format = NodeFromYsonString(Get(auth, formatPath));
-        }
-
-        if (format.Defined()) {
-            if (format.Get()->AsString() != "yamred_dsv")
-            {
-                ythrow yexception() <<
-                    "Input table '" << path.Path_ << "': only 'yamred_dsv' format is supported";
-            }
-
-            auto formatAttrs = format.Get()->Attributes();
-            if (!formatAttrs.HasKey("key_column_names")) {
-                 ythrow yexception() <<
-                    "Input table '" << path.Path_ << "': attribute 'key_column_names' is required";
-            }
-        }
-
-        if (start) {
-            result = format;
-            start = false;
-            continue;
-        }
-
-        if (result.Defined() != format.Defined()) {
-            ythrow yexception() << "Different formats of input tables";
-        }
-
-        if (!result.Defined()) {
-            continue;
-        }
-
-        auto& resultAttrs = result.Get()->Attributes();
-        auto& formatAttrs = format.Get()->Attributes();
-
-        if (resultAttrs["key_column_names"] != formatAttrs["key_column_names"]) {
-            ythrow yexception() << "Different formats of input tables";
-        }
-
-        bool hasSubkeyColumns = resultAttrs.HasKey("subkey_column_names");
-        if (hasSubkeyColumns != formatAttrs.HasKey("subkey_column_names")) {
-            ythrow yexception() << "Different formats of input tables";
-        }
-
-        if (hasSubkeyColumns &&
-            resultAttrs["subkey_column_names"] != formatAttrs["subkey_column_names"])
-        {
-            ythrow yexception() << "Different formats of input tables";
-        }
-    }
-
-    if (result) {
-        TNode& attrs = result.Get()->Attributes();
-        attrs["has_subkey"] = true;
-        attrs["lenval"] = true;
-    }
-
-    return result;
-}
-
 TOperationId ExecuteMap(
     const TAuth& auth,
     const TTransactionId& transactionId,
@@ -353,7 +281,7 @@ TOperationId ExecuteMap(
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetAndValidateTableFormats(auth, spec.Inputs_);
+        format = GetTableFormats(auth, spec.Inputs_);
     }
 
     Stroka command = Sprintf("./cppbinary --yt-map \"%s\" %" PRISZT " %d",
@@ -399,7 +327,7 @@ TOperationId ExecuteReduce(
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetAndValidateTableFormats(auth, spec.Inputs_);
+        format = GetTableFormats(auth, spec.Inputs_);
     }
 
     TKeyColumns reduceBy(spec.ReduceBy_);
@@ -459,7 +387,7 @@ TOperationId ExecuteMapReduce(
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetAndValidateTableFormats(auth, spec.Inputs_);
+        format = GetTableFormats(auth, spec.Inputs_);
     }
 
     TKeyColumns sortBy(spec.SortBy_);

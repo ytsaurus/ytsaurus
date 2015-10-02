@@ -37,6 +37,17 @@ Stroka NodeToYsonString(const TNode& node)
     return stream.Str();
 }
 
+Stroka NodeToJsonString(const TNode& node)
+{
+    TStringStream stream;
+    {
+        TJsonWriter writer(&stream);
+        TNodeVisitor visitor(&writer);
+        visitor.Visit(node);
+    }
+    return stream.Str();
+}
+
 Stroka NodeListToYsonString(const TNode::TList& nodes)
 {
     TStringStream stream;
