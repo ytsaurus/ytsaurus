@@ -132,10 +132,11 @@ TSkipList<TKey, TComparer>::TSkipList(
     const TComparer& comparer)
     : Pool_(pool)
     , Comparer_(comparer)
-    , Head_(AllocateHeadNode())
-    , Size_(0)
-    , Height_(1)
-{ }
+{
+    for (int index = 0; index < MaxHeight; ++index) {
+        Prevs[index] = Head_;
+    }
+}
 
 template <class TKey, class TComparer>
 TSkipList<TKey, TComparer>::~TSkipList()
@@ -163,11 +164,22 @@ void TSkipList<TKey, TComparer>::Insert(
     const TNewKeyProvider& newKeyProvider,
     const TExistingKeyConsumer& existingKeyConsumer)
 {
-    TNode* prevs[MaxHeight];
+    auto* lastInserted = Prevs[0];
+    auto* next = lastInserted->GetNext(0);
 
-    auto* lowerBound = DoFindGreaterThanOrEqualTo(pivot, prevs);
-    if (lowerBound != Head_ && Comparer_(lowerBound->GetKey(), pivot) == 0) {
-        existingKeyConsumer(lowerBound->GetKey());
+    if ((lastInserted == Head_ || Comparer_(lastInserted->GetKey(), pivot) < 0) &&
+        (next == Head_ || Comparer_(next->GetKey(), pivot) >= 0))
+    {
+        // Avoid seek in the special case of sequential insert.
+        for (int height = 1; height < PrevHeight_; ++height) {
+            Prevs[height] = lastInserted;
+        }
+    } else {
+        next = DoFindGreaterThanOrEqualTo(pivot, Prevs);
+    }
+
+    if (next != Head_ && Comparer_(next->GetKey(), pivot) == 0) {
+        existingKeyConsumer(next->GetKey());
         return;
     }
 
@@ -177,15 +189,18 @@ void TSkipList<TKey, TComparer>::Insert(
     // Upgrade current height if needed.
     if (randomHeight > currentHeight) {
         for (int index = currentHeight; index < randomHeight; ++index) {
-            prevs[index] = Head_;
+            Prevs[index] = Head_;
         }
         Height_ = randomHeight;
     }
 
     // Insert a new node.
     auto* node = AllocateNode(newKeyProvider(), randomHeight);
-    node->InsertAfter(randomHeight, prevs);
+    node->InsertAfter(randomHeight, Prevs);
     ++Size_;
+
+    Prevs[0] = node;
+    PrevHeight_ = randomHeight;
 }
 
 template <class TKey, class TComparer>
