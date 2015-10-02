@@ -462,11 +462,6 @@ private:
 
     // Unsorted helpers.
 
-    virtual bool NeedsAllChunkParts() const override
-    {
-        return true;
-    }
-
     void InitJobIOConfig()
     {
         JobIOConfig_ = CloneYsonSerializable(Spec_->JobIO);

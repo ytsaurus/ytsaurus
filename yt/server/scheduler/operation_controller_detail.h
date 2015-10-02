@@ -111,8 +111,6 @@ public:
     virtual void BuildResult(NYson::IYsonConsumer* consumer) const override;
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const override;
 
-    virtual bool NeedsAllChunkParts() const override;
-
     virtual void Persist(TPersistenceContext& context) override;
 
 protected:

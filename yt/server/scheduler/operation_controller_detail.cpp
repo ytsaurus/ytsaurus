@@ -1693,7 +1693,7 @@ void TOperationControllerBase::OnInputChunkLocated(const TChunkId& chunkId, cons
     auto& chunkSpec = descriptor.ChunkSpecs.front();
     auto codecId = NErasure::ECodec(chunkSpec->erasure_codec());
 
-    if (IsUnavailable(replicas, codecId, NeedsAllChunkParts())) {
+    if (IsUnavailable(replicas, codecId, IsParityReplicasFetchEnabled())) {
         OnInputChunkUnavailable(chunkId, descriptor);
     } else {
         OnInputChunkAvailable(chunkId, descriptor, replicas);
@@ -3152,7 +3152,7 @@ void TOperationControllerBase::CollectTotals()
 {
     for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(*chunkSpec, NeedsAllChunkParts())) {
+            if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
                 auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Fail:
@@ -3203,7 +3203,7 @@ std::vector<TRefCountedChunkSpecPtr> TOperationControllerBase::CollectInputChunk
     std::vector<TRefCountedChunkSpecPtr> result;
     for (const auto& table : InputTables) {
         for (const auto& chunkSpec : table.Chunks) {
-            if (IsUnavailable(*chunkSpec, NeedsAllChunkParts())) {
+            if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
                 switch (Spec->UnavailableChunkStrategy) {
                     case EUnavailableChunkAction::Skip:
                         continue;
@@ -3447,7 +3447,7 @@ void TOperationControllerBase::RegisterInputStripe(TChunkStripePtr stripe, TTask
             chunkDescriptor.ChunkSpecs.push_back(chunkSpec);
         }
 
-        if (IsUnavailable(*chunkSpec, NeedsAllChunkParts())) {
+        if (IsUnavailable(*chunkSpec, IsParityReplicasFetchEnabled())) {
             chunkDescriptor.State = EInputChunkState::Waiting;
         }
 
@@ -3581,11 +3581,6 @@ void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const
 std::vector<TOperationControllerBase::TPathWithStage> TOperationControllerBase::GetFilePaths() const
 {
     return std::vector<TPathWithStage>();
-}
-
-bool TOperationControllerBase::NeedsAllChunkParts() const
-{
-    return false;
 }
 
 bool TOperationControllerBase::IsRowCountPreserved() const

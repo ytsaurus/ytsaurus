@@ -210,9 +210,6 @@ struct IOperationController
     //! to be used by UI.
     virtual void BuildBriefSpec(NYson::IYsonConsumer* consumer) const = 0;
 
-    //! Checks if the operation requires all chunk parts to be available.
-    //! Used by remote copy operations which depend on all parts, including parity ones.
-    virtual bool NeedsAllChunkParts() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
