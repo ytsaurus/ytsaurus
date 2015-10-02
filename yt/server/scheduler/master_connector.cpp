@@ -1312,10 +1312,8 @@ private:
             operation->GetId());
     }
 
-
-    TObjectServiceProxy::TReqExecuteBatchPtr StartOperationUpdate(TOperationPtr operation)
+    void AddUpdateOperationAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq, TOperationPtr operation)
     {
-        auto batchReq = StartBatchRequest();
         auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
@@ -1373,7 +1371,6 @@ private:
             req->set_value(ConvertToYsonString(operation->GetFinishTime().Get()).Data());
             batchReq->AddRequest(req, "update_op_node");
         }
-        return batchReq;
     }
 
     void AddCreateJobNodes(
@@ -1583,7 +1580,8 @@ private:
         bool hasChunksToAttach = !stderrChunkIds.empty() || !failContextChunkIds.empty();
         TTransactionPtr transaction = nullptr;
         {
-            auto batchReq = StartOperationUpdate(operation);
+            auto batchReq = StartBatchRequest();
+            //StartOperationUpdate(operation);
             AddCreateJobNodes(batchReq, jobRequests);
             AddUpdateLivePreview(batchReq, livePreviewRequests);
 
@@ -1607,39 +1605,44 @@ private:
                 }
             });
 
-            if (!hasChunksToAttach) {
-                return;
+            if (hasChunksToAttach) {
+                transaction = AttachTransaction(GetJobFileTransactionId(batchRsp));
+            }
+        }
+
+        if (hasChunksToAttach) {
+            auto validateFileCreation = [&] (const TError& error) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    error,
+                    "Error creating job file for operation %v",
+                    operationId);
+            };
+
+            auto attachBatchReq = StartBatchRequest();
+            {
+                auto batchReq = StartBatchRequest();
+                AddCreateJobFiles(batchReq, jobRequests, transaction);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                validateFileCreation(batchRspOrError);
+                const auto &batchRsp = batchRspOrError.Value();
+
+                AddAttachChunks(batchRsp, stderrChunkIds, attachBatchReq, "stderr", validateFileCreation);
+                AddAttachChunks(batchRsp, failContextChunkIds, attachBatchReq, "fail_context", validateFileCreation);
+            }
+            {
+                auto batchRspOrError = WaitFor(attachBatchReq->Invoke());
+                validateFileCreation(GetCumulativeError(batchRspOrError));
             }
 
-            transaction = AttachTransaction(GetJobFileTransactionId(batchRsp));
+            auto error = WaitFor(transaction->Commit());
+            validateFileCreation(error);
         }
 
-        auto validateFileCreation = [&] (const TError& error) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                error,
-                "Error creating job file for operation %v",
-                operationId);
-        };
-
-        auto attachBatchReq = StartBatchRequest();
-        {
-            auto batchReq = StartBatchRequest();
-            AddCreateJobFiles(batchReq, jobRequests, transaction);
-
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            validateFileCreation(batchRspOrError);
-            const auto &batchRsp = batchRspOrError.Value();
-
-            AddAttachChunks(batchRsp, stderrChunkIds, attachBatchReq, "stderr", validateFileCreation);
-            AddAttachChunks(batchRsp, failContextChunkIds, attachBatchReq, "fail_context", validateFileCreation);
-        }
-        {
-            auto batchRspOrError = WaitFor(attachBatchReq->Invoke());
-            validateFileCreation(GetCumulativeError(batchRspOrError));
-        }
-
-        auto error = WaitFor(transaction->Commit());
-        validateFileCreation(error);
+        auto batchReq = StartBatchRequest();
+        AddUpdateOperationAttributes(batchReq, operation);
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        validateOperationUpdate(batchRspOrError);
     }
 
     TFuture <void> UpdateOperationNode(TUpdateList* list)
