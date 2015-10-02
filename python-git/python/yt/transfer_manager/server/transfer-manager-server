@@ -648,6 +648,9 @@ class Application(object):
            task.destination_cluster not in self._availability_graph[task.source_cluster]:
             raise yt.YtError("Cluster {} not available from {}".format(task.destination_cluster, task.source_cluster))
 
+        if task.destination_table is None and destination_client._type != "kiwi":
+            raise yt.YtError("Destination table should be specified for copying to {0}".format(destination_client._type))
+
         try:
             if yamr_timeout is not None:
                 if source_client._type == "yamr":
