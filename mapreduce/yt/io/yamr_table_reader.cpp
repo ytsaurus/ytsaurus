@@ -2,6 +2,9 @@
 
 #include "proxy_input.h"
 
+#include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/http/requests.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,6 +16,76 @@ class TRetryException
 const i32 CONTROL_ATTR_TABLE_INDEX = -1;
 const i32 CONTROL_ATTR_KEY_SWITCH = -2;
 const i32 CONTROL_ATTR_ROW_INDEX = -4;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMaybe<TNode> GetTableFormat(
+    const TAuth& auth,
+    const TRichYPath& path)
+{
+    auto formatPath = path.Path_ + "/@_format";
+    if (!Exists(auth, formatPath)) {
+        return TMaybe<TNode>();
+    }
+    TMaybe<TNode> format = NodeFromYsonString(Get(auth, formatPath));
+    if (format.Get()->AsString() != "yamred_dsv") {
+        return TMaybe<TNode>();
+    }
+    auto& formatAttrs = format.Get()->Attributes();
+    if (!formatAttrs.HasKey("key_column_names")) {
+        ythrow yexception() <<
+            "Table '" << path.Path_ << "': attribute 'key_column_names' is missing";
+    }
+    formatAttrs["has_subkey"] = "true";
+    formatAttrs["lenval"] = "true";
+    return format;
+}
+
+TMaybe<TNode> GetTableFormats(
+    const TAuth& auth,
+    const yvector<TRichYPath>& inputs)
+{
+    TMaybe<TNode> result;
+
+    bool start = true;
+    for (auto& table : inputs) {
+        TMaybe<TNode> format = GetTableFormat(auth, AddPathPrefix(table));
+
+        if (start) {
+            result = format;
+            start = false;
+            continue;
+        }
+
+        if (result.Defined() != format.Defined()) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        if (!result.Defined()) {
+            continue;
+        }
+
+        auto& resultAttrs = result.Get()->Attributes();
+        auto& formatAttrs = format.Get()->Attributes();
+
+        if (resultAttrs["key_column_names"] != formatAttrs["key_column_names"]) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        bool hasSubkeyColumns = resultAttrs.HasKey("subkey_column_names");
+        if (hasSubkeyColumns != formatAttrs.HasKey("subkey_column_names")) {
+            ythrow yexception() << "Different formats of input tables";
+        }
+
+        if (hasSubkeyColumns &&
+            resultAttrs["subkey_column_names"] != formatAttrs["subkey_column_names"])
+        {
+            ythrow yexception() << "Different formats of input tables";
+        }
+    }
+
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

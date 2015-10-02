@@ -5,6 +5,12 @@
 namespace NYT {
 
 class TProxyInput;
+class TAuth;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMaybe<TNode> GetTableFormat(const TAuth& auth, const TRichYPath& path);
+TMaybe<TNode> GetTableFormats(const TAuth& auth, const yvector<TRichYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 
