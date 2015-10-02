@@ -120,11 +120,12 @@ private:
 
     TChunkedMemoryPool* const Pool_;
     const TComparer Comparer_;
-    TNode* const Head_;
+    TNode* const Head_ = AllocateHeadNode();
+    TNode* Prevs[MaxHeight];
 
-    std::atomic<int> Size_;
-    std::atomic<int> Height_;
-
+    std::atomic<int> Size_ = {0};
+    std::atomic<int> Height_ = {1};
+    int PrevHeight_ = 1;
 
     static int GenerateHeight();
 
