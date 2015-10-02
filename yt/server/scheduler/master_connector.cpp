@@ -1559,7 +1559,6 @@ private:
         std::vector<TLivePreviewRequest> livePreviewRequests)
     {
         try {
-            UpdateOperationNodeAttributes(operation);
             CreateJobNodes(operation, jobRequests);
 
             std::vector<TJobFile> files;
@@ -1580,6 +1579,10 @@ private:
                 }
             }
             SaveJobFiles(operation, files);
+            // NB: Update operation attributes after updating all job nodes.
+            // Tests assume, that all job files are present, when operation 
+            // is in one of the terminal states.
+            UpdateOperationNodeAttributes(operation);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error updating operation node %v",
                 operation->GetId())
