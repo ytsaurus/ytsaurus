@@ -95,6 +95,11 @@ def prepare(options):
     if os.path.exists(options.sandbox_directory) and options.clean_sandbox_directory:
         teamcity_message("Cleaning sandbox directory...", status="WARNING")
         shutil.rmtree(options.sandbox_directory)
+
+        # TODO(ignat): remove sandbox directory from parameters!
+        sandbox_storage = os.path.expanduser("~/sandbox_storage/")
+        shutil.rmtree(sandbox_storage)
+
     mkdirp(options.sandbox_directory)
 
     os.chdir(options.sandbox_directory)
@@ -733,7 +738,7 @@ def main():
         type=str, action="store", required=True)
     parser.add_argument(
         "--clean_sandbox_directory",
-        type=parse_bool, action="store", default=False)
+        type=parse_bool, action="store", default=True)
 
     parser.add_argument(
         "--type",
