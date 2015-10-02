@@ -122,15 +122,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
     int concurrency,
     TRowBufferPtr rowBuffer)
 {
-    if (!rowBuffer) {
-        rowBuffer = New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>());
-    }
-
-    auto rowMerger = New<TSchemafulRowMerger>(
-        std::move(rowBuffer),
-        tabletSnapshot->Schema.Columns().size(),
-        tabletSnapshot->KeyColumns.size(),
-        columnFilter);
+    YCHECK(!rowBuffer || concurrency == 1);
 
     auto takePartition = [&] (
         const TPartitionSnapshotPtr& partitionSnapshot,
@@ -162,6 +154,14 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
             tabletSnapshot->Slot->GetCellId(),
             timestamp,
             JoinToString(stores, TStoreIdFormatter()));
+
+        auto rowMerger = New<TSchemafulRowMerger>(
+            rowBuffer
+                ? std::move(rowBuffer)
+                : New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+            tabletSnapshot->Schema.Columns().size(),
+            tabletSnapshot->KeyColumns.size(),
+            columnFilter);
 
         return CreateSchemafulOverlappingLookupChunkReader(
             std::move(rowMerger),
