@@ -19,16 +19,31 @@ describe("YtApplicationVersions - discover versions", function() {
         var driver = this.driver;
         var mock = sinon.mock(driver);
 
-        function createMock(entity, result) {
-            var names = Object.keys(result);
-
+        function makeNamesList(entity, names) {
+            var name_result = {};
+            names.forEach(function (name) {
+                var current = name_result;
+                name.split("/").forEach(function (fragment) {
+                    if (!current.hasOwnProperty(fragment)) {
+                        current[fragment] = {};
+                    }
+                    current = current[fragment];
+                });
+            });
+    
             mock
                 .expects("executeSimple")
                 .once()
-                .withExactArgs("list", sinon.match({
+                .withExactArgs("get", sinon.match({
                     path: "//sys/" + entity
                 }))
-                .returns(Q.resolve(names));
+                .returns(Q.resolve(name_result));
+        }
+
+        function createMock(entity, result) {
+            var names = Object.keys(result);
+
+            makeNamesList(entity, names); 
 
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
@@ -54,13 +69,7 @@ describe("YtApplicationVersions - discover versions", function() {
         function createMock2(entity, result) {
             var names = Object.keys(result);
 
-            mock
-                .expects("executeSimple")
-                .once()
-                .withExactArgs("list", sinon.match({
-                    path: "//sys/" + entity
-                }))
-                .returns(Q.resolve(names));
+            makeNamesList(entity, names); 
 
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
@@ -81,11 +90,17 @@ describe("YtApplicationVersions - discover versions", function() {
         }
 
         var versions = {
-            "masters": createMock("masters", {
+            "primary_masters": createMock("primary_masters", {
                 "master1": {
                     "version": "1"
                 },
                 "master2": null
+            }),
+            "secondary_masters": createMock("secondary_masters", {
+                "1002/master1": {
+                    "version": "1"
+                },
+                "1002/master2": null
             }),
             "nodes": createMock("nodes", {
                 "node1": {
