@@ -1,7 +1,7 @@
 var url = require("url");
 
 var Q = require("bluebird");
-
+var _ = require("underscore");
 var utils = require("./utils");
 
 var YtError = require("./error").that;
@@ -24,13 +24,18 @@ function YtApplicationVersions(driver)
         });
     }
 
-    function getListAndData(entity, dataLoader)
+    function getListAndData(entity, dataLoader, nameExtractor)
     {
+        nameExtractor = nameExtractor || _.keys;
+
         return driver.executeSimple(
-            "list",
+            "get",
             { path: "//sys/" + entity })
         .then(function(names) {
             __DBG("Got " + entity + ": " + names);
+
+            names = nameExtractor(names);
+
             return Q.settle(names.map(function(name) {
                 return dataLoader(entity, name);
             }))
@@ -40,7 +45,7 @@ function YtApplicationVersions(driver)
                     result[names[i]] = responses[i].isFulfilled() ? responses[i].value() : null;
                 }
                 return result;
-            })
+            });
         })
         .catch(function(err) {
             return Q.reject(new YtError(
@@ -51,7 +56,14 @@ function YtApplicationVersions(driver)
 
     this.get_versions = function() {
         return Q.props({
-            "masters": getListAndData("masters", getDataFromOrchid),
+            "primary_masters": getListAndData("primary_masters", getDataFromOrchid),
+            "secondary_masters": getListAndData("secondary_masters", getDataFromOrchid, function (data) {
+                return _.flatten(_.map(data, function (value, cell_name) {
+                    return _.map(value, function (value, name) {
+                        return cell_name + "/" + name;
+                    })
+                })); 
+            }),
             "nodes": getListAndData("nodes", getDataFromOrchid),
             "schedulers": getListAndData("scheduler/instances", getDataFromOrchid),
             "proxies": getListAndData("proxies", function(entity, name) {
