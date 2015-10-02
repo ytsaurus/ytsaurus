@@ -31,6 +31,7 @@ public:
     NChunkClient::TChunkListId Extract();
 
     void Release(const std::vector<NChunkClient::TChunkListId>& ids);
+    void Reinstall(const NChunkClient::TChunkListId& id);
 
 private:
     TSchedulerConfigPtr Config;

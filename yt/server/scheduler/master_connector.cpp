@@ -236,6 +236,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
+        YCHECK(childId != NullChunkTreeId);
 
         LOG_DEBUG("Attaching live preview chunk tree (OperationId: %v, ChunkListId: %v, ChildId: %v)",
             operation->GetId(),
@@ -257,6 +258,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(Connected);
 
+
         LOG_DEBUG("Attaching live preview chunk trees (OperationId: %v, ChunkListId: %v, ChildrenCount: %v)",
             operation->GetId(),
             chunkListId,
@@ -264,6 +266,7 @@ public:
 
         auto* list = GetUpdateList(operation->GetId());
         for (const auto& childId : childrenIds) {
+            YCHECK(childId != NullChunkTreeId);
             TLivePreviewRequest request;
             request.ChunkListId = chunkListId;
             request.ChildId = childId;

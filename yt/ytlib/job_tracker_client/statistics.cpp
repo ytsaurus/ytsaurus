@@ -200,36 +200,39 @@ void FromProto(TStatistics* statistics, const NProto::TStatistics& protoStatisti
 
 ////////////////////////////////////////////////////////////////////
 
-TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics)
+TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
 {
     auto getValue = [] (const TSummary& summary) {
         return summary.GetSum();
     };
 
     try {
-        return GetValues<TDataStatistics>(statistics, "/data/input", getValue);
+        return GetValues<TDataStatistics>(jobStatistics, "/data/input", getValue);
     } catch (const std::exception&) {
         return ZeroDataStatistics();
     }
 }
 
-TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics)
+yhash_map<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
 {
     auto getValue = [] (const TSummary& summary) {
         return summary.GetSum();
     };
 
     try {
-        auto outputStatistics =  GetValues<yhash_map<int, TDataStatistics>>(statistics, "/data/output", getValue);
-
-        TDataStatistics result = ZeroDataStatistics();
-        for (const auto& pair : outputStatistics) {
-            result += pair.second;
-        }
-        return result;
+        return GetValues<yhash_map<int, TDataStatistics>>(jobStatistics, "/data/output", getValue);
     } catch (const std::exception&) {
-        return ZeroDataStatistics();
+        return yhash_map<int, TDataStatistics>();
     }
+}
+
+TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics)
+{
+    TDataStatistics result = ZeroDataStatistics();
+    for (const auto& pair : GetOutputDataStatistics(jobStatistics)) {
+        result += pair.second;
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////

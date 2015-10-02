@@ -521,12 +521,25 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
+    const auto& statistics = jobSummary.Statistics;
+    auto outputStatisticsMap = GetOutputDataStatistics(statistics);
+    for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
+        YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
+        auto outputStatistics = outputStatisticsMap[index];
+        if (outputStatistics.chunk_count() == 0) {
+            Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
+            joblet->ChunkListIds[index] = NullChunkListId;
+        }
+    }
+
+    auto inputStatistics = GetTotalInputDataStatistics(statistics);
+    auto outputStatistics = GetTotalOutputDataStatistics(statistics);
     if (Controller->IsRowCountPreserved()) {
-        if (jobSummary.InputDataStatistics.row_count() != jobSummary.OutputDataStatistics.row_count()) {
+        if (inputStatistics.row_count() != outputStatistics.row_count()) {
             Controller->OnOperationFailed(TError(
                 "Input/output row count mismatch in completed job: %v != %v",
-                jobSummary.InputDataStatistics.row_count(),
-                jobSummary.OutputDataStatistics.row_count())
+                inputStatistics.row_count(),
+                outputStatistics.row_count())
                 << TErrorAttribute("task", GetId()));
         }
     }
@@ -1421,10 +1434,13 @@ void TOperationControllerBase::CommitResults()
 
                     auto pair = table.OutputChunkTreeIds.equal_range(current->ChunkTreeKey);
                     auto it = pair.first;
-                    addChunkTree(it->second);
-                    // In user operations each ChunkTreeKey corresponds to a single OutputChunkTreeId.
-                    // Let's check it.
-                    YCHECK(++it == pair.second);
+                    if (it != pair.second) {
+                        // Chunk tree may be absent if no data was written in the job.
+                        addChunkTree(it->second);
+                        // In user operations each ChunkTreeKey corresponds to a single OutputChunkTreeId.
+                        // Let's check it.
+                        YCHECK(++it == pair.second);
+                    }
                 }
             } else {
                 for (const auto& pair : table.OutputChunkTreeIds) {
@@ -3233,6 +3249,10 @@ void TOperationControllerBase::RegisterOutput(
     int tableIndex,
     TOutputTable& table)
 {
+    if (chunkTreeId == NullChunkTreeId) {
+        return;
+    }
+
     table.OutputChunkTreeIds.insert(std::make_pair(key, chunkTreeId));
 
     if (IsOutputLivePreviewSupported()) {
@@ -3413,12 +3433,14 @@ void TOperationControllerBase::BuildResult(IYsonConsumer* consumer) const
 
 void TOperationControllerBase::UpdateJobStatistics(const TJobSummary& jobSummary)
 {
+    auto statistics = jobSummary.Statistics;
     LOG_INFO("Job data statistics (JobId: %v, Input: {%v}, Output: {%v})",
         jobSummary.Id,
-        jobSummary.InputDataStatistics,
-        jobSummary.OutputDataStatistics);
+        GetTotalInputDataStatistics(statistics),
+        GetTotalOutputDataStatistics(statistics));
 
-    JobStatistics.Update(jobSummary.Statistics);
+    statistics.AddSuffixToNames(jobSummary.StatisticsSuffix);
+    JobStatistics.Update(statistics);
 }
 
 void TOperationControllerBase::BuildBriefSpec(IYsonConsumer* consumer) const

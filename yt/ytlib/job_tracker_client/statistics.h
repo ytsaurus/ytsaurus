@@ -84,8 +84,9 @@ void Serialize(const TStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////
 
-NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& statistics);
-NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& statistics);
+NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics);
+NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics);
+yhash_map<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
 
 ////////////////////////////////////////////////////////////////////
 

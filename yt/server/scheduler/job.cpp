@@ -61,17 +61,13 @@ void TJob::SetResult(NJobTrackerClient::NProto::TJobResult&& result)
     Statistics_ = FromProto<TStatistics>(Result()->statistics());
 }
 
-TStatistics TJob::GetStatisticsWithSuffix() const
+Stroka TJob::GetStatisticsSuffix() const
 {
-    Stroka suffix;
     if (GetRestarted() && GetState() == EJobState::Completed) {
-        suffix = Format("/$/lost/%lv", GetType());
+        return Format("/$/lost/%lv", GetType());
     } else {
-        suffix = Format("/$/%lv/%lv", GetState(), GetType());
+        return Format("/$/%lv/%lv", GetState(), GetType());
     }
-    auto statistics = Statistics();
-    statistics.AddSuffixToNames(suffix);
-    return std::move(statistics);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -79,17 +75,15 @@ TStatistics TJob::GetStatisticsWithSuffix() const
 TJobSummary::TJobSummary(TJobPtr job)
     : Result(job->Result())
     , Id(job->GetId())
-    , InputDataStatistics(GetTotalInputDataStatistics(job->Statistics()))
-    , OutputDataStatistics(GetTotalOutputDataStatistics(job->Statistics()))
-    , Statistics(job->GetStatisticsWithSuffix())
+    , Statistics(job->Statistics())
+    , StatisticsSuffix(job->GetStatisticsSuffix())
 { }
 
 TJobSummary::TJobSummary(const TJobId& id)
     : Result()
     , Id(id)
-    , InputDataStatistics(ZeroDataStatistics())
-    , OutputDataStatistics(ZeroDataStatistics())
     , Statistics()
+    , StatisticsSuffix()
 { }
 
 ////////////////////////////////////////////////////////////////////

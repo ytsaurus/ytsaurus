@@ -62,7 +62,7 @@ public:
 
     // Custom and builtin job statistics.
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TStatistics, Statistics);
-    NJobTrackerClient::TStatistics GetStatisticsWithSuffix() const;
+    Stroka GetStatisticsSuffix() const;
 
     //! Some rough approximation that is updated with every heartbeat.
     DEFINE_BYVAL_RW_PROPERTY(EJobState, State);
@@ -101,9 +101,8 @@ struct TJobSummary
 
     const TRefCountedJobResultPtr Result;
     const TJobId Id;
-    const NChunkClient::NProto::TDataStatistics InputDataStatistics;
-    const NChunkClient::NProto::TDataStatistics OutputDataStatistics;
     const NJobTrackerClient::TStatistics Statistics;
+    const Stroka StatisticsSuffix;
 };
 
 using TCompletedJobSummary = TJobSummary;
