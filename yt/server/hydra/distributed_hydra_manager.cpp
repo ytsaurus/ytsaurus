@@ -1405,6 +1405,8 @@ private:
 
     TFuture<void> DoSyncWithLeader(TEpochContextPtr epochContext)
     {
+        LOG_DEBUG("Synchornizing with leader");
+
         YCHECK(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
 
@@ -1465,7 +1467,7 @@ private:
         if (neededCommittedVersion > actualCommittedVersion)
             return;
 
-        LOG_DEBUG("Synchronization complete (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
+        LOG_DEBUG("Leader synchronization complete (NeededCommittedVersion: %v, ActualCommittedVersion: %v)",
             neededCommittedVersion,
             actualCommittedVersion);
 
