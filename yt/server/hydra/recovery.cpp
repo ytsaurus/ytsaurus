@@ -69,7 +69,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         auto snapshotIdOrError = WaitFor(SnapshotStore_->GetLatestSnapshotId(targetVersion.SegmentId));
         THROW_ERROR_EXCEPTION_IF_FAILED(snapshotIdOrError, "Error computing the latest snapshot id");
 
-        int snapshotId = snapshotIdOrError.Value();
+        snapshotId = snapshotIdOrError.Value();
         YCHECK(snapshotId <= targetVersion.SegmentId);
     }
 
