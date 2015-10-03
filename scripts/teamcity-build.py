@@ -86,19 +86,24 @@ def prepare(options):
     # Temporaly turn off
     options.use_lto = False
     #options.use_lto = (options.type != "Debug")
+    
+    def rmtree_onerror(fn, path, excinfo):
+        teamcity_message(
+            "Error occured while executing {} on '{}': {}".format(fn, path, excinfo),
+            status="WARNING")
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
-        shutil.rmtree(options.working_directory)
+        shutil.rmtree(options.working_directory, onerror=rmtree_onerror)
     mkdirp(options.working_directory)
 
     if os.path.exists(options.sandbox_directory) and options.clean_sandbox_directory:
         teamcity_message("Cleaning sandbox directory...", status="WARNING")
-        run("rm -rf {0}/*".format(options.sandbox_directory), shell=True)
+        shutil.rmtree(options.sandbox_directory, onerror=rmtree_onerror)
 
-        # TODO(ignat): remove sandbox directory from parameters!
         sandbox_storage = os.path.expanduser("~/sandbox_storage/")
-        run("rm -rf {0}/*".format(sandbox_storage), shell=True)
+        if os.path.exists(sandbox_storage):
+            shutil.rmtree(sandbox_storage, onerror=rmtree_onerror)
 
     mkdirp(options.sandbox_directory)
 
