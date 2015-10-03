@@ -699,7 +699,6 @@ void TDecoratedAutomaton::Clear()
     Reset();
     AutomatonVersion_ = TVersion();
     CommittedVersion_ = TVersion();
-    ApplyPendingMutationsScheduled_ = false;
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -761,7 +760,6 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         header.random_seed());
 
     DoApplyMutation(&context, true);
-    CommittedVersion_ = mutationVersion;
 }
 
 void TDecoratedAutomaton::LogLeaderMutation(
@@ -902,15 +900,11 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
     LOG_DEBUG("Committed version promoted to %v",
         version);
 
-    if (!ApplyPendingMutationsScheduled_) {
-        ApplyPendingMutations(std::move(epochContext));
-    }
+    ApplyPendingMutations(std::move(epochContext));
 }
 
 void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
 {
-    ApplyPendingMutationsScheduled_ = false;
-
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
@@ -919,7 +913,6 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
                 break;
 
             if (timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
-                ApplyPendingMutationsScheduled_ = true;
                 epochContext->EpochUserAutomatonInvoker->Invoke(
                     BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
                 break;
@@ -978,6 +971,9 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recove
     }
 
     AutomatonVersion_ = automatonVersion.Advance();
+    if (CommittedVersion_.load() < automatonVersion) {
+        CommittedVersion_ = automatonVersion;
+    }
 }
 
 TVersion TDecoratedAutomaton::GetLoggedVersion() const
@@ -1029,7 +1025,11 @@ void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
     auto automatonVersion = GetAutomatonVersion();
     YCHECK(automatonVersion.SegmentId < segmentId);
     automatonVersion = TVersion(segmentId, 0);
+
     AutomatonVersion_ = automatonVersion;
+    if (CommittedVersion_.load() < automatonVersion) {
+        CommittedVersion_ = automatonVersion;
+    }
 
     LOG_INFO("Automaton version is rotated to %v",
         automatonVersion);
@@ -1081,6 +1081,7 @@ void TDecoratedAutomaton::Reset()
 {
     PendingMutations_.clear();
     Changelog_.Reset();
+    CommittedVersion_ = AutomatonVersion_;
     SnapshotVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
         SnapshotParamsPromise_.ToFuture().Cancel();
