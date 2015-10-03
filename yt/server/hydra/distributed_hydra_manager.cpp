@@ -1386,16 +1386,30 @@ private:
             asyncResults.push_back(callback.Run());
         }
 
-        Combine(asyncResults).Subscribe(
+        CombineAll(asyncResults).Subscribe(
             BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext)
                 .Via(epochContext->EpochUserAutomatonInvoker));
     }
 
-    void OnUpstreamSyncReached(TEpochContextPtr epochContext, const TError& error)
+    void OnUpstreamSyncReached(TEpochContextPtr epochContext, const TErrorOr<std::vector<TError>>& resultsOrError)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        epochContext->ActiveUpstreamSyncPromise.Set(error);
+        TError combinedError;
+        if (resultsOrError.IsOK()) {
+            for (const auto& error : resultsOrError.Value()) {
+                if (!error.IsOK()) {
+                    if (combinedError.IsOK()) {
+                        combinedError = TError("Error synchronizing with upstream");
+                    }
+                    combinedError << error;
+                }
+            }
+        } else {
+            combinedError = resultsOrError;
+        }
+
+        epochContext->ActiveUpstreamSyncPromise.Set(combinedError);
         epochContext->ActiveUpstreamSyncPromise.Reset();
 
         if (epochContext->UpstreamSyncDeadlineReached) {
