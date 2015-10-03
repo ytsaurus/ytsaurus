@@ -174,7 +174,7 @@ struct IOperationController
     virtual IInvokerPtr GetInvoker() const = 0;
 
     /*!
-     *  Suspends contoller invoker and returns future that is set after last action in invoker is executed.
+     *  Suspends controller invoker and returns future that is set after last action in invoker is executed.
      *
      *  \note Invoker affinity: Control invoker
      */
