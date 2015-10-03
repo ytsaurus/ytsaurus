@@ -5,6 +5,8 @@
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/periodic_executor.h>
 
+#include <core/misc/singleton.h>
+
 #include <core/logging/log.h>
 
 #include <core/profiling/profiler.h>
@@ -557,31 +559,51 @@ TAddressResolver::~TAddressResolver()
 
 TAddressResolver* TAddressResolver::Get()
 {
-    return Singleton<TAddressResolver>();
+    return TSingletonWithFlag<TAddressResolver>::Get();
+}
+
+void TAddressResolver::StaticShutdown()
+{
+    if (TSingletonWithFlag<TAddressResolver>::WasCreated()) {
+        TSingletonWithFlag<TAddressResolver>::Get()->Shutdown();
+    }
 }
 
 void TAddressResolver::Shutdown()
 {
-    Impl_->Shutdown();
+    if (Impl_) {
+        Impl_->Shutdown();
+        Impl_.Reset();
+    }
 }
 
 TFuture<TNetworkAddress> TAddressResolver::Resolve(const Stroka& address)
 {
-    return Impl_->Resolve(address);
+    if (Impl_) {
+        return Impl_->Resolve(address);
+    } else {
+        return MakeFuture<TNetworkAddress>(TError("Address resolver was stopped"));
+    }
 }
 
 Stroka TAddressResolver::GetLocalHostName()
 {
-    return Impl_->GetLocalHostName();
+    if (Impl_) {
+        return Impl_->GetLocalHostName();
+    } else {
+        return "<unknown>";
+    }
 }
 
 void TAddressResolver::PurgeCache()
 {
+    YASSERT(Impl_);
     return Impl_->PurgeCache();
 }
 
 void TAddressResolver::Configure(TAddressResolverConfigPtr config)
 {
+    YASSERT(Impl_);
     return Impl_->Configure(std::move(config));
 }
 

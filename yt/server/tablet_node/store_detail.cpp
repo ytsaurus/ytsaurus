@@ -64,16 +64,6 @@ void TStoreBase::SetStoreState(EStoreState state)
     StoreState_ = state;
 }
 
-EStoreRemovalState TStoreBase::GetRemovalState() const
-{
-    return RemovalState_;
-}
-
-void TStoreBase::SetRemovalState(EStoreRemovalState state)
-{
-    RemovalState_ = state;
-}
-
 TPartition* TStoreBase::GetPartition() const
 {
     return Partition_;

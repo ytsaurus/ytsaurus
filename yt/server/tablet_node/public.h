@@ -117,12 +117,6 @@ DEFINE_ENUM(EStoreCompactionState,
     (Failed)
 );
 
-DEFINE_ENUM(EStoreRemovalState,
-    (None)
-    (Pending)
-    (Failed)
-);
-
 DEFINE_ENUM(EStorePreloadState,
     (Disabled)
     (None)
