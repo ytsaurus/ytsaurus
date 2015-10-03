@@ -1140,6 +1140,54 @@ private:
     }
 };
 
+template <class T>
+class TAllFutureCombiner
+    : public TRefCounted
+{
+public:
+    explicit TAllFutureCombiner(const std::vector<TFuture<T>>& items)
+        : Items_(items)
+        , Results_(Items_.size())
+        , PendingResponseCount_(Items_.size())
+    { }
+
+    TFuture<std::vector<TErrorOr<T>>> Run()
+    {
+        if (Items_.empty()) {
+            Promise_.Set(std::move(Results_));
+        } else {
+            for (int index = 0; index < Items_.size(); ++index) {
+                Items_[index].Subscribe(BIND(&TAllFutureCombiner::OnSet, MakeStrong(this), index));
+            }
+            Promise_.OnCanceled(BIND(&TAllFutureCombiner::OnCanceled, MakeWeak(this)));
+        }
+        return Promise_;
+    }
+
+private:
+    std::vector<TFuture<T>> Items_;
+
+    TPromise<std::vector<TErrorOr<T>>> Promise_ = NewPromise<std::vector<TErrorOr<T>>>();
+    std::vector<TErrorOr<T>> Results_;
+    std::atomic<int> PendingResponseCount_;
+
+
+    void OnCanceled()
+    {
+        for (int index = 0; index < Items_.size(); ++index) {
+            Items_[index].Cancel();
+        }
+    }
+
+    void OnSet(int index, const TErrorOr<T>& result)
+    {
+        Results_[index] = result;
+        if (--PendingResponseCount_ == 0) {
+            Promise_.Set(std::move(Results_));
+        }
+    }
+};
+
 } // namespace NDetail
 
 template <class T>
@@ -1159,6 +1207,13 @@ TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
         futures.push_back(holder.Get());
     }
     return Combine(futures);
+}
+
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> CombineAll(
+    const std::vector<TFuture<T>>& futures)
+{
+    return New<NDetail::TAllFutureCombiner<T>>(futures)->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

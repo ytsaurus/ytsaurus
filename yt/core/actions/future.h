@@ -515,6 +515,12 @@ template <class T>
 TFuture<typename TFutureCombineTraits<T>::TCombined> Combine(
     const std::vector<TFutureHolder<T>>& holders);
 
+//! Similar to #Combine but waits for the results in all components, i.e.
+//! errors occurring in components will not cause early termination.
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> CombineAll(
+    const std::vector<TFuture<T>>& futures);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
