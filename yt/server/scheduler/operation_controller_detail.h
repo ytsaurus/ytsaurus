@@ -735,13 +735,13 @@ protected:
      *  The state must not be touched from the control thread
      *  while this function returns |false|.
      */
-    virtual bool IsPrepared() const;
+    bool IsPrepared() const;
 
     //! Returns |true| as long as the operation can schedule new jobs.
-    virtual bool IsRunning() const;
+    bool IsRunning() const;
 
     //! Returns |true| when operation completion event is scheduled to control invoker.
-    virtual bool IsFinished() const;
+    bool IsFinished() const;
 
     // Unsorted helpers.
 
