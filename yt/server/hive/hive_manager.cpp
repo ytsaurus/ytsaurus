@@ -708,16 +708,16 @@ private:
 
         if (messageId <= mailbox->GetLastIncomingMessageId()) {
             LOG_DEBUG("Already synchronized with another instance (SrcCellId: %v, DstCellId: %v, NeededMessageId: %v, CurrentMessageId: %v)",
+                cellId,
                 SelfCellId_,
-                mailbox->GetCellId(),
                 messageId,
                 mailbox->GetLastIncomingMessageId());
             return VoidFuture;
         }
 
         LOG_DEBUG("Waiting for synchronization with another instance (SrcCellId: %v, DstCellId: %v, NeededMessageId: %v, CurrentMessageId: %v)",
-            SelfCellId_,
             cellId,
+            SelfCellId_,
             messageId,
             mailbox->GetLastIncomingMessageId());
 
