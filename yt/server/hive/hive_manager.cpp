@@ -182,7 +182,7 @@ public:
         if (!proxy) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
-                "Cannot connect to cell %v",
+                "Cannot synchronize with cell %v since it is not yet connected",
                 cellId));
         }
 
