@@ -246,10 +246,18 @@ public:
             PrerequisiteTransactionId_);
     }
 
+
+    bool CanConfigure() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return State_ != EPeerState::None && State_ != EPeerState::Stopping;
+    }
+
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EPeerState::None);
+        YCHECK(CanConfigure());
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
         auto cellConfig = CellDescriptor_.ToConfig(NNodeTrackerClient::InterconnectNetworkName);
@@ -703,6 +711,11 @@ TObjectId TTabletSlot::GenerateId(EObjectType type)
 void TTabletSlot::Initialize(const TCreateTabletSlotInfo& createInfo)
 {
     Impl_->Initialize(createInfo);
+}
+
+bool TTabletSlot::CanConfigure() const
+{
+    return Impl_->CanConfigure();
 }
 
 void TTabletSlot::Configure(const TConfigureTabletSlotInfo& configureInfo)
