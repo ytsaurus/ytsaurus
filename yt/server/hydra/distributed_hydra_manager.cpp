@@ -1371,7 +1371,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        LOG_DEBUG("Synchronizing with upsteam");
+        LOG_DEBUG("Synchronizing with upstream");
 
         epochContext->UpstreamSyncDeadlineReached = false;
 
