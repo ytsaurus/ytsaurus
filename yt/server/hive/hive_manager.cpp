@@ -592,7 +592,7 @@ private:
         for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
             YCHECK(!mailbox->GetConnected());
-            SendPeriodicPing(mailbox);
+            SchedulePeriodicPing(mailbox);
         }
     }
 
@@ -1040,9 +1040,9 @@ private:
     }
 
 
-    virtual void OnStartLeading() override
+    virtual void OnLeaderRecoveryComplete() override
     {
-        TCompositeAutomatonPart::OnStartLeading();
+        TCompositeAutomatonPart::OnLeaderRecoveryComplete();
         ScheduleReconnectMailboxes();
     }
 
@@ -1052,9 +1052,9 @@ private:
         SetMailboxesDisconnected();
     }
 
-    virtual void OnStartFollowing() override
+    virtual void OnFollowerRecoveryComplete() override
     {
-        TCompositeAutomatonPart::OnStartFollowing();
+        TCompositeAutomatonPart::OnFollowerRecoveryComplete();
         ScheduleReconnectMailboxes();
     }
 
@@ -1075,7 +1075,7 @@ private:
         return 1;
     }
 
-    
+
     virtual void Clear() override
     {
         TCompositeAutomatonPart::Clear();
