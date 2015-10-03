@@ -79,17 +79,17 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
 
     BrotliState state;
     BrotliStateInit(&state);
-    ui64 consumedOutputSize = 0;
+    size_t consumedOutputSize = 0;
     bool isLastBlock = false;
 
-    const uint8_t* inputPtr = nullptr;
-    ui64 availableInputSize = 0;
-    auto* outputPtr = reinterpret_cast<uint8_t*>(output->Begin());
-    ui64 availableOutputSize = outputSize;
+    const char* inputPtr = nullptr;
+    size_t availableInputSize = 0;
+    auto* outputPtr = output->Begin();
+    size_t availableOutputSize = outputSize;
 
     while (source->Available() > 0) {
         if (availableInputSize == 0) {
-            inputPtr = reinterpret_cast<const uint8_t*>(source->Peek(&availableInputSize));
+            inputPtr = source->Peek(&availableInputSize);
             if (availableInputSize == source->Available()) {
                 isLastBlock = true;
             }
@@ -98,10 +98,10 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
         ui64 inputSizeBeforeDecompress = availableInputSize;
         auto result = BrotliDecompressBufferStreaming(
             &availableInputSize,
-            &inputPtr,
+            reinterpret_cast<const uint8_t**>(&inputPtr),
             isLastBlock,
             &availableOutputSize,
-            &outputPtr,
+            reinterpret_cast<uint8_t**>(&outputPtr),
             &consumedOutputSize,
             &state);
 
