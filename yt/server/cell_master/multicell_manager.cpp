@@ -248,6 +248,12 @@ private:
             entry.Index = index++;
             ValidateSecondaryCellTag(cellTag);
         }
+
+        if (RegisteredAtPrimaryMaster_) {
+            YCHECK(!PrimaryMasterMailbox_);
+            auto hiveManager = Bootstrap_->GetHiveManager();
+            PrimaryMasterMailbox_ = hiveManager->GetMailbox(Bootstrap_->GetPrimaryCellId());
+        }
     }
 
     virtual void Clear() override
@@ -359,7 +365,10 @@ private:
         LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
 
         RegisteredAtPrimaryMaster_ = true;
-        InitializePrimaryMailbox();
+
+        YCHECK(!PrimaryMasterMailbox_);
+        auto hiveManager = Bootstrap_->GetHiveManager();
+        PrimaryMasterMailbox_ = hiveManager->CreateMailbox(Bootstrap_->GetPrimaryCellId());
 
         NProto::TReqRegisterSecondaryMaster request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
@@ -386,16 +395,6 @@ private:
                 return;
         }
         LOG_FATAL("Unknown secondary master cell tag %v", cellTag);
-    }
-
-
-    void InitializePrimaryMailbox()
-    {
-        if (RegisteredAtPrimaryMaster_ && !PrimaryMasterMailbox_) {
-            auto hiveManager = Bootstrap_->GetHiveManager();
-            auto multicellManager = Bootstrap_->GetMulticellManager();
-            PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
-        }
     }
 
 
