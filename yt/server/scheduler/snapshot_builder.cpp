@@ -76,8 +76,13 @@ TFuture<void> TSnapshotBuilder::Run()
             operation->GetId());
     }
 
+    LOG_INFO("Suspending controllers");
+
     PROFILE_TIMING ("/controllers_suspend_time") {
-        WaitFor(Combine(operationSuspendFutures));
+        auto result = WaitFor(Combine(operationSuspendFutures));
+        if (!result.IsOK()) {
+            LOG_FATAL(result, "Failed to suspend controllers");
+        }
     }
 
     LOG_INFO("Controllers suspended");
