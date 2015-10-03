@@ -587,12 +587,12 @@ private:
             Config_->PingPeriod);
     }
 
-    void ScheduleReconnectMailboxes()
+    void ReconnectMailboxes()
     {
         for (const auto& pair : MailboxMap_) {
             auto* mailbox = pair.second;
             YCHECK(!mailbox->GetConnected());
-            SchedulePeriodicPing(mailbox);
+            SendPeriodicPing(mailbox);
         }
     }
 
@@ -1043,7 +1043,7 @@ private:
     virtual void OnLeaderRecoveryComplete() override
     {
         TCompositeAutomatonPart::OnLeaderRecoveryComplete();
-        ScheduleReconnectMailboxes();
+        ReconnectMailboxes();
     }
 
     virtual void OnStopLeading() override
@@ -1055,7 +1055,7 @@ private:
     virtual void OnFollowerRecoveryComplete() override
     {
         TCompositeAutomatonPart::OnFollowerRecoveryComplete();
-        ScheduleReconnectMailboxes();
+        ReconnectMailboxes();
     }
 
     virtual void OnStopFollowing() override
