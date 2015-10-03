@@ -1081,7 +1081,7 @@ void TDecoratedAutomaton::Reset()
 {
     PendingMutations_.clear();
     Changelog_.Reset();
-    CommittedVersion_ = AutomatonVersion_;
+    CommittedVersion_ = AutomatonVersion_.load();
     SnapshotVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
         SnapshotParamsPromise_.ToFuture().Cancel();
