@@ -94,11 +94,11 @@ def prepare(options):
 
     if os.path.exists(options.sandbox_directory) and options.clean_sandbox_directory:
         teamcity_message("Cleaning sandbox directory...", status="WARNING")
-        shutil.rmtree(options.sandbox_directory)
+        run("rm -rf {0}/*".format(options.sandbox_directory), shell=True)
 
         # TODO(ignat): remove sandbox directory from parameters!
         sandbox_storage = os.path.expanduser("~/sandbox_storage/")
-        shutil.rmtree(sandbox_storage)
+        run("rm -rf {0}/*".format(sandbox_storage), shell=True)
 
     mkdirp(options.sandbox_directory)
 
