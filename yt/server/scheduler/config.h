@@ -260,7 +260,10 @@ public:
     TDuration ChunkScratchPeriod;
 
     TDuration ClusterInfoLoggingPeriod;
-    
+
+    //! Jobs running on node are logged periodically or when they change their state.
+    TDuration JobsLoggingPeriod;
+
     TNullable<TDuration> OperationTimeLimit;
 
     //! Number of chunks scratched per one LocateChunks.
@@ -387,6 +390,8 @@ public:
             .Default(TDuration::Seconds(10));
         RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
+            .Default(TDuration::Seconds(30));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();
