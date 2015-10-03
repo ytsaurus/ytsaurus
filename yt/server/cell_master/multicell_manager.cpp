@@ -368,7 +368,7 @@ private:
 
         YCHECK(!PrimaryMasterMailbox_);
         auto hiveManager = Bootstrap_->GetHiveManager();
-        PrimaryMasterMailbox_ = hiveManager->CreateMailbox(Bootstrap_->GetPrimaryCellId());
+        PrimaryMasterMailbox_ = hiveManager->GetOrCreateMailbox(Bootstrap_->GetPrimaryCellId());
 
         NProto::TReqRegisterSecondaryMaster request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
