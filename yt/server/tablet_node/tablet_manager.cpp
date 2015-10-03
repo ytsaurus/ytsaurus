@@ -991,6 +991,8 @@ private:
             return;
         }
 
+        const auto& storeManager = tablet->GetStoreManager();
+
         if (response.has_error()) {
             auto error = FromProto<TError>(response.error());
             LOG_WARNING_UNLESS(IsRecovery(), error, "Error updating tablet stores (TabletId: %v)",
@@ -999,25 +1001,39 @@ private:
             for (const auto& descriptor : response.stores_to_remove()) {
                 auto storeId = FromProto<TStoreId>(descriptor.store_id());
                 auto store = tablet->GetStore(storeId);
+
                 YCHECK(store->GetStoreState() == EStoreState::RemoveCommitting);
-                RecoverFromStoreRemovalError(store);
+                switch (store->GetType()) {
+                    case EStoreType::DynamicMemory: {
+                        store->SetStoreState(EStoreState::PassiveDynamic);
+                        break;
+                    }
+                    case EStoreType::Chunk: {
+                        store->SetStoreState(EStoreState::Persistent);
+                        break;
+                    }
+                }
+
+                if (IsLeader()) {
+                    storeManager->BackoffStoreRemoval(store);
+                }
+            }
+
+            if (IsLeader()) {
+                CheckIfFullyFlushed(tablet);
             }
             return;
         }
 
         auto mountConfig = tablet->GetConfig();
         auto inMemoryManager = Bootstrap_->GetInMemoryManager();
-        const auto& storeManager = tablet->GetStoreManager();
         std::vector<TStoreId> addedStoreIds;
         for (const auto& descriptor : response.stores_to_add()) {
             auto storeId = FromProto<TChunkId>(descriptor.store_id());
             addedStoreIds.push_back(storeId);
             YCHECK(descriptor.has_chunk_meta());
 
-            auto store = CreateChunkStore(
-                storeId,
-                tablet,
-                &descriptor.chunk_meta());
+            auto store = CreateChunkStore(storeId, tablet, &descriptor.chunk_meta());
             storeManager->AddStore(store);
 
             auto chunkData = inMemoryManager->EvictInterceptedChunkData(storeId);
@@ -1640,47 +1656,6 @@ private:
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(tablet);
-    }
-
-
-    void RecoverFromStoreRemovalError(IStorePtr store)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        store->SetRemovalState(EStoreRemovalState::Failed);
-
-        auto callback = BIND([=, this_ = MakeStrong(this)] () {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-            if (store->GetRemovalState() == EStoreRemovalState::Failed) {
-                store->SetRemovalState(EStoreRemovalState::None);
-            }
-            if (store->GetStoreState() == EStoreState::RemoveCommitting) {
-                switch (store->GetType()) {
-                    case EStoreType::DynamicMemory: {
-                        store->SetStoreState(EStoreState::PassiveDynamic);
-                        auto dynamicMemoryStore = store->AsDynamicMemory();
-                        if (dynamicMemoryStore->GetFlushState() == EStoreFlushState::Complete) {
-                            dynamicMemoryStore->SetFlushState(EStoreFlushState::None);
-                        }
-                        break;
-                    }
-                    case EStoreType::Chunk: {
-                        store->SetStoreState(EStoreState::Persistent);
-                        auto chunkStore = store->AsChunk();
-                        if (chunkStore->GetCompactionState() == EStoreCompactionState::Complete) {
-                            chunkStore->SetCompactionState(EStoreCompactionState::None);
-                        }
-                        break;
-                    }
-                }
-            }
-        });
-
-        if (IsLeader()) {
-            TDelayedExecutor::Submit(callback.Via(Slot_->GetEpochAutomatonInvoker()), Config_->ErrorBackoffTime);
-        } else {
-            callback.Run();
-        }
     }
 
 
