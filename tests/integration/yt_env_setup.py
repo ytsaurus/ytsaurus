@@ -154,6 +154,9 @@ class YTEnvSetup(YTEnv):
         print "Waiting for tablets to become unmounted..."
         _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
 
+    def sync_predicate(self, predicate):
+        _wait(predicate)
+
     def _abort_transactions(self, txs):
         for tx in txs:
             try:

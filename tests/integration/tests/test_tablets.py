@@ -175,32 +175,82 @@ class TestTablets(YTEnvSetup):
     def test_read_table(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [10]])
         self.sync_mount_table("//tmp/t")
-
-        tx = start_transaction()
-        lock("//tmp/t", mode="snapshot", tx=tx)
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows1)
         self.sync_unmount_table("//tmp/t")
 
         assert read_table("//tmp/t") == rows1
-        assert read_table("//tmp/t", tx=tx) == []
 
-        abort_transaction(tx)
+    def test_read_snapshot_lock(self):
+        self.sync_create_cells(1, 1)
+        self._create_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
+
+        def get_chunk_tree(path):
+            root_chunk_list_id = get(path + "/@chunk_list_id")
+            root_chunk_list = get("#" + root_chunk_list_id + "/@")
+            tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["children_ids"]]
+            assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists]) 
+            return root_chunk_list, tablet_chunk_lists
+
+        def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
+            root, tablets = get_chunk_tree(path)
+            assert root["ref_counter"] == root_ref_count
+            assert [tablet["ref_counter"] for tablet in tablets] == tablet_ref_counts
+
+        verify_chunk_tree_refcount("//tmp/t", 1, [1])
 
         tx = start_transaction()
         lock("//tmp/t", mode="snapshot", tx=tx)
+        verify_chunk_tree_refcount("//tmp/t", 2, [1])
 
-        self.sync_mount_table("//tmp/t")
-        rows2 = [{"key": i, "value": str(i)} for i in xrange(10, 20)]
+        rows1 = [{"key": i, "value": str(i)} for i in xrange(0, 10, 2)]
+        insert_rows("//tmp/t", rows1)
+        self.sync_unmount_table("//tmp/t")
+        verify_chunk_tree_refcount("//tmp/t", 1, [1])
+        assert read_table("//tmp/t") == rows1
+        assert read_table("//tmp/t", tx=tx) == []
+
+        abort_transaction(tx)
+        verify_chunk_tree_refcount("//tmp/t", 1, [1])
+
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        verify_chunk_tree_refcount("//tmp/t", 2, [1])
+
+        reshard_table("//tmp/t", [[], [5]])
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+
+        abort_transaction(tx)
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+
+        tx = start_transaction()
+        lock("//tmp/t", mode="snapshot", tx=tx)
+        verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
+
+        mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
+        print "Waiting for tablet 1 to become mounted..."
+        self.sync_predicate(lambda: any(x["state"] == "mounted" for x in get("//tmp/t/@tablets")))
+
+        rows2 = [{"key": i, "value": str(i)} for i in xrange(1, 5, 2)]
         insert_rows("//tmp/t", rows2)
         self.sync_unmount_table("//tmp/t")
-        reshard_table("//tmp/t", [[]])
-
-        assert read_table("//tmp/t") == rows1 + rows2
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 2])
+        assert_items_equal(read_table("//tmp/t"), rows1 + rows2)
         assert read_table("//tmp/t", tx=tx) == rows1
+
+        self.sync_mount_table("//tmp/t")
+        rows3 = [{"key": i, "value": str(i)} for i in xrange(5, 10, 2)]
+        insert_rows("//tmp/t", rows3)
+        self.sync_unmount_table("//tmp/t")
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
+        assert_items_equal(read_table("//tmp/t"), rows1 + rows2 + rows3)
+        assert read_table("//tmp/t", tx=tx) == rows1
+
+        abort_transaction(tx)
+        verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
     def test_write_table(self):
         self.sync_create_cells(1, 1)
