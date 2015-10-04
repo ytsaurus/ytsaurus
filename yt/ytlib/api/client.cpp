@@ -323,12 +323,12 @@ private:
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
-        return tableInfo->Sorted
-            ? SplitSortedTableFurther(tableId, ranges, std::move(rowBuffer))
-            : SplitUnsortedTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo));
+        return tableInfo->Dynamic
+            ? SplitDynamicTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo))
+            : SplitStaticTableFurther(tableId, ranges, std::move(rowBuffer));
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitSortedTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
@@ -410,7 +410,7 @@ private:
         return result;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitUnsortedTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer,
