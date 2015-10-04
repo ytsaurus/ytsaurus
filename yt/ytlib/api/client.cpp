@@ -323,6 +323,11 @@ private:
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
+
+        if (!tableInfo->Sorted && !tableInfo->Dynamic) {
+            THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
+        }
+
         return tableInfo->Dynamic
             ? SplitDynamicTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo))
             : SplitStaticTableFurther(tableId, ranges, std::move(rowBuffer));
@@ -333,11 +338,16 @@ private:
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
     {
+        std::vector<TReadRange> readRanges;
+        for (const auto& range : ranges) {
+            readRanges.emplace_back(TReadLimit(TOwningKey(range.first)), TReadLimit(TOwningKey(range.second)));
+        }
+
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
 
         auto req = TTableYPathProxy::Fetch(FromObjectId(tableId));
-        ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+        ToProto(req->mutable_ranges(), readRanges);
         req->set_fetch_all_meta_extensions(true);
 
         auto rsp = WaitFor(proxy.Execute(req))
