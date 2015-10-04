@@ -1400,7 +1400,9 @@ private:
             for (const auto& error : resultsOrError.Value()) {
                 if (!error.IsOK()) {
                     if (combinedError.IsOK()) {
-                        combinedError = TError("Error synchronizing with upstream");
+                        combinedError = TError(
+                            NRpc::EErrorCode::Unavailable,
+                            "Error synchronizing with upstream");
                     }
                     combinedError.InnerErrors().push_back(error);
                 }
