@@ -1402,7 +1402,7 @@ private:
                     if (combinedError.IsOK()) {
                         combinedError = TError("Error synchronizing with upstream");
                     }
-                    combinedError << error;
+                    combinedError.InnerErrors().push_back(error);
                 }
             }
         } else {
