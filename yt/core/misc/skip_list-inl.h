@@ -167,14 +167,9 @@ void TSkipList<TKey, TComparer>::Insert(
     auto* lastInserted = Prevs[0];
     auto* next = lastInserted->GetNext(0);
 
-    if ((lastInserted == Head_ || Comparer_(lastInserted->GetKey(), pivot) < 0) &&
-        (next == Head_ || Comparer_(next->GetKey(), pivot) >= 0))
+    if ((lastInserted != Head_ && Comparer_(lastInserted->GetKey(), pivot) >= 0) ||
+        (next != Head_ && Comparer_(next->GetKey(), pivot) < 0))
     {
-        // Avoid seek in the special case of sequential insert.
-        for (int height = 1; height < PrevHeight_; ++height) {
-            Prevs[height] = lastInserted;
-        }
-    } else {
         next = DoFindGreaterThanOrEqualTo(pivot, Prevs);
     }
 
@@ -199,8 +194,9 @@ void TSkipList<TKey, TComparer>::Insert(
     node->InsertAfter(randomHeight, Prevs);
     ++Size_;
 
-    Prevs[0] = node;
-    PrevHeight_ = randomHeight;
+    for (int index = 0; index < randomHeight; ++index) {
+        Prevs[index] = node;
+    }
 }
 
 template <class TKey, class TComparer>
