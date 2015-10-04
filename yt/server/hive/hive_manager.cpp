@@ -123,8 +123,10 @@ public:
     {
         auto mailboxHolder = std::make_unique<TMailbox>(cellId);
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
-        
-        SendPeriodicPing(mailbox);
+
+        if (!IsRecovery()) {
+            SendPeriodicPing(mailbox);
+        }
 
         LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
