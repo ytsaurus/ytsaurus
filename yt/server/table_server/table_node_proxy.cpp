@@ -469,6 +469,7 @@ private:
         ToProto(response->mutable_table_id(), table->GetId());
         ToProto(response->mutable_key_columns()->mutable_names(), table->KeyColumns());
         response->set_sorted(table->GetSorted());
+        response->set_dynamic(table->IsDynamic());
 
         auto tabletManager = Bootstrap_->GetTabletManager();
         auto schema = tabletManager->GetTableSchema(table);

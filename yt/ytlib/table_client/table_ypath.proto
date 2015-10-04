@@ -95,6 +95,7 @@ message TRspGetMountInfo
     repeated TTabletInfo tablets = 4;
     repeated NYT.NHive.NProto.TCellDescriptor tablet_cells = 5;
     required bool sorted = 6;
+    required bool dynamic = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
