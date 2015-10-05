@@ -181,9 +181,13 @@ class YtPrintRow(gdb.Command):
             print_unversioned_row(val)
         elif ty == get_unversioned_owning_row_type():
             print_unversioned_owning_row(val)
+        elif ty == get_unversioned_row_header_type().pointer():
+            print_unversioned_row_with_header(val, "TUnversionedRow")
         elif ty == get_versioned_row_type():
             print_versioned_row(val)
         elif ty == get_versioned_owning_row_type():
             print_versioned_owning_row(val)
+        elif ty == get_versioned_row_header_type().pointer():
+            print_versioned_row_with_header(val, "TVersionedRow")
 
 YtPrintRow()
