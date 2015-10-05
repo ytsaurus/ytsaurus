@@ -48,18 +48,6 @@ void TFileReader::Open()
         metaFileName,
         OpenExisting | RdOnly | Seq | CloseOnExec);
 
-<<<<<<< HEAD
-    MetaSize_ = metaFile.GetLength();
-    TBufferedFileInput metaInput(metaFile);
-
-    TChunkMetaHeader metaHeader;
-    ReadPod(metaInput, metaHeader);
-    if (metaHeader.Signature != TChunkMetaHeader::ExpectedSignature) {
-        THROW_ERROR_EXCEPTION("Incorrect header signature in chunk meta file %Qv: expected %v, actual %v",
-            FileName_,
-            TChunkMetaHeader::ExpectedSignature,
-            metaHeader.Signature);
-=======
     TBufferedFileInput metaFileInput(metaFile);
     auto metaFileBlob = metaFileInput.ReadAll();
     auto metaFileBlobRef = TRef::FromString(metaFileBlob);
@@ -81,18 +69,12 @@ void TFileReader::Open()
             THROW_ERROR_EXCEPTION("Incorrect header signature %x in chunk meta file %v",
                 metaHeaderBase->Signature,
                 FileName_);
->>>>>>> prestable/0.17.3
     }
 
     auto checksum = GetChecksum(metaBlobRef);
     if (checksum != metaHeader.Checksum) {
-<<<<<<< HEAD
-        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %Qv: expected %v, actual %v",
-            FileName_,
-=======
         THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %v: expected %v, actual %v",
             metaFileName,
->>>>>>> prestable/0.17.3
             metaHeader.Checksum,
             checksum);
     }
