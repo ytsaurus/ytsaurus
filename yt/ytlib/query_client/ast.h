@@ -15,11 +15,8 @@ namespace NAst {
 typedef TVariant<i64, ui64, double, bool, Stroka> TLiteralValue;
 typedef std::vector<TLiteralValue> TLiteralValueList;
 typedef std::vector<std::vector<TLiteralValue>> TLiteralValueTupleList;
-<<<<<<< HEAD
 
 TStringBuf GetSource(TSourceLocation sourceLocation, const TStringBuf& source);
-=======
->>>>>>> prestable/0.17.3
 
 struct TExpression
     : public TIntrinsicRefCounted
@@ -83,31 +80,11 @@ struct TReferenceExpression
     { }
 
     Stroka ColumnName;
-<<<<<<< HEAD
     Stroka TableName;
 };
 
 DECLARE_REFCOUNTED_STRUCT(TReferenceExpression)
 DEFINE_REFCOUNTED_TYPE(TReferenceExpression)
-=======
-};
-
-struct TCommaExpression
-    : public TExpression
-{
-    TCommaExpression(
-        const TSourceLocation& sourceLocation,
-        TExpressionPtr lhs,
-        TExpressionPtr rhs)
-        : TExpression(sourceLocation)
-        , Lhs(std::move(lhs))
-        , Rhs(std::move(rhs))
-    { }
-
-    TExpressionPtr Lhs;
-    TExpressionPtr Rhs;
-};
->>>>>>> prestable/0.17.3
 
 struct TFunctionExpression
     : public TExpression
@@ -122,11 +99,7 @@ struct TFunctionExpression
     { }
 
     Stroka FunctionName;
-<<<<<<< HEAD
     TExpressionList Arguments;
-=======
-    TExpressionPtr Arguments;
->>>>>>> prestable/0.17.3
 };
 
 struct TUnaryOpExpression
@@ -142,11 +115,7 @@ struct TUnaryOpExpression
     { }
 
     EUnaryOp Opcode;
-<<<<<<< HEAD
     TExpressionList Operand;
-=======
-    TExpressionPtr Operand;
->>>>>>> prestable/0.17.3
 };
 
 struct TBinaryOpExpression
@@ -164,13 +133,8 @@ struct TBinaryOpExpression
     { }
 
     EBinaryOp Opcode;
-<<<<<<< HEAD
     TExpressionList Lhs;
     TExpressionList Rhs;
-=======
-    TExpressionPtr Lhs;
-    TExpressionPtr Rhs;
->>>>>>> prestable/0.17.3
 };
 
 struct TInExpression
@@ -178,22 +142,14 @@ struct TInExpression
 {
     TInExpression(
         const TSourceLocation& sourceLocation,
-<<<<<<< HEAD
         TExpressionList expression,
-=======
-        TExpressionPtr expression,
->>>>>>> prestable/0.17.3
         const TLiteralValueTupleList& values)
         : TExpression(sourceLocation)
         , Expr(std::move(expression))
         , Values(values)
     { }
 
-<<<<<<< HEAD
     TExpressionList Expr;
-=======
-    TExpressionPtr Expr;
->>>>>>> prestable/0.17.3
     TLiteralValueTupleList Values;
 };
 
