@@ -62,8 +62,8 @@ class TestQuery(YTEnvSetup):
             attributes = {
                 "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]
             })
-        data = [{"a" : 1, "b" : 2}, 
-                {"a" : 1, "b" : 2.2}, 
+        data = [{"a" : 1, "b" : 2},
+                {"a" : 1, "b" : 2.2},
                 {"a" : 1, "b" : "smth"}]
 
         write_table("<sorted_by=[a; b]>" + path, data)
@@ -309,7 +309,7 @@ class TestQuery(YTEnvSetup):
             {"a": 4, "c": "a", "b": 100, "d": "X", "e": 1234},
             {"a": 4, "c": "a", "b": 400, "d": "Y", "e": 5678}]
 
-        actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)") 
+        actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)")
         assert sorted(expected) == sorted(actual)
 
     def test_types(self):
@@ -613,4 +613,21 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
         # should not raise
         select_rows("sleep(value) from [//tmp/t]", output_row_limit=1, fail_on_incomplete_result=False)
+
+    def test_static_split(self):
+        path = "//tmp/t"
+        create("table", path,
+            attributes = {
+                "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]
+            })
+
+        write_table("<sorted_by=[a]>" + path, [{"a": i, "b": i} for i in xrange(2)])
+        write_table("<sorted_by=[a];append=true>" + path, [{"a": i, "b": i} for i in xrange(2,4)])
+        write_table("<sorted_by=[a];append=true>" + path, [{"a": 4, "b": i} for i in xrange(4,6)])
+        assert get("//tmp/t/@sorted")
+
+        self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a = 0"), [{"a": 0, "b": 0}])
+        self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a in (1, 3)"), [{"a": i, "b": i} for i in (1,3)])
+        self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a in (4)"), [{"a": 4, "b": i} for i in (4,5)])
+        self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a > 0 and a < 3"), [{"a": i, "b": i} for i in (1,2)])
 

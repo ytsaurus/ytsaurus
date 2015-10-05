@@ -432,7 +432,7 @@ public:
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
-        // Once the first table is created, table is no longer sorted.
+        // Once the first tablet is created, table is no longer sorted.
         table->SetSorted(false);
 
         LOG_INFO_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",

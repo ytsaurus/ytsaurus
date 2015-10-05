@@ -269,14 +269,14 @@ Stroka ToString(const TUnversionedValue& value)
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (lhs.Type == EValueType::Any || rhs.Type == EValueType::Any) {
-        if (lhs.Type != EValueType::Min && 
-            lhs.Type != EValueType::Max && 
+        if (lhs.Type != EValueType::Min &&
+            lhs.Type != EValueType::Max &&
             rhs.Type != EValueType::Min &&
-            rhs.Type != EValueType::Max) 
+            rhs.Type != EValueType::Max)
         {
             // Never compare composite values with non-sentinels.
             THROW_ERROR_EXCEPTION(
-                EErrorCode::IncomparableType, 
+                EErrorCode::IncomparableType,
                 "Composite types are not comparable");
         }
     }
@@ -898,7 +898,7 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, int prefixLength)
 TOwningKey GetKeyPrefix(TKey key, int prefixLength)
 {
     return TOwningKey(
-        key.Begin(), 
+        key.Begin(),
         key.Begin() + std::min(key.GetCount(), prefixLength));
 }
 
@@ -1175,7 +1175,7 @@ void Deserialize(TOwningKey& key, INodePtr node)
             case ENodeType::Uint64:
                 builder.AddValue(MakeUnversionedUint64Value(item->GetValue<ui64>(), id));
                 break;
-            
+
             case ENodeType::Double:
                 builder.AddValue(MakeUnversionedDoubleValue(item->GetValue<double>(), id));
                 break;

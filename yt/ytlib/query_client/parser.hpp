@@ -1,4 +1,4 @@
-// A Bison parser, made by GNU Bison 3.0.2.
+// A Bison parser, made by GNU Bison 3.0.
 
 // Skeleton interface for Bison LALR(1) parsers in C++
 
@@ -31,14 +31,14 @@
 // version 2.2 of Bison.
 
 /**
- ** \file /home/lukyan/yt/src/yt/ytlib/query_client/parser.hpp
+ ** \file /home/lukyan/dev/yt/yt/ytlib/query_client/parser.hpp
  ** Define the NYT::NQueryClient::NAst::parser class.
  */
 
 // C++ LALR(1) parser skeleton written by Akim Demaille.
 
-#ifndef YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
-# define YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#ifndef YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+# define YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
 // //                    "%code requires" blocks.
 
     #include "ast.h"
@@ -64,59 +64,6 @@
 # define YYASSERT assert
 #endif
 
-
-#ifndef YY_ATTRIBUTE
-# if (defined __GNUC__                                               \
-      && (2 < __GNUC__ || (__GNUC__ == 2 && 96 <= __GNUC_MINOR__)))  \
-     || defined __SUNPRO_C && 0x5110 <= __SUNPRO_C
-#  define YY_ATTRIBUTE(Spec) __attribute__(Spec)
-# else
-#  define YY_ATTRIBUTE(Spec) /* empty */
-# endif
-#endif
-
-#ifndef YY_ATTRIBUTE_PURE
-# define YY_ATTRIBUTE_PURE   YY_ATTRIBUTE ((__pure__))
-#endif
-
-#ifndef YY_ATTRIBUTE_UNUSED
-# define YY_ATTRIBUTE_UNUSED YY_ATTRIBUTE ((__unused__))
-#endif
-
-#if !defined _Noreturn \
-     && (!defined __STDC_VERSION__ || __STDC_VERSION__ < 201112)
-# if defined _MSC_VER && 1200 <= _MSC_VER
-#  define _Noreturn __declspec (noreturn)
-# else
-#  define _Noreturn YY_ATTRIBUTE ((__noreturn__))
-# endif
-#endif
-
-/* Suppress unused-variable warnings by "using" E.  */
-#if ! defined lint || defined __GNUC__
-# define YYUSE(E) ((void) (E))
-#else
-# define YYUSE(E) /* empty */
-#endif
-
-#if defined __GNUC__ && 407 <= __GNUC__ * 100 + __GNUC_MINOR__
-/* Suppress an incorrect diagnostic about yylval being uninitialized.  */
-# define YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN \
-    _Pragma ("GCC diagnostic push") \
-    _Pragma ("GCC diagnostic ignored \"-Wuninitialized\"")\
-    _Pragma ("GCC diagnostic ignored \"-Wmaybe-uninitialized\"")
-# define YY_IGNORE_MAYBE_UNINITIALIZED_END \
-    _Pragma ("GCC diagnostic pop")
-#else
-# define YY_INITIAL_VALUE(Value) Value
-#endif
-#ifndef YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN
-# define YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN
-# define YY_IGNORE_MAYBE_UNINITIALIZED_END
-#endif
-#ifndef YY_INITIAL_VALUE
-# define YY_INITIAL_VALUE(Value) /* Nothing. */
-#endif
 
 /* Debug traces.  */
 #ifndef YT_QL_YYDEBUG
@@ -289,7 +236,6 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // "string literal"
       char dummy3[sizeof(Stroka)];
 
-      // named-expression
       // expression
       // or-op-expr
       // and-op-expr
@@ -320,26 +266,30 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // const-value
       char dummy8[sizeof(TNullable<TLiteralValue>)];
 
+      // order-expr-list
+      char dummy9[sizeof(TOrderExpressionList)];
+
       // qualified-identifier
-      char dummy9[sizeof(TReferenceExpressionPtr)];
+      char dummy10[sizeof(TReferenceExpressionPtr)];
 
       // "identifier"
-      char dummy10[sizeof(TStringBuf)];
+      char dummy11[sizeof(TStringBuf)];
 
       // table-descriptor
-      char dummy11[sizeof(TTableDescriptor)];
+      char dummy12[sizeof(TTableDescriptor)];
 
+      // is-left
       // is-desc
-      char dummy12[sizeof(bool)];
+      char dummy13[sizeof(bool)];
 
       // "double literal"
-      char dummy13[sizeof(double)];
+      char dummy14[sizeof(double)];
 
       // "int64 literal"
-      char dummy14[sizeof(i64)];
+      char dummy15[sizeof(i64)];
 
       // "uint64 literal"
-      char dummy15[sizeof(ui64)];
+      char dummy16[sizeof(ui64)];
 };
 
     /// Symbol semantic values.
@@ -377,26 +327,27 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         KwOrderBy = 1009,
         KwAsc = 1010,
         KwDesc = 1011,
-        KwAs = 1012,
-        KwOn = 1013,
-        KwAnd = 1014,
-        KwOr = 1015,
-        KwNot = 1016,
-        KwBetween = 1017,
-        KwIn = 1018,
-        KwFalse = 1019,
-        KwTrue = 1020,
-        Identifier = 1021,
-        Int64Literal = 1022,
-        Uint64Literal = 1023,
-        DoubleLiteral = 1024,
-        StringLiteral = 1025,
+        KwLeft = 1012,
+        KwAs = 1013,
+        KwOn = 1014,
+        KwAnd = 1015,
+        KwOr = 1016,
+        KwNot = 1017,
+        KwBetween = 1018,
+        KwIn = 1019,
+        KwFalse = 1020,
+        KwTrue = 1021,
+        Identifier = 1022,
+        Int64Literal = 1023,
+        Uint64Literal = 1024,
+        DoubleLiteral = 1025,
+        StringLiteral = 1026,
         OpTilde = 33,
         OpVerticalBar = 124,
         OpAmpersand = 38,
         OpModulo = 37,
-        OpLeftShift = 1026,
-        OpRightShift = 1027,
+        OpLeftShift = 1027,
+        OpRightShift = 1028,
         LeftParenthesis = 40,
         RightParenthesis = 41,
         Asterisk = 42,
@@ -406,11 +357,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         Dot = 46,
         OpDivide = 47,
         OpLess = 60,
-        OpLessOrEqual = 1028,
+        OpLessOrEqual = 1029,
         OpEqual = 61,
-        OpNotEqual = 1029,
+        OpNotEqual = 1030,
         OpGreater = 62,
-        OpGreaterOrEqual = 1030
+        OpGreaterOrEqual = 1031
       };
     };
 
@@ -460,6 +411,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TOrderExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l);
 
@@ -592,6 +545,10 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     static inline
     symbol_type
     make_KwDesc (const location_type& l);
+
+    static inline
+    symbol_type
+    make_KwLeft (const location_type& l);
 
     static inline
     symbol_type
@@ -740,14 +697,14 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 #if YT_QL_YYDEBUG
     /// The current debugging stream.
-    std::ostream& debug_stream () const YY_ATTRIBUTE_PURE;
+    std::ostream& debug_stream () const;
     /// Set the current debugging stream.
     void set_debug_stream (std::ostream &);
 
     /// Type for debugging levels.
     typedef int debug_level_type;
     /// The current debugging level.
-    debug_level_type debug_level () const YY_ATTRIBUTE_PURE;
+    debug_level_type debug_level () const;
     /// Set the current debugging level.
     void set_debug_level (debug_level_type l);
 #endif
@@ -776,8 +733,8 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
     /// Compute post-reduction state.
     /// \param yystate   the current state
-    /// \param yysym     the nonterminal to push on the stack
-    state_type yy_lr_goto_state_ (state_type yystate, int yysym);
+    /// \param yylhs     the nonterminal to push on the stack
+    state_type yy_lr_goto_state_ (state_type yystate, int yylhs);
 
     /// Whether the given \c yypact_ value indicates a defaulted state.
     /// \param yyvalue   the value to check
@@ -812,9 +769,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
   // positive, shift that token.  If negative, reduce the rule whose
   // number is the opposite.  If YYTABLE_NINF, syntax error.
-  static const unsigned char yytable_[];
+  static const short int yytable_[];
 
-  static const unsigned char yycheck_[];
+  static const short int yycheck_[];
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -855,7 +812,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     /// \brief Reclaim the memory associated to a symbol.
     /// \param yymsg     Why this token is reclaimed.
     ///                  If null, print nothing.
-    /// \param yysym     The symbol.
+    /// \param s         The symbol.
     template <typename Base>
     void yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const;
 
@@ -929,13 +886,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
-      yylast_ = 198,     ///< Last index in yytable_.
-      yynnts_ = 41,  ///< Number of nonterminal symbols.
+      yylast_ = 204,           //< Last index in yytable_.
+      yynnts_ = 42,  //< Number of nonterminal symbols.
       yyempty_ = -2,
-      yyfinal_ = 42, ///< Termination state number.
+      yyfinal_ = 41, //< Termination state number.
       yyterror_ = 1,
       yyerrcode_ = 256,
-      yyntokens_ = 51  ///< Number of tokens.
+      yyntokens_ = 52    //< Number of tokens.
     };
 
 
@@ -951,4 +908,4 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
 
 
-#endif // !YY_YT_QL_YY_HOME_LUKYAN_YT_SRC_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED
+#endif // !YY_YT_QL_YY_HOME_LUKYAN_DEV_YT_YT_YTLIB_QUERY_CLIENT_PARSER_HPP_INCLUDED

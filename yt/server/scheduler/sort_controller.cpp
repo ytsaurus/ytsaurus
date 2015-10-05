@@ -1385,7 +1385,7 @@ protected:
     i64 GetSortBuffersMemorySize(const TChunkStripeStatistics& stat) const
     {
         // Calculate total size of buffers, presented in TSchemalessPartitionSortReader.
-        return 
+        return
             (i64) 16 * Spec->SortBy.size() * stat.RowCount + // KeyBuffer
             (i64) 12 * stat.RowCount +                       // RowDescriptorBuffer
             (i64) 4 * stat.RowCount +                        // Buckets
@@ -1598,7 +1598,7 @@ protected:
 
     virtual void RegisterOutput(TJobletPtr joblet, int key, const TCompletedJobSummary& jobSummary) override
     {
-        TotalOutputRowCount += jobSummary.OutputDataStatistics.row_count();
+        TotalOutputRowCount += GetTotalOutputDataStatistics(jobSummary.Statistics).row_count();
         TOperationControllerBase::RegisterOutput(std::move(joblet), key, jobSummary);
     }
 
@@ -1859,11 +1859,11 @@ private:
                     YCHECK(skippedCount >= 1);
 
                     // NB: in partitioner we compare keys with the whole rows,
-                    // so key prefix successor in required here. 
+                    // so key prefix successor in required here.
                     auto successorKey = GetKeyPrefixSuccessor(sample->Key.Get(), Spec->SortBy.size());
                     AddPartition(successorKey);
                 } else {
-                    // If sample keys are incomplete, we cannot use UnorderedMerge, 
+                    // If sample keys are incomplete, we cannot use UnorderedMerge,
                     // because full keys may be different.
                     LOG_DEBUG("Partition %v is oversized, skipped %v samples",
                         lastPartition->Index,
@@ -2046,8 +2046,8 @@ private:
         bool memoryReserveEnabled) const override
     {
         UNUSED(memoryReserveEnabled);
-        i64 memory = 
-            GetSortBuffersMemorySize(stat) + 
+        i64 memory =
+            GetSortBuffersMemorySize(stat) +
             GetSortInputIOMemorySize(stat) +
             GetFootprintMemorySize();
 
@@ -2601,7 +2601,7 @@ private:
         TNodeResources result;
         result.set_user_slots(1);
 
-        i64 memory = 
+        i64 memory =
             GetSortInputIOMemorySize(stat) +
             GetSortBuffersMemorySize(stat) +
             GetFootprintMemorySize();

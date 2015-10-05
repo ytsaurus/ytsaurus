@@ -24,7 +24,7 @@ def set_banned_flag(value, nodes=None):
         set("//sys/nodes/{0}/@banned".format(address), flag)
 
     # Give it enough time to register or unregister the node
-    time.sleep(1.0) 
+    time.sleep(1.0)
 
     for address in nodes:
         assert get("//sys/nodes/{0}/@state".format(address)) == state
@@ -351,10 +351,10 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         }
     }
 
-    def test_operations_pool_limit(self):
-        create("map_node", "//sys/pools/test_pool_1")
-        create("map_node", "//sys/pools/test_pool_2")
+    def teardown(self):
+        set("//sys/pools", {})
 
+    def _run_operations(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
@@ -394,6 +394,18 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         assert read_table("//tmp/out1") == []
         assert read_table("//tmp/out2") == []
         assert read_table("//tmp/out3") == []
+
+    def test_operations_pool_limit(self):
+        create("map_node", "//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2")
+        self._run_operations()
+
+    def test_operations_recursive_pool_limit(self):
+        create("map_node", "//sys/pools/research")
+        set("//sys/pools/research/@max_running_operations", 2)
+        create("map_node", "//sys/pools/research/test_pool_1")
+        create("map_node", "//sys/pools/research/test_pool_2")
+        self._run_operations()
 
     def test_pending_operations_after_revive(self):
         create("table", "//tmp/in")
@@ -439,6 +451,41 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         assert get("//sys/operations/{0}/@state".format(op1)) == "completed"
         assert get("//sys/operations/{0}/@state".format(op2)) == "aborted"
         assert get("//sys/operations/{0}/@state".format(op3)) == "completed"
+
+    def test_reconfigured_pools_operations_limit(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
+
+        create("map_node", "//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2")
+
+        op1 = map(
+            dont_track=True,
+            command="sleep 4; cat",
+            in_=["//tmp/in"],
+            out="//tmp/out1",
+            spec={"pool": "test_pool_1"})
+        time.sleep(1.5)
+
+        remove("//sys/pools/test_pool_1")
+        create("map_node", "//sys/pools/test_pool_2/test_pool_1")
+        time.sleep(0.5)
+
+        op2 = map(
+            dont_track=True,
+            command="sleep 1.7; cat",
+            in_=["//tmp/in"],
+            out="//tmp/out2",
+            spec={"pool": "test_pool_2"})
+        time.sleep(1.5)
+
+        assert get("//sys/operations/{0}/@state".format(op1)) == "running"
+        assert get("//sys/operations/{0}/@state".format(op2)) == "pending"
+
+        track_op(op1)
+        track_op(op2)
 
 
 class TestSchedulingTags(YTEnvSetup):

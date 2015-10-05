@@ -566,6 +566,7 @@ public:
         , SuspendedDataSize(-1)
         , UnavailableLostCookieCount(-1)
         , MaxChunkStripesPerJob(-1)
+        , MaxBlockSize(-1)
     { }
 
     TUnorderedChunkPool(
@@ -575,6 +576,7 @@ public:
         , SuspendedDataSize(0)
         , UnavailableLostCookieCount(0)
         , MaxChunkStripesPerJob(maxChunkStripesPerJob)
+        , MaxBlockSize(0)
     {
         JobCounter.Set(jobCount);
     }
@@ -592,6 +594,7 @@ public:
 
         DataSizeCounter.Increment(suspendableStripe.GetStatistics().DataSize);
         RowCounter.Increment(suspendableStripe.GetStatistics().RowCount);
+        MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().RowCount);
 
         Register(cookie);
 
@@ -717,6 +720,7 @@ public:
         stat.RowCount = std::max(
             static_cast<i64>(1),
             GetTotalRowCount() / GetTotalJobCount());
+        stat.MaxBlockSize = MaxBlockSize;
 
         TChunkStripeStatisticsVector result;
         result.push_back(stat);
@@ -889,6 +893,7 @@ public:
         Persist(context, ExtractedLists);
         Persist(context, LostCookies);
         Persist(context, ReplayCookies);
+        Persist(context, MaxBlockSize);
     }
 
 private:
@@ -903,6 +908,8 @@ private:
     i64 SuspendedDataSize;
     int UnavailableLostCookieCount;
     int MaxChunkStripesPerJob;
+
+    i64 MaxBlockSize;
 
     struct TLocalityEntry
     {

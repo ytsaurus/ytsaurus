@@ -20,7 +20,7 @@ void ValidateDataValueType(EValueType type)
         type != EValueType::Null)
     {
         THROW_ERROR_EXCEPTION("Invalid data value type %Qlv", type);
-    }       
+    }
 }
 
 void ValidateKeyValueType(EValueType type)
@@ -36,7 +36,7 @@ void ValidateKeyValueType(EValueType type)
         type != EValueType::Max)
     {
         THROW_ERROR_EXCEPTION("Invalid key value type %Qlv", type);
-    }       
+    }
 }
 
 void ValidateSchemaValueType(EValueType type)

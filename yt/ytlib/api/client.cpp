@@ -65,6 +65,7 @@
 
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/read_limit.h>
+#include <ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <ytlib/scheduler/scheduler_service_proxy.h>
 #include <ytlib/scheduler/job_prober_service_proxy.h>
@@ -76,6 +77,8 @@
 #include <ytlib/table_client/table_ypath_proxy.h>
 #include <ytlib/table_client/row_merger.h>
 #include <ytlib/table_client/row_base.h>
+
+#include <unordered_map>
 
 namespace NYT {
 namespace NApi {
@@ -322,22 +325,32 @@ private:
         auto tableMountCache = Connection_->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
-        return tableInfo->Sorted
-            ? SplitSortedTableFurther(tableId, ranges, std::move(rowBuffer))
-            : SplitUnsortedTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo));
+
+        if (!tableInfo->Sorted && !tableInfo->Dynamic) {
+            THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
+        }
+
+        return tableInfo->Dynamic
+            ? SplitDynamicTableFurther(tableId, ranges, std::move(rowBuffer), std::move(tableInfo))
+            : SplitStaticTableFurther(tableId, ranges, std::move(rowBuffer));
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitSortedTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer)
     {
+        std::vector<TReadRange> readRanges;
+        for (const auto& range : ranges) {
+            readRanges.emplace_back(TReadLimit(TOwningKey(range.first)), TReadLimit(TOwningKey(range.second)));
+        }
+
         // TODO(babenko): refactor and optimize
         TObjectServiceProxy proxy(MasterChannel_);
 
         // XXX(babenko): multicell
         auto req = TTableYPathProxy::Fetch(FromObjectId(tableId));
-        ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+        ToProto(req->mutable_ranges(), readRanges);
         req->set_fetch_all_meta_extensions(true);
 
         auto rsp = WaitFor(proxy.Execute(req))
@@ -347,8 +360,6 @@ private:
         nodeDirectory->MergeFrom(rsp->node_directory());
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
-
-        std::vector<std::pair<TDataSource, Stroka>> result;
 
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
@@ -367,30 +378,55 @@ private:
                 SetLowerBound(&chunkSpec, chunkLowerBound);
                 SetUpperBound(&chunkSpec, chunkUpperBound);
             }
-
-            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
-            if (replicas.empty()) {
-                auto objectId = GetObjectIdFromDataSplit(chunkSpec);
-                THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
-                    objectId);
-            }
-            auto replica = replicas[RandomNumber(replicas.size())];
-
-            auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
-
-            auto dataSource = TDataSource{
-                GetObjectIdFromDataSplit(chunkSpec),
-                TRowRange(rowBuffer->Capture(keyRange.first.Get()), rowBuffer->Capture(keyRange.second.Get()))};
-
-            const auto& descriptor = nodeDirectory->GetDescriptor(replica);
-            const auto& address = descriptor.GetAddressOrThrow(networkName);
-            result.emplace_back(dataSource, address);
         }
 
-        return result;
+        std::vector<std::pair<TDataSource, Stroka>> subsources;
+        for (const auto& range : ranges) {
+            auto lowerBound = range.first;
+            auto upperBound = range.second;
+
+            // Run binary search to find the relevant chunks.
+            auto startIt = std::lower_bound(
+                chunkSpecs.begin(),
+                chunkSpecs.end(),
+                lowerBound,
+                [] (const TDataSplit& chunkSpec, const TRow& key) {
+                    return GetUpperBoundFromDataSplit(chunkSpec) <= key;
+                });
+
+            for (auto it = startIt; it != chunkSpecs.end(); ++it) {
+                const auto& chunkSpec = *it;
+                auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
+
+                if (upperBound <= keyRange.first) {
+                    break;
+                }
+
+                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+                if (replicas.empty()) {
+                    auto objectId = GetObjectIdFromDataSplit(chunkSpec);
+                    THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
+                        objectId);
+                }
+
+                const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
+
+                TDataSource dataSource;
+                dataSource.Id = GetObjectIdFromDataSplit(chunkSpec);
+
+                dataSource.Range.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
+                dataSource.Range.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
+
+                const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
+                const auto& address = descriptor.GetAddressOrThrow(networkName);
+                subsources.emplace_back(dataSource, address);
+            }
+        }
+
+        return subsources;
     }
 
-    std::vector<std::pair<TDataSource, Stroka>> SplitUnsortedTableFurther(
+    std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
         TGuid tableId,
         const std::vector<TRowRange>& ranges,
         TRowBufferPtr rowBuffer,
@@ -1357,6 +1393,7 @@ private:
         fragment->RangeExpansionLimit = options.RangeExpansionLimit;
         fragment->VerboseLogging = options.VerboseLogging;
         fragment->EnableCodeCache = options.EnableCodeCache;
+        fragment->MaxSubqueries = options.MaxSubqueries;
 
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;

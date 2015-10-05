@@ -29,7 +29,7 @@ public:
 private:
     class TImpl;
     typedef TIntrusivePtr<TImpl> TImplPtr;
-    
+
     struct TData;
     typedef TIntrusivePtr<TData> TDataPtr;
 

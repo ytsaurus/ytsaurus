@@ -58,6 +58,13 @@ Stroka InferName(const TExpressionList& exprs, bool omitValues)
         }, ", ");
 }
 
+Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName)
+{
+    return tableName.empty()
+        ? Stroka(name)
+        : Format("%v.%v", tableName, name);
+}
+
 Stroka InferName(const TExpression* expr, bool omitValues)
 {
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
@@ -65,7 +72,7 @@ Stroka InferName(const TExpression* expr, bool omitValues)
             ? ToString("?")
             : LiteralValueToString(literalExpr->Value);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        return referenceExpr->ColumnName;
+        return FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
         Stroka result = functionExpr->FunctionName;
         result += "(";

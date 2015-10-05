@@ -171,7 +171,9 @@ public:
 
     TFuture<void> RotateChangelog(TEpochContextPtr epochContext);
 
-    void CommitMutations(TEpochContextPtr epochContext, TVersion version);
+    void CommitMutations(TEpochContextPtr epochContext, TVersion version, bool mayYield);
+
+    bool HasReadyMutations() const;
 
 private:
     friend class TUserLockGuard;
@@ -205,7 +207,11 @@ private:
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     std::atomic<TVersion> LoggedVersion_;
     std::atomic<TVersion> AutomatonVersion_;
+<<<<<<< HEAD
     std::atomic<TVersion> CommittedVersion_;
+=======
+    TVersion CommittedVersion_;
+>>>>>>> prestable/0.17.4
 
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
@@ -230,7 +236,7 @@ private:
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
-    void DoApplyMutation(TMutationContext* context, bool recovery);
+    void DoApplyMutation(TMutationContext* context);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();
@@ -241,10 +247,12 @@ private:
 
     void DoRotateChangelog();
 
-    void ApplyPendingMutations(TEpochContextPtr epochContext);
+    void ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield);
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();
+
+    bool IsRecovery();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

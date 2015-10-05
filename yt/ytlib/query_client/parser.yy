@@ -71,6 +71,7 @@
 %token KwOrderBy "keyword `ORDER BY`"
 %token KwAsc "keyword `ASC`"
 %token KwDesc "keyword `DESC`"
+%token KwLeft "keyword `LEFT`"
 %token KwAs "keyword `AS`"
 %token KwOn "keyword `ON`"
 
@@ -109,6 +110,7 @@
 %token Dot 46 "`.`"
 %token OpDivide 47 "`/`"
 
+
 %token OpLess 60 "`<`"
 %token OpLessOrEqual "`<=`"
 %token OpEqual 61 "`=`"
@@ -119,11 +121,12 @@
 %type <TTableDescriptor> table-descriptor
 
 %type <bool> is-desc
+%type <bool> is-left
 
 %type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
-%type <TExpressionList> named-expression
 
+%type <TOrderExpressionList> order-expr-list
 %type <TExpressionList> expression
 %type <TExpressionList> or-op-expr
 %type <TExpressionList> and-op-expr
@@ -138,6 +141,7 @@
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
 %type <TExpressionList> comma-expr
+
 %type <TNullable<TLiteralValue>> literal-value
 %type <TNullable<TLiteralValue>> const-value
 %type <TLiteralValueList> const-list
@@ -210,15 +214,26 @@ from-clause
 ;
 
 join-clause
-    : join-clause KwJoin table-descriptor[table] KwUsing identifier-list[fields]
+    : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields]
         {
-            head->first.As<TQuery>().Joins.emplace_back($table, $fields);
+            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $fields);
         }
-    | join-clause KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
+    | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs]
         {
-            head->first.As<TQuery>().Joins.emplace_back($table, $lhs, $rhs);
+            head->first.As<TQuery>().Joins.emplace_back($isLeft, $table, $lhs, $rhs);
         }
     |
+;
+
+is-left
+    : KwLeft
+        {
+            $$ = true;
+        }
+    |
+        {
+            $$ = false;
+        }
 ;
 
 where-clause
@@ -246,12 +261,23 @@ having-clause
 ;
 
 order-by-clause
-    : KwOrderBy identifier-list[fields] is-desc[isDesc]
+    : KwOrderBy order-expr-list[exprs]
         {
-            head->first.As<TQuery>().OrderFields = $fields;
-            head->first.As<TQuery>().IsDescendingOrder = $isDesc;
+            head->first.As<TQuery>().OrderExpressions = $exprs;
         }
     |
+;
+
+order-expr-list
+    : order-expr-list[list] Comma expression[expr] is-desc[isDesc]
+        {
+            $$.swap($list);
+            $$.emplace_back($expr, $isDesc);
+        }
+    | expression[expr] is-desc[isDesc]
+        {
+            $$.emplace_back($expr, $isDesc);
+        }
 ;
 
 is-desc
@@ -289,12 +315,10 @@ identifier-list
         }
 ;
 
-named-expression
-    : expression[expr]
-        {
-            $$ = $expr;
-        }
-    | expression[expr] KwAs Identifier[name]
+expression
+    : or-op-expr
+        { $$ = $1; }
+    | or-op-expr[expr] KwAs Identifier[name]
         {
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
@@ -305,11 +329,6 @@ named-expression
             }
             $$ = MakeExpr<TReferenceExpression>(@$, $name);
         }
-;
-
-expression
-    : or-op-expr
-        { $$ = $1; }
 ;
 
 or-op-expr
@@ -451,12 +470,12 @@ multiplicative-op
 ;
 
 comma-expr
-    : comma-expr[lhs] Comma named-expression[rhs]
+    : comma-expr[lhs] Comma expression[rhs]
         {
             $$ = $lhs;
             $$.insert($$.end(), $rhs.begin(), $rhs.end());
         }
-    | named-expression
+    | expression
         { $$ = $1; }
 ;
 
@@ -553,7 +572,6 @@ const-value
         }
     | literal-value[value]
         { $$ = $value; }
-
 ;
 
 const-list

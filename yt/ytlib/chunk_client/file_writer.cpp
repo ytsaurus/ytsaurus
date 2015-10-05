@@ -129,9 +129,10 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
 
     auto metaData = SerializeToProtoWithEnvelope(ChunkMeta_);
 
-    TChunkMetaHeader header;
+    TChunkMetaHeader_2 header;
     header.Signature = header.ExpectedSignature;
     header.Checksum = GetChecksum(metaData);
+    header.ChunkId = ChunkId_;
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 
@@ -160,7 +161,7 @@ TFuture<void> TFileWriter::Close(const NChunkClient::NProto::TChunkMeta& chunkMe
             << ex);
     }
 
-    ChunkInfo_.set_disk_space(DataSize_ + metaData.Size() + sizeof (TChunkMetaHeader));
+    ChunkInfo_.set_disk_space(DataSize_ + metaData.Size() + sizeof (TChunkMetaHeader_2));
 
     return VoidFuture;
 }

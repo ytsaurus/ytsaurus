@@ -59,7 +59,7 @@ protected:
         }
     };
 
-    struct TChunk 
+    struct TChunk
     {
         NProto::TChunkSpec Spec;
         i64 MemoryEstimate;
@@ -164,7 +164,7 @@ private:
 
     virtual void OnReaderBlocked() override;
 
-    virtual void OnReaderFinished() override; 
+    virtual void OnReaderFinished() override;
 
     virtual void OnError() override;
 

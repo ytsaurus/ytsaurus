@@ -35,7 +35,9 @@ def _working_dir(test_name):
     return os.path.join(path_to_test, "run")
 
 def _wait(predicate):
-    while not predicate():
+    for i in xrange(100):
+        if predicate():
+            break
         sleep(1.0)
 
 def _pytest_finalize_func(environment, process_call_args):

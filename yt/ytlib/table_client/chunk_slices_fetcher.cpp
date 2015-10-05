@@ -94,7 +94,7 @@ void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey));
 
         if (chunkDataSize < ChunkSliceSize_
-                || (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount)) == 0) {
+                || (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount) == 0)) {
             auto slice = CreateChunkSlice(
                 chunk,
                 GetKeyPrefix(minKey.Get(), keyColumnCount),
