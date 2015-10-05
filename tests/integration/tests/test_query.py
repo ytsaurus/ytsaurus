@@ -625,6 +625,7 @@ class TestQuery(YTEnvSetup):
         assert get("//tmp/t/@sorted")
 
         self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a = 0"), [{"a": 0, "b": 0}])
+        self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a in (0, 1)"), [{"a": i, "b": i} for i in (0,1)])
         self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a in (1, 3)"), [{"a": i, "b": i} for i in (1,3)])
         self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a in (4)"), [{"a": 4, "b": i} for i in (4,5)])
         self.assertItemsEqual(select_rows("a, b from [//tmp/t] where a > 0 and a < 3"), [{"a": i, "b": i} for i in (1,2)])

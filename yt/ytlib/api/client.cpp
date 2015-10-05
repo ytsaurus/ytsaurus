@@ -358,6 +358,24 @@ private:
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
+        // Remove duplicate chunks.
+        std::sort(chunkSpecs.begin(), chunkSpecs.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
+            return GetObjectIdFromDataSplit(lhs) < GetObjectIdFromDataSplit(rhs);
+        });
+        chunkSpecs.erase(
+            std::unique(
+                chunkSpecs.begin(),
+                chunkSpecs.end(),
+                [] (const TDataSplit& lhs, const TDataSplit& rhs) {
+                    return GetObjectIdFromDataSplit(lhs) == GetObjectIdFromDataSplit(rhs);
+                }),
+            chunkSpecs.end());
+
+        // Sort chunks by lower bound.
+        std::sort(chunkSpecs.begin(), chunkSpecs.end(), [] (const TDataSplit& lhs, const TDataSplit& rhs) {
+            return GetLowerBoundFromDataSplit(lhs) < GetLowerBoundFromDataSplit(rhs);
+        });
+
         const auto& networkName = Connection_->GetConfig()->NetworkName;
 
         for (auto& chunkSpec : chunkSpecs) {
