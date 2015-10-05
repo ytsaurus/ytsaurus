@@ -41,6 +41,9 @@ class TExecNode
      */
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
 
+    //! Last time when logging of jobs on node took place.
+    DEFINE_BYREF_RW_PROPERTY(TNullable<TInstant>, LastJobsLogTime);
+
     //! Controls heartbeat expiration.
     DEFINE_BYVAL_RW_PROPERTY(TLease, Lease);
 

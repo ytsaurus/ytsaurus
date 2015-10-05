@@ -142,9 +142,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        slot->Finalize();
-        Slots_[slot->GetIndex()].Reset();
-        --UsedSlotCount_;
+        slot->Finalize().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError&) {
+            VERIFY_THREAD_AFFINITY(ControlThread);
+
+            Slots_[slot->GetIndex()].Reset();
+            --UsedSlotCount_;
+        }).Via(Bootstrap_->GetControlInvoker()));
     }
 
 

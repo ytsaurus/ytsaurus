@@ -38,7 +38,7 @@ public:
     /*!
      *  All subsequent #Submit calls are silently ignored.
      */
-    static void Shutdown();
+    static void StaticShutdown();
 
 private:
     class TImpl;

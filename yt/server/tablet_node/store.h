@@ -31,9 +31,6 @@ struct IStore
     virtual EStoreState GetStoreState() const = 0;
     virtual void SetStoreState(EStoreState state) = 0;
 
-    virtual EStoreRemovalState GetRemovalState() const = 0;
-    virtual void SetRemovalState(EStoreRemovalState state) = 0;
-
     TDynamicMemoryStorePtr AsDynamicMemory();
     TChunkStorePtr AsChunk();
 
