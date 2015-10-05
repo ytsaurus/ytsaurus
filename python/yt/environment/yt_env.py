@@ -738,7 +738,7 @@ class YTEnv(object):
             self.config_paths[console_driver_name].append(config_path)
             self.log_paths[console_driver_name].append(config["logging"]["writers"]["info"]["file_name"])
 
-    def _get_proxy_config(self, proxy_name, proxy_port, proxy_dir):
+    def _get_proxy_config(self, proxy_name, proxy_dir, proxy_port):
         if self._load_existing_environment:
             config_path = os.path.join(self.path_to_run, proxy_name, "proxy_config.json")
 
