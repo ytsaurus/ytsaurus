@@ -358,17 +358,11 @@ private:
 
         auto chunkSpecs = FromProto<NChunkClient::NProto::TChunkSpec>(rsp->chunks());
 
-        std::vector<std::pair<TDataSource, Stroka>> result;
-
         const auto& networkName = Connection_->GetConfig()->NetworkName;
-
-        std::unordered_map<int, ui64> nodeDataSize;
 
         for (auto& chunkSpec : chunkSpecs) {
             auto chunkKeyColumns = FindProtoExtension<TKeyColumnsExt>(chunkSpec.chunk_meta().extensions());
             auto chunkSchema = FindProtoExtension<TTableSchemaExt>(chunkSpec.chunk_meta().extensions());
-            auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-            auto chunkSize = miscExt.uncompressed_data_size();
 
             // TODO(sandello): One day we should validate consistency.
             // Now we just check we do _not_ have any of these.
@@ -381,43 +375,52 @@ private:
                 SetLowerBound(&chunkSpec, chunkLowerBound);
                 SetUpperBound(&chunkSpec, chunkUpperBound);
             }
-
-            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
-            if (replicas.empty()) {
-                auto objectId = GetObjectIdFromDataSplit(chunkSpec);
-                THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
-                    objectId);
-            }
-
-            // Select least busy replica.
-            TChunkReplica selectedReplica;
-            {
-                ui64 minNodeDataSize = std::numeric_limits<ui64>::max();
-
-                for (const auto& replica : replicas) {
-                    auto nodeId = replica.GetNodeId();
-                    auto curNodeDataSize = nodeDataSize[nodeId];
-                    if (curNodeDataSize < minNodeDataSize) {
-                        selectedReplica = replica;
-                        minNodeDataSize = curNodeDataSize;
-                    }
-                }
-
-                nodeDataSize[selectedReplica.GetNodeId()] += chunkSize;
-            }
-
-            auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
-
-            auto dataSource = TDataSource{
-                GetObjectIdFromDataSplit(chunkSpec),
-                TRowRange(rowBuffer->Capture(keyRange.first.Get()), rowBuffer->Capture(keyRange.second.Get()))};
-
-            const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
-            const auto& address = descriptor.GetAddressOrThrow(networkName);
-            result.emplace_back(dataSource, address);
         }
 
-        return result;
+        std::vector<std::pair<TDataSource, Stroka>> subsources;
+        for (const auto& range : ranges) {
+            auto lowerBound = range.first;
+            auto upperBound = range.second;
+
+            // Run binary search to find the relevant chunks.
+            auto startIt = std::lower_bound(
+                chunkSpecs.begin(),
+                chunkSpecs.end(),
+                lowerBound,
+                [] (const TDataSplit& chunkSpec, const TRow& key) {
+                    return GetUpperBoundFromDataSplit(chunkSpec) <= key;
+                });
+
+            for (auto it = startIt; it != chunkSpecs.end(); ++it) {
+                const auto& chunkSpec = *it;
+                auto keyRange = GetBothBoundsFromDataSplit(chunkSpec);
+
+                if (upperBound <= keyRange.first) {
+                    break;
+                }
+
+                auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+                if (replicas.empty()) {
+                    auto objectId = GetObjectIdFromDataSplit(chunkSpec);
+                    THROW_ERROR_EXCEPTION("No alive replicas for chunk %v",
+                        objectId);
+                }
+
+                const TChunkReplica& selectedReplica = replicas[RandomNumber(replicas.size())];
+
+                TDataSource dataSource;
+                dataSource.Id = GetObjectIdFromDataSplit(chunkSpec);
+
+                dataSource.Range.first = rowBuffer->Capture(std::max(lowerBound, keyRange.first.Get()));
+                dataSource.Range.second = rowBuffer->Capture(std::min(upperBound, keyRange.second.Get()));
+
+                const auto& descriptor = nodeDirectory->GetDescriptor(selectedReplica);
+                const auto& address = descriptor.GetAddressOrThrow(networkName);
+                subsources.emplace_back(dataSource, address);
+            }
+        }
+
+        return subsources;
     }
 
     std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
