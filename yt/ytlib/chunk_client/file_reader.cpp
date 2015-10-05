@@ -97,6 +97,7 @@ void TFileReader::Open()
     BlockCount_ = BlocksExt_.blocks_size();
 
     DataFile_.reset(new TFile(FileName_, OpenExisting | RdOnly | CloseOnExec));
+    DataSize_ = DataFile_->GetLength();
     Opened_ = true;
 }
 
