@@ -387,7 +387,7 @@ class TestOperations(object):
 
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
-        op = yt.run_map("sleep 10; cat", table, table, sync=False)
+        op = yt.run_map("sleep 15; cat", table, table, sync=False)
         op.abort()
         assert op.get_state() == "aborted"
 
