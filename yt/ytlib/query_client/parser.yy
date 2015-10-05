@@ -552,11 +552,11 @@ const-value
             switch ($op) {
                 case EUnaryOp::Minus: {
                     if (auto data = $value->TryAs<i64>()) {
-                        $$ = i64(0) - *data;
+                        $$ = -*data;
                     } else if (auto data = $value->TryAs<ui64>()) {
-                        $$ = ui64(0) - *data;
+                        $$ = -*data;
                     } else if (auto data = $value->TryAs<double>()) {
-                        $$ = double(0) - *data;
+                        $$ = -*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Negation of unsupported type");
                     }
@@ -565,6 +565,16 @@ const-value
                 case EUnaryOp::Plus:
                     $$ = $value;
                     break;
+                case EUnaryOp::OpTilde: {
+                    if (auto data = $value->TryAs<i64>()) {
+                        $$ = ~*data;
+                    } else if (auto data = $value->TryAs<ui64>()) {
+                        $$ = ~*data;
+                    } else {
+                        THROW_ERROR_EXCEPTION("Bitwise negation of unsupported type");
+                    }
+                    break;
+                }
                 default:
                     YUNREACHABLE();
             }
