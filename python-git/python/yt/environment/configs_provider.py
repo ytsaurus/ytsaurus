@@ -343,8 +343,8 @@ class ConfigsProvider_18(ConfigsProvider):
                     config["secondary_masters"][index]["addresses"] = addresses[index + 1]
 
                 config["timestamp_provider"]["addresses"] = addresses[0]
-                config["changelogs"]["path"] = master_dirs[cell_index][master_index]
-                config["snapshots"]["path"] = master_dirs[cell_index][master_index]
+                config["changelogs"]["path"] = os.path.join(master_dirs[cell_index][master_index], "changelogs")
+                config["snapshots"]["path"] = os.path.join(master_dirs[cell_index][master_index], "snapshots")
                 config["logging"] = init_logging(config["logging"], master_dirs[cell_index][master_index],
                                                  "master-" + str(master_index), self.enable_debug_logging)
 
