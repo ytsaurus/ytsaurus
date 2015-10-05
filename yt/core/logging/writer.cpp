@@ -154,6 +154,7 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
             Disabled_.store(true);
         } else {
             if (Disabled_.load()) {
+                ReopenFile();
                 LOG_INFO("Logging enabled: space check passed");
             }
             Disabled_.store(false);
