@@ -527,15 +527,8 @@ void TServiceBase::HandleRequest(
         if (runtimeInfo->QueueSizeCounter.Current > runtimeInfo->Descriptor.MaxQueueSize) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::Unavailable,
-<<<<<<< HEAD
-                "Request queue limit %v reached for method %v:%v",
-                runtimeInfo->Descriptor.MaxQueueSize,
-                ServiceId_.ServiceName,
-                runtimeInfo->Descriptor.Method);
-=======
                 "Request queue limit reached")
                 << TErrorAttribute("limit", runtimeInfo->Descriptor.MaxQueueSize);
->>>>>>> prestable/0.17.3
         }
     } catch (const std::exception& ex) {
         auto error = TError(ex)
