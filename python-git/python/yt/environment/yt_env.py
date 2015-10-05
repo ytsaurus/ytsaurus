@@ -20,7 +20,9 @@ from collections import defaultdict
 try:
     import subprocess32 as subprocess
 except ImportError:
-    print >>sys.stderr, "Environment may not work properly on python of version <= 2.6"
+    if sys.version_info[:2] <= (2, 6):
+        print >>sys.stderr, "Environment may not work properly on python of version <= 2.6 " \
+                            "because subprocess32 library is not installed."
     import subprocess
 
 GEN_PORT_ATTEMPTS = 10
@@ -63,7 +65,7 @@ def _get_ytserver_version():
         raise YtError("Failed to start ytserver. Make sure that ytserver binary is installed")
     # Output example: "\nytserver  version: 0.17.3-unknown~debug~0+local\n\n"
     output = subprocess.check_output(["ytserver", "--version"])
-    return output.split(":", 1)[1].split("-", 1)[0]
+    return output.split(":", 1)[1].strip()
 
 def _config_safe_get(config, config_path, key):
     d = config
@@ -143,7 +145,10 @@ class YTEnv(object):
         self._all_processes = {}
         self._kill_previously_run_services()
 
-        self._ytserver_version = _get_ytserver_version()
+        ytserver_version_long = _get_ytserver_version()
+        logger.info("Logging started (ytserver version: %s)", ytserver_version_long)
+
+        self._ytserver_version = ytserver_version_long.split("-", 1)[0].strip()
 
         self._run_all(self.NUM_MASTERS,
                       self.NUM_SECONDARY_MASTER_CELLS,
