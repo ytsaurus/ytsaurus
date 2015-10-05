@@ -228,7 +228,9 @@ private:
 
             auto keySize = fragment->Query->KeyColumnsCount;
 
-            if (keySize == lowerBound.GetCount()  &&
+            //TODO(savrus): lookup for chunk source
+            if (TypeFromId(source.Id) == EObjectType::Tablet &&
+                keySize == lowerBound.GetCount()  &&
                 keySize + 1 == upperBound.GetCount() &&
                 upperBound[keySize].Type == EValueType::Max &&
                 CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
