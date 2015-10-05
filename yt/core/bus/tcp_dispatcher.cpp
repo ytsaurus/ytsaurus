@@ -2,6 +2,8 @@
 #include "tcp_dispatcher.h"
 #include "tcp_dispatcher_impl.h"
 
+#include <core/misc/singleton.h>
+
 #include <core/profiling/profile_manager.h>
 
 namespace NYT {
@@ -60,7 +62,14 @@ TTcpDispatcher::~TTcpDispatcher()
 
 TTcpDispatcher* TTcpDispatcher::Get()
 {
-    return Singleton<TTcpDispatcher>();
+    return TSingletonWithFlag<TTcpDispatcher>::Get();
+}
+
+void TTcpDispatcher::StaticShutdown()
+{
+    if (TSingletonWithFlag<TTcpDispatcher>::WasCreated()) {
+        TSingletonWithFlag<TTcpDispatcher>::Get()->Shutdown();
+    }
 }
 
 void TTcpDispatcher::Shutdown()

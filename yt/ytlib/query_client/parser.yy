@@ -110,6 +110,7 @@
 %token Dot 46 "`.`"
 %token OpDivide 47 "`/`"
 
+
 %token OpLess 60 "`<`"
 %token OpLessOrEqual "`<=`"
 %token OpEqual 61 "`=`"
@@ -124,6 +125,7 @@
 
 %type <TReferenceExpressionPtr> qualified-identifier
 %type <TIdentifierList> identifier-list
+<<<<<<< HEAD
 
 %type <TOrderExpressionList> order-expr-list
 %type <TExpressionList> expression
@@ -140,6 +142,21 @@
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
 %type <TExpressionList> comma-expr
+=======
+%type <TNamedExpressionList> named-expression-list
+%type <TNamedExpression> named-expression
+
+%type <TExpressionPtr> expression
+%type <TExpressionPtr> not-op-expr
+%type <TExpressionPtr> or-op-expr
+%type <TExpressionPtr> and-op-expr
+%type <TExpressionPtr> relational-op-expr
+%type <TExpressionPtr> multiplicative-op-expr
+%type <TExpressionPtr> additive-op-expr
+%type <TExpressionPtr> unary-expr
+%type <TExpressionPtr> atomic-expr
+%type <TExpressionPtr> comma-expr
+>>>>>>> prestable/0.17.3
 %type <TNullable<TLiteralValue>> literal-value
 %type <TNullable<TLiteralValue>> const-value
 %type <TLiteralValueList> const-list
@@ -525,7 +542,11 @@ atomic-expr
         }
     | literal-value[value]
         {
+<<<<<<< HEAD
             $$ = MakeExpr<TLiteralExpression>(@$, *$value);
+=======
+            $$ = New<TLiteralExpression>(@$, *$value);
+>>>>>>> prestable/0.17.3
         }
 ;
 
@@ -542,6 +563,7 @@ literal-value
         { $$ = false; }
     | KwTrue
         { $$ = true; }
+<<<<<<< HEAD
 ;
 
 const-value
@@ -573,6 +595,39 @@ const-value
 
 ;
 
+=======
+;
+
+const-value
+    : unary-op[op] literal-value[value]
+        {
+            switch ($op) {
+                case EUnaryOp::Minus: {
+                    if (auto data = $value->TryAs<i64>()) {
+                        $$ = i64(0) - *data;
+                    } else if (auto data = $value->TryAs<ui64>()) {
+                        $$ = ui64(0) - *data;
+                    } else if (auto data = $value->TryAs<double>()) {
+                        $$ = double(0) - *data;
+                    } else {
+                        THROW_ERROR_EXCEPTION("Negation of unsupported type");
+                    }
+                    break;
+                }
+                case EUnaryOp::Plus:
+                    $$ = $value;
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+
+        }
+    | literal-value[value]
+        { $$ = $value; }
+
+;
+
+>>>>>>> prestable/0.17.3
 const-list
     : const-list[as] Comma const-value[a]
         {

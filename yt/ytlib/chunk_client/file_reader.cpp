@@ -10,6 +10,26 @@ using namespace NChunkClient::NProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+template <class T>
+void ReadHeader(
+    const TRef& metaFileBlobRef,
+    const Stroka& fileName,
+    TChunkMetaHeader_2* metaHeader,
+    TRef* metaBlobRef)
+{
+    if (metaFileBlobRef.Size() < sizeof(T)) {
+        THROW_ERROR_EXCEPTION("Chunk meta file %v is too short: at least %v bytes expected",
+            fileName,
+            sizeof(T));
+    }
+    *static_cast<T*>(metaHeader) = *reinterpret_cast<const T*>(metaFileBlobRef.Begin());
+    *metaBlobRef = metaFileBlobRef.Slice(sizeof(T), metaFileBlobRef.Size());
+}
+
+} // namespace
+
 TFileReader::TFileReader(
     const TChunkId& chunkId,
     const Stroka& fileName,
@@ -28,6 +48,7 @@ void TFileReader::Open()
         metaFileName,
         OpenExisting | RdOnly | Seq | CloseOnExec);
 
+<<<<<<< HEAD
     MetaSize_ = metaFile.GetLength();
     TBufferedFileInput metaInput(metaFile);
 
@@ -38,23 +59,57 @@ void TFileReader::Open()
             FileName_,
             TChunkMetaHeader::ExpectedSignature,
             metaHeader.Signature);
-    }
+=======
+    TBufferedFileInput metaFileInput(metaFile);
+    auto metaFileBlob = metaFileInput.ReadAll();
+    auto metaFileBlobRef = TRef::FromString(metaFileBlob);
 
-    auto metaBlob = metaInput.ReadAll();
-    auto metaBlobRef = TRef::FromString(metaBlob);
+    TChunkMetaHeader_2 metaHeader;
+    TRef metaBlobRef;
+    const auto* metaHeaderBase = reinterpret_cast<const TChunkMetaHeaderBase*>(metaFileBlobRef.Begin());
+    switch (metaHeaderBase->Signature) {
+        case TChunkMetaHeader_1::ExpectedSignature:
+            ReadHeader<TChunkMetaHeader_1>(metaFileBlobRef, metaFileName, &metaHeader, &metaBlobRef);
+            metaHeader.ChunkId = ChunkId_;
+            break;
+
+        case TChunkMetaHeader_2::ExpectedSignature:
+            ReadHeader<TChunkMetaHeader_2>(metaFileBlobRef, metaFileName, &metaHeader, &metaBlobRef);
+            break;
+
+        default:
+            THROW_ERROR_EXCEPTION("Incorrect header signature %x in chunk meta file %v",
+                metaHeaderBase->Signature,
+                FileName_);
+>>>>>>> prestable/0.17.3
+    }
 
     auto checksum = GetChecksum(metaBlobRef);
     if (checksum != metaHeader.Checksum) {
+<<<<<<< HEAD
         THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %Qv: expected %v, actual %v",
             FileName_,
+=======
+        THROW_ERROR_EXCEPTION("Incorrect checksum in chunk meta file %v: expected %v, actual %v",
+            metaFileName,
+>>>>>>> prestable/0.17.3
             metaHeader.Checksum,
             checksum);
     }
 
+    if (ChunkId_ != NullChunkId && metaHeader.ChunkId != ChunkId_) {
+        THROW_ERROR_EXCEPTION("Invalid chunk id in meta file %v: expected %v, actual %v",
+            metaFileName,
+            ChunkId_,
+            metaHeader.ChunkId);
+    }
+
     if (!TryDeserializeFromProtoWithEnvelope(&Meta_, metaBlobRef)) {
         THROW_ERROR_EXCEPTION("Failed to parse chunk meta file %v",
-            FileName_);
+            metaFileName);
     }
+
+    MetaSize_ = metaBlobRef.Size();
 
     BlocksExt_ = GetProtoExtension<TBlocksExt>(Meta_.extensions());
     BlockCount_ = BlocksExt_.blocks_size();

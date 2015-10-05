@@ -52,6 +52,7 @@ Stroka InferName(const TExpressionList& exprs, bool omitValues)
             expr->As<TFunctionExpression>();
     };
 
+<<<<<<< HEAD
     return JoinToString(exprs, [&] (const TExpressionPtr& expr) {
             auto name = InferName(expr.Get(), omitValues);
             return canOmitParenthesis(expr.Get()) ? name : "(" + name + ")";
@@ -71,6 +72,12 @@ Stroka InferName(const TExpression* expr, bool omitValues)
         return omitValues
             ? ToString("?")
             : LiteralValueToString(literalExpr->Value);
+=======
+    if (auto commaExpr = expr->As<TCommaExpression>()) {
+        return InferName(commaExpr->Lhs.Get()) + ", " + InferName(commaExpr->Rhs.Get());
+    } else if (auto literalExpr = expr->As<TLiteralExpression>()) {
+        return LiteralValueToString(literalExpr->Value);
+>>>>>>> prestable/0.17.3
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
         return FormatColumn(referenceExpr->ColumnName, referenceExpr->TableName);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
@@ -97,6 +104,11 @@ Stroka InferName(const TExpression* expr, bool omitValues)
                 if (i) {
                     result += ", ";
                 }
+<<<<<<< HEAD
+=======
+                result += LiteralValueToString(inExpr->Values[i][j]);
+            }
+>>>>>>> prestable/0.17.3
 
                 if (inExpr->Values[i].size() > 1) {
                     result += "(";

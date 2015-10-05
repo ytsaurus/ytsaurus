@@ -47,6 +47,11 @@ struct TExpression
 
     const EValueType Type;
 
+<<<<<<< HEAD
+=======
+    Stroka GetName() const;
+
+>>>>>>> prestable/0.17.3
     template <class TDerived>
     const TDerived* As() const
     {

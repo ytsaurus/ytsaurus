@@ -1,6 +1,7 @@
 #include "dispatcher.h"
 
 #include <core/misc/lazy_ptr.h>
+#include <core/misc/singleton.h>
 
 #include <core/concurrency/action_queue.h>
 
@@ -60,7 +61,14 @@ TDispatcher::~TDispatcher()
 
 TDispatcher* TDispatcher::Get()
 {
-    return Singleton<TDispatcher>();
+    return TSingletonWithFlag<TDispatcher>::Get();
+}
+
+void TDispatcher::StaticShutdown()
+{
+    if (TSingletonWithFlag<TDispatcher>::WasCreated()) {
+        TSingletonWithFlag<TDispatcher>::Get()->Shutdown();
+    }
 }
 
 void TDispatcher::Configure(int poolSize)
