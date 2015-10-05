@@ -20,6 +20,8 @@ public:
 
     static TLogManager* Get();
 
+    static void StaticShutdown();
+
     void Configure(NYTree::INodePtr node);
     void Configure(const Stroka& fileName, const NYPath::TYPath& path);
     void Configure(TLogConfigPtr&& config);

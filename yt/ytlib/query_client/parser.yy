@@ -110,6 +110,7 @@
 %token Dot 46 "`.`"
 %token OpDivide 47 "`/`"
 
+
 %token OpLess 60 "`<`"
 %token OpLessOrEqual "`<=`"
 %token OpEqual 61 "`=`"
@@ -140,6 +141,7 @@
 %type <TExpressionList> unary-expr
 %type <TExpressionList> atomic-expr
 %type <TExpressionList> comma-expr
+
 %type <TNullable<TLiteralValue>> literal-value
 %type <TNullable<TLiteralValue>> const-value
 %type <TLiteralValueList> const-list
@@ -570,7 +572,6 @@ const-value
         }
     | literal-value[value]
         { $$ = $value; }
-
 ;
 
 const-list

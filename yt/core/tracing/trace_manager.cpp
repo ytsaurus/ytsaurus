@@ -9,6 +9,7 @@
 
 #include <core/misc/address.h>
 #include <core/misc/lock_free.h>
+#include <core/misc/singleton.h>
 
 #include <core/rpc/bus_channel.h>
 
@@ -294,7 +295,14 @@ TTraceManager::~TTraceManager()
 
 TTraceManager* TTraceManager::Get()
 {
-    return Singleton<TTraceManager>();
+    return TSingletonWithFlag<TTraceManager>::Get();
+}
+
+void TTraceManager::StaticShutdown()
+{
+    if (TSingletonWithFlag<TTraceManager>::WasCreated()) {
+       TSingletonWithFlag<TTraceManager>::Get()->Shutdown();
+    }
 }
 
 void TTraceManager::Configure(NYTree::INodePtr node, const NYPath::TYPath& path)
