@@ -1498,10 +1498,10 @@ public:
                         .EndMap();
                 });
             for (auto& pair : OperationToElement) {
-                auto operation = pair.first;
+                auto operationId = pair.first;
                 LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    GetOperationLoggingProgress(operation),
-                    operation->GetId());
+                    GetOperationLoggingProgress(operationId),
+                    operationId);
             }
             LastLogTime = now;
         }

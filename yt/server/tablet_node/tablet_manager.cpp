@@ -1747,6 +1747,8 @@ private:
                 return EMemoryCategory::TabletDynamic;
             case EStoreType::Chunk:
                 return EMemoryCategory::TabletStatic;
+            default:
+                YUNREACHABLE();
         }
     }
 
