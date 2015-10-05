@@ -271,8 +271,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TLiteralValueList > (other.value);
         break;
 
+<<<<<<< HEAD
       case 93: // const-tuple-list
         value.copy< TLiteralValueTupleList > (other.value);
+=======
+      case 76: // const-list
+      case 77: // const-tuple
+        value.copy< TLiteralValueList > (other.value);
+        break;
+
+      case 78: // const-tuple-list
+        value.copy< TLiteralValueTupleList > (other.value);
+        break;
+
+      case 59: // named-expression
+        value.copy< TNamedExpression > (other.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 89: // literal-value
@@ -280,14 +294,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TNullable<TLiteralValue> > (other.value);
         break;
 
+<<<<<<< HEAD
       case 66: // order-expr-list
         value.copy< TOrderExpressionList > (other.value);
+=======
+      case 74: // literal-value
+      case 75: // const-value
+        value.copy< TNullable<TLiteralValue> > (other.value);
+        break;
+
+      case 52: // select-clause-impl
+        value.copy< TNullableNamedExpressionList > (other.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 87: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (other.value);
         break;
 
+<<<<<<< HEAD
       case 27: // "identifier"
         value.copy< TStringBuf > (other.value);
         break;
@@ -302,6 +327,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 30: // "double literal"
+=======
+      case 25: // "double literal"
+>>>>>>> prestable/0.17.3
         value.copy< double > (other.value);
         break;
 
@@ -370,8 +398,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TLiteralValueList > (v);
         break;
 
+<<<<<<< HEAD
       case 93: // const-tuple-list
         value.copy< TLiteralValueTupleList > (v);
+=======
+      case 76: // const-list
+      case 77: // const-tuple
+        value.copy< TLiteralValueList > (v);
+        break;
+
+      case 78: // const-tuple-list
+        value.copy< TLiteralValueTupleList > (v);
+        break;
+
+      case 59: // named-expression
+        value.copy< TNamedExpression > (v);
+>>>>>>> prestable/0.17.3
         break;
 
       case 89: // literal-value
@@ -379,14 +421,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TNullable<TLiteralValue> > (v);
         break;
 
+<<<<<<< HEAD
       case 66: // order-expr-list
         value.copy< TOrderExpressionList > (v);
+=======
+      case 74: // literal-value
+      case 75: // const-value
+        value.copy< TNullable<TLiteralValue> > (v);
+        break;
+
+      case 52: // select-clause-impl
+        value.copy< TNullableNamedExpressionList > (v);
+>>>>>>> prestable/0.17.3
         break;
 
       case 87: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (v);
         break;
 
+<<<<<<< HEAD
       case 27: // "identifier"
         value.copy< TStringBuf > (v);
         break;
@@ -401,6 +454,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 30: // "double literal"
+=======
+      case 25: // "double literal"
+>>>>>>> prestable/0.17.3
         value.copy< double > (v);
         break;
 
@@ -477,13 +533,18 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   {}
 
   template <typename Base>
+<<<<<<< HEAD
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l)
+=======
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l)
+>>>>>>> prestable/0.17.3
     : Base (t)
     , value (v)
     , location (l)
   {}
 
   template <typename Base>
+<<<<<<< HEAD
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TOrderExpressionList v, const location_type& l)
     : Base (t)
     , value (v)
@@ -492,27 +553,42 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   template <typename Base>
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l)
+=======
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNamedExpressionList v, const location_type& l)
+>>>>>>> prestable/0.17.3
     : Base (t)
     , value (v)
     , location (l)
   {}
 
   template <typename Base>
+<<<<<<< HEAD
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l)
+=======
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l)
+>>>>>>> prestable/0.17.3
     : Base (t)
     , value (v)
     , location (l)
   {}
 
   template <typename Base>
+<<<<<<< HEAD
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TTableDescriptor v, const location_type& l)
+=======
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l)
+>>>>>>> prestable/0.17.3
     : Base (t)
     , value (v)
     , location (l)
   {}
 
   template <typename Base>
+<<<<<<< HEAD
   TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const bool v, const location_type& l)
+=======
+  TParser::basic_symbol<Base>::basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l)
+>>>>>>> prestable/0.17.3
     : Base (t)
     , value (v)
     , location (l)
@@ -595,8 +671,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.template destroy< TLiteralValueList > ();
         break;
 
+<<<<<<< HEAD
       case 93: // const-tuple-list
         value.template destroy< TLiteralValueTupleList > ();
+=======
+      case 76: // const-list
+      case 77: // const-tuple
+        value.template destroy< TLiteralValueList > ();
+        break;
+
+      case 78: // const-tuple-list
+        value.template destroy< TLiteralValueTupleList > ();
+        break;
+
+      case 59: // named-expression
+        value.template destroy< TNamedExpression > ();
+>>>>>>> prestable/0.17.3
         break;
 
       case 89: // literal-value
@@ -604,14 +694,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.template destroy< TNullable<TLiteralValue> > ();
         break;
 
+<<<<<<< HEAD
       case 66: // order-expr-list
         value.template destroy< TOrderExpressionList > ();
+=======
+      case 74: // literal-value
+      case 75: // const-value
+        value.template destroy< TNullable<TLiteralValue> > ();
+        break;
+
+      case 52: // select-clause-impl
+        value.template destroy< TNullableNamedExpressionList > ();
+>>>>>>> prestable/0.17.3
         break;
 
       case 87: // qualified-identifier
         value.template destroy< TReferenceExpressionPtr > ();
         break;
 
+<<<<<<< HEAD
       case 27: // "identifier"
         value.template destroy< TStringBuf > ();
         break;
@@ -626,6 +727,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 30: // "double literal"
+=======
+      case 25: // "double literal"
+>>>>>>> prestable/0.17.3
         value.template destroy< double > ();
         break;
 
@@ -691,8 +795,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TLiteralValueList > (s.value);
         break;
 
+<<<<<<< HEAD
       case 93: // const-tuple-list
         value.move< TLiteralValueTupleList > (s.value);
+=======
+      case 76: // const-list
+      case 77: // const-tuple
+        value.move< TLiteralValueList > (s.value);
+        break;
+
+      case 78: // const-tuple-list
+        value.move< TLiteralValueTupleList > (s.value);
+        break;
+
+      case 59: // named-expression
+        value.move< TNamedExpression > (s.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 89: // literal-value
@@ -700,14 +818,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TNullable<TLiteralValue> > (s.value);
         break;
 
+<<<<<<< HEAD
       case 66: // order-expr-list
         value.move< TOrderExpressionList > (s.value);
+=======
+      case 74: // literal-value
+      case 75: // const-value
+        value.move< TNullable<TLiteralValue> > (s.value);
+        break;
+
+      case 52: // select-clause-impl
+        value.move< TNullableNamedExpressionList > (s.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 87: // qualified-identifier
         value.move< TReferenceExpressionPtr > (s.value);
         break;
 
+<<<<<<< HEAD
       case 27: // "identifier"
         value.move< TStringBuf > (s.value);
         break;
@@ -722,6 +851,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 30: // "double literal"
+=======
+      case 25: // "double literal"
+>>>>>>> prestable/0.17.3
         value.move< double > (s.value);
         break;
 
@@ -1155,8 +1287,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TLiteralValueList > (that.value);
         break;
 
+<<<<<<< HEAD
       case 93: // const-tuple-list
         value.move< TLiteralValueTupleList > (that.value);
+=======
+      case 76: // const-list
+      case 77: // const-tuple
+        value.move< TLiteralValueList > (that.value);
+        break;
+
+      case 78: // const-tuple-list
+        value.move< TLiteralValueTupleList > (that.value);
+        break;
+
+      case 59: // named-expression
+        value.move< TNamedExpression > (that.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 89: // literal-value
@@ -1164,14 +1310,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.move< TNullable<TLiteralValue> > (that.value);
         break;
 
+<<<<<<< HEAD
       case 66: // order-expr-list
         value.move< TOrderExpressionList > (that.value);
+=======
+      case 74: // literal-value
+      case 75: // const-value
+        value.move< TNullable<TLiteralValue> > (that.value);
+        break;
+
+      case 52: // select-clause-impl
+        value.move< TNullableNamedExpressionList > (that.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 87: // qualified-identifier
         value.move< TReferenceExpressionPtr > (that.value);
         break;
 
+<<<<<<< HEAD
       case 27: // "identifier"
         value.move< TStringBuf > (that.value);
         break;
@@ -1186,6 +1343,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 30: // "double literal"
+=======
+      case 25: // "double literal"
+>>>>>>> prestable/0.17.3
         value.move< double > (that.value);
         break;
 
@@ -1252,8 +1412,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TLiteralValueList > (that.value);
         break;
 
+<<<<<<< HEAD
       case 93: // const-tuple-list
         value.copy< TLiteralValueTupleList > (that.value);
+=======
+      case 76: // const-list
+      case 77: // const-tuple
+        value.copy< TLiteralValueList > (that.value);
+        break;
+
+      case 78: // const-tuple-list
+        value.copy< TLiteralValueTupleList > (that.value);
+        break;
+
+      case 59: // named-expression
+        value.copy< TNamedExpression > (that.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 89: // literal-value
@@ -1261,14 +1435,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         value.copy< TNullable<TLiteralValue> > (that.value);
         break;
 
+<<<<<<< HEAD
       case 66: // order-expr-list
         value.copy< TOrderExpressionList > (that.value);
+=======
+      case 74: // literal-value
+      case 75: // const-value
+        value.copy< TNullable<TLiteralValue> > (that.value);
+        break;
+
+      case 52: // select-clause-impl
+        value.copy< TNullableNamedExpressionList > (that.value);
+>>>>>>> prestable/0.17.3
         break;
 
       case 87: // qualified-identifier
         value.copy< TReferenceExpressionPtr > (that.value);
         break;
 
+<<<<<<< HEAD
       case 27: // "identifier"
         value.copy< TStringBuf > (that.value);
         break;
@@ -1283,6 +1468,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 30: // "double literal"
+=======
+      case 25: // "double literal"
+>>>>>>> prestable/0.17.3
         value.copy< double > (that.value);
         break;
 
@@ -1564,8 +1752,22 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         yylhs.value.build< TLiteralValueList > ();
         break;
 
+<<<<<<< HEAD
       case 93: // const-tuple-list
         yylhs.value.build< TLiteralValueTupleList > ();
+=======
+      case 76: // const-list
+      case 77: // const-tuple
+        yylhs.value.build< TLiteralValueList > ();
+        break;
+
+      case 78: // const-tuple-list
+        yylhs.value.build< TLiteralValueTupleList > ();
+        break;
+
+      case 59: // named-expression
+        yylhs.value.build< TNamedExpression > ();
+>>>>>>> prestable/0.17.3
         break;
 
       case 89: // literal-value
@@ -1573,14 +1775,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         yylhs.value.build< TNullable<TLiteralValue> > ();
         break;
 
+<<<<<<< HEAD
       case 66: // order-expr-list
         yylhs.value.build< TOrderExpressionList > ();
+=======
+      case 74: // literal-value
+      case 75: // const-value
+        yylhs.value.build< TNullable<TLiteralValue> > ();
+        break;
+
+      case 52: // select-clause-impl
+        yylhs.value.build< TNullableNamedExpressionList > ();
+>>>>>>> prestable/0.17.3
         break;
 
       case 87: // qualified-identifier
         yylhs.value.build< TReferenceExpressionPtr > ();
         break;
 
+<<<<<<< HEAD
       case 27: // "identifier"
         yylhs.value.build< TStringBuf > ();
         break;
@@ -1595,6 +1808,9 @@ namespace NYT { namespace NQueryClient { namespace NAst {
         break;
 
       case 30: // "double literal"
+=======
+      case 25: // "double literal"
+>>>>>>> prestable/0.17.3
         yylhs.value.build< double > ();
         break;
 
@@ -1793,7 +2009,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 40:
     {
+<<<<<<< HEAD
             yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, EBinaryOp::And, yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
+=======
+            yylhs.value.as< TExpressionPtr > () = New<TInExpression>(yylhs.location, yystack_[4].value.as< TExpressionPtr > (), yystack_[1].value.as< TLiteralValueTupleList > ());
+>>>>>>> prestable/0.17.3
         }
     break;
 
@@ -1924,11 +2144,16 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 66:
     {
+<<<<<<< HEAD
             yylhs.value.as< TExpressionList > () = MakeExpr<TBinaryOpExpression>(yylhs.location, yystack_[1].value.as< EBinaryOp > (), yystack_[2].value.as< TExpressionList > (), yystack_[0].value.as< TExpressionList > ());
+=======
+            yylhs.value.as< TExpressionPtr > () = New<TLiteralExpression>(yylhs.location, *yystack_[0].value.as< TNullable<TLiteralValue> > ());
+>>>>>>> prestable/0.17.3
         }
     break;
 
   case 67:
+<<<<<<< HEAD
     { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
@@ -1953,15 +2178,62 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 72:
     { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
+=======
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< i64 > (); }
+    break;
+
+  case 68:
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< ui64 > (); }
+    break;
+
+  case 69:
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< double > (); }
+    break;
+
+  case 70:
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< Stroka > (); }
+    break;
+
+  case 71:
+    { yylhs.value.as< TNullable<TLiteralValue> > () = false; }
+    break;
+
+  case 72:
+    { yylhs.value.as< TNullable<TLiteralValue> > () = true; }
+>>>>>>> prestable/0.17.3
     break;
 
   case 73:
     {
+<<<<<<< HEAD
             yylhs.value.as< TExpressionList > () = MakeExpr<TUnaryOpExpression>(yylhs.location, yystack_[1].value.as< EUnaryOp > (), yystack_[0].value.as< TExpressionList > ());
+=======
+            switch (yystack_[1].value.as< EUnaryOp > ()) {
+                case EUnaryOp::Minus: {
+                    if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<i64>()) {
+                        yylhs.value.as< TNullable<TLiteralValue> > () = i64(0) - *data;
+                    } else if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<ui64>()) {
+                        yylhs.value.as< TNullable<TLiteralValue> > () = ui64(0) - *data;
+                    } else if (auto data = yystack_[0].value.as< TNullable<TLiteralValue> > ()->TryAs<double>()) {
+                        yylhs.value.as< TNullable<TLiteralValue> > () = double(0) - *data;
+                    } else {
+                        THROW_ERROR_EXCEPTION("Negation of unsupported type");
+                    }
+                    break;
+                }
+                case EUnaryOp::Plus:
+                    yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > ();
+                    break;
+                default:
+                    YUNREACHABLE();
+            }
+
+>>>>>>> prestable/0.17.3
         }
     break;
 
   case 74:
+<<<<<<< HEAD
     { yylhs.value.as< TExpressionList > () = yystack_[0].value.as< TExpressionList > (); }
     break;
 
@@ -1981,23 +2253,39 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     {
             yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > ());
         }
+=======
+    { yylhs.value.as< TNullable<TLiteralValue> > () = yystack_[0].value.as< TNullable<TLiteralValue> > (); }
+>>>>>>> prestable/0.17.3
     break;
 
   case 79:
     {
+<<<<<<< HEAD
             yylhs.value.as< TReferenceExpressionPtr > () = New<TReferenceExpression>(yylhs.location, yystack_[0].value.as< TStringBuf > (), yystack_[2].value.as< TStringBuf > ());
+=======
+            yylhs.value.as< TLiteralValueList > ().swap(yystack_[2].value.as< TLiteralValueList > ());
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+>>>>>>> prestable/0.17.3
         }
     break;
 
   case 80:
     {
+<<<<<<< HEAD
             yylhs.value.as< TExpressionList > () = TExpressionList(1, yystack_[0].value.as< TReferenceExpressionPtr > ());
+=======
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+>>>>>>> prestable/0.17.3
         }
     break;
 
   case 81:
     {
+<<<<<<< HEAD
             yylhs.value.as< TExpressionList > () = MakeExpr<TFunctionExpression>(yylhs.location, yystack_[2].value.as< TStringBuf > (), TExpressionList());
+=======
+            yylhs.value.as< TLiteralValueList > ().push_back(*yystack_[0].value.as< TNullable<TLiteralValue> > ());
+>>>>>>> prestable/0.17.3
         }
     break;
 
@@ -2009,6 +2297,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 83:
     {
+<<<<<<< HEAD
             yylhs.value.as< TExpressionList > () = yystack_[1].value.as< TExpressionList > ();
         }
     break;
@@ -2093,18 +2382,28 @@ namespace NYT { namespace NQueryClient { namespace NAst {
 
   case 96:
     {
+=======
+>>>>>>> prestable/0.17.3
             yylhs.value.as< TLiteralValueList > () = yystack_[1].value.as< TLiteralValueList > ();
         }
     break;
 
+<<<<<<< HEAD
   case 97:
+=======
+  case 79:
+>>>>>>> prestable/0.17.3
     {
             yylhs.value.as< TLiteralValueTupleList > ().swap(yystack_[2].value.as< TLiteralValueTupleList > ());
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
     break;
 
+<<<<<<< HEAD
   case 98:
+=======
+  case 80:
+>>>>>>> prestable/0.17.3
     {
             yylhs.value.as< TLiteralValueTupleList > ().push_back(yystack_[0].value.as< TLiteralValueList > ());
         }
@@ -2365,13 +2664,18 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   }
 
 
+<<<<<<< HEAD
   const signed char TParser::yypact_ninf_ = -116;
+=======
+  const signed char TParser::yypact_ninf_ = -85;
+>>>>>>> prestable/0.17.3
 
   const signed char TParser::yytable_ninf_ = -19;
 
   const short int
   TParser::yypact_[] =
   {
+<<<<<<< HEAD
      105,    29,    29,    49,    16,   100,  -116,  -116,     0,  -116,
     -116,  -116,  -116,  -116,    49,  -116,  -116,  -116,  -116,    27,
     -116,    44,    79,  -116,    64,    89,  -116,  -116,   122,     6,
@@ -2388,11 +2692,27 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       -1,  -116,     7,   144,   118,   159,  -116,  -116,   161,   100,
       49,  -116,  -116,  -116,  -116,   146,   147,  -116,   143,   118,
      161,   100,  -116,  -116,  -116
+=======
+      89,    22,    22,    37,    13,    -5,   -85,   -85,    -4,   -85,
+     -85,   -85,   -85,    37,   -85,   -85,   -85,   -85,    33,   -85,
+       9,   -85,    42,    48,    68,   -85,    80,    18,    39,    15,
+      79,   -85,   -85,   -85,    72,   -85,   -85,   -85,    80,    37,
+     -85,   -26,    70,    72,    37,    75,    37,    37,   -85,   -85,
+     -85,   -85,   -85,   -85,    -5,   -85,   -85,    -5,   -85,   -85,
+     -85,    -5,    -5,    59,   -85,    37,   -85,   -85,    -7,   -85,
+      37,    96,    98,   -85,   -85,    68,   -85,    18,   -85,    39,
+     -85,   106,    51,    48,   -85,   -85,   100,    37,   110,   -85,
+      -5,    65,    88,   -85,   -85,   -85,     0,   113,     9,   103,
+     117,   -85,   -85,   -85,    49,   -85,   -85,    51,   103,   -85,
+      95,   105,   -85,   -85,   -85,    65,   -85,    95,   107,   -85,
+     -85,   -85
+>>>>>>> prestable/0.17.3
   };
 
   const unsigned char
   TParser::yydefact_[] =
   {
+<<<<<<< HEAD
        0,     0,     0,     0,     0,     0,    89,    90,    78,    85,
       86,    87,    88,    77,     0,     9,    75,    76,     2,     0,
       72,    36,    39,    41,    43,    46,    50,    56,    58,    61,
@@ -2409,31 +2729,61 @@ namespace NYT { namespace NQueryClient { namespace NAst {
        0,    97,     0,    25,    31,     0,     5,    93,     0,     0,
        0,    30,    29,    28,    32,    78,    14,    35,     0,    31,
        0,     0,    27,    34,    15
+=======
+       0,     0,     0,     0,     0,     0,    71,    72,    63,    67,
+      68,    69,    70,     0,    20,    61,    62,     2,     0,     8,
+      19,    28,    29,    31,    33,    35,    37,    41,    49,    53,
+       0,    60,    66,     3,    12,     4,     7,     1,    36,     0,
+      58,     0,     0,    12,     0,     0,     0,     0,    44,    45,
+      42,    43,    46,    47,     0,    50,    51,     0,    56,    54,
+      55,     0,     0,     0,    59,     0,     6,    11,     0,    65,
+       0,     9,    14,    27,    30,    32,    34,    38,    53,    48,
+      52,     0,     0,    21,    64,    57,     0,     0,    16,    13,
+       0,     0,     0,    74,    77,    80,     0,     0,    22,     0,
+      18,    15,    39,    76,     0,    73,    40,     0,     0,    26,
+      23,     0,     5,    17,    78,     0,    79,    10,     0,    24,
+      75,    25
+>>>>>>> prestable/0.17.3
   };
 
   const short int
   TParser::yypgoto_[] =
   {
+<<<<<<< HEAD
     -116,  -116,  -116,  -116,  -116,   190,    68,  -116,  -116,  -116,
      148,  -116,  -116,  -116,  -116,    45,  -116,  -116,    -3,   -64,
      150,   151,   191,   101,  -116,   -51,   139,   112,   121,  -116,
      136,  -116,    -7,   -56,   -85,  -115,   165,   -87,   -97,  -116,
       80,  -116
+=======
+     -85,   -85,   -85,   -85,   -85,   128,   -85,    90,   -85,   -85,
+     -85,   -85,   -85,   -85,   -85,   -85,    23,    45,    91,    -3,
+      69,    92,    93,   131,   -85,    83,   -85,    82,   -85,   102,
+     -53,   -77,   112,   -80,   -84,   -85,    36,   -85
+>>>>>>> prestable/0.17.3
   };
 
   const short int
   TParser::yydefgoto_[] =
   {
+<<<<<<< HEAD
       -1,     4,    18,    37,    39,    19,    80,    47,   103,   115,
       74,   105,   118,   128,   133,   143,   136,   146,    20,    21,
       22,    23,    24,    25,    57,    26,    27,    28,    29,    64,
       30,    68,    31,    32,    33,    34,    35,    36,   110,   121,
      111,   112
+=======
+      -1,     4,    17,    33,    35,    18,    43,    66,    88,   100,
+     112,    19,    67,    89,   101,   113,   110,    20,    21,    22,
+      23,    24,    25,    26,    54,    27,    57,    28,    61,    41,
+      29,    30,    31,    32,    94,   104,    95,    96
+>>>>>>> prestable/0.17.3
   };
 
   const short int
   TParser::yytable_[] =
   {
+<<<<<<< HEAD
       40,    88,    88,    88,    88,    88,    87,    45,    88,    99,
      120,   109,    95,   108,    97,    59,    41,    60,    61,   138,
      109,   122,   108,   147,     6,     7,   139,     9,    10,    11,
@@ -2481,11 +2831,49 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       31,    60,    61,    11,    14,    10,    42,    28,    27,    42,
       44,    48,     2,   125,   149,    47,     5,    58,    33,    49,
       64,    50,    -1,    -1,   124
+=======
+      36,    78,    93,    69,    78,    92,    70,   103,    80,    81,
+      40,    93,   105,    37,    92,     6,     7,     8,     9,    10,
+      11,    12,    84,    13,    39,    70,    15,    93,    16,   106,
+      92,   120,   107,    62,    63,    93,    40,   102,    92,     5,
+      42,    44,     6,     7,     8,     9,    10,    11,    12,    55,
+      13,    56,    14,    15,     5,    16,    45,     6,     7,     8,
+       9,    10,    11,    12,    46,    13,    58,    85,    15,    59,
+      16,     6,     7,    60,     9,    10,    11,    12,   114,    91,
+      65,   115,    15,    47,    16,     6,     7,    82,     9,    10,
+      11,    12,    71,     1,     2,     3,    15,    74,    16,     6,
+       7,     8,     9,    10,    11,    12,    86,    13,     6,     7,
+      87,     9,    10,    11,    12,    48,    49,    50,    51,    52,
+      53,    90,    97,    99,   108,   109,   111,   118,   119,   121,
+      34,   117,    98,    72,    83,    73,    38,    77,    75,    79,
+      76,    68,    64,   116
+  };
+
+  const unsigned char
+  TParser::yycheck_[] =
+  {
+       3,    54,    82,    29,    57,    82,    32,    91,    61,    62,
+      13,    91,    92,     0,    91,    20,    21,    22,    23,    24,
+      25,    26,    29,    28,    28,    32,    31,   107,    33,    29,
+     107,   115,    32,    18,    19,   115,    39,    90,   115,    17,
+       7,    32,    20,    21,    22,    23,    24,    25,    26,    31,
+      28,    33,    30,    31,    17,    33,    14,    20,    21,    22,
+      23,    24,    25,    26,    16,    28,    27,    70,    31,    30,
+      33,    20,    21,    34,    23,    24,    25,    26,    29,    28,
+       8,    32,    31,    15,    33,    20,    21,    28,    23,    24,
+      25,    26,    22,     4,     5,     6,    31,    22,    33,    20,
+      21,    22,    23,    24,    25,    26,    10,    28,    20,    21,
+      12,    23,    24,    25,    26,    35,    36,    37,    38,    39,
+      40,    15,    22,    13,    11,    22,     9,    32,    23,    22,
+       2,   108,    87,    43,    65,    44,     5,    54,    46,    57,
+      47,    39,    30,   107
+>>>>>>> prestable/0.17.3
   };
 
   const unsigned char
   TParser::yystos_[] =
   {
+<<<<<<< HEAD
        0,     4,     5,     6,    53,    22,    25,    26,    27,    28,
       29,    30,    31,    32,    38,    40,    41,    43,    54,    57,
       70,    71,    72,    73,    74,    75,    77,    78,    79,    80,
@@ -2502,11 +2890,27 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       42,    92,    58,    66,    70,    10,    68,    90,    12,    19,
       42,    15,    16,    67,    28,    27,    69,    87,    77,    70,
       42,    48,    67,    87,    77
+=======
+       0,     4,     5,     6,    42,    17,    20,    21,    22,    23,
+      24,    25,    26,    28,    30,    31,    33,    43,    46,    52,
+      58,    59,    60,    61,    62,    63,    64,    66,    68,    71,
+      72,    73,    74,    44,    46,    45,    60,     0,    64,    28,
+      60,    70,     7,    47,    32,    14,    16,    15,    35,    36,
+      37,    38,    39,    40,    65,    31,    33,    67,    27,    30,
+      34,    69,    18,    19,    73,     8,    48,    53,    70,    29,
+      32,    22,    48,    59,    22,    62,    63,    66,    71,    68,
+      71,    71,    28,    61,    29,    60,    10,    12,    49,    54,
+      15,    28,    72,    74,    75,    77,    78,    22,    58,    13,
+      50,    55,    71,    75,    76,    74,    29,    32,    11,    22,
+      57,     9,    51,    56,    29,    32,    77,    57,    32,    23,
+      75,    22
+>>>>>>> prestable/0.17.3
   };
 
   const unsigned char
   TParser::yyr1_[] =
   {
+<<<<<<< HEAD
        0,    52,    53,    53,    53,    54,    55,    56,    57,    57,
       58,    58,    58,    59,    60,    60,    60,    61,    61,    62,
       62,    63,    63,    64,    64,    65,    65,    66,    66,    67,
@@ -2517,11 +2921,23 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       83,    84,    84,    85,    85,    86,    86,    86,    87,    87,
       88,    88,    88,    88,    88,    89,    89,    89,    89,    89,
       89,    90,    90,    91,    91,    92,    92,    93,    93
+=======
+       0,    41,    42,    42,    42,    43,    44,    45,    46,    47,
+      47,    48,    48,    49,    49,    50,    50,    51,    51,    52,
+      52,    53,    54,    55,    56,    57,    57,    58,    58,    59,
+      59,    60,    61,    61,    62,    62,    63,    63,    64,    64,
+      64,    64,    65,    65,    65,    65,    65,    65,    66,    66,
+      67,    67,    68,    68,    69,    69,    69,    70,    70,    71,
+      71,    72,    72,    73,    73,    73,    73,    74,    74,    74,
+      74,    74,    74,    75,    75,    76,    76,    77,    77,    78,
+      78
+>>>>>>> prestable/0.17.3
   };
 
   const unsigned char
   TParser::yyr2_[] =
   {
+<<<<<<< HEAD
        0,     2,     2,     2,     2,     7,     2,     1,     1,     1,
        2,     3,     1,     3,     6,     8,     0,     1,     0,     2,
        0,     2,     0,     2,     0,     2,     0,     4,     2,     1,
@@ -2532,6 +2948,17 @@ namespace NYT { namespace NQueryClient { namespace NAst {
        1,     3,     1,     2,     1,     1,     1,     1,     1,     3,
        1,     3,     4,     3,     1,     1,     1,     1,     1,     1,
        1,     2,     1,     3,     1,     1,     3,     3,     1
+=======
+       0,     2,     2,     2,     2,     6,     2,     1,     1,     2,
+       6,     1,     0,     1,     0,     1,     0,     1,     0,     1,
+       1,     2,     2,     2,     2,     3,     1,     3,     1,     1,
+       3,     1,     3,     1,     3,     1,     2,     1,     3,     5,
+       5,     1,     1,     1,     1,     1,     1,     1,     3,     1,
+       1,     1,     3,     1,     1,     1,     1,     3,     1,     2,
+       1,     1,     1,     1,     4,     3,     1,     1,     1,     1,
+       1,     1,     1,     2,     1,     3,     1,     1,     3,     3,
+       1
+>>>>>>> prestable/0.17.3
   };
 
 
@@ -2556,6 +2983,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   "\"`(`\"", "\"`)`\"", "\"`*`\"", "\"`+`\"", "\"`,`\"", "\"`-`\"",
   "\"`.`\"", "\"`/`\"", "\"`<`\"", "\"`<=`\"", "\"`=`\"", "\"`!=`\"",
   "\"`>`\"", "\"`>=`\"", "$accept", "head", "parse-query",
+<<<<<<< HEAD
   "parse-job-query", "parse-expression", "select-clause",
   "table-descriptor", "from-clause", "join-clause", "is-left",
   "where-clause", "group-by-clause", "having-clause", "order-by-clause",
@@ -2567,12 +2995,25 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   "unary-expr", "unary-op", "qualified-identifier", "atomic-expr",
   "literal-value", "const-value", "const-list", "const-tuple",
   "const-tuple-list", YY_NULLPTR
+=======
+  "parse-job-query", "parse-expression", "select-clause", "from-clause",
+  "where-clause", "group-by-clause", "order-by-clause", "limit-clause",
+  "select-clause-impl", "where-clause-impl", "group-by-clause-impl",
+  "order-by-clause-impl", "limit-clause-impl", "identifier-list",
+  "named-expression-list", "named-expression", "expression", "or-op-expr",
+  "and-op-expr", "not-op-expr", "relational-op-expr", "relational-op",
+  "additive-op-expr", "additive-op", "multiplicative-op-expr",
+  "multiplicative-op", "comma-expr", "unary-expr", "unary-op",
+  "atomic-expr", "literal-value", "const-value", "const-list",
+  "const-tuple", "const-tuple-list", YY_NULLPTR
+>>>>>>> prestable/0.17.3
   };
 
 #if YT_QL_YYDEBUG
   const unsigned short int
   TParser::yyrline_[] =
   {
+<<<<<<< HEAD
        0,   160,   160,   161,   162,   166,   170,   174,   184,   188,
      193,   197,   201,   208,   215,   219,   223,   227,   232,   238,
      242,   246,   250,   254,   258,   262,   266,   270,   275,   282,
@@ -2583,6 +3024,17 @@ namespace NYT { namespace NQueryClient { namespace NAst {
      466,   471,   476,   481,   485,   490,   492,   494,   499,   503,
      510,   514,   518,   522,   526,   533,   535,   537,   539,   541,
      543,   548,   571,   577,   582,   589,   593,   600,   605
+=======
+       0,   145,   145,   146,   147,   151,   155,   159,   166,   173,
+     177,   184,   188,   192,   196,   200,   204,   208,   212,   216,
+     220,   227,   234,   241,   248,   255,   260,   267,   272,   279,
+     283,   290,   295,   299,   304,   308,   313,   317,   322,   326,
+     333,   337,   342,   344,   346,   348,   350,   352,   357,   361,
+     366,   368,   373,   377,   382,   384,   386,   391,   395,   400,
+     404,   409,   411,   416,   420,   424,   428,   435,   437,   439,
+     441,   443,   445,   450,   473,   479,   484,   491,   495,   502,
+     507
+>>>>>>> prestable/0.17.3
   };
 
   // Print the state stack on the debug stream.

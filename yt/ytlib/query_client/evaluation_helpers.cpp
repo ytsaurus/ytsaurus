@@ -155,6 +155,7 @@ TJoinEvaluator GetJoinEvaluator(
 
     // (join key... , other columns...)
     auto projectClause = New<TProjectClause>();
+<<<<<<< HEAD
     std::vector<TConstExpressionPtr> joinKeyExprs;
     for (const auto& column : equations) {
         projectClause->AddProjection(column.second, InferName(column.second));
@@ -166,11 +167,38 @@ TJoinEvaluator GetJoinEvaluator(
             column.Type,
             column.Name),
             column.Name);
+=======
+    for (const auto& column : foreignTableSchema.Columns()) {
+        if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) != joinColumns.end()) {
+            projectClause->AddProjection(New<TReferenceExpression>(
+                column.Type,
+                column.Name),
+                column.Name);
+        }
+    }
+
+    for (const auto& column : foreignTableSchema.Columns()) {
+        if (std::find(joinColumns.begin(), joinColumns.end(), column.Name) == joinColumns.end()) {
+            projectClause->AddProjection(New<TReferenceExpression>(
+                column.Type,
+                column.Name),
+                column.Name);
+        }
+>>>>>>> prestable/0.17.3
     }
 
     subquery->ProjectClause = projectClause;
 
+<<<<<<< HEAD
     auto subqueryTableSchema = subquery->GetTableSchema();
+=======
+    std::vector<TConstExpressionPtr> joinKeyExprs;
+    for (const auto& column : joinColumns) {
+        joinKeyExprs.push_back(New<TReferenceExpression>(
+            foreignTableSchema.GetColumnOrThrow(column).Type,
+            column));
+    }
+>>>>>>> prestable/0.17.3
 
     auto joinKeySize = equations.size();
 
@@ -209,10 +237,23 @@ TJoinEvaluator GetJoinEvaluator(
         NApi::IRowsetPtr rowset;
 
         {
+<<<<<<< HEAD
             ISchemafulWriterPtr writer;
             TFuture<NApi::IRowsetPtr> rowsetFuture;
             std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(subquery->GetTableSchema());
             NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
+=======
+            subquery->WhereClause = New<TInOpExpression>(
+                joinKeyExprs,
+                // TODO(babenko): fixme
+                TSharedRange<TRow>(MakeRange(keys), nullptr));
+
+            if (foreignPredicate) {
+                subquery->WhereClause = MakeAndExpression(
+                    subquery->WhereClause,
+                    foreignPredicate);
+            }
+>>>>>>> prestable/0.17.3
 
             auto statistics = context->ExecuteCallback(subquery, foreignDataId,  writer);
             LOG_DEBUG("Remote subquery statistics %v", statistics);

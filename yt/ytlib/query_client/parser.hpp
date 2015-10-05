@@ -311,6 +311,7 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // const-list
       // const-tuple
       char dummy6[sizeof(TLiteralValueList)];
+<<<<<<< HEAD
 
       // const-tuple-list
       char dummy7[sizeof(TLiteralValueTupleList)];
@@ -334,6 +335,28 @@ namespace NYT { namespace NQueryClient { namespace NAst {
       // is-left
       // is-desc
       char dummy13[sizeof(bool)];
+=======
+
+      // const-tuple-list
+      char dummy7[sizeof(TLiteralValueTupleList)];
+
+      // named-expression
+      char dummy8[sizeof(TNamedExpression)];
+
+      // group-by-clause-impl
+      // named-expression-list
+      char dummy9[sizeof(TNamedExpressionList)];
+
+      // literal-value
+      // const-value
+      char dummy10[sizeof(TNullable<TLiteralValue>)];
+
+      // select-clause-impl
+      char dummy11[sizeof(TNullableNamedExpressionList)];
+
+      // "identifier"
+      char dummy12[sizeof(TStringBuf)];
+>>>>>>> prestable/0.17.3
 
       // "double literal"
       char dummy14[sizeof(double)];
@@ -460,21 +483,36 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   basic_symbol (typename Base::kind_type t, const TIdentifierList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TLiteralValueList v, const location_type& l);
+<<<<<<< HEAD
+=======
+
+  basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
+
+  basic_symbol (typename Base::kind_type t, const TNamedExpression v, const location_type& l);
+>>>>>>> prestable/0.17.3
 
   basic_symbol (typename Base::kind_type t, const TLiteralValueTupleList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TNullable<TLiteralValue> v, const location_type& l);
+<<<<<<< HEAD
+=======
+
+  basic_symbol (typename Base::kind_type t, const TNullableNamedExpressionList v, const location_type& l);
+>>>>>>> prestable/0.17.3
 
   basic_symbol (typename Base::kind_type t, const TOrderExpressionList v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TReferenceExpressionPtr v, const location_type& l);
 
+<<<<<<< HEAD
   basic_symbol (typename Base::kind_type t, const TStringBuf v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const TTableDescriptor v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const bool v, const location_type& l);
 
+=======
+>>>>>>> prestable/0.17.3
   basic_symbol (typename Base::kind_type t, const double v, const location_type& l);
 
   basic_symbol (typename Base::kind_type t, const i64 v, const location_type& l);
@@ -824,7 +862,11 @@ namespace NYT { namespace NQueryClient { namespace NAst {
   // number is the opposite.  If YYTABLE_NINF, syntax error.
   static const short int yytable_[];
 
+<<<<<<< HEAD
   static const short int yycheck_[];
+=======
+  static const unsigned char yycheck_[];
+>>>>>>> prestable/0.17.3
 
   // YYSTOS[STATE-NUM] -- The (internal number of the) accessing
   // symbol of state STATE-NUM.
@@ -939,8 +981,13 @@ namespace NYT { namespace NQueryClient { namespace NAst {
     enum
     {
       yyeof_ = 0,
+<<<<<<< HEAD
       yylast_ = 204,     ///< Last index in yytable_.
       yynnts_ = 42,  ///< Number of nonterminal symbols.
+=======
+      yylast_ = 143,     ///< Last index in yytable_.
+      yynnts_ = 38,  ///< Number of nonterminal symbols.
+>>>>>>> prestable/0.17.3
       yyempty_ = -2,
       yyfinal_ = 41, ///< Termination state number.
       yyterror_ = 1,

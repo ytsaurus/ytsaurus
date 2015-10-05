@@ -44,9 +44,15 @@ typedef TParser::token_type TToken;
     kw_true = 'true'i;
 
     keyword =
+<<<<<<< HEAD
         kw_from | kw_where | kw_having |kw_limit | kw_join | kw_using |
         kw_group_by | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_not | kw_between |
         kw_in | kw_false | kw_true;
+=======
+        kw_from | kw_where | kw_limit | kw_join | kw_using | kw_group_by |
+        kw_order_by | kw_as | kw_and | kw_or | kw_not | kw_between | kw_in |
+        kw_false | kw_true;
+>>>>>>> prestable/0.17.3
     identifier = [a-zA-Z_][a-zA-Z_0-9]* - keyword;
 
     fltexp = [Ee] [+\-]? digit+;

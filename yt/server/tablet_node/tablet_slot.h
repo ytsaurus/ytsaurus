@@ -70,8 +70,9 @@ public:
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
    
     void Initialize(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
+    bool CanConfigure() const;
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
-    void Finalize();
+    TFuture<void> Finalize();
 
     void BuildOrchidYson(NYson::IYsonConsumer* consumer);
 

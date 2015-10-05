@@ -243,8 +243,6 @@ YtCoordinator.prototype._initialize = function()
     .then(
     function() {
         self.logger.debug("Presence initialized at " + path);
-        self.initialized = true;
-        return self._refresh();
     },
     function(error) {
         if (error.checkFor(501)) {
@@ -253,6 +251,10 @@ YtCoordinator.prototype._initialize = function()
         } else {
             return Q.reject(error);
         }
+    })
+    .then(function() {
+        self.initialized = true;
+        return self._refresh();
     })
     .catch(function(err) {
         var error = YtError.ensureWrapped(err);

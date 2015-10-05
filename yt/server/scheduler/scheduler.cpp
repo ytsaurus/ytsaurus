@@ -471,6 +471,8 @@ public:
 
     void ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)
     {
+        auto now = TInstant::Now();
+
         auto* request = &context->Request();
         auto* response = &context->Response();
 
@@ -498,6 +500,13 @@ public:
             resources += node->ResourceLimits();
         }
 
+        bool forceJobsLogging = false;
+        auto& lastJobsLogTime = node->LastJobsLogTime();
+        if (!lastJobsLogTime || now > lastJobsLogTime.Get() + Config_->JobsLoggingPeriod) {
+            forceJobsLogging = true;
+            lastJobsLogTime = now;
+        }
+
         try {
             std::vector<TJobPtr> runningJobs;
             bool hasWaitingJobs = false;
@@ -515,7 +524,8 @@ public:
                             node,
                             request,
                             response,
-                            &jobStatus);
+                            &jobStatus,
+                            forceJobsLogging);
                         if (job) {
                             YCHECK(missingJobs.erase(job) == 1);
                             switch (job->GetState()) {
@@ -1110,8 +1120,9 @@ private:
                 << ex;
             if (registered) {
                 OnOperationFailed(operation, wrappedError);
+            } else {
+                operation->SetStarted(wrappedError);
             }
-            operation->SetStarted(wrappedError);
             THROW_ERROR(wrappedError);
         }
 
@@ -1445,6 +1456,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (!operation->GetStarted().IsSet()) {
+            operation->SetStarted(error);
+        }
         operation->SetState(state);
         operation->SetFinishTime(TInstant::Now());
         ToProto(operation->Result().mutable_error(), error);
@@ -2052,7 +2066,8 @@ private:
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
-        TJobStatus* jobStatus)
+        TJobStatus* jobStatus,
+        bool forceJobsLogging)
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
@@ -2127,6 +2142,7 @@ private:
             return nullptr;
         }
 
+        bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
         switch (state) {
             case EJobState::Completed: {
                 LOG_INFO("Job completed, removal scheduled");
@@ -2159,7 +2175,7 @@ private:
                 } else {
                     switch (state) {
                         case EJobState::Running: {
-                            LOG_DEBUG("Job is running");
+                            LOG_DEBUG_IF(shouldLogJob, "Job is running");
                             job->SetState(state);
                             job->SetProgress(jobStatus->progress());
                             OnJobRunning(job, *jobStatus);
@@ -2170,7 +2186,7 @@ private:
                         }
 
                         case EJobState::Waiting:
-                            LOG_DEBUG("Job is waiting");
+                            LOG_DEBUG_IF(shouldLogJob, "Job is waiting");
                             OnJobWaiting(job);
                             break;
 
