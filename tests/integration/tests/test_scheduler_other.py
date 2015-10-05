@@ -455,7 +455,7 @@ class TestSchedulerRunningOperationsLimitJob(YTEnvSetup):
         create("table", "//tmp/in")
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
-        write("//tmp/in", [{"foo": i} for i in xrange(5)])
+        write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
 
         create("map_node", "//sys/pools/test_pool_1")
         create("map_node", "//sys/pools/test_pool_2")
