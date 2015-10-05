@@ -148,7 +148,7 @@ public:
     { }
 
     static TVersionedRow Allocate(
-        TChunkedMemoryPool* pool, 
+        TChunkedMemoryPool* pool,
         int keyCount,
         int valueCount,
         int writeTimestampCount,

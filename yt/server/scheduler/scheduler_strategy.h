@@ -28,7 +28,7 @@ struct ISchedulerStrategyHost
 
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr job, const NNodeTrackerClient::NProto::TNodeResources& resourcesDelta), JobUpdated);
-    
+
     DECLARE_INTERFACE_SIGNAL(void(NYTree::INodePtr pools), PoolsUpdated);
 
     virtual NNodeTrackerClient::NProto::TNodeResources GetTotalResourceLimits() = 0;

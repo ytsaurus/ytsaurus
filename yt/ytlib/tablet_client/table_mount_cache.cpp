@@ -144,6 +144,7 @@ private:
                 tableInfo->Schema = FromProto<TTableSchema>(rsp->schema());
                 tableInfo->KeyColumns = FromProto<TKeyColumns>(rsp->key_columns());
                 tableInfo->Sorted = rsp->sorted();
+                tableInfo->Dynamic = rsp->dynamic();
                 tableInfo->NeedKeyEvaluation = tableInfo->Schema.HasComputedColumns();
 
                 for (const auto& protoTabletInfo : rsp->tablets()) {
@@ -169,11 +170,12 @@ private:
                     }
                 }
 
-                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v)",
+                LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Sorted: %v, Dynamic: %v)",
                     path,
                     tableInfo->TableId,
                     tableInfo->Tablets.size(),
-                    tableInfo->Sorted);
+                    tableInfo->Sorted,
+                    tableInfo->Dynamic);
 
                 return tableInfo;
             }));

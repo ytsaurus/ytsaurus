@@ -200,7 +200,7 @@ void TChunkReader::DoOpen()
                 column.Name));
             return;
         }
-        
+
         if (chunkColumn->Type != column.Type) {
             State.Fail(TError(
                 "Chunk schema column %Qv has incompatible type: expected %Qlv, actual %Qlv",

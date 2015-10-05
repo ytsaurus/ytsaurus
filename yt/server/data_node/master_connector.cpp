@@ -633,6 +633,19 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
             }
             slotManager->CreateSlot(info);
         }
+<<<<<<< HEAD
+=======
+        if (!slot->CanConfigure()) {
+            LOG_WARNING("Cannot configure slot %v in state %Qlv, ignored",
+                descriptor.CellId,
+                slot->GetControlState());
+            continue;
+        }
+        slotManager->ConfigureSlot(slot, info);
+    }
+
+    auto cellDirectory = Bootstrap_->GetMasterClient()->GetConnection()->GetCellDirectory();
+>>>>>>> prestable/0.17.4
 
         for (const auto& info : rsp->tablet_slots_configure()) {
             auto descriptor = FromProto<TCellDescriptor>(info.cell_descriptor());

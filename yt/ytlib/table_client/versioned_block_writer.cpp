@@ -201,7 +201,7 @@ i64 TSimpleVersionedBlockWriter::GetRowCount() const
 int TSimpleVersionedBlockWriter::GetKeySize(int keyColumnCount, int schemaColumnCount)
 {
     // 8 bytes for each key column + timestamp offset + value offset
-    // 4 bytes for value count for each non-key column 
+    // 4 bytes for value count for each non-key column
     // 2 bytes for write timestamp count and delete timestamp count
     return 8 * (keyColumnCount + 2) + 4 * (schemaColumnCount - keyColumnCount) + 2 * 2;
 }

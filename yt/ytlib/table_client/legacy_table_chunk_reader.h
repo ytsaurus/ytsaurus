@@ -101,6 +101,8 @@ private:
     i64 EndRowIndex_ = 0;
     i64 RowCount_ = 0;
 
+    bool IsFinished_ = false;
+
     std::unique_ptr<IRowSampler> RowSampler_;
 
     int UnfetchedChannelIndex_ = -1;

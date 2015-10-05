@@ -309,6 +309,7 @@ private:
             return true;
         }
 
+<<<<<<< HEAD
         if (key == "exports") {
             auto multicellManager = Bootstrap_->GetMulticellManager();
             auto cellTags = multicellManager->GetRegisteredMasterCellTags();
@@ -323,6 +324,19 @@ private:
                             .EndMap();
                     }
                 });
+=======
+        if (key == "sealed") {
+            BuildYsonFluently(consumer)
+                .Value(chunk->IsSealed());
+            return true;
+        }
+
+        if (key == "owning_nodes") {
+            SerializeOwningNodesPaths(
+                cypressManager,
+                chunk,
+                consumer);
+>>>>>>> prestable/0.17.4
             return true;
         }
 
@@ -375,12 +389,6 @@ private:
             if (key == "row_count" && miscExt.has_row_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.row_count());
-                return true;
-            }
-
-            if (key == "sealed" && chunk->IsJournal()) {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->IsSealed());
                 return true;
             }
 

@@ -138,6 +138,7 @@ TJoinEvaluator GetJoinEvaluator(
     const TTableSchema& selfTableSchema)
 {
     const auto& equations = joinClause.Equations;
+    auto isLeft = joinClause.IsLeft;
     auto& foreignTableSchema = joinClause.ForeignTableSchema;
     auto& foreignKeyColumnsCount = joinClause.ForeignKeyColumnsCount;
     auto& renamedTableSchema = joinClause.RenamedTableSchema;
@@ -236,6 +237,17 @@ TJoinEvaluator GetJoinEvaluator(
         // Join rowsets.
         TRowBuilder rowBuilder;
         // allRows have format (join key... , other columns...)
+
+        auto addRow = [&] (TRow joinedRow) -> bool {
+            if (!UpdateAndCheckRowLimit(&context->JoinRowLimit, &context->StopFlag)) {
+                context->Statistics->IncompleteOutput = true;
+                return true;
+            }
+
+            joinedRows->push_back(context->PermanentBuffer->Capture(joinedRow));
+            return false;
+        };
+
         for (auto row : allRows.ToVector()) {
             auto equalRange = foreignLookup.equal_range(row);
             for (auto it = equalRange.first; it != equalRange.second; ++it) {
@@ -245,12 +257,22 @@ TJoinEvaluator GetJoinEvaluator(
                     rowBuilder.AddValue(columnIndex.first ? row[joinKeySize + columnIndex.second] : foreignRow[columnIndex.second]);
                 }
 
-                if (!UpdateAndCheckRowLimit(&context->JoinRowLimit, &context->StopFlag)) {
-                    context->Statistics->IncompleteOutput = true;
+                if (addRow(rowBuilder.GetRow())) {
                     return;
                 }
+            }
 
-                joinedRows->push_back(context->PermanentBuffer->Capture(rowBuilder.GetRow()));
+            if (isLeft && equalRange.first == equalRange.second) {
+                rowBuilder.Reset();
+                for (auto columnIndex : columnMapping) {
+                    rowBuilder.AddValue(columnIndex.first
+                        ? row[joinKeySize + columnIndex.second]
+                        : MakeUnversionedSentinelValue(EValueType::Null));
+                }
+
+                if (addRow(rowBuilder.GetRow())) {
+                    return;
+                }
             }
         }
     };

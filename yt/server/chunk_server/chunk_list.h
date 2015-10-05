@@ -71,3 +71,8 @@ public:
 
 } // namespace NChunkServer
 } // namespace NYT
+
+
+#define CHUNK_LIST_INL_H_
+#include "chunk_list-inl.h"
+#undef CHUNK_LIST_INL_H_

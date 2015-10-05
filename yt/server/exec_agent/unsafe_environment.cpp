@@ -82,8 +82,7 @@ public:
             "--job-id",
             ToString(JobId),
             "--working-dir",
-            WorkingDirectory,
-            "--close-all-fds"
+            WorkingDirectory
         });
 
         for (const auto& path : Slot.GetCGroupPaths()) {

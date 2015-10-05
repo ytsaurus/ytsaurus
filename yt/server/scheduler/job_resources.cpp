@@ -66,7 +66,7 @@ i64 GetIntermediateOutputIOMemorySize(TJobIOConfigPtr ioConfig)
 {
     auto result = GetOutputWindowMemorySize(ioConfig) +
         ioConfig->TableWriter->MaxBufferSize;
-        
+
     return result;
 }
 

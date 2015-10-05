@@ -15,7 +15,7 @@ struct IReader
     : public virtual TRefCounted
 {
     virtual TAsyncError Open(
-        TNameTablePtr nameTable, 
+        TNameTablePtr nameTable,
         const TTableSchema& schema,
         bool includeAllColumns = false) = 0;
 

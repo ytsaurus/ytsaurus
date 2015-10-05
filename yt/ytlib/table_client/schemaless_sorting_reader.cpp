@@ -58,11 +58,11 @@ public:
 
             std::sort(
                 Rows_.begin(),
-                Rows_.end(), 
+                Rows_.end(),
                 [&] (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs) {
                     return CompareRows(lhs.Get(), rhs.Get(), KeyColumns_.size()) < 0;
                 });
-            
+
             return VoidFuture;
         } catch (const std::exception& ex) {
             return MakeFuture(TError(ex));

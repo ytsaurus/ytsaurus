@@ -38,7 +38,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 //! Creates a versioned chunk reader for a given set of keys.
-/*! 
+/*!
  *  Number of rows readable via this reader is equal to the number of passed keys.
  *  NB! Some rows may be null, if coresponding key is absent.
  *

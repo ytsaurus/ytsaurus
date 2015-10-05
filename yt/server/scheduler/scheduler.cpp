@@ -477,6 +477,8 @@ public:
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context)
     {
+        auto now = TInstant::Now();
+
         auto* request = &context->Request();
         auto* response = &context->Response();
 
@@ -510,6 +512,13 @@ public:
             resources += node->ResourceLimits();
         }
 
+        bool forceJobsLogging = false;
+        auto& lastJobsLogTime = node->LastJobsLogTime();
+        if (!lastJobsLogTime || now > lastJobsLogTime.Get() + Config_->JobsLoggingPeriod) {
+            forceJobsLogging = true;
+            lastJobsLogTime = now;
+        }
+
         // NB: No exception must leave this try/catch block.
         try {
             std::vector<TJobPtr> runningJobs;
@@ -519,11 +528,18 @@ public:
                 auto missingJobs = node->Jobs();
 
                 for (auto& jobStatus : *request->mutable_jobs()) {
+                    auto jobType = EJobType(jobStatus.job_type());
+                    // Skip jobs that are not issued by the scheduler.
+                    if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
+                        continue;
+                    }
+
                     auto job = ProcessJobHeartbeat(
                         node,
                         request,
                         response,
-                        &jobStatus);
+                        &jobStatus,
+                        forceJobsLogging);
                     if (job) {
                         YCHECK(missingJobs.erase(job) == 1);
                         switch (job->GetState()) {
@@ -942,19 +958,21 @@ private:
         }
 
         try {
+            TReaderGuard guard(AddressToNodeLock_);
+
             const auto& rsp = rspOrError.Value();
             auto nodesMap = ConvertToNode(TYsonString(rsp->value()))->AsMap();
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
-
-                TReaderGuard guard(AddressToNodeLock_);
-                if (AddressToNode_.find(address) == AddressToNode_.end()) {
-                    LOG_WARNING("Node %v is not registered in scheduler", address);
-                    continue;
-                }
-
                 auto node = child.second;
                 auto newState = node->Attributes().Get<ENodeState>("state");
+
+                if (AddressToNode_.find(address) == AddressToNode_.end()) {
+                    if (newState == ENodeState::Online) {
+                        LOG_WARNING("Node %v is not registered in scheduler but online at master", address);
+                    }
+                    continue;
+                }
 
                 auto execNode = AddressToNode_[address];
                 auto oldState = execNode->GetMasterState();
@@ -1091,8 +1109,9 @@ private:
                 << ex;
             if (registered) {
                 OnOperationFailed(operation, wrappedError);
+            } else {
+                operation->SetStarted(wrappedError);
             }
-            operation->SetStarted(wrappedError);
             THROW_ERROR(wrappedError);
         }
 
@@ -1476,6 +1495,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (!operation->GetStarted().IsSet()) {
+            operation->SetStarted(error);
+        }
         operation->SetState(state);
         operation->SetFinishTime(TInstant::Now());
         ToProto(operation->Result().mutable_error(), error);
@@ -2142,7 +2164,8 @@ private:
         TExecNodePtr node,
         NJobTrackerClient::NProto::TReqHeartbeat* request,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
-        TJobStatus* jobStatus)
+        TJobStatus* jobStatus,
+        bool forceJobsLogging)
     {
         auto jobId = FromProto<TJobId>(jobStatus->job_id());
         auto state = EJobState(jobStatus->state());
@@ -2157,7 +2180,7 @@ private:
         if (!job) {
             switch (state) {
                 case EJobState::Completed:
-                    LOG_WARNING("Unknown job has completed, removal scheduled");
+                    LOG_INFO("Unknown job has completed, removal scheduled");
                     ToProto(response->add_jobs_to_remove(), jobId);
                     break;
 
@@ -2172,12 +2195,12 @@ private:
                     break;
 
                 case EJobState::Running:
-                    LOG_WARNING("Unknown job is running, abort scheduled");
+                    LOG_INFO("Unknown job is running, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
                 case EJobState::Waiting:
-                    LOG_WARNING("Unknown job is waiting, abort scheduled");
+                    LOG_INFO("Unknown job is waiting, abort scheduled");
                     ToProto(response->add_jobs_to_abort(), jobId);
                     break;
 
@@ -2217,6 +2240,7 @@ private:
             return nullptr;
         }
 
+        bool shouldLogJob = (state != job->GetState()) || forceJobsLogging;
         switch (state) {
             case EJobState::Completed: {
                 LOG_INFO("Job completed, removal scheduled");
@@ -2227,7 +2251,7 @@ private:
 
             case EJobState::Failed: {
                 auto error = FromProto<TError>(jobStatus->result().error());
-                LOG_WARNING(error, "Job failed, removal scheduled");
+                LOG_INFO(error, "Job failed, removal scheduled");
                 OnJobFailed(job, jobStatus->mutable_result());
                 ToProto(response->add_jobs_to_remove(), jobId);
                 break;
@@ -2249,7 +2273,7 @@ private:
                 } else {
                     switch (state) {
                         case EJobState::Running: {
-                            LOG_DEBUG("Job is running");
+                            LOG_DEBUG_IF(shouldLogJob, "Job is running");
                             job->SetState(state);
                             job->SetProgress(jobStatus->progress());
                             OnJobRunning(job, *jobStatus);
@@ -2260,7 +2284,7 @@ private:
                         }
 
                         case EJobState::Waiting:
-                            LOG_DEBUG("Job is waiting");
+                            LOG_DEBUG_IF(shouldLogJob, "Job is waiting");
                             OnJobWaiting(job);
                             break;
 

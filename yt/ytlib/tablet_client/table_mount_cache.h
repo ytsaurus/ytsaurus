@@ -61,13 +61,13 @@ struct TTableMountInfo
 
     NTableClient::TTableSchema Schema;
     NTableClient::TKeyColumns KeyColumns;
-    bool Sorted = false;
+    bool Sorted;
+    bool Dynamic;
+    bool NeedKeyEvaluation;
 
     std::vector<TTabletInfoPtr> Tablets;
 
     TTabletInfoPtr GetTablet(NTableClient::TUnversionedRow row);
-
-    bool NeedKeyEvaluation = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableMountInfo)

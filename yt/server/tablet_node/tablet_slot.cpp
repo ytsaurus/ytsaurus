@@ -253,10 +253,18 @@ public:
             prerequisiteTransactionId);
     }
 
+
+    bool CanConfigure() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return State_ != EPeerState::None && State_ != EPeerState::Stopping;
+    }
+
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EPeerState::None);
+        YCHECK(CanConfigure());
 
         CellDescriptor_ = FromProto<TCellDescriptor>(configureInfo.cell_descriptor());
         auto cellConfig = CellDescriptor_.ToConfig(NNodeTrackerClient::InterconnectNetworkName);
@@ -382,22 +390,30 @@ public:
         }
     }
 
-    void Finalize()
+    TFuture<void> Finalize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YCHECK(State_ != EPeerState::None);
+
+        if (State_ == EPeerState::Stopping) {
+            return FinalizeResult_;
+        }
 
         LOG_INFO("Finalizing slot");
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshots(Owner_);
 
-        State_ = EPeerState::None;
+        State_ = EPeerState::Stopping;
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
 
-        Bootstrap_->GetControlInvoker()->Invoke(BIND(&TImpl::DoFinalize, MakeStrong(this)));
+        FinalizeResult_ = BIND(&TImpl::DoFinalize, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run();
+
+        return FinalizeResult_;
     }
 
 
@@ -448,6 +464,8 @@ private:
     TSpinLock InvokersSpinLock_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
+
+    TFuture<void> FinalizeResult_;
 
     NLogging::TLogger Logger = TabletNodeLogger;
 
@@ -545,6 +563,9 @@ private:
         TabletService_.Reset();
 
         TabletManager_.Reset();
+
+        YCHECK(State_ == EPeerState::Stopping);
+        State_ = EPeerState::None;
     }
 
 
@@ -716,14 +737,19 @@ void TTabletSlot::Initialize(const TCreateTabletSlotInfo& createInfo)
     Impl_->Initialize(createInfo);
 }
 
+bool TTabletSlot::CanConfigure() const
+{
+    return Impl_->CanConfigure();
+}
+
 void TTabletSlot::Configure(const TConfigureTabletSlotInfo& configureInfo)
 {
     Impl_->Configure(configureInfo);
 }
 
-void TTabletSlot::Finalize()
+TFuture<void> TTabletSlot::Finalize()
 {
-    Impl_->Finalize();
+    return Impl_->Finalize();
 }
 
 void TTabletSlot::BuildOrchidYson(IYsonConsumer* consumer)

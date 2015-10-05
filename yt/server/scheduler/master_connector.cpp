@@ -233,7 +233,7 @@ public:
         request.FailContextChunkId = failContextChunkId;
         list->JobRequests.push_back(request);
     }
-
+        
     TFuture<void> AttachToLivePreview(
         TOperationPtr operation,
         const TChunkListId& chunkListId,
@@ -1253,6 +1253,7 @@ private:
             operation->GetId());
     }
 
+<<<<<<< HEAD
 
 
     //void AddUpdateLivePreview(
@@ -1289,8 +1290,10 @@ private:
     //}
 
     void UpdateOperationNodeAttributes(TOperationPtr operation)
+=======
+    void AddUpdateOperationAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq, TOperationPtr operation)
+>>>>>>> prestable/0.17.4
     {
-        auto batchReq = StartBatchRequest();
         auto state = operation->GetState();
         auto operationPath = GetOperationPath(operation->GetId());
         auto controller = operation->GetController();
@@ -1380,11 +1383,21 @@ private:
             NApi::TTransactionStartOptions options;
             options.PrerequisiteTransactionIds = {LockTransaction->GetId()};
             auto attributes = CreateEphemeralAttributes();
+<<<<<<< HEAD
             attributes->Set("title", Format("Saving job files for operation %v", operation->GetId()));
             options.Attributes = std::move(attributes);
 
             transaction = WaitFor(client->StartTransaction(ETransactionType::Master, options))
                 .ValueOrThrow();
+=======
+            attributes->Set("vital", false);
+            attributes->Set("account", TmpAccountName);
+            if (description) {
+                attributes->Set("description", *description);
+            }
+            ToProto(req->mutable_node_attributes(), *attributes);
+            batchReq->AddRequest(req, Format("create_%v", tag));
+>>>>>>> prestable/0.17.4
         }
 
         const auto& transactionId = transaction->GetId();
@@ -1476,8 +1489,22 @@ private:
             }
         }
 
+<<<<<<< HEAD
         {
             auto batchReq = StartBatchRequest();
+=======
+        auto rspsOrError = batchRsp->GetResponses<TFileYPathProxy::TRspPrepareForUpdate>(Format("prepare_for_update_%v", tag));
+        YCHECK(chunkIds.size() == rspsOrError.size());
+        for (int i = 0; i < static_cast<int>(chunkIds.size()); ++i) {
+            const auto &rspOrError = rspsOrError[i];
+            auto chunkListId = FromProto<TChunkListId>(rspOrError.Value()->chunk_list_id());
+            auto req = TChunkListYPathProxy::Attach(FromObjectId(chunkListId));
+            GenerateMutationId(req);
+            ToProto(req->add_children_ids(), chunkIds[i]);
+            batchReq->AddRequest(req, Format("attach_%v", tag));
+        }
+    }
+>>>>>>> prestable/0.17.4
 
             for (int index = 0; index < files.size(); ++index) {
                 const auto& file = files[index];
@@ -1536,6 +1563,7 @@ private:
         std::vector<TJobRequest> jobRequests,
         std::vector<TLivePreviewRequest> livePreviewRequests)
     {
+<<<<<<< HEAD
         try {
             CreateJobNodes(operation, jobRequests);
 
@@ -1566,6 +1594,94 @@ private:
                 operation->GetId())
                 << ex;
         }
+=======
+        auto operationId = operation->GetId();
+
+        std::vector<TChunkId> stderrChunkIds;
+        std::vector<TChunkId> failContextChunkIds;
+        for (const auto& request : jobRequests) {
+            if (request.StderrChunkId != NullChunkId) {
+                stderrChunkIds.push_back(request.StderrChunkId);
+            }
+            if (request.FailContextChunkId != NullChunkId) {
+                failContextChunkIds.push_back(request.FailContextChunkId);
+            }
+        }
+
+        auto validateOperationUpdate = [&] (const TError& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                error,
+                "Error updating operation node %v",
+                operationId);
+        };
+
+        bool hasChunksToAttach = !stderrChunkIds.empty() || !failContextChunkIds.empty();
+        TTransactionPtr transaction = nullptr;
+        {
+            auto batchReq = StartBatchRequest();
+            //StartOperationUpdate(operation);
+            AddCreateJobNodes(batchReq, jobRequests);
+            AddUpdateLivePreview(batchReq, livePreviewRequests);
+
+            if (hasChunksToAttach) {
+                AddStartJobFileTransaction(
+                    batchReq,
+                    Format("Attaching job files for operation %v", operationId));
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            validateOperationUpdate(batchRspOrError);
+            const auto &batchRsp = batchRspOrError.Value();
+
+            ValidateResponses(batchRsp, "update_op_node", validateOperationUpdate);
+            ValidateResponses(batchRsp, "update_live_preview", [&] (const TError& error) {
+                if (!error.IsOK()) {
+                    LOG_WARNING(
+                        error,
+                        "Error updating live preview (OperationId: %v)",
+                        operationId);
+                }
+            });
+
+            if (hasChunksToAttach) {
+                transaction = AttachTransaction(GetJobFileTransactionId(batchRsp));
+            }
+        }
+
+        if (hasChunksToAttach) {
+            auto validateFileCreation = [&] (const TError& error) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    error,
+                    "Error creating job file for operation %v",
+                    operationId);
+            };
+
+            auto attachBatchReq = StartBatchRequest();
+            {
+                auto batchReq = StartBatchRequest();
+                AddCreateJobFiles(batchReq, jobRequests, transaction);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                validateFileCreation(batchRspOrError);
+                const auto &batchRsp = batchRspOrError.Value();
+
+                AddAttachChunks(batchRsp, stderrChunkIds, attachBatchReq, "stderr", validateFileCreation);
+                AddAttachChunks(batchRsp, failContextChunkIds, attachBatchReq, "fail_context", validateFileCreation);
+            }
+            {
+                auto batchRspOrError = WaitFor(attachBatchReq->Invoke());
+                validateFileCreation(GetCumulativeError(batchRspOrError));
+            }
+
+            auto error = WaitFor(transaction->Commit());
+            validateFileCreation(error);
+        }
+
+        auto batchReq = StartBatchRequest();
+        AddUpdateOperationAttributes(batchReq, operation);
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        validateOperationUpdate(batchRspOrError);
+>>>>>>> prestable/0.17.4
     }
 
     TFuture<void> UpdateOperationNode(TUpdateList* list)
@@ -1793,6 +1909,7 @@ private:
 
         auto* list = GetUpdateList(operation->GetId());
         for (const auto& childId : childrenIds) {
+            YCHECK(childId != NullChunkTreeId);
             TLivePreviewRequest request;
             request.ChunkListId = chunkListId;
             request.ChildId = childId;

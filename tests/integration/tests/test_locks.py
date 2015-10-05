@@ -26,7 +26,7 @@ class TestLocks(YTEnvSetup):
         # attributes do not have @lock_mode
         set("//tmp/value", "<attr=some>42", is_raw=True, tx=tx)
         with pytest.raises(YtError): lock("//tmp/value/@attr/@lock_mode", tx=tx)
-       
+
         abort_transaction(tx)
 
     def test_lock_mode(self):
@@ -46,20 +46,20 @@ class TestLocks(YTEnvSetup):
 
         tx_inner = start_transaction(tx=tx_outer)
         lock("//tmp/table", mode="shared", tx=tx_inner)
-    
+
     def test_snapshot_lock(self):
         set("//tmp/node", 42)
-        
+
         tx = start_transaction()
         lock("//tmp/node", mode = "snapshot", tx = tx)
-        
+
         set("//tmp/node", 100)
         # check that node under snapshot lock wasn"t changed
         assert get("//tmp/node", tx = tx) == 42
 
         # can"t change value under snapshot lock
         with pytest.raises(YtError): set("//tmp/node", 200, tx = tx)
-        
+
         abort_transaction(tx)
 
     def test_remove_map_subtree_lock(self):
@@ -109,7 +109,7 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
         lock_id = lock("//tmp/a", tx = tx2)
-        
+
         locks = get("//tmp/a/@locks")
         assert len(locks) == 1
         assert locks[0]["state"] == "acquired"
@@ -136,7 +136,7 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
         lock_id = lock("//tmp/a", tx = tx2)
-        
+
         locks = get("//tmp/a/@locks")
         assert len(locks) == 1
         assert locks[0]["state"] == "acquired"
@@ -156,11 +156,11 @@ class TestLocks(YTEnvSetup):
         commit_transaction(tx1)
 
         assert get("//tmp/a/@locks") == []
-        
+
     def test_redundant_lock1(self):
         set("//tmp/a", 1)
         tx = start_transaction()
-        
+
         lock_id1 = lock("//tmp/a", tx=tx)
         assert get("#" + lock_id1 + "/@state") == "acquired"
 
@@ -232,7 +232,7 @@ class TestLocks(YTEnvSetup):
         tx2 = start_transaction()
         lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)
         assert get("#" + lock_id2 + "/@state") == "pending"
- 
+
         tx3 = start_transaction()
         with pytest.raises(YtError): lock("//tmp/a", tx=tx3, mode="shared")
 
@@ -255,7 +255,7 @@ class TestLocks(YTEnvSetup):
         assert get("#" + lock_id2 + "/@state") == "pending"
         assert get("#" + lock_id3 + "/@state") == "pending"
         assert get("#" + lock_id4 + "/@state") == "pending"
- 
+
         commit_transaction(tx1)
         with pytest.raises(YtError): get("#" + lock_id1 + "/@state")
         assert get("#" + lock_id2 + "/@state") == "acquired"
@@ -300,7 +300,7 @@ class TestLocks(YTEnvSetup):
         tx1 = start_transaction()
         lock_id1 = lock("//tmp/a/b", tx=tx1)
         assert lock_id1 != "0-0-0-0"
-                        
+
         remove("//tmp/a", tx=tx1)
 
         tx2 = start_transaction()
@@ -331,12 +331,12 @@ class TestLocks(YTEnvSetup):
 
         assert get("//sys/locks/" + lock_id + "/@state") == "pending"
         assert len(get("//tmp/t/@locks")) == 2
-        
+
         commit_transaction(tx1)
 
         assert get("//sys/locks/" + lock_id + "/@state") == "acquired"
         assert len(get("//tmp/t/@locks")) == 1
-    
+
     def test_waitable_lock9(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
@@ -355,10 +355,10 @@ class TestLocks(YTEnvSetup):
 
     def test_yt144(self):
         create("table", "//tmp/t")
-        
+
         tx1 = start_transaction()
         lock("//tmp/t", tx=tx1, mode="exclusive")
-        
+
         tx2 = start_transaction()
         lock_id = lock("//tmp/t", mode="exclusive", waitable=True, tx=tx2)
 
@@ -583,7 +583,7 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx2)
         assert len(get("//tmp/@locks")) == 1
         assert get("//sys/locks/" + lock_id + "/@transaction_id") == tx1
-        
+
     def test_nested_tx2(self):
         tx1 = start_transaction()
         tx2 = start_transaction(tx = tx1)
@@ -607,7 +607,7 @@ class TestLocks(YTEnvSetup):
         lock("//tmp", tx = tx1)
         lock("//tmp", tx = tx2)
         with pytest.raises(YtError): lock("//tmp", tx = tx1)
-    
+
     def test_nested_tx5(self):
         set("//tmp/x", 1)
         tx1 = start_transaction()

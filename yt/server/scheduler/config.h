@@ -303,6 +303,9 @@ public:
 
     TDuration OperationTimeLimitCheckPeriod;
 
+    //! Jobs running on node are logged periodically or when they change their state.
+    TDuration JobsLoggingPeriod;
+
     TNullable<TDuration> OperationTimeLimit;
 
     //! Once this limit is reached the operation fails.
@@ -435,8 +438,12 @@ public:
 
         RegisterParameter("cluster_info_logging_period", ClusterInfoLoggingPeriod)
             .Default(TDuration::Seconds(1));
+
         RegisterParameter("operation_time_limit_check_period", OperationTimeLimitCheckPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterParameter("jobs_logging_period", JobsLoggingPeriod)
+            .Default(TDuration::Seconds(30));
 
         RegisterParameter("operation_time_limit", OperationTimeLimit)
             .Default();

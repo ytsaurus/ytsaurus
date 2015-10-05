@@ -63,8 +63,8 @@ protected:
     bool OnBlockEnded();
 
     static int GetBlockIndexByKey(
-        const TKey& key, 
-        const std::vector<TOwningKey>& blockIndexKeys, 
+        const TKey& key,
+        const std::vector<TOwningKey>& blockIndexKeys,
         int beginBlockIndex = 0);
 
     void CheckBlockUpperLimits(const NProto::TBlockMeta& blockMeta, TNullable<int> keyColumnCount = Null);

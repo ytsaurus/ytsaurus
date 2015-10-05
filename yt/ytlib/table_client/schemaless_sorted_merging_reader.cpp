@@ -121,8 +121,8 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
 
     CompareSessions_ = [=] (const TSession* lhs, const TSession* rhs) -> bool {
         int result = CompareRows(
-            lhs->Rows[lhs->CurrentRowIndex], 
-            rhs->Rows[rhs->CurrentRowIndex], 
+            lhs->Rows[lhs->CurrentRowIndex],
+            rhs->Rows[rhs->CurrentRowIndex],
             KeyColumnCount_);
         if (result == 0) {
             result = lhs->Reader->GetTableIndex() - rhs->Reader->GetTableIndex();
@@ -166,7 +166,7 @@ void TSchemalessSortedMergingReader::DoOpen()
             }
         }
         if (!SessionHeap_.empty()) {
-            MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_); 
+            MakeHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
         }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to open schemaless merging reader") << ex;
