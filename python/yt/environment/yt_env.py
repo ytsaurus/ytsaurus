@@ -18,8 +18,6 @@ import yt.json as json
 from collections import defaultdict
 from ctypes import cdll
 
-PR_SET_PDEATHSIG = 1
-
 try:
     import subprocess32 as subprocess
 except ImportError:
@@ -311,9 +309,10 @@ class YTEnv(object):
         else:
             stdout = sys.stdout
             stderr = sys.stderr
-        
+
         def preexec():
             os.setsid()
+            PR_SET_PDEATHSIG = 1
             if self._kill_child_processes:
                 result = cdll['libc.so.6'].prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
                 if result != 0:
