@@ -111,7 +111,8 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
         error = YtError(**response.error())
         print >>sys.stderr, str(error)
         print >>sys.stderr
-        raise error
+        # NB: we want to see inner errors in teamcity.
+        raise YtError(str(error))
     if isinstance(output_stream, cStringIO.OutputType):
         result = output_stream.getvalue()
         if verbose:
