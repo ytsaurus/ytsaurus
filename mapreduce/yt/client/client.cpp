@@ -61,8 +61,9 @@ Stroka ToString(ENodeType type)
 
 ITransactionPtr CreateTransactionObject(
     const TAuth& auth,
-    const TTransactionId& parentId,
-    const TStartTransactionOptions& options);
+    const TTransactionId& transactionId,
+    bool isOwning,
+    const TStartTransactionOptions& options = TStartTransactionOptions());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,7 +81,7 @@ public:
     virtual ITransactionPtr StartTransaction(
         const TStartTransactionOptions& options) override
     {
-        return CreateTransactionObject(Auth_, TransactionId_, options);
+        return CreateTransactionObject(Auth_, TransactionId_, true, options);
     }
 
     // cypress
@@ -387,17 +388,22 @@ class TTransaction
 public:
     TTransaction(
         const TAuth& auth,
-        const TTransactionId& parentId,
+        const TTransactionId& transactionId,
+        bool isOwning,
         const TStartTransactionOptions& options)
         : TClientBase(auth)
-        , PingableTx_(
-            auth,
-            parentId,
-            options.Timeout_,
-            options.PingAncestors_,
-            options.Attributes_)
     {
-        TransactionId_ = PingableTx_.GetId();
+        if (isOwning) {
+            PingableTx_ = new TPingableTransaction(
+                auth,
+                transactionId, // parent id
+                options.Timeout_,
+                options.PingAncestors_,
+                options.Attributes_);
+            TransactionId_ = PingableTx_->GetId();
+        } else {
+            TransactionId_ = transactionId;
+        }
     }
 
     virtual const TTransactionId& GetId() const override
@@ -422,24 +428,29 @@ public:
 
     virtual void Commit() override
     {
-        PingableTx_.Commit();
+        if (PingableTx_) {
+            PingableTx_->Commit();
+        }
     }
 
     virtual void Abort() override
     {
-        PingableTx_.Abort();
+        if (PingableTx_) {
+            PingableTx_->Abort();
+        }
     }
 
 private:
-    TPingableTransaction PingableTx_;
+    THolder<TPingableTransaction> PingableTx_;
 };
 
 ITransactionPtr CreateTransactionObject(
     const TAuth& auth,
-    const TTransactionId& parentId,
+    const TTransactionId& transactionId,
+    bool isOwning,
     const TStartTransactionOptions& options)
 {
-    return new TTransaction(auth, parentId, options);
+    return new TTransaction(auth, transactionId, isOwning, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -454,6 +465,12 @@ public:
         const TTransactionId& globalId)
         : TClientBase(auth, globalId)
     { }
+
+    virtual ITransactionPtr AttachTransaction(
+        const TTransactionId& transactionId) override
+    {
+        return CreateTransactionObject(Auth_, transactionId, false);
+    }
 
     virtual void InsertRows(
         const TYPath& path,
