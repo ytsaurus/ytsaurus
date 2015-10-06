@@ -485,7 +485,7 @@ TEST_P(TPrepareExpressionTest, Simple)
 }
 
 INSTANTIATE_TEST_CASE_P(
-    TPrepareExpressionTest,
+    CheckExpressions,
     TPrepareExpressionTest,
     ::testing::Values(
         std::tuple<TConstExpressionPtr, const char*>(
@@ -537,6 +537,69 @@ INSTANTIATE_TEST_CASE_P(
                     Make<TReferenceExpression>("a"),
                     Make<TLiteralExpression>(MakeInt64(2)))),
             "not ((a < 3) and (a >= 2))")
+));
+
+INSTANTIATE_TEST_CASE_P(
+    CheckPriorities,
+    TPrepareExpressionTest,
+    ::testing::Values(
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Modulo,
+                Make<TBinaryOpExpression>(EBinaryOp::Divide,
+                    Make<TBinaryOpExpression>(EBinaryOp::Multiply,
+                        Make<TUnaryOpExpression>(EUnaryOp::Minus, Make<TReferenceExpression>("a")),
+                        Make<TUnaryOpExpression>(EUnaryOp::Plus, Make<TReferenceExpression>("b"))),
+                    Make<TUnaryOpExpression>(EUnaryOp::BitNot, Make<TReferenceExpression>("c"))),
+                Make<TLiteralExpression>(MakeInt64(100))),
+            "-a * +b / ~c % 100"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Plus,
+                Make<TBinaryOpExpression>(EBinaryOp::Multiply,
+                    Make<TUnaryOpExpression>(EUnaryOp::Minus, Make<TReferenceExpression>("a")),
+                    Make<TUnaryOpExpression>(EUnaryOp::Plus, Make<TReferenceExpression>("b"))),
+                Make<TBinaryOpExpression>(EBinaryOp::Divide,
+                    Make<TUnaryOpExpression>(EUnaryOp::BitNot, Make<TReferenceExpression>("c")),
+                    Make<TLiteralExpression>(MakeInt64(100)))),
+            "-a * +b + ~c / 100"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::BitOr,
+                Make<TBinaryOpExpression>(EBinaryOp::BitAnd,
+                    Make<TReferenceExpression>("k"),
+                    Make<TBinaryOpExpression>(EBinaryOp::LeftShift,
+                        Make<TBinaryOpExpression>(EBinaryOp::Plus,
+                            Make<TReferenceExpression>("a"),
+                            Make<TReferenceExpression>("b")),
+                        Make<TReferenceExpression>("c"))),
+                Make<TBinaryOpExpression>(EBinaryOp::RightShift,
+                    Make<TReferenceExpression>("l"),
+                    Make<TReferenceExpression>("m"))),
+            "k & a + b << c | l >> m"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
+                Make<TBinaryOpExpression>(EBinaryOp::Greater,
+                    Make<TReferenceExpression>("c"),
+                    Make<TReferenceExpression>("b")),
+                Make<TBinaryOpExpression>(EBinaryOp::Less,
+                    Make<TReferenceExpression>("a"),
+                    Make<TReferenceExpression>("b"))),
+            "c > b != a < b"),
+        std::tuple<TConstExpressionPtr, const char*>(
+            Make<TBinaryOpExpression>(EBinaryOp::Or,
+                Make<TBinaryOpExpression>(EBinaryOp::NotEqual,
+                    Make<TBinaryOpExpression>(EBinaryOp::Less,
+                        Make<TReferenceExpression>("a"),
+                        Make<TReferenceExpression>("b")),
+                    Make<TBinaryOpExpression>(EBinaryOp::Greater,
+                        Make<TReferenceExpression>("c"),
+                        Make<TReferenceExpression>("b"))),
+                Make<TBinaryOpExpression>(EBinaryOp::And,
+                    Make<TBinaryOpExpression>(EBinaryOp::GreaterOrEqual,
+                        Make<TReferenceExpression>("k"),
+                        Make<TReferenceExpression>("l")),
+                    Make<TBinaryOpExpression>(EBinaryOp::LessOrEqual,
+                        Make<TReferenceExpression>("k"),
+                        Make<TReferenceExpression>("m")))),
+            "NOT a < b = c > b OR k BETWEEN l AND m")
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -120,7 +120,7 @@ inline bool IsStringLikeType(EValueType type)
 
 inline bool IsComparableType(EValueType type)
 {
-    return IsArithmeticType(type) || type == EValueType::String;
+    return IsArithmeticType(type) || type == EValueType::String || type == EValueType::Boolean;;
 }
 
 inline bool IsSentinelType(EValueType type)
