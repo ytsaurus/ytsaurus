@@ -93,7 +93,7 @@
 
 
 
-%token OpTilde 33 "`~`"
+%token OpTilde 126 "`~`"
 %token OpVerticalBar 124 "`|`"
 %token OpAmpersand 38 "`&`"
 %token OpModulo 37 "`%`"
@@ -405,7 +405,7 @@ relational-op
 ;
 
 bitor-op-expr
-    : shift-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
+    : bitor-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
         }
@@ -414,7 +414,7 @@ bitor-op-expr
 ;
 
 bitand-op-expr
-    : shift-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
+    : bitand-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
         }
@@ -565,7 +565,7 @@ const-value
                 case EUnaryOp::Plus:
                     $$ = $value;
                     break;
-                case EUnaryOp::OpTilde: {
+                case EUnaryOp::BitNot: {
                     if (auto data = $value->TryAs<i64>()) {
                         $$ = ~*data;
                     } else if (auto data = $value->TryAs<ui64>()) {
