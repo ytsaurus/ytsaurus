@@ -9,7 +9,7 @@ var http = require("http");
 // NPM modules.
 var optimist = require("optimist");
 var uid_number = require("uid-number");
-var winston = require("winston");
+var bunyan = require("bunyan");
 
 var Q = require("bluebird");
 
@@ -267,28 +267,32 @@ function ensureFileExistsAndOwned(path, user, group) {
         });
 }
 
-function provideWinstonTransport() {
+function provideLoggerStream() {
     if (config.logging) {
-        // XXX(sandello): We are forcing logging to use provided timestamps.
-        config.logging.timestamp = false;
-        return ensureFileExistsAndOwned(config.logging.filename, config.user, config.group).then(function() {
-            // console.error("Setting up logging to file '%s'", config.logging.filename);
-            return new winston.transports.File(config.logging);
+        return ensureFileExistsAndOwned(config.logging.path, config.user, config.group).then(function() {
+            // console.error("Setting up logging to file '%s'", config.logging.path);
+            return {type: "file", path: config.logging.path, level: "debug"};
         });
     } else {
         return Q.try(function() {
             // console.error("Setting up logging to console");
-            return new winston.transports.Console({ timestamp : false, raw : false, colorize : true });
+            return {type: "stream", stream: process.stderr, level: "debug"};
         });
     }
 }
 
-function provideWinstonLogger(transport) {
-    return new winston.Logger({ transports : [ transport ] });
+function provideLogger(stream) {
+    return bunyan.createLogger({
+        name: "yt",
+        streams: [stream],
+        hostname: config.fqdn,
+        src: false,
+        serializers: null,
+    });
 }
 
 function createLogger() {
-    return Q.try(provideWinstonTransport).then(provideWinstonLogger);
+    return Q.try(provideLoggerStream).then(provideLogger);
 }
 
 function createProfiler() {
@@ -308,10 +312,7 @@ function runProxy(logger, profiler) {
             args : []
     });
 
-    logger.info("Starting HTTP proxy master", {
-        pid: process.pid,
-        timestamp: new Date().toISOString()
-    });
+    logger.info("Logging started");
 
     var fake_server = net.createServer();
     fake_server.listen(config.port, config.address, function() {
@@ -328,6 +329,11 @@ function runProxy(logger, profiler) {
     var cc1 = new Date(),
         cc2 = new Date(),
         cc3 = new Date();
+
+    process.on("SIGHUP", function() {
+        logger.reopenFileStreams();
+        logger.info("Logging started");
+    });
 
     process.on("SIGINT", function() {
         cc3 = cc2; cc2 = cc1; cc1 = new Date();
