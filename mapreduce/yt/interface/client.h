@@ -99,6 +99,9 @@ class IClient
     : virtual public IClientBase
 {
 public:
+    virtual ITransactionPtr AttachTransaction(
+        const TTransactionId& transactionId) = 0;
+
     // TODO: move to transaction
     virtual void InsertRows(
         const TYPath& path,
