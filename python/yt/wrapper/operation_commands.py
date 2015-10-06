@@ -258,13 +258,8 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         if has_stderr:
             try:
                 job_with_stderr["stderr"] = read_file(stderr_path, client=client).read()
-            except RETRIABLE_ERRORS:
+            except tuple(list(RETRIABLE_ERRORS) + [YtResponseError]):
                 if ignore_errors:
-                    continue
-                else:
-                    raise
-            except YtResponseError as err:
-                if err.is_chunk_unavailable() and ignore_errors:
                     continue
                 else:
                     raise
