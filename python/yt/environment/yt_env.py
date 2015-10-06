@@ -16,6 +16,9 @@ import sys
 import getpass
 import yt.json as json
 from collections import defaultdict
+from ctypes import cdll
+
+PR_SET_PDEATHSIG = 1
 
 try:
     import subprocess32 as subprocess
@@ -118,7 +121,7 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True,
-              preserve_working_dir=False):
+              preserve_working_dir=False, kill_child_processes=False):
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
@@ -144,6 +147,7 @@ class YTEnv(object):
         self._process_to_kill = defaultdict(list)
         self._all_processes = {}
         self._kill_previously_run_services()
+        self._kill_child_processes = kill_child_processes
 
         ytserver_version_long = _get_ytserver_version()
         logger.info("Logging started (ytserver version: %s)", ytserver_version_long)
@@ -307,7 +311,15 @@ class YTEnv(object):
         else:
             stdout = sys.stdout
             stderr = sys.stderr
-        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
+        
+        def preexec():
+            os.setsid()
+            if self._kill_child_processes:
+                result = cdll['libc.so.6'].prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+                if result != 0:
+                    raise YtError("Prctl failed with error code {}".format(result))
+
+        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path_to_run,
                              stdout=stdout, stderr=stderr)
         self._process_to_kill[name].append(p)
         self._all_processes[p.pid] = (p, args)
