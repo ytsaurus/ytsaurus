@@ -315,9 +315,9 @@ class YTEnv(object):
 
         time.sleep(timeout)
         if p.poll():
-            raise YtError("Process %s-%d unexpectedly terminated with error code %d. "
-                          "If the problem is reproducible please report to yt@yandex-team.ru mailing list",
-                          name, number, p.returncode)
+            raise YtError("Process {0}-{1} unexpectedly terminated with error code {2}. "
+                          "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
+                          .format(name, number, p.returncode))
 
     def _run_ytserver(self, service_name, name):
         logger.info("Starting %s", name)
