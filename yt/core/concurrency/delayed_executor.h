@@ -13,6 +13,8 @@ namespace NConcurrency {
 class TDelayedExecutor
 {
 public:
+    ~TDelayedExecutor();
+
     //! Constructs a future that gets set when a given #delay elapses.
     static TFuture<void> MakeDelayed(TDuration delay);
 
@@ -41,8 +43,14 @@ public:
     static void StaticShutdown();
 
 private:
-    class TImpl;
+    struct TImpl;
+    std::unique_ptr<TImpl> Impl_;
 
+    TDelayedExecutor();
+
+    static TImpl* GetImpl();
+
+    DECLARE_SINGLETON_FRIEND(TDelayedExecutor);
 };
 
 extern const TDelayedExecutorCookie NullDelayedExecutorCookie;
