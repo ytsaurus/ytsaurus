@@ -117,20 +117,7 @@ public:
 
             auto descriptors = location->Scan();
             for (const auto& descriptor : descriptors) {
-                TArtifactKey key;
-                if (IsArtifactChunkId(descriptor.Id)) {
-                    auto chunkFileName = location->GetChunkPath(descriptor.Id);
-                    if (!TryLoadArtifactMeta(chunkFileName, &key)) {
-                        continue;
-                    }
-                } else {
-                    key = TArtifactKey(descriptor.Id);
-                }
-
-                auto cookie = BeginInsert(key);
-                YCHECK(cookie.IsActive());
-                auto chunk = CreateChunk(location, key, descriptor);
-                cookie.EndInsert(chunk);
+                RegisterChunk(location, descriptor);
             }
 
             location->Start();
@@ -280,6 +267,43 @@ private:
         return chunk;
     }
 
+    void RegisterChunk(
+        TLocationPtr location,
+        const TChunkDescriptor& descriptor)
+    {
+        const auto& chunkId = descriptor.Id;
+        auto chunkFileName = location->GetChunkPath(chunkId);
+
+        TArtifactKey key;
+        if (IsArtifactChunkId(chunkId)) {
+            if (!TryLoadArtifactMeta(chunkFileName, &key)) {
+                return;
+            }
+        } else {
+            key = TArtifactKey(chunkId);
+        }
+
+        auto cookie = BeginInsert(key);
+        if (!cookie.IsActive()) {
+            auto oldChunk = cookie.GetValue().Get().Value();
+            LOG_FATAL_IF(
+                oldChunk->GetInfo().disk_space() != descriptor.DiskSpace,
+                "Duplicate chunks with different size: %v vs %v",
+                oldChunk->GetLocation()->GetChunkPath(chunkId),
+                chunkFileName);
+
+            LOG_WARNING("Removing duplicate cached chunk: %v",
+                chunkFileName);
+            location->RemoveChunkFilesPermanently(chunkId);
+
+        } else {
+            auto chunk = CreateChunk(location, key, descriptor);
+            cookie.EndInsert(chunk);
+            LOG_DEBUG("Cached chunk registered (ChunkId: %v, DiskSpace: %v)",
+                chunkId,
+                descriptor.DiskSpace);
+        }
+    }
 
     virtual i64 GetWeight(const TCachedBlobChunkPtr& chunk) const override
     {
