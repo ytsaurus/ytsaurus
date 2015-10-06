@@ -14,8 +14,8 @@ namespace NApi {
 
 struct TWriteRowsOptions
 {
-    // Use inserted values to reset aggregate columns.
-    bool ResetAggregateColumns = false;
+    // Use inserted aggregate column values as delta for aggregation.
+    bool Aggregate = false;
 };
 
 struct TDeleteRowsOptions
