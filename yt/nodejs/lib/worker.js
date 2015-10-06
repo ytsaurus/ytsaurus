@@ -28,13 +28,24 @@ var config = JSON.parse(process.env.YT_PROXY_CONFIGURATION);
 var logger_mediate = function(level, message, payload) {
     // Capture real message timestamp before sending an event.
     payload = payload || {};
-    payload["timestamp"] = new Date().toISOString();
+    payload.timestamp = new Date().toISOString();
+    payload.pid = process.pid;
 
     process.send({
         type: "log",
         level: level,
         message: message,
-        payload: payload
+        payload: payload,
+    });
+};
+
+var profiler_mediate = function(method, metric, tags, value) {
+    process.send({
+        type: "profile",
+        method: method,
+        metric: metric,
+        tags: tags,
+        value: value,
     });
 };
 
@@ -52,6 +63,23 @@ var logger = {
         return logger_mediate("error", message, payload);
     },
 };
+
+var unbuffered_profiler = {
+    inc: function(metric, tags, value) {
+        return profiler_mediate("inc", metric, tags, value);
+    },
+    upd: function(metric, tags, value) {
+        return profiler_mediate("upd", metric, tags, value);
+    },
+};
+
+var buffered_profiler = new yt.YtStatistics();
+
+setInterval(function() {
+    buffered_profiler.mergeTo(unbuffered_profiler);
+}, 1000);
+
+var profiler = buffered_profiler;
 
 var version;
 
@@ -76,16 +104,17 @@ yt.configureSingletons(config.proxy);
 yt.YtRegistry.set("fqdn", config.fqdn || require("os").hostname());
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
+yt.YtRegistry.set("profiler", profiler);
 yt.YtRegistry.set("driver", new yt.YtDriver(config));
 yt.YtRegistry.set("authority", new yt.YtAuthority(
     config.authentication,
     yt.YtRegistry.get("driver")));
 yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     config.coordination,
-    new yt.utils.TaggedLogger(logger, { wid: cluster.worker.id, pid: process.pid }),
+    new yt.utils.TaggedLogger(logger, { wid: cluster.worker.id }),
     yt.YtRegistry.get("driver"),
     yt.YtRegistry.get("fqdn")));
-yt.YtRegistry.set("eio_watcher", new yt.YtEioWatcher(logger, config));
+yt.YtRegistry.set("eio_watcher", new yt.YtEioWatcher(logger, profiler, config));
 
 // Hoist variable declaration.
 var application;
@@ -117,6 +146,8 @@ var gracefullyDie = function gracefulDeath() {
     gracefullyDieTriggered = true;
 
     logger.info("Prepairing to die", { wid : cluster.worker.id, pid : process.pid });
+
+    unbuffered_profiler.mergeTo(buffered_profiler);
     process.send({ type : "stopping" });
 
     try {

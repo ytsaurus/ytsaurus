@@ -6,12 +6,13 @@ var utils = require("./utils");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtAuthentication(config, logger, authority)
+function YtAuthentication(config, logger, profiler, authority)
 {
     "use strict";
 
     this.config = config;
     this.logger = logger;
+    this.profiler = profiler;
     this.authority = authority;
 }
 
@@ -21,6 +22,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
 
     var config = this.config;
     var logger = this.logger;
+    var profiler = this.profiler;
     var authority = this.authority;
 
     // This is an epilogue to call in case of successful authentication.
@@ -53,13 +55,14 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
             });
             // Reject all invalid requests.
             utils.dispatchUnauthorized(rsp, "YT");
-            prev && prev();
+            if (typeof(prev) === "function") { prev(); }
             return void 0;
         }
 
         if (token) {
             result = authority.authenticateByToken(
                 logger,
+                profiler,
                 req.origin || req.connection.remoteAddress,
                 token);
         }
@@ -71,6 +74,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
         if (sessionid || sslsessionid) {
             result = authority.authenticateByCookie(
                 logger,
+                profiler,
                 req.origin || req.connection.remoteAddress,
                 sessionid,
                 sslsessionid);
@@ -90,7 +94,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
         } else {
             logger.debug("Client has failed to authenticate");
             utils.dispatchUnauthorized(rsp, "YT");
-            prev && prev();
+            if (typeof(prev) === "function") { prev(); }
             return void 0;
         }
     },
@@ -101,7 +105,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
             error: error.toJson()
         });
         utils.dispatchLater(rsp, 60);
-        prev && prev();
+        if (typeof(prev) === "function") { prev(); }
         return void 0;
     })
     .done();
