@@ -23,7 +23,9 @@
     "uid-number": "0.0.3",
     "heapdump": "0.1.0",
     "profiler": "1.2.1",
-    "cookies": "0.5.0"
+    "cookies": "0.5.0",
+    "cuint": "0.2.0",
+    "tdigest": "0.1.0"
   },
   "devDependencies": {
     "chai": "1.9.1",

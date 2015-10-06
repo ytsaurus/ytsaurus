@@ -26,10 +26,11 @@ var MEMORY_PRESSURE_HIT_TIMESTAMP = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterHandle(logger, logger_ts, worker)
+function YtClusterHandle(logger, logger_ts, profiler, worker)
 {
     this.logger     = logger;
     this.logger_ts  = logger_ts;
+    this.profiler   = profiler;
     this.worker     = worker;
     this.state      = "unknown";
     this.young      = true;
@@ -111,6 +112,9 @@ YtClusterHandle.prototype.handleMessage = function(message)
         case "log":
             this.handleLog(message.level, message.message, message.payload);
             break;
+        case "profile":
+            this.handleProfile(message.method, message.metric, message.tags, message.value);
+            break;
         case "heartbeat":
             if (!__DBG.$) {
                 this.worker.send({ type : "heartbeat" });
@@ -151,6 +155,11 @@ YtClusterHandle.prototype.handleLog = function(level, message, payload)
             MEMORY_PRESSURE_HIT_TIMESTAMP = time_now;
         }
     }
+};
+
+YtClusterHandle.prototype.handleProfile = function(method, metric, tags, value)
+{
+    this.profiler[method](metric, tags, value);
 };
 
 YtClusterHandle.prototype.postponeDeath = function(timeout)
@@ -214,7 +223,7 @@ YtClusterHandle.prototype.certifyDeath = function()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterMaster(logger, number_of_workers, cluster_options)
+function YtClusterMaster(logger, profiler, number_of_workers, cluster_options)
 {
     __DBG("New");
 
@@ -232,6 +241,8 @@ function YtClusterMaster(logger, number_of_workers, cluster_options)
 
     this.logger = logger;
     this.logger_ts = new utils.TaggedLogger(logger, { timestamp: getTS });
+
+    this.profiler = profiler;
 
     __DBG("Expected number of workers is " + number_of_workers);
 
@@ -305,7 +316,7 @@ YtClusterMaster.prototype.spawnNewWorker = function()
 {
     var worker = cluster.fork();
     var handle = this.workers_handles[worker.id] =
-        new YtClusterHandle(this.logger, this.logger_ts, worker);
+        new YtClusterHandle(this.logger, this.logger_ts, this.profiler, worker);
 
     worker.on("message", handle.handleMessage.bind(handle));
     this.logger_ts.info("Spawned young worker");

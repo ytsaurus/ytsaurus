@@ -4,6 +4,7 @@
 var cluster = require("cluster");
 var fs = require("fs");
 var net = require("net");
+var http = require("http");
 
 // NPM modules.
 var optimist = require("optimist");
@@ -130,6 +131,7 @@ config = {
     ssl_ca            : null,
     ssl_ciphers       : "kEECDH+AES128:kEECDH:kEDH:-3DES:kRSA+AES128:kEDH+3DES:DES-CBC3-SHA:!RC4:!aNULL:!eNULL:!MD5:!EXPORT:!LOW:!SEED:!CAMELLIA:!IDEA:!PSK:!SRP:!SSLv2",
     ssl_reject_unauthorized : false,
+    monitoring_port   : 10013,
     neighbours        : [ "::1" ],
     number_of_workers : 4,
     memory_limit      : 32 * 1024 * 1024,
@@ -289,13 +291,19 @@ function createLogger() {
     return Q.try(provideWinstonTransport).then(provideWinstonLogger);
 }
 
-function runProxy(logger) {
+function createProfiler() {
+    return Q.try(function() {
+        return new (require(__dirname + "/../lib/statistics.js").that)();
+    });
+}
+
+function runProxy(logger, profiler) {
     process.env.YT_PROXY_CONFIGURATION = JSON.stringify(config);
     process.env.YT_PROXY_VERSION = JSON.stringify(version);
     process.env.YT_PROXY_MASTER = process.pid.toString();
 
     var master = new (require(__dirname + "/../lib/master.js").that)(
-        logger, config.number_of_workers, {
+        logger, profiler, config.number_of_workers, {
             exec : __dirname + "/../lib/worker.js",
             args : []
     });
@@ -311,6 +319,11 @@ function runProxy(logger) {
             master.kickstart();
         });
     });
+
+    var profiler_server = http.createServer(function(req, rsp) {
+        rsp.writeHead(200, {"Content-Type": "text/plain"});
+        rsp.end(profiler.dump());
+    }).listen(config.monitoring_port);
 
     var cc1 = new Date(),
         cc2 = new Date(),
@@ -346,4 +359,4 @@ function runProxy(logger) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Magic line.
-Q.all([ createLogger() ]).spread(runProxy).done();
+Q.all([ createLogger(), createProfiler() ]).spread(runProxy).done();

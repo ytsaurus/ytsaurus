@@ -2,7 +2,6 @@ var lru_cache = require("lru-cache");
 var Q = require("bluebird");
 
 var YtError = require("./error").that;
-var YtRegistry = require("./registry").that;
 
 var external_services = require("./external_services");
 var utils = require("./utils");
@@ -56,7 +55,7 @@ function YtAuthority(config, driver)
 }
 
 YtAuthority.prototype.authenticateByToken = Q.method(
-function YtAuthority$authenticateByToken(logger, party, token)
+function YtAuthority$authenticateByToken(logger, profiler, party, token)
 {
     this.__DBG("authenticateByToken");
 
@@ -65,6 +64,7 @@ function YtAuthority$authenticateByToken(logger, party, token)
     var context = {
         ts: new Date(),
         logger: logger,
+        profiler: profiler,
         party: party,
         cache_key: "T" + token,
         token: token,
@@ -86,7 +86,7 @@ function YtAuthority$authenticateByToken(logger, party, token)
 });
 
 YtAuthority.prototype.authenticateByCookie = Q.method(
-function YtAuthority$authenticateByCookie(logger, party, sessionid, sslsessionid)
+function YtAuthority$authenticateByCookie(logger, profiler, party, sessionid, sslsessionid)
 {
     this.__DBG("authenticateByCookie");
 
@@ -95,6 +95,7 @@ function YtAuthority$authenticateByCookie(logger, party, sessionid, sslsessionid
     var context = {
         ts: new Date(),
         logger: logger,
+        profiler: profiler,
         party: party,
         cache_key: "C" + sessionid + "/" + sslsessionid,
         sessionid: sessionid,
@@ -295,17 +296,28 @@ YtAuthority.prototype._syncFinalize = function(context, result)
     this.__DBG("_syncFinalize");
 
     var dt = (new Date()) - context.ts;
+    var success;
     if (result.isAuthenticated) {
         context.logger.debug("Authentication succeeded", {
             authentication_time: dt,
         });
+        success = 1;
         this.authentication_cache.set(context.cache_key, result);
     } else {
         context.logger.info("Authentication failed", {
             authentication_time: dt,
         });
+        success = 0;
         this.authentication_cache.del(context.cache_key);
     }
+
+    var tags = {
+        success: success,
+        authenticated_user: result.login,
+        authenticated_from: result.realm
+    };
+    context.profiler.inc("yt.http_proxy.authentication_count", tags, 1);
+    context.profiler.upd("yt.http_proxy.authentication_time", tags, dt);
 
     return result;
 };

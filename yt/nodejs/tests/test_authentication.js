@@ -63,10 +63,12 @@ function stubRegistry()
     };
 
     var logger = stubLogger();
+    var profiler = stubProfiler();
     var driver = { executeSimple: function(){ return Q.resolve(); } };
 
     YtRegistry.set("config", config);
     YtRegistry.set("logger", logger);
+    YtRegistry.set("profiler", profiler);
     YtRegistry.set("driver", driver);
     YtRegistry.set("authority", new YtAuthority(config.authentication, driver));
 }

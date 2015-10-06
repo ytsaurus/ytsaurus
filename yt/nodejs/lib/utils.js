@@ -472,12 +472,12 @@ exports.lexicographicalCompare = function(a, b)
         }
     }
     return a.length - b.length;
-}
+};
 
 String.prototype.format = function() {
     var i = 0, args = arguments;
     return this.replace(/\{(\d*)\}/g, function(match, key) {
-        key = key === '' ? i++ : parseInt(key);
-        return typeof args[key] !== 'undefined' ? args[key] : '';
+        key = key === "" ? i++ : parseInt(key);
+        return typeof(args[key]) !== "undefined" ? args[key] : "";
     });
 };
