@@ -289,7 +289,7 @@ std::vector<TUnversionedRow> ParseRows(
 void TInsertRowsCommand::DoExecute()
 {
     TWriteRowsOptions writeOptions;
-    writeOptions.ResetAggregateColumns = Request_->ResetAggregateColumns;
+    writeOptions.Aggregate = Request_->Aggregate;
 
     // COMPAT(babenko): remove Request_->TableWriter
     auto config = UpdateYsonSerializable(

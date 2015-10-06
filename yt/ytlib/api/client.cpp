@@ -2194,7 +2194,7 @@ private:
                 for (int index = keyColumnCount; index < row.GetCount(); ++index) {
                     int schemaId = idMapping[row[index].Id];
                     row[index].Aggregate = schema.Columns()[schemaId].Aggregate.HasValue()
-                        ? !writeOptions.ResetAggregateColumns
+                        ? writeOptions.Aggregate
                         : false;
                 }
                 auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);

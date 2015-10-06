@@ -187,12 +187,12 @@ Stroka TReshardTableExecutor::GetCommandName() const
 TInsertRowsExecutor::TInsertRowsExecutor()
     : PathArg("path", "table path to insert into", true, "", "YPATH")
     , UpdateArg("", "update", "update row values, don't replace the whole row", false)
-    , ResetAggregateColumnsArg("", "reset_aggregate_columns", "reset aggregate colums with values from input row", false)
+    , AggregateArg("", "aggregate", "use aggregate column values as delta for aggregation", false)
     , ValueArg("value", "row(s) to write", false, "", "YSON")
 {
     CmdLine.add(PathArg);
     CmdLine.add(UpdateArg);
-    CmdLine.add(ResetAggregateColumnsArg);
+    CmdLine.add(AggregateArg);
     CmdLine.add(ValueArg);
 }
 
@@ -209,7 +209,7 @@ void TInsertRowsExecutor::BuildParameters(IYsonConsumer* consumer)
     BuildYsonMapFluently(consumer)
         .Item("path").Value(path)
         .Item("update").Value(UpdateArg.getValue())
-        .Item("reset_aggregate_columns").Value(ResetAggregateColumnsArg.getValue());
+        .Item("aggregate").Value(AggregateArg.getValue());
 
     TRequestExecutor::BuildParameters(consumer);
 }

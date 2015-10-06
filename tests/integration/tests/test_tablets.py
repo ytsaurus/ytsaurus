@@ -389,39 +389,39 @@ class TestTablets(YTEnvSetup):
             verify_row(row["key"], [row])
             assert_items_equal(read_table("//tmp/t"), [row])
 
-        test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10})
-        test_row({"key": 1, "time": 2, "value": 10}, {"key": 1, "time": 2, "value": 20})
-        test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30})
+        test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10}, aggregate=True)
+        test_row({"key": 1, "time": 2, "value": 10}, {"key": 1, "time": 2, "value": 20}, aggregate=True)
+        test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30}, aggregate=True)
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 3, "value": 30})
-        test_row({"key": 1, "time": 4, "value": 10}, {"key": 1, "time": 4, "value": 40})
-        test_row({"key": 1, "time": 5, "value": 10}, {"key": 1, "time": 5, "value": 50})
-        test_row({"key": 1, "time": 6, "value": 10}, {"key": 1, "time": 6, "value": 60})
+        test_row({"key": 1, "time": 4, "value": 10}, {"key": 1, "time": 4, "value": 40}, aggregate=True)
+        test_row({"key": 1, "time": 5, "value": 10}, {"key": 1, "time": 5, "value": 50}, aggregate=True)
+        test_row({"key": 1, "time": 6, "value": 10}, {"key": 1, "time": 6, "value": 60}, aggregate=True)
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 6, "value": 60})
-        test_row({"key": 1, "time": 7, "value": 10}, {"key": 1, "time": 7, "value": 70})
-        test_row({"key": 1, "time": 8, "value": 10}, {"key": 1, "time": 8, "value": 80})
-        test_row({"key": 1, "time": 9, "value": 10}, {"key": 1, "time": 9, "value": 90})
+        test_row({"key": 1, "time": 7, "value": 10}, {"key": 1, "time": 7, "value": 70}, aggregate=True)
+        test_row({"key": 1, "time": 8, "value": 10}, {"key": 1, "time": 8, "value": 80}, aggregate=True)
+        test_row({"key": 1, "time": 9, "value": 10}, {"key": 1, "time": 9, "value": 90}, aggregate=True)
 
         delete_rows("//tmp/t", [{"key": 1}])
         verify_row(1, [])
-        test_row({"key": 1, "time": 10, "value": 10}, {"key": 1, "time": 10, "value": 10})
-        test_row({"key": 1, "time": 11, "value": 10}, {"key": 1, "time": 11, "value": 20})
-        test_row({"key": 1, "time": 12, "value": 10}, {"key": 1, "time": 12, "value": 30})
+        test_row({"key": 1, "time": 10, "value": 10}, {"key": 1, "time": 10, "value": 10}, aggregate=True)
+        test_row({"key": 1, "time": 11, "value": 10}, {"key": 1, "time": 11, "value": 20}, aggregate=True)
+        test_row({"key": 1, "time": 12, "value": 10}, {"key": 1, "time": 12, "value": 30}, aggregate=True)
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 12, "value": 30})
-        test_row({"key": 1, "time": 13, "value": 10}, {"key": 1, "time": 13, "value": 40})
-        test_row({"key": 1, "time": 14, "value": 10}, {"key": 1, "time": 14, "value": 50})
-        test_row({"key": 1, "time": 15, "value": 10}, {"key": 1, "time": 15, "value": 60})
+        test_row({"key": 1, "time": 13, "value": 10}, {"key": 1, "time": 13, "value": 40}, aggregate=True)
+        test_row({"key": 1, "time": 14, "value": 10}, {"key": 1, "time": 14, "value": 50}, aggregate=True)
+        test_row({"key": 1, "time": 15, "value": 10}, {"key": 1, "time": 15, "value": 60}, aggregate=True)
 
         self.sync_unmount_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
@@ -429,22 +429,16 @@ class TestTablets(YTEnvSetup):
         verify_after_flush({"key": 1, "time": 15, "value": 60})
         delete_rows("//tmp/t", [{"key": 1}])
         verify_row(1, [])
-        test_row({"key": 1, "time": 16, "value": 10}, {"key": 1, "time": 16, "value": 10})
-        test_row({"key": 1, "time": 17, "value": 10}, {"key": 1, "time": 17, "value": 20})
-        test_row({"key": 1, "time": 18, "value": 10}, {"key": 1, "time": 18, "value": 30})
+        test_row({"key": 1, "time": 16, "value": 10}, {"key": 1, "time": 16, "value": 10}, aggregate=True)
+        test_row({"key": 1, "time": 17, "value": 10}, {"key": 1, "time": 17, "value": 20}, aggregate=True)
+        test_row({"key": 1, "time": 18, "value": 10}, {"key": 1, "time": 18, "value": 30}, aggregate=True)
 
         self.sync_compact_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 18, "value": 30})
-        test_row(
-            {"key": 1, "time": 19, "value": 10},
-            {"key": 1, "time": 19, "value": 10},
-            reset_aggregate_columns=True)
-        test_row({"key": 1, "time": 20, "value": 10}, {"key": 1, "time": 20, "value": 20})
-        test_row(
-            {"key": 1, "time": 21, "value": 10},
-            {"key": 1, "time": 21, "value": 10},
-            reset_aggregate_columns=True)
+        test_row({"key": 1, "time": 19, "value": 10}, {"key": 1, "time": 19, "value": 10})
+        test_row({"key": 1, "time": 20, "value": 10}, {"key": 1, "time": 20, "value": 20}, aggregate=True)
+        test_row({"key": 1, "time": 21, "value": 10}, {"key": 1, "time": 21, "value": 10})
 
         self.sync_compact_table("//tmp/t")
 
@@ -459,11 +453,11 @@ class TestTablets(YTEnvSetup):
         insert_rows("//tmp/t", [
             {"key": 1, "time": 1, "value": 10},
             {"key": 2, "time": 1, "value": 20},
-            {"key": 3, "time": 1}])
+            {"key": 3, "time": 1}], aggregate=True)
         insert_rows("//tmp/t", [
             {"key": 1, "time": 2, "value": 30},
             {"key": 2, "time": 2, "value": 40},
-            {"key": 3, "time": 2}])
+            {"key": 3, "time": 2}], aggregate=True)
         assert_items_equal(select_rows("max(value) as max from [//tmp/t] group by 1"), [{"max": 20}])
 
     @pytest.mark.skipif('os.environ.get("BUILD_ENABLE_LLVM", None) == "NO"')
@@ -489,15 +483,15 @@ class TestTablets(YTEnvSetup):
             insert_rows("//tmp/t", [row], **kwargs)
             verify_row(row["key"], [expected])
 
-        test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10})
-        test_row({"key": 1, "time": 2, "value": 20}, {"key": 1, "time": 2, "value": 20})
+        test_row({"key": 1, "time": 1, "value": 10}, {"key": 1, "time": 1, "value": 10}, aggregate=True)
+        test_row({"key": 1, "time": 2, "value": 20}, {"key": 1, "time": 2, "value": 20}, aggregate=True)
 
         self.sync_unmount_table("//tmp/t")
         set("//tmp/t/@schema/2/aggregate", "sum")
         self.sync_mount_table("//tmp/t")
 
         verify_row(1, [{"key": 1, "time": 2, "value": 20}])
-        test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30})
+        test_row({"key": 1, "time": 3, "value": 10}, {"key": 1, "time": 3, "value": 30}, aggregate=True)
 
 
     def test_reshard_data(self):
