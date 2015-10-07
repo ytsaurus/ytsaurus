@@ -94,8 +94,10 @@ class TSchemalessYamrWriter
 public:
     TSchemalessYamrWriter(
         NTableClient::TNameTablePtr nameTable,
-        bool enableContextSaving,
         NConcurrency::IAsyncOutputStreamPtr output,
+        bool enableContextSaving,
+        bool enableKeySwitch,
+        int keyColumnCount,
         TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 
     // ISchemalessFormatWriter overrides.
