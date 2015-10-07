@@ -64,6 +64,12 @@ ui32 CalculateEscapedLength(
     const TEscapeTable& escapeTable,
     char escapingSymbol);
 
+Stroka Escape(
+    const TStringBuf& string,
+    const TLookupTable& lookupTable,
+    const TEscapeTable& escapeTable,
+    char escapingSymbol);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NFormats

@@ -29,12 +29,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessDsvWriter
+class TSchemalessWriterForDsv
     : public TSchemalessFormatWriterBase
     , public TDsvWriterBase
 {
 public:
-    TSchemalessDsvWriter(
+    TSchemalessWriterForDsv(
         NTableClient::TNameTablePtr nameTable,
         bool enableContextSaving,
         NConcurrency::IAsyncOutputStreamPtr output,
@@ -42,7 +42,7 @@ public:
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 
-    virtual void WriteTableIndex(int tableIndex) override;
+    virtual void WriteTableIndex(i32 tableIndex) override;
 
     virtual void WriteRangeIndex(i32 rangeIndex) override;
 
@@ -55,7 +55,7 @@ private:
     void FinalizeRow(bool firstValue);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemalessDsvWriter)
+DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForDsv)
 
 ////////////////////////////////////////////////////////////////////////////////
 
