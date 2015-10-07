@@ -440,10 +440,7 @@ class YTEnv(object):
         self._run_ytserver("master", master_name)
 
         def masters_ready():
-            if versions_cmp(self._ytserver_version, "0.17.3") < 0:
-                leader_ready_marker = "Leader active"
-            else:
-                leader_ready_marker = "Initial changelog rotated"
+            leader_ready_markers = ["Leader active", "Initial changelog rotated"]
 
             world_init_completed_marker = "World initialization completed"
 
@@ -476,7 +473,8 @@ class YTEnv(object):
                     if world_init_completed_marker in line:
                         is_world_initialization_done = True
 
-                    if leader_ready_marker in line and not restart_occured_and_not_ready:
+                    if any([marker in line for marker in leader_ready_markers]) and \
+                            not restart_occured_and_not_ready:
                         is_leader_ready = True
                         if not secondary:
                             self.leader_log = logging_file
