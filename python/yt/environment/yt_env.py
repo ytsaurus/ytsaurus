@@ -17,6 +17,7 @@ import getpass
 import yt.json as json
 from collections import defaultdict
 from ctypes import cdll
+from threading import RLock
 
 try:
     import subprocess32 as subprocess
@@ -120,6 +121,8 @@ class YTEnv(object):
 
     def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True,
               preserve_working_dir=False, kill_child_processes=False):
+        self._lock = RLock()
+
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
@@ -170,52 +173,31 @@ class YTEnv(object):
                                                                  self.config_paths["proxy"], "port"))
 
     def kill_service(self, name):
-        logger.info("Killing %s", name)
-
-        ok = True
-        message_parts = []
-        remaining_processes = []
-        for p in self._process_to_kill[name]:
-            p_ok, p_message = self._kill_process(p, name)
-            if not p_ok:
-                ok = False
-                remaining_processes.append(p)
-            else:
+        with self._lock:
+            logger.info("Killing %s", name)
+            for p in self._process_to_kill[name]:
+                self._kill_process(p, name)
                 del self._all_processes[p.pid]
-            message_parts.append(p_message)
+            del self._process_to_kill[name]
 
-        self._process_to_kill[name] = remaining_processes
+    def clear_environment(self):
+        with self._lock:
+            for name in self.configs:
+                self.kill_service(name)
 
-        return ok, "".join(message_parts)
-
-    def clear_environment(self, safe=True):
-        total_ok = True
-        total_message_parts = []
-        for name in self.configs:
-            ok, message = self.kill_service(name)
-            if not ok:
-                total_ok = False
-                total_message_parts.append(message)
-
-        try:
-            os.remove(self.pids_filename)
-        except OSError:
-            pass
-
-        if not total_ok:
-            message = "Failed to clear clear_environment. Message: %s"
-            if safe:
-                raise YtError(message % "\n\n".join(total_message_parts))
-            else:
-                logger.warning(message, "\n\n".join(total_message_parts))
+            try:
+                os.remove(self.pids_filename)
+            except OSError:
+                pass
 
     def check_liveness(self, callback_func):
-        for pid, info in self._all_processes.iteritems():
-            proc, args = info
-            proc.poll()
-            if proc.returncode is not None:
-                callback_func(self, args)
-                break
+        with self._lock:
+            for pid, info in self._all_processes.iteritems():
+                proc, args = info
+                proc.poll()
+                if proc.returncode is not None:
+                    callback_func(self, args)
+                    break
 
     def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy,
                  use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
@@ -263,7 +245,7 @@ class YTEnv(object):
 
             self._write_environment_info_to_file(has_proxy)
         except Exception as err:
-            self.clear_environment(safe=False)
+            self.clear_environment()
             raise YtError("Failed to start environment", inner_errors=[err])
 
     def _write_environment_info_to_file(self, has_proxy):
@@ -273,62 +255,60 @@ class YTEnv(object):
         with open(os.path.join(self.path_to_run, "info.yson"), "w") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
+    def _is_dead_or_zombie(self, pid):
+        processes_output = subprocess.check_output("ps axo pid=,stat=", shell=True)
+        for line in processes_output.split("\n"):
+            words = line.split()
+            if len(words) >= 2 and int(words[0]) == pid:
+                return words[1].startswith("Z")
+        return True
+
+
     def _kill_process(self, proc, name):
         proc.poll()
         if proc.returncode is not None:
-            return False, "{0} (pid: {1}, working directory: {2}) is already terminated with exit code {3}\n"\
-                .format(name, proc.pid, os.path.join(self.path_to_run), proc.returncode)
-        else:
-            os.killpg(proc.pid, signal.SIGKILL)
+            logger.warning("{0} (pid: {1}, working directory: {2}) is already terminated with exit code {3}\n"\
+                .format(name, proc.pid, os.path.join(self.path_to_run), proc.returncode))
+            return
 
-        time.sleep(0.250)
+        os.killpg(proc.pid, signal.SIGKILL)
 
-        # now try to kill unkilled process
-        for i in xrange(50):
-            proc.poll()
-            if proc.returncode is not None:
-                break
-            logger.warning("%s (pid %d) was not killed by the kill command", name, proc.pid)
-
-            os.killpg(proc.pid, signal.SIGKILL)
-            time.sleep(0.100)
-
-        if proc.returncode is None:
-            return False, "Alarm! {0} (pid {1}) was not killed after 50 iterations\n".format(name, proc.pid)
-
-        return True, ""
+        if not self._is_dead_or_zombie(proc.pid):
+            logger.error("Failed to kill process %s (pid %d) ", name, proc.pid)
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")
         self.pids_file.flush()
 
     def _run(self, args, name, number=1, timeout=0.1):
-        if self.supress_yt_output:
-            stdout = open("/dev/null", "w")
-            stderr = open("/dev/null", "w")
-        else:
-            stdout = sys.stdout
-            stderr = sys.stderr
+        with self._lock:
+            if self.supress_yt_output:
+                stdout = open("/dev/null", "w")
+                stderr = open("/dev/null", "w")
+            else:
+                stdout = sys.stdout
+                stderr = sys.stderr
 
-        def preexec():
-            os.setsid()
-            PR_SET_PDEATHSIG = 1
-            if self._kill_child_processes:
-                result = cdll['libc.so.6'].prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
-                if result != 0:
-                    raise YtError("Prctl failed with error code {}".format(result))
+            def preexec():
+                os.setsid()
+                PR_SET_PDEATHSIG = 1
+                if self._kill_child_processes:
+                    result = cdll['libc.so.6'].prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+                    if result != 0:
+                        raise YtError("Prctl failed with error code {}".format(result))
 
-        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path_to_run,
-                             stdout=stdout, stderr=stderr)
-        self._process_to_kill[name].append(p)
-        self._all_processes[p.pid] = (p, args)
-        self._append_pid(p.pid)
+            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path_to_run,
+                                 stdout=stdout, stderr=stderr)
 
-        time.sleep(timeout)
-        if p.poll():
-            raise YtError("Process {0}-{1} unexpectedly terminated with error code {2}. "
-                          "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
-                          .format(name, number, p.returncode))
+            time.sleep(timeout)
+            if p.poll():
+                raise YtError("Process {0}-{1} unexpectedly terminated with error code {2}. "
+                              "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
+                              .format(name, number, p.returncode))
+            
+            self._process_to_kill[name].append(p)
+            self._all_processes[p.pid] = (p, args)
+            self._append_pid(p.pid)
 
     def _run_ytserver(self, service_name, name):
         logger.info("Starting %s", name)
