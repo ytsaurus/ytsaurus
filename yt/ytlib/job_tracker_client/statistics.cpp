@@ -220,17 +220,6 @@ yhash_map<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobSt
     };
 
     try {
-<<<<<<< HEAD
-        auto outputStatistics =  GetValues<yhash_map<int, TDataStatistics>>(statistics, "/data/output", getValue);
-
-        TDataStatistics result;
-        for (const auto& pair : outputStatistics) {
-            result += pair.second;
-        }
-        return result;
-    } catch (const std::exception&) {
-        return TDataStatistics();
-=======
         return GetValues<yhash_map<int, TDataStatistics>>(jobStatistics, "/data/output", getValue);
     } catch (const std::exception&) {
         return yhash_map<int, TDataStatistics>();
@@ -239,10 +228,9 @@ yhash_map<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobSt
 
 TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics)
 {
-    TDataStatistics result = ZeroDataStatistics();
+    TDataStatistics result;
     for (const auto& pair : GetOutputDataStatistics(jobStatistics)) {
         result += pair.second;
->>>>>>> prestable/0.17.4
     }
     return result;
 }
