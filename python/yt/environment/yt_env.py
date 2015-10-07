@@ -171,43 +171,18 @@ class YTEnv(object):
 
     def kill_service(self, name):
         logger.info("Killing %s", name)
-
-        ok = True
-        message_parts = []
-        remaining_processes = []
         for p in self._process_to_kill[name]:
-            p_ok, p_message = self._kill_process(p, name)
-            if not p_ok:
-                ok = False
-                remaining_processes.append(p)
-            else:
-                del self._all_processes[p.pid]
-            message_parts.append(p_message)
+            self._kill_process(p, name)
+            del self._all_processes[p.pid]
 
-        self._process_to_kill[name] = remaining_processes
-
-        return ok, "".join(message_parts)
-
-    def clear_environment(self, safe=True):
-        total_ok = True
-        total_message_parts = []
+    def clear_environment(self):
         for name in self.configs:
-            ok, message = self.kill_service(name)
-            if not ok:
-                total_ok = False
-                total_message_parts.append(message)
+            self.kill_service(name)
 
         try:
             os.remove(self.pids_filename)
         except OSError:
             pass
-
-        if not total_ok:
-            message = "Failed to clear clear_environment. Message: %s"
-            if safe:
-                raise YtError(message % "\n\n".join(total_message_parts))
-            else:
-                logger.warning(message, "\n\n".join(total_message_parts))
 
     def check_liveness(self, callback_func):
         for pid, info in self._all_processes.iteritems():
@@ -263,7 +238,7 @@ class YTEnv(object):
 
             self._write_environment_info_to_file(has_proxy)
         except Exception as err:
-            self.clear_environment(safe=False)
+            self.clear_environment()
             raise YtError("Failed to start environment", inner_errors=[err])
 
     def _write_environment_info_to_file(self, has_proxy):
@@ -273,30 +248,26 @@ class YTEnv(object):
         with open(os.path.join(self.path_to_run, "info.yson"), "w") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
+    def _is_dead_or_zombie(self, pid):
+        processes_output = subprocess.check_output("ps axo pid=,stat=", shell=True)
+        for line in processes_output.split("\n"):
+            words = line.split()
+            if int(words[0]) == pid:
+                return words[1].startswith("Z")
+        return True
+
+
     def _kill_process(self, proc, name):
         proc.poll()
         if proc.returncode is not None:
-            return False, "{0} (pid: {1}, working directory: {2}) is already terminated with exit code {3}\n"\
-                .format(name, proc.pid, os.path.join(self.path_to_run), proc.returncode)
-        else:
-            os.killpg(proc.pid, signal.SIGKILL)
+            logger.warning("{0} (pid: {1}, working directory: {2}) is already terminated with exit code {3}\n"\
+                .format(name, proc.pid, os.path.join(self.path_to_run), proc.returncode))
+            return
 
-        time.sleep(0.250)
+        os.killpg(proc.pid, signal.SIGKILL)
 
-        # now try to kill unkilled process
-        for i in xrange(50):
-            proc.poll()
-            if proc.returncode is not None:
-                break
-            logger.warning("%s (pid %d) was not killed by the kill command", name, proc.pid)
-
-            os.killpg(proc.pid, signal.SIGKILL)
-            time.sleep(0.100)
-
-        if proc.returncode is None:
-            return False, "Alarm! {0} (pid {1}) was not killed after 50 iterations\n".format(name, proc.pid)
-
-        return True, ""
+        if not self._is_dead_or_zombie(proc.pid):
+            logger.error("Failed to kill process %s (pid %d) ", name, proc.pid)
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")
