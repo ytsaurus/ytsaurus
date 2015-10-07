@@ -68,7 +68,7 @@ def start_func(**kwargs):
         def interrupt_action():
             logger.info("Stopping environment...")
             checking_thread.stop()
-            environment.clear_environment(safe=False)
+            environment.clear_environment()
 
         with KeyboardInterruptsCatcher(interrupt_action):
             while True:
