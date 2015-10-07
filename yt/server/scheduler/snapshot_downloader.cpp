@@ -47,10 +47,8 @@ void TSnapshotDownloader::Run()
         reader = client->CreateFileReader(snapshotPath, options);
     }
 
-    {
-        auto result = WaitFor(reader->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
-    }
+    WaitFor(reader->Open())
+        .ThrowOnError();
 
     LOG_INFO("Snapshot reader opened");
 

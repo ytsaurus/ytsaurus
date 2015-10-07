@@ -1726,8 +1726,8 @@ private:
             asyncSamplesResult = samplesFetcher->Fetch();
         }
 
-        auto samplesResult = WaitFor(asyncSamplesResult);
-        THROW_ERROR_EXCEPTION_IF_FAILED(samplesResult);
+        WaitFor(asyncSamplesResult)
+            .ThrowOnError();
 
         PROFILE_TIMING ("/samples_processing_time") {
             auto sortedSamples = SortSamples(samplesFetcher->GetSamples());
@@ -2247,33 +2247,19 @@ private:
     {
         TSortControllerBase::DoInitialize();
 
-        if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Mapper->FilePaths.size());
-        }
-
-        if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Reducer->FilePaths.size());
-        }
-
-        if (Spec->ReduceCombiner && Spec->ReduceCombiner->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reduce combiner: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->ReduceCombiner->FilePaths.size());
-        }
+        ValidateUserFileCount(Spec->Mapper, "mapper");
+        ValidateUserFileCount(Spec->Reducer, "reducer");
+        ValidateUserFileCount(Spec->ReduceCombiner, "reduce combiner");
 
         if (!CheckKeyColumnsCompatible(Spec->SortBy, Spec->ReduceBy)) {
-            THROW_ERROR_EXCEPTION("Reduce columns %v are not compatible with sort columns %v",
-                ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
-                ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
+            THROW_ERROR_EXCEPTION("Reduce columns [%v] are not compatible with sort columns [%v]",
+                JoinToString(Spec->ReduceBy),
+                JoinToString(Spec->SortBy));
         }
 
-        LOG_DEBUG("Reduce columns: %v; sort columns: %v",
-            ConvertToYsonString(Spec->ReduceBy, EYsonFormat::Text).Data(),
-            ConvertToYsonString(Spec->SortBy, EYsonFormat::Text).Data());
+        LOG_DEBUG("Reduce columns: [%v]; sort columns: [%v]",
+            JoinToString(Spec->ReduceBy),
+            JoinToString(Spec->SortBy));
     }
 
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
