@@ -1161,8 +1161,8 @@ private:
 
             auto controller = operation->GetController();
             auto asyncResult = controller->Prepare();
-            auto result = WaitFor(asyncResult);
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
+            WaitFor(asyncResult)
+                .ThrowOnError();
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;
@@ -1884,8 +1884,8 @@ private:
             {
                 auto controller = operation->GetController();
                 auto asyncResult = controller->Commit();
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                WaitFor(asyncResult)
+                    .ThrowOnError();
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }

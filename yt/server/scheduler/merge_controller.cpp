@@ -649,11 +649,7 @@ private:
     {
         TOrderedMergeControllerBase::DoInitialize();
 
-        if (Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Mapper->FilePaths.size());
-        }
+        ValidateUserFileCount(Spec->Mapper, "mapper");
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -1047,12 +1043,12 @@ protected:
         // NB: Base member is not called intentionally.
 
         auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %v",
-            !specKeyColumns.empty() ? ConvertToYsonString(specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
+        LOG_INFO("Spec key columns are [%v]",
+            JoinToString(specKeyColumns));
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are %v",
-            ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
+        LOG_INFO("Adjusted key columns are [%v]",
+            JoinToString(KeyColumns));
 
         bool sliceByKeys = true;
 
@@ -1081,10 +1077,8 @@ protected:
 
         ProcessInputs();
 
-        {
-            auto result = WaitFor(ChunkSlicesFetcher->Fetch());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(ChunkSlicesFetcher->Fetch())
+            .ThrowOnError();
 
         CollectEndpoints();
 
@@ -1533,11 +1527,7 @@ private:
     {
         TSortedMergeControllerBase::DoInitialize();
 
-        if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Reducer->FilePaths.size());
-        }
+        ValidateUserFileCount(Spec->Reducer, "reducer");
     }
 
     virtual bool IsRowCountPreserved() const override
@@ -1800,7 +1790,9 @@ private:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ToProto(reduceJobSpecExt->mutable_key_columns(), GetSortingKeyColumns());
+        const auto& sortBy = GetCommonInputKeyPrefix();
+        YCHECK(sortBy.size() >= KeyColumns.size());
+        ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
         reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
@@ -1829,26 +1821,6 @@ private:
             }
         }
         return true;
-    }
-
-    TKeyColumns GetSortingKeyColumns()
-    {
-        auto sortBy = InputTables[0].KeyColumns;
-        for (const auto& table : InputTables) {
-            if (table.KeyColumns.size() < sortBy.size()) {
-                sortBy.erase(sortBy.begin() + table.KeyColumns.size(), sortBy.end());
-            }
-
-            int i = 0;
-            for (; i < static_cast<int>(sortBy.size()); ++i) {
-                if (sortBy[i] != table.KeyColumns[i]) {
-                    break;
-                }
-            }
-            sortBy.erase(sortBy.begin() + i, sortBy.end());
-        }
-        YCHECK(sortBy.size() >= KeyColumns.size());
-        return sortBy;
     }
 };
 

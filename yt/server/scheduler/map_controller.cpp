@@ -404,11 +404,7 @@ private:
     {
         TUnorderedOperationControllerBase::DoInitialize();
 
-        if (Spec->Mapper && Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Mapper->FilePaths.size());
-        }
+        ValidateUserFileCount(Spec->Mapper, "mapper");
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
