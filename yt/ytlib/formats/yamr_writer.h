@@ -4,6 +4,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "yamr_table.h"
+#include "schemaless_writer_adapter.h"
 
 #include <ytlib/table_client/public.h>
 
@@ -84,6 +85,34 @@ private:
 
     void EscapeAndWrite(const TStringBuf& value, bool inKey);
     
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessYamrWriter
+    : public TSchemalessFormatWriterBase {
+public:
+    TSchemalessYamrWriter(
+        NTableClient::TNameTablePtr nameTable,
+        bool enableContextSaving,
+        NConcurrency::IAsyncOutputStreamPtr output,
+        TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
+
+    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
+
+    virtual void WriteTableIndex(int tableIndex) override;
+
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+
+    virtual void WriteRowIndex(i64 rowIndex) override;
+
+private:
+    TYamrFormatConfigPtr Config_;
+    TYamrTable Table_;
+ 
+    void WriteInLenvalMode(const TStringBuf& value);
+    
+    void EscapeAndWrite(const TStringBuf& value, bool inKey);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
