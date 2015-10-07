@@ -285,13 +285,6 @@ private:
 
         auto cookie = BeginInsert(key);
         if (!cookie.IsActive()) {
-            auto oldChunk = cookie.GetValue().Get().Value();
-            LOG_FATAL_IF(
-                oldChunk->GetInfo().disk_space() != descriptor.DiskSpace,
-                "Duplicate chunks with different size: %v vs %v",
-                oldChunk->GetLocation()->GetChunkPath(chunkId),
-                chunkFileName);
-
             LOG_WARNING("Removing duplicate cached chunk: %v",
                 chunkFileName);
             location->RemoveChunkFilesPermanently(chunkId);
