@@ -699,10 +699,7 @@ void TDecoratedAutomaton::Clear()
     Automaton_->Clear();
     Reset();
     AutomatonVersion_ = TVersion();
-<<<<<<< HEAD
     CommittedVersion_ = TVersion();
-=======
->>>>>>> prestable/0.17.4
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -904,17 +901,11 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
     LOG_DEBUG("Committed version promoted to %v",
         version);
 
-<<<<<<< HEAD
-    ApplyPendingMutations(std::move(epochContext));
-=======
     ApplyPendingMutations(std::move(epochContext), mayYield);
->>>>>>> prestable/0.17.4
 }
 
 bool TDecoratedAutomaton::HasReadyMutations() const
 {
-<<<<<<< HEAD
-=======
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (PendingMutations_.empty()) {
@@ -927,7 +918,6 @@ bool TDecoratedAutomaton::HasReadyMutations() const
 
 void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield)
 {
->>>>>>> prestable/0.17.4
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
         while (!PendingMutations_.empty()) {
@@ -935,15 +925,6 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, b
             if (pendingMutation.Version >= CommittedVersion_)
                 break;
 
-<<<<<<< HEAD
-            if (timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
-                epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
-                break;
-            }
-
-=======
->>>>>>> prestable/0.17.4
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
             TMutationContext context(

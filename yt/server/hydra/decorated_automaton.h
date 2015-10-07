@@ -207,11 +207,7 @@ private:
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
     std::atomic<TVersion> LoggedVersion_;
     std::atomic<TVersion> AutomatonVersion_;
-<<<<<<< HEAD
     std::atomic<TVersion> CommittedVersion_;
-=======
-    TVersion CommittedVersion_;
->>>>>>> prestable/0.17.4
 
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;

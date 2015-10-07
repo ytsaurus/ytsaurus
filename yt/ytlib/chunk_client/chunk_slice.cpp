@@ -141,7 +141,7 @@ TChunkSlice::TChunkSlice(
         LowerLimit_.MergeLowerLimit(ChunkSpec_->lower_limit());
     }
     if (ChunkSpec_->has_upper_limit()) {
-        LowerLimit_.MergeUpperLimit(ChunkSpec_->upper_limit());
+        UpperLimit_.MergeUpperLimit(ChunkSpec_->upper_limit());
     }
 }
 

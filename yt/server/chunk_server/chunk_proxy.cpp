@@ -309,7 +309,6 @@ private:
             return true;
         }
 
-<<<<<<< HEAD
         if (key == "exports") {
             auto multicellManager = Bootstrap_->GetMulticellManager();
             auto cellTags = multicellManager->GetRegisteredMasterCellTags();
@@ -324,19 +323,12 @@ private:
                             .EndMap();
                     }
                 });
-=======
-        if (key == "sealed") {
-            BuildYsonFluently(consumer)
-                .Value(chunk->IsSealed());
             return true;
         }
 
-        if (key == "owning_nodes") {
-            SerializeOwningNodesPaths(
-                cypressManager,
-                chunk,
-                consumer);
->>>>>>> prestable/0.17.4
+        if (key == "sealed") {
+            BuildYsonFluently(consumer)
+                .Value(chunk->IsSealed());
             return true;
         }
 
