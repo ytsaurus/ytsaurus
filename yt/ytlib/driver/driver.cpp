@@ -242,22 +242,22 @@ private:
     {
         const auto& request = context->Request();
 
+        TError result;
         TRACE_CHILD("Driver", request.CommandName) {
             LOG_INFO("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
-            command->Execute(context);
+            result = command->Execute(context);
         }
 
-        const auto& error = context->GetError();
-        if (error.IsOK()) {
+        if (result.IsOK()) {
             LOG_INFO("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
         } else {
-            LOG_INFO(error, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+            LOG_INFO(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
@@ -265,7 +265,7 @@ private:
 
         WaitFor(context->Terminate());
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
     class TCommandContext
@@ -340,25 +340,10 @@ private:
             return *OutputFormat_;
         }
 
-        virtual void Reply(const TError& error) override
-        {
-            YCHECK(!Replied_);
-            Error_ = error;
-            Replied_ = true;
-        }
-
-        const TError& GetError() const
-        {
-            return Error_;
-        }
-
     private:
         const TDriverPtr Driver_;
         const TCommandDescriptor Descriptor_;
         const TDriverRequest Request_;
-
-        bool Replied_ = false;
-        TError Error_;
 
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;

@@ -13,32 +13,10 @@ using namespace NScheduler;
 void TCommandBase::Prepare()
 { }
 
-void TCommandBase::Reply(const TError& error)
-{
-    YCHECK(!Replied_);
-    YCHECK(!error.IsOK());
-
-    Context_->Reply(error);
-    Replied_ = true;
-}
-
-void TCommandBase::Reply()
-{
-    YCHECK(!Replied_);
-
-    Context_->Reply(TError());
-    Replied_ = true;
-}
-
 void TCommandBase::Reply(const TYsonString& yson)
 {
-    YCHECK(!Replied_);
-
     auto consumer = Context_->CreateOutputConsumer();
     Consume(yson, consumer.get());
-
-    Context_->Reply(TError());
-    Replied_ = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

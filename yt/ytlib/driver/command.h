@@ -139,7 +139,6 @@ struct ICommandContext
     virtual NYTree::TYsonProducer CreateInputProducer() = 0;
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
 
-    virtual void Reply(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICommandContext)
@@ -149,7 +148,7 @@ DEFINE_REFCOUNTED_TYPE(ICommandContext)
 struct ICommand
     : public TRefCounted
 {
-    virtual void Execute(ICommandContextPtr context) = 0;
+    virtual TError Execute(ICommandContextPtr context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICommand)
@@ -161,14 +160,11 @@ class TCommandBase
 {
 protected:
     ICommandContextPtr Context_ = nullptr;
-    bool Replied_ = false;
-
 
     virtual void Prepare();
 
-    void Reply(const TError& error);
     void Reply(const NYTree::TYsonString& yson);
-    void Reply();
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,7 +174,7 @@ class TTypedCommandBase
     : public virtual TCommandBase
 {
 public:
-    virtual void Execute(ICommandContextPtr context)
+    TError Execute(ICommandContextPtr context)
     {
         Context_ = context;
         try {
@@ -188,12 +184,9 @@ public:
 
             DoExecute();
 
-            // Assume empty successful reply by default.
-            if (!Replied_) {
-                Reply();
-            }
+            return TError();
         } catch (const std::exception& ex) {
-            Reply(ex);
+            return TError(ex);
         }
     }
 
