@@ -41,16 +41,21 @@ void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey, TOutpu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessDsvWriter::TSchemalessDsvWriter(
+TSchemalessWriterForDsv::TSchemalessWriterForDsv(
     TNameTablePtr nameTable, 
     bool enableContextSaving,
     IAsyncOutputStreamPtr output,
     TDsvFormatConfigPtr config)
-    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
+    : TSchemalessFormatWriterBase(
+         nameTable, 
+         std::move(output), 
+         enableContextSaving,
+         false /* enableKeySwitch */, 
+         0 /* keyColumnCount */)
     , TDsvWriterBase(config)
 { }
 
-void TSchemalessDsvWriter::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+void TSchemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
 {
     auto* output = GetOutputStream();
     for (const auto& row : rows) {
@@ -81,7 +86,7 @@ void TSchemalessDsvWriter::DoWrite(const std::vector<NTableClient::TUnversionedR
     TryFlushBuffer(true);
 }
 
-void TSchemalessDsvWriter::FinalizeRow(bool firstValue)
+void TSchemalessWriterForDsv::FinalizeRow(bool firstValue)
 {
     auto* output = GetOutputStream();
     if (Config_->EnableTableIndex) {
@@ -97,7 +102,7 @@ void TSchemalessDsvWriter::FinalizeRow(bool firstValue)
     output->Write(Config_->RecordSeparator);
 }
 
-void TSchemalessDsvWriter::WriteValue(const TUnversionedValue& value) 
+void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value) 
 {
     auto nameTable = GetNameTable();
     auto* output = GetOutputStream();
@@ -139,17 +144,17 @@ void TSchemalessDsvWriter::WriteValue(const TUnversionedValue& value)
     }
 }
 
-void TSchemalessDsvWriter::WriteTableIndex(int tableIndex)
+void TSchemalessWriterForDsv::WriteTableIndex(i32 tableIndex)
 {
     TableIndex_ = tableIndex;
 }
 
-void TSchemalessDsvWriter::WriteRangeIndex(i32 rangeIndex)
+void TSchemalessWriterForDsv::WriteRangeIndex(i32 rangeIndex)
 {
     THROW_ERROR_EXCEPTION("Range indexes are not supported by dsv format");
 }
 
-void TSchemalessDsvWriter::WriteRowIndex(i64 rowIndex)
+void TSchemalessWriterForDsv::WriteRowIndex(i64 rowIndex)
 {
     THROW_ERROR_EXCEPTION("Row indexes are not supported by dsv format");
 }
