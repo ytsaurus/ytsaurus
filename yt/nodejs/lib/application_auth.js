@@ -25,10 +25,11 @@ var _STATIC_STYLE = fs.readFileSync(__dirname + "/../static/bootstrap.min.css");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationAuth(config, logger, authority)
+function YtApplicationAuth(config, logger, profiler, authority)
 {
     this.config = config;
     this.logger = logger;
+    this.profiler = profiler;
     this.authority = authority;
 }
 
@@ -112,6 +113,7 @@ YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
 {
     var self = this;
     var logger = req.logger || self.logger;
+    var profiler = self.profiler;
     var origin = req.origin || req.connection.remoteAddress;
 
     if (req.method !== "POST") {
@@ -122,7 +124,7 @@ YtApplicationAuth.prototype._dispatchLogin = function(req, rsp, body)
         throw new YtError("Expected body to have a `token` field");
     }
 
-    return self.authority.authenticateByToken(logger, origin, body.token)
+    return self.authority.authenticateByToken(logger, profiler, origin, body.token)
     .then(function(result) {
         return utils.dispatchJson(rsp, {
             login: result.login,
@@ -143,6 +145,7 @@ YtApplicationAuth.prototype._dispatchWhoAmI = function(req, rsp)
     (new YtAuthentication(
         self.config,
         req.logger || self.logger,
+        self.profiler,
         self.authority)).dispatch(
             req,
             rsp,
@@ -175,6 +178,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
 {
     var self = this;
     var logger = req.logger || self.logger;
+    var profiler = self.profiler;
     var origin = req.origin || req.connection.remoteAddress;
 
     var state = JSON.parse(params.state);
@@ -187,7 +191,7 @@ YtApplicationAuth.prototype._dispatchNewCallback = function(req, rsp, params)
     .then(function(token) {
         return Q.all([
             token,
-            self.authority.authenticateByToken(logger, origin, token)
+            self.authority.authenticateByToken(logger, profiler, origin, token)
         ]);
     })
     .spread(function(token, result) {

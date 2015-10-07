@@ -122,12 +122,8 @@ void TChunkStore::RegisterExistingChunk(IChunkPtr chunk)
         switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk: {
-                // Compare if replicas are equal.
-                LOG_FATAL_IF(
-                    oldChunk->GetInfo().disk_space() != chunk->GetInfo().disk_space(),
-                    "Duplicate chunks with different size: %v vs %v",
-                    currentPath,
-                    oldPath);
+                // NB: Unfortunaly we cannot ensure size equality of duplicate chunks
+                // since different replicas may have different chunk meta formats.
 
                 // Remove duplicate replica.
                 LOG_WARNING("Removing duplicate blob chunk: %v vs %v",

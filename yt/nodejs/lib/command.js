@@ -176,6 +176,10 @@ YtCommand.prototype.dispatch = function(req, rsp) {
     self.req = req;
     self.rsp = rsp;
 
+    if (typeof(self.req.tags) === "undefined") {
+        self.req.tags = {};
+    }
+
     self.request_id = self.req.uuid_ui64;
 
     self.rsp.statusCode = 200;
@@ -324,6 +328,9 @@ YtCommand.prototype._getName = function() {
         throw new YtError("Malformed command name " + JSON.stringify(name));
     }
 
+    this.req.tags.api_command = name;
+    this.req.tags.api_version = version;
+
     this.name = name;
     this.driver = driver;
 };
@@ -336,6 +343,8 @@ YtCommand.prototype._getUser = function() {
     } else {
         throw new YtError("Failed to identify user credentials");
     }
+
+    this.req.tags.user = this.user;
 
     if (this.name === "ping_tx" || this.name === "parse_ypath") {
         // Do not check stickness for `ping_tx` command.
@@ -408,12 +417,6 @@ YtCommand.prototype._checkAvailability = function() {
         abortAsUnavailable(
             "Command '" + this.name +
             "' is heavy and the proxy is currently under heavy load; " +
-            "please try another proxy or try again later");
-    }
-
-    if (!this.watcher.acquireThread()) {
-        abortAsUnavailable(
-            "There are too many concurrent requests being served at the moment; " +
             "please try another proxy or try again later");
     }
 };
@@ -799,6 +802,14 @@ YtCommand.prototype._execute = function(cb) {
 
     var self = this;
 
+    if (!self.watcher.acquireThread(self.req.tags)) {
+        self.rsp.statusCode = 503;
+        self.rsp.setHeader("Retry-After", "60");
+        return Q.reject(new YtError(
+            "There are too many concurrent requests being served at the moment; " +
+            "please try another proxy or try again later"));
+    }
+
     self.logger.debug("Command '" + self.name + "' is being executed");
     return this.driver.execute(this.name, this.user,
         this.input_stream, this.input_compression,
@@ -824,7 +835,7 @@ YtCommand.prototype._execute = function(cb) {
             }
         },
         function result_interceptor(result) {
-            self.watcher.releaseThread();
+            self.watcher.releaseThread(self.req.tags);
             self.logger.debug(
                 "Command '" + self.name + "' has finished executing",
                 { result: result });
