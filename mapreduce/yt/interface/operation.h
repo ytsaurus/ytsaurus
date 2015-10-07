@@ -77,6 +77,7 @@ struct TReduceOperationSpec
     using TSelf = TReduceOperationSpec;
 
     FLUENT_FIELD(TUserJobSpec, ReducerSpec);
+    FLUENT_FIELD(TKeyColumns, SortBy);
     FLUENT_FIELD(TKeyColumns, ReduceBy);
 };
 
