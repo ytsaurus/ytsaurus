@@ -151,8 +151,8 @@ def get_scheduler_config():
 }
 """)
 
-def get_node_config():
-    return yson.loads(
+def get_node_config(enable_debug_logging=True):
+    config = yson.loads(
 """
 {
     orchid_cache_expiration_time = 0;
@@ -282,6 +282,13 @@ def get_node_config():
     };
 }
 """)
+    if not enable_debug_logging:
+        del config["logging"]["rules"][1]
+        del config["logging"]["writers"]["debug"]
+        del config["exec_agent"]["job_proxy_logging"]["rules"][1]
+        del config["exec_agent"]["job_proxy_logging"]["writers"]["debug"]
+
+    return config
 
 def get_driver_config():
     return yson.loads(
