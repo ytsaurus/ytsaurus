@@ -304,7 +304,14 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 enableContextSaving,
                 enableKeySwitch,
                 keyColumnCount);
-
+        case EFormatType::Yamr:
+            return New<TSchemalessYamrWriter>(
+                nameTable,
+                std::move(output),
+                enableContextSaving,
+                enableKeySwitch,
+                keyColumnCount,
+                ConvertTo<TYamrFormatConfigPtr>(&format.Attributes()));
         default:
             return New<TSchemalessWriterAdapter>(
                 format,
