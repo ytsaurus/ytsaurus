@@ -318,10 +318,17 @@ void TYamrConsumer::EscapeAndWrite(const TStringBuf& value, bool inKey)
 
 TSchemalessYamrWriter::TSchemalessYamrWriter(
     TNameTablePtr nameTable, 
-    bool enableContextSaving,
     IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount,
     TYamrFormatConfigPtr config)
-    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
+    : TSchemalessFormatWriterBase(
+        nameTable, 
+        std::move(output),
+        enableContextSaving, 
+        enableKeySwitch,
+        keyColumnCount)
     , Config_(config)
     , Table_(
         config->FieldSeparator,
@@ -334,6 +341,10 @@ TSchemalessYamrWriter::TSchemalessYamrWriter(
     KeyId_ = nameTable->GetId(config->Key);
     SubKeyId_ = (Config_->HasSubkey) ? nameTable->GetId(config->Subkey) : -1;
     ValueId_ = nameTable->GetId(config->Value);
+    
+    if (enableKeySwitch && !config->Lenval) {
+        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
+    }
 }
 
 void TSchemalessYamrWriter::EscapeAndWrite(const TStringBuf& value, bool inKey)
@@ -362,10 +373,17 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<NTableClient::TUnversioned
 {
     auto* stream = GetOutputStream();
 
-    for (const auto& row : rows) {
+    for (int i = 0; i < static_cast<int>(rows.size()); i++) {
+        if (EnableKeySwitch_) {
+            if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
+                // It's guaranteed that we are in lenval mode.
+                WritePod(*stream, static_cast<ui32>(-2));
+            }
+        }
+        
         TNullable<TStringBuf> key, subkey, value;
 
-        for (const auto* item = row.Begin(); item != row.End(); ++item) {
+        for (const auto* item = rows[i].Begin(); item != rows[i].End(); ++item) {
             if (item->Id == KeyId_) {
                 YASSERT(item->Type == EValueType::String);
                 key = item->Data.String;
