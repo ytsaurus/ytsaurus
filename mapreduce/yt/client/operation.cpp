@@ -330,9 +330,11 @@ TOperationId ExecuteReduce(
         format = GetTableFormats(auth, spec.Inputs_);
     }
 
+    TKeyColumns sortBy(spec.SortBy_);
     TKeyColumns reduceBy(spec.ReduceBy_);
 
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR) {
+        sortBy = TKeyColumns("key", "subkey");
         reduceBy = TKeyColumns("key");
     }
 
@@ -353,6 +355,7 @@ TOperationId ExecuteReduce(
             format,
             spec.InputDesc_,
             spec.OutputDesc_))
+        .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
