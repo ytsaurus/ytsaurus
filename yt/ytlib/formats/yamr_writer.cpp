@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "yamr_writer.h"
 
+#include <ytlib/table_client/name_table.h>
+
 #include <core/misc/error.h>
 
 #include <core/yson/format.h>
@@ -10,6 +12,7 @@ namespace NFormats {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NYson;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,8 +28,7 @@ TYamrConsumer::TYamrConsumer(TOutputStream* stream, TYamrFormatConfigPtr config)
         Config->EscapingSymbol,
         true)
     , State(EState::None)
-{
-    
+{ 
     YCHECK(Config);
     YCHECK(Stream);
 }
@@ -328,7 +330,11 @@ TSchemalessYamrWriter::TSchemalessYamrWriter(
         config->EnableEscaping, // Enable value escaping
         config->EscapingSymbol,
         true)
-{ }
+{
+    KeyId_ = nameTable->GetId(config->Key);
+    SubKeyId_ = (Config_->HasSubkey) ? nameTable->GetId(config->Subkey) : -1;
+    ValueId_ = nameTable->GetId(config->Value);
+}
 
 void TSchemalessYamrWriter::EscapeAndWrite(const TStringBuf& value, bool inKey)
 {
@@ -355,62 +361,53 @@ void TSchemalessYamrWriter::WriteInLenvalMode(const TStringBuf& value)
 void TSchemalessYamrWriter::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
 {
     auto* stream = GetOutputStream();
-  
-    int maxNumberOfValuesPerRow = Config_->HasSubkey ? 3 : 2;
 
     for (const auto& row : rows) {
-        if (row.GetCount() < 2) {
-            THROW_ERROR_EXCEPTION("Row should consist of at least 2 values, found %v values instead", row.GetCount());
-        }
-        if (row.GetCount() > maxNumberOfValuesPerRow) {
-            THROW_ERROR_EXCEPTION("Row should consist of at most %v values, found %v values instead", maxNumberOfValuesPerRow, row.GetCount()); 
-        }
-        
-        int columnIndex = 0;
+        TNullable<TStringBuf> key, subkey, value;
 
-        TStringBuf key, subkey, value;
-
-        if (row[columnIndex].Type != EValueType::String) {
-            THROW_ERROR_EXCEPTION("Key (column #%v) should be of type String", columnIndex);
-        }
-        key = row[columnIndex].Data.String;
-        columnIndex++;
-
-        if (row.GetCount() == 3) {
-            // If subkey has type Null, we consider it being equal to "".
-            if (row[columnIndex].Type == EValueType::Null) {
-                subkey = "";
-            } else if (row[columnIndex].Type == EValueType::String) {
-                subkey = row[columnIndex].Data.String;
+        for (const auto* item = row.Begin(); item != row.End(); ++item) {
+            if (item->Id == KeyId_) {
+                YASSERT(item->Type == EValueType::String);
+                key = item->Data.String;
+            } else if (item->Id == SubKeyId_) {
+                if (item->Type != EValueType::Null) {
+                    YASSERT(item->Type == EValueType::String);
+                    subkey = item->Data.String;
+                }
+            } else if (item->Id == ValueId_) {
+                YASSERT(item->Type == EValueType::String);
+                value = item->Data.String;
             } else {
-                THROW_ERROR_EXCEPTION("Subkey (column #%v) should be of type Null or String", columnIndex); 
+                THROW_ERROR_EXCEPTION("An item is not a key, a subkey nor a value in YAMR record");
             }
-            columnIndex++;
-        } else {
+        }
+
+        if (!key) {
+            THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", Config_->Key); 
+        }
+
+        if (!subkey)
             subkey = "";
+
+        if (!value) {
+            THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", Config_->Value);
         }
-        
-        if (row[columnIndex].Type != EValueType::String) {
-            THROW_ERROR_EXCEPTION("Value (column #%v) should be of type String", columnIndex);
-        }
-        value = row[columnIndex].Data.String;
-        columnIndex++;
-        
+             
         if (!Config_->Lenval) {
-            EscapeAndWrite(key, true);
+            EscapeAndWrite(*key, true);
             stream->Write(Config_->FieldSeparator);
             if (Config_->HasSubkey) {
-                EscapeAndWrite(subkey, true);
+                EscapeAndWrite(*subkey, true);
                 stream->Write(Config_->FieldSeparator);
             }
-            EscapeAndWrite(value, false);
+            EscapeAndWrite(*value, false);
             stream->Write(Config_->RecordSeparator);
         } else {
-            WriteInLenvalMode(key);
+            WriteInLenvalMode(*key);
             if (Config_->HasSubkey) {
-                WriteInLenvalMode(subkey);
+                WriteInLenvalMode(*subkey);
             }
-            WriteInLenvalMode(value);
+            WriteInLenvalMode(*value);
         }
 
         TryFlushBuffer();

@@ -98,18 +98,18 @@ public:
         NConcurrency::IAsyncOutputStreamPtr output,
         TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
 
+    // ISchemalessFormatWriter overrides.
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
-
     virtual void WriteTableIndex(int tableIndex) override;
-
     virtual void WriteRangeIndex(i32 rangeIndex) override;
-
     virtual void WriteRowIndex(i64 rowIndex) override;
 
 private:
     TYamrFormatConfigPtr Config_;
     TYamrTable Table_;
- 
+
+    i32 KeyId_, SubKeyId_, ValueId_;
+
     void WriteInLenvalMode(const TStringBuf& value);
     
     void EscapeAndWrite(const TStringBuf& value, bool inKey);
