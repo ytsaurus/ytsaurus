@@ -158,7 +158,7 @@ class ConfigsProvider_17(ConfigsProvider):
         configs = []
 
         for i in xrange(node_count):
-            config = default_configs.get_node_config()
+            config = default_configs.get_node_config(self.enable_debug_logging)
 
             config["addresses"] = {
                 "default": self.fqdn,
@@ -434,7 +434,7 @@ class ConfigsProvider_18(ConfigsProvider):
         configs = []
 
         for i in xrange(node_count):
-            config = default_configs.get_node_config()
+            config = default_configs.get_node_config(self.enable_debug_logging)
 
             config["addresses"] = {
                 "default": self.fqdn,
