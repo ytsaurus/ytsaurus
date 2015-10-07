@@ -362,7 +362,7 @@ def get_proxy_config():
     "neighbours" : [  ],
 
     "logging" : {
-        "path" : "/dev/null"
+        "filename" : "/dev/null"
     },
 
     "authentication" : {

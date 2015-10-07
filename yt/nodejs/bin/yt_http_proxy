@@ -131,7 +131,7 @@ config = {
     ssl_ca            : null,
     ssl_ciphers       : "kEECDH+AES128:kEECDH:kEDH:-3DES:kRSA+AES128:kEDH+3DES:DES-CBC3-SHA:!RC4:!aNULL:!eNULL:!MD5:!EXPORT:!LOW:!SEED:!CAMELLIA:!IDEA:!PSK:!SRP:!SSLv2",
     ssl_reject_unauthorized : false,
-    monitoring_port   : 10013,
+    monitoring_port   : null,
     neighbours        : [ "::1" ],
     number_of_workers : 4,
     memory_limit      : 32 * 1024 * 1024,
@@ -269,9 +269,9 @@ function ensureFileExistsAndOwned(path, user, group) {
 
 function provideLoggerStream() {
     if (config.logging) {
-        return ensureFileExistsAndOwned(config.logging.path, config.user, config.group).then(function() {
-            // console.error("Setting up logging to file '%s'", config.logging.path);
-            return {type: "file", path: config.logging.path, level: "debug"};
+        return ensureFileExistsAndOwned(config.logging.filename, config.user, config.group).then(function() {
+            // console.error("Setting up logging to file '%s'", config.logging.filename);
+            return {type: "file", path: config.logging.filename, level: "debug"};
         });
     } else {
         return Q.try(function() {
@@ -321,10 +321,12 @@ function runProxy(logger, profiler) {
         });
     });
 
-    var profiler_server = http.createServer(function(req, rsp) {
-        rsp.writeHead(200, {"Content-Type": "text/plain"});
-        rsp.end(profiler.dump());
-    }).listen(config.monitoring_port);
+    if (config.monitoring_port) {
+        var profiler_server = http.createServer(function(req, rsp) {
+            rsp.writeHead(200, {"Content-Type": "text/plain"});
+            rsp.end(profiler.dump());
+        }).listen(config.monitoring_port);
+    }
 
     var cc1 = new Date(),
         cc2 = new Date(),
