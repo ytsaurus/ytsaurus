@@ -46,7 +46,12 @@ TSchemalessDsvWriter::TSchemalessDsvWriter(
     bool enableContextSaving,
     IAsyncOutputStreamPtr output,
     TDsvFormatConfigPtr config)
-    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
+    : TSchemalessFormatWriterBase(
+         nameTable, 
+         std::move(output), 
+         enableContextSaving,
+         false /* enableKeySwitch */, 
+         0 /* keyColumnCount */)
     , TDsvWriterBase(config)
 { }
 
