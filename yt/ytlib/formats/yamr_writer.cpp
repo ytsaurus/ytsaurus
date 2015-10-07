@@ -8,6 +8,7 @@
 namespace NYT {
 namespace NFormats {
 
+using namespace NConcurrency;
 using namespace NYTree;
 using namespace NTableClient;
 
@@ -25,6 +26,7 @@ TYamrConsumer::TYamrConsumer(TOutputStream* stream, TYamrFormatConfigPtr config)
         true)
     , State(EState::None)
 {
+    
     YCHECK(Config);
     YCHECK(Stream);
 }
@@ -39,7 +41,7 @@ void TYamrConsumer::OnInt64Scalar(i64 value)
         OnStringScalar(StringStorage_.back());
         return;
     }
-
+    
     YASSERT(State == EState::ExpectAttributeValue);
 
     switch (ControlAttribute) {
@@ -308,6 +310,153 @@ void TYamrConsumer::EscapeAndWrite(const TStringBuf& value, bool inKey)
     } else {
         Stream->Write(value);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemalessYamrWriter::TSchemalessYamrWriter(
+    TNameTablePtr nameTable, 
+    bool enableContextSaving,
+    IAsyncOutputStreamPtr output,
+    TYamrFormatConfigPtr config)
+    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
+    , Config_(config)
+    , Table_(
+        config->FieldSeparator,
+        config->RecordSeparator,
+        config->EnableEscaping, // Enable key escaping
+        config->EnableEscaping, // Enable value escaping
+        config->EscapingSymbol,
+        true)
+{ }
+
+void TSchemalessYamrWriter::EscapeAndWrite(const TStringBuf& value, bool inKey)
+{
+    auto* stream = GetOutputStream();
+    if (Config_->EnableEscaping) {
+        WriteEscaped(
+            stream,
+            value,
+            inKey ? Table_.KeyStops : Table_.ValueStops,
+            Table_.Escapes,
+            Config_->EscapingSymbol);
+    } else {
+        stream->Write(value);
+    }
+}
+
+void TSchemalessYamrWriter::WriteInLenvalMode(const TStringBuf& value)
+{
+    auto* stream = GetOutputStream();
+    WritePod(*stream, static_cast<ui32>(value.size()));
+    stream->Write(value);
+}
+
+void TSchemalessYamrWriter::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+{
+    auto* stream = GetOutputStream();
+  
+    int maxNumberOfValuesPerRow = Config_->HasSubkey ? 3 : 2;
+
+    for (const auto& row : rows) {
+        if (row.GetCount() < 2) {
+            THROW_ERROR_EXCEPTION("Row should consist of at least 2 values, found %v values instead", row.GetCount());
+        }
+        if (row.GetCount() > maxNumberOfValuesPerRow) {
+            THROW_ERROR_EXCEPTION("Row should consist of at most %v values, found %v values instead", maxNumberOfValuesPerRow, row.GetCount()); 
+        }
+        
+        int columnIndex = 0;
+
+        TStringBuf key, subkey, value;
+
+        if (row[columnIndex].Type != EValueType::String) {
+            THROW_ERROR_EXCEPTION("Key (column #%v) should be of type String", columnIndex);
+        }
+        key = row[columnIndex].Data.String;
+        columnIndex++;
+
+        if (row.GetCount() == 3) {
+            // If subkey has type Null, we consider it being equal to "".
+            if (row[columnIndex].Type == EValueType::Null) {
+                subkey = "";
+            } else if (row[columnIndex].Type == EValueType::String) {
+                subkey = row[columnIndex].Data.String;
+            } else {
+                THROW_ERROR_EXCEPTION("Subkey (column #%v) should be of type Null or String", columnIndex); 
+            }
+            columnIndex++;
+        } else {
+            subkey = "";
+        }
+        
+        if (row[columnIndex].Type != EValueType::String) {
+            THROW_ERROR_EXCEPTION("Value (column #%v) should be of type String", columnIndex);
+        }
+        value = row[columnIndex].Data.String;
+        columnIndex++;
+        
+        if (!Config_->Lenval) {
+            EscapeAndWrite(key, true);
+            stream->Write(Config_->FieldSeparator);
+            if (Config_->HasSubkey) {
+                EscapeAndWrite(subkey, true);
+                stream->Write(Config_->FieldSeparator);
+            }
+            EscapeAndWrite(value, false);
+            stream->Write(Config_->RecordSeparator);
+        } else {
+            WriteInLenvalMode(key);
+            if (Config_->HasSubkey) {
+                WriteInLenvalMode(subkey);
+            }
+            WriteInLenvalMode(value);
+        }
+
+        TryFlushBuffer();
+    }
+
+    TryFlushBuffer();
+}
+
+void TSchemalessYamrWriter::WriteTableIndex(int tableIndex)
+{
+    auto* stream = GetOutputStream();
+    
+    if (!Config_->EnableTableIndex) {
+        // Silently ignore table switches.
+        return;
+    }
+
+    if (Config_->Lenval) {
+        WritePod(*stream, static_cast<ui32>(-1));
+        WritePod(*stream, static_cast<ui32>(tableIndex));
+    } else {
+        stream->Write(ToString(tableIndex));
+        stream->Write(Config_->RecordSeparator);
+    }
+}
+
+void TSchemalessYamrWriter::WriteRangeIndex(i32 rangeIndex)
+{
+    auto* stream = GetOutputStream();
+
+    if (!Config_->Lenval) {
+        THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMR format");
+    }
+    WritePod(*stream, static_cast<ui32>(-3));
+    WritePod(*stream, static_cast<ui32>(rangeIndex));
+}
+
+void TSchemalessYamrWriter::WriteRowIndex(i64 rowIndex)
+{
+    auto* stream = GetOutputStream();
+
+    if (!Config_->Lenval) {
+         THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMR format");
+    }
+    WritePod(*stream, static_cast<ui32>(-4));
+    WritePod(*stream, static_cast<ui64>(rowIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
