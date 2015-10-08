@@ -1,14 +1,14 @@
 from yt.common import YtError, update
-from yt.environment.configs_provider import ConfigsProvider_17_2, ConfigsProvider_17_3, ConfigsProvider_18
+from yt.environment.configs_provider import ConfigsProvider_17_3, ConfigsProvider_17_4, ConfigsProvider_18
 from yt.environment.helpers import versions_cmp
 
 class ConfigsProviderFactory(object):
     @staticmethod
     def create_for_version(version, enable_debug_logging):
-        if versions_cmp(version, "0.17.2") <= 0:
-            return LocalModeConfigsProvider_17_2(enable_debug_logging)
-        elif versions_cmp(version, "0.17.3") >= 0 and versions_cmp(version, "0.18") < 0:
+        if versions_cmp(version, "0.17.3") <= 0:
             return LocalModeConfigsProvider_17_3(enable_debug_logging)
+        elif versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
+            return LocalModeConfigsProvider_17_4(enable_debug_logging)
         elif versions_cmp(version, "0.18") >= 0:
             return LocalModeConfigsProvider_18(enable_debug_logging)
 
@@ -110,9 +110,9 @@ DRIVER_CONFIG_PATCH = {
     "transaction_manager": None
 }
 
-class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
+class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs = super(LocalModeConfigsProvider_17_2, self)\
+        configs = super(LocalModeConfigsProvider_17_3, self)\
             .get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
 
         # In patches None values mean config subtree deletion (see _remove_none_fields function)
@@ -124,7 +124,7 @@ class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
         return configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        configs = super(LocalModeConfigsProvider_17_2, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
+        configs = super(LocalModeConfigsProvider_17_3, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
 
         for config in configs:
             update(config, SCHEDULER_CONFIG_PATCH)
@@ -133,7 +133,7 @@ class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
         return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        configs = super(LocalModeConfigsProvider_17_2, self).get_node_configs(node_count, node_dirs)
+        configs = super(LocalModeConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
 
         for config in configs:
             update(config, NODE_CONFIG_PATCH)
@@ -142,7 +142,7 @@ class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
         return configs
 
     def get_driver_configs(self):
-        configs = super(LocalModeConfigsProvider_17_2, self).get_driver_configs()
+        configs = super(LocalModeConfigsProvider_17_3, self).get_driver_configs()
 
         for config in configs:
             update(config, DRIVER_CONFIG_PATCH)
@@ -150,9 +150,9 @@ class LocalModeConfigsProvider_17_2(ConfigsProvider_17_2):
 
         return configs
 
-class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
+class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs = super(LocalModeConfigsProvider_17_3, self)\
+        configs = super(LocalModeConfigsProvider_17_4, self)\
             .get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -173,7 +173,7 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        configs = super(LocalModeConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
+        configs = super(LocalModeConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs)
 
         for config in configs:
             update(config, NODE_CONFIG_PATCH)
@@ -182,7 +182,7 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         return configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        configs = super(LocalModeConfigsProvider_17_3, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
+        configs = super(LocalModeConfigsProvider_17_4, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
 
         for config in configs:
             update(config, SCHEDULER_CONFIG_PATCH)
@@ -191,7 +191,7 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         return configs
 
     def get_driver_configs(self):
-        configs = super(LocalModeConfigsProvider_17_3, self).get_driver_configs()
+        configs = super(LocalModeConfigsProvider_17_4, self).get_driver_configs()
 
         for config in configs:
             update(config, DRIVER_CONFIG_PATCH)

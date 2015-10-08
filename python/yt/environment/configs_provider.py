@@ -31,10 +31,10 @@ def init_logging(node, path, name, enable_debug_logging):
 class ConfigsProviderFactory(object):
     @staticmethod
     def create_for_version(version, enable_debug_logging):
-        if versions_cmp(version, "0.17.2") <= 0:
-            return ConfigsProvider_17_2(enable_debug_logging)
-        elif versions_cmp(version, "0.17.3") >= 0 and versions_cmp(version, "0.18") < 0:
+        if versions_cmp(version, "0.17.3") <= 0:
             return ConfigsProvider_17_3(enable_debug_logging)
+        elif versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
+            return ConfigsProvider_17_4(enable_debug_logging)
         elif versions_cmp(version, "0.18") >= 0:
             return ConfigsProvider_18(enable_debug_logging)
 
@@ -243,8 +243,18 @@ class ConfigsProvider_17(ConfigsProvider):
         return [config]
 
 class ConfigsProvider_17_3(ConfigsProvider_17):
+    def get_node_configs(self, node_count, node_dirs):
+        configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
+
+        for i, config in enumerate(configs):
+            config["exec_agent"]["slot_manager"] = {"path": os.path.join(node_dirs[i], "slots")}
+            config["data_node"]["cache_location"] = {"path": os.path.join(node_dirs[i], "chunk_cache")}
+
+        return configs
+
+class ConfigsProvider_17_4(ConfigsProvider_17):
     def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs = super(ConfigsProvider_17_3, self).\
+        configs = super(ConfigsProvider_17_4, self).\
             get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -262,7 +272,7 @@ class ConfigsProvider_17_3(ConfigsProvider_17):
         return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        configs = super(ConfigsProvider_17_3, self).get_node_configs(node_count, node_dirs)
+        configs = super(ConfigsProvider_17_4, self).get_node_configs(node_count, node_dirs)
 
         for i, config in enumerate(configs):
             config["data_node"]["cache_locations"] = [{
@@ -271,16 +281,6 @@ class ConfigsProvider_17_3(ConfigsProvider_17):
             config["exec_agent"]["slot_manager"] = {
                 "paths": [os.path.join(node_dirs[i]), "slots"]
             }
-
-        return configs
-
-class ConfigsProvider_17_2(ConfigsProvider_17):
-    def get_node_configs(self, node_count, node_dirs):
-        configs = super(ConfigsProvider_17_2, self).get_node_configs(node_count, node_dirs)
-
-        for i, config in enumerate(configs):
-            config["exec_agent"]["slot_manager"] = {"path": os.path.join(node_dirs[i], "slots")}
-            config["data_node"]["cache_location"] = {"path": os.path.join(node_dirs[i], "chunk_cache")}
 
         return configs
 
