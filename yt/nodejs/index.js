@@ -25,6 +25,7 @@ exports.YtDriver = require("./lib/driver").that;
 exports.YtError = require("./lib/error").that;
 exports.YtRegistry = require("./lib/registry").that;
 exports.YtEioWatcher = require("./lib/eio_watcher").that;
+exports.YtStatistics = require("./lib/statistics").that;
 
 // Utilities.
 exports.Pause = require("./lib/utils").Pause;

@@ -21,6 +21,8 @@ public:
 
     static TDispatcher* Get();
 
+    static void StaticShutdown();
+
     void Configure(int poolSize);
 
     virtual void Shutdown() override;

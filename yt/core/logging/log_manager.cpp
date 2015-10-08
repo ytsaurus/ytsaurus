@@ -11,6 +11,7 @@
 #include <core/misc/hash.h>
 #include <core/misc/lock_free.h>
 #include <core/misc/variant.h>
+#include <core/misc/singleton.h>
 
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/thread_affinity.h>
@@ -745,7 +746,14 @@ TLogManager::~TLogManager()
 
 TLogManager* TLogManager::Get()
 {
-    return Singleton<TLogManager>();
+    return TSingletonWithFlag<TLogManager>::Get();
+}
+
+void TLogManager::StaticShutdown()
+{
+    if (TSingletonWithFlag<TLogManager>::WasCreated()) {
+        TSingletonWithFlag<TLogManager>::Get()->Shutdown();
+    }
 }
 
 void TLogManager::Configure(INodePtr node)

@@ -2,6 +2,8 @@
 #include "io_dispatcher.h"
 #include "io_dispatcher_impl.h"
 
+#include <core/misc/singleton.h>
+
 namespace NYT {
 namespace NPipes {
 
@@ -16,7 +18,14 @@ TIODispatcher::~TIODispatcher()
 
 TIODispatcher* TIODispatcher::Get()
 {
-    return Singleton<TIODispatcher>();
+    return TSingletonWithFlag<TIODispatcher>::Get();
+}
+
+void TIODispatcher::StaticShutdown()
+{
+    if (TSingletonWithFlag<TIODispatcher>::WasCreated()) {
+        TIODispatcher::Get()->Shutdown();
+    }
 }
 
 void TIODispatcher::Shutdown()

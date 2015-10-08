@@ -71,6 +71,8 @@ public:
 
     static TTcpDispatcher* Get();
 
+    static void StaticShutdown();
+
     virtual void Shutdown() override;
 
     TTcpDispatcherStatistics GetStatistics(ETcpInterfaceType interfaceType);

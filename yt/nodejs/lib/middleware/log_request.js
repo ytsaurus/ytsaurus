@@ -10,11 +10,14 @@ exports.that = function Middleware__YtLogRequest()
 {
     var fqdn = YtRegistry.get("fqdn");
     var logger = YtRegistry.get("logger");
+    var profiler = YtRegistry.get("profiler");
     var buffer = new Buffer(16);
 
     return function(req, rsp, next) {
         req.uuid_ui64 = crypto.pseudoRandomBytes(8);
         req.uuid = req.uuid_ui64.toString("hex");
+
+        req.tags = {};
 
         req.connection.last_request_id = req.uuid;
 
@@ -91,15 +94,23 @@ exports.that = function Middleware__YtLogRequest()
             }
             rsp.end = end;
             rsp.end(chunk, encoding);
+            var request_time = new Date() - req._ts;
             logger.debug("Handled request", {
                 request_id     : request_id,
-                request_time   : new Date() - req._ts,
+                request_time   : request_time,
                 socket_id      : socket_id,
                 correlation_id : correlation_id,
                 status_code    : rsp.statusCode,
                 req_bytes      : req._bytes_in,
                 rsp_bytes      : req._bytes_out
             });
+            var tags = req.tags;
+            tags.http_method = req.method;
+            tags.http_code = rsp.statusCode;
+            profiler.inc("yt.http_proxy.request_count", tags, 1);
+            profiler.inc("yt.http_proxy.request_bytes_in", tags, req._bytes_in);
+            profiler.inc("yt.http_proxy.request_bytes_out", tags, req._bytes_out);
+            profiler.upd("yt.http_proxy.request_time", tags, request_time);
         };
 
         next();

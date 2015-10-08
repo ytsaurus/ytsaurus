@@ -56,6 +56,16 @@ class YtTestBase(object):
 
     def teardown(self):
         self.env.check_liveness()
+
+        for tx in yt.list("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            if "Scheduler lock" in title or "Lease for node" in title or "Prerequisite for cell" in title:
+                continue
+            try:
+                yt.abort_transaction(tx)
+            except:
+                pass
+
         yt.remove(TEST_DIR, recursive=True, force=True)
 
     def get_environment(self):
