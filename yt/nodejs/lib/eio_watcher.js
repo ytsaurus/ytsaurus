@@ -6,8 +6,9 @@ var __DBG = require("./debug").that("B", "EIO");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtEioWatcher(logger, config) {
+function YtEioWatcher(logger, profiler, config) {
     this.logger = logger;
+    this.profiler = profiler;
     this.thread_limit = config.thread_limit;
     this.spare_threads = config.spare_threads;
     this.semaphore_limit = config.concurrency_limit || config.thread_limit;
@@ -27,8 +28,9 @@ YtEioWatcher.prototype.isChoking = function() {
     }
 };
 
-YtEioWatcher.prototype.acquireThread = function() {
+YtEioWatcher.prototype.acquireThread = function(tags) {
     if (this.semaphore < this.semaphore_limit) {
+        this.profiler.inc("yt.http_proxy.concurrency_semaphore", tags, 1);
         ++this.semaphore;
         return true;
     } else {
@@ -36,8 +38,9 @@ YtEioWatcher.prototype.acquireThread = function() {
     }
 };
 
-YtEioWatcher.prototype.releaseThread = function() {
+YtEioWatcher.prototype.releaseThread = function(tags) {
     --this.semaphore;
+    this.profiler.inc("yt.http_proxy.concurrency_semaphore", tags, -1);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

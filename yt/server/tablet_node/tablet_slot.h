@@ -70,6 +70,7 @@ public:
     NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type);
    
     void Initialize(const NNodeTrackerClient::NProto::TCreateTabletSlotInfo& createInfo);
+    bool CanConfigure() const;
     void Configure(const NNodeTrackerClient::NProto::TConfigureTabletSlotInfo& configureInfo);
     TFuture<void> Finalize();
 

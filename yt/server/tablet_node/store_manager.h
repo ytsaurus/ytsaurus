@@ -104,6 +104,8 @@ public:
     void EndStorePreload(TChunkStorePtr store);
     void BackoffStorePreload(TChunkStorePtr store);
 
+    void BackoffStoreRemoval(IStorePtr store);
+
     void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletWriterOptionsPtr writerOptions);

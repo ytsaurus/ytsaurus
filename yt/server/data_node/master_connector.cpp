@@ -597,6 +597,12 @@ void TMasterConnector::OnIncrementalNodeHeartbeatResponse(const TNodeTrackerServ
                 descriptor.CellId);
             continue;
         }
+        if (!slot->CanConfigure()) {
+            LOG_WARNING("Cannot configure slot %v in state %Qlv, ignored",
+                descriptor.CellId,
+                slot->GetControlState());
+            continue;
+        }
         slotManager->ConfigureSlot(slot, info);
     }
 
