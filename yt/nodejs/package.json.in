@@ -23,7 +23,7 @@
     "heapdump": "0.1.0",
     "profiler": "1.2.1",
     "cookies": "0.5.0",
-    "underscore": "1.8.3"
+    "underscore": "1.8.3",
     "cuint": "0.2.0",
     "tdigest": "0.1.0",
     "bunyan": "1.5.1"
