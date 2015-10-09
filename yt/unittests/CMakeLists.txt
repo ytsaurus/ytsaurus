@@ -10,6 +10,7 @@ set( SRCS
   ${BASE}/checkpointable_stream_ut.cpp
   ${BASE}/chunk_tree_balancer_ut.cpp
   ${BASE}/chunk_tree_traversing_ut.cpp
+  ${BASE}/chunk_slice_ut.cpp
   ${BASE}/compression_ut.cpp
   ${BASE}/coroutines_ut.cpp
   ${BASE}/dsv_parser_ut.cpp
