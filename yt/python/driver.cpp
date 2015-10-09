@@ -50,34 +50,40 @@ using namespace NTabletClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+Py::Exception CreateYtError(const NYT::TError& error)
+{
+    auto ysonErrorClass = Py::Callable(
+        PyObject_GetAttr(
+            PyImport_ImportModule("yt.common"),
+            PyString_FromString("YtError")));
+
+    Py::Dict options;
+    options.setItem("message", ConvertTo<Py::Object>(error.GetMessage()));
+    options.setItem("code", ConvertTo<Py::Object>(error.GetCode()));
+    options.setItem("inner_errors", ConvertTo<Py::Object>(error.InnerErrors()));
+    auto ysonError = ysonErrorClass.apply(options);
+    return Py::Exception(*ysonError, ysonError);
+}
+
 Py::Exception CreateYtError(const std::string& message)
 {
-    static PyObject* ytErrorClass = nullptr;
-    if (!ytErrorClass) {
-        ytErrorClass = PyObject_GetAttr(
+    auto ysonErrorClass = Py::Object(
+        PyObject_GetAttr(
             PyImport_ImportModule("yt.common"),
-            PyString_FromString("YtError"));
-    }
-    return Py::Exception(ytErrorClass, message);
+            PyString_FromString("YtError")));
+    return Py::Exception(*ysonErrorClass, message);
 }
 
-Py::Exception CreateYtError(const std::string& message, const TError& error)
-{
-    static PyObject* ytErrorClass = nullptr;
-    if (!ytErrorClass) {
-        ytErrorClass = PyObject_GetAttr(
-            PyImport_ImportModule("yt.common"),
-            PyString_FromString("YtError"));
+#define CATCH \
+    catch (const NYT::TErrorException& error) { \
+        throw CreateYtError(error.Error()); \
+    } catch (const std::exception& ex) { \
+        if (PyErr_ExceptionMatches(PyExc_BaseException)) { \
+            throw; \
+        } else { \
+            throw CreateYtError(ex.what()); \
+        } \
     }
-    auto kwargs = Py::Dict();
-    kwargs.setItem("message", Py::String(message));
-    auto innerErrors = Py::List();
-    innerErrors.append(ConvertTo<Py::Object>(error));
-    kwargs.setItem("inner_errors", innerErrors);
-    auto object = Py::Callable(ytErrorClass).apply(Py::Tuple(), kwargs);
-
-    return Py::Exception(ytErrorClass, object);
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -171,11 +177,7 @@ public:
                     outputStream->Finish();
                 }));
             }
-        } catch (const TErrorException& error) {
-            throw CreateYtError(error.what(), error.Error());
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
-        }
+        } CATCH;
 
         return pythonResponse;
     }
@@ -190,9 +192,7 @@ public:
         Py::PythonClassObject<TCommandDescriptor> descriptor(class_type.apply(Py::Tuple(), Py::Dict()));
         try {
             descriptor.getCxxObject()->SetDescriptor(DriverInstance_->GetCommandDescriptor(commandName));
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
-        }
+        } CATCH;
 
         return descriptor;
     }
@@ -211,9 +211,7 @@ public:
                 descriptors.setItem(~nativeDescriptor.CommandName, descriptor);
             }
             return descriptors;
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
-        }
+        } CATCH;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetCommandDescriptors)
 
@@ -224,9 +222,7 @@ public:
             WaitFor(admin->GCCollect())
                 .ThrowOnError();
             return Py::None();
-        } catch (const std::exception& ex) {
-            throw CreateYtError(ex.what());
-        }
+        } CATCH;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, GCCollect)
 
@@ -250,9 +246,7 @@ public:
             int snapshotId = WaitFor(admin->BuildSnapshot(options))
                 .ValueOrThrow();
             return Py::Long(snapshotId);
-        } catch (const std::exception& ex) {
-            throw CreateYtError(ex.what());
-        }
+        } CATCH;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildSnapshot)
 
@@ -263,9 +257,7 @@ public:
         try {
             DriverInstance_->GetConnection()->ClearMetadataCaches();
             return Py::None();
-        } catch (const std::exception& error) {
-            throw CreateYtError(error.what());
-        }
+        } CATCH;
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
 
