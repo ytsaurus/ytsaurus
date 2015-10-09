@@ -1223,6 +1223,7 @@ def _run_operation(binary, source_table, destination_table,
                   sort_by=None,
                   reduce_by=None,
                   join_by=None,
+                  ordered=None,
                   client=None):
     """Run script operation.
 
@@ -1319,6 +1320,8 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
             lambda _: update({"join_by": join_by}, _) if op_name == "join_reduce" else _,
+            lambda _: update({"ordered": bool_to_string(ordered)}, _) \
+                if op_name == "map" and ordered is not None else _,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
             lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
                 format, input_format, output_format,
@@ -1337,6 +1340,9 @@ def _run_operation(binary, source_table, destination_table,
 
 def run_map(binary, source_table, destination_table, **kwargs):
     """Run map operation.
+
+    :param ordered: (bool) force ordered input for mapper
+
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "map"
