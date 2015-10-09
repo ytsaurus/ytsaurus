@@ -32,6 +32,7 @@ public:
     NChunkClient::TChunkListId Extract(NObjectClient::TCellTag cellTag);
 
     void Release(const std::vector<NChunkClient::TChunkListId>& ids);
+    void Reinstall(const NChunkClient::TChunkListId& id);
 
 private:
     const TSchedulerConfigPtr Config_;

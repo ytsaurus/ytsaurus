@@ -120,14 +120,14 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             command='cat > /dev/stderr',
             spec={
                 "reducer" : {"format" : yson.loads("<format=text>yson")},
-                "job_io" : 
-                    {"control_attributes" : 
-                        {"enable_table_index" : "true", 
+                "job_io" :
+                    {"control_attributes" :
+                        {"enable_table_index" : "true",
                          "enable_row_index" : "true"}},
                 "job_count" : 1})
-        
+
         track_op(op_id)
-        
+
         job_ids = ls('//sys/operations/{0}/jobs'.format(op_id))
         assert len(job_ids) == 1
         assert read_file('//sys/operations/{0}/jobs/{1}/stderr'.format(op_id, job_ids[0])) == \
@@ -343,7 +343,7 @@ echo {v = 2} >&7
         assert read_table(output_tables[0]) == [{'v': 0}]
         assert read_table(output_tables[1]) == [{'v': 1}]
         assert read_table(output_tables[2]) == [{'v': 2}]
-        
+
     def test_job_count(self):
         create('table', '//tmp/in', attributes={"compression_codec": "none"})
         create('table', '//tmp/out')
@@ -438,6 +438,38 @@ echo {v = 2} >&7
             '<"key_switch"=%true;>#;\n' \
             '{"key"="b";"value"="";};\n' \
             '{"key"="b";"value"="";};\n'
+            #'{"key"="a";"value"=""};\n' \
+            #'<"key_switch"=%true>#;\n' \
+            #'{"key"="b";"value"=""};\n' \
+            #'{"key"="b";"value"=""};\n'
+    
+    def test_reduce_with_small_block_size(self):
+        create('table', '//tmp/in', attributes={"compression_codec": "none"})
+        create('table', '//tmp/out')
+
+        count = 300
+
+        write_table(
+            '//tmp/in',
+            [ {'key': "%05d"%num} for num in xrange(count) ],
+            sorted_by = ['key'],
+            table_writer = {"block_size": 1024})
+        write_table(
+            '<append=true>//tmp/in',
+            [ {'key': "%05d"%num} for num in xrange(count, 2*count) ],
+            sorted_by = ['key'],
+            table_writer = {"block_size": 1024})
+
+        reduce(
+            in_ = '<ranges=[{lower_limit={row_index=100;key=["00010"]};upper_limit={row_index=540;key=["00560"]}}]>//tmp/in',
+            out = '//tmp/out',
+            command = 'cat',
+            reduce_by=['key'],
+            spec={"reducer": {"format": "dsv"},
+                  "data_size_per_job": 500})
+
+        # Expected the same number of rows in output table
+        assert get("//tmp/out/@row_count") == 440
 
 ##################################################################
 

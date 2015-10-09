@@ -326,6 +326,12 @@ private:
             return true;
         }
 
+        if (key == "sealed") {
+            BuildYsonFluently(consumer)
+                .Value(chunk->IsSealed());
+            return true;
+        }
+
         if (chunk->IsConfirmed()) {
             const auto& miscExt = chunk->MiscExt();
 
@@ -375,12 +381,6 @@ private:
             if (key == "row_count" && miscExt.has_row_count()) {
                 BuildYsonFluently(consumer)
                     .Value(miscExt.row_count());
-                return true;
-            }
-
-            if (key == "sealed" && chunk->IsJournal()) {
-                BuildYsonFluently(consumer)
-                    .Value(chunk->IsSealed());
                 return true;
             }
 

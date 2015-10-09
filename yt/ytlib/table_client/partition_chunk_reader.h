@@ -20,7 +20,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRowDescriptor 
+struct TRowDescriptor
 {
     THorizontalSchemalessBlockReader* BlockReader;
     i32 RowIndex;

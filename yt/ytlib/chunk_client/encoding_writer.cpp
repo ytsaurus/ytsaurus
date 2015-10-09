@@ -35,13 +35,14 @@ TEncodingWriter::TEncodingWriter(
     , Semaphore_(Config_->EncodeWindowSize)
     , Codec_(NCompression::GetCodec(options->CompressionCodec))
     , WritePendingBlockCallback_(BIND(
-        &TEncodingWriter::WritePendingBlock, 
+        &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)))
 {
     Logger = ChunkClientLogger;
     Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
 
-    PendingBlocks_.Dequeue().Subscribe(WritePendingBlockCallback_);
+    PendingBlocks_.Dequeue().Subscribe(
+        WritePendingBlockCallback_.Via(CompressionInvoker_));
 }
 
 void TEncodingWriter::WriteBlock(TSharedRef block)
@@ -185,7 +186,8 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError
         }
     }
 
-    PendingBlocks_.Dequeue().Subscribe(WritePendingBlockCallback_);
+    PendingBlocks_.Dequeue().Subscribe(
+        WritePendingBlockCallback_.Via(CompressionInvoker_));
 }
 
 bool TEncodingWriter::IsReady() const

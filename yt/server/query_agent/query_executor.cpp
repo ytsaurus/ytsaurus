@@ -253,7 +253,9 @@ private:
 
             auto keySize = fragment->Query->KeyColumnsCount;
 
-            if (keySize == lowerBound.GetCount()  &&
+            //TODO(savrus): lookup for chunk source
+            if (TypeFromId(source.Id) == EObjectType::Tablet &&
+                keySize == lowerBound.GetCount()  &&
                 keySize + 1 == upperBound.GetCount() &&
                 upperBound[keySize].Type == EValueType::Max &&
                 CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
@@ -272,11 +274,9 @@ private:
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
 
-        LOG_DEBUG("Grouping %v splits", splits.size());
+        LOG_DEBUG("Grouping %v splits", splitCount);
 
-        auto maxSubqueries = fragment->MaxSubqueries > 0
-            ? fragment->MaxSubqueries
-            : Config_->MaxSubqueries;
+        auto maxSubqueries = std::min(fragment->MaxSubqueries, Config_->MaxSubqueries);
 
         for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / maxSubqueries;

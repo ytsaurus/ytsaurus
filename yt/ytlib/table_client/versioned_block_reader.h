@@ -27,10 +27,10 @@ public:
         TTimestamp timestamp);
 
     bool NextRow();
-    
+
     bool SkipToRowIndex(i64 rowIndex);
     bool SkipToKey(TKey key);
-    
+
     TKey GetKey() const;
     TVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 

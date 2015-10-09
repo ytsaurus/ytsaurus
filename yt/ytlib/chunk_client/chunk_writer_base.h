@@ -13,7 +13,7 @@ namespace NChunkClient {
 
 struct IChunkWriterBase
     : public virtual IWriterBase
-{    
+{
     virtual i64 GetMetaSize() const = 0;
     virtual i64 GetDataSize() const = 0;
 

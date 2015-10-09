@@ -93,7 +93,7 @@ private:
         const std::vector<TSharedRef>& compressedBlocks);
 
     void MarkFailedBlocks(
-        const std::vector<int>& windowIndexes, 
+        const std::vector<int>& windowIndexes,
         const TError& error);
 
 
@@ -114,7 +114,7 @@ private:
 
     int FirstReadyWindowIndex_ = -1;
     int FirstUnfetchedWindowIndex_ = 0;
- 
+
     TPromise<void> FetchingComplete_ = NewPromise<void>();
 
     NCompression::ICodec* Codec_;

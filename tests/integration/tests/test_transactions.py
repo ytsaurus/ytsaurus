@@ -14,7 +14,7 @@ class TestTransactions(YTEnvSetup):
 
     def test_simple1(self):
         tx = start_transaction()
-        
+
         assert exists("//sys/transactions/" + tx)
 
         commit_transaction(tx)
@@ -28,9 +28,9 @@ class TestTransactions(YTEnvSetup):
         tx = start_transaction()
 
         assert exists("//sys/transactions/" + tx)
-        
+
         abort_transaction(tx)
-        
+
         assert not exists("//sys/transactions/" + tx)
 
         #cannot commit aborted transaction
@@ -99,7 +99,7 @@ class TestTransactions(YTEnvSetup):
 
         # can be aborted..
         abort_transaction(tx_outer)
-        
+
         # and this aborts all nested transactions
         assert not exists("//sys/transactions/" + tx_outer)
         assert not exists("//sys/transactions/" + tx1)
@@ -125,7 +125,7 @@ class TestTransactions(YTEnvSetup):
 
         sleep(1.5)
         assert exists("//sys/transactions/" + tx)
-        
+
     def test_expire_outer(self):
         tx_outer = start_transaction(timeout=2000)
         tx_inner = start_transaction(tx = tx_outer)
@@ -197,14 +197,14 @@ class TestTransactions(YTEnvSetup):
     def test_revision1(self):
         set("//tmp/a", "b")
         r1 = get("//tmp/a/@revision")
-        
+
         set("//tmp/a2", "b2")
         r2 = get("//tmp/a/@revision")
         assert r2 == r1
 
     def test_revision2(self):
         r1 = get("//tmp/@revision")
-        
+
         set("//tmp/a", "b")
         r2 = get("//tmp/@revision")
         assert r2 > r1
@@ -212,9 +212,9 @@ class TestTransactions(YTEnvSetup):
     def test_revision3(self):
         set("//tmp/a", "b")
         r1 = get("//tmp/a/@revision")
-        
+
         tx = start_transaction()
-        
+
         set("//tmp/a", "c", tx=tx)
         r2 = get("//tmp/a/@revision")
         r3 = get("//tmp/a/@revision", tx=tx)

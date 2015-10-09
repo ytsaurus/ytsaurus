@@ -94,7 +94,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta) const
             return index > maxRowIndex;
         });
 
-    return (it != rend) ? std::distance(it, rend) : 0;   
+    return (it != rend) ? std::distance(it, rend) : 0;
 }
 
 bool TChunkReaderBase::BeginRead()

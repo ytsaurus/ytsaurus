@@ -27,6 +27,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/chunk.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk-inl.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_list.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_list-inl.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_list_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_base.h

@@ -216,7 +216,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         return TVersionedRow();
     }
 
-    TTimestamp writeTimestamp = hasWriteTimestamp 
+    TTimestamp writeTimestamp = hasWriteTimestamp
         ? ReadTimestamp(TimestampOffset_ + writeTimestampIndex)
         : NullTimestamp;
     TTimestamp deleteTimestamp = hasDeleteTimestamp
@@ -275,7 +275,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         hasDeleteTimestamp ? 1 : 0);
 
     ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-    
+
     row.BeginWriteTimestamps()[0] = writeTimestamp;
     if (hasDeleteTimestamp) {
         row.BeginDeleteTimestamps()[0] = deleteTimestamp;

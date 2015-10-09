@@ -80,6 +80,25 @@ TChunkSlice::TChunkSlice(
 }
 
 TChunkSlice::TChunkSlice(
+    TChunkSlicePtr other,
+    const TNullable<NTableClient::TOwningKey>& lowerKey,
+    const TNullable<NTableClient::TOwningKey>& upperKey)
+    : ChunkSpec_(other->ChunkSpec_)
+    , PartIndex_(other->PartIndex_)
+    , LowerLimit_(other->LowerLimit_)
+    , UpperLimit_(other->UpperLimit_)
+    , SizeOverrideExt_(other->SizeOverrideExt_)
+{
+    if (lowerKey && (!LowerLimit_.HasKey() || LowerLimit_.GetKey() < *lowerKey)) {
+        LowerLimit_.SetKey(*lowerKey);
+    }
+
+    if (upperKey && (!UpperLimit_.HasKey() || UpperLimit_.GetKey() > *upperKey)) {
+        UpperLimit_.SetKey(*upperKey);
+    }
+}
+
+TChunkSlice::TChunkSlice(
     TRefCountedChunkSpecPtr chunkSpec,
     int partIndex,
     i64 lowerRowIndex,
@@ -122,7 +141,7 @@ TChunkSlice::TChunkSlice(
         LowerLimit_.MergeLowerLimit(ChunkSpec_->lower_limit());
     }
     if (ChunkSpec_->has_upper_limit()) {
-        LowerLimit_.MergeUpperLimit(ChunkSpec_->upper_limit());
+        UpperLimit_.MergeUpperLimit(ChunkSpec_->upper_limit());
     }
 }
 
@@ -263,6 +282,14 @@ TChunkSlicePtr CreateChunkSlice(
     const TNullable<NTableClient::TOwningKey>& upperKey)
 {
     return New<TChunkSlice>(chunkSpec, lowerKey, upperKey);
+}
+
+TChunkSlicePtr CreateChunkSlice(
+    TChunkSlicePtr other,
+    const TNullable<NTableClient::TOwningKey>& lowerKey,
+    const TNullable<NTableClient::TOwningKey>& upperKey)
+{
+    return New<TChunkSlice>(other, lowerKey, upperKey);
 }
 
 TChunkSlicePtr CreateChunkSlice(
