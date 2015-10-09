@@ -79,6 +79,7 @@ TMapExecutor::TMapExecutor()
     , OutArg("", "out", "output table path", false, "YPATH")
     , CommandArg("", "command", "mapper shell command", true, "", "STRING")
     , FileArg("", "file", "additional file path", false, "YPATH")
+    , OrderedArg("", "ordered", "force ordered input for mapper", false, false, "BOOL")
     , InputQueryArg("", "input_query", "optional input query", false, "", "STRING")
     , InputSchemaArg("", "input_schema", "input table schema", false, "", "YSON")
 {
@@ -86,6 +87,7 @@ TMapExecutor::TMapExecutor()
     CmdLine.add(OutArg);
     CmdLine.add(CommandArg);
     CmdLine.add(FileArg);
+    CmdLine.add(OrderedArg);
     CmdLine.add(InputQueryArg);
     CmdLine.add(InputSchemaArg);
 }
@@ -104,6 +106,7 @@ void TMapExecutor::BuildParameters(IYsonConsumer* consumer)
                 .Item("command").Value(CommandArg.getValue())
                 .Item("file_paths").Value(files)
             .EndMap()
+            .Item("ordered").Value(OrderedArg.getValue())
             .DoIf(!InputQueryArg.getValue().empty(), [=] (TFluentMap fluent) {
                 fluent.Item("input_query").Value(InputQueryArg.getValue());
             })
