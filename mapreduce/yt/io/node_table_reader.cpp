@@ -236,7 +236,7 @@ void TRowBuilder::Finalize()
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeTableReader::TNodeTableReader(THolder<TProxyInput> input)
-    : Input_(MoveArg(input))
+    : Input_(std::move(input))
 {
     PrepareParsing();
 

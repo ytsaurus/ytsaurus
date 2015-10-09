@@ -76,12 +76,12 @@ struct TKeyBase
 
     TKeyBase(TKeyBase&& rhs)
     {
-        Parts_ = MoveArg(rhs.Parts_);
+        Parts_ = std::move(rhs.Parts_);
     }
 
     TKeyBase& operator=(TKeyBase&& rhs)
     {
-        Parts_ = MoveArg(rhs.Parts_);
+        Parts_ = std::move(rhs.Parts_);
         return *this;
     }
 

@@ -17,7 +17,7 @@ TJobWriter::TStream::TStream(int fd)
 TJobWriter::TJobWriter(size_t outputTableCount)
 {
     for (size_t i = 0; i < outputTableCount; ++i) {
-        Streams_.push_back(MoveArg(TStream(i * 3 + 1)));
+        Streams_.push_back(std::move(TStream(i * 3 + 1)));
     }
 }
 

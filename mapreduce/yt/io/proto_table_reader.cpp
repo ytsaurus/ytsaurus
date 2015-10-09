@@ -73,7 +73,7 @@ void ReadMessageFromNode(const TNode& node, Message* row)
 ////////////////////////////////////////////////////////////////////////////////
 
 TProtoTableReader::TProtoTableReader(THolder<TProxyInput> input)
-    : NodeReader_(new TNodeTableReader(MoveArg(input)))
+    : NodeReader_(new TNodeTableReader(std::move(input)))
 { }
 
 TProtoTableReader::~TProtoTableReader()

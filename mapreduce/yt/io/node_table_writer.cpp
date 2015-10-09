@@ -11,7 +11,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 TNodeTableWriter::TNodeTableWriter(THolder<TProxyOutput> output)
-    : Output_(MoveArg(output))
+    : Output_(std::move(output))
 {
     for (size_t i = 0; i < Output_->GetStreamCount(); ++i) {
         Writers_.push_back(
