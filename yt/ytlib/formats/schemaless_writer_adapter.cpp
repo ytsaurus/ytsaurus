@@ -34,11 +34,11 @@ TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
-    : EnableKeySwitch_(enableKeySwitch)
-    , KeyColumnCount_(keyColumnCount)
-    , EnableContextSaving_(enableContextSaving)
-    , Output_(CreateSyncAdapter(output))
+    : KeyColumnCount_(keyColumnCount)
     , NameTable_(nameTable)
+    , EnableContextSaving_(enableContextSaving)
+    , EnableKeySwitch_(enableKeySwitch)
+    , Output_(CreateSyncAdapter(output))
 {
     CurrentBuffer_.Reserve(ContextBufferSize);
 
@@ -130,6 +130,10 @@ bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows
 
 bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow) 
 {
+    if (!EnableKeySwitch_) {
+        return false;
+    }
+
     bool needKeySwitch = false;
     try {
         needKeySwitch = CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_);
@@ -158,20 +162,24 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
-    : TSchemalessFormatWriterBase(nameTable, std::move(output), enableContextSaving, 
-                                  enableKeySwitch, keyColumnCount)
+    : TSchemalessFormatWriterBase(
+        nameTable, 
+        std::move(output), 
+        enableContextSaving, 
+        enableKeySwitch, 
+        keyColumnCount)
 {
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
 void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
-    for (int i = 0; i < static_cast<int>(rows.size()); i++) {
-        if (EnableKeySwitch_ && CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
+    for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
+        if (CheckKeySwitch(rows[index], index + 1 == rows.size() /* isLastRow */)) {
             WriteControlAttribute(EControlAttribute::KeySwitch, true);
         }
 
-        ConsumeRow(rows[i]);
+        ConsumeRow(rows[index]);
         TryFlushBuffer();
     }
 

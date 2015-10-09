@@ -52,23 +52,24 @@ protected:
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) = 0;
     
-    bool EnableKeySwitch_;
     int KeyColumnCount_;
     
     NTableClient::TOwningKey LastKey_;
     NTableClient::TKey CurrentKey_;
+    
+    NTableClient::TNameTablePtr NameTable_;
 
-    bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool IsLastRow);
+    bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
 private:
     bool EnableContextSaving_;
+    bool EnableKeySwitch_;
 
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
     std::unique_ptr<TOutputStream> Output_;
 
     TError Error_;
-    NTableClient::TNameTablePtr NameTable_;
 
     void DoFlushBuffer(bool force);
 };

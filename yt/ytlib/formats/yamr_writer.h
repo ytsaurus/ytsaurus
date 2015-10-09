@@ -16,9 +16,9 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Note: only tabular format is supported.
 class TSchemalessYamrWriter
-    : public TSchemalessFormatWriterBase {
+    : public TSchemalessFormatWriterBase 
+{
 public:
     TSchemalessYamrWriter(
         NTableClient::TNameTablePtr nameTable,
@@ -38,7 +38,9 @@ private:
     TYamrFormatConfigPtr Config_;
     TYamrTable Table_;
 
-    i32 KeyId_, SubKeyId_, ValueId_;
+    i32 KeyId_;
+    i32 SubKeyId_;
+    i32 ValueId_;
 
     void WriteInLenvalMode(const TStringBuf& value);
     
