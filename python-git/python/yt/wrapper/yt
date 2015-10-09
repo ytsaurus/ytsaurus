@@ -509,6 +509,7 @@ def add_sort_parser(add_parser):
 def add_map_parser(add_parser):
     parser = add_parser("map", operation_handler(yt.run_map), epilog="See also yt map-reduce --help for brief options description.")
     operation_args(parser)
+    parser.add_argument("--ordered", help="Force ordered input for mapper.")
 
 def add_reduce_parser(add_parser):
     parser = add_parser("reduce", operation_handler(yt.run_reduce),
