@@ -16,16 +16,40 @@ using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
+Py::Exception CreateYsonError(const NYT::TError& error)
+{
+    auto ysonErrorClass = Py::Callable(
+        PyObject_GetAttr(
+            PyImport_ImportModule("yt.yson.common"),
+            PyString_FromString("YsonError")));
+
+    Py::Dict options;
+    options.setItem("message", ConvertTo<Py::Object>(error.GetMessage()));
+    options.setItem("code", ConvertTo<Py::Object>(error.GetCode()));
+    options.setItem("inner_errors", ConvertTo<Py::Object>(error.InnerErrors()));
+    auto ysonError = ysonErrorClass.apply(options);
+    return Py::Exception(*ysonError, ysonError);
+}
+
 Py::Exception CreateYsonError(const std::string& message)
 {
-    static PyObject* ysonErrorClass = nullptr;
-    if (!ysonErrorClass) {
-        ysonErrorClass = PyObject_GetAttr(
+    auto ysonErrorClass = Py::Object(
+        PyObject_GetAttr(
             PyImport_ImportModule("yt.yson.common"),
-            PyString_FromString("YsonError"));
-    }
-    return Py::Exception(ysonErrorClass, message);
+            PyString_FromString("YsonError")));
+    return Py::Exception(*ysonErrorClass, message);
 }
+
+#define CATCH \
+    catch (const NYT::TErrorException& error) { \
+        throw CreateYsonError(error.Error()); \
+    } catch (const std::exception& ex) { \
+        if (PyErr_ExceptionMatches(PyExc_BaseException)) { \
+            throw; \
+        } else { \
+            throw CreateYsonError(ex.what()); \
+        } \
+    }
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -78,9 +102,7 @@ public:
             // We should return pointer to alive object
             result.increment_reference_count();
             return result.ptr();
-        } catch (const std::exception& ex) {
-            throw CreateYsonError(ex.what());
-        }
+        } CATCH;
     }
 
     virtual ~TYsonIterator()
@@ -142,9 +164,7 @@ public:
             auto result = Py::String(item.Begin(), item.Size());
             result.increment_reference_count();
             return result.ptr();
-        } catch (const std::exception& ex) {
-            throw CreateYsonError(ex.what());
-        }
+        } CATCH;
     }
 
     virtual ~TRawYsonIterator()
@@ -318,9 +338,7 @@ private:
                 if (ysonType == NYson::EYsonType::MapFragment) {
                     consumer.OnEndMap();
                 }
-            } catch (const std::exception& error) {
-                throw CreateYsonError(error.what());
-            }
+            } CATCH;
 
             return consumer.ExtractObject();
         }
@@ -386,9 +404,7 @@ private:
         if (ysonType == NYson::EYsonType::Node) {
             try {
                 Serialize(obj, &writer, ignoreInnerAttributes);
-            } catch (const NYT::TErrorException& error) {
-                throw CreateYsonError(error.what());
-            }
+            } CATCH;
         } else if (ysonType == NYson::EYsonType::ListFragment) {
             auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
             try {
@@ -399,9 +415,7 @@ private:
                 if (PyErr_Occurred()) {
                     throw Py::Exception();
                 }
-            } catch (const NYT::TErrorException& error) {
-                throw CreateYsonError(error.what());
-            }
+            } CATCH;
         } else {
             throw CreateYsonError(ToString(ysonType) + " is not supported");
         }
