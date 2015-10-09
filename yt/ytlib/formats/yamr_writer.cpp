@@ -84,15 +84,21 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
 
         for (const auto* item = rows[i].Begin(); item != rows[i].End(); ++item) {
             if (item->Id == KeyId_) {
-                YASSERT(item->Type == EValueType::String);
+                if (item->Type != EValueType::String) {
+                    THROW_ERROR_EXCEPTION("Wrong column type %Qv in YAMR record", ToString(item->Type));
+                }
                 key = TStringBuf(item->Data.String, item->Length);
             } else if (item->Id == SubKeyId_) {
                 if (item->Type != EValueType::Null) {
-                    YASSERT(item->Type == EValueType::String);
+                    if (item->Type != EValueType::String) {
+                        THROW_ERROR_EXCEPTION("Wrong column type %Qv in YAMR record", ToString(item->Type));
+                    }
                     subkey = TStringBuf(item->Data.String, item->Length);
                 }
             } else if (item->Id == ValueId_) {
-                YASSERT(item->Type == EValueType::String);
+                if (item->Type != EValueType::String) {
+                    THROW_ERROR_EXCEPTION("Wrong column type %Qv in YAMR record", ToString(item->Type));
+                }
                 value = TStringBuf(item->Data.String, item->Length);
             } else {
                 // Ignore unknown columns.
