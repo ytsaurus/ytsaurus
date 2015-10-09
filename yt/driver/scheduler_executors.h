@@ -34,6 +34,7 @@ private:
     TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
     TCLAP::ValueArg<Stroka> CommandArg;
     TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
+    TCLAP::ValueArg<bool> OrderedArg;
     TCLAP::ValueArg<Stroka> InputQueryArg;
     TCLAP::ValueArg<Stroka> InputSchemaArg;
 
