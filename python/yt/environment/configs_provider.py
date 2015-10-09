@@ -53,7 +53,7 @@ class ConfigsProvider(object):
         self._node_addresses = []
 
     @abc.abstractmethod
-    def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
         pass
 
     @abc.abstractmethod
@@ -77,10 +77,11 @@ class ConfigsProvider_17(ConfigsProvider):
         super(ConfigsProvider_17, self).__init__(enable_debug_logging)
         self._master_cell_tag = 0
 
-    def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
         if secondary_master_cell_count > 0:
             raise YtError("Secondary master cells are not supported in YT version <= 0.18")
         master_dirs = unlist(master_dirs)
+        tmpfs_master_dirs = unlist(tmpfs_master_dirs)
 
         ports = [get_open_port() for _ in xrange(master_count * 2)]
         addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(master_count)]
@@ -99,7 +100,12 @@ class ConfigsProvider_17(ConfigsProvider):
                 "addresses": addresses
             }
             config["timestamp_provider"]["addresses"] = addresses
-            config["changelogs"]["path"] = os.path.join(master_dirs[i], "changelogs")
+
+            if tmpfs_master_dirs is None:
+                config["changelogs"]["path"] = os.path.join(master_dirs[i], "changelogs")
+            else:
+                config["changelogs"]["path"] = os.path.join(tmpfs_master_dirs[i], "changelogs")
+
             config["snapshots"]["path"] = os.path.join(master_dirs[i], "snapshots")
             config["logging"] = init_logging(config["logging"], master_dirs[i], "master-" + str(i),
                                              self.enable_debug_logging)
@@ -253,9 +259,11 @@ class ConfigsProvider_17_3(ConfigsProvider_17):
         return configs
 
 class ConfigsProvider_17_4(ConfigsProvider_17):
-    def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
-        configs = super(ConfigsProvider_17_4, self).\
-            get_master_configs(master_count, master_dirs, secondary_master_cell_count, cell_tag)
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None,
+                           secondary_master_cell_count=0, cell_tag=0):
+
+        configs = super(ConfigsProvider_17_4, self).get_master_configs(master_count, master_dirs, tmpfs_master_dirs,
+                                                                       secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
@@ -290,7 +298,7 @@ class ConfigsProvider_18(ConfigsProvider):
         self._primary_master_cell_id = 0
         self._secondary_masters_cell_ids = []
 
-    def get_master_configs(self, master_count, master_dirs, secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
         ports = []
         addresses = []
 
@@ -343,8 +351,13 @@ class ConfigsProvider_18(ConfigsProvider):
                     config["secondary_masters"][index]["addresses"] = addresses[index + 1]
 
                 config["timestamp_provider"]["addresses"] = addresses[0]
-                config["changelogs"]["path"] = os.path.join(master_dirs[cell_index][master_index], "changelogs")
                 config["snapshots"]["path"] = os.path.join(master_dirs[cell_index][master_index], "snapshots")
+
+                if tmpfs_master_dirs is None:
+                    config["changelogs"]["path"] = os.path.join(master_dirs[cell_index][master_index], "changelogs")
+                else:
+                    config["changelogs"]["path"] = os.path.join(tmpfs_master_dirs[cell_index][master_index], "changelogs")
+
                 config["logging"] = init_logging(config["logging"], master_dirs[cell_index][master_index],
                                                  "master-" + str(master_index), self.enable_debug_logging)
 

@@ -90,7 +90,6 @@ def _create_node_from_local_file(local_filename, dest_filename, client):
             logger.exception("Failed to load meta file for table {0}, skipping".format(local_filename))
             return
 
-
         if meta["type"] != "table":
             logger.warning("Found file {0} with currently unsupported type {1}" \
                            .format(file, meta["type"]))
@@ -171,7 +170,7 @@ def _safe_kill(pid):
 def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
-          enable_debug_logging=False, path=None):
+          enable_debug_logging=False, tmpfs_path=None, path=None):
 
     require(masters_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
 
@@ -206,11 +205,13 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
         else:
             raise YtError("Instance with id {0} is already running".format(sandbox_id))
 
+    sandbox_tmpfs_path = os.path.join(tmpfs_path, sandbox_id) if tmpfs_path else None
     environment.start(sandbox_path, pids_file_path,
                       proxy_port=proxy_port,
                       supress_yt_output=True,
                       enable_debug_logging=enable_debug_logging,
-                      preserve_working_dir=True)
+                      preserve_working_dir=True,
+                      tmpfs_path=sandbox_tmpfs_path)
 
     environment.id = sandbox_id
 
