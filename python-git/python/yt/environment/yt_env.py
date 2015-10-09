@@ -120,7 +120,7 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True,
-              preserve_working_dir=False, kill_child_processes=False):
+              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None):
         self._lock = RLock()
 
         logger.propagate = False
@@ -130,6 +130,7 @@ class YTEnv(object):
 
         self.supress_yt_output = supress_yt_output
         self.path_to_run = os.path.abspath(path_to_run)
+        self.tmpfs_path = tmpfs_path
         self.pids_filename = pids_filename
 
         load_existing_environment = False
@@ -263,12 +264,11 @@ class YTEnv(object):
                 return words[1].startswith("Z")
         return True
 
-
     def _kill_process(self, proc, name):
         proc.poll()
         if proc.returncode is not None:
-            logger.warning("{0} (pid: {1}, working directory: {2}) is already terminated with exit code {3}\n"\
-                .format(name, proc.pid, os.path.join(self.path_to_run), proc.returncode))
+            logger.warning("%s (pid: %d, working directory: %s) is already terminated with exit code %d\n",
+                           name, proc.pid, os.path.join(self.path_to_run), proc.returncode)
             return
 
         os.killpg(proc.pid, signal.SIGKILL)
@@ -305,7 +305,7 @@ class YTEnv(object):
                 raise YtError("Process {0}-{1} unexpectedly terminated with error code {2}. "
                               "If the problem is reproducible please report to yt@yandex-team.ru mailing list."
                               .format(name, number, p.returncode))
-            
+
             self._process_to_kill[name].append(p)
             self._all_processes[p.pid] = (p, args)
             self._append_pid(p.pid)
@@ -349,7 +349,8 @@ class YTEnv(object):
         else:
             return master_name + "_secondary_" + str(cell_index - 1)
 
-    def _get_master_configs(self, master_count, master_name, secondary_master_cell_count, cell_tag, master_dirs):
+    def _get_master_configs(self, master_count, master_name, secondary_master_cell_count, cell_tag,
+                            master_dirs, tmpfs_master_dirs):
         if self._load_existing_environment:
             master_configs = []
             for cell_index in xrange(secondary_master_cell_count + 1):
@@ -369,7 +370,7 @@ class YTEnv(object):
 
             return master_configs
         else:
-            return self._configs_provider.get_master_configs(master_count, master_dirs,
+            return self._configs_provider.get_master_configs(master_count, master_dirs, tmpfs_master_dirs,
                                                              secondary_master_cell_count, cell_tag)
 
     def _prepare_masters(self, masters_count, master_name, secondary_master_cell_count, cell_tag):
@@ -380,12 +381,18 @@ class YTEnv(object):
         self._primary_masters = {}
 
         dirs = []
+        tmpfs_dirs = [] if self.tmpfs_path else None
+
         for cell_index in xrange(secondary_master_cell_count + 1):
             name = self._get_master_name(master_name, cell_index)
             dirs.append([os.path.join(self.path_to_run, name, str(i)) for i in xrange(masters_count)])
             map(_makedirp, dirs[cell_index])
+            if self.tmpfs_path is not None and not self._load_existing_environment:
+                tmpfs_dirs.append([os.path.join(self.tmpfs_path, name, str(i)) for i in xrange(masters_count)])
+                map(_makedirp, tmpfs_dirs[cell_index])
 
-        configs = self._get_master_configs(masters_count, master_name, secondary_master_cell_count, cell_tag, dirs)
+        configs = self._get_master_configs(masters_count, master_name, secondary_master_cell_count, cell_tag,
+                                           dirs, tmpfs_dirs)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
             current_master_name = self._get_master_name(master_name, cell_index)
