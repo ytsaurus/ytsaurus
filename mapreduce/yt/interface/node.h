@@ -116,13 +116,13 @@ public:
 
     TNode(TNode&& rhs)
     {
-        Move(MoveArg(rhs));
+        Move(std::move(rhs));
     }
 
     TNode& operator=(TNode&& rhs)
     {
         Clear();
-        Move(MoveArg(rhs));
+        Move(std::move(rhs));
         return *this;
     }
 
@@ -328,7 +328,7 @@ public:
     TNode& operator()(const Stroka& key, TNode&& value)
     {
         AssureMap();
-        (*Map_)[key] = MoveArg(value);
+        (*Map_)[key] = std::move(value);
         return *this;
     }
 

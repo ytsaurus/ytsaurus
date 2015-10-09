@@ -21,7 +21,7 @@ struct TFluentYsonUnwrapper
 
     static TUnwrapped Unwrap(T t)
     {
-        return MoveArg(t);
+        return std::move(t);
     }
 };
 
@@ -74,14 +74,14 @@ public:
 
         TFluentBase(IYsonConsumer* consumer, TParent parent)
             : Consumer(consumer)
-            , Parent(MoveArg(parent))
+            , Parent(std::move(parent))
         { }
 
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
         TUnwrappedParent GetUnwrappedParent()
         {
-            return TFluentYsonUnwrapper<TParent>::Unwrap(MoveArg(Parent));
+            return TFluentYsonUnwrapper<TParent>::Unwrap(std::move(Parent));
         }
 
     };
@@ -96,7 +96,7 @@ public:
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
         explicit TFluentFragmentBase(IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentBase<TParent>(consumer, MoveArg(parent))
+            : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
         template <class TFunc>
@@ -143,7 +143,7 @@ public:
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
         TAnyWithoutAttributes(IYsonConsumer* consumer, TParent parent)
-            : TFluentBase<TParent>(consumer, MoveArg(parent))
+            : TFluentBase<TParent>(consumer, std::move(parent))
         { }
 
         template <class T>
@@ -274,7 +274,7 @@ public:
         using TBase = TAnyWithoutAttributes<TParent>;
 
         explicit TAny(IYsonConsumer* consumer, TParent parent)
-            : TBase(consumer, MoveArg(parent))
+            : TBase(consumer, std::move(parent))
         { }
 
         TAttributes<TBase> BeginAttributes()
@@ -295,7 +295,7 @@ public:
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
         explicit TAttributes(IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, MoveArg(parent))
+            : TFluentFragmentBase<TFluentYsonBuilder::TAttributes, TParent>(consumer, std::move(parent))
         { }
 
         TAny<TThis> Item(const TStringBuf& key)
@@ -328,7 +328,7 @@ public:
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
         explicit TList(IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, MoveArg(parent))
+            : TFluentFragmentBase<TFluentYsonBuilder::TList, TParent>(consumer, std::move(parent))
         { }
 
         TAny<TThis> Item()
@@ -355,7 +355,7 @@ public:
         using TUnwrappedParent = typename TFluentYsonUnwrapper<TParent>::TUnwrapped;
 
         explicit TMap(IYsonConsumer* consumer, TParent parent = TParent())
-            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, MoveArg(parent))
+            : TFluentFragmentBase<TFluentYsonBuilder::TMap, TParent>(consumer, std::move(parent))
         { }
 
         template <size_t Size>
@@ -446,7 +446,7 @@ public:
 
     TNode GetValue()
     {
-        return MoveArg(Node);
+        return std::move(Node);
     }
 
     IYsonConsumer* GetConsumer()
@@ -515,7 +515,7 @@ struct TFluentYsonUnwrapper< TFluentYsonHolder<TState> >
 
     static TUnwrapped Unwrap(const TFluentYsonHolder<TState>& holder)
     {
-        return MoveArg(holder.GetState()->GetValue());
+        return std::move(holder.GetState()->GetValue());
     }
 };
 

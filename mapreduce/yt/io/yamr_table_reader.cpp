@@ -90,7 +90,7 @@ TMaybe<TNode> GetTableFormats(
 ////////////////////////////////////////////////////////////////////////////////
 
 TYaMRTableReader::TYaMRTableReader(THolder<TProxyInput> input)
-    : Input_(MoveArg(input))
+    : Input_(std::move(input))
 {
     Next();
 }

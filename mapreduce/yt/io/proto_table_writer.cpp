@@ -65,7 +65,7 @@ TNode MakeNodeFromMessage(const Message& row)
 ////////////////////////////////////////////////////////////////////////////////
 
 TProtoTableWriter::TProtoTableWriter(THolder<TProxyOutput> output)
-    : NodeWriter_(new TNodeTableWriter(MoveArg(output)))
+    : NodeWriter_(new TNodeTableWriter(std::move(output)))
 { }
 
 TProtoTableWriter::~TProtoTableWriter()
