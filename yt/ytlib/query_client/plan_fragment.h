@@ -246,6 +246,8 @@ struct TJoinClause
 
     std::vector<std::pair<TConstExpressionPtr, TConstExpressionPtr>> Equations;
 
+    bool IsLeft = false;
+
     TGuid ForeignDataId;
 
     // TODO: Use ITableSchemaInterface
@@ -289,11 +291,12 @@ struct TGroupClause
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
 
+typedef std::pair<TConstExpressionPtr, bool> TOrderItem;
+
 struct TOrderClause
     : public TIntrinsicRefCounted
 {
-    std::vector<Stroka> OrderColumns;
-    bool IsDescending = false;
+    std::vector<TOrderItem> OrderItems;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderClause)
@@ -420,7 +423,7 @@ struct TPlanFragment
     TConstQueryPtr Query;
     bool Ordered = false;
     bool VerboseLogging = false;
-    ui64 MaxSubqueries = 0;
+    int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
     bool EnableCodeCache = true;
 };

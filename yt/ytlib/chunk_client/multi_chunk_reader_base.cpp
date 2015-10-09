@@ -147,7 +147,7 @@ void TMultiChunkReaderBase::OpenNextChunks()
     for (; PrefetchIndex_ < Chunks_.size(); ++PrefetchIndex_) {
         if (Chunks_[PrefetchIndex_].MemoryEstimate > FreeBufferSize_ &&
             ActiveReaderCount_ > 0 &&
-            !Options_->KeepInMemory) 
+            !Options_->KeepInMemory)
         {
             return;
         }
@@ -305,7 +305,7 @@ TFuture<void> TMultiChunkReaderBase::CombineCompletionError(TFuture<void> future
 }
 
 void TMultiChunkReaderBase::RegisterFailedChunk(int chunkIndex)
-{   
+{
     auto chunkId = NYT::FromProto<TChunkId>(Chunks_[chunkIndex].Spec.chunk_id());
     LOG_WARNING("Chunk reader failed (ChunkId: %v)", chunkId);
 
@@ -326,10 +326,10 @@ TSequentialMultiChunkReaderBase::TSequentialMultiChunkReaderBase(
     const std::vector<NProto::TChunkSpec>& chunkSpecs,
     IThroughputThrottlerPtr throttler)
     : TMultiChunkReaderBase(
-        config, 
-        options, 
-        client, 
-        blockCache, 
+        config,
+        options,
+        client,
+        blockCache,
         nodeDirectory,
         chunkSpecs,
         throttler)
@@ -437,7 +437,7 @@ TParallelMultiChunkReaderBase::TParallelMultiChunkReaderBase(
         nodeDirectory,
         chunkSpecs,
         throttler)
-{ 
+{
     LOG_DEBUG("Multi chunk reader is parallel");
 }
 

@@ -73,6 +73,17 @@ TChunkListId TChunkListPool::Extract(TCellTag cellTag)
     return id;
 }
 
+void TChunkListPool::Reinstall(const TChunkListId& id)
+{
+    auto cellTag = CellTagFromId(id);
+    auto& data = CellMap_[cellTag];
+    data.Ids.push_back(id);
+    LOG_DEBUG("Reinstalled chunk list into the pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
+        id,
+        cellTag,
+        static_cast<int>(data.Ids.size()));
+}
+
 void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
 {
     VERIFY_INVOKER_AFFINITY(ControllerInvoker_);

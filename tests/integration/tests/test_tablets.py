@@ -58,7 +58,7 @@ class TestTablets(YTEnvSetup):
         peers = get("//sys/tablet_cells/" + cell_id + "/@peers")
         leader_peer = list(x for x in peers if x["state"] == "leading")[0]
         return leader_peer["address"]
- 
+
     def _find_tablet_orchid(self, address, tablet_id):
         cells = get("//sys/nodes/" + address + "/orchid/tablet_cells", ignore_opaque=True)
         for (cell_id, cell_data) in cells.iteritems():
@@ -67,7 +67,7 @@ class TestTablets(YTEnvSetup):
                 if tablet_id in tablets:
                     return tablets[tablet_id]
         return None
- 
+
     def _get_pivot_keys(self, path):
         tablets = get(path + "/@tablets")
         return [tablet["pivot_key"] for tablet in tablets]
@@ -109,7 +109,7 @@ class TestTablets(YTEnvSetup):
 
         self.sync_mount_table("//tmp/t")
         self.sync_unmount_table("//tmp/t")
-        
+
     def test_mount_unmount(self):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
@@ -177,13 +177,14 @@ class TestTablets(YTEnvSetup):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = self._get_tablet_leader_address(tablet_id)
         assert self._find_tablet_orchid(address, tablet_id) is not None
-       
+
         remove("//tmp/t")
         sleep(1)
         assert self._find_tablet_orchid(address, tablet_id) is None
          
     def test_read_table(self):
         self.sync_create_cells(1, 1)
+
         self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
 
@@ -547,7 +548,7 @@ class TestTablets(YTEnvSetup):
         table_id2 = get("//tmp/t2/@id")
         assert get("#" + tablet_id + "/@table_id") == table_id2
 
-        
+
     def test_any_value_type(self):
         self.sync_create_cells(1, 1)
         create("table", "//tmp/t1",
@@ -594,14 +595,14 @@ class TestTablets(YTEnvSetup):
         create_user("u")
         set("//tmp/t/@inherit_acl", False)
         set("//tmp/t/@acl", [{"permissions": [permission], "action": "allow", "subjects": ["u"]}])
-        
+
     def _prepare_denied(self, permission):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
         self.sync_mount_table("//tmp/t")
         create_user("u")
         set("//tmp/t/@acl", [{"permissions": [permission], "action": "deny", "subjects": ["u"]}])
-        
+
     def test_select_allowed(self):
         self._prepare_allowed("read")
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
@@ -693,7 +694,7 @@ class TestTablets(YTEnvSetup):
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = self._get_tablet_leader_address(tablet_id)
-        
+
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
 
@@ -823,7 +824,7 @@ class TestTablets(YTEnvSetup):
 
         rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows2)
-        
+
         assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "key2": YsonEntity(), "value": "77"}]
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
         assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
@@ -833,7 +834,6 @@ class TestTablets(YTEnvSetup):
         def do(a1, a2):
             self.sync_create_cells(1, 1)
             self._create_table("//tmp/t", atomicity=a1)
-            
             self.sync_mount_table("//tmp/t")
             rows = [{"key": i, "value": str(i)} for i in xrange(100)]
             with pytest.raises(YtError): insert_rows("//tmp/t", rows, atomicity=a2)
@@ -845,7 +845,7 @@ class TestTablets(YTEnvSetup):
         do("none", "full")
 
     def _test_snapshots(self, atomicity):
-        cell_ids = self.sync_create_cells(1, 1)
+        self.sync_create_cells(1, 1)
         cell_id = ls("//sys/tablet_cells")[0]
 
         self._create_table("//tmp/t", atomicity=atomicity)

@@ -127,7 +127,7 @@ void TTableConsumer::OnDoubleScalar(double value)
     } else if (Depth_ == 1) {
         if (std::isnan(value)) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidDoubleValue, 
+                EErrorCode::InvalidDoubleValue,
                "Failed to parse double value: %Qv is not a valid double",
                 value);
         }
@@ -370,11 +370,11 @@ void TTableConsumer::FlushCurrentValueIfCompleted()
     if (Depth_ == 1) {
         CurrentValueConsumer_->OnValue(MakeUnversionedAnyValue(
             TStringBuf(
-                ValueBuffer_.Begin(), 
+                ValueBuffer_.Begin(),
                 ValueBuffer_.Begin() + ValueBuffer_.Size()),
             ColumnIndex_));
         ValueBuffer_.Clear();
-    }   
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

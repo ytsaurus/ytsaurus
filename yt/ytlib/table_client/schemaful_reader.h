@@ -12,10 +12,10 @@ namespace NTableClient {
 //! Reads a non-versioned, fixed-width, strictly typed rowset with given a schema.
 /*!
  *  The contract is mostly same as in IVersionedReader.
- *  
+ *
  *  Useful for: query engine.
  */
-struct ISchemafulReader 
+struct ISchemafulReader
     : public virtual TRefCounted
 {
     //! See #IVersionedReader::Read.

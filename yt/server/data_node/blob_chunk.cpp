@@ -283,12 +283,6 @@ void TBlobChunkBase::DoReadBlockSet(
                 .Get();
             auto readTime = timer.GetElapsed();
 
-            LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, LocationId: %v)",
-                Id_,
-                startBlockIndex,
-                startBlockIndex + blocksToRead - 1,
-                Location_->GetId());
-
             if (!blocksOrError.IsOK()) {
                 auto error = TError(
                     NChunkClient::EErrorCode::IOError,
@@ -321,6 +315,13 @@ void TBlobChunkBase::DoReadBlockSet(
                 }
                 bytesRead += entry.Data.Size();
             }
+
+            LOG_DEBUG("Finished reading blob chunk blocks (BlockIds: %v:%v-%v, BytesRead: %v, LocationId: %v)",
+                Id_,
+                startBlockIndex,
+                startBlockIndex + blocksToRead - 1,
+                bytesRead,
+                Location_->GetId());
 
             locationProfiler.Enqueue("/blob_block_read_size", bytesRead);
             locationProfiler.Enqueue("/blob_block_read_time", readTime.MicroSeconds());

@@ -153,6 +153,7 @@ struct TInExpression
     TLiteralValueTupleList Values;
 };
 
+Stroka FormatColumn(const TStringBuf& name, const TStringBuf& tableName = TStringBuf());
 Stroka InferName(const TExpressionList& exprs, bool omitValues = false);
 Stroka InferName(const TExpression* expr, bool omitValues = false);
 
@@ -160,6 +161,8 @@ Stroka InferName(const TExpression* expr, bool omitValues = false);
 
 typedef std::vector<TReferenceExpressionPtr> TIdentifierList;
 typedef TNullable<TIdentifierList> TNullableIdentifierList;
+
+typedef std::vector<std::pair<TExpressionList, bool>> TOrderExpressionList;
 
 struct TTableDescriptor
 {
@@ -184,21 +187,26 @@ struct TQuery
     struct TJoin
     {
         TJoin(
+            bool isLeft,
             const TTableDescriptor& table,
             const TIdentifierList& fields)
-            : Table(table)
+            : IsLeft(isLeft)
+            , Table(table)
             , Fields(fields)
         { }
 
         TJoin(
+            bool isLeft,
             const TTableDescriptor& table,
             const TExpressionList& left,
             const TExpressionList& right)
-            : Table(table)
+            : IsLeft(isLeft)
+            , Table(table)
             , Left(left)
             , Right(right)
         { }
 
+        bool IsLeft;
         TTableDescriptor Table;
         TIdentifierList Fields;
 
@@ -213,8 +221,7 @@ struct TQuery
     TNullableExpressionList GroupExprs;
     TNullableExpressionList HavingPredicate;
 
-    TNullableIdentifierList OrderFields;
-    bool IsDescendingOrder = false;
+    TOrderExpressionList OrderExpressions;
 
     i64 Limit = 0;
 };

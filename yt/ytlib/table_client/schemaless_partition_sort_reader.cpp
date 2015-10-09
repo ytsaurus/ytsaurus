@@ -513,7 +513,7 @@ private:
 
     TFuture<void> InvokeSortBucket(int bucketId)
     {
-        return 
+        return
             BIND(
                 &TSchemalessPartitionSortReader::DoSortBucket,
                 MakeWeak(this),

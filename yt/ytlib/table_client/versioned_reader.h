@@ -27,7 +27,7 @@ struct IVersionedReader
     //! Tries to read more rows from the reader.
     /*!
      *  Depending on implementation, rows may come in two different flavors.
-     *  (A) Rows containing no more than one versioned value for each cell, 
+     *  (A) Rows containing no more than one versioned value for each cell,
      *      no more than one write timestamp (the last one), and no more than one
      *      delete timestamp (for merging).
      *  (B) Rows containing all available versions and two lists of timestamps: write and delete

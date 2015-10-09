@@ -507,7 +507,7 @@ bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, 
         Error_ = TError(
             EErrorCode::SortOrderViolation,
             "Sort order violation: %v > %v",
-            leftBuilder.FinishRow().Get(), 
+            leftBuilder.FinishRow().Get(),
             rightBuilder.FinishRow().Get());
     } catch (const std::exception& ex) {
         // NB: e.g. incomparable type.
@@ -669,10 +669,10 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 
     auto createChunkWriter = [=] (IChunkWriterPtr underlyingWriter) {
         return CreateSchemalessChunkWriter(
-            config, 
-            options, 
-            nameTable, 
-            keyColumns, 
+            config,
+            options,
+            nameTable,
+            keyColumns,
             underlyingWriter,
             blockCache);
     };

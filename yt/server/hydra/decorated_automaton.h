@@ -171,7 +171,9 @@ public:
 
     TFuture<void> RotateChangelog(TEpochContextPtr epochContext);
 
-    void CommitMutations(TEpochContextPtr epochContext, TVersion version);
+    void CommitMutations(TEpochContextPtr epochContext, TVersion version, bool mayYield);
+
+    bool HasReadyMutations() const;
 
 private:
     friend class TUserLockGuard;
@@ -230,7 +232,7 @@ private:
 
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
-    void DoApplyMutation(TMutationContext* context, bool recovery);
+    void DoApplyMutation(TMutationContext* context);
 
     bool TryAcquireUserLock();
     void ReleaseUserLock();
@@ -241,10 +243,12 @@ private:
 
     void DoRotateChangelog();
 
-    void ApplyPendingMutations(TEpochContextPtr epochContext);
+    void ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield);
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();
+
+    bool IsRecovery();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

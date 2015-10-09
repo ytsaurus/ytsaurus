@@ -150,7 +150,7 @@ class TestAcls(YTEnvSetup):
 
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a" : "b"})
-        
+
         create("table", "//tmp/t2")
 
         # just a sanity check
@@ -186,7 +186,7 @@ class TestAcls(YTEnvSetup):
     def test_inherit1(self):
         set("//tmp/p", {})
         set("//tmp/p/@inherit_acl", False)
-        
+
         create_user("u")
         with pytest.raises(YtError): set("//tmp/p/a", "b", user="u")
         with pytest.raises(YtError): ls("//tmp/p", user="u")

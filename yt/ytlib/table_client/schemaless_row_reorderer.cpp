@@ -22,7 +22,7 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
         EmptyKey_[i].Id = id;
         if (id >= IdMapping_.size()) {
             IdMapping_.resize(id + 1, -1);
-        } 
+        }
         IdMapping_[id] = i;
     }
 }

@@ -360,7 +360,7 @@ protected:
     }
 
     //! Add chunk to the current task's pool.
-    void AddPendingChunk(TChunkSlicePtr chunkSlice)
+    void AddPendingChunkSlice(TChunkSlicePtr chunkSlice)
     {
         auto stripe = CurrentTaskStripes[chunkSlice->GetChunkSpec()->table_index()];
         if (!stripe) {
@@ -556,7 +556,7 @@ private:
 
         // NB: During ordered merge all chunks go to a single chunk stripe.
         for (const auto& slice : SliceChunkByRowIndexes(chunkSpec, ChunkSliceSize)) {
-            AddPendingChunk(slice);
+            AddPendingChunkSlice(slice);
             EndTaskIfLarge();
         }
     }
@@ -1209,7 +1209,7 @@ private:
         int openedSlicesCount = 0;
         TRefCountedChunkSpecPtr currentChunkSpec = nullptr;
         int startTeleportIndex = -1;
-        for (int i = 0; i < Endpoints.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
             auto& endpoint = Endpoints[i];
             auto& chunkSlice = endpoint.ChunkSlice;
 
@@ -1261,7 +1261,7 @@ private:
         TNullable<TOwningKey> lastBreakpoint = Null;
 
         int startIndex = 0;
-        while (startIndex < Endpoints.size()) {
+        while (startIndex < static_cast<int>(Endpoints.size())) {
             auto& key = Endpoints[startIndex].GetKey();
 
             yhash_set<TRefCountedChunkSpecPtr> teleportChunks;
@@ -1271,7 +1271,7 @@ private:
             std::vector<TChunkSlicePtr> maniacs;
 
             int currentIndex = startIndex;
-            while (currentIndex < Endpoints.size()) {
+            while (currentIndex < static_cast<int>(Endpoints.size())) {
                 // Iterate over endpoints with equal keys.
                 auto& endpoint = Endpoints[currentIndex];
                 auto& currentKey = endpoint.GetKey();
@@ -1284,7 +1284,7 @@ private:
                 if (endpoint.IsTeleport) {
                     auto chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
                     YCHECK(teleportChunks.insert(chunkSpec).second);
-                    while (currentIndex < Endpoints.size() &&
+                    while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSlice->GetChunkSpec() == chunkSpec)
                     {
@@ -1303,7 +1303,7 @@ private:
                 {
                     auto it = globalOpenedSlices.find(endpoint.ChunkSlice);
                     if (it != globalOpenedSlices.end()) {
-                        AddPendingChunk(CreateChunkSlice((*it)->GetChunkSpec(), lastBreakpoint));
+                        AddPendingChunkSlice(CreateChunkSlice(*it, lastBreakpoint));
                         globalOpenedSlices.erase(it);
                         ++currentIndex;
                         continue;
@@ -1335,10 +1335,7 @@ private:
                     nextBreakpoint);
 
                 for (const auto& chunkSlice : globalOpenedSlices) {
-                    this->AddPendingChunk(CreateChunkSlice(
-                        chunkSlice->GetChunkSpec(),
-                        lastBreakpoint,
-                        nextBreakpoint));
+                    AddPendingChunkSlice(CreateChunkSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
                 }
                 lastBreakpoint = nextBreakpoint;
 
@@ -1346,7 +1343,7 @@ private:
             };
 
             while (!HasLargeActiveTask() && !maniacs.empty()) {
-                AddPendingChunk(maniacs.back());
+                AddPendingChunkSlice(maniacs.back());
                 maniacs.pop_back();
             }
 
@@ -1354,7 +1351,7 @@ private:
                 endTask();
 
                 for (auto& chunkSlice : maniacs) {
-                    AddPendingChunk(chunkSlice);
+                    AddPendingChunkSlice(chunkSlice);
                     if (HasLargeActiveTask()) {
                         EndManiacTask();
                     }
@@ -1575,7 +1572,7 @@ private:
 
         {
             int teleportOutputCount = 0;
-            for (int i = 0; i < OutputTables.size(); ++i) {
+            for (int i = 0; i < static_cast<int>(OutputTables.size()); ++i) {
                 if (OutputTables[i].Path.Attributes().Get<bool>("teleport", false)) {
                     ++teleportOutputCount;
                     TeleportOutputTable = i;
@@ -1593,7 +1590,7 @@ private:
         int openedSlicesCount = 0;
         auto previousKey = EmptyKey();
 
-        for (int i = 0; i < Endpoints.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
             auto& endpoint = Endpoints[i];
             auto& key = endpoint.GetKey();
 
@@ -1652,7 +1649,7 @@ private:
             TOwningKey maxKey, minKey;
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
             if (CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0) {
-                for (int j = startTeleportIndex; j < Endpoints.size(); ++j) {
+                for (int j = startTeleportIndex; j < static_cast<int>(Endpoints.size()); ++j) {
                     Endpoints[j].IsTeleport = true;
                 }
             }
@@ -1667,11 +1664,11 @@ private:
         TNullable<TOwningKey> lastBreakpoint = Null;
 
         int startIndex = 0;
-        while (startIndex < Endpoints.size()) {
+        while (startIndex < static_cast<int>(Endpoints.size())) {
             auto& key = Endpoints[startIndex].GetKey();
 
             int currentIndex = startIndex;
-            while (currentIndex < Endpoints.size()) {
+            while (currentIndex < static_cast<int>(Endpoints.size())) {
                 // Iterate over endpoints with equal keys.
                 auto& endpoint = Endpoints[currentIndex];
                 auto& currentKey = endpoint.GetKey();
@@ -1688,7 +1685,7 @@ private:
                     auto chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
                     AddTeleportChunk(chunkSpec);
 
-                    while (currentIndex < Endpoints.size() &&
+                    while (currentIndex < static_cast<int>(Endpoints.size()) &&
                         Endpoints[currentIndex].IsTeleport &&
                         Endpoints[currentIndex].ChunkSlice->GetChunkSpec() == chunkSpec)
                     {
@@ -1708,7 +1705,7 @@ private:
 
                 auto it = openedSlices.find(endpoint.ChunkSlice);
                 YCHECK(it != openedSlices.end());
-                AddPendingChunk(CreateChunkSlice((*it)->GetChunkSpec(), lastBreakpoint));
+                AddPendingChunkSlice(CreateChunkSlice(*it, lastBreakpoint));
                 openedSlices.erase(it);
                 ++currentIndex;
             }
@@ -1722,10 +1719,7 @@ private:
                     nextBreakpoint);
 
                 for (const auto& chunkSlice : openedSlices) {
-                    this->AddPendingChunk(CreateChunkSlice(
-                        chunkSlice->GetChunkSpec(),
-                        lastBreakpoint,
-                        nextBreakpoint));
+                    AddPendingChunkSlice(CreateChunkSlice(chunkSlice, lastBreakpoint, nextBreakpoint));
                 }
                 lastBreakpoint = nextBreakpoint;
 
@@ -1842,11 +1836,11 @@ private:
                 sortBy.erase(sortBy.begin() + table.KeyColumns.size(), sortBy.end());
             }
 
-            int i = 0;
-            while (i < sortBy.size() && sortBy[i] == table.KeyColumns[i]) {
-              	++i;
+            int index = 0;
+            while (index < static_cast<int>(sortBy.size()) && sortBy[index] == table.KeyColumns[index]) {
+              	++index;
             }
-            sortBy.erase(sortBy.begin() + i, sortBy.end());
+            sortBy.erase(sortBy.begin() + index, sortBy.end());
         }
         YCHECK(sortBy.size() >= KeyColumns.size());
         return sortBy;

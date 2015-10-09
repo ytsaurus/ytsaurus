@@ -110,6 +110,7 @@ message TJoinClause
     required NYT.NTableClient.NProto.TTableSchemaExt renamed_table_schema = 6;
     required int64 foreign_key_columns_count = 4;
     required NYT.NProto.TGuid foreign_data_id = 5;
+    required bool is_left = 7;
 }
 
 message TGroupClause
@@ -121,10 +122,15 @@ message TGroupClause
     required bool is_final = 5;
 }
 
+message TOrderItem
+{
+    required TExpression expression = 1;
+    required bool is_descending = 2;
+}
+
 message TOrderClause
 {
-    repeated string order_columns = 1;
-    required bool is_descending = 2;
+    repeated TOrderItem order_items = 1;
 }
 
 message TProjectClause
@@ -163,7 +169,7 @@ message TPlanFragment
     required TQuery query = 5;
     required bool ordered = 6;
     optional bool verbose_logging = 7 [default = false];
-    optional uint64 max_subqueries = 9 [default = 16];
+    optional int64 max_subqueries = 9 [default = 16];
     optional bool enable_code_cache = 10 [default = true];
 }
 

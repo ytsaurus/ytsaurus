@@ -18,6 +18,8 @@
 #include <core/pipes/async_reader.h>
 #include <core/pipes/pipe.h>
 
+#include <core/profiling/scoped_timer.h>
+
 #include <ytlib/election/cell_manager.h>
 
 #include <ytlib/hydra/hydra_service.pb.h>
@@ -28,7 +30,6 @@
 #include <util/random/random.h>
 
 #include <util/system/file.h>
-#include <core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NHydra {
@@ -759,7 +760,7 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         TInstant(header.timestamp()),
         header.random_seed());
 
-    DoApplyMutation(&context, true);
+    DoApplyMutation(&context);
 }
 
 void TDecoratedAutomaton::LogLeaderMutation(
@@ -888,7 +889,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
     LOG_INFO("Changelog rotated");
 }
 
-void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersion version)
+void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersion version, bool mayYield)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -900,10 +901,22 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
     LOG_DEBUG("Committed version promoted to %v",
         version);
 
-    ApplyPendingMutations(std::move(epochContext));
+    ApplyPendingMutations(std::move(epochContext), mayYield);
 }
 
-void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
+bool TDecoratedAutomaton::HasReadyMutations() const
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (PendingMutations_.empty()) {
+        return false;
+    }
+
+    const auto& pendingMutation = PendingMutations_.front();
+    return pendingMutation.Version < CommittedVersion_;
+}
+
+void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield)
 {
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
@@ -911,12 +924,6 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
             auto& pendingMutation = PendingMutations_.front();
             if (pendingMutation.Version >= CommittedVersion_)
                 break;
-
-            if (timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
-                epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext));
-                break;
-            }
 
             RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
@@ -926,7 +933,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed);
 
-            DoApplyMutation(&context, false);
+            DoApplyMutation(&context);
 
             if (pendingMutation.CommitPromise) {
                 pendingMutation.CommitPromise.Set(context.Response());
@@ -935,6 +942,12 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext)
             PendingMutations_.pop();
 
             MaybeStartSnapshotBuilder();
+
+            if (mayYield && timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
+                epochContext->EpochUserAutomatonInvoker->Invoke(
+                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext, true));
+                break;
+            }
         }
     }
 }
@@ -951,14 +964,14 @@ void TDecoratedAutomaton::RotateAutomatonVersionIfNeeded(TVersion mutationVersio
     }
 }
 
-void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context, bool recovery)
+void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     const auto& request = context->Request();
     auto automatonVersion = GetAutomatonVersion();
 
-    LOG_DEBUG_UNLESS(recovery, "Applying mutation (Version: %v, MutationType: %v)",
+    LOG_DEBUG_UNLESS(IsRecovery(), "Applying mutation (Version: %v, MutationType: %v)",
         automatonVersion,
         request.Type);
 
@@ -1083,6 +1096,7 @@ void TDecoratedAutomaton::Reset()
     Changelog_.Reset();
     CommittedVersion_ = AutomatonVersion_.load();
     SnapshotVersion_ = TVersion();
+    CommittedVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
         SnapshotParamsPromise_.ToFuture().Cancel();
         SnapshotParamsPromise_.Reset();
@@ -1098,6 +1112,13 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SnapshotVersion_))
        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SnapshotVersion_));
     SnapshotParamsPromise_.SetFrom(builder->Run());
+}
+
+bool TDecoratedAutomaton::IsRecovery()
+{
+    return
+        State_ == EPeerState::LeaderRecovery ||
+        State_ == EPeerState::FollowerRecovery;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

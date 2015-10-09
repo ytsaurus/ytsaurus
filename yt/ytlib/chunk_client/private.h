@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <core/logging/log.h>
 
 #include <core/rpc/public.h>

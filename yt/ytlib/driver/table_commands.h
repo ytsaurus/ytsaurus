@@ -190,7 +190,7 @@ struct TSelectRowsRequest
     bool FailOnIncompleteResult;
     bool VerboseLogging;
     bool EnableCodeCache;
-    ui64 MaxSubqueries;
+    int MaxSubqueries;
 
     TSelectRowsRequest()
     {
@@ -210,7 +210,7 @@ struct TSelectRowsRequest
         RegisterParameter("enable_code_cache", EnableCodeCache)
             .Default(true);
         RegisterParameter("max_subqueries", MaxSubqueries)
-            .Default(0);
+            .Default(std::numeric_limits<int>::max());
     }
 };
 
