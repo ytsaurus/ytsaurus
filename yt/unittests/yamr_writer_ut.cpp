@@ -19,7 +19,7 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-TEST(TSchemalessYamrWriter, Simple)
+TEST(TSchemalessYamrWriterTest, Simple)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");
@@ -45,7 +45,7 @@ TEST(TSchemalessYamrWriter, Simple)
     row2.AddValue(MakeUnversionedStringValue("value2", valueId));
     row2.AddValue(MakeUnversionedStringValue("key2", keyId));
 
-    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow()};
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
@@ -88,7 +88,7 @@ TEST(TSchemalessYamrWriterTest, SimpleWithSubkey)
     row2.AddValue(MakeUnversionedStringValue("value2", valueId));
     row2.AddValue(MakeUnversionedStringValue("key2", keyId));
 
-    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow()};
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
@@ -106,7 +106,6 @@ TEST(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
     auto valueId = nameTable->RegisterName("value");
 
     TUnversionedRowBuilder row;
@@ -117,7 +116,6 @@ TEST(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
     
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
-    (void)subkeyId; // To suppress warning about `subkeyId` being unused.
 
     TStringStream outputStream;
     auto writer = New<TSchemalessYamrWriter>(
@@ -137,15 +135,84 @@ TEST(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, SkippedKey)
+TEST(TSchemalessYamrWriterTest, SubkeyCouldBeNull)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");
+    auto subkeyId = nameTable->RegisterName("subkey");
+    auto valueId = nameTable->RegisterName("value");
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("key", keyId));
+    row.AddValue(MakeUnversionedSentinelValue(EValueType::Null, subkeyId));
+    row.AddValue(MakeUnversionedStringValue("value", valueId));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+    
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+
+    TStringStream outputStream;
+    auto writer = New<TSchemalessYamrWriter>(
+        nameTable, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        false, // enableContextSaving  
+        false, // enableKeySwitch
+        0, // keyColumnCount
+        config);
+
+    EXPECT_EQ(true, writer->Write(rows));
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output = "key\t\tvalue\n";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
+TEST(TSchemalessYamrWriterTest, NonNullTerminatedStrings)
+{
+    auto nameTable = New<TNameTable>();
+    auto keyId = nameTable->RegisterName("key");
+    auto subkeyId = nameTable->RegisterName("subkey");
+    auto valueId = nameTable->RegisterName("value");
+
+    TUnversionedRowBuilder row;
+    const char* longString = "trashkeytrashsubkeytrashvalue";
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 5, 3), keyId));
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 13, 6), subkeyId));
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 24, 5), valueId));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+    
+    auto config = New<TYamrFormatConfig>();
+    config->HasSubkey = true;
+
+    TStringStream outputStream;
+    auto writer = New<TSchemalessYamrWriter>(
+        nameTable, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        false, // enableContextSaving  
+        false, // enableKeySwitch
+        0, // keyColumnCount
+        config);
+
+    EXPECT_EQ(true, writer->Write(rows));
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output = "key\tsubkey\tvalue\n";
+    EXPECT_EQ(output, outputStream.Str());
+} 
+
+TEST(TSchemalessYamrWriterTest, SkippedKey)
+{
+    auto nameTable = New<TNameTable>();
     auto valueId = nameTable->RegisterName("value");
 
     TUnversionedRowBuilder row;
     row.AddValue(MakeUnversionedStringValue("value", valueId));
-    (void)keyId; // To suppress warning about `keyId` being unused.
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
@@ -161,17 +228,22 @@ TEST(TSchemalessYamrWriterTest, SkippedKey)
         config);
 
     EXPECT_FALSE(writer->Write(rows));
+
+    auto callGetReadyEvent = [&]() {
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+    };
+    EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
 TEST(TSchemalessYamrWriterTest, SkippedValue)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
 
     TUnversionedRowBuilder row;
     row.AddValue(MakeUnversionedStringValue("key", keyId));
-    (void)valueId; // To suppress warning about `valueId` being unused.
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
@@ -187,6 +259,45 @@ TEST(TSchemalessYamrWriterTest, SkippedValue)
         config);
 
     EXPECT_FALSE(writer->Write(rows));
+
+    auto callGetReadyEvent = [&]() {
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+    };
+    EXPECT_THROW(callGetReadyEvent(), std::exception);
+}
+
+TEST(TSchemalessYamrWriterTest, NotStringType) {
+    auto nameTable = New<TNameTable>();
+    auto keyId = nameTable->RegisterName("key");
+    auto valueId = nameTable->RegisterName("value");
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("key", keyId));
+    row.AddValue(MakeUnversionedInt64Value(42, valueId));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    auto config = New<TYamrFormatConfig>();
+    
+    TStringStream outputStream;
+    auto writer = New<TSchemalessYamrWriter>(
+        nameTable, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+        false, // enableContextSaving  
+        false, // enableKeySwitch
+        0, // keyColumnCount
+        config);
+
+    EXPECT_FALSE(writer->Write(rows));
+
+    auto callGetReadyEvent = [&]() {
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+    };
+    EXPECT_THROW(callGetReadyEvent(), std::exception); 
 }
 
 TEST(TSchemalessYamrWriterTest, ExtraItem)
@@ -212,9 +323,15 @@ TEST(TSchemalessYamrWriterTest, ExtraItem)
         false, // enableContextSaving
         false, // enableKeySwitch
         0, // keyColumnCount
-        config);
+        config);    
     
-    EXPECT_FALSE(writer->Write(rows));
+    EXPECT_EQ(true, writer->Write(rows));
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output = "key\tvalue\n";
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 TEST(TSchemalessYamrWriterTest, Escaping)
@@ -253,7 +370,7 @@ TEST(TSchemalessYamrWriterTest, Escaping)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TSchemalessYamrWriter, SimpleWithTableIndex)
+TEST(TSchemalessYamrWriterTest, SimpleWithTableIndex)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");
@@ -307,7 +424,7 @@ TEST(TSchemalessYamrWriter, SimpleWithTableIndex)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TSchemalessYamrWriter, Lenval)
+TEST(TSchemalessYamrWriterTest, Lenval)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");
@@ -338,7 +455,7 @@ TEST(TSchemalessYamrWriter, Lenval)
     row2.AddValue(MakeUnversionedStringValue("value2", valueId));
     row2.AddValue(MakeUnversionedStringValue("subkey2", subkeyId));
 
-    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow()};
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
     EXPECT_EQ(true, writer->Write(rows));
     writer->Close()
@@ -496,7 +613,7 @@ TEST(TSchemalessYamrWriterTest, LenvalWithKeySwitch)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TSchemalessYamrWriter, LenvalWithTableIndex)
+TEST(TSchemalessYamrWriterTest, LenvalWithTableIndex)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");
@@ -559,7 +676,7 @@ TEST(TSchemalessYamrWriter, LenvalWithTableIndex)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TSchemalessYamrWriter, LenvalWithRangeAndRowIndex)
+TEST(TSchemalessYamrWriterTest, LenvalWithRangeAndRowIndex)
 {
     auto nameTable = New<TNameTable>();
     auto keyId = nameTable->RegisterName("key");

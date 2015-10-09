@@ -273,6 +273,22 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     return New<TSchemalessDsvWriter>(nameTable, enableContextSaving, output, config);
 }
 
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
+    const IAttributeDictionary& attributes,
+    TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount)
+{
+    auto config = ConvertTo<TYamrFormatConfigPtr>(&attributes);
+    if (enableKeySwitch && !config->Lenval) {
+        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
+    }
+
+    return New<TSchemalessYamrWriter>(nameTable, output, enableContextSaving, enableKeySwitch, keyColumnCount, config);
+}
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
@@ -291,13 +307,13 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 enableKeySwitch,
                 keyColumnCount);
         case EFormatType::Yamr:
-            return New<TSchemalessYamrWriter>(
+            return CreateSchemalessWriterForYamr(
+                format.Attributes(),
                 nameTable,
                 std::move(output),
                 enableContextSaving,
                 enableKeySwitch,
-                keyColumnCount,
-                ConvertTo<TYamrFormatConfigPtr>(&format.Attributes()));
+                keyColumnCount);
         default:
             return New<TSchemalessWriterAdapter>(
                 format,

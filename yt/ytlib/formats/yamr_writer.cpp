@@ -39,13 +39,9 @@ TSchemalessYamrWriter::TSchemalessYamrWriter(
         config->EscapingSymbol,
         true)
 {
-    KeyId_ = nameTable->GetId(config->Key);
-    SubKeyId_ = (Config_->HasSubkey) ? nameTable->GetId(config->Subkey) : -1;
-    ValueId_ = nameTable->GetId(config->Value);
-    
-    if (enableKeySwitch && !config->Lenval) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
-    }
+    KeyId_ = nameTable->GetIdOrRegisterName(config->Key);
+    SubKeyId_ = (Config_->HasSubkey) ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
+    ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
 }
 
 void TSchemalessYamrWriter::EscapeAndWrite(const TStringBuf& value, bool inKey)
@@ -70,34 +66,37 @@ void TSchemalessYamrWriter::WriteInLenvalMode(const TStringBuf& value)
     stream->Write(value);
 }
 
-void TSchemalessYamrWriter::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
     auto* stream = GetOutputStream();
-
+   
     for (int i = 0; i < static_cast<int>(rows.size()); i++) {
-        if (EnableKeySwitch_) {
-            if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
-                // It's guaranteed that we are in lenval mode.
-                WritePod(*stream, static_cast<ui32>(-2));
+        if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
+            if (!Config_->Lenval) {
+                THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format.");
             }
+            WritePod(*stream, static_cast<ui32>(-2));
         }
         
-        TNullable<TStringBuf> key, subkey, value;
+        TNullable<TStringBuf> key;
+        TNullable<TStringBuf> subkey;
+        TNullable<TStringBuf> value;
 
         for (const auto* item = rows[i].Begin(); item != rows[i].End(); ++item) {
             if (item->Id == KeyId_) {
                 YASSERT(item->Type == EValueType::String);
-                key = item->Data.String;
+                key = TStringBuf(item->Data.String, item->Length);
             } else if (item->Id == SubKeyId_) {
                 if (item->Type != EValueType::Null) {
                     YASSERT(item->Type == EValueType::String);
-                    subkey = item->Data.String;
+                    subkey = TStringBuf(item->Data.String, item->Length);
                 }
             } else if (item->Id == ValueId_) {
                 YASSERT(item->Type == EValueType::String);
-                value = item->Data.String;
+                value = TStringBuf(item->Data.String, item->Length);
             } else {
-                THROW_ERROR_EXCEPTION("An item is not a key, a subkey nor a value in YAMR record");
+                // Ignore unknown columns.
+                continue;
             }
         }
 
