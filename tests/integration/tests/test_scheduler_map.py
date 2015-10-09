@@ -1198,9 +1198,13 @@ class TestJobQuery(YTEnvSetup):
         for row in original_data:
             write_table("<append=true>//tmp/t_input", row)
 
-        command = "cat; echo stderr 1>&2"
-        op_id = map(dont_track=True, in_="//tmp/t_input", out="//tmp/t_output", command=command,
-                spec={"ordered": True, "data_size_per_job": 1})
+        op_id = map(
+                dont_track=True,
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                command="cat; echo stderr 1>&2",
+                ordered=True,
+                spec={"data_size_per_job": 1})
 
         track_op(op_id)
 
@@ -1214,10 +1218,13 @@ class TestJobQuery(YTEnvSetup):
         for i in xrange(10):
             write_table("<append=true>//tmp/t_input", original_data[100*i:100*(i+1)])
 
-        command = "cat; echo stderr 1>&2"
-        sorted_out = "<sorted_by=[key]>//tmp/t_output"
-        op_id = map(dont_track=True, in_="//tmp/t_input", out=sorted_out, command=command,
-                spec={"ordered": True, "job_count": 5})
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t_input",
+            out="<sorted_by=[key]>//tmp/t_output",
+            command="cat; echo stderr 1>&2",
+            ordered=True,
+            spec={"job_count": 5})
 
         track_op(op_id)
         jobs = get("//sys/operations/" + op_id + "/jobs/@count")

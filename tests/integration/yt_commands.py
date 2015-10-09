@@ -379,6 +379,7 @@ def start_op(op_type, **kwargs):
     return op_id
 
 def map(**kwargs):
+    change(kwargs, "ordered", ["spec", "ordered"])
     return start_op("map", **kwargs)
 
 def merge(**kwargs):
