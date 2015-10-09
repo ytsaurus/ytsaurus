@@ -211,7 +211,7 @@ int RunMapJob(size_t outputTableCount, bool hasState)
         e.BackTrace()->PrintTo(Cerr);
         return 1;
 
-    } catch (NStl::exception& e) {
+    } catch (std::exception& e) {
         Cerr << "Exception caught: " << e.what() << Endl;
         return 1;
     }
@@ -248,7 +248,7 @@ int RunReduceJob(size_t outputTableCount, bool hasState)
         e.BackTrace()->PrintTo(Cerr);
         return 1;
 
-    } catch (NStl::exception& e) {
+    } catch (std::exception& e) {
         Cerr << "Exception caught: " << e.what() << Endl;
         return 1;
     }
