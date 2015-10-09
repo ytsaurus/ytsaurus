@@ -88,14 +88,14 @@ struct TKeyBase
     template <class... TArgs>
     TKeyBase(TArgs&&... args)
     {
-        Add(ForwardArg<TArgs>(args)...);
+        Add(std::forward<TArgs>(args)...);
     }
 
     template <class U, class... TArgs>
     void Add(U&& part, TArgs&&... args)
     {
-        Parts_.push_back(ForwardArg<U>(part));
-        Add(ForwardArg<TArgs>(args)...);
+        Parts_.push_back(std::forward<U>(part));
+        Add(std::forward<TArgs>(args)...);
     }
 
     void Add()
