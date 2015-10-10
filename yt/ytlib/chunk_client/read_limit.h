@@ -105,6 +105,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Stroka ToString(const TReadRange& range);
+
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
 void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange);
 

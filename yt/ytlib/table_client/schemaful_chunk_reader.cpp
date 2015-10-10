@@ -356,8 +356,7 @@ TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
     IBlockCachePtr blockCache,
     const TTableSchema& schema,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
+    std::vector<TReadRange> readRanges,
     TTimestamp timestamp)
 {
     auto type = EChunkType(chunkMeta.type());
@@ -375,8 +374,7 @@ TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
                     std::move(blockCache),
                     TKeyColumns(),
                     chunkMeta,
-                    lowerLimit,
-                    upperLimit,
+                    std::move(readRanges),
                     columnFilter);
             };
 
@@ -384,12 +382,17 @@ TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
         }
 
         case ETableChunkFormat::Schemaful: {
+            if (readRanges.size() != 1) {
+                THROW_ERROR_EXCEPTION("Multiple read ranges are not support for format %Qv",
+                    formatVersion);
+            }
+
             return TChunkReader::Create(std::move(config),
                 std::move(chunkReader),
                 std::move(blockCache),
                 schema,
-                lowerLimit,
-                upperLimit,
+                readRanges[0].LowerLimit(),
+                readRanges[0].UpperLimit(),
                 timestamp);
         }
         default:

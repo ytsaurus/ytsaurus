@@ -48,6 +48,19 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     i32 rangeIndex = 0,
     TNullable<int> partitionTag = Null);
 
+ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+    TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    NChunkClient::IBlockCachePtr blockCache,
+    const TKeyColumns& keyColumns,
+    const NChunkClient::NProto::TChunkMeta& masterMeta,
+    std::vector<NChunkClient::TReadRange> readRanges,
+    const TColumnFilter& columnFilter,
+    i64 tableRowIndex = 0,
+    i32 rangeIndex = 0,
+    TNullable<int> partitionTag = Null);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ISchemalessMultiChunkReader

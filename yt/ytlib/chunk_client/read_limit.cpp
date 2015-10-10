@@ -6,6 +6,8 @@
 #include <core/ytree/convert.h>
 #include <core/ytree/fluent.h>
 
+#include <core/misc/format.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -350,6 +352,11 @@ void TReadRange::InitMove(NProto::TReadRange&& range)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Stroka ToString(const TReadRange& range)
+{
+    return Format("[<%v> : <%v>]", range.LowerLimit(), range.UpperLimit());
+}
 
 void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
 {
