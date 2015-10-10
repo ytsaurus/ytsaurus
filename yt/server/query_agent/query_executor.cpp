@@ -81,6 +81,22 @@ static const auto& Logger = QueryAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+Stroka RowRangeFormatter(const NQueryClient::TRowRange& range)
+{
+    return Format("[%v .. %v]", range.first, range.second);
+}
+
+Stroka DataSourceFormatter(const NQueryClient::TDataSource& source)
+{
+    return Format("[%v .. %v]", source.Range.first, source.Range.second);
+}
+
+} // namespace NYT
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryExecutor
     : public IExecutor
 {
@@ -228,9 +244,7 @@ private:
 
             auto keySize = fragment->Query->KeyColumnsCount;
 
-            //TODO(savrus): lookup for chunk source
-            if (TypeFromId(source.Id) == EObjectType::Tablet &&
-                keySize == lowerBound.GetCount()  &&
+            if (keySize == lowerBound.GetCount()  &&
                 keySize + 1 == upperBound.GetCount() &&
                 upperBound[keySize].Type == EValueType::Max &&
                 CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
@@ -266,9 +280,7 @@ private:
         auto ranges = GetRanges(groupedSplits);
 
         LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
-            JoinToString(ranges, [] (const TRowRange& range) {
-                return Format("[%v .. %v]", range.first, range.second);
-            }));
+            JoinToString(ranges, RowRangeFormatter));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
@@ -283,9 +295,7 @@ private:
             });
             subreaderCreators.push_back([&] () {
                 LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v",
-                    JoinToString(groupedSplit, [] (const TDataSource& source) {
-                        return Format("[%v .. %v]", source.Range.first, source.Range.second);
-                    }));
+                    JoinToString(groupedSplit, DataSourceFormatter));
 
                 auto bottomSplitReaderGenerator = [
                     fragment,
@@ -380,11 +390,9 @@ private:
         std::sort(splits.begin(), splits.end(), [] (const TDataSource& lhs, const TDataSource& rhs) {
             return lhs.Range.first < rhs.Range.first;
         });
-        
+
         LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
-            JoinToString(splits, [] (const TDataSource& split) {
-                return Format("[%v .. %v]", split.Range.first, split.Range.second);
-            }));
+            JoinToString(splits, DataSourceFormatter));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
@@ -520,41 +528,45 @@ private:
     }
 
     std::vector<TSharedRange<TRow>> GroupKeysByPartition(
-        const TTabletId& tabletId,
+        const NObjectClient::TObjectId& objectId,
         std::vector<TRow> keys)
     {
+        std::vector<TSharedRange<TRow>> result;
         std::sort(keys.begin(), keys.end());
 
-        auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-        const auto& partitions = tabletSnapshot->Partitions;
+        if (TypeFromId(objectId) == EObjectType::Tablet) {
+            auto slotManager = Bootstrap_->GetTabletSlotManager();
+            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(objectId);
+            const auto& partitions = tabletSnapshot->Partitions;
 
-        // Group keys by partitions.
-        std::vector<TSharedRange<TRow>> result;
-        auto addRange = [&] (std::vector<TRow>::iterator begin, std::vector<TRow>::iterator end) {
-            std::vector<TRow> selectedKeys(begin, end);
-            // TODO(babenko): fixme, data ownership?
-            result.emplace_back(MakeSharedRange(std::move(selectedKeys)));
-        };
+            // Group keys by partitions.
+            auto addRange = [&] (std::vector<TRow>::iterator begin, std::vector<TRow>::iterator end) {
+                std::vector<TRow> selectedKeys(begin, end);
+                // TODO(babenko): fixme, data ownership?
+                result.emplace_back(MakeSharedRange(std::move(selectedKeys)));
+            };
 
-        auto currentIt = keys.begin();
-        while (currentIt != keys.end()) {
-            auto nextPartition = std::upper_bound(
-                partitions.begin(),
-                partitions.end(),
-                *currentIt,
-                [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
-                    return lhs < rhs->PivotKey.Get();
-                });
+            auto currentIt = keys.begin();
+            while (currentIt != keys.end()) {
+                auto nextPartition = std::upper_bound(
+                    partitions.begin(),
+                    partitions.end(),
+                    *currentIt,
+                    [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
+                        return lhs < rhs->PivotKey.Get();
+                    });
 
-            if (nextPartition == partitions.end()) {
-                addRange(currentIt, keys.end());
-                break;
+                if (nextPartition == partitions.end()) {
+                    addRange(currentIt, keys.end());
+                    break;
+                }
+
+                auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get());
+                addRange(currentIt, nextIt);
+                currentIt = nextIt;
             }
-
-            auto nextIt = std::lower_bound(currentIt, keys.end(), (*nextPartition)->PivotKey.Get());
-            addRange(currentIt, nextIt);
-            currentIt = nextIt;
+        } else {
+            result.emplace_back(MakeSharedRange(std::move(keys)));
         }
 
         return result;
@@ -727,8 +739,11 @@ private:
     {
         ValidateReadTimestamp(timestamp);
 
-        // TODO(babenko): add support for chunks
         switch (TypeFromId(objectId)) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+                return GetChunkReader(schema,  objectId, keys, timestamp);
+
             case EObjectType::Tablet:
                 return GetTabletReader(schema, objectId, keys, timestamp);
 
@@ -743,20 +758,54 @@ private:
         const TDataSource& source,
         TTimestamp timestamp)
     {
-        auto chunkId = source.Id;
-        auto lowerBound = source.Range.first;
-        auto upperBound = source.Range.second;
+        std::vector<TReadRange> readRanges;
+        TReadLimit lowerReadLimit;
+        TReadLimit upperReadLimit;
+        lowerReadLimit.SetKey(TOwningKey(source.Range.first));
+        upperReadLimit.SetKey(TOwningKey(source.Range.second));
+        readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
+        return GetChunkReader(schema, source.Id, std::move(readRanges), timestamp);
+    }
 
+    ISchemafulReaderPtr GetChunkReader(
+        const TTableSchema& schema,
+        const TChunkId& chunkId,
+        const TSharedRange<TRow>& keys,
+        TTimestamp timestamp)
+    {
+        std::vector<TReadRange> readRanges;
+        TUnversionedOwningRowBuilder builder;
+        for (const auto& key : keys) {
+            TReadLimit lowerReadLimit;
+            lowerReadLimit.SetKey(TOwningKey(key));
+
+            TReadLimit upperReadLimit;
+            for (int index = 0; index < key.GetCount(); ++index) {
+                builder.AddValue(key[index]);
+            }
+            builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+            upperReadLimit.SetKey(builder.FinishRow());
+
+            readRanges.emplace_back(std::move(lowerReadLimit), std::move(upperReadLimit));
+        }
+
+        return GetChunkReader(schema, chunkId, readRanges, timestamp);
+    }
+
+    ISchemafulReaderPtr GetChunkReader(
+        const TTableSchema& schema,
+        const TChunkId& chunkId,
+        std::vector<TReadRange> readRanges,
+        TTimestamp timestamp)
+    {
         auto blockCache = Bootstrap_->GetBlockCache();
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->FindChunk(chunkId);
 
         NChunkClient::IChunkReaderPtr chunkReader;
         if (chunk && !chunk->IsRemoveScheduled()) {
-            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
+            LOG_DEBUG("Creating local reader for chunk split (ChunkId: %v, Timestamp: %v)",
                 chunkId,
-                lowerBound,
-                upperBound,
                 timestamp);
 
             chunkReader = CreateLocalChunkReader(
@@ -765,10 +814,8 @@ private:
                 chunk,
                 blockCache);
         } else {
-            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, LowerBound: {%v}, UpperBound: {%v}, Timestamp: %v)",
+            LOG_DEBUG("Creating remote reader for chunk split (ChunkId: %v, Timestamp: %v)",
                 chunkId,
-                lowerBound,
-                upperBound,
                 timestamp);
 
             // TODO(babenko): seed replicas?
@@ -787,20 +834,13 @@ private:
 
         auto chunkMeta = WaitFor(chunkReader->GetMeta()).ValueOrThrow();
 
-        TReadLimit lowerReadLimit;
-        lowerReadLimit.SetKey(TOwningKey(lowerBound));
-
-        TReadLimit upperReadLimit;
-        upperReadLimit.SetKey(TOwningKey(upperBound));
-
         return WaitFor(CreateSchemafulChunkReader(
             Bootstrap_->GetConfig()->TabletNode->ChunkReader,
             std::move(chunkReader),
             Bootstrap_->GetBlockCache(),
             schema,
             chunkMeta,
-            lowerReadLimit,
-            upperReadLimit,
+            std::move(readRanges),
             timestamp))
             .ValueOrThrow();
     }
@@ -831,7 +871,7 @@ private:
 
     ISchemafulReaderPtr GetTabletReader(
         const TTableSchema& schema,
-        const NObjectClient::TObjectId& tabletId,
+        const TTabletId& tabletId,
         const TSharedRange<TRow>& keys,
         TTimestamp timestamp)
     {

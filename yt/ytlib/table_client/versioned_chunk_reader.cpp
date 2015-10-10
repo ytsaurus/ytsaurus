@@ -38,8 +38,6 @@ public:
         TCachedVersionedChunkMetaPtr chunkMeta,
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
-        TReadLimit lowerLimit,
-        TReadLimit upperLimit,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp);
@@ -64,15 +62,11 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
     TCachedVersionedChunkMetaPtr chunkMeta,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
-    TReadLimit lowerLimit,
-    TReadLimit upperLimit,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
     : TChunkReaderBase(
         std::move(config),
-        std::move(lowerLimit),
-        std::move(upperLimit),
         std::move(underlyingReader),
         chunkMeta->Misc(),
         std::move(blockCache))
@@ -129,6 +123,8 @@ public:
 private:
     int CurrentBlockIndex_ = 0;
     i64 CurrentRowIndex_ = 0;
+    TReadLimit LowerLimit_;
+    TReadLimit UpperLimit_;
 
     virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
 
@@ -153,11 +149,11 @@ TVersionedRangeChunkReader::TVersionedRangeChunkReader(
         std::move(chunkMeta),
         std::move(underlyingReader),
         std::move(blockCache),
-        std::move(lowerLimit),
-        std::move(upperLimit),
         columnFilter,
         std::move(performanceCounters),
         timestamp)
+    , LowerLimit_(std::move(lowerLimit))
+    , UpperLimit_(std::move(upperLimit))
 { }
 
 bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
@@ -221,8 +217,12 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockS
     const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
     const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
 
-    CurrentBlockIndex_ = std::max(ApplyLowerRowLimit(blockMetaExt), ApplyLowerKeyLimit(blockIndexKeys));
-    int endBlockIndex = std::min(ApplyUpperRowLimit(blockMetaExt), ApplyUpperKeyLimit(blockIndexKeys));
+    CurrentBlockIndex_ = std::max(
+        ApplyLowerRowLimit(blockMetaExt, LowerLimit_),
+        ApplyLowerKeyLimit(blockIndexKeys, LowerLimit_));
+    int endBlockIndex = std::min(
+        ApplyUpperRowLimit(blockMetaExt, UpperLimit_),
+        ApplyUpperKeyLimit(blockIndexKeys, UpperLimit_));
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
     if (CurrentBlockIndex_ >= blockMetaExt.blocks_size()) {
@@ -247,6 +247,7 @@ void TVersionedRangeChunkReader::InitFirstBlock()
 {
     CheckBlockUpperLimits(
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        UpperLimit_,
         CachedChunkMeta_->GetKeyColumnCount());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
@@ -276,6 +277,7 @@ void TVersionedRangeChunkReader::InitNextBlock()
 
     CheckBlockUpperLimits(
         CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        UpperLimit_,
         CachedChunkMeta_->GetKeyColumnCount());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
@@ -365,8 +367,6 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
         std::move(chunkMeta),
         std::move(underlyingReader),
         std::move(blockCache),
-        TReadLimit(),
-        TReadLimit(),
         columnFilter,
         std::move(performanceCounters),
         timestamp)
