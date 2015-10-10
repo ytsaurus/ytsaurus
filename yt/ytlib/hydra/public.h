@@ -30,7 +30,6 @@ DEFINE_ENUM(EPeerState,
     ((Following)                  (4))
     ((LeaderRecovery)             (5))
     ((Leading)                    (6))
-    ((Stopping)                   (7))
 );
 
 DEFINE_ENUM(EErrorCode,
