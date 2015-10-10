@@ -173,7 +173,7 @@ public:
         RpcServer_->RegisterService(this);
         RpcServer_->RegisterService(ElectionManager_->GetRpcService());
 
-        LOG_INFO("Hydra instance started (SelfAddress: %v, SelfId: %v)",
+        LOG_INFO("Hydra instance initialized (SelfAddress: %v, SelfId: %v)",
             CellManager_->GetSelfAddress(),
             CellManager_->GetSelfPeerId());
 
@@ -182,12 +182,15 @@ public:
         Participate();
     }
 
-    virtual void Finalize() override
+    virtual TFuture<void> Finalize() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (ControlState_ == EPeerState::Stopped)
-            return;
+        if (ControlState_ == EPeerState::Stopped) {
+            return VoidFuture;
+        }
+
+        LOG_INFO("Hydra instance is finalizing");
 
         CancelableContext_->Cancel();
 
@@ -208,30 +211,11 @@ public:
         LeaderRecovered_ = false;
         FollowerRecovered_ = false;
 
-        SwitchTo(AutomatonInvoker_);
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        switch (GetAutomatonState()) {
-            case EPeerState::Leading:
-            case EPeerState::LeaderRecovery:
-                DecoratedAutomaton_->OnStopLeading();
-                StopLeading_.Fire();
-                break;
-
-            case EPeerState::Following:
-            case EPeerState::FollowerRecovery:
-                DecoratedAutomaton_->OnStopFollowing();
-                StopFollowing_.Fire();
-                break;
-
-            default:
-                break;
-        }
-
-        AutomatonEpochContext_.Reset();
-
-        LOG_INFO("Hydra instance stopped");
+        return BIND(&TDistributedHydraManager::DoFinalize, MakeStrong(this))
+            .AsyncVia(AutomatonInvoker_)
+            .Run();
     }
+
 
     virtual EPeerState GetControlState() const override
     {
@@ -941,6 +925,35 @@ private:
         LOG_INFO("Reachable version is %v", ReachableVersion_);
         DecoratedAutomaton_->SetLoggedVersion(ReachableVersion_);
         ElectionManager_->Start();
+    }
+
+    void DoFinalize()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        // NB: Epoch invokers are already canceled so we don't expect any more callbacks to
+        // go through the automaton invoker.
+        
+        switch (GetAutomatonState()) {
+            case EPeerState::Leading:
+            case EPeerState::LeaderRecovery:
+                DecoratedAutomaton_->OnStopLeading();
+                StopLeading_.Fire();
+                break;
+
+            case EPeerState::Following:
+            case EPeerState::FollowerRecovery:
+                DecoratedAutomaton_->OnStopFollowing();
+                StopFollowing_.Fire();
+                break;
+
+            default:
+                break;
+        }
+
+        AutomatonEpochContext_.Reset();
+
+        LOG_INFO("Hydra instance finalized");
     }
 
 
