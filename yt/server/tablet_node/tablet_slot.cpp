@@ -271,9 +271,6 @@ public:
                 Owner_,
                 GetSnapshotInvoker());
 
-            std::vector<TTransactionId> prerequisiteTransactionIds;
-            prerequisiteTransactionIds.push_back(PrerequisiteTransactionId_);
-
             auto cellId = GetCellId();
 
             auto snapshotStore = CreateRemoteSnapshotStore(
@@ -281,14 +278,14 @@ public:
                 Options_,
                 Format("//sys/tablet_cells/%v/snapshots", cellId),
                 Bootstrap_->GetMasterClient(),
-                prerequisiteTransactionIds);
+                PrerequisiteTransactionId_);
 
-            auto changelogStore = CreateRemoteChangelogStore(
+            auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
                 Config_->Changelogs,
                 Options_,
                 Format("//sys/tablet_cells/%v/changelogs", cellId),
                 Bootstrap_->GetMasterClient(),
-                prerequisiteTransactionIds);
+                PrerequisiteTransactionId_);
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
@@ -307,7 +304,7 @@ public:
                 Automaton_,
                 rpcServer,
                 CellManager_,
-                changelogStore,
+                changelogStoreFactory,
                 snapshotStore,
                 hydraManagerOptions);
 
