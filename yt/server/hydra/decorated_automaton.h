@@ -35,6 +35,7 @@ struct TEpochContext
         Restarted.clear();
     }
 
+    TVersion ReachableVersion;
     TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;
     TCancelableContextPtr CancelableContext;
@@ -115,7 +116,6 @@ public:
         IInvokerPtr automatonInvoker,
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
-        IChangelogStorePtr changelogStore,
         const TDistributedHydraManagerOptions& options);
 
     void OnStartLeading();
@@ -133,6 +133,7 @@ public:
     TVersion GetLoggedVersion() const;
     void SetLoggedVersion(TVersion version);
 
+    void SetChangelogStore(IChangelogStorePtr changelogStore);
     void SetChangelog(IChangelogPtr changelog);
 
     i64 GetLoggedDataSize() const;
@@ -187,10 +188,10 @@ private:
     IInvokerPtr SystemInvoker_;
 
     const ISnapshotStorePtr SnapshotStore_;
-    const IChangelogStorePtr ChangelogStore_;
     const TDistributedHydraManagerOptions Options_;
 
     TEpochId Epoch_;
+    IChangelogStorePtr ChangelogStore_;
     IChangelogPtr Changelog_;
 
     std::atomic<TVersion> LoggedVersion_;
