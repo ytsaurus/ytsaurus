@@ -47,7 +47,7 @@ public:
     TCellMasterConfigPtr GetConfig() const;
     NRpc::IServerPtr GetRpcServer() const;
     NElection::TCellManagerPtr GetCellManager() const;
-    NHydra::IChangelogStorePtr GetChangelogStore() const;
+    NHydra::IChangelogStoreFactoryPtr GetChangelogStoreFactory() const;
     NHydra::ISnapshotStorePtr GetSnapshotStore() const;
     NNodeTrackerServer::TNodeTrackerPtr GetNodeTracker() const;
     NTransactionServer::TTransactionManagerPtr GetTransactionManager() const;
@@ -75,7 +75,7 @@ private:
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     std::unique_ptr<NHttp::TServer> HttpServer_;
     NElection::TCellManagerPtr CellManager_;
-    NHydra::IChangelogStorePtr ChangelogStore_;
+    NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
