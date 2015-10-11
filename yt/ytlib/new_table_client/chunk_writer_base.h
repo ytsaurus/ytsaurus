@@ -8,6 +8,8 @@
 
 #include <ytlib/chunk_client/chunk_writer_base.h>
 
+#include <core/logging/log.h>
+
 namespace NYT {
 namespace NVersionedTableClient {
 
@@ -41,6 +43,8 @@ public:
     virtual bool IsSorted() const = 0;
 
 protected:
+    NLogging::TLogger Logger;
+
     TChunkWriterConfigPtr Config_;
     TChunkWriterOptionsPtr Options_;
     i64 RowCount_ = 0;

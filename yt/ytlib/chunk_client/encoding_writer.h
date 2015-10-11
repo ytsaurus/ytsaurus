@@ -29,7 +29,8 @@ public:
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
-        IBlockCachePtr blockCache);
+        IBlockCachePtr blockCache,
+        NLogging::TLogger& logger);
 
     bool IsReady() const;
     TFuture<void> GetReadyEvent();
@@ -60,14 +61,18 @@ private:
 
     NConcurrency::TNonblockingQueue<TSharedRef> PendingBlocks_;
 
+    TFuture<void> OpenFuture_;
     TPromise<void> CompletionError_ = NewPromise<void>();
-    TCallback<void(const TErrorOr<TSharedRef>& blockOrError)> WritePendingBlockCallback_;
+    TCallback<void(const TErrorOr<TSharedRef>&)> WritePendingBlockCallback_;
 
     bool CloseRequested_ = false;
 
     NLogging::TLogger Logger;
 
     void WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError);
+
+    void EnsureOpen();
+    void CacheUncompressedBlock(const TSharedRef& block, int blockIndex);
 
     void DoCompressBlock(const TSharedRef& uncompressedBlock);
     void DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock);

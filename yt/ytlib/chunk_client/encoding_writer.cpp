@@ -25,7 +25,8 @@ TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    NLogging::TLogger& logger)
     : Config_(config)
     , Options_(options)
     , ChunkWriter_(chunkWriter)
@@ -37,34 +38,60 @@ TEncodingWriter::TEncodingWriter(
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock, 
         MakeWeak(this)))
-{
-    Logger = ChunkClientLogger;
-    Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
-
-    PendingBlocks_.Dequeue().Subscribe(
-        WritePendingBlockCallback_.Via(CompressionInvoker_));
-}
+    , Logger(logger)
+{ }
 
 void TEncodingWriter::WriteBlock(TSharedRef block)
 {
+    EnsureOpen();
+
     UncompressedSize_ += block.Size();
     Semaphore_.Acquire(block.Size());
-    CompressionInvoker_->Invoke(BIND(
+    BIND(
         &TEncodingWriter::DoCompressBlock,
-        MakeStrong(this),
-        std::move(block)));
+        MakeWeak(this),
+        std::move(block))
+    .Via(CompressionInvoker_)
+    .Run();
 }
 
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
 {
+    EnsureOpen();
+
     for (const auto& part : vectorizedBlock) {
         Semaphore_.Acquire(part.Size());
         UncompressedSize_ += part.Size();
     }
-    CompressionInvoker_->Invoke(BIND(
+    BIND(
         &TEncodingWriter::DoCompressVector,
         MakeWeak(this),
-        std::move(vectorizedBlock)));
+        std::move(vectorizedBlock))
+    .Via(CompressionInvoker_)
+    .Run();
+}
+
+void TEncodingWriter::EnsureOpen()
+{
+    if (!OpenFuture_) {
+        OpenFuture_ = ChunkWriter_->Open();
+        OpenFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (!error.IsOK()) {
+                CompletionError_.TrySet(error);
+            } else {
+                Logger.AddTag("ChunkId: %v", ChunkWriter_->GetChunkId());
+                PendingBlocks_.Dequeue().Subscribe(
+                    WritePendingBlockCallback_.Via(CompressionInvoker_));
+            }
+        }));
+    }
+}
+
+void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockIndex)
+{
+    // We cannot cache blocks before chunk writer is open, since we do not know the #ChunkId.
+    auto blockId = TBlockId(ChunkWriter_->GetChunkId(), blockIndex);
+    BlockCache_->Put(blockId, EBlockType::UncompressedData, block, Null);
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
@@ -80,8 +107,13 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
         VerifyBlock(uncompressedBlock, compressedBlock);
     }
 
-    auto blockId = TBlockId(ChunkWriter_->GetChunkId(), AddedBlockIndex_);
-    BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
+    if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
+        OpenFuture_.Apply(BIND(
+            &TEncodingWriter::CacheUncompressedBlock, 
+            MakeWeak(this), 
+            uncompressedBlock, 
+            AddedBlockIndex_));
+    }
 
     int sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + uncompressedBlock.Size();
     ProcessCompressedBlock(compressedBlock, sizeToRelease);
@@ -100,13 +132,16 @@ void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompress
         VerifyVector(uncompressedVectorizedBlock, compressedBlock);
     }
 
-    auto blockId = TBlockId(ChunkWriter_->GetChunkId(), AddedBlockIndex_);
     if (Any(BlockCache_->GetSupportedBlockTypes() & EBlockType::UncompressedData)) {
         // Handle none codec separately to avoid merging block parts twice.
         auto uncompressedBlock = Options_->CompressionCodec == NCompression::ECodec::None
             ? compressedBlock
             : MergeRefs(uncompressedVectorizedBlock);
-        BlockCache_->Put(blockId, EBlockType::UncompressedData, uncompressedBlock, Null);
+        OpenFuture_.Apply(BIND(
+            &TEncodingWriter::CacheUncompressedBlock, 
+            MakeWeak(this), 
+            uncompressedBlock, 
+            AddedBlockIndex_));
     }
 
     i64 sizeToRelease = -static_cast<i64>(compressedBlock.Size()) + GetByteSize(uncompressedVectorizedBlock);

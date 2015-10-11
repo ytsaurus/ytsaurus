@@ -7,6 +7,7 @@ set( SRCS
   ${BASE}/chunk_slice.cpp
   ${BASE}/chunk_spec.cpp
   ${BASE}/client_block_cache.cpp
+  ${BASE}/confirming_writer.cpp
   ${BASE}/data_statistics.cpp
   ${BASE}/dispatcher.cpp
   ${BASE}/encoding_chunk_writer.cpp
@@ -18,7 +19,6 @@ set( SRCS
   ${BASE}/file_writer.cpp
   ${BASE}/format.cpp
   ${BASE}/helpers.cpp
-  ${BASE}/lazy_chunk_writer.cpp
   ${BASE}/memory_reader.cpp
   ${BASE}/memory_writer.cpp
   ${BASE}/multi_chunk_reader_base.cpp
@@ -49,6 +49,7 @@ set( HDRS
   ${BASE}/chunk_ypath_proxy.h
   ${BASE}/client_block_cache.h
   ${BASE}/config.h
+  ${BASE}/confirming_writer.h
   ${BASE}/data_node_service_proxy.h
   ${BASE}/data_statistics.h
   ${BASE}/dispatcher.h
@@ -61,7 +62,6 @@ set( HDRS
   ${BASE}/file_writer.h
   ${BASE}/format.h
   ${BASE}/helpers.h
-  ${BASE}/lazy_chunk_writer.h
   ${BASE}/memory_reader.h
   ${BASE}/memory_writer.h
   ${BASE}/multi_chunk_reader.h

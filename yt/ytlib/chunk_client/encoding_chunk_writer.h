@@ -7,6 +7,8 @@
 #include <core/misc/error.h>
 #include <core/misc/property.h>
 
+#include <core/logging/log.h>
+
 namespace NYT {
 namespace NChunkClient {
 
@@ -24,7 +26,8 @@ public:
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
-        IBlockCachePtr blockCache);
+        IBlockCachePtr blockCache,
+        NLogging::TLogger& logger);
 
     void WriteBlock(std::vector<TSharedRef> vectorizedBlock);
     void WriteBlock(TSharedRef block);
