@@ -6,6 +6,8 @@
 
 #include <core/actions/future.h>
 
+#include <ytlib/hydra/version.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -77,17 +79,17 @@ DEFINE_REFCOUNTED_TYPE(IChangelog)
 struct IChangelogStore
     : public virtual TRefCounted
 {
+    //! Returns the initial reachable version, i.e this is
+    //! |(n,m)| if |n| is the maximum existing changelog id with |m| records in it.
+    //! If no changelogs exist in the store then zero version is returned.
+    //! This reachable version captures the initial state and is never updated.
+    virtual TVersion GetReachableVersion() const = 0;
+
     //! Creates a new changelog.
     virtual TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) = 0;
 
     //! Opens an existing changelog.
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) = 0;
-
-    //! Scans for the maximum contiguous sequence of existing
-    //! changelogs starting from #initialId and returns the id of the latest one.
-    //! Returns |InvalidSegmentId| if the initial changelog does not exist.
-    virtual TFuture<int> GetLatestChangelogId(int initialId) = 0;
-
 
     // Extension methods.
 
@@ -98,6 +100,21 @@ struct IChangelogStore
 };
 
 DEFINE_REFCOUNTED_TYPE(IChangelogStore)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Enables constructing IChangelogStore instances.
+struct IChangelogStoreFactory
+    : public virtual TRefCounted
+{
+    //! Creates a changelog store but, more importantly,
+    //! induces a barrier such that no record added via IChangelog instances
+    //! obtained from IChangelogStore prior to this #Lock call may penetrate.
+    virtual TFuture<IChangelogStorePtr> Lock() = 0;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(IChangelogStoreFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -152,9 +152,9 @@ TCellManagerPtr TBootstrap::GetCellManager() const
     return CellManager_;
 }
 
-IChangelogStorePtr TBootstrap::GetChangelogStore() const
+IChangelogStoreFactoryPtr TBootstrap::GetChangelogStoreFactory() const
 {
-    return ChangelogStore_;
+    return ChangelogStoreFactory_;
 }
 
 ISnapshotStorePtr TBootstrap::GetSnapshotStore() const
@@ -302,7 +302,7 @@ void TBootstrap::DoInitialize()
         GetBusChannelFactory(),
         selfId);
 
-    ChangelogStore_ = CreateLocalChangelogStore(
+    ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
         "ChangelogFlush",
         Config_->Changelogs);
 

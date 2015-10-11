@@ -107,7 +107,7 @@ public:
             Automaton_,
             Bootstrap_->GetRpcServer(),
             Bootstrap_->GetCellManager(),
-            Bootstrap_->GetChangelogStore(),
+            Bootstrap_->GetChangelogStoreFactory(),
             Bootstrap_->GetSnapshotStore(),
             hydraManagerOptions);
 

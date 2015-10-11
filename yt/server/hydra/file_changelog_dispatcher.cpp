@@ -7,6 +7,7 @@
 
 #include <core/misc/fs.h>
 #include <core/misc/finally.h>
+#include <core/misc/collection_helpers.h>
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/action_queue.h>
@@ -512,9 +513,20 @@ public:
         return result;
     }
 
+    TFuture<void> FlushAll()
+    {
+        auto queues = ListQueues();
+        std::vector<TFuture<void>> flushResults;
+        for (const auto& queue : queues) {
+            flushResults.push_back(queue->AsyncFlush());
+        }
+        return Combine(flushResults);
+    }
+
 private:
     const TFileChangelogDispatcherConfigPtr Config_;
     const TClosure ProcessQueuesCallback_;
+
     std::atomic<bool> ProcessQueuesCallbackPending_ = {false};
 
     const TActionQueuePtr ActionQueue_;
@@ -532,6 +544,12 @@ private:
         TGuard<TSpinLock> guard(SpinLock_);
         auto it = QueueMap_.find(changelog);
         return it == QueueMap_.end() ? nullptr : it->second;
+    }
+
+    std::vector<TFileChangelogQueuePtr> ListQueues()
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return GetValues(QueueMap_);
     }
 
     TFileChangelogQueuePtr FindQueueAndLock(TSyncFileChangelogPtr changelog) const
@@ -787,6 +805,11 @@ IChangelogPtr TFileChangelogDispatcher::OpenChangelog(
     syncChangelog->Open();
 
     return New<TFileChangelog>(Impl_, config, syncChangelog);
+}
+
+TFuture<void> TFileChangelogDispatcher::FlushChangelogs()
+{
+    return Impl_->FlushAll();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
