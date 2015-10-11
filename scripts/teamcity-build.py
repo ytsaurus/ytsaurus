@@ -86,7 +86,7 @@ def prepare(options):
     # Temporaly turn off
     options.use_lto = False
     #options.use_lto = (options.type != "Debug")
-    
+
     def rmtree_onerror(fn, path, excinfo):
         teamcity_message(
             "Error occured while executing {} on '{}': {}".format(fn, path, excinfo),
@@ -376,7 +376,14 @@ def build_python_packages(options):
         else:
             return "0"
 
-    run(["sudo", "apt-get", "update"])
+    retry_count = 5
+    for i in xrange(retry_count):
+        try:
+            run(["sudo", "apt-get", "update"])
+            break
+        except ChildHasNonZeroExitCode:
+            if i == retry_count - 1:
+                raise
 
     for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager", "yandex-yt-python-fennel"]:
         with cwd(options.checkout_directory, "python", package):
