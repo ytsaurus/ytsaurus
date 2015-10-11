@@ -1570,9 +1570,6 @@ TCallback<void(TSaveContext& context)> TDynamicMemoryStore::AsyncSave()
             .ThrowOnError();
 
         auto chunkWriter = New<TMemoryWriter>();
-        WaitFor(chunkWriter->Open())
-            .ThrowOnError();
-
         auto tableWriterConfig = New<TChunkWriterConfig>();
         auto tableWriterOptions = New<TTabletWriterOptions>();
         auto tableWriter = CreateVersionedChunkWriter(
