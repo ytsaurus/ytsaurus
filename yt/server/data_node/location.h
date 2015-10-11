@@ -174,8 +174,10 @@ private:
     int SessionCount_ = 0;
     int ChunkCount_ = 0;
 
-    const NConcurrency::TFairShareActionQueuePtr ReadQueue_;
+    const NConcurrency::TThreadPoolPtr DataReadThreadPool_;
     const IPrioritizedInvokerPtr DataReadInvoker_;
+
+    const NConcurrency::TActionQueuePtr MetaReadQueue_;
     const IPrioritizedInvokerPtr MetaReadInvoker_;
 
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;
