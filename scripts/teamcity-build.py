@@ -70,6 +70,7 @@ def prepare(options):
     if codename not in ["lucid", "precise", "trusty"]:
         raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
 
+    options.codename = codename
     options.repositories = ["yt-" + codename]
 
     # Now determine the compiler.
@@ -86,14 +87,24 @@ def prepare(options):
     options.use_lto = False
     #options.use_lto = (options.type != "Debug")
 
+    def rmtree_onerror(fn, path, excinfo):
+        teamcity_message(
+            "Error occured while executing {} on '{}': {}".format(fn, path, excinfo),
+            status="WARNING")
+
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
-        shutil.rmtree(options.working_directory)
+        shutil.rmtree(options.working_directory, onerror=rmtree_onerror)
     mkdirp(options.working_directory)
 
     if os.path.exists(options.sandbox_directory) and options.clean_sandbox_directory:
         teamcity_message("Cleaning sandbox directory...", status="WARNING")
-        shutil.rmtree(options.sandbox_directory)
+        shutil.rmtree(options.sandbox_directory, onerror=rmtree_onerror)
+
+        sandbox_storage = os.path.expanduser("~/sandbox_storage/")
+        if os.path.exists(sandbox_storage):
+            shutil.rmtree(sandbox_storage, onerror=rmtree_onerror)
+
     mkdirp(options.sandbox_directory)
 
     os.chdir(options.sandbox_directory)
@@ -230,11 +241,12 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
     sandbox_archive = "{0}/{1}".format(
         os.path.expanduser("~/failed_tests/"),
         "__".join([options.btid, options.build_number, suite_name]))
+    sandbox_storage = "{0}/{1}".format(os.path.expanduser("~/sandbox_storage/"), suite_name)
+    working_files_to_archive = ["bin/yt", "bin/ytserver", "lib/*.so"]
 
     mkdirp(sandbox_current)
 
     failed = False
-    result = None
 
     with tempfile.NamedTemporaryFile() as handle:
         try:
@@ -251,33 +263,57 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None):
                 env={
                     "PATH": "{0}/bin:{0}/yt/nodejs:{1}".format(options.working_directory, os.environ.get("PATH", "")),
                     "PYTHONPATH": "{0}/python:{1}".format(options.checkout_directory, os.environ.get("PYTHONPATH", "")),
-                    "TESTS_SANDBOX": sandbox_current
+                    "TESTS_SANDBOX": sandbox_current,
+                    "TESTS_SANDBOX_STORAGE": sandbox_storage
                 })
         except ChildHasNonZeroExitCode:
             teamcity_message("(ignoring child failure since we are reading test results from XML)")
             failed = True
 
-        result = etree.parse(handle)
+        try:
+            result = etree.parse(handle)
+            for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
+                if isinstance(node.text, str):
+                    node.text = node.text \
+                        .replace("&quot;", "\"") \
+                        .replace("&apos;", "\'") \
+                        .replace("&amp;", "&") \
+                        .replace("&lt;", "<") \
+                        .replace("&gt;", ">")
 
-    for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
-        if isinstance(node.text, str):
-            node.text = node.text \
-                .replace("&quot;", "\"") \
-                .replace("&apos;", "\'") \
-                .replace("&amp;", "&") \
-                .replace("&lt;", "<") \
-                .replace("&gt;", ">")
+            with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
+                result.write(handle, encoding="utf-8")
 
-    with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
-        result.write(handle, encoding="utf-8")
+        except (UnicodeDecodeError, etree.ParseError):
+            failed = True
+            teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
     try:
         if failed:
-            teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
-                sandbox_current,
-                sandbox_archive),
-                status="WARNING")
-            shutil.copytree(sandbox_current, sandbox_archive)
+            for dir in [sandbox_storage, sandbox_current]:
+                if not os.path.exists(dir):
+                    continue
+                teamcity_message("Copying failed tests from '{0}' to {1}'...".format(
+                    dir,
+                    sandbox_archive),
+                    status="WARNING")
+                for obj in os.listdir(dir):
+                    src = os.path.join(dir, obj)
+                    dst = os.path.join(sandbox_archive, obj)
+                    if os.path.exists(dst):
+                        shutil.rmtree(dst)
+                    shutil.copytree(src, dst)
+            artifact_path = os.path.join(sandbox_archive, "artifacts")
+            core_dumps_path = os.path.join(sandbox_archive, "core_dumps")
+            mkdirp(artifact_path)
+            mkdirp(core_dumps_path)
+            for fileglob in working_files_to_archive:
+                for file in glob.glob(os.path.join(options.working_directory, fileglob)):
+                    shutil.copy(file, artifact_path)
+            for dir, _, files in os.walk(suite_path):
+                for file in files:
+                    if file.startswith("core."):
+                        shutil.copy(os.path.join(dir, file), core_dumps_path)
             raise StepFailedWithNonCriticalError("Tests '{0}' failed".format(suite_name))
     finally:
         shutil.rmtree(sandbox_current)
@@ -301,6 +337,7 @@ def run_integration_tests(options):
 @yt_register_build_step
 def run_python_libraries_tests(options):
     kill_by_name("ytserver")
+    kill_by_name("node")
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory), pytest_args=["--ignore=pyinstaller"])
 
 @yt_register_build_step
@@ -339,10 +376,14 @@ def build_python_packages(options):
         else:
             return "0"
 
-    if not options.package:
-        return
-
-    run(["sudo", "apt-get", "update"])
+    retry_count = 5
+    for i in xrange(retry_count):
+        try:
+            run(["sudo", "apt-get", "update"])
+            break
+        except ChildHasNonZeroExitCode:
+            if i == retry_count - 1:
+                raise
 
     for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager", "yandex-yt-python-fennel"]:
         with cwd(options.checkout_directory, "python", package):
@@ -378,18 +419,20 @@ def clean_artifacts(options, n=10):
 
 
 @yt_register_cleanup_step
-def clean_failed_tests(options, n=5):
-    for path in ls(
-        os.path.expanduser("~/failed_tests/"),
-        reverse=True,
-        select=os.path.isdir,
-        start=n,
-        stop=sys.maxint):
+def clean_failed_tests(options, max_allowed_size=50 * 1024 * 1024 * 1024):
+    total_size = 0
+    for path in ls(os.path.expanduser("~/failed_tests/"),
+                   select=os.path.isdir,
+                   stop=sys.maxint):
+        size = os.stat(path).st_size
+        if total_size + size > max_allowed_size:
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             if os.path.isdir(path):
-                shutil.rmtree(path)
+                run("rm -rf " + path, shell=True)
             else:
                 os.unlink(path)
+        else:
+            total_size += size
 
 
 ################################################################################
@@ -496,14 +539,13 @@ def cwd(*args):
 
 def ls(path, reverse=True, select=None, start=0, stop=None):
     if not os.path.isdir(path):
-        return
+        return []
     iterable = os.listdir(path)
     iterable = map(lambda x: os.path.realpath(os.path.join(path, x)), iterable)
     iterable = sorted(iterable, key=lambda x: os.stat(x).st_mtime, reverse=reverse)
     iterable = itertools.ifilter(select, iterable)
     iterable = itertools.islice(iterable, start, stop)
-    for item in iterable:
-        yield item
+    return iterable
 
 
 def mkdirp(path):
@@ -716,7 +758,7 @@ def main():
         type=str, action="store", required=True)
     parser.add_argument(
         "--clean_sandbox_directory",
-        type=parse_bool, action="store", default=False)
+        type=parse_bool, action="store", default=True)
 
     parser.add_argument(
         "--type",
