@@ -35,7 +35,6 @@ struct TEpochContext
         Restarted.clear();
     }
 
-    TVersion ReachableVersion;
     TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;
     TCancelableContextPtr CancelableContext;
