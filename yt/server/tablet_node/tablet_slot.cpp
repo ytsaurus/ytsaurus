@@ -111,11 +111,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (HydraManager_) {
-            State_ = HydraManager_->GetControlState();
+        if (Finalizing_) {
+            return EPeerState::Stopped;
         }
 
-        return State_;
+        if (HydraManager_) {
+            return HydraManager_->GetControlState();
+        }
+
+        if (Initialized_) {
+            return EPeerState::Stopped;
+        }
+
+        return EPeerState::None;
     }
 
     EPeerState GetAutomatonState() const
@@ -233,7 +241,7 @@ public:
     void Initialize(const TCreateTabletSlotInfo& createInfo)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ == EPeerState::None);
+        YCHECK(!Initialized_);
 
         CellDescriptor_.CellId = FromProto<TCellId>(createInfo.cell_id());
 
@@ -247,7 +255,7 @@ public:
         attachOptions.Ping = false;
         PrerequisiteTransaction_ = transactionManager->Attach(prerequisiteTransactionId, attachOptions);
 
-        State_ = EPeerState::Stopped;
+        Initialized_ = true;
 
         LOG_INFO("Slot initialized (PrerequisiteTransactionId: %v)",
             prerequisiteTransactionId);
@@ -258,7 +266,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return State_ != EPeerState::None && State_ != EPeerState::Stopping;
+        return Initialized_ && !Finalizing_;
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)
@@ -275,7 +283,6 @@ public:
                 CellDescriptor_.ConfigVersion);
         } else {
             PeerId_ = configureInfo.peer_id();
-            State_ = EPeerState::Elections;
 
             CellManager_ = New<TCellManager>(
                 cellConfig,
@@ -286,9 +293,6 @@ public:
                 Owner_,
                 GetSnapshotInvoker());
 
-            std::vector<TTransactionId> prerequisiteTransactionIds;
-            prerequisiteTransactionIds.push_back(GetPrerequisiteTransactionId());
-
             auto cellId = GetCellId();
 
             auto snapshotStore = CreateRemoteSnapshotStore(
@@ -296,14 +300,14 @@ public:
                 Options_,
                 Format("//sys/tablet_cells/%v/snapshots", cellId),
                 Bootstrap_->GetMasterClient(),
-                prerequisiteTransactionIds);
+                GetPrerequisiteTransactionId());
 
-            auto changelogStore = CreateRemoteChangelogStore(
+            auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
                 Config_->Changelogs,
                 Options_,
                 Format("//sys/tablet_cells/%v/changelogs", cellId),
                 Bootstrap_->GetMasterClient(),
-                prerequisiteTransactionIds);
+                GetPrerequisiteTransactionId());
 
             auto rpcServer = Bootstrap_->GetRpcServer();
 
@@ -322,7 +326,7 @@ public:
                 Automaton_,
                 rpcServer,
                 CellManager_,
-                changelogStore,
+                changelogStoreFactory,
                 snapshotStore,
                 hydraManagerOptions);
 
@@ -392,9 +396,8 @@ public:
     TFuture<void> Finalize()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        YCHECK(State_ != EPeerState::None);
 
-        if (State_ == EPeerState::Stopping) {
+        if (Finalizing_) {
             return FinalizeResult_;
         }
 
@@ -403,11 +406,10 @@ public:
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshots(Owner_);
 
-        State_ = EPeerState::Stopping;
-
         ResetEpochInvokers();
         ResetGuardedInvokers();
 
+        Finalizing_ = true;
         FinalizeResult_ = BIND(&TImpl::DoFinalize, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetControlInvoker())
             .Run();
@@ -437,7 +439,6 @@ private:
     const TFairShareActionQueuePtr AutomatonQueue_;
     const TActionQueuePtr SnapshotQueue_;
 
-    mutable EPeerState State_ = EPeerState::None;
     TPeerId PeerId_ = InvalidPeerId;
     TCellDescriptor CellDescriptor_;
     TTabletCellOptionsPtr Options_;
@@ -464,6 +465,8 @@ private:
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> EpochAutomatonInvokers_;
     TEnumIndexedVector<IInvokerPtr, EAutomatonThreadQueue> GuardedAutomatonInvokers_;
 
+    bool Initialized_ = false;
+    bool Finalizing_ = false;
     TFuture<void> FinalizeResult_;
 
     NLogging::TLogger Logger = TabletNodeLogger;
@@ -516,27 +519,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // Wait for all pending activities in automaton thread to stop.
-        LOG_INFO("Flushing automaton thread");
-
-        SwitchTo(GetAutomatonInvoker());
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        // NB: Epoch invokers are already canceled so we don't expect any more callbacks.
-        LOG_INFO("Automaton thread flushed");
-
-        SwitchTo(Bootstrap_->GetControlInvoker());
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        // Stop everything and release the references to break cycles.
         CellManager_.Reset();
 
-        Automaton_.Reset();
-
+        // Stop everything and release the references to break cycles.
         if (HydraManager_) {
-            HydraManager_->Finalize();
+            WaitFor(HydraManager_->Finalize())
+                .ThrowOnError();
         }
         HydraManager_.Reset();
+
+        Automaton_.Reset();
 
         ResponseKeeper_.Reset();
 
@@ -562,9 +554,6 @@ private:
         TabletService_.Reset();
 
         TabletManager_.Reset();
-
-        YCHECK(State_ == EPeerState::Stopping);
-        State_ = EPeerState::None;
     }
 
 

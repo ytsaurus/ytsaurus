@@ -26,7 +26,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     IAutomatonPtr automaton,
     NRpc::IServerPtr rpcServer,
     NElection::TCellManagerPtr cellManager,
-    IChangelogStorePtr changelogStore,
+    IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
     const TDistributedHydraManagerOptions& options = TDistributedHydraManagerOptions());
 

@@ -45,11 +45,6 @@ static const auto TrashCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ELocationQueue,
-    (Data)
-    (Meta)
-);
-
 TLocation::TLocation(
     ELocationType type,
     const Stroka& id,
@@ -59,9 +54,10 @@ TLocation::TLocation(
     , Type_(type)
     , Id_(id)
     , Config_(config)
-    , ReadQueue_(New<TFairShareActionQueue>(Format("Read:%v", Id_), TEnumTraits<ELocationQueue>::GetDomainNames()))
-    , DataReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Data))))
-    , MetaReadInvoker_(CreatePrioritizedInvoker(ReadQueue_->GetInvoker(static_cast<int>(ELocationQueue::Meta))))
+    , DataReadThreadPool_(New<TThreadPool>(bootstrap->GetConfig()->DataNode->ReadThreadCount, Format("Read:%v", Id_)))
+    , DataReadInvoker_(CreatePrioritizedInvoker(DataReadThreadPool_->GetInvoker()))
+    , MetaReadQueue_(New<TActionQueue>(Format("Read:%v:Meta", Id_)))
+    , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("Write:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
     , HealthChecker_(New<TDiskHealthChecker>(

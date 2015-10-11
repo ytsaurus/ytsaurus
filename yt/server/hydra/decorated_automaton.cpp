@@ -599,7 +599,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr automatonInvoker,
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
-    IChangelogStorePtr changelogStore,
     const TDistributedHydraManagerOptions& options)
     : State_(EPeerState::Stopped)
     , Config_(config)
@@ -610,7 +609,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , ControlInvoker_(controlInvoker)
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(snapshotStore)
-    , ChangelogStore_(changelogStore)
     , Options_(options)
     , BatchCommitTimeCounter_("/batch_commit_time")
     , Logger(HydraLogger)
@@ -620,7 +618,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     YCHECK(Automaton_);
     YCHECK(ControlInvoker_);
     YCHECK(SnapshotStore_);
-    YCHECK(ChangelogStore_);
 
     VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
@@ -989,6 +986,13 @@ TVersion TDecoratedAutomaton::GetLoggedVersion() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return LoggedVersion_;
+}
+
+void TDecoratedAutomaton::SetChangelogStore(IChangelogStorePtr changelogStore)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    ChangelogStore_ = changelogStore;
 }
 
 void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)

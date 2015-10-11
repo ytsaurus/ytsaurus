@@ -7,7 +7,7 @@ namespace NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChangelogStorePtr CreateLocalChangelogStore(
+IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     const Stroka& threadName,
     TFileChangelogStoreConfigPtr config);
 

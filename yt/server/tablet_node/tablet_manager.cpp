@@ -333,9 +333,6 @@ public:
                     LOG_ERROR(error, "Error committing tablet store rotation mutation");
                 }
             }));
-
-        LOG_DEBUG("Store rotation scheduled (TabletId: %v)",
-            tablet->GetTabletId());
     }
 
 

@@ -23,11 +23,13 @@ struct IHydraManager
      */
     virtual void Initialize() = 0;
 
-    //! Deactivates the instance.
+    //! Deactivates the instance. The resulting future is set
+    //! when the instance is fully stopped, e.g. the automaton thread
+    //! will not receive any callbacks.
     /*!
      *  \note Thread affinity: ControlThread
      */
-    virtual void Finalize() = 0;
+    virtual TFuture<void> Finalize() = 0;
 
     //! Returns the state as seen in the control thread.
     /*!
