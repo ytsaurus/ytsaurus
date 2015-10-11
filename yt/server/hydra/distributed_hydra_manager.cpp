@@ -85,7 +85,10 @@ public:
         virtual TPeerPriority GetPriority() override
         {
             auto owner = Owner_.Lock();
-            return owner ? owner->GetElectionPriority() : TPeerPriority();
+            if (!owner) {
+                THROW_ERROR_EXCEPTION("Election priority is not available");
+            }
+            return owner->GetElectionPriority();
         }
 
         virtual Stroka FormatPriority(TPeerPriority priority) override
@@ -107,7 +110,7 @@ public:
         IAutomatonPtr automaton,
         IServerPtr rpcServer,
         TCellManagerPtr cellManager,
-        IChangelogStorePtr changelogStore,
+        IChangelogStoreFactoryPtr changelogStoreFactory,
         ISnapshotStorePtr snapshotStore,
         const TDistributedHydraManagerOptions& options)
         : TServiceBase(
@@ -120,7 +123,7 @@ public:
         , ControlInvoker_(controlInvoker)
         , CancelableControlInvoker_(CancelableContext_->CreateInvoker(ControlInvoker_))
         , AutomatonInvoker_(automatonInvoker)
-        , ChangelogStore_(changelogStore)
+        , ChangelogStoreFactory_(changelogStoreFactory)
         , SnapshotStore_(snapshotStore)
         , Options_(options)
     {
@@ -136,7 +139,6 @@ public:
             AutomatonInvoker_,
             ControlInvoker_,
             SnapshotStore_,
-            ChangelogStore_,
             Options_);
 
         ElectionManager_ = New<TElectionManager>(
@@ -385,7 +387,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr CancelableControlInvoker_;
     const IInvokerPtr AutomatonInvoker_;
-    const IChangelogStorePtr ChangelogStore_;
+    const IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     const ISnapshotStorePtr SnapshotStore_;
     const TDistributedHydraManagerOptions Options_;
 
@@ -395,7 +397,8 @@ private:
     EPeerState ControlState_ = EPeerState::None;
     TSystemLockGuard SystemLockGuard_;
 
-    TVersion ReachableVersion_;
+    IChangelogStorePtr ChangelogStore_;
+    TNullable<TVersion> ReachableVersion_;
 
     TElectionManagerPtr ElectionManager_;
 
@@ -738,9 +741,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (!ReachableVersion_) {
+            THROW_ERROR_EXCEPTION("Election priority is not available");
+        }
+
         auto version = ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
             ? DecoratedAutomaton_->GetAutomatonVersion()
-            : ReachableVersion_;
+            : *ReachableVersion_;
 
         return version.ToRevision();
     }
@@ -782,7 +789,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        LOG_INFO("Computing reachable version");
+        LOG_INFO("Initializing persistent stores");
 
         while (true) {
             try {
@@ -798,27 +805,28 @@ private:
                     LOG_INFO("The latest snapshot is %v", maxSnapshotId);
                 }
 
-                auto asyncMaxChangelog = ChangelogStore_->GetLatestChangelogId(maxSnapshotId);
-                int maxChangelogId = WaitFor(asyncMaxChangelog)
+                auto asyncChangelogStore = ChangelogStoreFactory_->Lock();
+                ChangelogStore_ = WaitFor(asyncChangelogStore)
                     .ValueOrThrow();
 
-                if (maxChangelogId == InvalidSegmentId) {
-                    LOG_INFO("No changelogs found");
-                    ReachableVersion_ = TVersion(maxSnapshotId, 0);
-                } else {
-                    LOG_INFO("The latest changelog is %v", maxChangelogId);
-                    auto changelog = OpenChangelogOrThrow(maxChangelogId);
-                    ReachableVersion_ = TVersion(maxChangelogId, changelog->GetRecordCount());
-                }
+                auto changelogVersion = ChangelogStore_->GetReachableVersion();
+                LOG_INFO("The latest changelog version is %v", changelogVersion);
+
+                ReachableVersion_ =  changelogVersion.SegmentId < maxSnapshotId
+                    ? TVersion(maxSnapshotId, 0)
+                    : changelogVersion;
+
                 break;
             } catch (const std::exception& ex) {
-                LOG_ERROR(ex, "Error computing reachable version, backing off and retrying");
+                LOG_ERROR(ex, "Error initializing persistent stores, backing off and retrying");
                 WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
             }
         }
 
-        LOG_INFO("Reachable version is %v", ReachableVersion_);
-        DecoratedAutomaton_->SetLoggedVersion(ReachableVersion_);
+        LOG_INFO("Reachable version is %v", *ReachableVersion_);
+
+        DecoratedAutomaton_->SetChangelogStore(ChangelogStore_);
+        DecoratedAutomaton_->SetLoggedVersion(*ReachableVersion_);
         ElectionManager_->Start();
     }
 
@@ -854,6 +862,9 @@ private:
 
     IChangelogPtr OpenChangelogOrThrow(int id)
     {
+        if (!ChangelogStore_) {
+            THROW_ERROR_EXCEPTION("Changelog store is not currently available");
+        }
         return WaitFor(ChangelogStore_->OpenChangelog(id))
             .ValueOrThrow();
     }
@@ -1239,6 +1250,9 @@ public:
         ActiveFollower_ = false;
 
         SystemLockGuard_.Release();
+
+        ChangelogStore_.Reset();
+        ReachableVersion_.Reset();
     }
 
     TEpochContextPtr GetEpochContext(const TEpochId& epochId)
@@ -1283,7 +1297,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     IAutomatonPtr automaton,
     IServerPtr rpcServer,
     TCellManagerPtr cellManager,
-    IChangelogStorePtr changelogStore,
+    IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
     const TDistributedHydraManagerOptions& options)
 {
@@ -1293,7 +1307,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     YCHECK(automaton);
     YCHECK(rpcServer);
     YCHECK(cellManager);
-    YCHECK(changelogStore);
+    YCHECK(changelogStoreFactory);
     YCHECK(snapshotStore);
 
     return New<TDistributedHydraManager>(
@@ -1303,7 +1317,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
         automaton,
         rpcServer,
         cellManager,
-        changelogStore,
+        changelogStoreFactory,
         snapshotStore,
         options);
 }
