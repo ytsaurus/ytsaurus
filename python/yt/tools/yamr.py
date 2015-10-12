@@ -108,7 +108,7 @@ class Yamr(object):
                 .format(self.binary, self.server, prefix),
             timeout=self._light_command_timeout,
             shell=True)
-        return json.loads(output)
+        return json.loads_as_bytes(output)
 
     def get_field_from_server(self, table, field, allow_cache):
         if not allow_cache or table not in self.cache:
@@ -117,7 +117,7 @@ class Yamr(object):
                     .format(self.binary, self.server, table),
                 timeout=self._light_command_timeout,
                 shell=True)
-            table_info = filter(lambda obj: obj["name"] == table, json.loads(output))
+            table_info = filter(lambda obj: obj["name"] == table, json.loads_as_bytes(output))
             if table_info:
                 self.cache[table] = table_info[0]
             else:
@@ -147,7 +147,7 @@ class Yamr(object):
             '{0} -server {1} -list -prefix "{2}" -jsonoutput'.format(self.binary, self.server, path),
             timeout=self._light_command_timeout,
             shell=True)
-        listing = json.loads(output)
+        listing = json.loads_as_bytes(output)
         for entry in listing:
             if entry["name"].startswith(path + "/"):
                 return True
@@ -239,7 +239,7 @@ class Yamr(object):
             try:
                 scheduler_info = sh.curl("{0}/json?info=scheduler".format(self.http_server), "--max-time", 1, insecure=True, location=True).stdout
                 try:
-                    self.scheduler_info = json.loads(scheduler_info)
+                    self.scheduler_info = json.loads_as_bytes(scheduler_info)
                 except ValueError:
                     self.scheduler_info = {}
             #except sh.ErrorReturnCode_28:
