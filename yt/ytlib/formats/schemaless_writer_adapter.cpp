@@ -30,11 +30,15 @@ const i64 ContextBufferSize = (i64) 1024 * 1024;
 
 TSchemalessFormatWriterBase::TSchemalessFormatWriterBase(
     TNameTablePtr nameTable,
+    IAsyncOutputStreamPtr output,
     bool enableContextSaving,
-    IAsyncOutputStreamPtr output)
-    : EnableContextSaving_(enableContextSaving)
-    , Output_(CreateSyncAdapter(output))
+    bool enableKeySwitch,
+    int keyColumnCount)
+    : KeyColumnCount_(keyColumnCount)
     , NameTable_(nameTable)
+    , EnableContextSaving_(enableContextSaving)
+    , EnableKeySwitch_(enableKeySwitch)
+    , Output_(CreateSyncAdapter(output))
 {
     CurrentBuffer_.Reserve(ContextBufferSize);
 
@@ -124,6 +128,31 @@ bool TSchemalessFormatWriterBase::Write(const std::vector<TUnversionedRow> &rows
     return true;
 }
 
+bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLastRow) 
+{
+    if (!EnableKeySwitch_) {
+        return false;
+    }
+
+    bool needKeySwitch = false;
+    try {
+        needKeySwitch = CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_);
+        CurrentKey_ = row;
+    } catch (const std::exception& ex) {
+        // COMPAT(psushin): composite values are not comparable anymore.
+        THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
+    }
+
+    if (isLastRow && CurrentKey_) {
+        // After processing last row we create a copy of CurrentKey.
+        LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
+        CurrentKey_ = LastKey_.Get();
+    }
+
+    return needKeySwitch;
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessWriterAdapter::TSchemalessWriterAdapter(
@@ -133,38 +162,28 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount)
-    : TSchemalessFormatWriterBase(nameTable, enableContextSaving, std::move(output))
-    , EnableKeySwitch_(enableKeySwitch)
-    , KeyColumnCount_(keyColumnCount)
+    : TSchemalessFormatWriterBase(
+        nameTable, 
+        std::move(output), 
+        enableContextSaving, 
+        enableKeySwitch, 
+        keyColumnCount)
 {
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }
 
 void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
-    for (const auto& row : rows) {
-        if (EnableKeySwitch_) {
-            try {
-                if (CurrentKey_ && CompareRows(row, CurrentKey_, KeyColumnCount_)) {
-                    WriteControlAttribute(EControlAttribute::KeySwitch, true);
-                }
-                CurrentKey_ = row;
-            } catch (const std::exception& ex) {
-                // COMPAT(psushin): composite values are not comparable anymore.
-                THROW_ERROR_EXCEPTION("Cannot inject key switch into output stream") << ex;
-            }
+    for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
+        if (CheckKeySwitch(rows[index], index + 1 == rows.size() /* isLastRow */)) {
+            WriteControlAttribute(EControlAttribute::KeySwitch, true);
         }
 
-        ConsumeRow(row);
+        ConsumeRow(rows[index]);
         TryFlushBuffer();
     }
 
     TryFlushBuffer();
-
-    if (EnableKeySwitch_ && CurrentKey_) {
-        LastKey_ = GetKeyPrefix(CurrentKey_, KeyColumnCount_);
-        CurrentKey_ = LastKey_.Get();
-    }
 }
 
 void TSchemalessWriterAdapter::WriteTableIndex(int tableIndex)

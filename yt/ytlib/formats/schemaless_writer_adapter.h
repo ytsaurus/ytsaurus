@@ -41,23 +41,35 @@ public:
 protected:
     TSchemalessFormatWriterBase(
         NTableClient::TNameTablePtr nameTable,
+        NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
-        NConcurrency::IAsyncOutputStreamPtr output);
+        bool enableKeySwitch,
+        int keyColumnCount);
 
     TOutputStream* GetOutputStream();
 
     void TryFlushBuffer();
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) = 0;
+    
+    int KeyColumnCount_;
+    
+    NTableClient::TOwningKey LastKey_;
+    NTableClient::TKey CurrentKey_;
+    
+    NTableClient::TNameTablePtr NameTable_;
+
+    bool CheckKeySwitch(NTableClient::TUnversionedRow row, bool isLastRow);
 
 private:
     bool EnableContextSaving_;
+    bool EnableKeySwitch_;
+
     TBlobOutput CurrentBuffer_;
     TBlobOutput PreviousBuffer_;
     std::unique_ptr<TOutputStream> Output_;
 
     TError Error_;
-    NTableClient::TNameTablePtr NameTable_;
 
     void DoFlushBuffer(bool force);
 };
@@ -86,11 +98,6 @@ private:
     std::unique_ptr<NYson::IYsonConsumer> Consumer_;
     NTableClient::TNameTablePtr NameTable_;
 
-    bool EnableKeySwitch_;
-    NTableClient::TOwningKey LastKey_;
-    NTableClient::TKey CurrentKey_;
-
-    int KeyColumnCount_;
     TError Error_;
 
     template <class T>

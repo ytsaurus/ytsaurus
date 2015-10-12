@@ -19,6 +19,7 @@ DECLARE_REFCOUNTED_STRUCT(IYamrConsumer)
 DECLARE_REFCOUNTED_STRUCT(ISchemalessFormatWriter)
 
 DECLARE_REFCOUNTED_CLASS(TSchemalessDsvWriter)
+DECLARE_REFCOUNTED_CLASS(TSchemalessYamrWriter)
 
 struct IParser;
 
