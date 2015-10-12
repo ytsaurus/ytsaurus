@@ -19,36 +19,56 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-TEST(TSchemalessYamrWriterTest, Simple)
+class TSchemalessYamrWriterTest : 
+    public ::testing::Test
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
-    
-    auto config = New<TYamrFormatConfig>();
-    
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
+protected:
+    TNameTablePtr NameTable_;
+    int KeyId_;
+    int SubkeyId_;
+    int ValueId_;
+    TYamrFormatConfigPtr Config_;
+
+    TSchemalessYamrWriterPtr Writer_;
+
+    TStringStream OutputStream_;
+
+    TSchemalessYamrWriterTest() {
+        NameTable_ = New<TNameTable>();
+        KeyId_ = NameTable_->RegisterName("key");
+        SubkeyId_ = NameTable_->RegisterName("subkey");
+        ValueId_ = NameTable_->RegisterName("value");
+        Config_ = New<TYamrFormatConfig>();
+    }
+
+    void CreateStandardWriter() {
+        Writer_ = New<TSchemalessYamrWriter>(
+            NameTable_, 
+            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+            false, // enableContextSaving  
+            false, // enableKeySwitch
+            0, // keyColumnCount
+            Config_);
+    }
+};
+
+TEST_F(TSchemalessYamrWriterTest, Simple)
+{
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("key1", keyId));
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
     
     // Note that key and value follow not in order.
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("value2", valueId));
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
 
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
-
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
@@ -56,42 +76,28 @@ TEST(TSchemalessYamrWriterTest, Simple)
         "key1\tvalue1\n"
         "key2\tvalue2\n";
     
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, SimpleWithSubkey)
+TEST_F(TSchemalessYamrWriterTest, SimpleWithSubkey)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
-    auto valueId = nameTable->RegisterName("value");
-
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("key1", keyId));
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
-    row1.AddValue(MakeUnversionedStringValue("subkey1", subkeyId));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
     
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("subkey2", subkeyId));
-    row2.AddValue(MakeUnversionedStringValue("value2", valueId));
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
+    row2.AddValue(MakeUnversionedStringValue("subkey2", SubkeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
 
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
@@ -99,318 +105,204 @@ TEST(TSchemalessYamrWriterTest, SimpleWithSubkey)
         "key1\tsubkey1\tvalue1\n"
         "key2\tsubkey2\tvalue2\n";
     
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
+TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("key", keyId));
-    row.AddValue(MakeUnversionedStringValue("value", valueId));
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
     
     std::vector<TUnversionedRow> rows = { row.GetRow() };
     
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
     Stroka output = "key\t\tvalue\n";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, SubkeyCouldBeNull)
-{
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
-    auto valueId = nameTable->RegisterName("value");
+TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeNull)
+{ 
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("key", keyId));
-    row.AddValue(MakeUnversionedSentinelValue(EValueType::Null, subkeyId));
-    row.AddValue(MakeUnversionedStringValue("value", valueId));
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedSentinelValue(EValueType::Null, SubkeyId_));
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
-    
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
 
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
     Stroka output = "key\t\tvalue\n";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, NonNullTerminatedStrings)
+TEST_F(TSchemalessYamrWriterTest, NonNullTerminatedStrings)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
-    auto valueId = nameTable->RegisterName("value");
-
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
+    
     TUnversionedRowBuilder row;
     const char* longString = "trashkeytrashsubkeytrashvalue";
-    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 5, 3), keyId));
-    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 13, 6), subkeyId));
-    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 24, 5), valueId));
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 5, 3), KeyId_));
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 13, 6), SubkeyId_));
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 24, 5), ValueId_));
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
     
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
     Stroka output = "key\tsubkey\tvalue\n";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 } 
 
-TEST(TSchemalessYamrWriterTest, SkippedKey)
+TEST_F(TSchemalessYamrWriterTest, SkippedKey)
 {
-    auto nameTable = New<TNameTable>();
-    auto valueId = nameTable->RegisterName("value");
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("value", valueId));
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    auto config = New<TYamrFormatConfig>();
-    
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    EXPECT_FALSE(writer->Write(rows));
+    EXPECT_FALSE(Writer_->Write(rows));
 
     auto callGetReadyEvent = [&]() {
-        writer->Close()
+        Writer_->Close()
             .Get()
             .ThrowOnError();
     };
     EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
-TEST(TSchemalessYamrWriterTest, SkippedValue)
+TEST_F(TSchemalessYamrWriterTest, SkippedValue)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("key", keyId));
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    auto config = New<TYamrFormatConfig>();
-    
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    EXPECT_FALSE(writer->Write(rows));
+    EXPECT_FALSE(Writer_->Write(rows));
 
     auto callGetReadyEvent = [&]() {
-        writer->Close()
+        Writer_->Close()
             .Get()
             .ThrowOnError();
     };
     EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
-TEST(TSchemalessYamrWriterTest, NotStringType) {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
-
+TEST_F(TSchemalessYamrWriterTest, NotStringType) {
+    CreateStandardWriter();
+    
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("key", keyId));
-    row.AddValue(MakeUnversionedInt64Value(42, valueId));
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedInt64Value(42, ValueId_));
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    auto config = New<TYamrFormatConfig>();
-    
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    EXPECT_FALSE(writer->Write(rows));
+    EXPECT_FALSE(Writer_->Write(rows));
 
     auto callGetReadyEvent = [&]() {
-        writer->Close()
+        Writer_->Close()
             .Get()
             .ThrowOnError();
     };
     EXPECT_THROW(callGetReadyEvent(), std::exception); 
 }
 
-TEST(TSchemalessYamrWriterTest, ExtraItem)
+TEST_F(TSchemalessYamrWriterTest, ExtraItem)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
-    auto trashId = nameTable->RegisterName("trash");
+    int trashId = NameTable_->RegisterName("trash");
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("key", keyId));
-    row.AddValue(MakeUnversionedStringValue("value", valueId));
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
+    // This value will be ignored.
     row.AddValue(MakeUnversionedStringValue("trash", trashId));
+    // This value will also be ignored because Config_->HasSubkey is off,
+    // despite the fact it has non-string type.
+    row.AddValue(MakeUnversionedInt64Value(42, SubkeyId_));
 
     std::vector<TUnversionedRow> rows = { row.GetRow() };
-
-    auto config = New<TYamrFormatConfig>();
-
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable,
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);    
-    
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+   
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
     Stroka output = "key\tvalue\n";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, Escaping)
+TEST_F(TSchemalessYamrWriterTest, Escaping)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
-    auto valueId = nameTable->RegisterName("value");
-
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    config->EnableEscaping = true;
-    
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
+    Config_->HasSubkey = true;
+    Config_->EnableEscaping = true;
+    CreateStandardWriter();
 
     TUnversionedRowBuilder row;
-    row.AddValue(MakeUnversionedStringValue("\n", keyId));
-    row.AddValue(MakeUnversionedStringValue("\t", subkeyId));
-    row.AddValue(MakeUnversionedStringValue("\n", valueId));
+    row.AddValue(MakeUnversionedStringValue("\n", KeyId_));
+    row.AddValue(MakeUnversionedStringValue("\t", SubkeyId_));
+    row.AddValue(MakeUnversionedStringValue("\n", ValueId_));
    
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
     Stroka output = "\\n\t\\t\t\\n\n";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, SimpleWithTableIndex)
+TEST_F(TSchemalessYamrWriterTest, SimpleWithTableIndex)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
-    
-    auto config = New<TYamrFormatConfig>();
-    config->EnableTableIndex = true;
-    
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
+    Config_->EnableTableIndex = true;
+    CreateStandardWriter();
 
-    writer->WriteTableIndex(42);
+    Writer_->WriteTableIndex(42);
 
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("key1", keyId));
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
     
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
-    row2.AddValue(MakeUnversionedStringValue("value2", valueId));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
     
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
    
-    writer->WriteTableIndex(23);
+    Writer_->WriteTableIndex(23);
 
     TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("key3", keyId));
-    row3.AddValue(MakeUnversionedStringValue("value3", valueId));
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
 
     rows = { row3.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
 
-    writer->Close()
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
@@ -421,44 +313,30 @@ TEST(TSchemalessYamrWriterTest, SimpleWithTableIndex)
         "23\n"
         "key3\tvalue3\n";
     
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, Lenval)
+TEST_F(TSchemalessYamrWriterTest, Lenval)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
-    auto valueId = nameTable->RegisterName("value");
-
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    config->Lenval = true;
-
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
+    Config_->HasSubkey = true;
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
     // Note that order in both rows is unusual.
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
-    row1.AddValue(MakeUnversionedStringValue("key1", keyId));
-    row1.AddValue(MakeUnversionedStringValue("subkey1", subkeyId));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
     
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
-    row2.AddValue(MakeUnversionedStringValue("value2", valueId));
-    row2.AddValue(MakeUnversionedStringValue("subkey2", subkeyId));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    row2.AddValue(MakeUnversionedStringValue("subkey2", SubkeyId_));
 
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
     
@@ -472,48 +350,34 @@ TEST(TSchemalessYamrWriterTest, Lenval)
         "\x06\x00\x00\x00" "value2"
         , 2 * (3 * 4 + 4 + 6 + 7) // all i32 + lengths of keys
     );
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, LenvalWithEmptyFields)
+TEST_F(TSchemalessYamrWriterTest, LenvalWithEmptyFields)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
-    auto valueId = nameTable->RegisterName("value");
+    Config_->HasSubkey = true;
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    config->Lenval = true;
-
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-    
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("", keyId));
-    row1.AddValue(MakeUnversionedStringValue("subkey1", subkeyId));
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
+    row1.AddValue(MakeUnversionedStringValue("", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
     
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
-    row2.AddValue(MakeUnversionedStringValue("", subkeyId));
-    row2.AddValue(MakeUnversionedStringValue("value2", valueId));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("", SubkeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
     
     TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("key3", keyId));
-    row3.AddValue(MakeUnversionedStringValue("subkey3", subkeyId));
-    row3.AddValue(MakeUnversionedStringValue("", valueId));
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("subkey3", SubkeyId_));
+    row3.AddValue(MakeUnversionedStringValue("", ValueId_));
     
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow(), row3.GetRow() };
 
-    EXPECT_EQ(true, writer->Write(rows));
-    writer->Close()
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
         .Get()
         .ThrowOnError();
     
@@ -533,56 +397,49 @@ TEST(TSchemalessYamrWriterTest, LenvalWithEmptyFields)
         , 9 * 4 + (7 + 6) + (4 + 6) + (4 + 7) // all i32 + lengths of keys
     );
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, LenvalWithKeySwitch)
+TEST_F(TSchemalessYamrWriterTest, LenvalWithKeySwitch)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto subkeyId = nameTable->RegisterName("subkey");
-    auto valueId = nameTable->RegisterName("value");
-
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    config->Lenval = true;
-
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
+    Config_->HasSubkey = true;
+    Config_->Lenval = true;
+    Writer_ = New<TSchemalessYamrWriter>(
+        NameTable_, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
         false, // enableContextSaving  
         true, // enableKeySwitch
         1, // keyColumnCount
-        config);
-    
+        Config_);
+
+
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("key1", keyId));
-    row1.AddValue(MakeUnversionedStringValue("subkey1", subkeyId));
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
     
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
-    row2.AddValue(MakeUnversionedStringValue("subkey21", subkeyId));
-    row2.AddValue(MakeUnversionedStringValue("value21", valueId));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("subkey21", SubkeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value21", ValueId_));
     
     TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("key2", keyId));
-    row3.AddValue(MakeUnversionedStringValue("subkey22", subkeyId));
-    row3.AddValue(MakeUnversionedStringValue("value22", valueId));
+    row3.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("subkey22", SubkeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value22", ValueId_));
     
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow(), row3.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
     
     TUnversionedRowBuilder row4;
-    row4.AddValue(MakeUnversionedStringValue("key3", keyId));
-    row4.AddValue(MakeUnversionedStringValue("subkey3", subkeyId));
-    row4.AddValue(MakeUnversionedStringValue("value3", valueId));
+    row4.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row4.AddValue(MakeUnversionedStringValue("subkey3", SubkeyId_));
+    row4.AddValue(MakeUnversionedStringValue("value3", ValueId_));
     
     rows = { row4.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
     
-    writer->Close()
+    Writer_->Close()
         .Get()
         .ThrowOnError();
     
@@ -610,51 +467,38 @@ TEST(TSchemalessYamrWriterTest, LenvalWithKeySwitch)
         , 14 * 4 + (4 + 7 + 6) + (4 + 8 + 7) + (4 + 8 + 7) + (4 + 7 + 6) // all i32 + lengths of keys
     );
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, LenvalWithTableIndex)
+TEST_F(TSchemalessYamrWriterTest, LenvalWithTableIndex)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
-    
-    auto config = New<TYamrFormatConfig>();
-    config->EnableTableIndex = true;
-    config->Lenval = true;
+    Config_->EnableTableIndex = true;
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    writer->WriteTableIndex(42);
+    Writer_->WriteTableIndex(42);
 
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("key1", keyId));
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
     
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
-    row2.AddValue(MakeUnversionedStringValue("value2", valueId));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
     
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
    
-    writer->WriteTableIndex(23);
+    Writer_->WriteTableIndex(23);
 
     TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("key3", keyId));
-    row3.AddValue(MakeUnversionedStringValue("value3", valueId));
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
 
     rows = { row3.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
 
-    writer->Close()
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
@@ -673,50 +517,37 @@ TEST(TSchemalessYamrWriterTest, LenvalWithTableIndex)
         "\x06\x00\x00\x00" "value3"
     , 10 * 4 + 3 * (4 + 6));
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TSchemalessYamrWriterTest, LenvalWithRangeAndRowIndex)
+TEST_F(TSchemalessYamrWriterTest, LenvalWithRangeAndRowIndex)
 {
-    auto nameTable = New<TNameTable>();
-    auto keyId = nameTable->RegisterName("key");
-    auto valueId = nameTable->RegisterName("value");
-    
-    auto config = New<TYamrFormatConfig>();
-    config->Lenval = true;
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
-    TStringStream outputStream;
-    auto writer = New<TSchemalessYamrWriter>(
-        nameTable, 
-        CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
-        false, // enableContextSaving  
-        false, // enableKeySwitch
-        0, // keyColumnCount
-        config);
-
-    writer->WriteRangeIndex(static_cast<i32>(42));
+    Writer_->WriteRangeIndex(static_cast<i32>(42));
     
     TUnversionedRowBuilder row1;
-    row1.AddValue(MakeUnversionedStringValue("key1", keyId));
-    row1.AddValue(MakeUnversionedStringValue("value1", valueId));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
     
     TUnversionedRowBuilder row2;
-    row2.AddValue(MakeUnversionedStringValue("key2", keyId));
-    row2.AddValue(MakeUnversionedStringValue("value2", valueId));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
     
     std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
    
-    writer->WriteRowIndex(static_cast<i64>(23));
+    Writer_->WriteRowIndex(static_cast<i64>(23));
 
     TUnversionedRowBuilder row3;
-    row3.AddValue(MakeUnversionedStringValue("key3", keyId));
-    row3.AddValue(MakeUnversionedStringValue("value3", valueId));
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
 
     rows = { row3.GetRow() };
-    EXPECT_EQ(true, writer->Write(rows));
+    EXPECT_EQ(true, Writer_->Write(rows));
 
-    writer->Close()
+    Writer_->Close()
         .Get()
         .ThrowOnError();
 
@@ -735,7 +566,7 @@ TEST(TSchemalessYamrWriterTest, LenvalWithRangeAndRowIndex)
         "\x06\x00\x00\x00" "value3"
     , 11 * 4 + 3 * (4 + 6));
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

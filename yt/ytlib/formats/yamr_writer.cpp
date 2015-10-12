@@ -40,7 +40,7 @@ TSchemalessYamrWriter::TSchemalessYamrWriter(
         true)
 {
     KeyId_ = nameTable->GetIdOrRegisterName(config->Key);
-    SubKeyId_ = (Config_->HasSubkey) ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
+    SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
     ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
 }
 
@@ -65,11 +65,18 @@ void TSchemalessYamrWriter::WriteInLenvalMode(const TStringBuf& value)
     WritePod(*stream, static_cast<ui32>(value.size()));
     stream->Write(value);
 }
+    
+void TSchemalessYamrWriter::ValidateColumnType(const TUnversionedValue* value)
+{
+    if (value->Type != EValueType::String) {
+        THROW_ERROR_EXCEPTION("Wrong column type %Qlv in YAMR record", value->Type);
+    }
+}
 
 void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
     auto* stream = GetOutputStream();
-   
+    
     for (int i = 0; i < static_cast<int>(rows.size()); i++) {
         if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
             if (!Config_->Lenval) {
@@ -84,21 +91,15 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
 
         for (const auto* item = rows[i].Begin(); item != rows[i].End(); ++item) {
             if (item->Id == KeyId_) {
-                if (item->Type != EValueType::String) {
-                    THROW_ERROR_EXCEPTION("Wrong column type %Qv in YAMR record", ToString(item->Type));
-                }
+                ValidateColumnType(item);
                 key = TStringBuf(item->Data.String, item->Length);
-            } else if (item->Id == SubKeyId_) {
+            } else if (item->Id == SubkeyId_) {
                 if (item->Type != EValueType::Null) {
-                    if (item->Type != EValueType::String) {
-                        THROW_ERROR_EXCEPTION("Wrong column type %Qv in YAMR record", ToString(item->Type));
-                    }
+                    ValidateColumnType(item);
                     subkey = TStringBuf(item->Data.String, item->Length);
                 }
             } else if (item->Id == ValueId_) {
-                if (item->Type != EValueType::String) {
-                    THROW_ERROR_EXCEPTION("Wrong column type %Qv in YAMR record", ToString(item->Type));
-                }
+                ValidateColumnType(item);
                 value = TStringBuf(item->Data.String, item->Length);
             } else {
                 // Ignore unknown columns.
@@ -110,8 +111,9 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
             THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", Config_->Key); 
         }
 
-        if (!subkey)
+        if (!subkey) {
             subkey = "";
+        }
 
         if (!value) {
             THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", Config_->Value);
