@@ -38,14 +38,18 @@ private:
     TYamrFormatConfigPtr Config_;
     TYamrTable Table_;
 
-    i32 KeyId_;
-    i32 SubKeyId_;
-    i32 ValueId_;
+    int KeyId_;
+    int SubkeyId_;
+    int ValueId_;
+
+    void ValidateColumnType(const NTableClient::TUnversionedValue* value);
 
     void WriteInLenvalMode(const TStringBuf& value);
     
     void EscapeAndWrite(const TStringBuf& value, bool inKey);
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchemalessYamrWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

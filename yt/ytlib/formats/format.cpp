@@ -286,7 +286,13 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
         THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
     }
 
-    return New<TSchemalessYamrWriter>(nameTable, output, enableContextSaving, enableKeySwitch, keyColumnCount, config);
+    return New<TSchemalessYamrWriter>(
+        nameTable, 
+        output, 
+        enableContextSaving, 
+        enableKeySwitch, 
+        keyColumnCount, 
+        config);
 }
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
