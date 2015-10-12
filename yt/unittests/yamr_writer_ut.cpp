@@ -1,7 +1,12 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <ytlib/table_client/unversioned_row.h>
+#include <ytlib/table_client/name_table.h>
+
 #include <ytlib/formats/yamr_writer.h>
+
+#include <core/concurrency/async_stream.h>
 
 namespace NYT {
 namespace NFormats {
@@ -9,225 +14,332 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYamrWriterTest, Simple)
+using namespace NYTree;
+using namespace NYson;
+using namespace NConcurrency;
+using namespace NTableClient;
+
+class TSchemalessYamrWriterTest : 
+    public ::testing::Test
 {
-    TStringStream outputStream;
-    TYamrConsumer consumer(&outputStream);
+protected:
+    TNameTablePtr NameTable_;
+    int KeyId_;
+    int SubkeyId_;
+    int ValueId_;
+    TYamrFormatConfigPtr Config_;
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
+    TSchemalessYamrWriterPtr Writer_;
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key2");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value2");
-    consumer.OnEndMap();
+    TStringStream OutputStream_;
+
+    TSchemalessYamrWriterTest() {
+        NameTable_ = New<TNameTable>();
+        KeyId_ = NameTable_->RegisterName("key");
+        SubkeyId_ = NameTable_->RegisterName("subkey");
+        ValueId_ = NameTable_->RegisterName("value");
+        Config_ = New<TYamrFormatConfig>();
+    }
+
+    void CreateStandardWriter() {
+        Writer_ = New<TSchemalessYamrWriter>(
+            NameTable_, 
+            CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+            false, // enableContextSaving  
+            false, // enableKeySwitch
+            0, // keyColumnCount
+            Config_);
+    }
+};
+
+TEST_F(TSchemalessYamrWriterTest, Simple)
+{
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    
+    // Note that key and value follow not in order.
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
+    
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
 
     Stroka output =
         "key1\tvalue1\n"
         "key2\tvalue2\n";
-    EXPECT_EQ(output, outputStream.Str());
+    
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, SimpleWithSubkey)
+TEST_F(TSchemalessYamrWriterTest, SimpleWithSubkey)
 {
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    TYamrConsumer consumer(&outputStream, config);
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("subkey2", SubkeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key2");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey2");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value2");
-    consumer.OnEndMap();
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
 
     Stroka output =
         "key1\tsubkey1\tvalue1\n"
         "key2\tsubkey2\tvalue2\n";
-    EXPECT_EQ(output, outputStream.Str());
+    
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, WritingWithoutSubkey)
+TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
 {
-    TStringStream outputStream;
-    TYamrConsumer consumer(&outputStream);
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
+    
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+    
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key2");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey2");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value2");
-    consumer.OnEndMap();
-
-    Stroka output =
-        "key1\tvalue1\n"
-        "key2\tvalue2\n";
-    EXPECT_EQ(output, outputStream.Str());
+    Stroka output = "key\t\tvalue\n";
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, SkippedKey)
-{
-    TStringStream outputStream;
-    TYamrConsumer consumer(&outputStream);
+TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeNull)
+{ 
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
 
-    auto DoWrite = [&]() {
-        consumer.OnListItem();
-        consumer.OnBeginMap();
-            consumer.OnKeyedItem("key");
-            consumer.OnStringScalar("foo");
-        consumer.OnEndMap();
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedSentinelValue(EValueType::Null, SubkeyId_));
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output = "key\t\tvalue\n";
+    EXPECT_EQ(output, OutputStream_.Str());
+}
+
+TEST_F(TSchemalessYamrWriterTest, NonNullTerminatedStrings)
+{
+    Config_->HasSubkey = true;
+    CreateStandardWriter();
+    
+    TUnversionedRowBuilder row;
+    const char* longString = "trashkeytrashsubkeytrashvalue";
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 5, 3), KeyId_));
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 13, 6), SubkeyId_));
+    row.AddValue(MakeUnversionedStringValue(TStringBuf(longString + 24, 5), ValueId_));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+    
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output = "key\tsubkey\tvalue\n";
+    EXPECT_EQ(output, OutputStream_.Str());
+} 
+
+TEST_F(TSchemalessYamrWriterTest, SkippedKey)
+{
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    EXPECT_FALSE(Writer_->Write(rows));
+
+    auto callGetReadyEvent = [&]() {
+        Writer_->Close()
+            .Get()
+            .ThrowOnError();
     };
-
-    EXPECT_THROW(DoWrite(), std::exception);
+    EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
-TEST(TYamrWriterTest, SkippedValue)
+TEST_F(TSchemalessYamrWriterTest, SkippedValue)
 {
-    TStringStream outputStream;
-    TYamrConsumer consumer(&outputStream);
+    CreateStandardWriter();
 
-    auto DoWrite = [&]() {
-        consumer.OnListItem();
-        consumer.OnBeginMap();
-            consumer.OnKeyedItem("value");
-            consumer.OnStringScalar("bar");
-        consumer.OnEndMap();
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    EXPECT_FALSE(Writer_->Write(rows));
+
+    auto callGetReadyEvent = [&]() {
+        Writer_->Close()
+            .Get()
+            .ThrowOnError();
     };
-
-    EXPECT_THROW(DoWrite(), std::exception);
+    EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
-TEST(TYamrWriterTest, SubkeyCouldBeSkipped)
-{
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    TYamrConsumer consumer(&outputStream, config);
+TEST_F(TSchemalessYamrWriterTest, NotStringType) {
+    CreateStandardWriter();
+    
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedInt64Value(42, ValueId_));
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("bar");
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("foo");
-    consumer.OnEndMap();
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
 
-    Stroka output = "foo\t\tbar\n";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_FALSE(Writer_->Write(rows));
+
+    auto callGetReadyEvent = [&]() {
+        Writer_->Close()
+            .Get()
+            .ThrowOnError();
+    };
+    EXPECT_THROW(callGetReadyEvent(), std::exception); 
 }
 
-TEST(TYamrWriterTest, Escaping)
+TEST_F(TSchemalessYamrWriterTest, ExtraItem)
 {
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    config->EnableEscaping = true;
-    TYamrConsumer consumer(&outputStream, config);
+    int trashId = NameTable_->RegisterName("trash");
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("\n");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("\t");
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("\n");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("key", KeyId_));
+    row.AddValue(MakeUnversionedStringValue("value", ValueId_));
+    // This value will be ignored.
+    row.AddValue(MakeUnversionedStringValue("trash", trashId));
+    // This value will also be ignored because Config_->HasSubkey is off,
+    // despite the fact it has non-string type.
+    row.AddValue(MakeUnversionedInt64Value(42, SubkeyId_));
+
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+   
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output = "key\tvalue\n";
+    EXPECT_EQ(output, OutputStream_.Str());
+}
+
+TEST_F(TSchemalessYamrWriterTest, Escaping)
+{
+    Config_->HasSubkey = true;
+    Config_->EnableEscaping = true;
+    CreateStandardWriter();
+
+    TUnversionedRowBuilder row;
+    row.AddValue(MakeUnversionedStringValue("\n", KeyId_));
+    row.AddValue(MakeUnversionedStringValue("\t", SubkeyId_));
+    row.AddValue(MakeUnversionedStringValue("\n", ValueId_));
+   
+    std::vector<TUnversionedRow> rows = { row.GetRow() };
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
 
     Stroka output = "\\n\t\\t\t\\n\n";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, SimpleWithTableIndex)
+TEST_F(TSchemalessYamrWriterTest, SimpleWithTableIndex)
 {
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->EnableTableIndex = true;
-    TYamrConsumer consumer(&outputStream, config);
+    Config_->EnableTableIndex = true;
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-        consumer.OnKeyedItem("table_index");
-        consumer.OnInt64Scalar(1);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
+    Writer_->WriteTableIndex(42);
 
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+   
+    Writer_->WriteTableIndex(23);
 
-    Stroka output = Stroka("1\nkey1\tvalue1\n");
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
 
-    EXPECT_EQ(output, outputStream.Str());
+    rows = { row3.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output =
+        "42\n"
+        "key1\tvalue1\n"
+        "key2\tvalue2\n"
+        "23\n"
+        "key3\tvalue3\n";
+    
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, Lenval)
+TEST_F(TSchemalessYamrWriterTest, Lenval)
 {
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    config->Lenval = true;
-    TYamrConsumer consumer(&outputStream, config);
+    Config_->HasSubkey = true;
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
+    // Note that order in both rows is unusual.
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    row2.AddValue(MakeUnversionedStringValue("subkey2", SubkeyId_));
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key2");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey2");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value2");
-    consumer.OnEndMap();
-
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    
     Stroka output = Stroka(
         "\x04\x00\x00\x00" "key1"
         "\x07\x00\x00\x00" "subkey1"
@@ -238,192 +350,225 @@ TEST(TYamrWriterTest, Lenval)
         "\x06\x00\x00\x00" "value2"
         , 2 * (3 * 4 + 4 + 6 + 7) // all i32 + lengths of keys
     );
-
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, LenvalWithoutFields)
+TEST_F(TSchemalessYamrWriterTest, LenvalWithEmptyFields)
 {
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->HasSubkey = true;
-    config->Lenval = true;
-    TYamrConsumer consumer(&outputStream, config);
+    Config_->HasSubkey = true;
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
-    // Note: order is unusual (value, key)
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("");
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("", SubkeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("subkey3", SubkeyId_));
+    row3.AddValue(MakeUnversionedStringValue("", ValueId_));
+    
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow(), row3.GetRow() };
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey2");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("");
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key2");
-    consumer.OnEndMap();
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value3");
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("");
-        consumer.OnKeyedItem("subkey");
-        consumer.OnStringScalar("subkey3");
-    consumer.OnEndMap();
-
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    
     Stroka output = Stroka(
-        "\x04\x00\x00\x00" "key1"
         "\x00\x00\x00\x00" ""
+        "\x07\x00\x00\x00" "subkey1"
         "\x06\x00\x00\x00" "value1"
 
         "\x04\x00\x00\x00" "key2"
-        "\x07\x00\x00\x00" "subkey2"
+        "\x00\x00\x00\x00" ""
+        "\x06\x00\x00\x00" "value2"
+
+        "\x04\x00\x00\x00" "key3"
+        "\x07\x00\x00\x00" "subkey3"
         "\x00\x00\x00\x00" ""
 
-        "\x00\x00\x00\x00" ""
+        , 9 * 4 + (7 + 6) + (4 + 6) + (4 + 7) // all i32 + lengths of keys
+    );
+
+    EXPECT_EQ(output, OutputStream_.Str());
+}
+
+TEST_F(TSchemalessYamrWriterTest, LenvalWithKeySwitch)
+{
+    Config_->HasSubkey = true;
+    Config_->Lenval = true;
+    Writer_ = New<TSchemalessYamrWriter>(
+        NameTable_, 
+        CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
+        false, // enableContextSaving  
+        true, // enableKeySwitch
+        1, // keyColumnCount
+        Config_);
+
+
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("subkey1", SubkeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("subkey21", SubkeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value21", ValueId_));
+    
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("subkey22", SubkeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value22", ValueId_));
+    
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow(), row3.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+    
+    TUnversionedRowBuilder row4;
+    row4.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row4.AddValue(MakeUnversionedStringValue("subkey3", SubkeyId_));
+    row4.AddValue(MakeUnversionedStringValue("value3", ValueId_));
+    
+    rows = { row4.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+    
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    
+    Stroka output = Stroka(
+        "\x04\x00\x00\x00" "key1"
+        "\x07\x00\x00\x00" "subkey1"
+        "\x06\x00\x00\x00" "value1"
+        
+        "\xfe\xff\xff\xff" // key switch
+
+        "\x04\x00\x00\x00" "key2"
+        "\x08\x00\x00\x00" "subkey21"
+        "\x07\x00\x00\x00" "value21"
+
+        "\x04\x00\x00\x00" "key2"
+        "\x08\x00\x00\x00" "subkey22"
+        "\x07\x00\x00\x00" "value22"
+
+        "\xfe\xff\xff\xff"
+
+        "\x04\x00\x00\x00" "key3"
         "\x07\x00\x00\x00" "subkey3"
         "\x06\x00\x00\x00" "value3"
 
-        , 9 * 4 + (4 + 6) + (4 + 7) + (7 + 6) // all i32 + lengths of keys
+        , 14 * 4 + (4 + 7 + 6) + (4 + 8 + 7) + (4 + 8 + 7) + (4 + 7 + 6) // all i32 + lengths of keys
     );
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, LenvalWithTableIndex)
+TEST_F(TSchemalessYamrWriterTest, LenvalWithTableIndex)
 {
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->Lenval = true;
-    config->EnableTableIndex = true;
-    TYamrConsumer consumer(&outputStream, config);
+    Config_->EnableTableIndex = true;
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-        consumer.OnKeyedItem("table_index");
-        consumer.OnInt64Scalar(0);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
+    Writer_->WriteTableIndex(42);
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+   
+    Writer_->WriteTableIndex(23);
 
-    Stroka output = Stroka(
-        "\xff\xff\xff\xff" "\x00\x00\x00\x00"
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
+
+    rows = { row3.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output(
+        "\xff\xff\xff\xff" "\x2a\x00\x00\x00" // 42
+        
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
-        , 4 + 4 + 4 + 4 + 4 + 6
-    );
+        
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+        
+        "\xff\xff\xff\xff" "\x17\x00\x00\x00" // 23
+        
+        "\x04\x00\x00\x00" "key3"
+        "\x06\x00\x00\x00" "value3"
+    , 10 * 4 + 3 * (4 + 6));
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, LenvalWithKeySwitch)
+TEST_F(TSchemalessYamrWriterTest, LenvalWithRangeAndRowIndex)
 {
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->Lenval = true;
-    TYamrConsumer consumer(&outputStream, config);
+    Config_->Lenval = true;
+    CreateStandardWriter();
 
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-        consumer.OnKeyedItem("key_switch");
-        consumer.OnBooleanScalar(true);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
+    Writer_->WriteRangeIndex(static_cast<i32>(42));
+    
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("key1", KeyId_));
+    row1.AddValue(MakeUnversionedStringValue("value1", ValueId_));
+    
+    TUnversionedRowBuilder row2;
+    row2.AddValue(MakeUnversionedStringValue("key2", KeyId_));
+    row2.AddValue(MakeUnversionedStringValue("value2", ValueId_));
+    
+    std::vector<TUnversionedRow> rows = { row1.GetRow(), row2.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+   
+    Writer_->WriteRowIndex(static_cast<i64>(23));
 
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
+    TUnversionedRowBuilder row3;
+    row3.AddValue(MakeUnversionedStringValue("key3", KeyId_));
+    row3.AddValue(MakeUnversionedStringValue("value3", ValueId_));
 
-    Stroka output = Stroka(
-        "\xfe\xff\xff\xff"
+    rows = { row3.GetRow() };
+    EXPECT_EQ(true, Writer_->Write(rows));
+
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+
+    Stroka output(
+        "\xfd\xff\xff\xff" "\x2a\x00\x00\x00" // 42
+        
         "\x04\x00\x00\x00" "key1"
         "\x06\x00\x00\x00" "value1"
-        , 4 + 4 + 4 + 4 + 6
-    );
+        
+        "\x04\x00\x00\x00" "key2"
+        "\x06\x00\x00\x00" "value2"
+        
+        "\xfc\xff\xff\xff" "\x17\x00\x00\x00\x00\x00\x00\x00" // 23
+        
+        "\x04\x00\x00\x00" "key3"
+        "\x06\x00\x00\x00" "value3"
+    , 11 * 4 + 3 * (4 + 6));
 
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST(TYamrWriterTest, LenvalWithRangeAndRowIndex)
-{
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    config->Lenval = true;
-    TYamrConsumer consumer(&outputStream, config);
-
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-        consumer.OnKeyedItem("range_index");
-        consumer.OnInt64Scalar(1);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
-
-    consumer.OnListItem();
-    consumer.OnBeginAttributes();
-        consumer.OnKeyedItem("row_index");
-        consumer.OnInt64Scalar(2);
-    consumer.OnEndAttributes();
-    consumer.OnEntity();
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnStringScalar("key1");
-        consumer.OnKeyedItem("value");
-        consumer.OnStringScalar("value1");
-    consumer.OnEndMap();
-
-    Stroka output = Stroka(
-        "\xfd\xff\xff\xff" "\x01\x00\x00\x00"
-        "\xfc\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
-        "\x04\x00\x00\x00" "key1"
-        "\x06\x00\x00\x00" "value1"
-        , 4 + 4 + 4 + 8 + 4 + 4 + 4 + 6
-    );
-
-    EXPECT_EQ(output, outputStream.Str());
-}
-
-
-TEST(TYamrWriterTest, IntegerAndDoubleValues)
-{
-    TStringStream outputStream;
-    auto config = New<TYamrFormatConfig>();
-    TYamrConsumer consumer(&outputStream, config);
-
-    consumer.OnListItem();
-    consumer.OnBeginMap();
-        consumer.OnKeyedItem("key");
-        consumer.OnInt64Scalar(1);
-        consumer.OnKeyedItem("value");
-        consumer.OnDoubleScalar(1.5);
-    consumer.OnEndMap();
-
-    Stroka output("1\t1.5\n");
-
-    EXPECT_EQ(output, outputStream.Str());
-}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

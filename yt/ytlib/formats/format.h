@@ -88,6 +88,22 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForFormat(
     const NTableClient::TTableSchema& schema,
     NConcurrency::IAsyncOutputStreamPtr output);
 
+ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int /* keyColumnCount */);
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount);
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,

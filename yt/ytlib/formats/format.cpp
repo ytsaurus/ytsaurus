@@ -156,18 +156,6 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
     };
 }
 
-std::unique_ptr<IYsonConsumer> CreateConsumerForYamr(
-    EDataType dataType,
-    const IAttributeDictionary& attributes,
-    TOutputStream* output)
-{
-    if (dataType != EDataType::Tabular) {
-        THROW_ERROR_EXCEPTION("YAMR is supported only for tabular data");
-    }
-    auto config = ConvertTo<TYamrFormatConfigPtr>(&attributes);
-    return std::unique_ptr<IYsonConsumer>(new TYamrConsumer(output, config));
-}
-
 std::unique_ptr<IYsonConsumer> CreateConsumerForYamredDsv(
     EDataType dataType,
     const IAttributeDictionary& attributes,
@@ -204,8 +192,6 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
             return CreateConsumerForJson(dataType, format.Attributes(), output);
         case EFormatType::Dsv:
             return CreateConsumerForDsv(dataType, format.Attributes(), output);
-        case EFormatType::Yamr:
-            return CreateConsumerForYamr(dataType, format.Attributes(), output);
         case EFormatType::YamredDsv:
             return CreateConsumerForYamredDsv(dataType, format.Attributes(), output);
         case EFormatType::SchemafulDsv:
@@ -287,6 +273,28 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     return New<TSchemalessDsvWriter>(nameTable, enableContextSaving, output, config);
 }
 
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
+    const IAttributeDictionary& attributes,
+    TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount)
+{
+    auto config = ConvertTo<TYamrFormatConfigPtr>(&attributes);
+    if (enableKeySwitch && !config->Lenval) {
+        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
+    }
+
+    return New<TSchemalessYamrWriter>(
+        nameTable, 
+        output, 
+        enableContextSaving, 
+        enableKeySwitch, 
+        keyColumnCount, 
+        config);
+}
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
@@ -304,7 +312,14 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 enableContextSaving,
                 enableKeySwitch,
                 keyColumnCount);
-
+        case EFormatType::Yamr:
+            return CreateSchemalessWriterForYamr(
+                format.Attributes(),
+                nameTable,
+                std::move(output),
+                enableContextSaving,
+                enableKeySwitch,
+                keyColumnCount);
         default:
             return New<TSchemalessWriterAdapter>(
                 format,
