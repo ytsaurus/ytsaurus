@@ -16,7 +16,7 @@ formatter = logging.Formatter('%(asctime)-15s: %(message)s')
 logger.addHandler(logging.StreamHandler())
 logger.handlers[0].setFormatter(formatter)
 
-if __name__ == "__main__":
+def main():
     parser = ArgumentParser()
     parser.add_argument("--proxy")
     parser.add_argument("--queue-path")
@@ -35,7 +35,6 @@ if __name__ == "__main__":
     if args.proxy is not None:
         yt.config.set_proxy(args.proxy)
 
-    sizes = []
     tables_to_merge = []
 
     number_of_chunks = 0
@@ -74,3 +73,5 @@ if __name__ == "__main__":
         yt.set(args.queue_path, tables_to_merge)
         logger.info("Number of small chunks: %d", number_of_chunks)
 
+if __name__ == "__main__":
+    main()
