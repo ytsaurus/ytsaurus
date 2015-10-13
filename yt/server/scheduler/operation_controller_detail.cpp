@@ -1515,7 +1515,6 @@ void TOperationControllerBase::AttachOutputChunks()
             flushReq();
         }
 
-<<<<<<< HEAD
         {
             auto req = TChunkListYPathProxy::GetStatistics(FromObjectId(table.OutputChunkListId));
             batchReq->AddRequest(req, "get_statistics");
@@ -1558,15 +1557,6 @@ void TOperationControllerBase::EndUploadOutputTables()
                 ToProto(req->mutable_key_columns(), table.KeyColumns);
             }
             SetTransactionId(req, table.UploadTransactionId);
-=======
-        if (!table.KeyColumns.empty()) {
-            LOG_INFO("Table %v will be marked as sorted by [%v]",
-                table.Path.GetPath(),
-                JoinToString(table.KeyColumns));
-            auto req = TTableYPathProxy::SetSorted(path);
-            ToProto(req->mutable_key_columns(), table.KeyColumns);
-            SetTransactionId(req, OutputTransactionId);
->>>>>>> prestable/0.17.4
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
         }
@@ -2794,15 +2784,12 @@ void TOperationControllerBase::LockInputTables()
 
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
-<<<<<<< HEAD
-=======
                     LOG_INFO("Input table is sorted (Path: %v, KeyColumns: [%v])",
                         path,
                         JoinToString(table.KeyColumns));
                 } else {
                     LOG_INFO("Input table is not sorted (Path: %v)",
                         path);
->>>>>>> prestable/0.17.4
                 }
 
                 table.ChunkCount = attributes.Get<int>("chunk_count");
@@ -3357,11 +3344,7 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
         const auto& referenceTable = InputTables[0];
         for (const auto& table : InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
-<<<<<<< HEAD
-                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by [%v] while input table %v is sorted by [%v]",
-=======
                 THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns [%v] while input table %v is sorted by columns [%v]",
->>>>>>> prestable/0.17.4
                     table.Path.GetPath(),
                     JoinToString(table.KeyColumns),
                     referenceTable.Path.GetPath(),
