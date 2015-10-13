@@ -7,6 +7,7 @@
 #include "config.h"
 #include "versioned_row.h"
 #include "unversioned_row.h"
+#include "private.h"
 
 #include <ytlib/chunk_client/encoding_chunk_writer.h>
 #include <ytlib/chunk_client/dispatcher.h>
@@ -30,14 +31,18 @@ TChunkWriterBase::TChunkWriterBase(
     // We pass key columns here in order to use TChunkWriterBase and
     // TSortedChunkWriterBase as template base interchangably.
     const TKeyColumns& keyColumns)
-    : Config_(config)
+    : Logger(TableClientLogger)
+    , Config_(config)
     , Options_(options)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(
         config,
         options,
         chunkWriter,
-        blockCache))
-{ }
+        blockCache,
+        Logger))
+{ 
+    Logger.AddTag("TableChunkWriter: %p", this);
+}
 
 TFuture<void> TChunkWriterBase::Open()
 {

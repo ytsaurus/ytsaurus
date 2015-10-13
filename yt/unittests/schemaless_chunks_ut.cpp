@@ -76,7 +76,6 @@ protected:
     void SetUpWriter()
     {
         MemoryWriter = New<TMemoryWriter>();
-        MemoryWriter->Open();
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 2 * 1024 * 1024;
