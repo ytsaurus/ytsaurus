@@ -1929,13 +1929,6 @@ private:
 
         CalculateSizes();
 
-<<<<<<< HEAD
-            int index = 0;
-            while (index < static_cast<int>(sortBy.size()) && sortBy[index] == table.KeyColumns[index]) {
-              	++index;
-            }
-            sortBy.erase(sortBy.begin() + index, sortBy.end());
-=======
         TScrapeChunksCallback scraperCallback;
         if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
             scraperCallback = CreateScrapeChunksSessionCallback(
@@ -2004,7 +1997,6 @@ private:
                 }
                 AddPendingChunkSlice(CreateChunkSlice(chunkSpec, primaryMinKey, primaryMaxKey));
             }
->>>>>>> prestable/0.17.4
         }
     }
 

@@ -19,7 +19,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/file_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/format.cpp
   ${CMAKE_CURRENT_LIST_DIR}/helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/lazy_chunk_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader_base.cpp
@@ -65,7 +64,6 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/file_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/format.h
   ${CMAKE_CURRENT_LIST_DIR}/helpers.h
-  ${CMAKE_CURRENT_LIST_DIR}/lazy_chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader_base.h

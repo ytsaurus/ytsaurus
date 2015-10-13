@@ -88,19 +88,10 @@ private:
 
     IChunkWriterPtr UnderlyingWriter_;
 
-<<<<<<< HEAD:yt/ytlib/chunk_client/lazy_chunk_writer.cpp
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Closed_ = {false};
-
-    TChunkId ChunkId_;
-    std::vector<TSharedRef> PendingBlocks_;
-
-    TFuture<void> OpenedFuture_ = VoidFuture;
-=======
     std::atomic<bool> Initialized_ = { false };
+    std::atomic<bool> Closed_ = { false };
     TChunkId ChunkId_ = NullChunkId;
     TFuture<void> OpenFuture_;
->>>>>>> prestable/0.17.4:yt/ytlib/chunk_client/confirming_writer.cpp
 
     TChunkMeta ChunkMeta_;
     TDataStatistics DataStatistics_;
@@ -182,17 +173,12 @@ TFuture<void> TConfirmingWriter::Close(const TChunkMeta& chunkMeta)
     YCHECK(OpenFuture_.IsSet());
 
     ChunkMeta_ = chunkMeta;
-<<<<<<< HEAD:yt/ytlib/chunk_client/lazy_chunk_writer.cpp
-    return OpenedFuture_.Apply(
-        BIND(&TLazyChunkWriter::DoClose,MakeWeak(this))
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
-=======
+
     return BIND(
         &TConfirmingWriter::DoClose,
         MakeWeak(this))
     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
     .Run();
->>>>>>> prestable/0.17.4:yt/ytlib/chunk_client/confirming_writer.cpp
 }
 
 const TChunkInfo& TConfirmingWriter::GetChunkInfo() const
@@ -201,17 +187,13 @@ const TChunkInfo& TConfirmingWriter::GetChunkInfo() const
     return UnderlyingWriter_->GetChunkInfo();
 }
 
-<<<<<<< HEAD:yt/ytlib/chunk_client/lazy_chunk_writer.cpp
-const TDataStatistics& TLazyChunkWriter::GetDataStatistics() const
+const TDataStatistics& TConfirmingWriter::GetDataStatistics() const
 {
     YCHECK(Closed_);
     return DataStatistics_;
 }
 
-TChunkReplicaList TLazyChunkWriter::GetWrittenChunkReplicas() const
-=======
 TChunkReplicaList TConfirmingWriter::GetWrittenChunkReplicas() const
->>>>>>> prestable/0.17.4:yt/ytlib/chunk_client/confirming_writer.cpp
 {
     YCHECK(UnderlyingWriter_);
     return UnderlyingWriter_->GetWrittenChunkReplicas();
