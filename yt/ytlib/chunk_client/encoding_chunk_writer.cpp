@@ -1,10 +1,10 @@
 #include "stdafx.h"
 
 #include "encoding_chunk_writer.h"
+#include "encoding_writer.h"
 
 #include "chunk_writer.h"
 #include "config.h"
-#include "encoding_writer.h"
 
 #include <core/concurrency/scheduler.h>
 
@@ -19,13 +19,15 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
-    IBlockCachePtr blockCache)
+    IBlockCachePtr blockCache,
+    NLogging::TLogger& logger)
     : ChunkWriter_(chunkWriter)
     , EncodingWriter_(New<TEncodingWriter>(
         config,
         options,
         ChunkWriter_,
-        blockCache))
+        blockCache,
+        logger))
 {
     MiscExt_.set_compression_codec(static_cast<int>(options->CompressionCodec));
     MiscExt_.set_eden(options->ChunksEden);
