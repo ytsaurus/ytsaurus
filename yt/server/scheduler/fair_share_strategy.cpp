@@ -263,10 +263,7 @@ public:
         auto demand = ResourceDemand();
         auto usage = ResourceUsage();
         auto totalLimits = Host->GetTotalResourceLimits();
-        auto allocationLimits = GetAdjustedResourceLimits(
-            demand,
-            totalLimits,
-            Host->GetExecNodeCount());
+
         auto maxPossibleResourceUsage = Min(totalLimits, MaxPossibleResourceUsage());
 
         if (usage == ZeroNodeResources()) {
@@ -277,7 +274,6 @@ public:
 
         i64 dominantDemand = GetResource(demand, Attributes_.DominantResource);
         i64 dominantUsage = GetResource(usage, Attributes_.DominantResource);
-        i64 dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
         i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
 
         Attributes_.DemandRatio =
@@ -285,9 +281,6 @@ public:
 
         Attributes_.UsageRatio =
             dominantLimit == 0 ? 1.0 : (double) dominantUsage / dominantLimit;
-
-        Attributes_.BestAllocationRatio =
-            dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
 
         Attributes_.DominantLimit = dominantLimit;
 
@@ -1036,6 +1029,22 @@ public:
         DynamicAttributesMap.At(this).BestLeafDescendant = MakeWeak(this);
     }
 
+    virtual void UpdateBottomUp() override
+    {
+        TSchedulerElementBase::UpdateBottomUp();
+
+        auto totalLimits = Host->GetTotalResourceLimits();
+        auto allocationLimits = GetAdjustedResourceLimits(
+            ResourceDemand_,
+            totalLimits,
+            Host->GetExecNodeCount());
+
+        i64 dominantLimit = GetResource(totalLimits, Attributes_.DominantResource);
+        i64 dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
+
+        Attributes_.BestAllocationRatio =
+            dominantLimit == 0 ? 1.0 : (double) dominantAllocationLimit / dominantLimit;
+    }
 
     virtual void PrescheduleJob(TFairShareContext& context, bool starvingOnly) override
     {
