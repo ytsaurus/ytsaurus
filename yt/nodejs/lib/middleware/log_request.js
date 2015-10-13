@@ -105,7 +105,6 @@ exports.that = function Middleware__YtLogRequest()
                 rsp_bytes      : req._bytes_out
             });
             var tags = req.tags;
-            tags.http_method = req.method;
             tags.http_code = rsp.statusCode;
             profiler.inc("yt.http_proxy.request_count", tags, 1);
             profiler.inc("yt.http_proxy.request_bytes_in", tags, req._bytes_in);
