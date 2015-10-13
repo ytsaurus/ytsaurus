@@ -169,17 +169,32 @@ void TJsonConsumerImpl::OnStringScalar(const TStringBuf& value)
 {
     if (IsWriteAllowed()) {
         TStringBuf writeValue = value;
-        if (CheckLimit && Config->StringLengthLimit && value.Size() > *Config->StringLengthLimit) {
-            // To prevent length check while writing this attribute
-            CheckLimit = false;
-            OnBeginAttributes();
-                OnKeyedItem("incomplete");
-                OnStringScalar("true");
-            OnEndAttributes();
-            CheckLimit = true;
 
-            writeValue = value.substr(0, *Config->StringLengthLimit);
+        if (Config->AttributesMode != EJsonAttributesMode::Never) {
+            if (CheckLimit && Config->StringLengthLimit && value.Size() > *Config->StringLengthLimit ) {
+                if (!HasAttributes) {
+                    JsonWriter->OpenMap();
+                    InAttributesBalance += 1;
+                    HasAttributes = true;
+                }
+
+                JsonWriter->Write("$incomplete");
+                JsonWriter->Write("true");
+                writeValue = value.substr(0, *Config->StringLengthLimit);
+            }
+
+            if (Config->AnnotateWithTypes) {
+                if (!HasAttributes) {
+                    JsonWriter->OpenMap();
+                    InAttributesBalance += 1;
+                    HasAttributes = true;
+                }
+
+                JsonWriter->Write("$type");
+                JsonWriter->Write("string");
+            }
         }
+
         EnterNode();
         WriteStringScalar(writeValue);
         LeaveNode();
@@ -189,8 +204,21 @@ void TJsonConsumerImpl::OnStringScalar(const TStringBuf& value)
 void TJsonConsumerImpl::OnInt64Scalar(i64 value)
 {
     if (IsWriteAllowed()) {
+        if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
+            if (!HasAttributes) {
+                JsonWriter->OpenMap();
+                InAttributesBalance += 1;
+                HasAttributes = true;
+            }
+            JsonWriter->Write("$type");
+            JsonWriter->Write("int64");
+        }
         EnterNode();
-        JsonWriter->Write(value);
+        if (Config->Stringify) {
+            WriteStringScalar(::ToString(value));
+        } else {
+            JsonWriter->Write(value);
+        }
         LeaveNode();
     }
 }
@@ -198,17 +226,44 @@ void TJsonConsumerImpl::OnInt64Scalar(i64 value)
 void TJsonConsumerImpl::OnUint64Scalar(ui64 value)
 {
     if (IsWriteAllowed()) {
+        if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
+            if (!HasAttributes) {
+                JsonWriter->OpenMap();
+                InAttributesBalance += 1;
+                HasAttributes = true;
+            }
+            JsonWriter->Write("$type");
+            JsonWriter->Write("uint64");
+        }
         EnterNode();
-        JsonWriter->Write(value);
+        if (Config->Stringify) {
+            WriteStringScalar(::ToString(value));
+        } else {
+            JsonWriter->Write(value);
+        }
         LeaveNode();
+
     }
 }
 
 void TJsonConsumerImpl::OnDoubleScalar(double value)
 {
     if (IsWriteAllowed()) {
+        if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
+            if (!HasAttributes) {
+                JsonWriter->OpenMap();
+                InAttributesBalance += 1;
+                HasAttributes = true;
+            }
+            JsonWriter->Write("$type");
+            JsonWriter->Write("double");
+        }
         EnterNode();
-        JsonWriter->Write(value);
+        if (Config->Stringify) {
+            WriteStringScalar(::ToString(value));
+        } else {
+            JsonWriter->Write(value);
+        }
         LeaveNode();
     }
 }
@@ -216,13 +271,22 @@ void TJsonConsumerImpl::OnDoubleScalar(double value)
 void TJsonConsumerImpl::OnBooleanScalar(bool value)
 {
     if (IsWriteAllowed()) {
-        if (Config->BooleanAsString) {
-            OnStringScalar(FormatBool(value));
-        } else {
-            EnterNode();
-            JsonWriter->Write(value);
-            LeaveNode();
+        if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
+            if (!HasAttributes) {
+                JsonWriter->OpenMap();
+                InAttributesBalance += 1;
+                HasAttributes = true;
+            }
+            JsonWriter->Write("$type");
+            JsonWriter->Write("boolean");
         }
+        EnterNode();
+        if (Config->BooleanAsString || Config->Stringify) {
+            WriteStringScalar(FormatBool(value));
+        } else {
+            JsonWriter->Write(value);
+        }
+        LeaveNode();
     }
 }
 
@@ -295,8 +359,8 @@ void TJsonConsumerImpl::OnEndAttributes()
 {
     InAttributesBalance -= 1;
     if (Config->AttributesMode != EJsonAttributesMode::Never) {
-        HasAttributes = true;
         JsonWriter->CloseMap();
+        HasAttributes = true;
     }
 }
 
