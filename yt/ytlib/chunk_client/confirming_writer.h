@@ -18,7 +18,7 @@ namespace NChunkClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IChunkWriterPtr CreateLazyChunkWriter(
+IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     const NTransactionClient::TTransactionId& transactionId,

@@ -39,6 +39,12 @@ def yt_register_cleanup_step(func):
     _cleanup_steps.append(func)
 
 
+def rmtree_onerror(fn, path, excinfo):
+    teamcity_message(
+        "Error occured while executing {} on '{}': {}".format(fn, path, excinfo),
+        status="WARNING")
+
+
 ################################################################################
 # Here are actual steps. All the meaty guts are way below.
 
@@ -84,13 +90,8 @@ def prepare(options):
         raise RuntimeError("Failed to locate CXX compiler")
 
     # Temporaly turn off
+    # options.use_lto = (options.type != "Debug")
     options.use_lto = False
-    #options.use_lto = (options.type != "Debug")
-
-    def rmtree_onerror(fn, path, excinfo):
-        teamcity_message(
-            "Error occured while executing {} on '{}': {}".format(fn, path, excinfo),
-            status="WARNING")
 
     if os.path.exists(options.working_directory) and options.clean_working_directory:
         teamcity_message("Cleaning working directory...", status="WARNING")
@@ -338,7 +339,9 @@ def run_integration_tests(options):
 def run_python_libraries_tests(options):
     kill_by_name("ytserver")
     kill_by_name("node")
-    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory), pytest_args=["--ignore=pyinstaller"])
+    run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
+               pytest_args=["--ignore=pyinstaller"])
+
 
 @yt_register_build_step
 def build_python_packages(options):
@@ -346,19 +349,6 @@ def build_python_packages(options):
         def normalize(v):
             return map(int, v.replace("-", ".").split("."))
         return cmp(normalize(version1), normalize(version2))
-
-    #def extract_version(package):
-    #    output = run_captured(
-    #        """ssh dist.yandex.ru 'find /repo/  -name "*{0}_*.changes"'""".format(package),
-    #        ignore_return_code=True,
-    #        shell=True)
-    #    filenames = filter(None, output.split("\n"))
-    #    filenames = filter(lambda filename: not "REJECT" in filename, filenames)
-    #    versions = map(lambda filename: filename.split(package)[1].split("_")[1], filenames)
-    #    if not versions:
-    #        return ""
-    #    else:
-    #        return sorted(versions, reverse=True, cmp=versions_cmp)[0]
 
     def extract_version(package):
         versions = []
@@ -385,16 +375,22 @@ def build_python_packages(options):
             if i == retry_count - 1:
                 raise
 
-    for package in ["yandex-yt-python", "yandex-yt-python-tools", "yandex-yt-python-yson", "yandex-yt-transfer-manager", "yandex-yt-python-fennel"]:
+    for package in ["yandex-yt-python", "yandex-yt-python-tools",
+                    "yandex-yt-python-yson", "yandex-yt-transfer-manager",
+                    "yandex-yt-python-fennel"]:
         with cwd(options.checkout_directory, "python", package):
-            package_version = run_captured("dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
+            package_version = run_captured(
+                "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
             uploaded_version = extract_version(package)
-            teamcity_message("Package {0}. Current version: {1}, dist version: {2}".format(package, package_version, uploaded_version))
+            teamcity_message(
+                "Package {0}; package version: {1}; uploaded version: {2}".format(
+                    package, package_version, uploaded_version))
             if versions_cmp(package_version, uploaded_version) <= 0:
                 continue
             run(["dch", "-r", package_version, "'Resigned by teamcity'"])
         with cwd(options.checkout_directory, "python"):
             run(["./deploy.sh", package], cwd=os.path.join(options.checkout_directory, "python"))
+
 
 @yt_register_build_step
 def run_perl_tests(options):
@@ -403,19 +399,19 @@ def run_perl_tests(options):
     kill_by_name("ytserver")
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
+
 @yt_register_cleanup_step
 def clean_artifacts(options, n=10):
-    for path in ls(
-        "{0}/ARTIFACTS".format(options.working_directory),
-        reverse=True,
-        select=os.path.isfile,
-        start=n,
-        stop=sys.maxint):
-            teamcity_message("Removing {0}...".format(path), status="WARNING")
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-            else:
-                os.unlink(path)
+    for path in ls("{0}/ARTIFACTS".format(options.working_directory),
+                   reverse=True,
+                   select=os.path.isfile,
+                   start=n,
+                   stop=sys.maxint):
+        teamcity_message("Removing {0}...".format(path), status="WARNING")
+        if os.path.isdir(path):
+            shutil.rmtree(path, onerror=rmtree_onerror)
+        else:
+            os.unlink(path)
 
 
 @yt_register_cleanup_step
@@ -428,7 +424,7 @@ def clean_failed_tests(options, max_allowed_size=50 * 1024 * 1024 * 1024):
         if total_size + size > max_allowed_size:
             teamcity_message("Removing {0}...".format(path), status="WARNING")
             if os.path.isdir(path):
-                run("rm -rf " + path, shell=True)
+                shutil.rmtree(path, onerror=rmtree_onerror)
             else:
                 os.unlink(path)
         else:
@@ -566,6 +562,7 @@ class ChildKeepsRunningInIsolation(Exception):
 class ChildHasNonZeroExitCode(Exception):
     pass
 
+
 class StepFailedWithNonCriticalError(Exception):
     pass
 
@@ -592,6 +589,7 @@ def run_captured(*args, **kwargs):
 
 def run_preexec():
     resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+
 
 def run(args, cwd=None, env=None, silent_stdout=False, silent_stderr=False, shell=False):
     POLL_TIMEOUT = 1.0

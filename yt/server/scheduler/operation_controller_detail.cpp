@@ -1515,6 +1515,7 @@ void TOperationControllerBase::AttachOutputChunks()
             flushReq();
         }
 
+<<<<<<< HEAD
         {
             auto req = TChunkListYPathProxy::GetStatistics(FromObjectId(table.OutputChunkListId));
             batchReq->AddRequest(req, "get_statistics");
@@ -1557,6 +1558,15 @@ void TOperationControllerBase::EndUploadOutputTables()
                 ToProto(req->mutable_key_columns(), table.KeyColumns);
             }
             SetTransactionId(req, table.UploadTransactionId);
+=======
+        if (!table.KeyColumns.empty()) {
+            LOG_INFO("Table %v will be marked as sorted by [%v]",
+                table.Path.GetPath(),
+                JoinToString(table.KeyColumns));
+            auto req = TTableYPathProxy::SetSorted(path);
+            ToProto(req->mutable_key_columns(), table.KeyColumns);
+            SetTransactionId(req, OutputTransactionId);
+>>>>>>> prestable/0.17.4
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");
         }
@@ -2784,6 +2794,15 @@ void TOperationControllerBase::LockInputTables()
 
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
+<<<<<<< HEAD
+=======
+                    LOG_INFO("Input table is sorted (Path: %v, KeyColumns: [%v])",
+                        path,
+                        JoinToString(table.KeyColumns));
+                } else {
+                    LOG_INFO("Input table is not sorted (Path: %v)",
+                        path);
+>>>>>>> prestable/0.17.4
                 }
 
                 table.ChunkCount = attributes.Get<int>("chunk_count");
@@ -3338,7 +3357,11 @@ TKeyColumns TOperationControllerBase::CheckInputTablesSorted(const TKeyColumns& 
         const auto& referenceTable = InputTables[0];
         for (const auto& table : InputTables) {
             if (table.KeyColumns != referenceTable.KeyColumns) {
+<<<<<<< HEAD
                 THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by [%v] while input table %v is sorted by [%v]",
+=======
+                THROW_ERROR_EXCEPTION("Key columns do not match: input table %v is sorted by columns [%v] while input table %v is sorted by columns [%v]",
+>>>>>>> prestable/0.17.4
                     table.Path.GetPath(),
                     JoinToString(table.KeyColumns),
                     referenceTable.Path.GetPath(),
@@ -3364,6 +3387,26 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     }
 
     return true;
+}
+
+//! Returns longest common prefix of input table keys.
+TKeyColumns TOperationControllerBase::GetCommonInputKeyPrefix()
+{
+    auto commonKey = InputTables[0].KeyColumns;
+    for (const auto& table : InputTables) {
+        if (table.KeyColumns.size() < commonKey.size()) {
+            commonKey.erase(commonKey.begin() + table.KeyColumns.size(), commonKey.end());
+        }
+
+        int i = 0;
+        for (; i < static_cast<int>(commonKey.size()); ++i) {
+            if (commonKey[i] != table.KeyColumns[i]) {
+                break;
+            }
+        }
+        commonKey.erase(commonKey.begin() + i, commonKey.end());
+    }
+    return commonKey;
 }
 
 bool TOperationControllerBase::IsSortedOutputSupported() const
@@ -3806,6 +3849,16 @@ const NProto::TUserJobResult* TOperationControllerBase::FindUserJobResult(const 
         return &schedulerJobResultExt.user_job_result();
     }
     return nullptr;
+}
+
+void TOperationControllerBase::ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation)
+{
+    if (spec && spec->FilePaths.size() > Config->MaxUserFileCount) {
+        THROW_ERROR_EXCEPTION("Too many user files in %v: maximum allowed %v, actual %v",
+            operation,
+            Config->MaxUserFileCount,
+            spec->FilePaths.size());
+    }
 }
 
 void TOperationControllerBase::Persist(TPersistenceContext& context)

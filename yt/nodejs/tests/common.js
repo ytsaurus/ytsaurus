@@ -33,6 +33,22 @@ global.stubLogger = function(callback) {
     return stub;
 };
 
+global.stubProfiler = function() {
+    function impl(method, metric, tags, value) {
+        var keys = Object.keys(tags).sort();
+        var parts = [];
+        for (var i = 0, n = keys.length; i < n; ++i) {
+            parts.push("" + keys[i] + "=" + tags[keys[i]]);
+        }
+        var tagsString = parts.join(";");
+        __DBG("[PROFILER] " + metric + "/" + tagsString + "#" + method + "(" + value + ")");
+    }
+    return {
+        inc: function(metric, tags, value) { impl("inc", metric, tags, value); },
+        upd: function(metric, tags, value) { impl("upd", metric, tags, value); },
+    };
+};
+
 global.HTTP_PORT = 0;
 global.HTTP_HOST = "127.0.0.1";
 global.HTTP_LAG  = 5;

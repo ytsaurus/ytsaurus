@@ -23,6 +23,7 @@
 * `sort --sort-by {keys} --src {table} --dst {table}`
 * `merge --mode {mode} --src {table} [...] --dst {table} [...]`
 * `map|reduce {command} --format {format} --src {table} [...] --dst {table} [...] [--file {file} ...] [--local-file {file} ...] [--reduce-by {keys}]`
+* `join_reduce {command} --format {format} --src {table} [...] --dst {table} [...] [--file {file} ...] [--local-file {file} ...] [--join-by {keys}]`
 * `map_reduce [--mapper {mapper}] --reducer {reducer} --src {table} [...] --dst {table} [...] --reduce-by {reduce_by} [...] --sort-by {sort_by} [...] [--map-file {file} ...] ...`
 * `abort_op {op_id}`
 

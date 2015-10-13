@@ -76,6 +76,8 @@ private:
 
     };
 
+    NLogging::TLogger Logger = TableClientLogger;
+
     TChunkWriterConfigPtr Config;
     TEncodingWriterOptionsPtr Options;
     IChunkWriterPtr UnderlyingWriter;
@@ -130,7 +132,8 @@ TChunkWriter::TChunkWriter(
         config,
         options,
         chunkWriter,
-        blockCache))
+        blockCache,
+        Logger))
     , IsNewKey(false)
     , RowIndex(0)
     , LargestBlockSize(0)

@@ -7,6 +7,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_spec.cpp
   ${CMAKE_CURRENT_LIST_DIR}/client_block_cache.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/confirming_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/data_statistics.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/encoding_chunk_writer.cpp
@@ -38,19 +39,20 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_list_ypath_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_meta_extensions.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_owner_ypath_proxy.h
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_reader_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_replica.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_replica-inl.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_scraper.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_service_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_slice.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_spec.h
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_writer_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_ypath_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/client_block_cache.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
+  ${CMAKE_CURRENT_LIST_DIR}/confirming_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/data_node_service_proxy.h
   ${CMAKE_CURRENT_LIST_DIR}/data_statistics.h
   ${CMAKE_CURRENT_LIST_DIR}/dispatcher.h
@@ -66,14 +68,14 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/lazy_chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/memory_writer.h
-  ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader_base.h
-  ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/multi_chunk_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/private.h
   ${CMAKE_CURRENT_LIST_DIR}/public.h
-  ${CMAKE_CURRENT_LIST_DIR}/read_limit.h
   ${CMAKE_CURRENT_LIST_DIR}/reader_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/read_limit.h
   ${CMAKE_CURRENT_LIST_DIR}/replication_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/replication_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/schema.h

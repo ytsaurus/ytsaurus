@@ -11,11 +11,10 @@
 
 #include <core/ytree/attribute_helpers.h>
 
-#include <core/logging/log.h>
-
 #include <ytlib/api/client.h>
 #include <ytlib/api/journal_reader.h>
 #include <ytlib/api/journal_writer.h>
+#include <ytlib/api/transaction.h>
 
 #include <ytlib/hydra/hydra_manager.pb.h>
 
@@ -33,8 +32,18 @@ using namespace NTransactionClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStore)
+DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TYPath GetChangelogPath(const TYPath& path, int id)
+{
+    return Format("%v/%09d", path, id);
+}
+
+} // namespace
 
 class TRemoteChangelogStore
     : public IChangelogStore
@@ -45,14 +54,21 @@ public:
         TRemoteChangelogStoreOptionsPtr options,
         const TYPath& remotePath,
         IClientPtr masterClient,
-        const std::vector<TTransactionId>& prerequisiteTransactionIds)
+        ITransactionPtr prerequisiteTransaction,
+        TVersion reachableVersion)
         : Config_(config)
         , Options_(options)
         , Path_(remotePath)
         , MasterClient_(masterClient)
-        , PrerequisiteTransactionIds_(prerequisiteTransactionIds)
+        , PrerequisiteTransaction_(prerequisiteTransaction)
+        , ReachableVersion_(reachableVersion)
     {
         Logger.AddTag("Path: %v", Path_);
+    }
+
+    virtual TVersion GetReachableVersion() const override
+    {
+        return ReachableVersion_;
     }
 
     virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
@@ -69,28 +85,22 @@ public:
             .Run(id);
     }
 
-    virtual TFuture<int> GetLatestChangelogId(int initialId) override
-    {
-        return BIND(&TRemoteChangelogStore::DoGetLatestChangelog, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
-            .Run(initialId);
-    }
-
 private:
     const TRemoteChangelogStoreConfigPtr Config_;
     const TRemoteChangelogStoreOptionsPtr Options_;
     const TYPath Path_;
     const IClientPtr MasterClient_;
-    const std::vector<TTransactionId> PrerequisiteTransactionIds_;
+    const ITransactionPtr PrerequisiteTransaction_;
+    const TVersion ReachableVersion_;
 
     NLogging::TLogger Logger = HydraLogger;
 
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
     {
-        auto path = GetChangelogPath(id);
+        auto path = GetChangelogPath(Path_, id);
         try {
-            LOG_DEBUG("Creating changelog %v",
+            LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
                 id);
 
             {
@@ -101,7 +111,7 @@ private:
                 attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
                 attributes->Set("prev_record_count", meta.prev_record_count());
                 options.Attributes = std::move(attributes);
-                options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
+                options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
                 auto asyncResult = MasterClient_->CreateNode(
                     path,
@@ -114,14 +124,14 @@ private:
             IJournalWriterPtr writer;
             {
                 TJournalWriterOptions options;
-                options.PrerequisiteTransactionIds = PrerequisiteTransactionIds_;
+                options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
                 writer = MasterClient_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())
                     .ThrowOnError();
             }
 
-            LOG_DEBUG("Changelog %v created",
+            LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
                 id);
 
             return CreateRemoteChangelog(
@@ -140,13 +150,13 @@ private:
 
     IChangelogPtr DoOpenChangelog(int id)
     {
-        auto path = GetChangelogPath(id);
+        auto path = GetChangelogPath(Path_, id);
         try {
             TChangelogMeta meta;
             int recordCount;
             i64 dataSize;
 
-            LOG_DEBUG("Getting attributes of changelog %v",
+            LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
                 id);
             {
                 TGetNodeOptions options;
@@ -168,17 +178,17 @@ private:
 
                 if (!attributes.Get<bool>("sealed")) {
                     THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
-                        id);
+                        path);
                 }
 
                 meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
                 dataSize = attributes.Get<i64>("uncompressed_data_size");
             }
-            LOG_DEBUG("Changelog %v attributes received",
+            LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
                 id);
 
-            // TODO(babenko): consolidate with the above when YT-624 is done
-            LOG_DEBUG("Getting quorum record count for changelog %v",
+            // TODO(babenko): consolidate with the above after merging into 18.0
+            LOG_DEBUG("Getting remote changelog quorum record count (ChangelogId: %v)",
                 id);
             {
                 auto asyncResult = MasterClient_->GetNode(path + "/@quorum_row_count");
@@ -186,7 +196,7 @@ private:
                     .ValueOrThrow();
                 recordCount = ConvertTo<int>(result);
             }
-            LOG_DEBUG("Changelog %v quorum record count received (RecordCount: %v)",
+            LOG_DEBUG("Remote changelog quorum record count received (ChangelogId: %v, RecordCount: %v)",
                 id,
                 recordCount);
 
@@ -204,51 +214,6 @@ private:
         }
     }
 
-    int DoGetLatestChangelog(int initialId)
-    {
-        try {
-            LOG_DEBUG("Requesting changelog list from remote store");
-            auto result = WaitFor(MasterClient_->ListNode(Path_))
-                .ValueOrThrow();
-            LOG_DEBUG("Changelog list received");
-
-            auto keys = ConvertTo<std::vector<Stroka>>(result);
-            int latestId = InvalidSegmentId;
-            yhash_set<int> ids;
-
-            for (const auto& key : keys) {
-                int id;
-                try {
-                    id = FromString<int>(key);
-                } catch (const std::exception&) {
-                    LOG_WARNING("Unrecognized item %Qv in remote store %v",
-                        key,
-                        Path_);
-                    continue;
-                }
-                YCHECK(ids.insert(id).second);
-                if (id >= initialId && (id > latestId || latestId == InvalidSegmentId)) {
-                    latestId = id;
-                }
-            }
-
-            if (latestId != InvalidSegmentId) {
-                for (int id = initialId; id <= latestId; ++id) {
-                    if (ids.find(id) == ids.end()) {
-                        THROW_ERROR_EXCEPTION("Interim changelog %v is missing",
-                            id);
-                    }
-                }
-            }
-
-            return latestId;
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error computing the latest changelog id in remote store %v",
-                Path_)
-                << ex;
-        }
-    }
-
     IChangelogPtr CreateRemoteChangelog(
         int id,
         const TYPath& path,
@@ -262,13 +227,8 @@ private:
             meta,
             recordCount,
             dataSize,
-            writer, 
+            writer,
             this);
-    }
-
-    TYPath GetChangelogPath(int id)
-    {
-        return Format("%v/%09d", Path_, id);
     }
 
 
@@ -381,19 +341,172 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStore)
 
-IChangelogStorePtr CreateRemoteChangelogStore(
+class TRemoteChangelogStoreFactory
+    : public IChangelogStoreFactory
+{
+public:
+    TRemoteChangelogStoreFactory(
+        TRemoteChangelogStoreConfigPtr config,
+        TRemoteChangelogStoreOptionsPtr options,
+        const TYPath& remotePath,
+        IClientPtr masterClient,
+        const TTransactionId& prerequisiteTransactionId)
+        : Config_(config)
+        , Options_(options)
+        , Path_(remotePath)
+        , MasterClient_(masterClient)
+        , PrerequisiteTransactionId_(prerequisiteTransactionId)
+    {
+        Logger.AddTag("Path: %v", Path_);
+    }
+
+    virtual TFuture<IChangelogStorePtr> Lock() override
+    {
+        return BIND(&TRemoteChangelogStoreFactory::DoLock, MakeStrong(this))
+            .AsyncVia(GetHydraIOInvoker())
+            .Run();
+    }
+
+private:
+    const TRemoteChangelogStoreConfigPtr Config_;
+    const TRemoteChangelogStoreOptionsPtr Options_;
+    const TYPath Path_;
+    const IClientPtr MasterClient_;
+    const TTransactionId PrerequisiteTransactionId_;
+
+    NLogging::TLogger Logger = HydraLogger;
+
+
+    IChangelogStorePtr DoLock()
+    {
+        try {
+            auto prerequisiteTransaction = CreatePrerequisiteTransaction();
+
+            TakeLock(prerequisiteTransaction);
+
+            auto reachableVersion = ComputeReachableVersion();
+
+            return New<TRemoteChangelogStore>(
+                Config_,
+                Options_,
+                Path_,
+                MasterClient_,
+                prerequisiteTransaction,
+                reachableVersion);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error locking remote changelog store %v",
+                Path_)
+                << ex;
+        }
+    }
+
+    ITransactionPtr CreatePrerequisiteTransaction()
+    {
+        TTransactionStartOptions options;
+        options.ParentId = PrerequisiteTransactionId_;
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Lock for changelog store %v", Path_));
+        options.Attributes = std::move(attributes);
+        return WaitFor(MasterClient_->StartTransaction(ETransactionType::Master, options))
+            .ValueOrThrow();
+    }
+
+    void TakeLock(ITransactionPtr prerequisiteTransaction)
+    {
+        TLockNodeOptions options;
+        options.ChildKey = "lock";
+        WaitFor(prerequisiteTransaction->LockNode(Path_, NCypressClient::ELockMode::Shared, options))
+            .ThrowOnError();
+    }
+
+    int GetLatestChangelogId()
+    {
+        LOG_DEBUG("Requesting changelog list from remote store");
+        auto result = WaitFor(MasterClient_->ListNode(Path_))
+            .ValueOrThrow();
+        LOG_DEBUG("Changelog list received");
+
+        auto keys = ConvertTo<std::vector<Stroka>>(result);
+        int latestId = InvalidSegmentId;
+        for (const auto& key : keys) {
+            int id;
+            try {
+                id = FromString<int>(key);
+            } catch (const std::exception&) {
+                LOG_WARNING("Unrecognized item %Qv in remote changelog store",
+                    key);
+                continue;
+            }
+            if (id > latestId || latestId == InvalidSegmentId) {
+                latestId = id;
+            }
+        }
+
+        return latestId;
+    }
+
+    TVersion ComputeReachableVersion()
+    {
+        int latestId = GetLatestChangelogId();
+
+        if (latestId == InvalidSegmentId) {
+            return TVersion();
+        }
+
+        auto path = GetChangelogPath(Path_, latestId);
+
+        LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
+            latestId);
+        {
+            TGetNodeOptions options;
+            options.AttributeFilter.Mode = EAttributeFilterMode::MatchingOnly;
+            options.AttributeFilter.Keys.push_back("sealed");
+            auto result = WaitFor(MasterClient_->GetNode(path, options));
+            auto node = ConvertToNode(result.ValueOrThrow());
+
+            const auto& attributes = node->Attributes();
+            if (!attributes.Get<bool>("sealed")) {
+                THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
+                    path);
+            }
+        }
+        LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
+            latestId);
+
+        // TODO(babenko): consolidate with the above after mering into 18.0
+        LOG_DEBUG("Getting remote changelog quorum record count (ChangelogId: %v)",
+            latestId);
+        int recordCount;
+        {
+            auto asyncResult = MasterClient_->GetNode(path + "/@quorum_row_count");
+            auto result = WaitFor(asyncResult)
+                .ValueOrThrow();
+            recordCount = ConvertTo<int>(result);
+        }
+        LOG_DEBUG("Remote changelog quorum record count received (ChangelogId: %v, RecordCount: %v)",
+            latestId,
+            recordCount);
+
+        return TVersion(latestId, recordCount);
+    }
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreFactory)
+
+IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     TRemoteChangelogStoreConfigPtr config,
     TRemoteChangelogStoreOptionsPtr options,
     const TYPath& path,
     IClientPtr masterClient,
-    const std::vector<TTransactionId>& prerequisiteTransactionIds)
+    const TTransactionId& prerequisiteTransactionId)
 {
-    return New<TRemoteChangelogStore>(
+    return New<TRemoteChangelogStoreFactory>(
         config,
         options,
         path,
         masterClient,
-        prerequisiteTransactionIds);
+        prerequisiteTransactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

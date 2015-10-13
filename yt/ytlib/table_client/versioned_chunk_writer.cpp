@@ -3,6 +3,7 @@
 
 #include "chunk_meta_extensions.h"
 #include "config.h"
+#include "private.h"
 #include "versioned_block_writer.h"
 #include "versioned_writer.h"
 #include "unversioned_row.h"
@@ -57,6 +58,8 @@ public:
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
 
 private:
+    NLogging::TLogger Logger = TableClientLogger;
+
     TChunkWriterConfigPtr Config_;
     TTableSchema Schema_;
     TKeyColumns KeyColumns_;
@@ -119,7 +122,8 @@ TVersionedChunkWriter::TVersionedChunkWriter(
         config,
         options,
         chunkWriter,
-        blockCache))
+        blockCache,
+        Logger))
     , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
     , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_, KeyColumns_))
     , MinTimestamp_(MaxTimestamp)
@@ -127,7 +131,9 @@ TVersionedChunkWriter::TVersionedChunkWriter(
 #if 0
     , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
 #endif
-{ }
+{ 
+    Logger.AddTag("VersionedChunkWriter: %p", this);
+}
 
 TFuture<void> TVersionedChunkWriter::Open()
 {

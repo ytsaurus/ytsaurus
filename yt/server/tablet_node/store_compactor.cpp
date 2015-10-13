@@ -369,15 +369,6 @@ private:
         auto automatonInvoker = GetCurrentInvoker();
         auto poolInvoker = ThreadPool_->GetInvoker();
 
-        // XXX(sandello): This is for debugging purposes only. ;(
-        bool luckyTable = false;
-        {
-            auto tableId = eden->GetTablet()->GetTableId();
-            if (tableId.Parts32[0] == 3896074345 && tableId.Parts32[1] == 65864081) {
-               luckyTable = true;
-            }
-        }
-
         try {
             i64 dataSize = 0;
             for (const auto& store : stores) {
@@ -479,20 +470,11 @@ private:
 
                 writeRowCount += writeRows.size();
 
-                if (luckyTable) {
-                    LOG_DEBUG("[LUCKY] Flushing %v rows", writeRows.size());
-                    for (int i = 0; i < writeRows.size(); ++i) {
-                        LOG_DEBUG("[LUCKY] writeRows[%v] = %v", i, writeRows[i]);
-                    }
-                }
-
                 ensurePartitionStarted();
                 if (!currentWriter->Write(writeRows)) {
                     WaitFor(currentWriter->GetReadyEvent())
                         .ThrowOnError();
                 }
-
-                LOG_DEBUG_IF(luckyTable, "[LUCKY] Done flushing rows");
 
                 writeRows.clear();
             };
@@ -539,7 +521,6 @@ private:
                     flushOutputRows();
                     currentRowIndex = 0;
                     while (true) {
-                        LOG_DEBUG_IF(luckyTable, "[LUCKY] Refilling input rows");
                         if (!reader->Read(&readRows)) {
                             return TVersionedRow();
                         }
@@ -549,9 +530,6 @@ private:
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                     }
-                }
-                if (luckyTable) {
-                    LOG_DEBUG("[LUCKY] Reading row %v", readRows[currentRowIndex]);
                 }
                 return readRows[currentRowIndex];
             };
@@ -566,8 +544,6 @@ private:
             for (auto it = pivotKeys.begin(); it != pivotKeys.end(); ++it) {
                 currentPivotKey = *it;
                 nextPivotKey = it == pivotKeys.end() - 1 ? nextTabletPivotKey : *(it + 1);
-
-                LOG_DEBUG_IF(luckyTable, "[LUCKY] Current partition pivot key is %v", currentPivotKey);
 
                 while (true) {
                     auto row = peekInputRow();
@@ -586,12 +562,8 @@ private:
                     writeOutputRow(row);
                 }
 
-                LOG_DEBUG_IF(luckyTable, "[LUCKY] Flushing partition");
-
                 flushPartition();
             }
-
-            LOG_DEBUG_IF(luckyTable, "[LUCKY] Done!");
 
             SwitchTo(automatonInvoker);
 

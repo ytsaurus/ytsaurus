@@ -43,6 +43,9 @@ public:
         const Stroka& path,
         TFileChangelogConfigPtr config);
 
+    //! Flushes all active changelogs owned by this dispatcher.
+    TFuture<void> FlushChangelogs();
+
 private:
     class TImpl;
     using TImplPtr = TIntrusivePtr<TImpl>;

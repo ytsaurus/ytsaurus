@@ -12,7 +12,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Fetches samples for a bunch of table chunks by requesting
+//! Fetches slices for a bunch of table chunks by requesting
 //! them directly from data nodes.
 class TChunkSlicesFetcher
     : public NChunkClient::TFetcherBase
@@ -30,15 +30,18 @@ public:
 
 
     virtual TFuture<void> Fetch() override;
-    const std::vector<NChunkClient::TChunkSlicePtr>& GetChunkSlices() const;
+    std::vector<NChunkClient::TChunkSlicePtr> GetChunkSlices();
 
 private:
     i64 ChunkSliceSize_;
     TKeyColumns KeyColumns_;
     bool SliceByKeys_;
 
-    //! All samples fetched so far.
-    std::vector<NChunkClient::TChunkSlicePtr> ChunkSlices_;
+    //! All slices fetched so far.
+    std::vector<std::vector<NChunkClient::TChunkSlicePtr>> SlicesByChunkIndex_;
+
+    //! Number of slices in SlicesByChunkIndex_.
+    i64 SliceCount_ = 0;
 
 
     virtual TFuture<void> FetchFromNode(

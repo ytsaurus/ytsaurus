@@ -90,6 +90,7 @@ public:
         REGISTER(TMapExecutor,               "map"               );
         REGISTER(TSortExecutor,              "sort"              );
         REGISTER(TReduceExecutor,            "reduce"            );
+        REGISTER(TJoinReduceExecutor,        "join_reduce"       );
         REGISTER(TMapReduceExecutor,         "map_reduce"        );
         REGISTER(TAbortOperationExecutor,    "abort_op"          );
         REGISTER(TSuspendOperationExecutor,  "suspend_op"        );
