@@ -20,7 +20,8 @@ clean
 
 # Build debian package
 DEB=1 python setup.py sdist --dist-dir=../
-DEB=1 dpkg-buildpackage -i -I -rfakeroot
+# NB: Never strip binaries and so-libraries.
+DEB_STRIP_EXCLUDE=".*" DEB=1 dpkg-buildpackage -i -I -rfakeroot
 
 # Upload debian package
 REPOS=""
