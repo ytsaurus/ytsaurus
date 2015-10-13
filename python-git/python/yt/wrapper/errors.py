@@ -77,10 +77,12 @@ class YtHttpResponseError(YtResponseError):
         self.headers = deepcopy(headers)
         self.message = "Received response with error. Requested {0} with headers {1}"\
             .format(url, json.dumps(hide_token(dict(self.headers)), indent=4, sort_keys=True))
-
+        if self.is_request_rate_limit_exceeded():
+            self.__class__ = YtRequestRateLimitExceeded
 
 class YtRequestRateLimitExceeded(YtHttpResponseError):
-    """Deprecated! Use YtResponseError.is_request_rate_limit_exceeded method."""
+    """ Request rate limit exceeded error. """
+    """ It is used in retries. """
     pass
 
 class YtProxyUnavailable(YtError):
@@ -89,10 +91,8 @@ class YtProxyUnavailable(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "headers": response.request_headers}
+            "headers": hide_token(response.request_headers)}
         super(YtProxyUnavailable, self).__init__(message="Proxy is unavailable", attributes=attributes, inner_errors=[response.json()])
-        #self.message = "Proxy is under heavy load. Requested {0} with headers {1}"\
-        #    .format(response.url, json.dumps(hide_token(response.request_headers), indent=4, sort_keys=True))
 
 class YtIncorrectResponse(YtError):
     """Incorrect proxy response."""
@@ -100,11 +100,8 @@ class YtIncorrectResponse(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "headers": response.request_headers}
+            "headers": hide_token(response.request_headers)}
         super(YtIncorrectResponse, self).__init__(message, attributes=attributes)
-        #self.response = response
-        #self.message = message + " Requested {0} with headers {1}"\
-        #    .format(response.url, json.dumps(hide_token(response.request_headers), indent=4, sort_keys=True))
 
 class YtTokenError(YtError):
     """Some problem occurred with authentication token."""
