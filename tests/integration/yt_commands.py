@@ -330,7 +330,7 @@ def start_op(op_type, **kwargs):
     op_name = None
     if op_type == "map":
         op_name = "mapper"
-    if op_type == "reduce":
+    if op_type == "reduce" or op_type == "join_reduce":
         op_name = "reducer"
 
     input_name = None
@@ -339,7 +339,7 @@ def start_op(op_type, **kwargs):
         input_name = "input_table_paths"
 
     output_name = None
-    if op_type in ["map", "reduce", "map_reduce"]:
+    if op_type in ["map", "reduce", "join_reduce", "map_reduce"]:
         kwargs["out"] = prepare_paths(kwargs["out"])
         output_name = "output_table_paths"
     elif "out" in kwargs:
@@ -349,7 +349,7 @@ def start_op(op_type, **kwargs):
     if "file" in kwargs:
         kwargs["file"] = prepare_paths(kwargs["file"])
 
-    for opt in ["sort_by", "reduce_by"]:
+    for opt in ["sort_by", "reduce_by", "join_by"]:
         flat(kwargs, opt)
 
     change(kwargs, "table_path", ["spec", "table_path"])
@@ -359,6 +359,7 @@ def start_op(op_type, **kwargs):
     change(kwargs, "file", ["spec", op_name, "file_paths"])
     change(kwargs, "sort_by", ["spec","sort_by"])
     change(kwargs, "reduce_by", ["spec","reduce_by"])
+    change(kwargs, "join_by", ["spec","join_by"])
     change(kwargs, "mapper_file", ["spec", "mapper", "file_paths"])
     change(kwargs, "reduce_combiner_file", ["spec", "reduce_combiner", "file_paths"])
     change(kwargs, "reducer_file", ["spec", "reducer", "file_paths"])
@@ -388,6 +389,9 @@ def merge(**kwargs):
 
 def reduce(**kwargs):
     return start_op("reduce", **kwargs)
+
+def join_reduce(**kwargs):
+    return start_op("join_reduce", **kwargs)
 
 def map_reduce(**kwargs):
     return start_op("map_reduce", **kwargs)

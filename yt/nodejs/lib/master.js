@@ -26,10 +26,10 @@ var MEMORY_PRESSURE_HIT_TIMESTAMP = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterHandle(logger, logger_ts, worker)
+function YtClusterHandle(logger, profiler, worker)
 {
     this.logger     = logger;
-    this.logger_ts  = logger_ts;
+    this.profiler   = profiler;
     this.worker     = worker;
     this.state      = "unknown";
     this.young      = true;
@@ -111,6 +111,9 @@ YtClusterHandle.prototype.handleMessage = function(message)
         case "log":
             this.handleLog(message.level, message.message, message.payload);
             break;
+        case "profile":
+            this.handleProfile(message.method, message.metric, message.tags, message.value);
+            break;
         case "heartbeat":
             if (!__DBG.$) {
                 this.worker.send({ type : "heartbeat" });
@@ -130,7 +133,7 @@ YtClusterHandle.prototype.handleMessage = function(message)
             this.postponeDeath(TIMEOUT_COOLDOWN);
             break;
         default:
-            this.logger_ts.warn(
+            this.logger.warn(
                 "Received unknown message of type '" + message.type +
                 "' from worker " + this.toString());
             break;
@@ -146,11 +149,16 @@ YtClusterHandle.prototype.handleLog = function(level, message, payload)
         var time_next = MEMORY_PRESSURE_HIT_TIMESTAMP + MEMORY_PRESSURE_HIT_COOLDOWN;
 
         if (time_now > time_next) {
-            this.logger_ts.warn("Logging is disabled due to high memory pressure");
+            this.logger.warn("Logging is disabled due to high memory pressure");
 
             MEMORY_PRESSURE_HIT_TIMESTAMP = time_now;
         }
     }
+};
+
+YtClusterHandle.prototype.handleProfile = function(method, metric, tags, value)
+{
+    this.profiler[method](metric, tags, value);
 };
 
 YtClusterHandle.prototype.postponeDeath = function(timeout)
@@ -180,7 +188,7 @@ YtClusterHandle.prototype.ageToDeath = function()
         return;
     }
 
-    this.logger_ts.info("Worker is not responding", {
+    this.logger.info("Worker is not responding", {
         wid : this.getWid(),
         pid : this.getPid(),
         handle : this.toString()
@@ -195,7 +203,7 @@ YtClusterHandle.prototype.certifyDeath = function()
         return;
     }
 
-    this.logger_ts.info("Worker is dead", {
+    this.logger.info("Worker is dead", {
         wid : this.getWid(),
         pid : this.getPid(),
         handle : this.toString()
@@ -214,7 +222,7 @@ YtClusterHandle.prototype.certifyDeath = function()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterMaster(logger, number_of_workers, cluster_options)
+function YtClusterMaster(bunyan_logger, profiler, number_of_workers, cluster_options)
 {
     __DBG("New");
 
@@ -230,8 +238,20 @@ function YtClusterMaster(logger, number_of_workers, cluster_options)
 
     var getTS = function getTS() { return new Date().toISOString(); };
 
-    this.logger = logger;
-    this.logger_ts = new utils.TaggedLogger(logger, { timestamp: getTS });
+    function logEvent(level, message, payload) {
+        payload = payload || {};
+        payload.name = undefined;
+        bunyan_logger[level](payload, message);
+    }
+
+    this.logger = {
+        debug: function(m, p) { return logEvent("debug", m, p); },
+        info: function(m, p) { return logEvent("debug", m, p); },
+        warn: function(m, p) { return logEvent("debug", m, p); },
+        error: function(m, p) { return logEvent("debug", m, p); },
+    };
+
+    this.profiler = profiler;
 
     __DBG("Expected number of workers is " + number_of_workers);
 
@@ -253,7 +273,7 @@ function YtClusterMaster(logger, number_of_workers, cluster_options)
             !self.workers_handles.hasOwnProperty(worker.id),
             "Received |message| event from the dead worker");
 
-        self.logger_ts.info("Worker has exited", {
+        self.logger.info("Worker has exited", {
             wid    : worker.id,
             pid    : worker.process.pid,
             code   : code,
@@ -305,10 +325,10 @@ YtClusterMaster.prototype.spawnNewWorker = function()
 {
     var worker = cluster.fork();
     var handle = this.workers_handles[worker.id] =
-        new YtClusterHandle(this.logger, this.logger_ts, worker);
+        new YtClusterHandle(this.logger, this.profiler, worker);
 
     worker.on("message", handle.handleMessage.bind(handle));
-    this.logger_ts.info("Spawned young worker");
+    this.logger.info("Spawned young worker");
 };
 
 YtClusterMaster.prototype.killOldWorker = function()
@@ -319,7 +339,7 @@ YtClusterMaster.prototype.killOldWorker = function()
             handle = this.workers_handles[p];
             if (!handle.young) {
                 handle.kill();
-                this.logger_ts.info("Killed old worker", {
+                this.logger.info("Killed old worker", {
                     handle : handle.toString()
                 });
             }
@@ -342,18 +362,18 @@ YtClusterMaster.prototype.respawnWorkers = function()
 
     if (n_young === 0) {
         if (n_target > 0) {
-            this.logger_ts.info("Young generation is dead; resurrecting...");
+            this.logger.info("Young generation is dead; resurrecting...");
             will_spawn = true;
             will_reschedule = true;
         }
     } else {
         if (n_young < n_total) {
-            this.logger_ts.info("Old generation is alive; killing...");
+            this.logger.info("Old generation is alive; killing...");
             will_kill = true;
             will_reschedule = false;
         }
         if (n_young < n_target) {
-            this.logger_ts.info("More young workers required; spawning...");
+            this.logger.info("More young workers required; spawning...");
             will_spawn = true;
             will_reschedule = true;
         }
@@ -387,7 +407,7 @@ YtClusterMaster.prototype.scheduleRespawnWorkers = function()
 
 YtClusterMaster.prototype.restartWorkers = function()
 {
-    this.logger_ts.info("Starting rolling restart of workers");
+    this.logger.info("Starting rolling restart of workers");
     for (var i in this.workers_handles) {
         if (this.workers_handles.hasOwnProperty(i)) {
             this.workers_handles[i].young = false;
@@ -399,7 +419,7 @@ YtClusterMaster.prototype.restartWorkers = function()
 YtClusterMaster.prototype.shutdownWorkers = function()
 {
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
-    this.logger_ts.info("Starting graceful shutdown");
+    this.logger.info("Starting graceful shutdown");
     var i;
     for (i in cluster.workers) {
         if (cluster.workers.hasOwnProperty(i)) {
@@ -420,10 +440,10 @@ YtClusterMaster.prototype.shutdownWorkersLoop = function()
     // NB: Rely an actual cluster state, not on |this.workers_handles|.
     var n = Object.keys(cluster.workers).length;
     if (n > 0) {
-        this.logger_ts.info("There are " + n + " workers alive", { n : n });
+        this.logger.info("There are " + n + " workers alive", { n : n });
         setTimeout(this.shutdownWorkersLoop.bind(this), 1000);
     } else {
-        this.logger_ts.info("All workers gone");
+        this.logger.info("All workers gone");
         process.exit();
     }
 };

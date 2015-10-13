@@ -57,6 +57,9 @@ struct IChunkWriter
     virtual TChunkReplicaList GetWrittenChunkReplicas() const = 0;
 
     //! Returns the id of the chunk being written.
+    /*!
+     *  Can only be called when the writer is successfully open.
+     */
     virtual TChunkId GetChunkId() const = 0;
 };
 

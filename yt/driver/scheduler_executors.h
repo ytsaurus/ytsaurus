@@ -123,6 +123,26 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////////
 
+class TJoinReduceExecutor
+    : public TStartOpExecutor
+{
+public:
+    TJoinReduceExecutor();
+
+private:
+    TCLAP::MultiArg<NYPath::TRichYPath> InArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> OutArg;
+    TCLAP::ValueArg<Stroka> CommandArg;
+    TCLAP::MultiArg<NYPath::TRichYPath> FileArg;
+    TCLAP::ValueArg<Stroka> JoinByArg;
+
+    virtual void BuildParameters(NYson::IYsonConsumer* consumer) override;
+    virtual Stroka GetCommandName() const override;
+    virtual NScheduler::EOperationType GetOperationType() const override;
+};
+
+//////////////////////////////////////////////////////////////////////////////////
+
 class TMapReduceExecutor
     : public TStartOpExecutor
 {

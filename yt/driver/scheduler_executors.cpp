@@ -298,6 +298,57 @@ EOperationType TReduceExecutor::GetOperationType() const
 
 //////////////////////////////////////////////////////////////////////////////////
 
+TJoinReduceExecutor::TJoinReduceExecutor()
+    : InArg("", "in", "input table path", false, "YPATH")
+    , OutArg("", "out", "output table path", false, "YPATH")
+    , CommandArg("", "command", "reducer shell command", true, "", "STRING")
+    , FileArg("", "file", "additional file path", false, "YPATH")
+    , JoinByArg("", "join_by", "columns to join by"
+        "(if omitted then all input tables are assumed to have same key columns)",
+        false, "", "YSON_LIST_FRAGMENT")
+{
+    CmdLine.add(InArg);
+    CmdLine.add(OutArg);
+    CmdLine.add(CommandArg);
+    CmdLine.add(FileArg);
+    CmdLine.add(JoinByArg);
+}
+
+void TJoinReduceExecutor::BuildParameters(IYsonConsumer* consumer)
+{
+    auto inputs = PreprocessYPaths(InArg.getValue());
+    auto outputs = PreprocessYPaths(OutArg.getValue());
+    auto files = PreprocessYPaths(FileArg.getValue());
+    auto joinBy = ConvertTo< std::vector<Stroka> >(TYsonString(JoinByArg.getValue(), EYsonType::ListFragment));
+
+    BuildYsonMapFluently(consumer)
+        .Item("spec").BeginMap()
+            .Item("input_table_paths").Value(inputs)
+            .Item("output_table_paths").Value(outputs)
+            .DoIf(!joinBy.empty(), [=] (TFluentMap fluent) {
+                fluent.Item("join_by").Value(joinBy);
+            })
+            .Item("reducer").BeginMap()
+                .Item("command").Value(CommandArg.getValue())
+                .Item("file_paths").Value(files)
+            .EndMap()
+        .EndMap();
+
+    TTransactedExecutor::BuildParameters(consumer);
+}
+
+Stroka TJoinReduceExecutor::GetCommandName() const
+{
+    return "join_reduce";
+}
+
+EOperationType TJoinReduceExecutor::GetOperationType() const
+{
+    return EOperationType::JoinReduce;
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 TMapReduceExecutor::TMapReduceExecutor()
     : InArg("", "in", "input table path", false, "YPATH")
     , OutArg("", "out", "output table path", false, "YPATH")

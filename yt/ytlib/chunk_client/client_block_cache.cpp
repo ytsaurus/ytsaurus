@@ -147,7 +147,7 @@ public:
         EBlockType type) override
     {
         auto cache = FindPerTypeCache(type);
-        return cache ? PerTypeCaches_[type]->Find(id) : TSharedRef();
+        return cache ? cache->Find(id) : TSharedRef();
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override

@@ -26,7 +26,7 @@ exports.that = function Middleware__YtIsolateRequest()
             console.error("E   SID = " + socket_id);
             console.error("EEE " + body);
 
-            logger.error(error.message, {
+            logger.error("Request domain has been breached", {
                 request_id: request_id,
                 socket_id: socket_id,
                 // TODO(sandello): Embed.

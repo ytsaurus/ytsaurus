@@ -13,7 +13,11 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
+<<<<<<< HEAD
     return version == GetCurrentSnapshotVersion();
+=======
+    return version == 29;
+>>>>>>> prestable/0.17.4
 }
 
 ////////////////////////////////////////////////////////////////////

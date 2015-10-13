@@ -142,7 +142,7 @@ typedef TParser::token_type TToken;
         '>>' => { type = TToken::OpRightShift; fbreak; };
 
         # Single-character tokens.
-        [()*,<=>+-/%.|&!] => {
+        [()*,<=>+-/%.|&~] => {
             type = static_cast<TToken>(fc);
             fbreak;
         };

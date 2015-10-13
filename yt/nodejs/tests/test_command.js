@@ -318,6 +318,7 @@ describe("YtCommand - command descriptors", function() {
             'get',
             'get_version',
             'insert_rows',
+            'join_reduce',
             'link',
             'list',
             'lock',

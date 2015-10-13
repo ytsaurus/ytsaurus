@@ -20,8 +20,8 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreOptionsPtr options,
     const NYPath::TYPath& path,
     NApi::IClientPtr masterClient,
-    const std::vector<NTransactionClient::TTransactionId>& prerequisiteTransactionIds =
-        std::vector<NTransactionClient::TTransactionId>());
+    const NTransactionClient::TTransactionId& prerequisiteTransactionId =
+        NTransactionClient::NullTransactionId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -111,12 +111,6 @@ public:
         }
     }
 
-    void CancelAndClear(TDelayedExecutorCookie& entry)
-    {
-        Cancel(entry);
-        entry.Reset();
-    }
-
 private:
     ev::periodic PeriodicWatcher_;
 
@@ -203,27 +197,49 @@ TDelayedExecutor::TImpl* TDelayedExecutor::GetImpl()
 
 TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
 {
-    return GetImpl()->Thread->MakeDelayed(delay);
+    auto impl = GetImpl();
+    if (impl) {
+        return impl->Thread->MakeDelayed(delay);
+    } else {
+        return MakeFuture(TError("System was shut down"));
+    }
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TDuration delay)
 {
-    return GetImpl()->Thread->Submit(std::move(callback), delay);
+    auto impl = GetImpl();
+    if (impl) {
+        return impl->Thread->Submit(std::move(callback), delay);
+    } else {
+        return NullDelayedExecutorCookie;
+    }
 }
 
 TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure callback, TInstant deadline)
 {
-    return GetImpl()->Thread->Submit(std::move(callback), deadline);
+    auto impl = GetImpl();
+    if (impl) {
+        return impl->Thread->Submit(std::move(callback), deadline);
+    } else {
+        return NullDelayedExecutorCookie;
+    }
 }
 
 void TDelayedExecutor::Cancel(TDelayedExecutorCookie entry)
 {
-    GetImpl()->Thread->Cancel(std::move(entry));
+    auto impl = GetImpl();
+    if (impl) {
+        impl->Thread->Cancel(std::move(entry));
+    }
 }
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& entry)
 {
-    GetImpl()->Thread->CancelAndClear(entry);
+    auto impl = GetImpl();
+    if (impl) {
+        impl->Thread->Cancel(entry);
+    }
+    entry.Reset();
 }
 
 void TDelayedExecutor::StaticShutdown()

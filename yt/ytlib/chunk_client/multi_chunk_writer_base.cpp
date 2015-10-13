@@ -8,7 +8,7 @@
 #include "config.h"
 #include "dispatcher.h"
 #include "private.h"
-#include "lazy_chunk_writer.h"
+#include "confirming_writer.h"
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
@@ -162,7 +162,7 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
 
 void TNontemplateMultiChunkWriterBase::InitSession()
 {
-    CurrentSession_.UnderlyingWriter = CreateLazyChunkWriter(
+    CurrentSession_.UnderlyingWriter = CreateConfirmingWriter(
         Config_,
         Options_,
         TransactionId_,
@@ -171,9 +171,6 @@ void TNontemplateMultiChunkWriterBase::InitSession()
         Client_,
         BlockCache_,
         Throttler_);
-
-    WaitFor(CurrentSession_.UnderlyingWriter->Open())
-        .ThrowOnError();
 
     CurrentSession_.TemplateWriter = CreateTemplateWriter(CurrentSession_.UnderlyingWriter);
     WaitFor(CurrentSession_.TemplateWriter->Open())

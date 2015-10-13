@@ -93,7 +93,7 @@
 
 
 
-%token OpTilde 33 "`~`"
+%token OpTilde 126 "`~`"
 %token OpVerticalBar 124 "`|`"
 %token OpAmpersand 38 "`&`"
 %token OpModulo 37 "`%`"
@@ -405,7 +405,7 @@ relational-op
 ;
 
 bitor-op-expr
-    : shift-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
+    : bitor-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
         }
@@ -414,7 +414,7 @@ bitor-op-expr
 ;
 
 bitand-op-expr
-    : shift-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
+    : bitand-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
         {
             $$ = MakeExpr<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
         }
@@ -552,11 +552,11 @@ const-value
             switch ($op) {
                 case EUnaryOp::Minus: {
                     if (auto data = $value->TryAs<i64>()) {
-                        $$ = i64(0) - *data;
+                        $$ = -*data;
                     } else if (auto data = $value->TryAs<ui64>()) {
-                        $$ = ui64(0) - *data;
+                        $$ = -*data;
                     } else if (auto data = $value->TryAs<double>()) {
-                        $$ = double(0) - *data;
+                        $$ = -*data;
                     } else {
                         THROW_ERROR_EXCEPTION("Negation of unsupported type");
                     }
@@ -565,6 +565,16 @@ const-value
                 case EUnaryOp::Plus:
                     $$ = $value;
                     break;
+                case EUnaryOp::BitNot: {
+                    if (auto data = $value->TryAs<i64>()) {
+                        $$ = ~*data;
+                    } else if (auto data = $value->TryAs<ui64>()) {
+                        $$ = ~*data;
+                    } else {
+                        THROW_ERROR_EXCEPTION("Bitwise negation of unsupported type");
+                    }
+                    break;
+                }
                 default:
                     YUNREACHABLE();
             }
