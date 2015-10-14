@@ -348,7 +348,7 @@ void TFollowerRecovery::DoRun()
             committedVersion = CommittedVersion_;
         }
 
-        DecoratedAutomaton_->CommitMutations(EpochContext_, committedVersion, false);
+        DecoratedAutomaton_->CommitMutations(committedVersion, false);
 
         TPostponedMutations postponedMutations;
         {
@@ -367,7 +367,7 @@ void TFollowerRecovery::DoRun()
                         break;
 
                     case TPostponedMutation::EType::ChangelogRotation: {
-                        WaitFor(DecoratedAutomaton_->RotateChangelog(EpochContext_))
+                        WaitFor(DecoratedAutomaton_->RotateChangelog())
                             .ThrowOnError();
                         break;
                     }

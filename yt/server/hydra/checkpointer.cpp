@@ -221,7 +221,7 @@ private:
         }
 
         awaiter->Await(
-            Owner_->DecoratedAutomaton_->RotateChangelog(Owner_->EpochContext_),
+            Owner_->DecoratedAutomaton_->RotateChangelog(),
             BIND(&TSession::OnLocalChangelogRotated, MakeStrong(this)));
 
         awaiter->Complete(

@@ -144,7 +144,7 @@ public:
         ElectionManager_ = New<TElectionManager>(
             Config_,
             CellManager_,
-            controlInvoker,
+            ControlInvoker_,
             New<TElectionCallbacks>(this));
 
         GuardedAutomatonInvoker_ = CreateGuardedAutomatonInvoker(AutomatonInvoker_);
@@ -171,8 +171,7 @@ public:
         if (ControlState_ != EPeerState::None)
             return;
 
-        DecoratedAutomaton_->GetSystemInvoker()->Invoke(
-            BIND(&TDecoratedAutomaton::Clear, DecoratedAutomaton_));
+        DecoratedAutomaton_->Initialize();
 
         RpcServer_->RegisterService(this);
         RpcServer_->RegisterService(ElectionManager_->GetRpcService());
@@ -567,7 +566,7 @@ private:
         switch (ControlState_) {
             case EPeerState::Following:
                 epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, epochContext, committedVersion, true));
+                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion, true));
                 break;
 
             case EPeerState::FollowerRecovery:
@@ -694,7 +693,7 @@ private:
 
                     followerCommitter->SuspendLogging();
 
-                    WaitFor(DecoratedAutomaton_->RotateChangelog(epochContext))
+                    WaitFor(DecoratedAutomaton_->RotateChangelog())
                         .ThrowOnError();
 
                     followerCommitter->ResumeLogging();
@@ -825,8 +824,6 @@ private:
 
         LOG_INFO("Reachable version is %v", *ReachableVersion_);
 
-        DecoratedAutomaton_->SetChangelogStore(ChangelogStore_);
-        DecoratedAutomaton_->SetLoggedVersion(*ReachableVersion_);
         ElectionManager_->Start();
     }
 
@@ -997,7 +994,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_ = epochContext;
-        DecoratedAutomaton_->OnStartLeading();
+        DecoratedAutomaton_->OnStartLeading(epochContext);
         StartLeading_.Fire();
 
         SwitchTo(epochContext->EpochControlInvoker);
@@ -1071,7 +1068,6 @@ private:
         }
     }
 
-public:
     void OnElectionStopLeading()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1121,7 +1117,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_ = epochContext;
-        DecoratedAutomaton_->OnStartFollowing();
+        DecoratedAutomaton_->OnStartFollowing(epochContext);
         StartFollowing_.Fire();
     }
 
@@ -1231,6 +1227,8 @@ public:
         auto electionEpochContext = ElectionManager_->GetEpochContext();
 
         auto epochContext = New<TEpochContext>();
+        epochContext->ChangelogStore = ChangelogStore_;
+        epochContext->ReachableVersion = *ReachableVersion_;
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;
