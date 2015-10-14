@@ -171,6 +171,9 @@ public:
         if (ControlState_ != EPeerState::None)
             return;
 
+        DecoratedAutomaton_->GetSystemInvoker()->Invoke(
+            BIND(&TDecoratedAutomaton::Clear, DecoratedAutomaton_));
+
         RpcServer_->RegisterService(this);
         RpcServer_->RegisterService(ElectionManager_->GetRpcService());
 
@@ -919,8 +922,9 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto epochContext = epochContext_.Lock();
-        if (!epochContext)
+        if (!epochContext) {
             return;
+        }
 
         if (error.IsOK()) {
             LOG_INFO("Distributed changelog rotation succeeded");
