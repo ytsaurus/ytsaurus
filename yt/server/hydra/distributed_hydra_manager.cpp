@@ -169,9 +169,6 @@ public:
         if (ControlState_ != EPeerState::None)
             return;
 
-        DecoratedAutomaton_->GetSystemInvoker()->Invoke(
-            BIND(&TDecoratedAutomaton::Clear, DecoratedAutomaton_));
-
         RpcServer_->RegisterService(this);
         RpcServer_->RegisterService(ElectionManager_->GetRpcService());
 
@@ -1040,12 +1037,16 @@ private:
         result.Subscribe(BIND(
             &TDistributedHydraManager::OnChangelogRotated,
             MakeWeak(this),
-            epochContext));
+            MakeWeak(epochContext)));
     }
 
-    void OnChangelogRotated(TEpochContextPtr epochContext, const TError& error)
+    void OnChangelogRotated(TWeakPtr<TEpochContext> epochContext_, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        auto epochContext = epochContext_.Lock();
+        if (!epochContext)
+            return;
 
         if (error.IsOK()) {
             LOG_INFO("Distributed changelog rotation succeeded");
