@@ -1703,19 +1703,23 @@ private:
                 const auto& batchRsp = batchRspOrError.Value();
 
                 TNullable<EObjectType> commonType;
+                TNullable<Stroka> pathWithCommonType;
                 auto checkType = [&] (EObjectType type, const TYPath& path) {
                     if (type != EObjectType::Table && type != EObjectType::File) {
-                        THROW_ERROR_EXCEPTION("Type of source %v must be %Qlv or %Qlv",
+                        THROW_ERROR_EXCEPTION("Type of %v must be either %Qlv or %Qlv",
                             path,
                             EObjectType::Table,
                             EObjectType::File);
                     }
                     if (commonType && *commonType != type) {
-                        THROW_ERROR_EXCEPTION("Types of all sources must be same: %Qlv != %Qlv",
+                        THROW_ERROR_EXCEPTION("Type of %v (%Qlv) must be the same as type of %v (%Qlv)",
+                            path,
                             type,
+                            *pathWithCommonType,
                             *commonType);
                     }
                     commonType = type;
+                    pathWithCommonType = path;
                 };
 
                 {
