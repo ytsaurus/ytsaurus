@@ -10,7 +10,7 @@
 #include <ytlib/table_client/chunk_meta_extensions.h>
 #include <ytlib/table_client/unversioned_row.h>
 
-#include <core/ytree/yson_string.h>
+#include <core/yson/string.h>
 #include <core/ytree/convert.h>
 
 namespace NYT {
