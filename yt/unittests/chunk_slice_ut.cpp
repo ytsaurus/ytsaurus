@@ -12,8 +12,20 @@
 
 #include <core/yson/string.h>
 #include <core/ytree/convert.h>
+#include <core/ytree/node.h>
 
 namespace NYT {
+
+// Function is defined here due to ADL.
+void PrintTo(NChunkClient::TChunkSlicePtr slice, ::std::ostream* os)
+{
+    auto readableLowerLimit = NYTree::ConvertToYsonString(slice->LowerLimit(), NYson::EYsonFormat::Text).Data();
+    auto readableUpperLimit = NYTree::ConvertToYsonString(slice->UpperLimit(), NYson::EYsonFormat::Text).Data();
+    *os << "chunk slice with " << slice->GetRowCount() << " rows, "
+        << "lower limit " << readableLowerLimit << " and "
+        << "upper limit " << readableUpperLimit;
+}
+
 namespace NChunkClient {
 namespace {
 
@@ -26,7 +38,34 @@ using namespace NYson;
 
 using NChunkClient::TReadLimit;
 
+using testing::PrintToString;
+
 //////////////////////////////////////////////////////////////////////////////
+
+MATCHER_P(HasRowCount, rowCount, "has row count " + std::string(negation ? "not " : "") + PrintToString(rowCount))
+{
+    return arg->GetRowCount() == rowCount;
+}
+
+MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ? "not " : "") + lowerLimit)
+{
+    auto actualLimitAsNode = ConvertToNode(arg->LowerLimit());
+
+    auto expectedLimitAsText = TYsonString(lowerLimit);
+    auto expectedLimitAsNode = ConvertToNode(expectedLimitAsText);
+
+    return AreNodesEqual(actualLimitAsNode, expectedLimitAsNode);
+}
+
+MATCHER_P(HasUpperLimit, upperLimit, "has upper limit " + std::string(negation ? "not " : "") + upperLimit)
+{
+    auto actualLimitAsNode = ConvertToNode(arg->UpperLimit());
+
+    auto expectedLimitAsText = TYsonString(upperLimit);
+    auto expectedLimitAsNode = ConvertToNode(expectedLimitAsText);
+
+    return AreNodesEqual(actualLimitAsNode, expectedLimitAsNode);
+}
 
 class TChunkSliceTest
     : public ::testing::Test
@@ -41,20 +80,23 @@ public:
             ETableChunkFormat::SchemalessHorizontal,
             1, // keyRepetitions
             0); // chunkRows
-        OneKeyChunk_ = CreateChunkSpec(
-            ETableChunkFormat::SchemalessHorizontal,
-            300); // keyRepetitions
+
         OneKeyOldChunk_ = CreateChunkSpec(
             ETableChunkFormat::Old,
             300); // keyRepetitions
-        TwoKeyChunk_ = CreateChunkSpec(
+        OneKeyChunk_ = CreateChunkSpec(
             ETableChunkFormat::SchemalessHorizontal,
-            170); // keyRepetitions
+            300); // keyRepetitions
+
         TwoKeyOldChunk_ = CreateChunkSpec(
             ETableChunkFormat::Old,
             170); // keyRepetitions
-        OldChunkWithLimits_ = CreateChunkSpec(
+        TwoKeyChunk_ = CreateChunkSpec(
             ETableChunkFormat::SchemalessHorizontal,
+            170); // keyRepetitions
+
+        OldChunkWithLimits_ = CreateChunkSpec(
+            ETableChunkFormat::Old,
             2, // keyRepetitions
             300, // chunkRows
             "{lower_limit={key=[\"10010\"];row_index=100};upper_limit={}}");
@@ -63,8 +105,9 @@ public:
             2, // keyRepetitions
             300, // chunkRows
             "{lower_limit={key=[\"10010\"];row_index=100};upper_limit={}}");
+
         OldChunk2WithLimits_ = CreateChunkSpec(
-            ETableChunkFormat::SchemalessHorizontal,
+            ETableChunkFormat::Old,
             2, // keyRepetitions
             300, // chunkRows
             "{lower_limit={};upper_limit={key=[\"10280\"];row_index=240}}",
@@ -79,10 +122,10 @@ public:
 
 protected:
     TRefCountedChunkSpecPtr EmptyChunk_;
-    TRefCountedChunkSpecPtr OneKeyChunk_;
     TRefCountedChunkSpecPtr OneKeyOldChunk_;
-    TRefCountedChunkSpecPtr TwoKeyChunk_;
+    TRefCountedChunkSpecPtr OneKeyChunk_;
     TRefCountedChunkSpecPtr TwoKeyOldChunk_;
+    TRefCountedChunkSpecPtr TwoKeyChunk_;
     TRefCountedChunkSpecPtr OldChunkWithLimits_;
     TRefCountedChunkSpecPtr ChunkWithLimits_;
     TRefCountedChunkSpecPtr OldChunk2WithLimits_;
@@ -109,30 +152,6 @@ protected:
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue(FormatKey(key)));
         return builder.FinishRow();
-    }
-
-    TOwningKey KeySuccessorWithValue(i64 key)
-    {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedStringValue(FormatKey(key)));
-        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
-        return builder.FinishRow();
-    }
-
-    NChunkClient::TReadRange ConvertToRange(const Stroka& yson) {
-        return ConvertTo<NChunkClient::TReadRange>(TYsonString(yson));
-    }
-
-    Stroka ConvertLimitsToYson(TChunkSlicePtr slice) {
-        using NChunkClient::TReadRange;
-        return ConvertToYsonString(
-            TReadRange(slice->LowerLimit(), slice->UpperLimit()),
-            NYson::EYsonFormat::Text
-        ).Data();
-    }
-
-    NChunkClient::TReadLimit ConvertToLimit(const Stroka& yson) {
-        return ConvertTo<NChunkClient::TReadLimit>(TYsonString(yson));
     }
 
     TRefCountedChunkSpecPtr CreateChunkSpec(
@@ -228,23 +247,26 @@ TEST_F(TChunkSliceTest, OneKeyChunkSmallSlice)
             500, // sliceDataSize
             1,   // keyColumnCount
             DoSliceByKeys);
-        EXPECT_EQ(keySlices.size(), 1);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10000"]};"upper_limit"={"key"=["10000";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 300);
+        EXPECT_EQ(1, keySlices.size());
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({key=["10000"]})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({key=["10000";<type=max>#]})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(300));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
             500, // sliceDataSize
             1,   // keyColumnCount
             DoSliceByRows);
-        EXPECT_EQ(rowSlices.size(), 7);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices[0]),
-            R"_({"lower_limit"={"key"=["10000"];"row_index"=0};"upper_limit"={"key"=["10000";<"type"="max">#];"row_index"=39}})_");
-        EXPECT_EQ(rowSlices[0]->GetRowCount(), 39);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices.back()),
-            R"_({"lower_limit"={"key"=["10000"];"row_index"=237};"upper_limit"={"key"=["10000";<"type"="max">#];"row_index"=300}})_");
-        EXPECT_EQ(rowSlices.back()->GetRowCount(), 63);
+        EXPECT_EQ(7, rowSlices.size());
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=39})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(39));
+
+        EXPECT_THAT(rowSlices[6], HasLowerLimit(R"_({"key"=["10000"];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[6], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=300})_"));
+        EXPECT_THAT(rowSlices[6], HasRowCount(63));
     }
 }
 
@@ -257,9 +279,10 @@ TEST_F(TChunkSliceTest, OneKeyChunkLargeSlice)
             1,    // keyColumnCount
             DoSliceByKeys);
         EXPECT_EQ(keySlices.size(), 1);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10000"]};"upper_limit"={"key"=["10000";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 300);
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10000"]})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(300));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
@@ -267,12 +290,14 @@ TEST_F(TChunkSliceTest, OneKeyChunkLargeSlice)
             1,    // keyColumnCount
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 2);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices[0]),
-            R"_({"lower_limit"={"key"=["10000"];"row_index"=0};"upper_limit"={"key"=["10000";<"type"="max">#];"row_index"=237}})_");
-        EXPECT_EQ(rowSlices[0]->GetRowCount(), 237);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices.back()),
-            R"_({"lower_limit"={"key"=["10000"];"row_index"=237};"upper_limit"={"key"=["10000";<"type"="max">#];"row_index"=300}})_");
-        EXPECT_EQ(rowSlices.back()->GetRowCount(), 63);
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(237));
+
+        EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10000"];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=300})_"));
+        EXPECT_THAT(rowSlices[1], HasRowCount(63));
     }
 }
 
@@ -285,12 +310,14 @@ TEST_F(TChunkSliceTest, TwoKeyChunkSmallSlice)
             1,   // keyColumnCount
             DoSliceByKeys);
         EXPECT_EQ(keySlices.size(), 2);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10000"]};"upper_limit"={"key"=["10000";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 158);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices.back()),
-            R"_({"lower_limit"={"key"=["10000";<"type"="max">#]};"upper_limit"={"key"=["10001";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices.back()->GetRowCount(), 142);
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10000"]})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(158));
+
+        EXPECT_THAT(keySlices[1], HasLowerLimit(R"_({"key"=["10000";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[1], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[1], HasRowCount(142));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
@@ -298,12 +325,14 @@ TEST_F(TChunkSliceTest, TwoKeyChunkSmallSlice)
             1,   // keyColumnCount
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 7);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices[0]),
-            R"_({"lower_limit"={"key"=["10000"];"row_index"=0};"upper_limit"={"key"=["10000";<"type"="max">#];"row_index"=39}})_");
-        EXPECT_EQ(rowSlices[0]->GetRowCount(), 39);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices.back()),
-            R"_({"lower_limit"={"key"=["10001"];"row_index"=237};"upper_limit"={"key"=["10001";<"type"="max">#];"row_index"=300}})_");
-        EXPECT_EQ(rowSlices.back()->GetRowCount(), 63);
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=39})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(39));
+
+        EXPECT_THAT(rowSlices[6], HasLowerLimit(R"_({"key"=["10001"];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[6], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#];"row_index"=300})_"));
+        EXPECT_THAT(rowSlices[6], HasRowCount(63));
     }
 }
 
@@ -316,9 +345,10 @@ TEST_F(TChunkSliceTest, TwoKeyChunkLargeSlice)
             1,    // keyColumnCount
             DoSliceByKeys);
         EXPECT_EQ(keySlices.size(), 1);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10000"]};"upper_limit"={"key"=["10001";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 300);
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10000"]})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(300));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
@@ -326,12 +356,14 @@ TEST_F(TChunkSliceTest, TwoKeyChunkLargeSlice)
             1,    // keyColumnCount
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 2);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices[0]),
-            R"_({"lower_limit"={"key"=["10000"];"row_index"=0};"upper_limit"={"key"=["10001";<"type"="max">#];"row_index"=237}})_");
-        EXPECT_EQ(rowSlices[0]->GetRowCount(), 237);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices.back()),
-            R"_({"lower_limit"={"key"=["10001"];"row_index"=237};"upper_limit"={"key"=["10001";<"type"="max">#];"row_index"=300}})_");
-        EXPECT_EQ(rowSlices.back()->GetRowCount(), 63);
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(237));
+
+        EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10001"];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#];"row_index"=300})_"));
+        EXPECT_THAT(rowSlices[1], HasRowCount(63));
     }
 }
 
@@ -344,12 +376,14 @@ TEST_F(TChunkSliceTest, ChunkWithLimitSmallSlice)
             1,   // keyColumnCount
             DoSliceByKeys);
         EXPECT_EQ(keySlices.size(), 3);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10039"];"row_index"=100};"upper_limit"={"key"=["10078";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 58);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices.back()),
-            R"_({"lower_limit"={"key"=["10118";<"type"="max">#];"row_index"=100};"upper_limit"={"key"=["10149";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices.back()->GetRowCount(), 63);
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10078";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(58));
+
+        EXPECT_THAT(keySlices[2], HasLowerLimit(R"_({"key"=["10118";<"type"="max">#];"row_index"=100})_"));
+        EXPECT_THAT(keySlices[2], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[2], HasRowCount(63));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
@@ -357,12 +391,14 @@ TEST_F(TChunkSliceTest, ChunkWithLimitSmallSlice)
             1,   // keyColumnCount
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 4);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices[0]),
-            R"_({"lower_limit"={"key"=["10039"];"row_index"=100};"upper_limit"={"key"=["10078";<"type"="max">#];"row_index"=158}})_");
-        EXPECT_EQ(rowSlices[0]->GetRowCount(), 58);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices.back()),
-            R"_({"lower_limit"={"key"=["10118"];"row_index"=237};"upper_limit"={"key"=["10149";<"type"="max">#];"row_index"=300}})_");
-        EXPECT_EQ(rowSlices.back()->GetRowCount(), 63);
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10078";<"type"="max">#];"row_index"=158})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(58));
+
+        EXPECT_THAT(rowSlices[3], HasLowerLimit(R"_({"key"=["10118"];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[3], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#];"row_index"=300})_"));
+        EXPECT_THAT(rowSlices[3], HasRowCount(63));
     }
 }
 
@@ -375,9 +411,10 @@ TEST_F(TChunkSliceTest, ChunkWithLimitLargeSlice)
             1,    // keyColumnCount
             DoSliceByKeys);
         EXPECT_EQ(keySlices.size(), 1);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10039"];"row_index"=100};"upper_limit"={"key"=["10149";<"type"="max">#]}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 200);
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(200));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
@@ -385,9 +422,10 @@ TEST_F(TChunkSliceTest, ChunkWithLimitLargeSlice)
             1,    // keyColumnCount
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 1);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices[0]),
-            R"_({"lower_limit"={"key"=["10039"];"row_index"=100};"upper_limit"={"key"=["10149";<"type"="max">#];"row_index"=300}})_");
-        EXPECT_EQ(rowSlices[0]->GetRowCount(), 200);
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#];"row_index"=300})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(200));
     }
 }
 
@@ -400,12 +438,14 @@ TEST_F(TChunkSliceTest, Chunk2WithLimitSmallSlice)
             1,   // keyColumnCount
             DoSliceByKeys);
         EXPECT_EQ(keySlices.size(), 4);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10150"]};"upper_limit"={"key"=["10189";<"type"="max">#];"row_index"=240}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 79);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices.back()),
-            R"_({"lower_limit"={"key"=["10268";<"type"="max">#]};"upper_limit"={"key"=["10280"];"row_index"=240}})_");
-        EXPECT_EQ(keySlices.back()->GetRowCount(), 3);
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10150"]})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10189";<"type"="max">#];"row_index"=240})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(79));
+
+        EXPECT_THAT(keySlices[3], HasLowerLimit(R"_({"key"=["10268";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[3], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
+        EXPECT_THAT(keySlices[3], HasRowCount(3));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
@@ -413,12 +453,14 @@ TEST_F(TChunkSliceTest, Chunk2WithLimitSmallSlice)
             1,   // keyColumnCount
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 7);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices[0]),
-            R"_({"lower_limit"={"key"=["10150"];"row_index"=0};"upper_limit"={"key"=["10189";<"type"="max">#];"row_index"=39}})_");
-        EXPECT_EQ(rowSlices[0]->GetRowCount(), 39);
-        EXPECT_EQ(ConvertLimitsToYson(rowSlices.back()),
-            R"_({"lower_limit"={"key"=["10268"];"row_index"=237};"upper_limit"={"key"=["10280"];"row_index"=240}})_");
-        EXPECT_EQ(rowSlices.back()->GetRowCount(), 3);
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10150"];"row_index"=0})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10189";<"type"="max">#];"row_index"=39})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(39));
+
+        EXPECT_THAT(rowSlices[6], HasLowerLimit(R"_({"key"=["10268"];"row_index"=237})_"));
+        EXPECT_THAT(rowSlices[6], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
+        EXPECT_THAT(rowSlices[6], HasRowCount(3));
     }
 }
 
@@ -431,12 +473,14 @@ TEST_F(TChunkSliceTest, Chunk2WithLimitLargeSlice)
             1,    // keyColumnCount
             DoSliceByKeys);
         EXPECT_EQ(keySlices.size(), 2);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10150"]};"upper_limit"={"key"=["10268";<"type"="max">#];"row_index"=240}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 237);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices.back()),
-            R"_({"lower_limit"={"key"=["10268";<"type"="max">#]};"upper_limit"={"key"=["10280"];"row_index"=240}})_");
-        EXPECT_EQ(keySlices.back()->GetRowCount(), 3);
+
+        EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10150"]})_"));
+        EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10268";<"type"="max">#];"row_index"=240})_"));
+        EXPECT_THAT(keySlices[0], HasRowCount(237));
+
+        EXPECT_THAT(keySlices[1], HasLowerLimit(R"_({"key"=["10268";<"type"="max">#]})_"));
+        EXPECT_THAT(keySlices[1], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
+        EXPECT_THAT(keySlices[1], HasRowCount(3));
 
         auto rowSlices = SliceChunk(
             chunkSpec,
@@ -444,12 +488,15 @@ TEST_F(TChunkSliceTest, Chunk2WithLimitLargeSlice)
             1,    // keyColumnCount
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 2);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices[0]),
-            R"_({"lower_limit"={"key"=["10150"]};"upper_limit"={"key"=["10268";<"type"="max">#];"row_index"=240}})_");
-        EXPECT_EQ(keySlices[0]->GetRowCount(), 237);
-        EXPECT_EQ(ConvertLimitsToYson(keySlices.back()),
-            R"_({"lower_limit"={"key"=["10268";<"type"="max">#]};"upper_limit"={"key"=["10280"];"row_index"=240}})_");
-        EXPECT_EQ(keySlices.back()->GetRowCount(), 3);
+
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10150"]})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10268";<"type"="max">#];"row_index"=240})_"));
+        EXPECT_THAT(rowSlices[0], HasRowCount(237));
+
+        // XXX(sandello): Fixed copy-paste here.
+        EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10268";<"type"="max">#]})_"));
+        EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
+        EXPECT_THAT(rowSlices[1], HasRowCount(3));
     }
 }
 
