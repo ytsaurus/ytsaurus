@@ -4,7 +4,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "yamr_table.h"
-#include "yamr_writer_base.h"
+#include "schemaless_writer_adapter.h"
 
 #include <ytlib/table_client/public.h>
 
@@ -16,30 +16,33 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessYamrWriter
-    : public TSchemalessYamrWriterBase
+class TSchemalessYamrWriterBase
+    : public TSchemalessFormatWriterBase
 {
 public:
-    TSchemalessYamrWriter(
+    TSchemalessYamrWriterBase(
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         bool enableKeySwitch,
         int keyColumnCount,
-        TYamrFormatConfigPtr config = New<TYamrFormatConfig>());
+        TYamrFormatConfigBasePtr config);
 
-    // ISchemalessFormatWriter override.
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
+    // ISchemalessFormatWriter overrides.
+    virtual void WriteTableIndex(int tableIndex) override;
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+    virtual void WriteRowIndex(i64 rowIndex) override;
 
-private:
-    int KeyId_;
-    int SubkeyId_;
-    int ValueId_;
+protected:
+    TYamrFormatConfigBasePtr Config_;
+    TYamrTable Table_;
 
-    void ValidateColumnType(const NTableClient::TUnversionedValue* value);
+    void WriteInLenvalMode(const TStringBuf& value);
+    
+    void EscapeAndWrite(const TStringBuf& value, bool inKey);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemalessYamrWriter)
+DEFINE_REFCOUNTED_TYPE(TSchemalessYamrWriterBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
