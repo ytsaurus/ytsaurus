@@ -179,7 +179,7 @@ void TJsonConsumerImpl::OnStringScalar(const TStringBuf& value)
                 }
 
                 JsonWriter->Write("$incomplete");
-                JsonWriter->Write("true");
+                JsonWriter->Write(true);
                 writeValue = value.substr(0, *Config->StringLengthLimit);
             }
 
@@ -281,7 +281,7 @@ void TJsonConsumerImpl::OnBooleanScalar(bool value)
             JsonWriter->Write("boolean");
         }
         EnterNode();
-        if (Config->BooleanAsString || Config->Stringify) {
+        if (Config->BooleanAsString) {
             WriteStringScalar(FormatBool(value));
         } else {
             JsonWriter->Write(value);
