@@ -24,46 +24,17 @@ TSchemalessYamrWriter::TSchemalessYamrWriter(
     bool enableKeySwitch,
     int keyColumnCount,
     TYamrFormatConfigPtr config)
-    : TSchemalessFormatWriterBase(
+    : TSchemalessYamrWriterBase(
         nameTable, 
         std::move(output),
         enableContextSaving, 
         enableKeySwitch,
-        keyColumnCount)
-    , Config_(config)
-    , Table_(
-        config->FieldSeparator,
-        config->RecordSeparator,
-        config->EnableEscaping, // Enable key escaping
-        config->EnableEscaping, // Enable value escaping
-        config->EscapingSymbol,
-        true)
+        keyColumnCount,
+        config)
 {
     KeyId_ = nameTable->GetIdOrRegisterName(config->Key);
     SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
     ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
-}
-
-void TSchemalessYamrWriter::EscapeAndWrite(const TStringBuf& value, bool inKey)
-{
-    auto* stream = GetOutputStream();
-    if (Config_->EnableEscaping) {
-        WriteEscaped(
-            stream,
-            value,
-            inKey ? Table_.KeyStops : Table_.ValueStops,
-            Table_.Escapes,
-            Config_->EscapingSymbol);
-    } else {
-        stream->Write(value);
-    }
-}
-
-void TSchemalessYamrWriter::WriteInLenvalMode(const TStringBuf& value)
-{
-    auto* stream = GetOutputStream();
-    WritePod(*stream, static_cast<ui32>(value.size()));
-    stream->Write(value);
 }
     
 void TSchemalessYamrWriter::ValidateColumnType(const TUnversionedValue* value)
@@ -76,10 +47,13 @@ void TSchemalessYamrWriter::ValidateColumnType(const TUnversionedValue* value)
 void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
     auto* stream = GetOutputStream();
-    
+    // This nasty line is needed to use Config as TYamrFormatConfigPtr
+    // without extra serializing/deserializing.
+    TYamrFormatConfigPtr config(static_cast<TYamrFormatConfig*>(Config_.Get()));
+
     for (int i = 0; i < static_cast<int>(rows.size()); i++) {
         if (CheckKeySwitch(rows[i], i + 1 == rows.size() /* isLastRow */)) {
-            if (!Config_->Lenval) {
+            if (!config->Lenval) {
                 THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format.");
             }
             WritePod(*stream, static_cast<ui32>(-2));
@@ -108,7 +82,7 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
         }
 
         if (!key) {
-            THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", Config_->Key); 
+            THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", config->Key); 
         }
 
         if (!subkey) {
@@ -116,21 +90,21 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
         }
 
         if (!value) {
-            THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", Config_->Value);
+            THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", config->Value);
         }
              
-        if (!Config_->Lenval) {
+        if (!config->Lenval) {
             EscapeAndWrite(*key, true);
-            stream->Write(Config_->FieldSeparator);
-            if (Config_->HasSubkey) {
+            stream->Write(config->FieldSeparator);
+            if (config->HasSubkey) {
                 EscapeAndWrite(*subkey, true);
-                stream->Write(Config_->FieldSeparator);
+                stream->Write(config->FieldSeparator);
             }
             EscapeAndWrite(*value, false);
-            stream->Write(Config_->RecordSeparator);
+            stream->Write(config->RecordSeparator);
         } else {
             WriteInLenvalMode(*key);
-            if (Config_->HasSubkey) {
+            if (config->HasSubkey) {
                 WriteInLenvalMode(*subkey);
             }
             WriteInLenvalMode(*value);
@@ -140,46 +114,6 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
     }
 
     TryFlushBuffer();
-}
-
-void TSchemalessYamrWriter::WriteTableIndex(int tableIndex)
-{
-    auto* stream = GetOutputStream();
-    
-    if (!Config_->EnableTableIndex) {
-        // Silently ignore table switches.
-        return;
-    }
-
-    if (Config_->Lenval) {
-        WritePod(*stream, static_cast<ui32>(-1));
-        WritePod(*stream, static_cast<ui32>(tableIndex));
-    } else {
-        stream->Write(ToString(tableIndex));
-        stream->Write(Config_->RecordSeparator);
-    }
-}
-
-void TSchemalessYamrWriter::WriteRangeIndex(i32 rangeIndex)
-{
-    auto* stream = GetOutputStream();
-
-    if (!Config_->Lenval) {
-        THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMR format");
-    }
-    WritePod(*stream, static_cast<ui32>(-3));
-    WritePod(*stream, static_cast<ui32>(rangeIndex));
-}
-
-void TSchemalessYamrWriter::WriteRowIndex(i64 rowIndex)
-{
-    auto* stream = GetOutputStream();
-
-    if (!Config_->Lenval) {
-         THROW_ERROR_EXCEPTION("Row indices are not supported in text YAMR format");
-    }
-    WritePod(*stream, static_cast<ui32>(-4));
-    WritePod(*stream, static_cast<ui64>(rowIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
