@@ -1349,11 +1349,6 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "reduce"
     return _run_operation(binary, source_table, destination_table, **kwargs)
 
-<<<<<<< HEAD
-def run_remote_copy(source_table, destination_table,
-                    cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
-                    spec=None, strategy=None, sync=True, client=None):
-=======
 def run_join_reduce(binary, source_table, destination_table, **kwargs):
     """Run join-reduce operation.
 
@@ -1367,9 +1362,9 @@ def run_join_reduce(binary, source_table, destination_table, **kwargs):
     kwargs["op_name"] = "join_reduce"
     return _run_operation(binary, source_table, destination_table, **kwargs)
 
-def run_remote_copy(source_table, destination_table, cluster_name,
-                    network_name=None, spec=None, copy_attributes=False, remote_cluster_token=None, strategy=None, sync=True, client=None):
->>>>>>> prestable/0.17.4
+def run_remote_copy(source_table, destination_table,
+                    cluster_name=None, network_name=None, cluster_connection=None, copy_attributes=None,
+                    spec=None, strategy=None, sync=True, client=None):
     """Copy source table from remote cluster to destination table on current cluster.
 
     :param source_table: (list of string or `TablePath`)
