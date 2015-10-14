@@ -916,18 +916,36 @@ public:
         TCypressNodeBase* trunkNode,
         TTransaction* transaction)
     {
-        auto nodes = ListSubtreeNodes(trunkNode, transaction, true);
+        std::vector<TTransaction*> transactions;
+        
+        auto addLock = [&] (const TLock* lock) {
+            // Get the top-most transaction.
+            auto* transaction = lock->GetTransaction();
+            while (transaction->GetParent()) {
+                transaction = transaction->GetParent();
+            }
+            transactions.push_back(transaction);
+        };
 
-        // NB: std::set ensures stable order.
-        std::set<TTransaction*> transactions;
+        auto nodes = ListSubtreeNodes(trunkNode, transaction, true);
         for (const auto* node : nodes) {
             for (auto* lock : node->AcquiredLocks()) {
-                transactions.insert(lock->GetTransaction());
+                addLock(lock);
             }
             for (auto* lock : node->PendingLocks()) {
-                transactions.insert(lock->GetTransaction());
+                addLock(lock);
             }
         }
+
+        std::sort(
+            transactions.begin(),
+            transactions.end(),
+            [] (const TTransaction* lhs, const TTransaction* rhs) {
+                return lhs->GetId() < rhs->GetId();
+            });
+        transactions.erase(
+            std::unique(transactions.begin(), transactions.end()),
+            transactions.end());
 
         auto transactionManager = Bootstrap_->GetTransactionManager();
         for (auto* transaction : transactions) {

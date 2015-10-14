@@ -851,13 +851,8 @@ private:
         }
 
         auto version = ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
-<<<<<<< HEAD
-            ? DecoratedAutomaton_->GetCommittedVersion()
-            : ReachableVersion_;
-=======
             ? DecoratedAutomaton_->GetAutomatonVersion()
             : *ReachableVersion_;
->>>>>>> prestable/0.17.4
 
         return version.ToRevision();
     }
