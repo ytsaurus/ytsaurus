@@ -625,8 +625,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
     BuildingSnapshot_.clear();
     Reset();
-
-    AutomatonInvoker_->Invoke(BIND(&IAutomaton::Clear, Automaton_));
 }
 
 void TDecoratedAutomaton::OnStartLeading()
@@ -681,6 +679,15 @@ IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return SystemInvoker_;
+}
+
+void TDecoratedAutomaton::Clear()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    Automaton_->Clear();
+    Reset();
+    AutomatonVersion_ = TVersion();
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
