@@ -1149,7 +1149,6 @@ private:
             operation->SetState(EOperationState::Preparing);
 
             auto controller = operation->GetController();
-<<<<<<< HEAD
             auto asyncResult = BIND(&IOperationController::Prepare, controller)
                 .AsyncVia(controller->GetCancelableInvoker())
                 .Run();
@@ -1160,11 +1159,6 @@ private:
             operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
 
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
-=======
-            auto asyncResult = controller->Prepare();
-            WaitFor(asyncResult)
-                .ThrowOnError();
->>>>>>> prestable/0.17.4
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;
@@ -1962,17 +1956,12 @@ private:
 
             {
                 auto controller = operation->GetController();
-<<<<<<< HEAD
                 auto asyncResult = BIND(&IOperationController::Commit, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-=======
-                auto asyncResult = controller->Commit();
                 WaitFor(asyncResult)
                     .ThrowOnError();
->>>>>>> prestable/0.17.4
+
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }
