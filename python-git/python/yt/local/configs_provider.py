@@ -66,7 +66,8 @@ SCHEDULER_CONFIG_PATCH = {
         "transactions_refresh_period": None,
         "operations_update_period": None,
         "watchers_update_period": None,
-        "connect_grace_delay": None
+        "connect_grace_delay": None,
+        "lock_transaction_timeout": 30000
     },
     "snapshot_timeout": 300000
 }
