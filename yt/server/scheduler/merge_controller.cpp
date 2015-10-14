@@ -1933,7 +1933,7 @@ private:
         if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
             scraperCallback = CreateScrapeChunksSessionCallback(
                 Config,
-                Host->GetBackgroundInvoker(),
+                GetCancelableInvoker(),
                 Host->GetChunkLocationThrottler(),
                 AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
                 NodeDirectory,
@@ -1948,7 +1948,7 @@ private:
             KeyColumns,
             sliceByKeys,
             NodeDirectory,
-            Host->GetBackgroundInvoker(),
+            GetCancelableInvoker(),
             scraperCallback,
             Logger);
 
