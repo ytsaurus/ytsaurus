@@ -136,3 +136,34 @@ class TestFiles(YTEnvSetup):
         commit_transaction(tx)
 
         assert read_file("//tmp/f") == content
+
+    def test_concatenate(self):
+        create("file", "//tmp/fa")
+        write_file("//tmp/fa", "a")
+        assert read_file("//tmp/fa") == "a"
+
+        create("file", "//tmp/fb")
+        write_file("//tmp/fb", "b")
+        assert read_file("//tmp/fb") == "b"
+
+        create("file", "//tmp/f")
+
+        concatenate(["//tmp/fa", "//tmp/fb"], "//tmp/f")
+        assert write_file("//tmp/f") == "ab"
+
+        concatenate(["//tmp/fa", "//tmp/fb"], "<append=true>//tmp/f")
+        assert write_file("//tmp/f") == "abab"
+
+    def test_concatenate_incorrect_types(self):
+        create("file", "//tmp/f1")
+        create("file", "//tmp/f2")
+        create("table", "//tmp/t")
+
+        with pytest.raises(YtError):
+            concatenate(["//tmp/f1", "//tmp/f2"], "//tmp/t")
+
+        with pytest.raises(YtError):
+            concatenate(["//tmp/f1", "//tmp/t"], "//tmp/t")
+
+        with pytest.raises(YtError):
+            concatenate(["//tmp", "//tmp/t"], "//tmp/t")
