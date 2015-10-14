@@ -221,7 +221,7 @@ private:
         }
 
         asyncResults.push_back(
-            Owner_->DecoratedAutomaton_->RotateChangelog(Owner_->EpochContext_).Apply(
+            Owner_->DecoratedAutomaton_->RotateChangelog().Apply(
                 BIND(&TSession::OnLocalChangelogRotated, MakeStrong(this))
                     .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
