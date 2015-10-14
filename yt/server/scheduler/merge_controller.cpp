@@ -1934,9 +1934,9 @@ private:
             scraperCallback = CreateScrapeChunksSessionCallback(
                 Config,
                 GetCancelableInvoker(),
-                Host->GetChunkLocationThrottler(),
-                AuthenticatedInputMasterClient->GetMasterChannel(NApi::EMasterChannelKind::Leader),
-                NodeDirectory,
+                Host->GetChunkLocationThrottlerManager(),
+                AuthenticatedInputMasterClient,
+                InputNodeDirectory,
                 Logger);
         }
 
@@ -1947,7 +1947,7 @@ private:
             ChunkSliceSize,
             KeyColumns,
             sliceByKeys,
-            NodeDirectory,
+            InputNodeDirectory,
             GetCancelableInvoker(),
             scraperCallback,
             Logger);
@@ -2019,7 +2019,7 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     "Error validating sample key in input table %v",
-                    GetInputTablePaths()[slice->ChunkSpec()->table_index()])
+                    GetInputTablePaths()[slice->GetChunkSpec()->table_index()])
                     << ex;
             }
 
