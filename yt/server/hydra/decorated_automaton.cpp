@@ -1042,6 +1042,7 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 void TDecoratedAutomaton::Reset()
 {
     PendingMutations_.clear();
+    ChangelogStore_.Reset();
     Changelog_.Reset();
     SnapshotVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
