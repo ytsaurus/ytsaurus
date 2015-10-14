@@ -141,6 +141,7 @@ public:
     TVersion GetAutomatonVersion() const;
     void RotateAutomatonVersion(int segmentId);
 
+    void Clear();
     void LoadSnapshot(TVersion version, NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
