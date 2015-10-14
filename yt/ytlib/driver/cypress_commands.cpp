@@ -263,5 +263,28 @@ void TLinkCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TConcatenateCommand::DoExecute()
+{
+    TConcatenateNodesOptions options;
+    SetTransactionalOptions(&options);
+    SetMutatingOptions(&options);
+
+    std::vector<TYPath> sourcePaths;
+    for (const auto& path : Request_->SourcePaths) {
+        sourcePaths.push_back(path.GetPath());
+    }
+
+    options.Append = Request_->DestinationPath.GetAppend();
+    auto destinationPath = Request_->DestinationPath.GetPath();
+
+    auto asyncResult = Context_->GetClient()->ConcatenateNodes(
+        sourcePaths,
+        Request_->DestinationPath.GetPath(),
+        options);
+
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
 } // namespace NDriver
 } // namespace NYT

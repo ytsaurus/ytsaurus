@@ -1045,8 +1045,9 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto epochContext = epochContext_.Lock();
-        if (!epochContext)
+        if (!epochContext) {
             return;
+        }
 
         if (error.IsOK()) {
             LOG_INFO("Distributed changelog rotation succeeded");
