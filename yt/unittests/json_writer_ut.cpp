@@ -434,7 +434,7 @@ TEST(TJsonWriterTest, TestStringLengthLimit)
         writer->OnStringScalar(Stroka(10000, 'A'));
     writer->OnEndMap();
 
-    Stroka output = "{\"hello\":{\"$incomplete\":\"true\",\"$value\":\"AA\"}}";
+    Stroka output = "{\"hello\":{\"$incomplete\":true,\"$value\":\"AA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -484,7 +484,7 @@ TEST(TJsonWriterTest, SeveralOptions)
         writer->OnStringScalar(Stroka(10000, 'A'));
     writer->OnEndMap();
 
-    Stroka output = "{\"hello\":{\"$incomplete\":\"true\",\"$type\":\"string\",\"$value\":\"AA\"}}";
+    Stroka output = "{\"hello\":{\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
@@ -506,7 +506,7 @@ TEST(TJsonWriterTest, SeveralOptions2)
     writer->OnEndMap();
 
     Stroka output = "{\"hello\":{\"$attributes\":{\"mood\":{\"$type\":\"int64\",\"$value\":42}},"
-        "\"$incomplete\":\"true\",\"$type\":\"string\",\"$value\":\"AAAA\"}}";
+        "\"$incomplete\":true,\"$type\":\"string\",\"$value\":\"AAAA\"}}";
     EXPECT_EQ(output, outputStream.Str());
 }
 
