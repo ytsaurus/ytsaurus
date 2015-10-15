@@ -40,13 +40,13 @@ public:
         Owner_->BuildingSnapshot_ = BuildSnapshot_;
 
         Version_ = Owner_->DecoratedAutomaton_->GetLoggedVersion();
-        Owner_->LeaderCommitter_->Flush();
-        Owner_->LeaderCommitter_->SuspendLogging();
+        Owner_->EpochContext_->LeaderCommitter->Flush();
+        Owner_->EpochContext_->LeaderCommitter->SuspendLogging();
 
         LOG_INFO("Starting distributed changelog rotation (Version: %v)",
             Version_);
 
-        Owner_->LeaderCommitter_->GetQuorumFlushResult()
+        Owner_->EpochContext_->LeaderCommitter->GetQuorumFlushResult()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))
                 .Via(Owner_->EpochContext_->EpochUserAutomatonInvoker));
     }
@@ -289,7 +289,7 @@ private:
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         Owner_->RotatingChangelogs_ = false;
-        Owner_->LeaderCommitter_->ResumeLogging();
+        Owner_->EpochContext_->LeaderCommitter->ResumeLogging();
     }
 
     void OnRotationFailed(const TError&)
@@ -317,16 +317,12 @@ TCheckpointer::TCheckpointer(
     : Config_(config)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
-    , LeaderCommitter_(leaderCommitter)
-    , SnapshotStore_(snapshotStore)
     , EpochContext_(epochContext)
     , Logger(HydraLogger)
 {
     YCHECK(Config_);
     YCHECK(CellManager_);
     YCHECK(DecoratedAutomaton_);
-    YCHECK(LeaderCommitter_);
-    YCHECK(SnapshotStore_);
     YCHECK(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
