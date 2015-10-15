@@ -627,7 +627,7 @@ class YTEnv(object):
             ])
 
             for lines in events:
-                filtered_lines = takewhile(lambda line: not is_scheduler_bad_marker(line), lines)
+                filtered_lines = list(takewhile(lambda line: not is_scheduler_bad_marker(line), lines))
                 if filter(is_primary_scheduler_good_marker, filtered_lines):
                     ready_schedulers_count += 1
                     is_primary_scheduler_exists = True
