@@ -65,7 +65,7 @@ public:
 
 private:
     // NB: TSession cannot outlive its owner.
-    const TCheckpointer* Owner_;
+    TCheckpointer* const Owner_;
     const bool BuildSnapshot_;
     const NLogging::TLogger Logger;
 
