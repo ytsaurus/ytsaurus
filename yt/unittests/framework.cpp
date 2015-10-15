@@ -184,12 +184,12 @@ void RunAndTrackFiber(TClosure closure)
 
 void PrintTo(const Stroka& string, ::std::ostream* os)
 {
-    *os << string.c_str();
+    ::testing::internal::PrintTo(string.c_str(), os);
 }
 
 void PrintTo(const TStringBuf& string, ::std::ostream* os)
 {
-    *os << Stroka(string);
+    ::testing::internal::PrintTo(string.c_str(), os);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
