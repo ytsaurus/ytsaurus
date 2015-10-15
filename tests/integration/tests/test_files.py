@@ -149,10 +149,10 @@ class TestFiles(YTEnvSetup):
         create("file", "//tmp/f")
 
         concatenate(["//tmp/fa", "//tmp/fb"], "//tmp/f")
-        assert write_file("//tmp/f") == "ab"
+        assert read_file("//tmp/f") == "ab"
 
         concatenate(["//tmp/fa", "//tmp/fb"], "<append=true>//tmp/f")
-        assert write_file("//tmp/f") == "abab"
+        assert read_file("//tmp/f") == "abab"
 
     def test_concatenate_incorrect_types(self):
         create("file", "//tmp/f1")
