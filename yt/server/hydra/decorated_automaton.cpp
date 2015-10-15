@@ -1081,6 +1081,7 @@ void TDecoratedAutomaton::StopEpoch()
 {
     PendingMutations_.clear();
     Changelog_.Reset();
+    EpochContext_.Reset();
     SnapshotVersion_ = TVersion();
     CommittedVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
