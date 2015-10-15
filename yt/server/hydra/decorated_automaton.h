@@ -34,6 +34,7 @@ struct TEpochContext
 {
     IChangelogStorePtr ChangelogStore;
     TVersion ReachableVersion;
+
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
