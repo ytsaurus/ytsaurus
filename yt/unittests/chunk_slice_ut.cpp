@@ -19,11 +19,7 @@ namespace NYT {
 // Function is defined here due to ADL.
 void PrintTo(NChunkClient::TChunkSlicePtr slice, ::std::ostream* os)
 {
-    auto readableLowerLimit = NYTree::ConvertToYsonString(slice->LowerLimit(), NYson::EYsonFormat::Text).Data();
-    auto readableUpperLimit = NYTree::ConvertToYsonString(slice->UpperLimit(), NYson::EYsonFormat::Text).Data();
-    *os << "chunk slice with " << slice->GetRowCount() << " rows, "
-        << "lower limit " << readableLowerLimit << " and "
-        << "upper limit " << readableUpperLimit;
+    *os << "chunk slice with " << slice->GetRowCount() << " rows";
 }
 
 namespace NChunkClient {
@@ -50,9 +46,11 @@ MATCHER_P(HasRowCount, rowCount, "has row count " + std::string(negation ? "not 
 MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ? "not " : "") + lowerLimit)
 {
     auto actualLimitAsNode = ConvertToNode(arg->LowerLimit());
+    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
 
-    auto expectedLimitAsText = TYsonString(lowerLimit);
-    auto expectedLimitAsNode = ConvertToNode(expectedLimitAsText);
+    auto expectedLimitAsNode = ConvertToNode(TYsonString(lowerLimit));
+
+    *result_listener << "where HasLowerLimit(R\"_(" << actualLimitAsText.c_str() << ")_\")";
 
     return AreNodesEqual(actualLimitAsNode, expectedLimitAsNode);
 }
@@ -60,9 +58,14 @@ MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ?
 MATCHER_P(HasUpperLimit, upperLimit, "has upper limit " + std::string(negation ? "not " : "") + upperLimit)
 {
     auto actualLimitAsNode = ConvertToNode(arg->UpperLimit());
+    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
 
-    auto expectedLimitAsText = TYsonString(upperLimit);
-    auto expectedLimitAsNode = ConvertToNode(expectedLimitAsText);
+    auto expectedLimitAsNode = ConvertToNode(TYsonString(upperLimit));
+
+    auto x1 = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
+    auto x2 = ConvertToYsonString(expectedLimitAsNode, EYsonFormat::Text).Data();
+
+    *result_listener << "where HasUpperLimit(R\"_(" << actualLimitAsText.c_str() << ")_\")";
 
     return AreNodesEqual(actualLimitAsNode, expectedLimitAsNode);
 }
