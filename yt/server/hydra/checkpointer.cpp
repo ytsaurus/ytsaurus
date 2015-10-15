@@ -25,7 +25,7 @@ class TCheckpointer::TSession
 {
 public:
     TSession(
-        TCheckpointerPtr owner,
+        TCheckpointer* owner,
         bool buildSnapshot)
         : Owner_(owner)
         , BuildSnapshot_(buildSnapshot)
@@ -62,9 +62,11 @@ public:
     }
 
 private:
-    const TCheckpointerPtr Owner_;
+    // NB: TSession cannot outlive its owner.
+    const TCheckpointer* Owner_;
     const bool BuildSnapshot_;
-    
+    const NLogging::TLogger Logger;
+
     bool LocalRotationSuccessFlag_ = false;
     int RemoteRotationSuccessCount_ = 0;
 
@@ -73,8 +75,6 @@ private:
     TPromise<void> ChangelogPromise_ = NewPromise<void>();
     TParallelAwaiterPtr ChangelogAwaiter_;
     std::vector<TNullable<TChecksum>> SnapshotChecksums_;
-
-    NLogging::TLogger& Logger;
 
 
     void OnQuorumFlushed(const TError& error)
