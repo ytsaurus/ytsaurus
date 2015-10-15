@@ -631,6 +631,7 @@ class YTEnv(object):
                 if filter(is_primary_scheduler_good_marker, filtered_lines):
                     ready_schedulers_count += 1
                     is_primary_scheduler_exists = True
+                    continue
                 if filter(is_secondary_scheduler_good_marker, filtered_lines):
                     ready_schedulers_count += 1
 
