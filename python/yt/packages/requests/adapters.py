@@ -338,7 +338,7 @@ class HTTPAdapter(BaseAdapter):
 
                 if not stream:
                     r.content
-                if not r.status_code.startswith("2") and r.content:
+                if not str(r.status_code).startswith("2") and r.content:
                     error.response = r
             except:
                 pass
