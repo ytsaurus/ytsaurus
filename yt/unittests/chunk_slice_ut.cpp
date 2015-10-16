@@ -62,9 +62,6 @@ MATCHER_P(HasUpperLimit, upperLimit, "has upper limit " + std::string(negation ?
 
     auto expectedLimitAsNode = ConvertToNode(TYsonString(upperLimit));
 
-    auto x1 = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).Data();
-    auto x2 = ConvertToYsonString(expectedLimitAsNode, EYsonFormat::Text).Data();
-
     *result_listener << "where HasUpperLimit(R\"_(" << actualLimitAsText.c_str() << ")_\")";
 
     return AreNodesEqual(actualLimitAsNode, expectedLimitAsNode);
@@ -492,13 +489,12 @@ TEST_F(TChunkSliceTest, Chunk2WithLimitLargeSlice)
             DoSliceByRows);
         EXPECT_EQ(rowSlices.size(), 2);
 
-        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10150"]})_"));
-        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10268";<"type"="max">#];"row_index"=240})_"));
+        EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10150";];"row_index"=0;})_"));
+        EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10268";<"type"="max";>#;];"row_index"=237;})_"));
         EXPECT_THAT(rowSlices[0], HasRowCount(237));
 
-        // XXX(sandello): Fixed copy-paste here.
-        EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10268";<"type"="max">#]})_"));
-        EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
+        EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10268";];"row_index"=237;})_"));
+        EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10280";];"row_index"=240;})_"));
         EXPECT_THAT(rowSlices[1], HasRowCount(3));
     }
 }
