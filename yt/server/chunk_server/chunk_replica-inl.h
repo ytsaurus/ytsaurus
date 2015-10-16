@@ -55,23 +55,23 @@ FORCED_INLINE bool TPtrWithIndex<T>::operator != (TPtrWithIndex other) const
 template <class T>
 FORCED_INLINE bool TPtrWithIndex<T>::operator < (TPtrWithIndex other) const
 {
-    const auto& thisIndex = GetIndex();
-    const auto& otherIndex = other.GetIndex();
+    int thisIndex = GetIndex();
+    int otherIndex = other.GetIndex();
     if (thisIndex != otherIndex) {
         return thisIndex < otherIndex;
     }
-    return GetIndex() < other.GetIndex();
+    return GetPtr()->GetId() < other.GetPtr()->GetId();
 }
 
 template <class T>
 FORCED_INLINE bool TPtrWithIndex<T>::operator <= (TPtrWithIndex other) const
 {
-    const auto& thisIndex = GetIndex();
-    const auto& otherIndex = other.GetIndex();
+    int thisIndex = GetIndex();
+    int otherIndex = other.GetIndex();
     if (thisIndex != otherIndex) {
         return thisIndex < otherIndex;
     }
-    return GetIndex() <= other.GetIndex();
+    return GetPtr()->GetId() <= other.GetPtr()->GetId();
 }
 
 template <class T>
