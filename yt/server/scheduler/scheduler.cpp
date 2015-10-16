@@ -1874,6 +1874,8 @@ private:
                 return CreateSortController(Config_, this, operation);
             case EOperationType::Reduce:
                 return CreateReduceController(Config_, this, operation);
+            case EOperationType::JoinReduce:
+                return CreateJoinReduceController(Config_, this, operation);
             case EOperationType::MapReduce:
                 return CreateMapReduceController(Config_, this, operation);
             case EOperationType::RemoteCopy:
@@ -1910,6 +1912,8 @@ private:
                 return Config_->SortOperationOptions->SpecTemplate;
             case EOperationType::Reduce:
                 return Config_->ReduceOperationOptions->SpecTemplate;
+            case EOperationType::JoinReduce:
+                return Config_->JoinReduceOperationOptions->SpecTemplate;
             case EOperationType::MapReduce:
                 return Config_->MapReduceOperationOptions->SpecTemplate;
             case EOperationType::RemoteCopy:
@@ -1955,8 +1959,9 @@ private:
                 auto asyncResult = BIND(&IOperationController::Commit, controller)
                     .AsyncVia(controller->GetCancelableInvoker())
                     .Run();
-                auto result = WaitFor(asyncResult);
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
+                WaitFor(asyncResult)
+                    .ThrowOnError();
+
                 if (operation->GetState() != EOperationState::Completing) {
                     throw TFiberCanceledException();
                 }

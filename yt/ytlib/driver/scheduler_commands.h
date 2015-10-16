@@ -127,6 +127,14 @@ private:
 
 };
 
+class TJoinReduceCommand
+    : public TStartOperationCommandBase
+{
+private:
+    virtual NScheduler::EOperationType GetOperationType() const override;
+
+};
+
 class TMapReduceCommand
     : public TStartOperationCommandBase
 {

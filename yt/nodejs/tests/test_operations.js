@@ -72,6 +72,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
         },
         type_counts: {
             "all": 0,
+            "join_reduce": 0,
             "map": 0,
             "map_reduce": 0,
             "merge": 0,

@@ -52,12 +52,12 @@ public:
         TRemoteSnapshotStoreOptionsPtr options,
         const TYPath& path,
         IClientPtr masterClient,
-        const std::vector<TTransactionId>& prerequisiteTransactionIds)
+        const TTransactionId& prerequisiteTransactionId)
         : Config_(config)
         , Options_(options)
         , Path_(path)
         , MasterClient_(masterClient)
-        , PrerequisiteTransactionIds_(prerequisiteTransactionIds)
+        , PrerequisiteTransactionId_(prerequisiteTransactionId)
     {
         Logger.AddTag("Path: %v", Path_);
     }
@@ -84,7 +84,7 @@ private:
     const TRemoteSnapshotStoreOptionsPtr Options_;
     const TYPath Path_;
     const IClientPtr MasterClient_;
-    const std::vector<TTransactionId> PrerequisiteTransactionIds_;
+    const TTransactionId PrerequisiteTransactionId_;
 
     NLogging::TLogger Logger = HydraLogger;
 
@@ -275,7 +275,9 @@ private:
                     attributes->Set("compression_codec", Store_->Options_->SnapshotCompressionCodec);
                     attributes->Set("prev_record_count", Meta_.prev_record_count());
                     options.Attributes = std::move(attributes);
-                    options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
+                    if (Store_->PrerequisiteTransactionId_ != NullTransactionId) {
+                        options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);
+                    }
 
                     auto asyncResult = Transaction_->CreateNode(
                         Path_,
@@ -290,7 +292,9 @@ private:
                 {
                     TFileWriterOptions options;
                     options.TransactionId = Transaction_->GetId();
-                    options.PrerequisiteTransactionIds = Store_->PrerequisiteTransactionIds_;
+                    if (Store_->PrerequisiteTransactionId_ != NullTransactionId) {
+                        options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);
+                    }
 
                     // Aim for safely: always upload snapshots with maximum RF.
                     options.Config = CloneYsonSerializable(Store_->Config_->Writer);
@@ -390,14 +394,14 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreOptionsPtr options,
     const TYPath& path,
     IClientPtr masterClient,
-    const std::vector<TTransactionId>& prerequisiteTransactionIds)
+    const TTransactionId& prerequisiteTransactionId)
 {
     return New<TRemoteSnapshotStore>(
         config,
         options,
         path,
         masterClient,
-        prerequisiteTransactionIds);
+        prerequisiteTransactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

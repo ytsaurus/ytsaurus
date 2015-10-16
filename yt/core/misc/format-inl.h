@@ -242,9 +242,9 @@ void FormatValueStd(TStringBuilder* builder, TValue value, const TStringBuf& for
     const int MaxFormatSize = 64;
     const int SmallResultSize = 64;
 
-    auto copyFormat = [] (char* destination, const char* source, int lenght) {
+    auto copyFormat = [] (char* destination, const char* source, int length) {
         int position = 0;
-        for (int index = 0; index < lenght; ++index) {
+        for (int index = 0; index < length; ++index) {
             if (IsQuotationSpecSymbol(source[index])) {
                 continue;
             }

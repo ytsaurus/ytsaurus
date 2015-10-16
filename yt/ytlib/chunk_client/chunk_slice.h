@@ -107,15 +107,23 @@ std::vector<TChunkSlicePtr> CreateErasureChunkSlices(
     TRefCountedChunkSpecPtr chunkSpec,
     NErasure::ECodec codecId);
 
-std::vector<TChunkSlicePtr> SliceChunkByKeys(
+std::vector<TChunkSlicePtr> SliceChunk(
     TRefCountedChunkSpecPtr chunkSpec,
     i64 sliceDataSize,
-    int keyColumnCount);
+    int keyColumnCount,
+    bool sliceByKeys);
 
 std::vector<TChunkSlicePtr> SliceChunkByRowIndexes(TRefCountedChunkSpecPtr chunkSpec, i64 sliceDataSize);
 
 void ToProto(NProto::TChunkSpec* chunkSpec, const TChunkSlice& chunkSlice);
 void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice);
+Stroka ToString(TChunkSlicePtr slice);
+
+namespace NProto {
+
+Stroka ToString(TRefCountedChunkSpecPtr spec);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

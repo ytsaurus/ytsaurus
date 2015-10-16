@@ -761,6 +761,7 @@ protected:
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
+    NTableClient::TKeyColumns GetCommonInputKeyPrefix();
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
     bool IsMemoryReserveEnabled(const TProgressCounter& jobCounter) const;
@@ -845,6 +846,8 @@ protected:
 
     TFluentLogEvent LogEventFluently(ELogEventType eventType);
     TFluentLogEvent LogFinishedJobFluently(ELogEventType eventType, TJobPtr job);
+
+    void ValidateUserFileCount(TUserJobSpecPtr spec, const Stroka& operation);
 
 private:
     typedef TOperationControllerBase TThis;

@@ -295,7 +295,7 @@ YtCoordinator.prototype._refresh = function()
             }
             return bytes;
         })
-        .catch(function(error) {
+        .catch(function(err) {
             var error = YtError.ensureWrapped(err);
             self.logger.error(
                 "An error occured while reading network load information",

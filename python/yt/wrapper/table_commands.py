@@ -145,6 +145,13 @@ def _prepare_reduce_by(reduce_by, client):
     _check_columns(reduce_by, "reduce")
     return reduce_by
 
+def _prepare_join_by(join_by):
+    if join_by is None:
+        raise YtError("join_by option is required")
+    join_by = flatten(join_by)
+    _check_columns(join_by, "join_reduce")
+    return join_by
+
 def _prepare_sort_by(sort_by, client):
     if sort_by is None:
         if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
@@ -1215,6 +1222,7 @@ def _run_operation(binary, source_table, destination_table,
                   op_name=None,
                   sort_by=None,
                   reduce_by=None,
+                  join_by=None,
                   client=None):
     """Run script operation.
 
@@ -1291,6 +1299,10 @@ def _run_operation(binary, source_table, destination_table,
                 finalize = lambda: remove(temp_table, client=client)
                 source_table = [TablePath(temp_table)]
 
+    if op_name == "join_reduce":
+        join_by = _prepare_join_by(join_by, client)
+        reduce_by = join_by
+
 
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and _are_default_empty_table(source_table):
         _remove_tables(destination_table, client=client)
@@ -1298,7 +1310,7 @@ def _run_operation(binary, source_table, destination_table,
 
     op_type = None
     if op_name == "map": op_type = "mapper"
-    if op_name == "reduce": op_type = "reducer"
+    if op_name == "reduce" or op_name == "join_reduce": op_type = "reducer"
 
     try:
         spec = compose(
@@ -1306,6 +1318,7 @@ def _run_operation(binary, source_table, destination_table,
             lambda _: _add_table_writer_spec("job_io", table_writer, _),
             lambda _: _add_input_output_spec(source_table, destination_table, _),
             lambda _: update({"reduce_by": reduce_by}, _) if op_name == "reduce" else _,
+            lambda _: update({"join_by": join_by}, _) if op_name == "join_reduce" else _,
             lambda _: update({"job_count": job_count}, _) if job_count is not None else _,
             lambda _: memorize_files(*_add_user_command_spec(op_type, binary,
                 format, input_format, output_format,
@@ -1334,6 +1347,19 @@ def run_reduce(binary, source_table, destination_table, **kwargs):
     .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
     """
     kwargs["op_name"] = "reduce"
+    return _run_operation(binary, source_table, destination_table, **kwargs)
+
+def run_join_reduce(binary, source_table, destination_table, **kwargs):
+    """Run join-reduce operation.
+
+    :param join_by: (list of strings, string) list of columns for join by
+
+    .. note:: You should specity at least two input table and exactly one \
+    should have set primary attibute
+
+    .. seealso::  :ref:`operation_parameters` and :py:func:`yt.wrapper.table_commands.run_map_reduce`.
+    """
+    kwargs["op_name"] = "join_reduce"
     return _run_operation(binary, source_table, destination_table, **kwargs)
 
 def run_remote_copy(source_table, destination_table,
