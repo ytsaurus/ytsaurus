@@ -44,9 +44,10 @@ class TestSchedulerBriefSpec(YTEnvSetup):
     def test_sort(self):
         create("table", "//tmp/t1")
 
-        op_id = sort(in_="//tmp/t1",
-             out="//tmp/t1",
-             sort_by="key")
+        op_id = sort(
+            in_="//tmp/t1",
+            out="//tmp/t1",
+            sort_by="key")
 
         check_attributes(op_id, ["input_table_path", "output_table_path_1"])
 
@@ -55,22 +56,50 @@ class TestSchedulerBriefSpec(YTEnvSetup):
         write_table(
             "//tmp/t1",
             [ {"key": 9,"value": 7}, ],
-            sorted_by = ["key", "value"])
+            sorted_by=["key", "value"])
 
         create("table", "//tmp/t2")
-        op_id = reduce(in_="//tmp/t1", out="//tmp/t2", command="cat", reduce_by = "key")
+        op_id = reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            reduce_by="key")
+
+        check_attributes(op_id, ["reducer", "input_table_path", "output_table_path"])
+
+    def test_join_reduce(self):
+        create("table", "//tmp/t1")
+        write_table(
+            "//tmp/t1",
+            [ {"key": 9,"value": 7}, ],
+            sorted_by=["key", "value"])
+
+        create("table", "//tmp/t2")
+        write_table(
+            "//tmp/t2",
+            [ {"key": 9,"value": 11}, ],
+            sorted_by=["key", "value"])
+
+        create("table", "//tmp/t3")
+        op_id = join_reduce(
+            in_=["<primary=true>//tmp/t1", "//tmp/t2"],
+            out="//tmp/t3",
+            command="cat",
+            join_by="key",
+            spec={"reducer": {"format": "dsv"}})
 
         check_attributes(op_id, ["reducer", "input_table_path", "output_table_path"])
 
     def test_map_reduce(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
-        op_id = map_reduce(in_="//tmp/t1",
-               out="//tmp/t2",
-               sort_by="a",
-               mapper_command="cat",
-               reduce_combiner_command="cat",
-               reducer_command="cat")
+        op_id = map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            sort_by="a",
+            mapper_command="cat",
+            reduce_combiner_command="cat",
+            reducer_command="cat")
 
         check_attributes(op_id, ["mapper", "reducer", "input_table_path", "output_table_path"])
 
@@ -79,9 +108,10 @@ class TestSchedulerBriefSpec(YTEnvSetup):
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
 
-        op_id = merge(mode="unordered",
-              in_=["//tmp/t1", "//tmp/t2"],
-              out="//tmp/t3")
+        op_id = merge(
+            mode="unordered",
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/t3")
 
         check_attributes(op_id, ["input_table_path", "output_table_path_1"])
 

@@ -20,6 +20,22 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TLocalChangelogStore)
+DECLARE_REFCOUNTED_CLASS(TLocalChangelogStoreFactory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+Stroka GetChangelogPath(const Stroka& path, int id)
+{
+    return NFS::CombinePaths(
+        path,
+        Format("%09d.%v", id, ChangelogExtension));
+}
+
+} // namespace
+
 class TCachedLocalChangelog
     : public TAsyncCacheValueBase<int, TCachedLocalChangelog>
     , public IChangelog
@@ -76,16 +92,16 @@ public:
     }
 
 private:
-    IChangelogPtr UnderlyingChangelog_;
+    const IChangelogPtr UnderlyingChangelog_;
 
 };
 
-class TLocalChangelogStore
+class TLocalChangelogStoreFactory
     : public TAsyncSlruCacheBase<int, TCachedLocalChangelog>
-    , public IChangelogStore
+    , public IChangelogStoreFactory
 {
 public:
-    TLocalChangelogStore(
+    TLocalChangelogStoreFactory(
         const Stroka& threadName,
         TFileChangelogStoreConfigPtr config)
         : TAsyncSlruCacheBase(config->ChangelogReaderCache)
@@ -105,25 +121,25 @@ public:
         NFS::CleanTempFiles(Config_->Path);
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
+    TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta)
     {
-        return BIND(&TLocalChangelogStore::DoCreateChangelog, MakeStrong(this))
+        return BIND(&TLocalChangelogStoreFactory::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run(id, meta);
     }
 
-    virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
+    TFuture<IChangelogPtr> OpenChangelog(int id)
     {
-        return BIND(&TLocalChangelogStore::DoOpenChangelog, MakeStrong(this))
+        return BIND(&TLocalChangelogStoreFactory::DoOpenChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
             .Run(id);
     }
 
-    virtual TFuture<int> GetLatestChangelogId(int initialId) override
+    virtual TFuture<IChangelogStorePtr> Lock() override
     {
-        return BIND(&TLocalChangelogStore::DoGetLatestChangelogId, MakeStrong(this))
+        return BIND(&TLocalChangelogStoreFactory::DoLock, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(initialId);
+            .Run();
     }
 
 private:
@@ -131,14 +147,6 @@ private:
     const TFileChangelogDispatcherPtr Dispatcher_;
 
     NLogging::TLogger Logger = HydraLogger;
-
-
-    Stroka GetChangelogPath(int id)
-    {
-        return NFS::CombinePaths(
-            Config_->Path,
-            Format("%09d.%v", id, ChangelogExtension));
-    }
 
 
     IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
@@ -149,7 +157,7 @@ private:
                 id);
         }
 
-        auto path = GetChangelogPath(id);
+        auto path = GetChangelogPath(Config_->Path, id);
 
         try {
             auto underlyingChangelog = Dispatcher_->CreateChangelog(path, meta, Config_);
@@ -157,7 +165,7 @@ private:
             cookie.EndInsert(cachedChangelog);
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Error creating changelog %v",
-                id);
+                path);
         }
 
         return WaitFor(cookie.GetValue())
@@ -168,7 +176,7 @@ private:
     {
         auto cookie = BeginInsert(id);
         if (cookie.IsActive()) {
-            auto path = GetChangelogPath(id);
+            auto path = GetChangelogPath(Config_->Path, id);
             if (!NFS::Exists(path)) {
                 cookie.Cancel(TError(
                     NHydra::EErrorCode::NoSuchChangelog,
@@ -181,7 +189,7 @@ private:
                     cookie.EndInsert(cachedChangelog);
                 } catch (const std::exception& ex) {
                     LOG_FATAL(ex, "Error opening changelog %v",
-                        id);
+                        path);
                 }
             }
         }
@@ -190,7 +198,25 @@ private:
             .ValueOrThrow();
     }
 
-    int DoGetLatestChangelogId(int initialId)
+    IChangelogStorePtr DoLock()
+    {
+        try {
+            WaitFor(Dispatcher_->FlushChangelogs())
+                .ThrowOnError();
+
+            auto reachableVersion = ComputeReachableVersion();
+
+            return CreateStore(reachableVersion);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error locking local changelog store %v",
+                Config_->Path)
+                    << ex;
+        }
+    }
+
+    IChangelogStorePtr CreateStore(TVersion reachableVersion);
+
+    int GetLatestChangelogId()
     {
         int latestId = InvalidSegmentId;
 
@@ -202,7 +228,7 @@ private:
             auto name = NFS::GetFileNameWithoutExtension(fileName);
             try {
                 int id = FromString<int>(name);
-                if (id >= initialId && (id > latestId || latestId == InvalidSegmentId)) {
+                if (id > latestId || latestId == InvalidSegmentId) {
                     latestId = id;
                 }
             } catch (const std::exception&) {
@@ -213,15 +239,74 @@ private:
         return latestId;
     }
 
+    TVersion ComputeReachableVersion()
+    {
+        int latestId = GetLatestChangelogId();
+
+        if (latestId == InvalidSegmentId) {
+            return TVersion();
+        }
+
+        IChangelogPtr changelog;
+        try {
+            changelog = WaitFor(OpenChangelog(latestId))
+                .ValueOrThrow();
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Error opening changelog %v",
+                GetChangelogPath(Config_->Path, latestId));
+        }
+
+        return TVersion(latestId, changelog->GetRecordCount());
+    }
+
 };
 
-IChangelogStorePtr CreateLocalChangelogStore(
+DEFINE_REFCOUNTED_TYPE(TLocalChangelogStoreFactory)
+
+class TLocalChangelogStore
+    : public IChangelogStore
+{
+public:
+    TLocalChangelogStore(
+        TLocalChangelogStoreFactoryPtr factory,
+        TVersion reachableVersion)
+        : Factory_(factory)
+        , ReachableVersion_(reachableVersion)
+    { }
+
+    virtual TVersion GetReachableVersion() const override
+    {
+        return ReachableVersion_;
+    }
+
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
+    {
+        return Factory_->CreateChangelog(id, meta);
+    }
+
+    virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
+    {
+        return Factory_->OpenChangelog(id);
+    }
+
+private:
+    const TLocalChangelogStoreFactoryPtr Factory_;
+    const TVersion ReachableVersion_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocalChangelogStore)
+
+IChangelogStorePtr TLocalChangelogStoreFactory::CreateStore(TVersion reachableVersion)
+{
+    return New<TLocalChangelogStore>(this, reachableVersion);
+}
+
+IChangelogStoreFactoryPtr CreateLocalChangelogStoreFactory(
     const Stroka& threadName,
     TFileChangelogStoreConfigPtr config)
 {
-    auto store = New<TLocalChangelogStore>(
-        threadName,
-        config);
+    auto store = New<TLocalChangelogStoreFactory>(threadName, config);
     store->Start();
     return store;
 }

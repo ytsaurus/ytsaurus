@@ -26,6 +26,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFileChunkBlockTag { };
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFileChunkWriter
     : public IFileChunkWriter
 {
@@ -52,25 +56,22 @@ public:
     virtual TDataStatistics GetDataStatistics() const override;
 
 private:
+    NLogging::TLogger Logger = FileClientLogger;
+
     TFileChunkWriterConfigPtr Config_;
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
-    TBlob Buffer_;
+    TBlob Buffer_ { TFileChunkBlockTag() };
     
     TBlocksExt BlocksExt_;
     i64 BlocksExtSize_ = 0;
 
-    NLogging::TLogger Logger;
-
     void FlushBlock();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TFileChunkBlockTag { };
 
 TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
@@ -82,11 +83,10 @@ TFileChunkWriter::TFileChunkWriter(
         config,
         options,
         chunkWriter,
-        blockCache))
-    , Buffer_(TFileChunkBlockTag())
-{
-    Logger = FileClientLogger;
-    Logger.AddTag("ChunkId: %v", chunkWriter->GetChunkId());
+        blockCache,
+        Logger))
+{ 
+    Logger.AddTag("FileChunkWriter: %p", this);
 }
 
 bool TFileChunkWriter::Write(const TRef& data)

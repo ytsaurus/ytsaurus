@@ -188,6 +188,14 @@ DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJoinReduceOperationOptions
+    : public TSortedMergeOperationOptions
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TJoinReduceOperationOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEraseOperationOptions
     : public TOrderedMergeOperationOptions
 { };
@@ -374,6 +382,7 @@ public:
 
     TMapOperationOptionsPtr MapOperationOptions;
     TReduceOperationOptionsPtr ReduceOperationOptions;
+    TJoinReduceOperationOptionsPtr JoinReduceOperationOptions;
     TEraseOperationOptionsPtr EraseOperationOptions;
     TOrderedMergeOperationOptionsPtr OrderedMergeOperationOptions;
     TUnorderedMergeOperationOptionsPtr UnorderedMergeOperationOptions;
@@ -521,6 +530,8 @@ public:
         RegisterParameter("map_operation_options", MapOperationOptions)
             .DefaultNew();
         RegisterParameter("reduce_operation_options", ReduceOperationOptions)
+            .DefaultNew();
+        RegisterParameter("join_reduce_operation_options", JoinReduceOperationOptions)
             .DefaultNew();
         RegisterParameter("erase_operation_options", EraseOperationOptions)
             .DefaultNew();

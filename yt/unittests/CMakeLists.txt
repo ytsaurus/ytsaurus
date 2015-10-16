@@ -8,6 +8,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/callback_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cgroup_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/checkpointable_stream_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_slice_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_balancer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_tree_traversing_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/compression_ut.cpp
@@ -26,6 +27,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/guid_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/hash_filter_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/heap_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/intrusive_ptr_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/json_writer_ut.cpp
@@ -39,15 +41,16 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/nonblocking_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/nullable_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pattern_formatter_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/persistent_queue_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/phoenix_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/pipes_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/preprocessor_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/process_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_computed_columns_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_expressions_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ql_query_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/ql_range_inference_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/random_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/read_limit_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker_ut.cpp
@@ -55,11 +58,11 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/row_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaful_dsv_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/schemaless_chunks_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/schema_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/skip_list_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_string_ut.cpp
@@ -74,16 +77,17 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tools_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/tree_builder_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
   ${CMAKE_CURRENT_LIST_DIR}/url_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/variant_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/varint_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_blocks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/versioned_chunks_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/weak_ptr_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/yamr_parser_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_parser_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_writer_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_parser_ut.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_tokenizer_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ypath_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_parser_ut.cpp
@@ -93,9 +97,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ytree_fluent_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yverify_ut.cpp
   ${CMAKE_CURRENT_LIST_DIR}/zigzag_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/persistent_queue_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/hyperloglog_ut.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/udf/invalid_ir.h
 )
 
 protoc( ${CMAKE_CURRENT_LIST_DIR}/rpc_ut.proto SRCS )

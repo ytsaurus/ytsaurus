@@ -210,10 +210,8 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
             options.Config = Config_->SnapshotWriter;
             auto writer = transaction->CreateFileWriter(snapshotPath, options);
 
-            {
-                auto result = WaitFor(writer->Open());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(writer->Open())
+                .ThrowOnError();
 
             struct TSnapshotBuilderBufferTag { };
             auto buffer = TSharedMutableRef::Allocate<TSnapshotBuilderBufferTag>(RemoteWriteBufferSize, false);
@@ -226,25 +224,19 @@ void TSnapshotBuilder::UploadSnapshot(const TJob& job)
                     break;
                 }
 
-                {
-                    auto result = WaitFor(writer->Write(buffer.Slice(0, bytesRead)));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result);
-                }
+                WaitFor(writer->Write(buffer.Slice(0, bytesRead)))
+                    .ThrowOnError();
             }
 
-            {
-                auto result = WaitFor(writer->Close());
-                THROW_ERROR_EXCEPTION_IF_FAILED(result);
-            }
+            WaitFor(writer->Close())
+                .ThrowOnError();
 
             LOG_INFO("Snapshot uploaded successfully");
         }
 
         // Commit outer transaction.
-        {
-            auto result = WaitFor(transaction->Commit());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
     } catch (const std::exception& ex) {
         LOG_ERROR(ex, "Error uploading snapshot");
     }

@@ -141,7 +141,7 @@ function YtCommand(logger, driver, coordinator, watcher, sticky_cache, pause) {
     this.omit_trailers = undefined;
     this.request_id = undefined;
 
-    this.name = undefined;
+    this.command = undefined;
     this.user = undefined;
 
     this.header_format = _PREDEFINED_JSON_FORMAT;
@@ -175,6 +175,10 @@ YtCommand.prototype.dispatch = function(req, rsp) {
 
     self.req = req;
     self.rsp = rsp;
+
+    if (typeof(self.req.tags) === "undefined") {
+        self.req.tags = {};
+    }
 
     self.request_id = self.req.uuid_ui64;
 
@@ -324,7 +328,9 @@ YtCommand.prototype._getName = function() {
         throw new YtError("Malformed command name " + JSON.stringify(name));
     }
 
-    this.name = name;
+    this.req.tags.api_command = version + "_" + name;
+
+    this.command = name;
     this.driver = driver;
 };
 
@@ -337,7 +343,9 @@ YtCommand.prototype._getUser = function() {
         throw new YtError("Failed to identify user credentials");
     }
 
-    if (this.name === "ping_tx" || this.name === "parse_ypath") {
+    this.req.tags.user = this.user;
+
+    if (this.command === "ping_tx" || this.command === "parse_ypath") {
         // Do not check stickness for `ping_tx` command.
         return;
     }
@@ -353,11 +361,11 @@ YtCommand.prototype._getUser = function() {
 YtCommand.prototype._getDescriptor = function() {
     this.__DBG("_getDescriptor");
 
-    this.descriptor = this.driver.find_command_descriptor(this.name);
+    this.descriptor = this.driver.find_command_descriptor(this.command);
 
     if (!this.descriptor) {
         this.rsp.statusCode = 404;
-        throw new YtError("Command '" + this.name + "' is not registered");
+        throw new YtError("Command '" + this.command + "' is not registered");
     }
 };
 
@@ -380,7 +388,7 @@ YtCommand.prototype._checkHttpMethod = function() {
         this.rsp.statusCode = 405;
         this.rsp.setHeader("Allow", expected_http_method);
         throw new YtError(
-            "Command '" + this.name +
+            "Command '" + this.command +
             "' have to be executed with the " +
             expected_http_method +
             " HTTP method while the actual one is " +
@@ -391,29 +399,19 @@ YtCommand.prototype._checkHttpMethod = function() {
 YtCommand.prototype._checkAvailability = function() {
     this.__DBG("_checkAvailability");
 
-    var self = this;
-
-    function abortAsUnavailable(cause) {
-        self.rsp.statusCode = 503;
-        self.rsp.setHeader("Retry-After", "60");
-        throw new YtError(cause);
-    }
-
     if (this.coordinator.getSelf().banned) {
-        abortAsUnavailable(
+        this.rsp.statusCode = 503;
+        this.rsp.setHeader("Retry-After", "60");
+        throw new YtError(
             "This proxy is banned");
     }
 
     if (this.descriptor.is_heavy && this.watcher.isChoking()) {
-        abortAsUnavailable(
-            "Command '" + this.name +
+        this.rsp.statusCode = 503;
+        this.rsp.setHeader("Retry-After", "60");
+        throw new YtError(
+            "Command '" + this.command +
             "' is heavy and the proxy is currently under heavy load; " +
-            "please try another proxy or try again later");
-    }
-
-    if (!this.watcher.acquireThread()) {
-        abortAsUnavailable(
-            "There are too many concurrent requests being served at the moment; " +
             "please try another proxy or try again later");
     }
 };
@@ -436,7 +434,8 @@ YtCommand.prototype._redirectHeavyRequests = function() {
         } else {
             this.rsp.statusCode = 503;
             this.rsp.setHeader("Retry-After", "60");
-            throw new YtError("There are no data proxies available");
+            throw new YtError(
+                "There are no data proxies available");
         }
     }
 };
@@ -765,7 +764,7 @@ YtCommand.prototype._logRequest = function() {
     this.__DBG("_logRequest");
 
     this.logger.debug("Gathered request parameters", {
-        name               : this.name,
+        command            : this.command,
         user               : this.user,
         parameters         : this.parameters.Print(),
         input_format       : this.input_format.Print(),
@@ -799,8 +798,18 @@ YtCommand.prototype._execute = function(cb) {
 
     var self = this;
 
-    self.logger.debug("Command '" + self.name + "' is being executed");
-    return this.driver.execute(this.name, this.user,
+    var watcher_tags = JSON.parse(JSON.stringify(self.req.tags));
+
+    if (!self.watcher.acquireThread(watcher_tags)) {
+        self.rsp.statusCode = 503;
+        self.rsp.setHeader("Retry-After", "60");
+        return Q.reject(new YtError(
+            "There are too many concurrent requests being served at the moment; " +
+            "please try another proxy or try again later"));
+    }
+
+    self.logger.debug("Command '" + self.command + "' is being executed");
+    return this.driver.execute(this.command, this.user,
         this.input_stream, this.input_compression,
         this.output_stream, this.output_compression,
         this.parameters, this.request_id,
@@ -824,9 +833,9 @@ YtCommand.prototype._execute = function(cb) {
             }
         },
         function result_interceptor(result) {
-            self.watcher.releaseThread();
+            self.watcher.releaseThread(watcher_tags);
             self.logger.debug(
-                "Command '" + self.name + "' has finished executing",
+                "Command '" + self.command + "' has finished executing",
                 { result: result });
         })
     .spread(function() { return arguments; }, function() { return arguments; })

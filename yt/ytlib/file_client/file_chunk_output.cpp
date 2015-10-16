@@ -22,7 +22,7 @@
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_replica.h>
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/lazy_chunk_writer.h>
+#include <ytlib/chunk_client/confirming_writer.h>
 #include <ytlib/chunk_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -67,7 +67,7 @@ TFileChunkOutput::TFileChunkOutput(
         Config->UploadReplicationFactor);
 
     auto nodeDirectory = New<TNodeDirectory>();
-    ChunkWriter = CreateLazyChunkWriter(
+    ChunkWriter = CreateConfirmingWriter(
         Config,
         Options,
         TransactionId,

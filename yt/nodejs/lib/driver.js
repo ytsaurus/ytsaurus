@@ -179,7 +179,10 @@ YtDriver.prototype.execute = function(
 
             if (typeof(result_interceptor) === "function") {
                 self.__DBG("execute -> (interceptor)");
-                result_interceptor(result);
+                try {
+                    result_interceptor(result);
+                } catch (ex) {
+                }
             }
 
             if (result.code === 0) {

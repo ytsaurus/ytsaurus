@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#include "lazy_chunk_writer.h"
+#include "confirming_writer.h"
 #include "config.h"
 #include "chunk_ypath_proxy.h"
 #include "chunk_replica.h"
@@ -45,11 +45,11 @@ using namespace NNodeTrackerClient;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TLazyChunkWriter
+class TConfirmingWriter
     : public IChunkWriter
 {
 public:
-    TLazyChunkWriter(
+    TConfirmingWriter(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         const TTransactionId& transactionId,
@@ -88,13 +88,10 @@ private:
 
     IChunkWriterPtr UnderlyingWriter_;
 
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Closed_ = {false};
-
-    TChunkId ChunkId_;
-    std::vector<TSharedRef> PendingBlocks_;
-
-    TFuture<void> OpenedFuture_ = VoidFuture;
+    std::atomic<bool> Initialized_ = { false };
+    std::atomic<bool> Closed_ = { false };
+    TChunkId ChunkId_ = NullChunkId;
+    TFuture<void> OpenFuture_;
 
     TChunkMeta ChunkMeta_;
     TDataStatistics DataStatistics_;
@@ -109,7 +106,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TLazyChunkWriter::TLazyChunkWriter(
+TConfirmingWriter::TConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     const NTransactionClient::TTransactionId& transactionId,
@@ -131,83 +128,87 @@ TLazyChunkWriter::TLazyChunkWriter(
     Logger.AddTag("TransactionId: %v", TransactionId_);
 }
 
-TFuture<void> TLazyChunkWriter::Open()
+TFuture<void> TConfirmingWriter::Open()
 {
-    return VoidFuture;
+    YCHECK(!Initialized_);
+    YCHECK(!OpenFuture_);
+
+    OpenFuture_ = BIND(&TConfirmingWriter::OpenSession, MakeWeak(this))
+        .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+        .Run();
+    return OpenFuture_;
 }
 
-bool TLazyChunkWriter::WriteBlock(const TSharedRef& block)
+bool TConfirmingWriter::WriteBlock(const TSharedRef& block)
 {
     return WriteBlocks(std::vector<TSharedRef>(1, block));
 }
 
-bool TLazyChunkWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
+bool TConfirmingWriter::WriteBlocks(const std::vector<TSharedRef>& blocks)
 {
-    if (!Initialized_) {
-        // We haven't started lazy chunk creation yet.
-        YCHECK(OpenedFuture_.IsSet());
-        PendingBlocks_.insert(PendingBlocks_.end(), blocks.begin(), blocks.end());
-        OpenedFuture_ = BIND(&TLazyChunkWriter::OpenSession, MakeWeak(this))
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
-            .Run();
+    YCHECK(Initialized_);
+    YCHECK(OpenFuture_.IsSet());
 
-        return false;
-    } else if (!OpenedFuture_.Get().IsOK()) {
+    if (!OpenFuture_.Get().IsOK()) {
         return false;
     } else {
         return UnderlyingWriter_->WriteBlocks(blocks);
     }
 }
 
-TFuture<void> TLazyChunkWriter::GetReadyEvent()
+TFuture<void> TConfirmingWriter::GetReadyEvent()
 {
-    if (!Initialized_ || !OpenedFuture_.Get().IsOK()) {
-        return OpenedFuture_;
+    YCHECK(Initialized_);
+    YCHECK(OpenFuture_.IsSet());
+    if (!OpenFuture_.Get().IsOK()) {
+        return OpenFuture_;
     } else {
         return UnderlyingWriter_->GetReadyEvent();
     }
 }
 
-TFuture<void> TLazyChunkWriter::Close(const TChunkMeta& chunkMeta)
+TFuture<void> TConfirmingWriter::Close(const TChunkMeta& chunkMeta)
 {
+    YCHECK(Initialized_);
+    YCHECK(OpenFuture_.IsSet());
+
     ChunkMeta_ = chunkMeta;
-    return OpenedFuture_.Apply(
-        BIND(&TLazyChunkWriter::DoClose,MakeWeak(this))
-            .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
+
+    return BIND(
+        &TConfirmingWriter::DoClose,
+        MakeWeak(this))
+    .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
+    .Run();
 }
 
-const TChunkInfo& TLazyChunkWriter::GetChunkInfo() const
+const TChunkInfo& TConfirmingWriter::GetChunkInfo() const
 {
     YCHECK(Closed_);
     return UnderlyingWriter_->GetChunkInfo();
 }
 
-const TDataStatistics& TLazyChunkWriter::GetDataStatistics() const
+const TDataStatistics& TConfirmingWriter::GetDataStatistics() const
 {
     YCHECK(Closed_);
     return DataStatistics_;
 }
 
-TChunkReplicaList TLazyChunkWriter::GetWrittenChunkReplicas() const
+TChunkReplicaList TConfirmingWriter::GetWrittenChunkReplicas() const
 {
     YCHECK(UnderlyingWriter_);
     return UnderlyingWriter_->GetWrittenChunkReplicas();
 }
 
-TChunkId TLazyChunkWriter::GetChunkId() const
+TChunkId TConfirmingWriter::GetChunkId() const
 {
     return ChunkId_;
 }
 
-void TLazyChunkWriter::OpenSession()
+void TConfirmingWriter::OpenSession()
 {
     TFinallyGuard finally([&] () {
         Initialized_ = true;
     });
-
-    LOG_DEBUG(
-        "Creating chunk (ReplicationFactor: %v)",
-        Options_->ReplicationFactor);
 
     ChunkId_ = CreateChunk();
 
@@ -219,17 +220,9 @@ void TLazyChunkWriter::OpenSession()
         .ThrowOnError();
 
     LOG_DEBUG("Chunk writer opened");
-
-    if (!UnderlyingWriter_->WriteBlocks(PendingBlocks_)) {
-        WaitFor(UnderlyingWriter_->GetReadyEvent())
-            .ThrowOnError();
-    }
-    PendingBlocks_.clear();
-
-    LOG_DEBUG("Initial blocks written");
 }
 
-TChunkId TLazyChunkWriter::CreateChunk() const
+TChunkId TConfirmingWriter::CreateChunk() const
 {
     try {
         return NChunkClient::CreateChunk(
@@ -247,7 +240,7 @@ TChunkId TLazyChunkWriter::CreateChunk() const
     }
 }
 
-IChunkWriterPtr TLazyChunkWriter::CreateUnderlyingWriter() const
+IChunkWriterPtr TConfirmingWriter::CreateUnderlyingWriter() const
 {
     if (Options_->ErasureCodec == ECodec::None) {
         return CreateReplicationWriter(
@@ -282,7 +275,7 @@ IChunkWriterPtr TLazyChunkWriter::CreateUnderlyingWriter() const
         writers);
 }
 
-void TLazyChunkWriter::DoClose()
+void TConfirmingWriter::DoClose()
 {
     auto error = WaitFor(UnderlyingWriter_->Close(ChunkMeta_));
 
@@ -338,7 +331,7 @@ void TLazyChunkWriter::DoClose()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IChunkWriterPtr CreateLazyChunkWriter(
+IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     const NTransactionClient::TTransactionId& transactionId,
@@ -348,7 +341,7 @@ IChunkWriterPtr CreateLazyChunkWriter(
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
-    return New<TLazyChunkWriter>(
+    return New<TConfirmingWriter>(
         config,
         options,
         transactionId,

@@ -643,11 +643,7 @@ private:
     {
         TOrderedMergeControllerBase::DoInitialize();
 
-        if (Spec->Mapper->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in mapper: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Mapper->FilePaths.size());
-        }
+        ValidateUserFileCount(Spec->Mapper, "mapper");
     }
 
     virtual bool IsOutputLivePreviewSupported() const override
@@ -1043,14 +1039,10 @@ protected:
         // NB: Base member is not called intentionally.
 
         auto specKeyColumns = GetSpecKeyColumns();
-        LOG_INFO("Spec key columns are %v",
-            !specKeyColumns.empty() ? ConvertToYsonString(specKeyColumns, EYsonFormat::Text).Data() : "<Null>");
+        LOG_INFO("Spec key columns are [%v]", JoinToString(specKeyColumns));
 
         KeyColumns = CheckInputTablesSorted(specKeyColumns);
-        LOG_INFO("Adjusted key columns are %v",
-            ConvertToYsonString(KeyColumns, EYsonFormat::Text).Data());
-
-        bool sliceByKeys = true;
+        LOG_INFO("Adjusted key columns are [%v]", JoinToString(KeyColumns));
 
         CalculateSizes();
 
@@ -1065,6 +1057,8 @@ protected:
                 Logger);
         }
 
+        bool sliceByKeys = true;
+
         ChunkSlicesFetcher = New<TChunkSlicesFetcher>(
             Config->Fetcher,
             ChunkSliceSize,
@@ -1077,10 +1071,8 @@ protected:
 
         ProcessInputs();
 
-        {
-            auto result = WaitFor(ChunkSlicesFetcher->Fetch());
-            THROW_ERROR_EXCEPTION_IF_FAILED(result);
-        }
+        WaitFor(ChunkSlicesFetcher->Fetch())
+            .ThrowOnError();
 
         CollectEndpoints();
 
@@ -1494,8 +1486,6 @@ public:
         TOperation* operation)
         : TSortedMergeControllerBase(config, spec, config->ReduceOperationOptions, host, operation)
         , Spec(spec)
-        , StartRowIndex(0)
-        , TeleportOutputTable(Null)
     { }
 
     virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
@@ -1521,7 +1511,7 @@ private:
 
     TReduceOperationSpecPtr Spec;
 
-    i64 StartRowIndex;
+    i64 StartRowIndex = 0;
     TNullable<int> TeleportOutputTable;
 
 
@@ -1529,11 +1519,7 @@ private:
     {
         TSortedMergeControllerBase::DoInitialize();
 
-        if (Spec->Reducer && Spec->Reducer->FilePaths.size() > Config->MaxUserFileCount) {
-            THROW_ERROR_EXCEPTION("Too many user files in reducer: maximum allowed %v, actual %v",
-                Config->MaxUserFileCount,
-                Spec->Reducer->FilePaths.size());
-        }
+        ValidateUserFileCount(Spec->Reducer, "reducer");
     }
 
     virtual bool IsRowCountPreserved() const override
@@ -1797,7 +1783,9 @@ private:
             Files);
 
         auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        ToProto(reduceJobSpecExt->mutable_key_columns(), GetSortingKeyColumns());
+        const auto& sortBy = GetCommonInputKeyPrefix();
+        YCHECK(sortBy.size() >= KeyColumns.size());
+        ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
         reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
 
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
@@ -1827,24 +1815,6 @@ private:
         }
         return true;
     }
-
-    TKeyColumns GetSortingKeyColumns()
-    {
-        auto sortBy = InputTables[0].KeyColumns;
-        for (const auto& table : InputTables) {
-            if (table.KeyColumns.size() < sortBy.size()) {
-                sortBy.erase(sortBy.begin() + table.KeyColumns.size(), sortBy.end());
-            }
-
-            int index = 0;
-            while (index < static_cast<int>(sortBy.size()) && sortBy[index] == table.KeyColumns[index]) {
-              	++index;
-            }
-            sortBy.erase(sortBy.begin() + index, sortBy.end());
-        }
-        YCHECK(sortBy.size() >= KeyColumns.size());
-        return sortBy;
-    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);
@@ -1856,6 +1826,314 @@ IOperationControllerPtr CreateReduceController(
 {
     auto spec = ParseOperationSpec<TReduceOperationSpec>(operation->GetSpec());
     return New<TReduceController>(config, spec, host, operation);
+}
+
+////////////////////////////////////////////////////////////////////
+
+class TJoinReduceController
+    : public TMergeControllerBase
+{
+public:
+    TJoinReduceController(
+        TSchedulerConfigPtr config,
+        TJoinReduceOperationSpecPtr spec,
+        IOperationHost* host,
+        TOperation* operation)
+        : TMergeControllerBase(config, spec, config->JoinReduceOperationOptions, host, operation)
+        , Spec(spec)
+    { }
+
+    virtual void BuildBriefSpec(IYsonConsumer* consumer) const override
+    {
+        TMergeControllerBase::BuildBriefSpec(consumer);
+        BuildYsonMapFluently(consumer)
+            .Item("reducer").BeginMap()
+                .Item("command").Value(TrimCommandForBriefSpec(Spec->Reducer->Command))
+            .EndMap();
+    }
+
+    // Persistence.
+    virtual void Persist(TPersistenceContext& context) override
+    {
+        TMergeControllerBase::Persist(context);
+
+        using NYT::Persist;
+        Persist(context, KeyColumns);
+        Persist(context, StartRowIndex);
+    }
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController, 0xc0fd3095);
+
+    TJoinReduceOperationSpecPtr Spec;
+
+    //! The actual (adjusted) key columns.
+    std::vector<Stroka> KeyColumns;
+    i64 StartRowIndex = 0;
+
+    TChunkSlicesFetcherPtr ChunkSlicesFetcher;
+    TNullable<int> PrimaryTableIndex;
+
+
+    virtual void DoInitialize() override
+    {
+        TMergeControllerBase::DoInitialize();
+
+        if (InputTables.size() < 2) {
+            THROW_ERROR_EXCEPTION("At least two input tables are required");
+        }
+
+        {
+            int primaryInputCount = 0;
+            for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
+                if (InputTables[i].Path.Attributes().Get<bool>("primary", false)) {
+                    ++primaryInputCount;
+                    PrimaryTableIndex = i;
+                }
+                if (InputTables[i].Path.Attributes().Get<bool>("teleport", false)) {
+                    THROW_ERROR_EXCEPTION("Teleport tables are not supported in join-reduce");
+                }
+            }
+
+            if (primaryInputCount != 1) {
+                THROW_ERROR_EXCEPTION("You must specify exactly one primary input table (%v specified)",
+                    primaryInputCount);
+            }
+        }
+
+        // For join reduce tables with multiple ranges are not supported.
+        for (int i = 0; i < static_cast<int>(InputTables.size()); ++i) {
+            auto& path = InputTables[i].Path;
+            auto ranges = path.GetRanges();
+            if (ranges.size() > 1) {
+                THROW_ERROR_EXCEPTION("Join reduce operation does not support tables with multiple ranges");
+            }
+        }
+        ValidateUserFileCount(Spec->Reducer, "reducer");
+    }
+
+    virtual bool IsRowCountPreserved() const override
+    {
+        return false;
+    }
+
+    virtual void CustomPrepare() override
+    {
+        // NB: Base member is not called intentionally.
+
+        auto specKeyColumns = Spec->JoinBy;
+        LOG_INFO("Spec key columns are [%v]", JoinToString(specKeyColumns));
+
+        KeyColumns = CheckInputTablesSorted(specKeyColumns);
+        LOG_INFO("Adjusted key columns are [%v]", JoinToString(KeyColumns));
+
+        CalculateSizes();
+
+        TScrapeChunksCallback scraperCallback;
+        if (Spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
+            scraperCallback = CreateScrapeChunksSessionCallback(
+                Config,
+                GetCancelableInvoker(),
+                Host->GetChunkLocationThrottlerManager(),
+                AuthenticatedInputMasterClient,
+                InputNodeDirectory,
+                Logger);
+        }
+
+        bool sliceByKeys = false;
+
+        ChunkSlicesFetcher = New<TChunkSlicesFetcher>(
+            Config->Fetcher,
+            ChunkSliceSize,
+            KeyColumns,
+            sliceByKeys,
+            InputNodeDirectory,
+            GetCancelableInvoker(),
+            scraperCallback,
+            Logger);
+
+        ProcessInputs();
+
+        WaitFor(ChunkSlicesFetcher->Fetch())
+            .ThrowOnError();
+
+        BuildTasks();
+
+        FinishPreparation();
+    }
+
+    virtual void ProcessInputChunk(TRefCountedChunkSpecPtr chunkSpec) override
+    {
+        if (chunkSpec->table_index() == PrimaryTableIndex) {
+            ChunkSlicesFetcher->AddChunk(chunkSpec);
+        }
+    }
+
+    void AddSecondaryTablesToTask(std::vector<int>& startIndexes)
+    {
+        const int prefixLength = static_cast<int>(KeyColumns.size());
+
+        const auto& stripe = CurrentTaskStripes[*PrimaryTableIndex];
+        YCHECK(stripe && !stripe->ChunkSlices.empty());
+
+        const auto& primaryMinKey = stripe->ChunkSlices.front()->LowerLimit().GetKey();
+        const auto& primaryMaxKey = stripe->ChunkSlices.back()->UpperLimit().GetKey();
+
+        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables.size()); ++tableIndex) {
+            if (tableIndex == PrimaryTableIndex) {
+                continue;
+            }
+            const auto& chunks = InputTables[tableIndex].Chunks;
+            for (int chunkIndex = startIndexes[tableIndex]; chunkIndex < static_cast<int>(chunks.size()); ++chunkIndex) {
+                const auto& chunkSpec = chunks[chunkIndex];
+                TOwningKey maxKey, minKey;
+                YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
+                if (CompareRows(primaryMinKey, maxKey, prefixLength) > 0) {
+                    startIndexes[tableIndex] = chunkIndex + 1;
+                    continue;
+                }
+                if (CompareRows(primaryMaxKey, minKey, prefixLength) < 0) {
+                    break;
+                }
+                AddPendingChunkSlice(CreateChunkSlice(chunkSpec, primaryMinKey, primaryMaxKey));
+            }
+        }
+    }
+
+    void BuildTasks()
+    {
+        const auto& slices = ChunkSlicesFetcher->GetChunkSlices();
+
+        // Slices in primary table are ordered by key.
+        std::vector<int> startIndexes(InputTables.size());
+
+        for (const auto& slice : slices) {
+            YCHECK(slice->LowerLimit().HasKey());
+            const auto& primaryMinKey = slice->LowerLimit().GetKey();
+            YCHECK(slice->UpperLimit().HasKey());
+            const auto& primaryMaxKey = slice->UpperLimit().GetKey();
+
+            try {
+                ValidateKey(primaryMinKey);
+                ValidateKey(primaryMaxKey);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "Error validating sample key in input table %v",
+                    GetInputTablePaths()[slice->GetChunkSpec()->table_index()])
+                    << ex;
+            }
+
+            AddPendingChunkSlice(slice);
+
+            if (HasLargeActiveTask()) {
+                AddSecondaryTablesToTask(startIndexes);
+                EndTask();
+            }
+        }
+        if (HasActiveTask()) {
+            AddSecondaryTablesToTask(startIndexes);
+            EndTask();
+        }
+    }
+
+    virtual std::vector<TRichYPath> GetInputTablePaths() const override
+    {
+        return Spec->InputTablePaths;
+    }
+
+    virtual std::vector<TRichYPath> GetOutputTablePaths() const override
+    {
+        return Spec->OutputTablePaths;
+    }
+
+    virtual std::vector<TPathWithStage> GetFilePaths() const override
+    {
+        std::vector<TPathWithStage> result;
+        for (const auto& path : Spec->Reducer->FilePaths) {
+            result.push_back(std::make_pair(path, EOperationStage::Reduce));
+        }
+        return result;
+    }
+
+    // Unsorted helpers.
+    virtual i32 GetCpuLimit() const override
+    {
+        return Spec->Reducer->CpuLimit;
+    }
+
+    virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
+    {
+        return GetMemoryReserve(memoryReserveEnabled, Spec->Reducer);
+    }
+
+    virtual bool IsSortedOutputSupported() const override
+    {
+        return true;
+    }
+
+    virtual bool IsTeleportChunk(const TChunkSpec& chunkSpec) const override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual bool IsSingleStripeInput() const override
+    {
+        return false;
+    }
+
+    virtual void InitJobSpecTemplate() override
+    {
+        YCHECK(!KeyColumns.empty());
+
+        JobSpecTemplate.set_type(static_cast<int>(EJobType::SortedReduce));
+        auto* schedulerJobSpecExt = JobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+        schedulerJobSpecExt->set_lfalloc_buffer_size(GetLFAllocBufferSize());
+        ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransactionId);
+        schedulerJobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).Data());
+
+        InitUserJobSpecTemplate(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            Spec->Reducer,
+            Files);
+
+        auto* reduceJobSpecExt = JobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        const auto& sortBy = GetCommonInputKeyPrefix();
+        YCHECK(sortBy.size() >= KeyColumns.size());
+        ToProto(reduceJobSpecExt->mutable_key_columns(), sortBy);
+        reduceJobSpecExt->set_reduce_key_column_count(KeyColumns.size());
+    }
+
+    virtual void CustomizeJoblet(TJobletPtr joblet) override
+    {
+        joblet->StartRowIndex = StartRowIndex;
+        StartRowIndex += joblet->InputStripeList->TotalRowCount;
+    }
+
+    virtual void CustomizeJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
+    {
+        auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        InitUserJobSpec(
+            schedulerJobSpecExt->mutable_user_job_spec(),
+            joblet,
+            GetAdditionalMemorySize(joblet->MemoryReserveEnabled));
+    }
+
+    virtual bool IsOutputLivePreviewSupported() const override
+    {
+        return true;
+    }
+};
+
+DEFINE_DYNAMIC_PHOENIX_TYPE(TJoinReduceController);
+
+IOperationControllerPtr CreateJoinReduceController(
+    TSchedulerConfigPtr config,
+    IOperationHost* host,
+    TOperation* operation)
+{
+    auto spec = ParseOperationSpec<TJoinReduceOperationSpec>(operation->GetSpec());
+    return New<TJoinReduceController>(config, spec, host, operation);
 }
 
 ////////////////////////////////////////////////////////////////////

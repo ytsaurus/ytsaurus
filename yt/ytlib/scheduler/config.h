@@ -548,6 +548,50 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJoinReduceOperationSpec
+    : public TSimpleOperationSpecBase
+{
+public:
+    TUserJobSpecPtr Reducer;
+    std::vector<NYPath::TRichYPath> InputTablePaths;
+    std::vector<NYPath::TRichYPath> OutputTablePaths;
+    NTableClient::TKeyColumns JoinBy;
+
+    TJoinReduceOperationSpec()
+    {
+        RegisterParameter("reducer", Reducer)
+            .DefaultNew();
+        RegisterParameter("input_table_paths", InputTablePaths)
+            .NonEmpty();
+        RegisterParameter("output_table_paths", OutputTablePaths)
+            .NonEmpty();
+        RegisterParameter("join_by", JoinBy)
+            .Default();
+
+        RegisterInitializer([&] () {
+            DataSizePerJob = (i64) 128 * 1024 * 1024;
+        });
+
+        RegisterValidator([&] () {
+            if (!JoinBy.empty()) {
+                NTableClient::ValidateKeyColumns(JoinBy);
+            }
+        });
+    }
+
+    virtual void OnLoaded() override
+    {
+        TSimpleOperationSpecBase::OnLoaded();
+
+        InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
+        OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
+
+        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSortOperationSpecBase
     : public TOperationSpecBase
 {

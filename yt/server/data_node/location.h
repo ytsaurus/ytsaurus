@@ -135,6 +135,7 @@ private:
     const ELocationType Type_;
     const Stroka Id_;
     const TLocationConfigBasePtr Config_;
+    
     NProfiling::TProfiler Profiler_;
 
     std::atomic<bool> Enabled_ = {false};
@@ -144,8 +145,10 @@ private:
     int SessionCount_ = 0;
     int ChunkCount_ = 0;
 
-    const NConcurrency::TFairShareActionQueuePtr ReadQueue_;
+    const NConcurrency::TThreadPoolPtr DataReadThreadPool_;
     const IPrioritizedInvokerPtr DataReadInvoker_;
+
+    const NConcurrency::TActionQueuePtr MetaReadQueue_;
     const IPrioritizedInvokerPtr MetaReadInvoker_;
 
     const NConcurrency::TThreadPoolPtr WriteThreadPool_;

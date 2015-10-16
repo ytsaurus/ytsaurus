@@ -29,6 +29,7 @@ class TFileChangelogTest
 {
 protected:
     TFileChangelogStoreConfigPtr ChangelogStoreConfig;
+    IChangelogStoreFactoryPtr ChangelogStoreFactory;
     IChangelogStorePtr ChangelogStore;
     IChangelogPtr Changelog;
 
@@ -40,7 +41,10 @@ protected:
         ChangelogStoreConfig = New<TFileChangelogStoreConfig>();
         ChangelogStoreConfig->Path = "FileChangelog";
 
-        ChangelogStore = CreateLocalChangelogStore("ChangelogFlush", ChangelogStoreConfig);
+        ChangelogStoreFactory = CreateLocalChangelogStoreFactory("ChangelogFlush", ChangelogStoreConfig);
+        ChangelogStore = ChangelogStoreFactory->Lock()
+            .Get()
+            .ValueOrThrow();
 
         auto changelogOrError = ChangelogStore->CreateChangelog(0, TChangelogMeta()).Get();
         ASSERT_TRUE(changelogOrError.IsOK());
