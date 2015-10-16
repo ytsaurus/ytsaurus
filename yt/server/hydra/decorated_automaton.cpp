@@ -887,7 +887,7 @@ void TDecoratedAutomaton::CommitMutations(TVersion version, bool mayYield)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (version < CommittedVersion_)
+    if (version <= CommittedVersion_)
         return;
 
     CommittedVersion_ = version;
