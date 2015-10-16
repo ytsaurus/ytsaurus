@@ -54,7 +54,7 @@ if __name__ == "__main__":
                       "opaque": "true",
                       "account": "tmp"})
 
-    for schema in ["user", "group"]:
+    for schema in ["user", "group", "tablet_cell"]:
         yt.set("//sys/schemas/%s/@acl" % schema,
             [
                 {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
