@@ -12,7 +12,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    @only_linux
+    @linux_only
     def test_join_reduce_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
         write_table(
@@ -55,7 +55,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @only_linux
+    @linux_only
     def test_join_reduce_cat_simple(self):
         create('table', '//tmp/in1')
         write_table(
@@ -102,7 +102,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @only_linux
+    @linux_only
     def test_join_reduce_control_attributes_yson(self):
         create('table', '//tmp/in1')
         write_table(
@@ -156,7 +156,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             '<"row_index"=1>#;\n' \
             '{"key"=5;"value"=3};\n'
 
-    @only_linux
+    @linux_only
     def test_join_reduce_cat_two_output(self):
         create('table', '//tmp/in1')
         write_table(
@@ -313,7 +313,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 {'key': "2", 'subkey': YsonEntity()}
             ]
 
-    @only_linux
+    @linux_only
     def test_join_reduce_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
