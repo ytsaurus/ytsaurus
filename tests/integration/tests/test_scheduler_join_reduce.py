@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, linux_only
 from yt_commands import *
 from yt.yson import YsonEntity
 
