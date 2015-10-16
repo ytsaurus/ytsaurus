@@ -49,9 +49,6 @@ struct IServiceContext
     //! Returns |true| if this is a duplicate copy of a previously sent (and possibly served) request.
     virtual bool IsRetry() const = 0;
 
-    //! Returns request priority for reordering purposes.
-    virtual i64 GetPriority() const = 0;
-
     //! Returns request service name.
     virtual const Stroka& GetService() const = 0;
 

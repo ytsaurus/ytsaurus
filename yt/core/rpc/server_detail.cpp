@@ -249,13 +249,6 @@ bool TServiceContextBase::IsRetry() const
     return RequestHeader_->retry();
 }
 
-i64 TServiceContextBase::GetPriority() const
-{
-    return RequestHeader_->has_request_start_time()
-        ? -RequestHeader_->request_start_time()
-        : 0;
-}
-
 const Stroka& TServiceContextBase::GetService() const
 {
     return RequestHeader_->service();
@@ -346,11 +339,6 @@ TNullable<TDuration> TServiceContextWrapper::GetTimeout() const
 bool TServiceContextWrapper::IsRetry() const
 {
     return UnderlyingContext_->IsRetry();
-}
-
-i64 TServiceContextWrapper::GetPriority() const
-{
-    return UnderlyingContext_->GetPriority();
 }
 
 const Stroka& TServiceContextWrapper::GetService() const

@@ -101,15 +101,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
             .SetCancelable(true)
-            .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetCancelable(true)
-            .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetCancelable(true)
-            .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
@@ -373,7 +370,7 @@ private:
             auto asyncBlocks = blockStore->ReadBlockSet(
                 chunkId,
                 blockIndexes,
-                context->GetPriority(),
+                GetRequestPriority(context),
                 blockCache,
                 populateCache);
             response->Attachments() = WaitFor(asyncBlocks)
@@ -441,7 +438,7 @@ private:
                 chunkId,
                 firstBlockIndex,
                 blockCount,
-                context->GetPriority(),
+                GetRequestPriority(context),
                 blockCache,
                 populateCache);
             response->Attachments() = WaitFor(asyncBlocks)
@@ -482,7 +479,7 @@ private:
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
-        auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority(), extensionTags);
+        auto asyncChunkMeta = chunk->ReadMeta(GetRequestPriority(context), extensionTags);
         asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 context->Reply(metaOrError);
@@ -525,7 +522,7 @@ private:
                 continue;
             }
 
-            auto asyncResult = chunk->ReadMeta(context->GetPriority());
+            auto asyncResult = chunk->ReadMeta(GetRequestPriority(context));
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
@@ -618,7 +615,7 @@ private:
                 continue;
             }
 
-            auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority());
+            auto asyncChunkMeta = chunk->ReadMeta(GetRequestPriority(context));
             asyncResults.push_back(asyncChunkMeta.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,
@@ -953,6 +950,12 @@ private:
         } else {
             return false;
         }
+    }
+
+    static i64 GetRequestPriority(IServiceContextPtr context)
+    {
+        auto startTime = context->GetRequestStartTime();
+        return startTime ? -startTime->MicroSeconds() : 0;
     }
 
 

@@ -29,8 +29,6 @@ public:
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
     
-    virtual i64 GetPriority() const override;
-    
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;
     virtual const TRealmId& GetRealmId() const override;
@@ -150,8 +148,6 @@ public:
     virtual TNullable<TInstant> GetRetryStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
-
-    virtual i64 GetPriority() const override;
 
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;

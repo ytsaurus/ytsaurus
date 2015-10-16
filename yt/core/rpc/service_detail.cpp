@@ -134,12 +134,8 @@ public:
         auto wrappedHandler = BIND(&TServiceContext::DoRun, MakeStrong(this), handler);
 
         const auto& descriptor = RuntimeInfo_->Descriptor;
-        auto invoker = descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
-        if (descriptor.EnableReorder) {
-            invoker->Invoke(std::move(wrappedHandler), GetPriority());
-        } else {
-            invoker->Invoke(std::move(wrappedHandler));
-        }
+        const auto& invoker = descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
+        invoker->Invoke(std::move(wrappedHandler));
     }
 
     virtual void SubscribeCanceled(const TClosure& callback) override
@@ -436,43 +432,16 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
-    IPrioritizedInvokerPtr defaultInvoker,
-    const TServiceId& serviceId,
-    const NLogging::TLogger& logger,
-    int protocolVersion)
-{
-    Initialize(
-        defaultInvoker,
-        serviceId,
-        logger,
-        protocolVersion);
-}
-
-TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLogging::TLogger& logger,
     int protocolVersion)
-{
-    Initialize(
-        CreateFakePrioritizedInvoker(defaultInvoker),
-        serviceId,
-        logger,
-        protocolVersion);
-}
-
-void TServiceBase::Initialize(
-    IPrioritizedInvokerPtr defaultInvoker,
-    const TServiceId& serviceId,
-    const NLogging::TLogger& logger,
-    int protocolVersion)
+    : Logger(logger)
+    , DefaultInvoker_(defaultInvoker)
+    , ServiceId_(serviceId)
+    , ProtocolVersion_(protocolVersion)
 {
     YCHECK(defaultInvoker);
-
-    DefaultInvoker_ = defaultInvoker;
-    ServiceId_ = serviceId;
-    Logger = logger;
-    ProtocolVersion_ = protocolVersion;
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
 
@@ -867,7 +836,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& me
     return runtimeInfo;
 }
 
-IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
+IInvokerPtr TServiceBase::GetDefaultInvoker()
 {
     return DefaultInvoker_;
 }
