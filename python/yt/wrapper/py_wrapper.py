@@ -7,6 +7,7 @@ from yt.zip import ZipFile
 import yt.logger as logger
 
 import imp
+import pipes
 import inspect
 import os
 import sys
@@ -166,7 +167,8 @@ def wrap(function, operation_type, tempfiles_manager, input_format=None, output_
 
     return (" ".join([get_config(client)["pickling"]["python_binary"],
                       "_py_runner.py",
-                      os.path.basename(function_filename),
+                      # NB: Function filename may contain special symbols.
+                      pipes.quote(os.path.basename(function_filename)),
                       os.path.basename(config_filename),
                       os.path.basename(zip_filename),
                       os.path.basename(main_filename),
