@@ -23,6 +23,7 @@ struct IAttributeDictionary
     virtual void SetYson(const Stroka& key, const TYsonString& value) = 0;
 
     //! Removes the attribute.
+    //! Returns |true| if the attribute was removed or |false| if there is no attribute with this key.
     virtual bool Remove(const Stroka& key) = 0;
 
     // Extension methods
