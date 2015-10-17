@@ -1173,7 +1173,7 @@ void TDynamicMemoryStore::CheckRowLocks(
         {
             if (lock->Transaction) {
                 THROW_ERROR_EXCEPTION("Row lock conflict")
-                    << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+                    << TErrorAttribute("loser_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_id", lock->Transaction->GetId())
                     << TErrorAttribute("tablet_id", TabletId_)
                     << TErrorAttribute("key", RowToKey(row))
@@ -1182,7 +1182,7 @@ void TDynamicMemoryStore::CheckRowLocks(
             auto lastCommitTimestamp = GetLastCommitTimestamp(row, index);
             if (lastCommitTimestamp > transaction->GetStartTimestamp()) {
                 THROW_ERROR_EXCEPTION("Row lock conflict")
-                    << TErrorAttribute("conflicted_transaction_id", transaction->GetId())
+                    << TErrorAttribute("loser_transaction_id", transaction->GetId())
                     << TErrorAttribute("winner_transaction_commit_timestamp", lastCommitTimestamp)
                     << TErrorAttribute("tablet_id", TabletId_)
                     << TErrorAttribute("key", RowToKey(row))
