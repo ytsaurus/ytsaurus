@@ -661,7 +661,9 @@ TEST_W(TFutureTest, Holder)
 {
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
-    MakeHolder(future, false);
+    {
+        TFutureHolder<void> holder(future);
+    }
     EXPECT_FALSE(future.IsSet());
     EXPECT_TRUE(promise.IsCanceled());
 }
