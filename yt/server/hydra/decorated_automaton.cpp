@@ -1038,11 +1038,9 @@ TVersion TDecoratedAutomaton::GetAutomatonVersion() const
 void TDecoratedAutomaton::RotateAutomatonVersion(int segmentId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YCHECK(GetAutomatonVersion().SegmentId < segmentId);
 
-    auto automatonVersion = GetAutomatonVersion();
-    YCHECK(automatonVersion.SegmentId < segmentId);
-    automatonVersion = TVersion(segmentId, 0);
-
+    auto automatonVersion = TVersion(segmentId, 0);
     AutomatonVersion_ = automatonVersion;
     if (CommittedVersion_.load() < automatonVersion) {
         CommittedVersion_ = automatonVersion;

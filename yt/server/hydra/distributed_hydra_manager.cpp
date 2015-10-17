@@ -314,7 +314,7 @@ public:
         }
 
         return BuildSnapshotAndWatch(epochContext).Apply(
-            BIND([] (const TRemoteSnapshotParams& params) -> int {
+            BIND([] (const TRemoteSnapshotParams& params) {
                 return params.SnapshotId;
             }));
     }
@@ -989,8 +989,6 @@ private:
         } else if (checkpointer->CanRotateChangelogs()) {
             LOG_WARNING("Snapshot is still being built, just rotating changlogs");
             RotateChangelogAndWatch(epochContext);
-        } else {
-            return;
         }
     }
 
