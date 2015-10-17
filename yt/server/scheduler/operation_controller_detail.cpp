@@ -623,7 +623,6 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr joblet)
     auto address = job->GetNode()->GetDefaultAddress();
     Controller->LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(job->GetId())
-        .Item("operation_id").Value(job->GetOperation()->GetId())
         .Item("resource_limits").Value(job->ResourceLimits())
         .Item("node_address").Value(address)
         .Item("job_type").Value(job->GetType())
@@ -3710,7 +3709,6 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(ELogEventType e
 {
     return LogEventFluently(eventType)
         .Item("job_id").Value(job->GetId())
-        .Item("operation_id").Value(job->GetOperation()->GetId())
         .Item("start_time").Value(job->GetStartTime())
         .Item("finish_time").Value(job->GetFinishTime())
         .Item("resource_limits").Value(job->ResourceLimits())
