@@ -231,6 +231,8 @@ class HTTPConnectionPool(ConnectionPool, RequestMethods):
 
         if timeout is not None:
             conn.timeout = timeout
+            if hasattr(conn, "sock"):
+                conn.sock.settimeout(timeout)
 
         return conn
 
