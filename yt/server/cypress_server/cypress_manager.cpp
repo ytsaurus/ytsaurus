@@ -726,7 +726,9 @@ TError TCypressManager::CheckLock(
                     request.Mode,
                     GetNodePath(trunkNode, transaction),
                     existingState.Mode,
-                    existingTransaction->GetId());
+                    existingTransaction->GetId())
+                    << TErrorAttribute("winner_transaction", existingTransaction->GetDescription())
+                    << TErrorAttribute("loser_transaction", transaction->GetDescription());
             }
 
             // For Shared locks we check child and attribute keys.
@@ -739,7 +741,9 @@ TError TCypressManager::CheckLock(
                         "Cannot take lock for child %Qv of node %v since this child is locked by concurrent transaction %v",
                         request.ChildKey.Get(),
                         GetNodePath(trunkNode, transaction),
-                        existingTransaction->GetId());
+                        existingTransaction->GetId())
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription())
+                        << TErrorAttribute("loser_transaction", transaction->GetDescription());
                 }
                 if (request.AttributeKey &&
                     existingState.AttributeKeys.find(request.AttributeKey.Get()) != existingState.AttributeKeys.end())
@@ -749,7 +753,9 @@ TError TCypressManager::CheckLock(
                         "Cannot take lock for attribute %Qv of node %v since this attribute is locked by concurrent transaction %v",
                         request.AttributeKey.Get(),
                         GetNodePath(trunkNode, transaction),
-                        existingTransaction->GetId());
+                        existingTransaction->GetId())
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription())
+                        << TErrorAttribute("loser_transaction", transaction->GetDescription());
                 }
             }
         }

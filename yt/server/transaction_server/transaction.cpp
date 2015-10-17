@@ -3,6 +3,8 @@
 
 #include <core/misc/string.h>
 
+#include <core/ytree/fluent.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
 
@@ -11,6 +13,7 @@
 namespace NYT {
 namespace NTransactionServer {
 
+using namespace NYTree;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,6 +95,23 @@ void TTransaction::ThrowInvalidState() const
     THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
         Id_,
         State_);
+}
+
+TYsonString TTransaction::GetDescription() const
+{
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .Item("id").Value(Id_)
+            .Item("start_time").Value(StartTime_)
+            .DoIf(Title_.HasValue(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("title").Value(*Title_);
+            })
+            .DoIf(Parent_ != nullptr, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("parent").Value(Parent_->GetDescription());
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

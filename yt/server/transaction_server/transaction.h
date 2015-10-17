@@ -66,6 +66,8 @@ public:
 
     void ThrowInvalidState() const;
 
+    NYTree::TYsonString GetDescription() const;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
