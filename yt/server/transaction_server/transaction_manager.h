@@ -44,7 +44,10 @@ public:
 
     void Initialize();
 
-    TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout);
+    TTransaction* StartTransaction(
+        TTransaction* parent,
+        TNullable<TDuration> timeout,
+        const TNullable<Stroka>& title);
     void CommitTransaction(TTransaction* transaction);
     void AbortTransaction(TTransaction* transaction, bool force);
     void PingTransaction(TTransaction* transaction, bool pingAncestors = false);

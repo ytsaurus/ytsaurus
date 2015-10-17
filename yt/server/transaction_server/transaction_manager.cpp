@@ -78,6 +78,7 @@ private:
 
         attributes->push_back("state");
         attributes->push_back(TAttributeInfo("timeout", transaction->GetTimeout().HasValue()));
+        attributes->push_back(TAttributeInfo("title", transaction->GetTitle().HasValue()));
         attributes->push_back("uncommitted_accounting_enabled");
         attributes->push_back("staged_accounting_enabled");
         attributes->push_back("parent_id");
@@ -105,6 +106,12 @@ private:
         if (key == "timeout" && transaction->GetTimeout()) {
             BuildYsonFluently(consumer)
                 .Value(*transaction->GetTimeout());
+            return true;
+        }
+
+        if (key == "title" && transaction->GetTitle()) {
+            BuildYsonFluently(consumer)
+                .Value(*transaction->GetTitle());
             return true;
         }
 
@@ -294,7 +301,10 @@ public:
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this));
     }
 
-    TTransaction* StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
+    TTransaction* StartTransaction(
+        TTransaction* parent,
+        TNullable<TDuration> timeout,
+        const TNullable<Stroka>& title)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -326,6 +336,8 @@ public:
             : Null;
         transaction->SetTimeout(actualTimeout);
 
+        transaction->SetTitle(title);
+
         const auto* mutationContext = GetCurrentMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
 
@@ -338,10 +350,11 @@ public:
 
         TransactionStarted_.Fire(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v, Title: %v)",
             id,
             GetObjectId(parent),
-            actualTimeout);
+            actualTimeout,
+            title);
 
         return transaction;
     }
@@ -783,10 +796,17 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
     TRspCreateObjects* /*response*/)
 {
     const auto& requestExt = request->GetExtension(TReqStartTransactionExt::create_transaction_ext);
+
     auto timeout = TDuration::MilliSeconds(requestExt.timeout());
-    auto* transaction = Owner_->StartTransaction(parent, timeout);
+
+    auto title = attributes->Find<Stroka>("title");
+    attributes->Remove("title");
+
+    auto* transaction = Owner_->StartTransaction(parent, timeout, title);
+
     transaction->SetUncommittedAccountingEnabled(requestExt.enable_uncommitted_accounting());
     transaction->SetStagedAccountingEnabled(requestExt.enable_staged_accounting());
+
     return transaction;
 }
 
@@ -803,9 +823,12 @@ void TTransactionManager::Initialize()
     Impl_->Initialize();
 }
 
-TTransaction* TTransactionManager::StartTransaction(TTransaction* parent, TNullable<TDuration> timeout)
+TTransaction* TTransactionManager::StartTransaction(
+    TTransaction* parent,
+    TNullable<TDuration> timeout,
+    const TNullable<Stroka>& title)
 {
-    return Impl_->StartTransaction(parent, timeout);
+    return Impl_->StartTransaction(parent, timeout, title);
 }
 
 void TTransactionManager::CommitTransaction(TTransaction* transaction)

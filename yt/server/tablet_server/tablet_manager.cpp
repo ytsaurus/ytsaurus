@@ -1614,12 +1614,10 @@ private:
     void StartPrerequisiteTransaction(TTabletCell* cell)
     {
         auto transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionManager->StartTransaction(nullptr, Null);
-
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Prerequisite for cell %v", cell->GetId()));
-        auto objectManager = Bootstrap_->GetObjectManager();
-        objectManager->FillAttributes(transaction, *attributes);
+        auto* transaction = transactionManager->StartTransaction(
+            nullptr,
+            Null,
+            Format("Prerequisite for cell %v", cell->GetId()));
 
         YCHECK(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);

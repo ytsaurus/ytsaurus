@@ -31,6 +31,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, GetPersistentState());
     Save(context, Timeout_);
+    Save(context, Title_);
     Save(context, UncommittedAccountingEnabled_);
     Save(context, StagedAccountingEnabled_);
     Save(context, NestedTransactions_);
@@ -56,6 +57,10 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
         Timeout_ = Load<TDuration>(context);
     } else {
         Load(context, Timeout_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 123) {
+        Load(context, Title_);
     }
     Load(context, UncommittedAccountingEnabled_);
     Load(context, StagedAccountingEnabled_);

@@ -910,19 +910,15 @@ private:
             TTransaction* transaction;
             {
                 auto timeout = GetNodeLeaseTimeout(node);
-                transaction = transactionManager->StartTransaction(nullptr, timeout);
+                transaction = transactionManager->StartTransaction(
+                    nullptr,
+                    timeout,
+                    Format("Lease for node %v", node->GetDefaultAddress()));
                 node->SetTransaction(transaction);
                 RegisterLeaseTransaction(node);
             }
 
             try {
-                // Set attributes.
-                {
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("title", Format("Lease for node %v", node->GetDefaultAddress()));
-                    objectManager->FillAttributes(transaction, *attributes);
-                }
-
                 // Create Cypress node.
                 {
                     auto req = TCypressYPathProxy::Create(nodePath);
