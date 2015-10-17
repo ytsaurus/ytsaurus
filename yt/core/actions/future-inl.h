@@ -24,7 +24,6 @@ namespace NConcurrency {
 
 // scheduler.h
 TClosure GetCurrentFiberCanceler();
-void UninterruptableWaitFor(TFuture<void> future);
 
 } // namespace NConcurrency
 
