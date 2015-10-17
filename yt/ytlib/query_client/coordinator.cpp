@@ -319,10 +319,10 @@ TQueryStatistics CoordinateAndExecute(
         const auto& subquery = subqueries[index];
 
         ISchemafulReaderPtr reader;
-        TFuture <TQueryStatistics> statistics;
+        TFuture<TQueryStatistics> statistics;
         std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 
-        subqueryHolders.push_back(MakeHolder(statistics, false));
+        subqueryHolders.push_back(statistics);
 
         ++index;
 

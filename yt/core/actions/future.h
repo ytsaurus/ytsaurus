@@ -411,26 +411,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a noncopyable but movable wrapper around TFuture<T> whose destructor
-//! cancels the underlying future and optionally blocks until this future is set.
+//! cancels the underlying future.
 /*!
- *  TFutureHolder could be useful in two scenarios:
- *
- *  1) Nonblocking
- *  Wraps a (typically resource-consuming) computation and cancels it on scope exit
+ *  TFutureHolder wraps a (typically resource-consuming) computation and cancels it on scope exit
  *  thus preventing leaking this computation.
- *
- *  2) Blocking
- *  Same as above but TFutureHolder's dtor also blocks until the wrapped future is set.
- *  This mode is useful when returning the result of an asynchronous computation that
- *  relies on the existence of a certain unsafe context provided by the caller.
- *
- *  E.g. here
- *  @code
- *  TFutureHolder<void> FillArray(std::vector<int>* array);
- *  @endcode
- *  the caller must provide a pointer to the array, which will be asynchronously
- *  filled by the callee. One must ensure that this pointer remains valid as long as
- *  the computation is not finished.
  */
 template <class T>
 class TFutureHolder
@@ -443,9 +427,9 @@ public:
     TFutureHolder(TNull);
 
     //! Wraps #future into a holder.
-    TFutureHolder(TFuture<T> future, bool blocking = true);
+    TFutureHolder(TFuture<T> future);
 
-    //! Cancels the underlying future (if any) and blocks until it is set.
+    //! Cancels the underlying future (if any).
     ~TFutureHolder();
 
     TFutureHolder(const TFutureHolder<T>& other) = delete;
@@ -477,13 +461,8 @@ public:
 
 private:
     TFuture<T> Future_;
-    bool Blocking_;
 
 };
-
-//! Wraps a given #future into a holder.
-template <class T>
-TFutureHolder<T> MakeHolder(TFuture<T> future, bool blocking = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

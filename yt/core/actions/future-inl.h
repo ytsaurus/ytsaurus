@@ -980,19 +980,15 @@ TFutureHolder<T>::TFutureHolder(TNull)
 { }
 
 template <class T>
-TFutureHolder<T>::TFutureHolder(TFuture<T> future, bool blocking)
+TFutureHolder<T>::TFutureHolder(TFuture<T> future)
     : Future_(std::move(future))
-    , Blocking_(blocking)
 { }
 
 template <class T>
 TFutureHolder<T>::~TFutureHolder()
 {
-    if (Future_ && !Future_.IsSet()) {
+    if (Future_) {
         Future_.Cancel();
-        if (Blocking_) {
-            NConcurrency::UninterruptableWaitFor(Future_.template As<void>());
-        }
     }
 }
 
@@ -1036,12 +1032,6 @@ template <class T>
 TFuture<T>* TFutureHolder<T>::operator->() // noexcept
 {
     return &Future_;
-}
-
-template <class T>
-TFutureHolder<T> MakeHolder(TFuture<T> future, bool blocking)
-{
-    return TFutureHolder<T>(std::move(future), blocking);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
