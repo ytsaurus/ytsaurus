@@ -822,6 +822,7 @@ def _get_logbroker_hostname(logbroker_url, ident, logtype, sourceid):
               "sourceid": sourceid}
     response = requests.get("http://{0}/advice".format(logbroker_url), headers=headers, params=params)
     if not response.ok:
+        log.warning("Unable to get adviced logbroker endpoint hostname. Response: %s", response.content)
         raise RuntimeError("Unable to get adviced logbroker endpoint hostname")
     host = response.text.strip()
 
@@ -936,6 +937,7 @@ def run():
 
     sentry_endpoint = options.options["sentry_endpoint"]
     if sentry_endpoint:
+        logging.basicConfig("%(asctime)-15s\t%(name)s\t%(levelname)s\t%(message)s")
         root_logger = logging.getLogger("")
         sentry_handler = SentryHandler(sentry_endpoint)
         sentry_handler.setLevel(logging.ERROR)
