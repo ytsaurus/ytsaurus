@@ -54,9 +54,6 @@ struct IScheduler
     //! into sleep until occurrence of an external event.
     virtual void WaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
 
-    //! Same as #WaitFor but is not allowed to throw on fiber cancelation.
-    virtual void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker) = 0;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,10 +101,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void UninterruptableWaitFor(TFuture<void> future);
-
-void UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker);
 
 template <class T>
 TErrorOr<T> WaitFor(TFuture<T> future);

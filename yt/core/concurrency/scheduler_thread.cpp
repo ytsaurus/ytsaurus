@@ -464,21 +464,6 @@ void TSchedulerThread::WaitFor(TFuture<void> future, IInvokerPtr invoker)
 
     CheckForCanceledFiber(fiber);
 
-    UninterruptableWaitFor(std::move(future), std::move(invoker));
-
-    // Cannot access |this| from this point as the fiber might be resumed
-    // in other scheduler.
-
-    CheckForCanceledFiber(fiber);
-}
-
-void TSchedulerThread::UninterruptableWaitFor(TFuture<void> future, IInvokerPtr invoker)
-{
-    VERIFY_THREAD_AFFINITY(HomeThread);
-
-    auto fiber = CurrentFiber.Get();
-    YASSERT(fiber);
-
     // Update scheduling state.
     YASSERT(!WaitForFuture);
     WaitForFuture = std::move(future);
@@ -494,6 +479,8 @@ void TSchedulerThread::UninterruptableWaitFor(TFuture<void> future, IInvokerPtr 
 
     // Cannot access |this| from this point as the fiber might be resumed
     // in other scheduler.
+
+    CheckForCanceledFiber(fiber);
 }
 
 void TSchedulerThread::OnStart()
