@@ -736,11 +736,9 @@ TError TCypressManager::CheckLock(
                 {
                     return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                        "Cannot take %Qlv lock for child %Qv of node %v since %Qlv lock is taken by concurrent transaction %v",
-                        request.Mode,
+                        "Cannot take lock for child %Qv of node %v since this child is locked by concurrent transaction %v",
                         request.ChildKey.Get(),
                         GetNodePath(trunkNode, transaction),
-                        existingState.Mode,
                         existingTransaction->GetId());
                 }
                 if (request.AttributeKey &&
@@ -748,11 +746,9 @@ TError TCypressManager::CheckLock(
                 {
                     return TError(
                         NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                        "Cannot take %Qlv lock for attribute %Qv of node %v since %Qlv lock is taken by concurrent transaction %v",
-                        request.Mode,
+                        "Cannot take lock for attribute %Qv of node %v since this attribute is locked by concurrent transaction %v",
                         request.AttributeKey.Get(),
                         GetNodePath(trunkNode, transaction),
-                        existingState.Mode,
                         existingTransaction->GetId());
                 }
             }
