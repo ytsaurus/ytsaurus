@@ -31,24 +31,18 @@ TSchemalessYamrWriterBase::TSchemalessYamrWriterBase(
         enableKeySwitch,
         keyColumnCount)
     , Config_(config)
-    , Table_(
-        config->FieldSeparator,
-        config->RecordSeparator,
-        config->EnableEscaping, // Enable key escaping
-        config->EnableEscaping, // Enable value escaping
-        config->EscapingSymbol,
-        true) {
+{
 }
 
-void TSchemalessYamrWriterBase::EscapeAndWrite(const TStringBuf& value, bool inKey)
+void TSchemalessYamrWriterBase::EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes)
 {
     auto* stream = GetOutputStream();
     if (Config_->EnableEscaping) {
         WriteEscaped(
             stream,
             value,
-            inKey ? Table_.KeyStops : Table_.ValueStops,
-            Table_.Escapes,
+            stops,
+            escapes,
             Config_->EscapingSymbol);
     } else {
         stream->Write(value);
