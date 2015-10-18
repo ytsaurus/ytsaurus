@@ -58,6 +58,7 @@ void TSchemalessYamredDsvWriter::DoWrite(const std::vector<NTableClient::TUnvers
         for (const auto* item = rows[i].Begin(); item != rows[i].End(); ++item) {
             if (item->Type == EValueType::Null) {
                 // Ignore null values.
+                continue;
             } else if (item->Type != EValueType::String) {
                 THROW_ERROR_EXCEPTION("YAMRed DSV doesn't support any value type except String and Null");
             }
@@ -93,7 +94,7 @@ void TSchemalessYamredDsvWriter::WriteYamrKey(const std::vector<int>& columnIds)
         if (!RowValues_[id]) {
             THROW_ERROR_EXCEPTION("Key column %Qv is missing.", NameTable_->GetName(id));
         }
-        EscapeAndWrite(*RowValues_[id], false /* inKey */);
+        EscapeAndWrite(*RowValues_[id], Table_.ValueStops, Table_.Escapes);
         RowValues_[id].Reset();
     }
     
@@ -133,7 +134,7 @@ void TSchemalessYamredDsvWriter::WriteYamrValue()
         WritePod(*stream, valueLength);
     }
 
-    bool firstColumn = false;
+    bool firstColumn = true;
     for (int id = 0; id < NameTable_->GetSize(); id++) {
         if (RowValues_[id]) {
             if (!firstColumn) {
@@ -141,9 +142,10 @@ void TSchemalessYamredDsvWriter::WriteYamrValue()
             } else {
                 firstColumn = false;
             }
-            EscapeAndWrite(NameTable_->GetName(id), true /* inKey */);
+            EscapeAndWrite(NameTable_->GetName(id), Table_.KeyStops, Table_.Escapes);
             stream->Write(keyValueSeparator);
-            EscapeAndWrite(*RowValues_[id], false /* inKey */);
+            EscapeAndWrite(*RowValues_[id], Table_.ValueStops, Table_.Escapes);
+            RowValues_[id].Reset();
         }
     }
 
