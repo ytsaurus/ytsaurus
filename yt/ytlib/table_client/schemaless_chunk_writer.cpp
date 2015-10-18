@@ -83,6 +83,7 @@ public:
     virtual TNameTablePtr GetNameTable() const override;
 
     virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
 
 private:
     const TNameTablePtr NameTable_;
@@ -173,6 +174,12 @@ i64 TSchemalessChunkWriter<TBase>::GetMetaSize() const
     return NameTable_->GetByteSize() + TBase::GetMetaSize();
 }
 
+template <class TBase>
+bool TSchemalessChunkWriter<TBase>::IsUniqueKeys() const
+{
+    return TBase::IsUniqueKeys();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
@@ -230,6 +237,7 @@ public:
     virtual i64 GetMetaSize() const override;
 
     virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
 
 private:
     const TNameTablePtr NameTable_;
@@ -443,6 +451,11 @@ bool TPartitionChunkWriter::IsSorted() const
     return false;
 }
 
+bool TPartitionChunkWriter::IsUniqueKeys() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessChunkWriterPtr CreatePartitionChunkWriter(
@@ -475,7 +488,6 @@ public:
     TReorderingSchemalessMultiChunkWriter(
         const TKeyColumns& keyColumns,
         TNameTablePtr nameTable,
-        TOwningKey lastKey,
         ISchemalessMultiChunkWriterPtr underlyingWriter);
 
     virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
@@ -483,18 +495,12 @@ public:
     virtual TNameTablePtr GetNameTable() const override;
 
     virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
 
 private:
     TChunkedMemoryPool MemoryPool_;
     TSchemalessRowReorderer RowReorderer_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
-
-    TOwningKey LastKey_;
-    int KeyColumnCount_;
-    TError Error_;
-
-
-    bool CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs);
 
     virtual TFuture<void> Open() override;
     virtual TFuture<void> GetReadyEvent() override;
@@ -513,38 +519,11 @@ private:
 TReorderingSchemalessMultiChunkWriter::TReorderingSchemalessMultiChunkWriter(
     const TKeyColumns& keyColumns,
     TNameTablePtr nameTable,
-    TOwningKey lastKey,
     ISchemalessMultiChunkWriterPtr underlyingWriter)
     : MemoryPool_(TReorderingSchemalessWriterPoolTag())
     , RowReorderer_(nameTable, keyColumns)
     , UnderlyingWriter_(underlyingWriter)
-    , LastKey_(lastKey)
-    , KeyColumnCount_(keyColumns.size())
 { }
-
-bool TReorderingSchemalessMultiChunkWriter::CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs)
-{
-    try {
-        if (CompareRows(lhs, rhs, KeyColumnCount_) <= 0) {
-            return true;
-        }
-        TUnversionedOwningRowBuilder leftBuilder, rightBuilder;
-        for (int i = 0; i < KeyColumnCount_; ++i) {
-            leftBuilder.AddValue(lhs[i]);
-            rightBuilder.AddValue(rhs[i]);
-        }
-
-        Error_ = TError(
-            EErrorCode::SortOrderViolation,
-            "Sort order violation: %v > %v",
-            leftBuilder.FinishRow(),
-            rightBuilder.FinishRow());
-    } catch (const std::exception& ex) {
-        // NB: e.g. incomparable type.
-        Error_ = TError(ex);
-    }
-    return false;
-}
 
 bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
@@ -553,25 +532,6 @@ bool TReorderingSchemalessMultiChunkWriter::Write(const std::vector<TUnversioned
 
     for (const auto& row : rows) {
         reorderedRows.push_back(RowReorderer_.ReorderRow(row, &MemoryPool_));
-    }
-
-    if (IsSorted() && !reorderedRows.empty()) {
-        if (!CheckSortOrder(LastKey_, reorderedRows.front())) {
-            return false;
-        }
-
-        for (int i = 1; i < reorderedRows.size(); ++i) {
-            if (!CheckSortOrder(reorderedRows[i-1], reorderedRows[i])) {
-              return false;
-            }
-        }
-
-        const auto& lastKey = reorderedRows.back();
-        TUnversionedOwningRowBuilder keyBuilder;
-        for (int i = 0; i < KeyColumnCount_; ++i) {
-            keyBuilder.AddValue(lastKey[i]);
-        }
-        LastKey_ = keyBuilder.FinishRow();
     }
 
     auto result = UnderlyingWriter_->Write(reorderedRows);
@@ -587,11 +547,7 @@ TFuture<void> TReorderingSchemalessMultiChunkWriter::Open()
 
 TFuture<void> TReorderingSchemalessMultiChunkWriter::GetReadyEvent()
 {
-    if (Error_.IsOK()) {
-        return UnderlyingWriter_->GetReadyEvent();
-    } else {
-        return MakeFuture(Error_);
-    }
+    return UnderlyingWriter_->GetReadyEvent();
 }
 
 TFuture<void> TReorderingSchemalessMultiChunkWriter::Close()
@@ -611,7 +567,7 @@ const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWritten
 
 const std::vector<TChunkSpec>& TReorderingSchemalessMultiChunkWriter::GetWrittenChunksFullMeta() const
 {
-    return GetWrittenChunksMasterMeta();
+    return UnderlyingWriter_->GetWrittenChunksFullMeta();
 }
 
 TNodeDirectoryPtr TReorderingSchemalessMultiChunkWriter::GetNodeDirectory() const
@@ -634,6 +590,11 @@ bool TReorderingSchemalessMultiChunkWriter::IsSorted() const
     return UnderlyingWriter_->IsSorted();
 }
 
+bool TReorderingSchemalessMultiChunkWriter::IsUniqueKeys() const
+{
+    return UnderlyingWriter_->IsUniqueKeys();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBase>
@@ -643,13 +604,15 @@ class TSchemalessMultiChunkWriter
 public:
     TSchemalessMultiChunkWriter(
         TMultiChunkWriterConfigPtr config,
-        TMultiChunkWriterOptionsPtr options,
+        TTableWriterOptionsPtr options,
         IClientPtr client,
         TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
+        const TKeyColumns& keyColumns,
+        TOwningKey lastKey,
         bool isSorted,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
@@ -663,25 +626,135 @@ public:
             createChunkWriter,
             throttler,
             blockCache)
+        , Options_(options)
         , NameTable_(nameTable)
         , IsSorted_(isSorted)
+        , IsUniqueKeys_(IsSorted_)
+        , KeyColumnCount_(keyColumns.size())
+        , LastKey_(lastKey)
     { }
 
-    virtual TNameTablePtr GetNameTable() const override
-    {
-        return NameTable_;
-    }
-
-    virtual bool IsSorted() const override
-    {
-        return IsSorted_;
-    }
+    bool Write(const std::vector<TUnversionedRow>& rows) override;
+    TFuture<void> GetReadyEvent() override;
+    virtual TNameTablePtr GetNameTable() const override;
+    virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
 
 private:
+    const TTableWriterOptionsPtr Options_;
     const TNameTablePtr NameTable_;
     const bool IsSorted_;
+    bool IsUniqueKeys_;
 
+    TUnversionedOwningRowBuilder KeyBuilder_;
+    int KeyColumnCount_;
+    TOwningKey LastKey_;
+    TError Error_;
+
+    bool CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TBase>
+bool TSchemalessMultiChunkWriter<TBase>::Write(const std::vector<TUnversionedRow>& rows)
+{
+    if (IsSorted_ && !rows.empty()) {
+        if (!CheckSortOrder(LastKey_.Get(), rows.front())) {
+            return false;
+        }
+
+        for (int i = 1; i < rows.size(); ++i) {
+            if (!CheckSortOrder(rows[i-1], rows[i])) {
+              return false;
+            }
+        }
+
+        const auto& lastKey = rows.back();
+        for (int i = 0; i < KeyColumnCount_; ++i) {
+            KeyBuilder_.AddValue(lastKey[i]);
+        }
+        LastKey_ = KeyBuilder_.FinishRow();
+    }
+
+    return TBase::Write(rows);
+}
+
+template <class TBase>
+TFuture<void> TSchemalessMultiChunkWriter<TBase>::GetReadyEvent()
+{
+    if (Error_.IsOK()) {
+        return TBase::GetReadyEvent();
+    } else {
+        return MakeFuture(Error_);
+    }
+}
+
+template <class TBase>
+TNameTablePtr TSchemalessMultiChunkWriter<TBase>::GetNameTable() const
+{
+    return NameTable_;
+}
+
+template <class TBase>
+bool TSchemalessMultiChunkWriter<TBase>::IsSorted() const
+{
+    return IsSorted_;
+}
+
+template <class TBase>
+bool TSchemalessMultiChunkWriter<TBase>::IsUniqueKeys() const
+{
+    return IsUniqueKeys_;
+}
+
+template <class TBase>
+bool TSchemalessMultiChunkWriter<TBase>::CheckSortOrder(TUnversionedRow lhs, TUnversionedRow rhs)
+{
+    try {
+        int cmp = CompareRows(lhs, rhs, KeyColumnCount_);
+
+        if (cmp < 0) {
+            return true;
+        }
+
+        if (cmp == 0) {
+            IsUniqueKeys_ = false;
+
+            if (!Options_->ValidateUniqueKeys) {
+                return true;
+            }
+        }
+
+        TUnversionedOwningRowBuilder leftBuilder, rightBuilder;
+        for (int i = 0; i < KeyColumnCount_; ++i) {
+            leftBuilder.AddValue(lhs[i]);
+            rightBuilder.AddValue(rhs[i]);
+        }
+
+        if (cmp == 0) {
+            Error_ = TError(
+                EErrorCode::UniqueKeyViolation,
+                "Duplicated key: %v",
+                leftBuilder.FinishRow().Get());
+        } else {
+            Error_ = TError(
+                EErrorCode::SortOrderViolation,
+                "Sort order violation: %v > %v",
+                leftBuilder.FinishRow().Get(),
+                rightBuilder.FinishRow().Get());
+
+            if (Options_->ExplodeOnValidationError) {
+                YUNREACHABLE();
+            }
+        }
+    } catch (const std::exception& ex) {
+        // NB: E.g. incomparable type.
+        Error_ = TError(ex);
+    }
+
+    return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -725,6 +798,8 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         parentChunkListId,
         createChunkWriter,
         nameTable,
+        keyColumns,
+        lastKey,
         isSorted,
         throttler,
         blockCache);
@@ -733,7 +808,6 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         return New<TReorderingSchemalessMultiChunkWriter>(
             keyColumns,
             nameTable,
-            lastKey,
             writer);
     } else {
         return writer;
@@ -785,6 +859,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         parentChunkListId,
         createChunkWriter,
         nameTable,
+        keyColumns,
+        TOwningKey(),
         false,
         throttler,
         blockCache);
@@ -792,7 +868,6 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     return New<TReorderingSchemalessMultiChunkWriter>(
         keyColumns,
         nameTable,
-        TOwningKey(),
         writer);
 }
 
@@ -808,7 +883,6 @@ public:
         TTableWriterOptionsPtr options,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
-        const TKeyColumns& keyColumns,
         IClientPtr client,
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
@@ -820,6 +894,7 @@ public:
     virtual TFuture<void> Close() override;
     virtual TNameTablePtr GetNameTable() const override;
     virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
 
 private:
     NLogging::TLogger Logger;
@@ -828,11 +903,13 @@ private:
     const TTableWriterOptionsPtr Options_;
     const TRichYPath RichPath_;
     const TNameTablePtr NameTable_;
-    const TKeyColumns KeyColumns_;
     const IClientPtr Client_;
     const ITransactionPtr Transaction_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
+
+    TTableSchema TableSchema_;
+    bool PreserveSchemaOnWrite_;
 
     TTransactionId TransactionId_;
 
@@ -859,7 +936,6 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
     IClientPtr client,
     ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
@@ -869,7 +945,6 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     , Options_(options)
     , RichPath_(richPath)
     , NameTable_(nameTable)
-    , KeyColumns_(keyColumns)
     , Client_(client)
     , Transaction_(transaction)
     , Throttler_(throttler)
@@ -923,13 +998,14 @@ void TSchemalessTableWriter::DoOpen()
 {
     const auto& path = RichPath_.GetPath();
     bool append = RichPath_.GetAppend();
-    bool sorted = !KeyColumns_.empty();
+    auto keyColumns = RichPath_.GetSortedBy();
+    bool sorted = !keyColumns.empty();
 
     TUserObject userObject;
     userObject.Path = path;
 
     GetUserObjectBasicAttributes(
-        Client_, 
+        Client_,
         TMutableRange<TUserObject>(&userObject, 1),
         Transaction_ ? Transaction_->GetId() : NullTransactionId,
         Logger,
@@ -957,16 +1033,15 @@ void TSchemalessTableWriter::DoOpen()
         auto req = TCypressYPathProxy::Get(objectIdPath);
         SetTransactionId(req, UploadTransaction_);
         std::vector<Stroka> attributeKeys{
-            "replication_factor",
+            "account",
             "compression_codec",
             "erasure_codec",
-            "account",
+            "preserve_schema_on_write",
+            "replication_factor",
+            "row_count",
+            "schema",
             "vital"
         };
-        if (sorted) {
-            attributeKeys.push_back("row_count");
-            attributeKeys.push_back("sorted_by");
-        }
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -978,27 +1053,37 @@ void TSchemalessTableWriter::DoOpen()
         const auto& rsp = rspOrError.Value();
         auto node = ConvertToNode(TYsonString(rsp->value()));
         const auto& attributes = node->Attributes();
+        auto schema = attributes.Get<TTableSchema>("schema");
+        PreserveSchemaOnWrite_ = attributes.Get<bool>("preserve_schema_on_write");
 
-        if (append && sorted && attributes.Get<i64>("row_count") > 0) {
-            auto tableKeyColumns = attributes.Get<TKeyColumns>("sorted_by", TKeyColumns());
+        if (PreserveSchemaOnWrite_) {
+            TableSchema_ = schema;
+            keyColumns = schema.GetKeyColumns();
+            sorted = !keyColumns.empty();
+        } else {
+            TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
 
-            bool areKeyColumnsCompatible = true;
-            if (tableKeyColumns.size() < KeyColumns_.size()) {
-                areKeyColumnsCompatible = false;
-            } else {
-                for (int i = 0; i < KeyColumns_.size(); ++i) {
-                    if (tableKeyColumns[i] != KeyColumns_[i]) {
-                        areKeyColumnsCompatible = false;
-                        break;
+            if (append && attributes.Get<i64>("row_count") > 0) {
+                auto tableKeyColumns = schema.GetKeyColumns();
+
+                bool areKeyColumnsCompatible = true;
+                if (tableKeyColumns.size() < keyColumns.size()) {
+                    areKeyColumnsCompatible = false;
+                } else {
+                    for (int i = 0; i < keyColumns.size(); ++i) {
+                        if (tableKeyColumns[i] != keyColumns[i]) {
+                            areKeyColumnsCompatible = false;
+                            break;
+                        }
                     }
                 }
-            }
 
-            if (!areKeyColumnsCompatible) {
-                THROW_ERROR_EXCEPTION("Key columns mismatch while trying to append sorted data into a non-empty table %v",
-                    path)
-                    << TErrorAttribute("append_key_columns", KeyColumns_)
-                    << TErrorAttribute("current_key_columns", tableKeyColumns);
+                if (!areKeyColumnsCompatible) {
+                    THROW_ERROR_EXCEPTION("Key columns mismatch while trying to append sorted data into a non-empty table %v",
+                        path)
+                        << TErrorAttribute("append_key_columns", keyColumns)
+                        << TErrorAttribute("current_key_columns", tableKeyColumns);
+                }
             }
         }
 
@@ -1007,6 +1092,8 @@ void TSchemalessTableWriter::DoOpen()
         Options_->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec");
         Options_->Account = attributes.Get<Stroka>("account");
         Options_->ChunksVital = attributes.Get<bool>("vital");
+        Options_->ValidateSorted = sorted;
+        Options_->ValidateUniqueKeys = TableSchema_.IsUniqueKeys();
 
         LOG_INFO("Extended attributes received (Account: %v, CompressionCodec: %v, ErasureCodec: %v)",
             Options_->Account,
@@ -1077,8 +1164,8 @@ void TSchemalessTableWriter::DoOpen()
         ChunkListId_ = FromProto<TChunkListId>(rsp->chunk_list_id());
         auto lastKey = FromProto<TOwningKey>(rsp->last_key());
         if (lastKey) {
-            YCHECK(lastKey.GetCount() >= KeyColumns_.size());
-            LastKey_ = TOwningKey(lastKey.Begin(), lastKey.Begin() + KeyColumns_.size());
+            YCHECK(lastKey.GetCount() >= keyColumns.size());
+            LastKey_ = TOwningKey(lastKey.Begin(), lastKey.Begin() + keyColumns.size());
         }
 
         LOG_INFO("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
@@ -1090,7 +1177,7 @@ void TSchemalessTableWriter::DoOpen()
         Config_,
         Options_,
         NameTable_,
-        KeyColumns_,
+        keyColumns,
         LastKey_,
         Client_,
         CellTag_,
@@ -1099,6 +1186,12 @@ void TSchemalessTableWriter::DoOpen()
         true,
         Throttler_,
         BlockCache_);
+
+    if (PreserveSchemaOnWrite_) {
+        UnderlyingWriter_ = CreateSchemaValidatingWriter(
+            std::move(UnderlyingWriter_),
+            TableSchema_);
+    }
 
     WaitFor(UnderlyingWriter_->Open())
         .ThrowOnError();
@@ -1129,7 +1222,8 @@ void TSchemalessTableWriter::DoClose()
     {
         auto req = TTableYPathProxy::EndUpload(objectIdPath);
         *req->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
-        ToProto(req->mutable_key_columns(), KeyColumns_);
+        ToProto(req->mutable_table_schema(), TableSchema_);
+        req->set_preserve_schema_on_write(PreserveSchemaOnWrite_);
         SetTransactionId(req, UploadTransaction_);
         GenerateMutationId(req);
         batchReq->AddRequest(req, "end_upload");
@@ -1154,6 +1248,11 @@ bool TSchemalessTableWriter::IsSorted() const
     return UnderlyingWriter_->IsSorted();
 }
 
+bool TSchemalessTableWriter::IsUniqueKeys() const
+{
+    return UnderlyingWriter_->IsUniqueKeys();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
@@ -1161,7 +1260,6 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
-    const TKeyColumns& keyColumns,
     IClientPtr client,
     ITransactionPtr transaction,
     IThroughputThrottlerPtr throttler,
@@ -1172,11 +1270,184 @@ ISchemalessWriterPtr CreateSchemalessTableWriter(
         options,
         richPath,
         nameTable,
-        keyColumns,
         client,
         transaction,
         throttler,
         blockCache);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemaValidatingMultiChunkWriter
+    : public ISchemalessMultiChunkWriter
+{
+public:
+    TSchemaValidatingMultiChunkWriter(
+        ISchemalessMultiChunkWriterPtr underlyingWriter,
+        const TTableSchema& tableSchema);
+
+    virtual bool Write(const std::vector<TUnversionedRow>& rows) override;
+
+    virtual TNameTablePtr GetNameTable() const override;
+
+    virtual bool IsSorted() const override;
+    virtual bool IsUniqueKeys() const override;
+
+private:
+    const ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
+    const TTableSchema TableSchema_;
+    TNameTablePtr NameTable_;
+    TError Error_;
+    yhash_map<int, int> MapIdToColumnIndex_;
+
+    virtual TFuture<void> Open() override;
+    virtual TFuture<void> GetReadyEvent() override;
+    virtual TFuture<void> Close() override;
+
+    virtual void SetProgress(double progress) override;
+    virtual const std::vector<TChunkSpec>& GetWrittenChunksMasterMeta() const override;
+    virtual const std::vector<TChunkSpec>& GetWrittenChunksFullMeta() const override;
+    virtual TNodeDirectoryPtr GetNodeDirectory() const override;
+    virtual TDataStatistics GetDataStatistics() const override;
+
+    bool ValidateSchemaForRow(TUnversionedRow row);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemaValidatingMultiChunkWriter::TSchemaValidatingMultiChunkWriter(
+    ISchemalessMultiChunkWriterPtr underlyingWriter,
+    const TTableSchema& tableSchema)
+    : UnderlyingWriter_(std::move(underlyingWriter))
+    , TableSchema_(tableSchema)
+    , NameTable_(UnderlyingWriter_->GetNameTable())
+{
+    for (int index = 0; index < TableSchema_.Columns().size(); ++index) {
+        int id = NameTable_->GetIdOrRegisterName(TableSchema_.Columns()[index].Name);
+        YCHECK(MapIdToColumnIndex_.insert(std::make_pair(id, index)).second);
+    }
+}
+
+bool TSchemaValidatingMultiChunkWriter::ValidateSchemaForRow(TUnversionedRow row)
+{
+    for (int index = 0; index < row.GetCount(); ++index) {
+        int id = row[index].Id;
+        auto columnIt = MapIdToColumnIndex_.find(id);
+        if (columnIt == MapIdToColumnIndex_.end()) {
+            if (TableSchema_.GetStrict()) {
+                Error_ = TError(
+                    EErrorCode::SchemaViolation,
+                    "Unknown column %Qv",
+                    NameTable_->GetName(row[index].Id));
+                return false;
+            }
+
+            continue;
+        }
+
+        const auto& column = TableSchema_.Columns()[columnIt->second];
+
+        if (row[index].Type != column.Type &&
+            row[index].Type != EValueType::Null &&
+            column.Type != EValueType::Any)
+        {
+            Error_ = TError(
+                EErrorCode::SchemaViolation,
+                "Invalid type of column %Qv: expected %Qlv or %Qlv but got %Qlv",
+                column.Name,
+                column.Type,
+                EValueType::Null,
+                row[index].Type);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool TSchemaValidatingMultiChunkWriter::Write(const std::vector<TUnversionedRow>& rows)
+{
+    for (const auto& row : rows) {
+        if (!ValidateSchemaForRow(row)) {
+            return false;
+        }
+    }
+
+    return UnderlyingWriter_->Write(rows);
+}
+
+TFuture<void> TSchemaValidatingMultiChunkWriter::Open()
+{
+    return UnderlyingWriter_->Open();
+}
+
+TFuture<void> TSchemaValidatingMultiChunkWriter::GetReadyEvent()
+{
+    if (Error_.IsOK()) {
+        return UnderlyingWriter_->GetReadyEvent();
+    } else {
+        return MakeFuture(Error_);
+    }
+}
+
+TFuture<void> TSchemaValidatingMultiChunkWriter::Close()
+{
+    return UnderlyingWriter_->Close();
+}
+
+void TSchemaValidatingMultiChunkWriter::SetProgress(double progress)
+{
+    UnderlyingWriter_->SetProgress(progress);
+}
+
+const std::vector<TChunkSpec>& TSchemaValidatingMultiChunkWriter::GetWrittenChunksMasterMeta() const
+{
+    return UnderlyingWriter_->GetWrittenChunksMasterMeta();
+}
+
+const std::vector<TChunkSpec>& TSchemaValidatingMultiChunkWriter::GetWrittenChunksFullMeta() const
+{
+    return GetWrittenChunksMasterMeta();
+}
+
+TNodeDirectoryPtr TSchemaValidatingMultiChunkWriter::GetNodeDirectory() const
+{
+    return UnderlyingWriter_->GetNodeDirectory();
+}
+
+TDataStatistics TSchemaValidatingMultiChunkWriter::GetDataStatistics() const
+{
+    return UnderlyingWriter_->GetDataStatistics();
+}
+
+TNameTablePtr TSchemaValidatingMultiChunkWriter::GetNameTable() const
+{
+    return NameTable_;
+}
+
+bool TSchemaValidatingMultiChunkWriter::IsSorted() const
+{
+    return UnderlyingWriter_->IsSorted();
+}
+
+bool TSchemaValidatingMultiChunkWriter::IsUniqueKeys() const
+{
+    return UnderlyingWriter_->IsUniqueKeys();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkWriterPtr CreateSchemaValidatingWriter(
+    ISchemalessMultiChunkWriterPtr underlyingWriter,
+    const TTableSchema& tableSchema)
+{
+    if (tableSchema.Columns().size() > 0 || tableSchema.GetStrict()) {
+        return New<TSchemaValidatingMultiChunkWriter>(
+            std::move(underlyingWriter),
+            tableSchema);
+    } else {
+        return underlyingWriter;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

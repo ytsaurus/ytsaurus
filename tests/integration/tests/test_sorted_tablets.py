@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, make_schema, wait
 from yt_commands import *
 from yt.yson import YsonEntity, YsonList
 
@@ -947,7 +947,7 @@ class TestSortedTablets(YTEnvSetup):
 
         # check that we can extend key
         self.sync_unmount_table("//tmp/t")
-        set("//tmp/t/@schema", [
+        alter_table("//tmp/t", schema=[
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "key2", "type": "int64", "sort_order": "ascending"},
             {"name": "value", "type": "string"}]);
@@ -1038,6 +1038,14 @@ class TestSortedTablets(YTEnvSetup):
 
     def test_update_key_columns_success_lookup(self):
         self._test_update_key_columns_success("lookup")
+
+    def test_create_table_with_invalid_schema(self):
+        with pytest.raises(YtError):
+            create("table", "//tmp/t", attributes={
+                "dynamic": True,
+                "schema": make_schema([{"name": "key", "type": "int64", "sort_order": "ascending"}])
+                })
+        assert not exists("//tmp/t")
 
     def test_atomicity_mode_should_match(self):
         def do(a1, a2):

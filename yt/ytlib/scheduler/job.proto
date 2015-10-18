@@ -75,13 +75,6 @@ message TUserJobSpec
     optional bool copy_files = 24 [default = false];
 }
 
-// User code result.
-message TUserJobResult
-{
-    // Used for reordering chunks from operations that produce sorted output.
-    repeated NTableClient.NProto.TBoundaryKeysExt output_boundary_keys = 3;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TQuerySpec
@@ -112,7 +105,7 @@ message TTableOutputSpec
     // YSON-serialized writer options obtained from table attributes.
     required string table_writer_options = 6;
 
-    optional NTableClient.NProto.TKeyColumnsExt key_columns = 7;
+    optional NTableClient.NProto.TTableSchemaExt table_schema = 8;
 }
 
 // Describes a job submitted by a scheduler.
@@ -165,6 +158,22 @@ message TSchedulerJobSpecExt
     optional TQuerySpec input_query_spec = 13;
 }
 
+message TOutputResult
+{
+    // Indicates that the result is empty.
+    required bool empty = 1;
+
+    // Indicates that the result contains s sorted rowset.
+    optional bool sorted = 2 [default = false];
+
+    // Indicates that the result contains a sorted rowset with unique keys.
+    optional bool unique_keys = 3 [default = false];
+
+    optional bytes min = 4;
+
+    optional bytes max = 5;
+}
+
 message TSchedulerJobResultExt
 {
     extend NJobTrackerClient.NProto.TJobResult
@@ -186,10 +195,12 @@ message TSchedulerJobResultExt
     repeated NYT.NProto.TGuid failed_chunk_ids = 5;
 
     // deprecated = 6;
-
-    optional TUserJobResult user_job_result = 7;
+    // deprecated = 7;
 
     optional NYT.NProto.TGuid fail_context_chunk_id = 8;
+
+    // Used for reordering chunks from operations that produce sorted output.
+    repeated TOutputResult output_boundary_keys = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +216,7 @@ message TSchedulerJobResultExt
  * of output tables.
  *
  * The input spec must contain TUserJobSpec.
- * The result must contain TUserJobResult.
+ * The result must contain TSchedulerJobResultExt.
  */
 
 ////////////////////////////////////////////////////////////////////////////////

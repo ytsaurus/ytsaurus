@@ -1,5 +1,7 @@
 #include "chunk_meta_extensions.h"
 
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+
 namespace NYT {
 namespace NTableClient {
 
@@ -67,25 +69,6 @@ TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, int partit
     }
 
     return filteredChunkMeta;
-}
-
-namespace {
-
-TBoundaryKeysExt MakeEmptyBoundaryKeys()
-{
-    TBoundaryKeysExt boundaryKeys;
-    boundaryKeys.mutable_min();
-    boundaryKeys.mutable_max();
-    return boundaryKeys;
-}
-
-const auto CachedEmptyBoundaryKeys = MakeEmptyBoundaryKeys();
-
-} // namespace
-
-const TBoundaryKeysExt& EmptyBoundaryKeys()
-{
-    return CachedEmptyBoundaryKeys;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -78,6 +78,8 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidDoubleValue)         (302))
     ((IncomparableType)           (303))
     ((UnhashableType)             (304))
+    ((UniqueKeyViolation)         (305))
+    ((SchemaViolation)            (306))
 );
 
 DEFINE_ENUM(ETableChunkFormat,

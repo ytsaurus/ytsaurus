@@ -251,7 +251,7 @@ def write_table(path, value, is_raw=False, **kwargs):
 
     attributes = {}
     if "sorted_by" in kwargs:
-        attributes={"sorted_by": flatten(kwargs["sorted_by"])}
+        attributes["sorted_by"] = flatten(kwargs["sorted_by"])
     kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
     return execute_command("write_table", kwargs, input_stream=StringIO(value))
 

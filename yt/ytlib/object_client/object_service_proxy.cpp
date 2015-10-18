@@ -209,7 +209,7 @@ Stroka TObjectServiceProxy::GetServiceName()
 
 int TObjectServiceProxy::GetProtocolVersion()
 {
-    return 8;
+    return 9;
 }
 
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)

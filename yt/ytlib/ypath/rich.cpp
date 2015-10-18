@@ -482,7 +482,7 @@ TNullable<TYsonString> TRichYPath::GetFormat() const
 
 TNullable<TTableSchema> TRichYPath::GetSchema() const
 {
-    return Attributes().Find<TTableSchema>("schema");   
+    return Attributes().Find<TTableSchema>("schema");
 }
 
 TKeyColumns TRichYPath::GetSortedBy() const

@@ -1,7 +1,7 @@
 import pytest
 
 from random import shuffle
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, make_schema
 from yt_commands import *
 
 
@@ -264,7 +264,78 @@ class TestSchedulerSortCommands(YTEnvSetup):
              out="//tmp/t",
              sort_by="key")
 
+        assert get("//tmp/t/@sorted")
         assert read_table("//tmp/t") == [{"key" : "a"}, {"key" : "b"}]
+
+    def _test_schema_validation(self, sort_order):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={"schema":
+            make_schema([
+                {"name": "key", "type": "int64", "sort_order": sort_order},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10, 0, -2):
+            write_table("<append=true>//tmp/input", [{"key": i, "value": "foo"}, {"key": i-1, "value": "foo"}])
+
+        sort(in_="//tmp/input",
+            out="//tmp/output",
+            sort_by="key")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(1,11)]
+
+        write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
+        assert get("//tmp/input/@sorted_by") == ["key"]
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/input",
+                out="//tmp/output",
+                sort_by="key")
+
+    def test_schema_validation(self):
+        self._test_schema_validation(None)
+
+    def test_schema_validation_sorted(self):
+        self._test_schema_validation("ascending")
+
+    def test_unique_keys_validation(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={"schema":
+            make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}],
+                unique_keys=True)
+            })
+
+        for i in xrange(10, 0, -2):
+            write_table("<append=true>//tmp/input", [{"key": i, "value": "foo"}, {"key": i-1, "value": "foo"}])
+
+        sort(in_="//tmp/input",
+            out="//tmp/output",
+            sort_by="key")
+
+        assert get("//tmp/output/@schema/@strict")
+        assert get("//tmp/output/@schema/@unique_keys")
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(1,11)]
+
+        write_table("<sorted_by=[key]>//tmp/input", [{"key": 1, "value": "foo"} for i in range(2)])
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/input",
+                out="//tmp/output",
+                sort_by="key")
+
+        erase("//tmp/input")
+
+        for i in xrange(2):
+            write_table("<append=%true; sorted_by=[key]>//tmp/input", {"key": 1, "value": "foo"})
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/input",
+                out="//tmp/output",
+                sort_by="key")
 
 ##################################################################
 

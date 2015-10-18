@@ -21,9 +21,12 @@ class TestTabletTransactions(YTEnvSetup):
 
     def _create_table(self, path):
         create("table", path,
-               attributes={"dynamic": True},
-               schema=[{"name": "key", "type": "int64", "sort_order": "ascending"},
-                       {"name": "value", "type": "string"}])
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"}]
+            })
 
     @pytest.mark.skipif("True")
     def test_sticky_tablet_transactions(self):
@@ -62,4 +65,4 @@ class TestTabletTransactions(YTEnvSetup):
 
         # cannot commit conflicting transaction
         with pytest.raises(YtError): commit_transaction(tx2)
-        
+

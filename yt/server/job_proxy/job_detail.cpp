@@ -1,3 +1,4 @@
+#include "helpers.h"
 #include "job_detail.h"
 #include "private.h"
 
@@ -27,6 +28,7 @@ using namespace NConcurrency;
 using namespace NJobTrackerClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
+using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
@@ -148,6 +150,7 @@ TJobResult TSimpleJobBase::Run()
             // ToDo(psushin): return written chunks only if required.
             auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
             Writer_->GetNodeDirectory()->DumpTo(schedulerResultExt->mutable_output_node_directory());
+            *schedulerResultExt->add_output_boundary_keys() = GetWrittenChunksBoundaryKeys(Writer_);
             ToProto(schedulerResultExt->mutable_output_chunks(), Writer_->GetWrittenChunksMasterMeta());
 
             return result;

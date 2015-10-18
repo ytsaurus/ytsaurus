@@ -4,6 +4,8 @@ from yt.environment import YTEnv
 from yt.common import makedirp
 import yt_driver_bindings
 
+import yt.yson as yson
+
 import pytest
 
 import gc
@@ -41,6 +43,12 @@ def wait(predicate):
             return
         sleep(1.0)
     pytest.fail("wait failed")
+
+def make_schema(columns, **attributes):
+    schema = yson.YsonList(columns)
+    for attr, value in attributes.items():
+        schema.attributes[attr] = value
+    return schema
 
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
@@ -281,3 +289,4 @@ class YTEnvSetup(YTEnv):
         result_path = os.path.join(unittests_path, file_name)
         assert os.path.exists(result_path)
         return result_path
+

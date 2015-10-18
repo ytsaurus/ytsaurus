@@ -152,13 +152,16 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
 
 TTableSchema::TTableSchema()
     : Strict_(false)
+    , UniqueKeys_(false)
 { }
 
 TTableSchema::TTableSchema(
     std::vector<TColumnSchema> columns,
-    bool strict)
+    bool strict,
+    bool uniqueKeys)
     : Columns_(std::move(columns))
     , Strict_(strict)
+    , UniqueKeys_(uniqueKeys)
 {
     for (const auto& column : Columns_) {
         if (column.SortOrder) {
@@ -251,6 +254,16 @@ bool TTableSchema::HasComputedColumns() const
 bool TTableSchema::IsSorted() const
 {
     return KeyColumnCount_ > 0;
+}
+
+bool TTableSchema::IsUniqueKeys() const
+{
+    return UniqueKeys_;
+}
+
+void TTableSchema::MakeUniqueKeys()
+{
+    UniqueKeys_ = true;
 }
 
 TKeyColumns TTableSchema::GetKeyColumns() const
@@ -371,6 +384,7 @@ void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginAttributes()
             .Item("strict").Value(schema.GetStrict())
+            .Item("unique_keys").Value(schema.GetUniqueKeys())
         .EndAttributes()
         .Value(schema.Columns());
 }
@@ -379,20 +393,23 @@ void Deserialize(TTableSchema& schema, INodePtr node)
 {
     schema = TTableSchema(
         ConvertTo<std::vector<TColumnSchema>>(node),
-        node->Attributes().Get<bool>("strict", true));
+        node->Attributes().Get<bool>("strict", true),
+        node->Attributes().Get<bool>("unique_keys", false));
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 {
     ToProto(protoSchema->mutable_columns(), schema.Columns());
     protoSchema->set_strict(schema.GetStrict());
+    protoSchema->set_unique_keys(schema.GetUniqueKeys());
 }
 
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
     *schema = TTableSchema(
         FromProto<std::vector<TColumnSchema>>(protoSchema.columns()),
-        protoSchema.strict());
+        protoSchema.strict(),
+        protoSchema.unique_keys());
 }
 
 void FromProto(
@@ -409,7 +426,8 @@ void FromProto(
     }
     *schema = TTableSchema(
         std::move(columns),
-        protoSchema.strict());
+        protoSchema.strict(),
+        protoSchema.unique_keys());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,7 +448,9 @@ bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs)
 
 bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
 {
-    return lhs.Columns() == rhs.Columns() && lhs.GetStrict() == rhs.GetStrict();
+    return lhs.Columns() == rhs.Columns() &&
+        lhs.GetStrict() == rhs.GetStrict() &&
+        lhs.GetUniqueKeys() == rhs.GetUniqueKeys();
 }
 
 bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
@@ -580,6 +600,23 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
             oldColumn.Name,
             oldColumn.Lock,
             newColumn.Lock);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ValidateDynamicTableConstraints(const TTableSchema& schema)
+{
+    if (!schema.GetStrict()) {
+        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
+    }
+
+    if (schema.IsSorted() && !schema.IsUniqueKeys()) {
+        THROW_ERROR_EXCEPTION("\"unique_keys\" cannot be \"false\" for a sorted dynamic table");
+    }
+
+    if (schema.GetKeyColumnCount() == schema.Columns().size()) {
+        THROW_ERROR_EXCEPTION("There must be at least one non-key column");
     }
 }
 
@@ -789,6 +826,14 @@ void ValidateTimestampColumn(const TTableSchema& schema)
     }
 }
 
+// Validate schema attributes.
+void ValidateSchemaAttributes(const TTableSchema& schema)
+{
+    if (schema.GetUniqueKeys() && schema.GetKeyColumnCount() == 0) {
+        THROW_ERROR_EXCEPTION("\"unique_keys\" can only be true if key columns are present");
+    }
+}
+
 void ValidateTableSchema(const TTableSchema& schema)
 {
     for (const auto& column : schema.Columns()) {
@@ -800,6 +845,7 @@ void ValidateTableSchema(const TTableSchema& schema)
     ValidateComputedColumns(schema);
     ValidateAggregatedColumns(schema);
     ValidateTimestampColumn(schema);
+    ValidateSchemaAttributes(schema);
 }
 
 //! TODO(max42): document this functions somewhere (see also https://st.yandex-team.ru/YT-1433).
@@ -810,6 +856,10 @@ void ValidateTableSchemaUpdate(
     bool isTableEmpty)
 {
     ValidateTableSchema(newSchema);
+
+    if (isTableDynamic) {
+        ValidateDynamicTableConstraints(newSchema);
+    }
 
     if (isTableEmpty) {
         // Any valid schema is allowed to be set for an empty table.
@@ -822,11 +872,6 @@ void ValidateTableSchemaUpdate(
     if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
         THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
     }
-
-    if (isTableDynamic && !newSchema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("\"strict\" cannot be \"false\" for a dynamic table");
-    }
-
     if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
         THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
     }
@@ -1025,6 +1070,68 @@ void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tabl
             "Table schema is not strict but read schema contains key column %Qv not present in table schema",
             readSchema.Columns()[tableSchema.GetKeyColumnCount()].Name);
     }
+}
+
+
+TError ValidateTableSchemaCompatibility(
+    const TTableSchema& inputSchema,
+    const TTableSchema& outputSchema)
+{
+    auto addAttributes = [&] (TError error) {
+        return error
+            << TErrorAttribute("input_table_schema", inputSchema)
+            << TErrorAttribute("output_table_schema", outputSchema);
+    };
+
+    // If output schema is strict, check that input columns are subset of output columns.
+    if (outputSchema.GetStrict()) {
+        if (!inputSchema.GetStrict()) {
+            return addAttributes(TError("Input schema is not strict"));
+        }
+
+        for (const auto& inputColumn : inputSchema.Columns()) {
+            if (!outputSchema.FindColumn(inputColumn.Name)) {
+                return addAttributes(TError("Unexpected column %Qv in input schema",
+                    inputColumn.Name));
+            }
+        }
+    }
+
+    // Check that column types are the same.
+    for (const auto& outputColumn : outputSchema.Columns()) {
+        if (auto inputColumn = inputSchema.FindColumn(outputColumn.Name)) {
+            if (inputColumn->Type != outputColumn.Type && outputColumn.Type != EValueType::Any) {
+                return addAttributes(TError("Column %Qv input type is incompatible with the output type",
+                    inputColumn->Name));
+            }
+        }
+    }
+
+    // Check that output key columns form a proper prefix of input key columns.
+    int cmp = outputSchema.GetKeyColumnCount() - inputSchema.GetKeyColumnCount();
+    if (cmp > 0) {
+        return addAttributes(TError("Output key columns are wider than input key columns"));
+    }
+
+    if (outputSchema.GetUniqueKeys()) {
+        if (!inputSchema.GetUniqueKeys()) {
+            return addAttributes(TError("Input schema \"unique_keys\" attribute is false"));
+        }
+        if (cmp != 0) {
+            return addAttributes(TError("Input key columns are wider than output key columns"));
+        }
+    }
+
+    auto inputKeyColumns = inputSchema.GetKeyColumns();
+    auto outputKeyColumns = outputSchema.GetKeyColumns();
+
+    for (int index = 0; index < outputKeyColumns.size(); ++index) {
+        if (inputKeyColumns[index] != outputKeyColumns[index]) {
+            return addAttributes(TError("Input sorting order is incompatible with the output"));
+        }
+    }
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

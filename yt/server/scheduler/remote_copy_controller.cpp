@@ -262,6 +262,10 @@ private:
 
     std::unique_ptr<IAttributeDictionary> InputTableAttributes_;
 
+    virtual bool ShouldVerifySortedOutput() const override
+    {
+        return false;
+    }
 
     // Custom bits of preparation pipeline.
     void InitializeTransactions() override
@@ -319,13 +323,22 @@ private:
         return std::vector<TPathWithStage>();
     }
 
+    virtual void PrepareOutputTables() override
+    {
+        if (InputTables.size() == 1) {
+            OutputTables[0].PreserveSchemaOnWrite = InputTables[0].PreserveSchemaOnWrite;
+            OutputTables[0].Schema = InputTables[0].Schema;
+        }
+
+        for (const auto& inputTable : InputTables) {
+            ValidateTableSchemaCompatibility(inputTable.Schema, OutputTables[0].Schema)
+                .ThrowOnError();
+        }
+    }
+
     virtual void CustomPrepare() override
     {
         TOperationControllerBase::CustomPrepare();
-
-        if (InputTables.size() == 1) {
-            OutputTables[0].KeyColumns = InputTables[0].KeyColumns;
-        }
 
         LOG_INFO("Processing inputs");
 

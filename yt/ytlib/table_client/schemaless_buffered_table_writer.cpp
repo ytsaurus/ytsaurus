@@ -151,6 +151,11 @@ public:
         return false;
     }
 
+    virtual bool IsUniqueKeys() const override
+    {
+        return false;
+    }
+
     virtual TNameTablePtr GetNameTable() const override
     {
         return NameTable_;
@@ -241,7 +246,6 @@ private:
                 Options_,
                 richPath,
                 NameTable_,
-                TKeyColumns(),
                 Client_,
                 nullptr);
 

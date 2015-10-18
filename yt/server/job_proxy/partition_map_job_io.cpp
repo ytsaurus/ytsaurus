@@ -37,7 +37,7 @@ public:
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
         // Key columns for partitioner come from job spec extension.
-        const TKeyColumns& /* keyColumns */) override
+        const TTableSchema& /* tableSchema */) override
     {
         const auto& jobSpec = Host_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
