@@ -35,6 +35,8 @@ private:
     int KeyId_;
     int SubkeyId_;
     int ValueId_;
+    
+    TYamrTable Table_;
 
     void ValidateColumnType(const NTableClient::TUnversionedValue* value);
 };

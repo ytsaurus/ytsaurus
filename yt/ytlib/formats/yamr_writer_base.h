@@ -35,11 +35,10 @@ public:
 
 protected:
     TYamrFormatConfigBasePtr Config_;
-    TYamrTable Table_;
 
     void WriteInLenvalMode(const TStringBuf& value);
     
-    void EscapeAndWrite(const TStringBuf& value, bool inKey);
+    void EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemalessYamrWriterBase)

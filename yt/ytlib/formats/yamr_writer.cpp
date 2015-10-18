@@ -31,6 +31,13 @@ TSchemalessYamrWriter::TSchemalessYamrWriter(
         enableKeySwitch,
         keyColumnCount,
         config)
+    , Table_(
+        config->FieldSeparator,
+        config->RecordSeparator,
+        config->EnableEscaping, // Enable key escaping
+        config->EnableEscaping, // Enable value escaping
+        config->EscapingSymbol,
+        true) 
 {
     KeyId_ = nameTable->GetIdOrRegisterName(config->Key);
     SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
@@ -94,13 +101,13 @@ void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
         }
              
         if (!config->Lenval) {
-            EscapeAndWrite(*key, true);
+            EscapeAndWrite(*key, Table_.KeyStops, Table_.Escapes);
             stream->Write(config->FieldSeparator);
             if (config->HasSubkey) {
-                EscapeAndWrite(*subkey, true);
+                EscapeAndWrite(*subkey, Table_.KeyStops, Table_.Escapes);
                 stream->Write(config->FieldSeparator);
             }
-            EscapeAndWrite(*value, false);
+            EscapeAndWrite(*value, Table_.ValueStops, Table_.Escapes);
             stream->Write(config->RecordSeparator);
         } else {
             WriteInLenvalMode(*key);
