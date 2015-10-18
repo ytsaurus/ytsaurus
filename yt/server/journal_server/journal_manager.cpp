@@ -50,35 +50,6 @@ public:
     { }
 
 
-    void SealChunk(TChunk* chunk, const TMiscExt& info)
-    {
-        if (!chunk->IsJournal()) {
-            THROW_ERROR_EXCEPTION("Not a journal chunk");
-        }
-
-        if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
-        }
-
-        if (chunk->IsSealed()) {
-            THROW_ERROR_EXCEPTION("Chunk is already sealed");
-        }
-
-        chunk->Seal(info);
-        OnChunkSealed(chunk);
-
-        if (IsLeader()) {
-            auto chunkManager = Bootstrap_->GetChunkManager();
-            chunkManager->ScheduleChunkRefresh(chunk);
-        }
-
-        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            chunk->GetId(),
-            info.row_count(),
-            info.uncompressed_data_size(),
-            info.compressed_data_size());
-    }
-
     void SealJournal(
         TJournalNode* trunkNode,
         const TDataStatistics* statistics)
@@ -108,46 +79,6 @@ public:
     }
 
 
-    void OnChunkSealed(TChunk* chunk)
-    {
-        YASSERT(chunk->IsSealed());
-
-        if (chunk->Parents().empty())
-            return;
-
-        // Go upwards and apply delta.
-        YCHECK(chunk->Parents().size() == 1);
-        auto* chunkList = chunk->Parents()[0];
-
-        auto statisticsDelta = chunk->GetStatistics();
-        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
-
-        auto securityManager = Bootstrap_->GetSecurityManager();
-
-        auto owningNodes = GetOwningNodes(chunk);
-
-        bool journalNodeLocked = false;
-        TJournalNode* trunkJournalNode = nullptr;
-        for (auto* node : owningNodes) {
-            securityManager->UpdateAccountNodeUsage(node);
-            if (node->GetType() == EObjectType::Journal) {
-                auto* journalNode = static_cast<TJournalNode*>(node);
-                if (journalNode->GetUpdateMode() != EUpdateMode::None) {
-                    journalNodeLocked = true;
-                }
-                if (trunkJournalNode) {
-                    YCHECK(journalNode->GetTrunkNode() == trunkJournalNode);
-                } else {
-                    trunkJournalNode = journalNode->GetTrunkNode();
-                }    
-            }
-        }
-
-        if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
-            SealJournal(trunkJournalNode, nullptr);
-        }
-    }
-
 private:
     const TJournalManagerConfigPtr Config_;
 };
@@ -162,16 +93,6 @@ TJournalManager::TJournalManager(
 
 TJournalManager::~TJournalManager()
 { }
-
-void TJournalManager::SealChunk(TChunk* chunk, const TMiscExt& info)
-{
-    Impl_->SealChunk(chunk, info);
-}
-
-void TJournalManager::OnChunkSealed(TChunk* chunk)
-{
-    Impl_->OnChunkSealed(chunk);
-}
 
 void TJournalManager::SealJournal(
     TJournalNode* trunkNode,

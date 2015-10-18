@@ -639,8 +639,7 @@ public:
 
         // NB: This is true for non-journal chunks.
         if (chunk->IsSealed()) {
-            auto journalManager = Bootstrap_->GetJournalManager();
-            journalManager->OnChunkSealed(chunk);
+            OnChunkSealed(chunk);
         }
 
         // Increase staged resource usage.
@@ -905,6 +904,34 @@ public:
             replicas,
             Config_->JournalRpcTimeout,
             chunk->GetReadQuorum());
+    }
+
+    void SealChunk(TChunk* chunk, const TMiscExt& info)
+    {
+        if (!chunk->IsJournal()) {
+            THROW_ERROR_EXCEPTION("Not a journal chunk");
+        }
+
+        if (!chunk->IsConfirmed()) {
+            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
+        }
+
+        if (chunk->IsSealed()) {
+            THROW_ERROR_EXCEPTION("Chunk is already sealed");
+        }
+
+        chunk->Seal(info);
+        OnChunkSealed(chunk);
+
+        if (IsLeader()) {
+            ScheduleChunkRefresh(chunk);
+        }
+
+        LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            chunk->GetId(),
+            info.row_count(),
+            info.uncompressed_data_size(),
+            info.compressed_data_size());
     }
 
 
@@ -1593,6 +1620,48 @@ private:
     }
 
 
+    void OnChunkSealed(TChunk* chunk)
+    {
+        YASSERT(chunk->IsSealed());
+
+        if (chunk->Parents().empty())
+            return;
+
+        // Go upwards and apply delta.
+        YCHECK(chunk->Parents().size() == 1);
+        auto* chunkList = chunk->Parents()[0];
+
+        auto statisticsDelta = chunk->GetStatistics();
+        AccumulateUniqueAncestorsStatistics(chunkList, statisticsDelta);
+
+        auto securityManager = Bootstrap_->GetSecurityManager();
+
+        auto owningNodes = GetOwningNodes(chunk);
+
+        bool journalNodeLocked = false;
+        TJournalNode* trunkJournalNode = nullptr;
+        for (auto* node : owningNodes) {
+            securityManager->UpdateAccountNodeUsage(node);
+            if (node->GetType() == EObjectType::Journal) {
+                auto* journalNode = static_cast<TJournalNode*>(node);
+                if (journalNode->GetUpdateMode() != EUpdateMode::None) {
+                    journalNodeLocked = true;
+                }
+                if (trunkJournalNode) {
+                    YCHECK(journalNode->GetTrunkNode() == trunkJournalNode);
+                } else {
+                    trunkJournalNode = journalNode->GetTrunkNode();
+                }
+            }
+        }
+
+        if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
+            auto journalManager = Bootstrap_->GetJournalManager();
+            journalManager->SealJournal(trunkJournalNode, nullptr);
+        }
+    }
+
+
     void OnProfiling()
     {
         if (ChunkReplicator_) {
@@ -1977,6 +2046,11 @@ EChunkStatus TChunkManager::ComputeChunkStatus(TChunk* chunk)
 TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 {
     return Impl_->GetChunkQuorumInfo(chunk);
+}
+
+void TChunkManager::SealChunk(TChunk* chunk, const TMiscExt& info)
+{
+    Impl_->SealChunk(chunk, info);
 }
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, TChunkId, *Impl_)

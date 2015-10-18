@@ -558,8 +558,8 @@ private:
 
         auto* chunk = GetThisTypedImpl();
 
-        auto journalManager = Bootstrap_->GetJournalManager();
-        journalManager->SealChunk(chunk, info);
+        auto chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->SealChunk(chunk, info);
 
         context->Reply();
     }

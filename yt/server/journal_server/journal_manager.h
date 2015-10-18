@@ -24,13 +24,6 @@ public:
         NCellMaster::TBootstrap* bootstrap);
     ~TJournalManager();
 
-    //! Seals the chunk and the journals containing it.
-    void SealChunk(
-        NChunkServer::TChunk* chunk,
-        const NChunkClient::NProto::TMiscExt& info);
-
-    void OnChunkSealed(NChunkServer::TChunk* chunk);
-
     //! Marks the journal as sealed and updates its snapshot statistics.
     //! If #statistics is |nullptr| then computes one from chunk lists.
     //! For secondary masters, this call also notifies the primary.

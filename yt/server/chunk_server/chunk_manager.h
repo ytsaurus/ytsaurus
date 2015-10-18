@@ -151,6 +151,11 @@ public:
     //! by querying a quorum of replicas (if the chunk is not sealed).
     TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(NChunkServer::TChunk* chunk);
 
+    //! Seals the chunk and the journals containing it.
+    void SealChunk(
+        NChunkServer::TChunk* chunk,
+        const NChunkClient::NProto::TMiscExt& info);
+
 private:
     class TImpl;
     class TChunkTypeHandlerBase;
