@@ -727,8 +727,7 @@ TError TCypressManager::CheckLock(
                     GetNodePath(trunkNode, transaction),
                     existingState.Mode,
                     existingTransaction->GetId())
-                    << TErrorAttribute("winner_transaction", existingTransaction->GetDescription())
-                    << TErrorAttribute("loser_transaction", transaction->GetDescription());
+                    << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
             }
 
             // For Shared locks we check child and attribute keys.
@@ -742,8 +741,7 @@ TError TCypressManager::CheckLock(
                         request.ChildKey.Get(),
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription())
-                        << TErrorAttribute("loser_transaction", transaction->GetDescription());
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
                 }
                 if (request.AttributeKey &&
                     existingState.AttributeKeys.find(request.AttributeKey.Get()) != existingState.AttributeKeys.end())
@@ -754,8 +752,7 @@ TError TCypressManager::CheckLock(
                         request.AttributeKey.Get(),
                         GetNodePath(trunkNode, transaction),
                         existingTransaction->GetId())
-                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription())
-                        << TErrorAttribute("loser_transaction", transaction->GetDescription());
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
                 }
             }
         }
