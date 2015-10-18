@@ -107,9 +107,9 @@ public:
         TTableWriterOptionsPtr options,
         const TChunkListId& chunkListId,
         const TTransactionId& transactionId,
-        const TKeyColumns& keyColumns) override
+        const TTableSchema& tableSchema) override
     {
-        return CreateTableWriter(options, chunkListId, transactionId, keyColumns);
+        return CreateTableWriter(options, chunkListId, transactionId, tableSchema);
     }
 
 private:

@@ -1,6 +1,8 @@
 #include "helpers.h"
 #include "config.h"
 #include "schemaless_chunk_reader.h"
+#include "private.h"
+
 #include "schemaless_reader.h"
 #include "schemaless_writer.h"
 #include "name_table.h"

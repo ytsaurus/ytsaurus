@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, make_schema, unix_only
 from yt_commands import *
 
 from yt.wrapper import JsonFormat
@@ -1446,6 +1446,62 @@ print row + table_index
             map(in_="//tmp/input",
                 out=["<row_count_limit=1>//tmp/out_1", "<row_count_limit=1>//tmp/out_2"],
                 command="cat")
+
+    def test_schema_validation(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command="cat")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+
+        write_table("//tmp/input", {"key": "1", "value": "foo"})
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="//tmp/output",
+                command="cat")
+
+    def test_unique_keys_validation(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}],
+                unique_keys=True)
+            })
+
+        for i in xrange(2):
+            write_table("<append=true>//tmp/t1", {"key": "foo", "value": "ninja"})
+
+        command = 'cat >/dev/null; echo "{key=1; value=one}"'
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command=command,
+                spec={"job_count": 2})
+
+        command = 'cat >/dev/null; echo "{key=1; value=one}; {key=1; value=two}"'
+
+        with pytest.raises(YtError):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command=command,
+                spec={"job_count": 1})
 
 
 class TestSchedulerControllerThrottling(YTEnvSetup):

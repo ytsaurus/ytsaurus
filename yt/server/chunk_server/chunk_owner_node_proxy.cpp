@@ -1022,17 +1022,16 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     ValidateTransaction();
     ValidateInUpdate();
 
-    // TOOD(babenko): should we be passing schema here?
-    auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
+    auto schema = request->has_table_schema()
+        ? FromProto<TTableSchema>(request->table_schema())
+        : TTableSchema();
+    bool preserveSchemaOnWrite = request->preserve_schema_on_write();
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
 
-    context->SetRequestInfo("KeyColumns: %v, ChunkPropertiesUpdateNeeded: %v",
-        keyColumns,
+    context->SetRequestInfo("Schema: %v, ChunkPropertiesUpdateNeeded: %v",
+        schema,
         chunkPropertiesUpdateNeeded);
-
-    auto schema = TTableSchema::FromKeyColumns(keyColumns);
-    YASSERT(!schema.GetStrict());
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
@@ -1041,7 +1040,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         PostToMaster(context, node->GetExternalCellTag());
     }
 
-    node->EndUpload(statistics, schema);
+    node->EndUpload(statistics, schema, preserveSchemaOnWrite);
 
     node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
 

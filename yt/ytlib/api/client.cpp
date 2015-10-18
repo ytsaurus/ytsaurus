@@ -2031,9 +2031,12 @@ private:
 
     void DoAlterTable(
         const TYPath& path,
-        const TAlterTableOptions& options)
+        TAlterTableOptions options)
     {
         auto req = TTableYPathProxy::Alter(path);
+        SetTransactionId(req, options, true);
+        GenerateMutationId(req, options);
+
         if (options.Schema) {
             ToProto(req->mutable_schema(), *options.Schema);
         }

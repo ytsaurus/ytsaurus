@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, make_schema, unix_only
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
@@ -251,6 +251,8 @@ print "x={0}\ty={1}".format(x, y)
                                        {"x": "2", "y" : "4"},
                                        {"x": "2", "y" : "9"}]
 
+        assert get('//tmp/t_out/@sorted')
+
     def test_intermediate_live_preview(self):
         create_user("u")
         acl = [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}]
@@ -356,6 +358,38 @@ print "x={0}\ty={1}".format(x, y)
                        in_="//tmp/t1", out="//tmp/t2",
                        sort_by=["foo"],
                        spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})
+
+    def test_schema_validation(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}]
+            })
+
+        for i in xrange(10):
+            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
+
+        map_reduce(
+            in_="//tmp/input",
+            out="//tmp/output",
+            sort_by="key",
+            mapper_command="cat",
+            reducer_command="cat")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+
+        write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
+
+        with pytest.raises(YtError):
+            map_reduce(
+                in_="//tmp/input",
+                out="//tmp/output",
+                sort_by="key",
+                mapper_command="cat",
+                reducer_command="cat")
 
 ##################################################################
 

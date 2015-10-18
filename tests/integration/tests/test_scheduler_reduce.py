@@ -1,6 +1,7 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt.environment.helpers import assert_items_equal
+from yt_env_setup import YTEnvSetup, make_schema, unix_only
 from yt_commands import *
 from yt.yson import YsonEntity
 
@@ -161,7 +162,15 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
     @unix_only
     def test_cat_teleport(self):
-        create("table", "//tmp/in1")
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "sort_order": "ascending"}],
+            unique_keys=True)
+        create("table", "//tmp/in1", attributes={"schema": schema})
+        create("table", "//tmp/in2", attributes={"schema": schema})
+        create("table", "//tmp/in3", attributes={"schema": schema})
+        create("table", "//tmp/in4", attributes={"schema": schema})
+
         write_table(
             "//tmp/in1",
             [
@@ -169,32 +178,39 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {"key": 2, "value": 2},
                 {"key": 4, "value": 3},
                 {"key": 7, "value": 4}
-            ],
-            sorted_by = ["key", "value"])
-
-        create("table", "//tmp/in2")
+            ])
         write_table(
             "//tmp/in2",
             [
                 {"key": 8, "value": 5},
                 {"key": 9, "value": 6},
-            ],
-            sorted_by = ["key", "value"])
-
-        create("table", "//tmp/in3")
+            ])
         write_table(
             "//tmp/in3",
-            [ {"key": 8, "value": 1}, ],
-            sorted_by = ["key", "value"])
-
-        create("table", "//tmp/in4")
+            [ {"key": 8, "value": 1}, ])
         write_table(
             "//tmp/in4",
-            [ {"key": 9, "value": 7}, ],
-            sorted_by = ["key", "value"])
+            [ {"key": 9, "value": 7}, ])
+
+        assert get("//tmp/in1/@sorted_by") == ["key", "value"]
+        assert get("//tmp/in1/@schema/@unique_keys")
 
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
+        create("table", "//tmp/out3", attributes={"schema":
+            make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "int64"}],
+                unique_keys=True)
+            })
+
+        with pytest.raises(YtError):
+            reduce(
+                in_ = ['<teleport=true>//tmp/in1', '<teleport=true>//tmp/in2', '//tmp/in3', '//tmp/in4'],
+                out = ['<sorted_by=[key]; teleport=true>//tmp/out1', '//tmp/out3'],
+                command = 'cat>/dev/fd/4',
+                reduce_by = 'key',
+                spec={"reducer": {"format": "dsv"}})
 
         reduce(
             in_ = ["<teleport=true>//tmp/in1", "<teleport=true>//tmp/in2", "//tmp/in3", "//tmp/in4"],
@@ -338,6 +354,8 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {"key": "2", "subkey" : YsonEntity()}
             ]
 
+        assert get("//tmp/out/@sorted")
+
     @unix_only
     def test_many_output_tables(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
@@ -428,6 +446,8 @@ echo {v = 2} >&7
             "010000006200000000" \
             "010000006200000000"
 
+        assert not get('//tmp/out/@sorted')
+
     def test_key_switch_yson(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -451,6 +471,8 @@ echo {v = 2} >&7
                 "reducer": {"format": yson.loads("<format=text>yson")},
                 "job_count": 1
             })
+
+        assert not get("//tmp/out/@sorted")
 
         jobs_path = "//sys/operations/{0}/jobs".format(op.id)
         job_ids = ls(jobs_path)
@@ -491,6 +513,8 @@ echo {v = 2} >&7
 
         # Expected the same number of rows in output table
         assert get("//tmp/out/@row_count") == 440
+
+        assert not get("//tmp/out/@sorted")
 
     @unix_only
     def test_reduce_with_foreign_join_one_job(self):
@@ -819,6 +843,44 @@ echo {v = 2} >&7
 
         op.track()
         assert len(read_table("//tmp/output")) == 3
+
+    def _test_schema_validation(self, sort_order):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": sort_order},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
+            print get("//tmp/input/@schema")
+
+        reduce(
+            in_="//tmp/input",
+            out="//tmp/output",
+            reduce_by="key",
+            command="cat")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+
+        write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
+        assert get("//tmp/input/@sorted_by") == ["key"]
+
+        with pytest.raises(YtError):
+            reduce(
+                in_="//tmp/input",
+                out="//tmp/output",
+                reduce_by="key",
+                command="cat")
+
+    def test_schema_validation(self):
+        self._test_schema_validation(None)
+
+    def test_schema_validation_sorted(self):
+        self._test_schema_validation("ascending")
 
 ##################################################################
 

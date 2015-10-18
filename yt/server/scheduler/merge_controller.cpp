@@ -127,6 +127,8 @@ protected:
     i64 MaxDataSizePerJob;
     i64 ChunkSliceSize;
 
+    //! Indicates if input table chunks can be teleported to output table.
+    std::vector<bool> IsInputTableTeleportable;
 
     class TMergeTask
         : public TTask
@@ -430,6 +432,7 @@ protected:
         PROFILE_TIMING ("/input_processing_time") {
             LOG_INFO("Processing inputs");
 
+            InitTeleportableInputTables();
             ClearCurrentTaskStripes();
             for (auto chunk : CollectPrimaryInputChunks()) {
                 ProcessInputChunk(chunk);
@@ -505,7 +508,7 @@ protected:
     //! A typical implementation of #IsTeleportChunk that depends on whether chunks must be combined or not.
     bool IsTeleportChunkImpl(const TChunkSpec& chunkSpec, bool combineChunks) const
     {
-        if (chunkSpec.has_channel()) {
+        if (chunkSpec.has_channel() || !IsInputTableTeleportable[chunkSpec.table_index()]) {
             return false;
         }
 
@@ -526,6 +529,19 @@ protected:
     //! Initializes #JobSpecTemplate.
     virtual void InitJobSpecTemplate() = 0;
 
+    //! Initialize IsInputTableTeleportable
+    virtual void InitTeleportableInputTables()
+    {
+        IsInputTableTeleportable.resize(InputTables.size());
+        auto tableIndex = GetTeleportTableIndex();
+        if (tableIndex) {
+            for (int index = 0; index < InputTables.size(); ++index) {
+                IsInputTableTeleportable[index] = ValidateTableSchemaCompatibility(
+                    InputTables[index].Schema,
+                    OutputTables[*tableIndex].Schema).IsOK();
+            }
+        }
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeControllerBase::TMergeTask);
@@ -562,7 +578,6 @@ private:
             EndTaskIfLarge();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -632,6 +647,9 @@ private:
         return false;
     }
 
+    virtual void InitTeleportableInputTables() override
+    { }
+
     virtual std::vector<TPathWithStage> GetFilePaths() const override
     {
         std::vector<TPathWithStage> result;
@@ -663,11 +681,6 @@ private:
     virtual i64 GetAdditionalMemorySize(bool memoryReserveEnabled) const override
     {
         return GetMemoryReserve(memoryReserveEnabled, Spec->Mapper);
-    }
-
-    virtual bool IsSortedOutputSupported() const override
-    {
-        return true;
     }
 
     virtual void InitJobSpecTemplate() override
@@ -862,25 +875,24 @@ private:
             }
         }
 
-        // ...and the output table must be cleared (regardless of requested "append" attribute).
-        {
-            auto& table = OutputTables[0];
-            table.UpdateMode = EUpdateMode::Overwrite;
-            table.LockMode = ELockMode::Exclusive;
-            table.AppendRequested = false;
-        }
     }
 
-    virtual void CustomPrepare() override
+    virtual void PrepareOutputTables() override
     {
-        TOrderedMergeControllerBase::CustomPrepare();
-
-        // If the input is sorted then the output chunk tree must also be marked as sorted.
-        const auto& inputTable = InputTables[0];
         auto& outputTable = OutputTables[0];
-        if (!inputTable.KeyColumns.empty()) {
-            outputTable.KeyColumns = inputTable.KeyColumns;
+        auto& inputTable = InputTables[0];
+
+        if (!outputTable.PreserveSchemaOnWrite) {
+            outputTable.Schema = inputTable.Schema;
+        } else {
+            ValidateTableSchemaCompatibility(inputTable.Schema, outputTable.Schema)
+                .ThrowOnError();
         }
+
+        // Output table must be cleared (regardless of requested "append" attribute).
+        outputTable.UpdateMode = EUpdateMode::Overwrite;
+        outputTable.LockMode = ELockMode::Exclusive;
+        outputTable.AppendRequested = false;
     }
 
     virtual void InitJobSpecTemplate() override
@@ -1037,11 +1049,15 @@ protected:
         return false;
     }
 
+    virtual void PrepareOutputTables() override
+    {
+        // NB: we need to do this after locking input tables but before preparing ouput tables.
+        AdjustKeyColumns();
+    }
+
     virtual void CustomPrepare() override
     {
         // NB: Base member is not called intentionally.
-
-        AdjustKeyColumns();
 
         CalculateSizes();
 
@@ -1136,7 +1152,7 @@ protected:
     virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const
     {
         return
-            !chunkSpec->lower_limit().has_row_index() && 
+            !chunkSpec->lower_limit().has_row_index() &&
             !chunkSpec->upper_limit().has_row_index() &&
             !chunkSpec->has_channel();
     }
@@ -1270,13 +1286,16 @@ private:
                 }
             }
 
+            const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
+
             // No current Teleport candidate.
-            if (endpoint.Type == EEndpointType::Left &&
+            if (IsInputTableTeleportable[chunkSpec->table_index()] &&
+                endpoint.Type == EEndpointType::Left &&
                 CompareRows(minKey, endpoint.MinBoundaryKey, SortKeyColumns.size()) == 0 &&
-                IsTeleportCandidate(chunkSlice->GetChunkSpec()))
+                IsTeleportCandidate(chunkSpec))
             {
                 // The first slice of a full chunk.
-                currentChunkSpec = chunkSlice->GetChunkSpec();
+                currentChunkSpec = chunkSpec;
                 startTeleportIndex = i;
             }
         }
@@ -1438,11 +1457,21 @@ private:
         return result;
     }
 
-    virtual void DoInitialize() override
+    virtual void PrepareOutputTables() override
     {
-        TSortedMergeControllerBase::DoInitialize();
+        TSortedMergeControllerBase::PrepareOutputTables();
 
         auto& table = OutputTables[0];
+
+        if (!table.PreserveSchemaOnWrite) {
+            table.Schema = TTableSchema::FromKeyColumns(SortKeyColumns);
+        } else if (!CheckKeyColumnsCompatible(SortKeyColumns, table.Schema.GetKeyColumns())) {
+            THROW_ERROR_EXCEPTION("Table %v is expected to be sorted by columns [%v], but merge operation key columns are [%v]",
+                table.Path,
+                JoinToString(table.Schema.GetKeyColumns()),
+                JoinToString(SortKeyColumns));
+        }
+
         table.UpdateMode = EUpdateMode::Overwrite;
         table.LockMode = ELockMode::Exclusive;
     }
@@ -1462,14 +1491,6 @@ private:
         ManiacJobSpecTemplate.CopyFrom(JobSpecTemplate);
         ManiacJobSpecTemplate.set_type(static_cast<int>(EJobType::UnorderedMerge));
     }
-
-    virtual void CustomPrepare() override
-    {
-        TSortedMergeControllerBase::CustomPrepare();
-
-        OutputTables[0].KeyColumns = SortKeyColumns;
-    }
-
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
@@ -1689,11 +1710,6 @@ protected:
             result.push_back(std::make_pair(path, EOperationStage::Reduce));
         }
         return result;
-    }
-
-    virtual bool IsSortedOutputSupported() const override
-    {
-        return true;
     }
 
     virtual int GetCpuLimit() const override
@@ -1917,8 +1933,9 @@ private:
 
                 TOwningKey maxKey, minKey;
                 YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-                if (previousEndpoint.Type == EEndpointType::Right
-                    && CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
+
+                if (previousEndpoint.Type == EEndpointType::Right &&
+                    CompareRows(maxKey, previousEndpoint.GetKey(), prefixLength) == 0)
                 {
                     for (int j = startTeleportIndex; j < i; ++j) {
                         Endpoints[j].IsTeleport = true;
@@ -1933,12 +1950,14 @@ private:
             const auto& chunkSpec = endpoint.ChunkSlice->GetChunkSpec();
             TOwningKey maxKey, minKey;
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
-            if (endpoint.Type == EEndpointType::Left &&
+
+            if (IsInputTableTeleportable[chunkSpec->table_index()] &&
+                endpoint.Type == EEndpointType::Left &&
                 CompareRows(minKey, endpoint.GetKey(), prefixLength) == 0 &&
                 IsTeleportCandidate(chunkSpec) &&
                 openedSlicesCount == 1)
             {
-                currentChunkSpec = endpoint.ChunkSlice->GetChunkSpec();
+                currentChunkSpec = chunkSpec;
                 startTeleportIndex = i;
             }
         }

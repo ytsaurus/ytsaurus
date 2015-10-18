@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, skip_if_multicell
+from yt_env_setup import YTEnvSetup, make_schema, unix_only, skip_if_multicell
 from yt_commands import *
 
 from yt.yson import to_yson_type, loads
@@ -146,6 +146,30 @@ class TestTables(YTEnvSetup):
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
         with pytest.raises(YtError): read_table("//tmp/file") 
+
+    def test_sorted_unique(self):
+        create("table", "//tmp/table",
+            attributes={
+                "schema": make_schema(
+                    [{"name": "key", "type": "int64", "sort_order": "ascending"}],
+                    unique_keys=True)
+            })
+
+        assert get("//tmp/table/@preserve_schema_on_write")
+
+        write_table("//tmp/table", [{"key": 0}, {"key": 1}])
+
+        with pytest.raises(YtError):
+            write_table("<append=true>//tmp/table", [{"key": 1}])
+
+        with pytest.raises(YtError):
+            write_table("<append=true>//tmp/table", [{"key": 2}, {"key": 2}])
+
+        write_table("<append=true>//tmp/table", [{"key": 2}])
+
+        assert get("//tmp/table/@preserve_schema_on_write")
+        assert get("//tmp/table/@schema/@unique_keys")
+        assert read_table("//tmp/table") == [{"key": i} for i in xrange(3)]
 
     def test_row_index_selector(self):
         create("table", "//tmp/table")
@@ -357,17 +381,28 @@ class TestTables(YTEnvSetup):
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        schema = loads('<strict=%false>[{name=a;type=string}]')
+        schema = get("//tmp/table/@schema")
+        schema1 = make_schema(
+            [{"name": "a", "type": "string"}],
+            strict=False,
+            unique_keys=False)
+        schema2 = make_schema(
+            [{"name": "b", "type": "string"}],
+            strict=False,
+            unique_keys=False)
 
-        set("//tmp/table/@schema", schema, tx = tx1)
+        alter_table("//tmp/table", schema=schema1, tx = tx1)
 
-        with pytest.raises(YtError): set("//tmp/table/@schema", schema, tx = tx2)
-        assert get("//tmp/table/@schema") == loads('<strict=%false>[]') 
-        assert get("//tmp/table/@schema", tx = tx1) == schema
+        with pytest.raises(YtError):
+            alter_table("//tmp/table", schema=schema2, tx = tx2)
+
+        assert get("//tmp/table/@schema") == schema
+        assert get("//tmp/table/@schema", tx = tx1) == schema1
+        assert get("//tmp/table/@schema", tx = tx2) == schema
 
         commit_transaction(tx1)
         abort_transaction(tx2)
-        assert get("//tmp/table/@schema") == schema
+        assert get("//tmp/table/@schema") == schema1
 
     def test_shared_locks_nested_tx(self):
         create("table", "//tmp/table")
@@ -792,6 +827,56 @@ class TestTables(YTEnvSetup):
     def test_dynamic_table_schema_required(self):
         with pytest.raises(YtError): create("table", "//tmp/t",
             attributes={"dynamic": True})
+
+    def test_schema_validation(self):
+        def init_table(path, schema):
+            remove(path, force=True)
+            create("table", path, attributes={"schema": schema})
+
+        def test_positive(schema, rows):
+            init_table("//tmp/t", schema)
+            write_table("<append=%true>//tmp/t", rows)
+            assert read_table("//tmp/t") == rows
+            assert get("//tmp/t/@preserve_schema_on_write")
+            assert get("//tmp/t/@schema") == schema
+
+        def test_negative(schema, rows):
+            init_table("//tmp/t", schema)
+            with pytest.raises(YtError):
+                write_table("<append=%true>//tmp/t", rows)
+
+        schema = make_schema([
+            {"name": "key", "type": "int64"}],
+            strict=False,
+            unique_keys=False)
+        test_positive(schema, [{"key": 1}])
+        test_negative(schema, [{"key": False}])
+
+        schema = make_schema([
+            {"name": "key", "type": "int64"}],
+            strict=True,
+            unique_keys=False)
+        test_negative(schema, [{"values": 1}])
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}],
+            strict=False,
+            unique_keys=False)
+        test_positive(schema, rows)
+        test_negative(schema, list(reversed(rows)))
+
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}],
+            strict=False,
+            unique_keys=True)
+        test_positive(schema, rows)
+
+        rows = [{"key": 1, "value": str(i)} for i in xrange(10)]
+        test_negative(schema, rows);
 
 ##################################################################
 

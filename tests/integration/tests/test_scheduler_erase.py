@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, make_schema
 from yt_commands import *
 
 
@@ -149,6 +149,21 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         erase("//tmp/table[:0]")
         assert read_table("//tmp/table") == v[4:5]
         assert get("//tmp/table/@sorted") # check that table is still sorted
+
+    def test_schema_validation(self):
+        create("table", "//tmp/table", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}])
+            })
+
+        write_table("//tmp/table", [{"key": i, "value": "foo"} for i in xrange(10)])
+
+        erase("//tmp/table[5:]")
+
+        assert get("//tmp/table/@schema/@strict")
+        assert get("//tmp/table/@preserve_schema_on_write")
+        assert read_table("//tmp/table") == [{"key": i, "value": "foo"} for i in xrange(5)]
 
 ##################################################################
 

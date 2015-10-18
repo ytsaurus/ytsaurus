@@ -100,6 +100,7 @@ private:
         descriptors->push_back("atomicity");
         descriptors->push_back(TAttributeDescriptor("optimize_for")
             .SetCustom(true));
+        descriptors->push_back(TAttributeDescriptor("preserve_schema_on_write"));
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -136,6 +137,12 @@ private:
         if (key == "schema") {
             BuildYsonFluently(consumer)
                 .Value(table->TableSchema());
+            return true;
+        }
+
+        if (key == "preserve_schema_on_write") {
+            BuildYsonFluently(consumer)
+                .Value(table->PreserveSchemaOnWrite());
             return true;
         }
 
@@ -198,42 +205,34 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    void SetSchema(const TTableSchema& newSchema) 
+    void AlterTable(const TNullable<TTableSchema>& newSchema, const TNullable<bool>& newDynamic)
     {
         auto* table = LockThisTypedImpl();
 
-        if (table->HasMountedTablets()) {
-            THROW_ERROR_EXCEPTION("Cannot change schema of a dynamic table with mounted tablets");
+        if (newDynamic) {
+            ValidateNoTransaction();
         }
 
-        ValidateTableSchemaUpdate(table->TableSchema(), newSchema, table->IsDynamic(), table->IsEmpty());
-        
-        table->TableSchema() = newSchema;
-    }
+        if (newSchema && table->HasMountedTablets()) {
+            THROW_ERROR_EXCEPTION("Cannot change schema of a table with mounted tablets");
+        }
 
-    void SetDynamic(bool value)
-    {
-        ValidateNoTransaction();
+        if (newSchema) {
+            table->SetCustomSchema(*newSchema, newDynamic.Get(table->IsDynamic()));
+        }
 
-        auto* table = LockThisTypedImpl();
-        auto tabletManager = Bootstrap_->GetTabletManager();
-        if (value) {
-            tabletManager->MakeTableDynamic(table);
-        } else {
-            tabletManager->MakeTableStatic(table);
+        if (newDynamic) {
+            auto tabletManager = Bootstrap_->GetTabletManager();
+            if (*newDynamic) {
+                tabletManager->MakeTableDynamic(table);
+            } else {
+                tabletManager->MakeTableStatic(table);
+            }
         }
     }
 
     virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        // COMPAT(max42): remove this when setting schema via attributes
-        // becomes obsolete.
-        if (key == "schema") {
-            auto newSchema = ConvertTo<TTableSchema>(value);
-            SetSchema(newSchema);
-            return true;
-        }
-
         if (key == "atomicity") {
             ValidateNoTransaction();
 
@@ -249,7 +248,7 @@ private:
 
         return TBase::SetBuiltinAttribute(key, value);
     }
-    
+
     virtual void ValidateCustomAttributeUpdate(
         const Stroka& key,
         const TNullable<TYsonString>& oldValue,
@@ -463,9 +462,8 @@ private:
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NTableClient::NProto, Alter)
-    { 
+    {
         DeclareMutating();
-
         auto newSchema = request->has_schema()
             ? MakeNullable(FromProto<TTableSchema>(request->schema()))
             : Null;
@@ -477,13 +475,7 @@ private:
             newSchema,
             newDynamic);
 
-        if (newSchema) {
-            SetSchema(*newSchema);
-        }
-
-        if (newDynamic) {
-            SetDynamic(*newDynamic);
-        }
+        AlterTable(newSchema, newDynamic);
 
         context->Reply();
     }

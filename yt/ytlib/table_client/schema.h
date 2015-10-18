@@ -62,6 +62,7 @@ class TTableSchema
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
+    DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys);
 
     //! Constructs an empty non-strict schema.
     TTableSchema();
@@ -70,7 +71,8 @@ public:
     //! No validation is performed.
     explicit TTableSchema(
         std::vector<TColumnSchema> columns,
-        bool strict = true);
+        bool strict = true,
+        bool uniqueKeys = false);
 
     const TColumnSchema* FindColumn(const TStringBuf& name) const;
     const TColumnSchema& GetColumn(const TStringBuf& name) const;
@@ -83,9 +85,11 @@ public:
 
     // TODO(babenko): this function is deprecated
     void AppendColumn(const TColumnSchema& column);
+    void MakeUniqueKeys();
 
     bool HasComputedColumns() const;
     bool IsSorted() const;
+    bool IsUniqueKeys() const;
 
     TKeyColumns GetKeyColumns() const;
     int GetKeyColumnCount() const;
@@ -166,6 +170,8 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema);
 void ValidateReadSchema(const TTableSchema& readSchema, const TTableSchema& tableSchema);
 
 TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns);
+
+TError ValidateTableSchemaCompatibility(const TTableSchema& inputSchema, const TTableSchema& outputSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

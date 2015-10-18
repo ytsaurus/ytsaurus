@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup, make_schema, unix_only
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -109,7 +109,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               out="//tmp/t_out")
 
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 10}, {"a": 15}, {"a": 100}]
-        assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long they are small)
+        assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long as they are small)
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
     def test_sorted_trivial(self):
         create("table", "//tmp/t1")
@@ -123,7 +125,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               out="//tmp/t_out")
 
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 10}, {"a": 100}]
-        assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long they are small)
+        assert get("//tmp/t_out/@chunk_count") == 1 # resulting number of chunks is always equal to 1 (as long as they are small)
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
     def test_append_not_sorted(self):
         create("table", "//tmp/t_in")
@@ -156,6 +160,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               out="//tmp/t_out")
         assert_items_equal(read_table("//tmp/t_out"), v + v)
 
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["key1"]
+
     def test_sorted_combine(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -171,6 +178,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 10}, {"a": 15}, {"a": 100}]
         assert get("//tmp/t_out/@chunk_count") == 1
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
     def test_sorted_passthrough(self):
         create("table", "//tmp/t1")
@@ -198,6 +207,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(res, expected)
 
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["k"]
+
         merge(mode="sorted",
               in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
               out="//tmp/t_out",
@@ -207,6 +219,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(res, expected)
 
         assert get("//tmp/t_out/@chunk_count") == 3
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["k"]
 
         merge(mode="sorted",
               in_=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
@@ -226,6 +240,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             assert i == j
 
         assert get("//tmp/t_out/@chunk_count") == 1
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["k", "s"]
 
     def test_sorted_with_maniacs(self):
         create("table", "//tmp/t1")
@@ -245,6 +261,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 3}, {"a": 15}]
         assert get("//tmp/t_out/@chunk_count") == 3
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["a"]
 
     def test_sorted_with_row_limits(self):
         create("table", "//tmp/t1")
@@ -293,6 +311,75 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert result[:2] == [a1, b1]
         assert_items_equal(result[2:5], [a2, a3, b2])
         assert result[5] == b3
+
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["a"]
+
+    def test_sorted_unique_simple(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema([
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"}],
+                unique_keys=True)
+            })
+
+        a1 = {"a": 1, "b": 1}
+        a2 = {"a": 2, "b": 2}
+        a3 = {"a": 3, "b": 3}
+
+        write_table("//tmp/t1", [a1, a2], sorted_by=["a", "b"])
+        write_table("//tmp/t2", [a3], sorted_by=["a"])
+        write_table("//tmp/t3", [a3, a3], sorted_by=["a", "b"])
+
+        with pytest.raises(YtError):
+            merge(mode="sorted",
+                  in_="//tmp/t3",
+                  out="//tmp/t_out",
+                  merge_by="a")
+
+        merge(mode="sorted",
+              in_=["//tmp/t1", "//tmp/t2"],
+              out="//tmp/t_out",
+              merge_by="a")
+
+        result = read_table("//tmp/t_out")
+        assert result == [a1, a2, a3]
+
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") ==  ["a"]
+        assert get("//tmp/t_out/@schema/@unique_keys")
+
+    def test_sorted_unique_with_wider_key_columns(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema([
+                {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                {"name": "key2", "type": "int64", "sort_order": "ascending"}],
+                unique_keys=True)
+            })
+
+        write_table(
+            "//tmp/t1",
+            [{"key1": 1, "key2": 1}, {"key1": 1, "key2": 2}],
+            sorted_by=["key1", "key2"])
+
+        with pytest.raises(YtError):
+            merge(mode="sorted",
+                in_="//tmp/t1",
+                out="//tmp/t_out",
+                merge_by="key1")
+
+        merge(mode="sorted",
+            in_="//tmp/t1",
+            out="//tmp/t_out",
+            merge_by=["key1", "key2"])
+
+        assert get("//tmp/t_out/@sorted")
+        assert get("//tmp/t_out/@sorted_by") == ["key1", "key2"]
+        assert get("//tmp/t_out/@schema/@unique_keys") == True
 
     def test_empty_in(self):
         create("table", "//tmp/t1")
@@ -429,6 +516,85 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             out="//tmp/t2")
 
         assert read_table("//tmp/t2") == [{"a": i} for i in xrange(1, 3)]
+
+    def test_schema_validation_unordered(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
+
+        merge(in_="//tmp/input",
+            out="//tmp/output")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
+
+        write_table("//tmp/input", {"key": "1", "value": "foo"})
+
+        with pytest.raises(YtError):
+            merge(in_="//tmp/input",
+                out="//tmp/output")
+
+    def test_schema_validation_ordered(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true>//tmp/input", {"key": i, "value": "foo"})
+
+        merge(mode="ordered",
+            in_="//tmp/input",
+            out="//tmp/output")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
+
+        write_table("//tmp/input", {"key": "1", "value": "foo"})
+
+        with pytest.raises(YtError):
+            merge(mode="ordered",
+                in_="//tmp/input",
+                out="//tmp/output")
+
+    def test_schema_validation_sorted(self):
+        create("table", "//tmp/input")
+        create("table", "//tmp/output", attributes={
+            "schema": make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}])
+            })
+
+        for i in xrange(10):
+            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
+
+        assert get("//tmp/input/@sorted_by") == ["key"]
+
+        merge(mode="sorted",
+            in_="//tmp/input",
+            out="//tmp/output")
+
+        assert get("//tmp/output/@preserve_schema_on_write")
+        assert get("//tmp/output/@schema/@strict")
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
+
+        write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
+        assert get("//tmp/input/@sorted_by") == ["key"]
+
+        with pytest.raises(YtError):
+            merge(mode="sorted",
+                in_="//tmp/input",
+                out="//tmp/output")
 
 ##################################################################
 

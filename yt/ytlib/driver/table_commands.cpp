@@ -96,9 +96,6 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         config,
         GetOptions());
 
-    auto keyColumns = Path.GetSortedBy();
-    auto nameTable = TNameTable::FromKeyColumns(keyColumns);
-
     auto options = New<TTableWriterOptions>();
     options->ValidateDuplicateIds = true;
     options->ValidateRowWeight = true;
@@ -107,8 +104,7 @@ void TWriteTableCommand::Execute(ICommandContextPtr context)
         config,
         options,
         Path,
-        nameTable,
-        keyColumns,
+        New<TNameTable>(),
         context->GetClient(),
         transaction);
 
