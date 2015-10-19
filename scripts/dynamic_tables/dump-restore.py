@@ -340,7 +340,7 @@ def restore_table(args):
 
 ####################################################################################################
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--dump", nargs=2, metavar=('SOURCE', 'DESTINATION'), help="Copy table")
@@ -362,4 +362,7 @@ if __name__ == "__main__":
         dump_table(args)
     elif args.restore:
         restore_table(args)
+
+if __name__ == "__main__":
+    main()
 
