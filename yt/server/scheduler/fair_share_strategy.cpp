@@ -1717,7 +1717,11 @@ public:
 
     virtual void BuildOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operationId);
+        auto element = FindOperationElement(operationId);
+        if (!element) {
+            return;
+        }
+
         auto pool = element->GetPool();
         BuildYsonMapFluently(consumer)
             .Item("pool").Value(pool->GetId())
@@ -1728,7 +1732,11 @@ public:
 
     virtual void BuildBriefOperationProgress(const TOperationId& operationId, IYsonConsumer* consumer) override
     {
-        auto element = GetOperationElement(operationId);
+        auto element = FindOperationElement(operationId);
+        if (!element) {
+            return;
+        }
+
         auto pool = element->GetPool();
         const auto& attributes = element->Attributes();
         BuildYsonMapFluently(consumer)
