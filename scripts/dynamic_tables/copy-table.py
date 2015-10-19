@@ -54,7 +54,7 @@ def prepare(value):
 
 # Check that table is mounted
 def mounted(yt_client, path):
-    return all(x["state"] == "mounted" for x in yt_client.get(src + "/@tablets"))
+    return all(x["state"] == "mounted" for x in yt_client.get(path + "/@tablets"))
 
 # Simple transformation class - just copy everything.
 class Copy:
@@ -149,7 +149,7 @@ def call_subprocess(command, stdin, max_retry_count, sleep_interval, env):
     if ret == 0:
         return out
     else:
-        errors = ["try: %s\nreturn code: %s\nstdout:\n%s\n\nstderr:\n%s\n" % (attempt, ret, out, err) for attempt, ret, out, err in errors]
+        errors = ["try: %s\nreturn code: %s\nstdout:\n%s\n\nstderr:\n%s\n" % (attempt_index, return_code, output, error) for attempt_index, return_code, output, error in errors]
         errors = [e +  "\n\n===================================================================\n\n" for e in errors]
         stderr = "".join(errors)
         #print >> sys.stderr, "stdin:\n%s\n" % stdin
