@@ -13,13 +13,11 @@ import time
 import signal
 import socket
 import shutil
-import subprocess
 import sys
 import getpass
 import simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
-from ctypes import cdll
 from threading import RLock
 
 try:
@@ -237,14 +235,17 @@ class YTEnv(object):
             if safe:
                 assert total_ok, total_message
 
-    def check_liveness(self):
+    def check_liveness(self, callback_func=None):
         with self._lock:
             for pid, info in self._all_processes.iteritems():
                 proc, args = info
                 if proc.returncode is not None:
-                    self.clear_environment(safe=False)
-                    py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
-                                 .format(" ".join(args)))
+                    if callback_func is None:
+                        self.clear_environment(safe=False)
+                        py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
+                                     .format(" ".join(args)))
+                    else:
+                        callback_func()
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + '\n')
