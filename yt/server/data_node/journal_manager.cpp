@@ -144,6 +144,13 @@ public:
         int maxCleanId = std::numeric_limits<int>::min();
 
         auto descriptors = Callbacks_->ListMultiplexedChangelogs();
+        std::sort(
+            descriptors.begin(),
+            descriptors.end(),
+            [] (const TMultiplexedChangelogDescriptor& lhs, const TMultiplexedChangelogDescriptor& rhs) {
+                return lhs.Id < rhs.Id;
+            });
+
         for (const auto& descriptor : descriptors) {
             int id = descriptor.Id;
             if (descriptor.Clean) {
@@ -153,6 +160,13 @@ public:
                 LOG_INFO("Found dirty multiplexed changelog (ChangelogId: %v)", id);
                 minDirtyId = std::min(minDirtyId, id);
                 maxDirtyId = std::max(maxDirtyId, id);
+            }
+        }
+
+        for (const auto& descriptor : descriptors) {
+            if (descriptor.Clean && descriptor.Id > minDirtyId) {
+                LOG_FATAL("Found unexpected clean multiplexed changelog (ChangelogId: %v)",
+                    descriptor.Id);
             }
         }
 
