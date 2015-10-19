@@ -262,7 +262,7 @@ def regions_mapper(r):
         # Yield processed range.
         yield r
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description="Map-Reduce table manipulator.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--copy", nargs=2, metavar=('SOURCE', 'DESTINATION'), help="Copy table")
@@ -464,3 +464,5 @@ if __name__ == "__main__":
     yt.remove(regions_table)
     yt.remove(out_regions_table)
 
+if __name__ == "__main__":
+    main()
