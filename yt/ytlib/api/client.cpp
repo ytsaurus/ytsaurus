@@ -326,7 +326,7 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        if (!tableInfo->Sorted && !tableInfo->Dynamic) {
+        if (!tableInfo->Sorted) {
             THROW_ERROR_EXCEPTION("Expected a sorted table, but got unsorted");
         }
 
