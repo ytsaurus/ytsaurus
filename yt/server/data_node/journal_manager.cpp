@@ -139,10 +139,6 @@ public:
 
     int ReplayChangelogs()
     {
-        int minDirtyId = std::numeric_limits<int>::max();
-        int maxDirtyId = std::numeric_limits<int>::min();
-        int maxCleanId = std::numeric_limits<int>::min();
-
         auto descriptors = Callbacks_->ListMultiplexedChangelogs();
         std::sort(
             descriptors.begin(),
@@ -151,6 +147,9 @@ public:
                 return lhs.Id < rhs.Id;
             });
 
+        int minDirtyId = std::numeric_limits<int>::max();
+        int maxDirtyId = std::numeric_limits<int>::min();
+        int maxCleanId = std::numeric_limits<int>::min();
         for (const auto& descriptor : descriptors) {
             int id = descriptor.Id;
             if (descriptor.Clean) {
