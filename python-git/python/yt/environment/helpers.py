@@ -157,3 +157,14 @@ def read_config(filename, format="yson"):
             return yson.load(f)
         else:  # json
             return json.load(f)
+
+def is_dead_or_zombie(pid):
+    try:
+        with open("/proc/{0}/status".format(pid), "rb") as f:
+            for line in f:
+                if line.startswith("State:"):
+                    return line.split()[1] == "Z"
+    except IOError:
+        pass
+
+    return True
