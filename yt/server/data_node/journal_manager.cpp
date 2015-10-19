@@ -567,7 +567,7 @@ public:
     IChangelogPtr OpenMultiplexedChangelog(int changelogId)
     {
         // NB: May be called multiple times for the same #changelogId.
-        YCHECK(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(changelogId, NewPromise<void>())).second);
+        MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(changelogId, NewPromise<void>()));
         auto path = GetMultiplexedChangelogPath(changelogId);
         return MultiplexedChangelogDispatcher_->OpenChangelog(path, Config_);
     }
