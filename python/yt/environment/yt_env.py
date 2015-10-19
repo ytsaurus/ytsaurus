@@ -1,5 +1,6 @@
 from configs_provider import ConfigsProviderFactory, init_logging
-from helpers import versions_cmp, is_binary_found, makedirp, read_config, write_config, collect_events_from_logs
+from helpers import versions_cmp, is_binary_found, makedirp, read_config, write_config, collect_events_from_logs, \
+                    is_dead_or_zombie
 
 from yt.common import update, YtError, get_value
 import yt.yson as yson
@@ -157,7 +158,7 @@ class YTEnv(object):
                     callback_func(self, args)
                     break
 
-    def _run_all(self, masters_count, secondary_master_cell_count, nodes_count, schedulers_count, has_proxy,
+    def _run_all(self, master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy,
                  use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
                  proxy_port=None, enable_debug_logging=True, load_existing_environment=False):
 
@@ -177,9 +178,9 @@ class YTEnv(object):
         self._load_existing_environment = load_existing_environment
 
         logger.info("Starting up cluster instance as follows:")
-        logger.info("  masters          %d", masters_count)
-        logger.info("  nodes            %d", nodes_count)
-        logger.info("  schedulers       %d", schedulers_count)
+        logger.info("  masters          %d", master_count)
+        logger.info("  nodes            %d", node_count)
+        logger.info("  schedulers       %d", scheduler_count)
 
         if self.START_SECONDARY_MASTER_CELLS:
             logger.info("  secondary cells  %d", secondary_master_cell_count)
@@ -187,22 +188,27 @@ class YTEnv(object):
         logger.info("  proxies          %d", int(has_proxy))
         logger.info("  working dir      %s", self.path_to_run)
 
-        if masters_count == 0:
+        if master_count == 0:
             logger.info("Do nothing, because we have 0 masters")
             shutil.rmtree(self.path_to_run, ignore_errors=True)
             return
 
         try:
-            self._run_masters(masters_count, master_name, secondary_master_cell_count, cell_tag,
-                              start_secondary_master_cells=start_secondary_master_cells)
-            self._run_schedulers(schedulers_count, scheduler_name)
-            self._run_nodes(nodes_count, node_name)
+            self._prepare_masters(master_count, master_name, secondary_master_cell_count, cell_tag)
+            self._prepare_schedulers(scheduler_count, scheduler_name)
+            self._prepare_nodes(node_count, node_name)
+            self._prepare_proxy(has_proxy, proxy_name, proxy_port)
             self._prepare_driver(driver_name, secondary_master_cell_count)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
-            self._run_proxy(has_proxy, proxy_name, use_proxy_from_package=use_proxy_from_package, proxy_port=proxy_port)
+
+            self.start_all_masters(master_name, secondary_master_cell_count,
+                                   start_secondary_master_cells=start_secondary_master_cells)
+            self.start_schedulers(scheduler_name)
+            self.start_nodes(node_name)
+            self.start_proxy(proxy_name, use_proxy_from_package=use_proxy_from_package)
 
             self._write_environment_info_to_file(has_proxy)
-        except Exception as err:
+        except (YtError, KeyboardInterrupt) as err:
             self.clear_environment()
             raise YtError("Failed to start environment", inner_errors=[err])
 
@@ -213,14 +219,6 @@ class YTEnv(object):
         with open(os.path.join(self.path_to_run, "info.yson"), "w") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
-    def _is_dead_or_zombie(self, pid):
-        processes_output = subprocess.check_output("ps axo pid=,stat=", shell=True)
-        for line in processes_output.split("\n"):
-            words = line.split()
-            if len(words) >= 2 and int(words[0]) == pid:
-                return words[1].startswith("Z")
-        return True
-
     def _kill_process(self, proc, name):
         proc.poll()
         if proc.returncode is not None:
@@ -229,8 +227,9 @@ class YTEnv(object):
             return
 
         os.killpg(proc.pid, signal.SIGKILL)
+        time.sleep(0.2)
 
-        if not self._is_dead_or_zombie(proc.pid):
+        if not is_dead_or_zombie(proc.pid):
             logger.error("Failed to kill process %s (pid %d) ", name, proc.pid)
 
     def _append_pid(self, pid):
@@ -330,8 +329,8 @@ class YTEnv(object):
             return self._configs_provider.get_master_configs(master_count, master_dirs, tmpfs_master_dirs,
                                                              secondary_master_cell_count, cell_tag)
 
-    def _prepare_masters(self, masters_count, master_name, secondary_master_cell_count, cell_tag):
-        if masters_count == 0:
+    def _prepare_masters(self, master_count, master_name, secondary_master_cell_count, cell_tag):
+        if master_count == 0:
             return
 
         self._master_cell_tags = {}
@@ -341,13 +340,13 @@ class YTEnv(object):
 
         for cell_index in xrange(secondary_master_cell_count + 1):
             name = self._get_master_name(master_name, cell_index)
-            dirs.append([os.path.join(self.path_to_run, name, str(i)) for i in xrange(masters_count)])
+            dirs.append([os.path.join(self.path_to_run, name, str(i)) for i in xrange(master_count)])
             map(makedirp, dirs[cell_index])
             if self.tmpfs_path is not None and not self._load_existing_environment:
-                tmpfs_dirs.append([os.path.join(self.tmpfs_path, name, str(i)) for i in xrange(masters_count)])
+                tmpfs_dirs.append([os.path.join(self.tmpfs_path, name, str(i)) for i in xrange(master_count)])
                 map(makedirp, tmpfs_dirs[cell_index])
 
-        configs = self._get_master_configs(masters_count, master_name, secondary_master_cell_count, cell_tag,
+        configs = self._get_master_configs(master_count, master_name, secondary_master_cell_count, cell_tag,
                                            dirs, tmpfs_dirs)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -478,10 +477,6 @@ class YTEnv(object):
             for i in xrange(secondary_master_cell_count):
                 self.start_masters(self._get_master_name(master_name, i + 1), secondary=True)
 
-    def _run_masters(self, masters_count, master_name, secondary_master_cell_count, cell_tag, start_secondary_master_cells):
-        self._prepare_masters(masters_count, master_name, secondary_master_cell_count, cell_tag)
-        self.start_all_masters(master_name, secondary_master_cell_count, start_secondary_master_cells)
-
     def _get_node_configs(self, node_count, node_name, node_dirs):
         if self._load_existing_environment:
             configs = []
@@ -499,15 +494,15 @@ class YTEnv(object):
             return self._configs_provider.get_node_configs(node_count, node_dirs)
 
 
-    def _prepare_nodes(self, nodes_count, node_name):
-        if nodes_count == 0:
+    def _prepare_nodes(self, node_count, node_name):
+        if node_count == 0:
             return
 
         dirs = [os.path.join(self.path_to_run, node_name, str(i))
-                for i in xrange(nodes_count)]
+                for i in xrange(node_count)]
         map(makedirp, dirs)
 
-        configs = self._get_node_configs(nodes_count, node_name, dirs)
+        configs = self._get_node_configs(node_count, node_name, dirs)
 
         for i, config in enumerate(configs):
             current_path = os.path.join(self.path_to_run, node_name, str(i))
@@ -564,10 +559,6 @@ class YTEnv(object):
 
         self._wait_for(all_nodes_ready, name=node_name, max_wait_time=max(nodes_count * 6.0, 20))
 
-    def _run_nodes(self, nodes_count, node_name):
-        self._prepare_nodes(nodes_count, node_name)
-        self.start_nodes(node_name)
-
     def _get_scheduler_configs(self, scheduler_count, scheduler_name, scheduler_dirs):
         if self._load_existing_environment:
             configs = []
@@ -584,15 +575,15 @@ class YTEnv(object):
         else:
             return self._configs_provider.get_scheduler_configs(scheduler_count, scheduler_dirs)
 
-    def _prepare_schedulers(self, schedulers_count, scheduler_name):
-        if schedulers_count == 0:
+    def _prepare_schedulers(self, scheduler_count, scheduler_name):
+        if scheduler_count == 0:
             return
 
         dirs = [os.path.join(self.path_to_run, scheduler_name, str(i))
-                for i in xrange(schedulers_count)]
+                for i in xrange(scheduler_count)]
         map(makedirp, dirs)
 
-        configs = self._get_scheduler_configs(schedulers_count, scheduler_name, dirs)
+        configs = self._get_scheduler_configs(scheduler_count, scheduler_name, dirs)
 
         for i, config in enumerate(configs):
             self.modify_scheduler_config(config)
@@ -638,10 +629,6 @@ class YTEnv(object):
             return ready_schedulers_count == schedulers_count and is_primary_scheduler_exists
 
         self._wait_for(scheduler_ready, name=scheduler_name)
-
-    def _run_schedulers(self, schedulers_count, scheduler_name):
-        self._prepare_schedulers(schedulers_count, scheduler_name)
-        self.start_schedulers(scheduler_name)
 
     def _get_driver_name(self, driver_name, cell_index):
         if cell_index == 0:
@@ -748,6 +735,9 @@ class YTEnv(object):
                    timeout=3.0)
 
     def start_proxy(self, proxy_name, use_proxy_from_package=False):
+        if len(self.log_paths[proxy_name]) == 0:
+            return
+
         logger.info("Starting %s", proxy_name)
         if use_proxy_from_package:
             self._start_proxy_from_package(proxy_name)
@@ -773,11 +763,6 @@ class YTEnv(object):
                 sock.close()
 
         self._wait_for(started, name="proxy", max_wait_time=20)
-
-    def _run_proxy(self, has_proxy, proxy_name, use_proxy_from_package=False, proxy_port=None):
-        self._prepare_proxy(has_proxy, proxy_name, proxy_port)
-        if has_proxy:
-            self.start_proxy(proxy_name, use_proxy_from_package)
 
     def _wait_for(self, condition, max_wait_time=20, sleep_quantum=0.1, name=""):
         current_wait_time = 0

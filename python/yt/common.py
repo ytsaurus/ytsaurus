@@ -37,7 +37,7 @@ def _pretty_format(error, attribute_length_limit=None, indent=0):
 
     if isinstance(error, YtError):
         error = error.simplify()
-    elif isinstance(error, Exception):
+    elif isinstance(error, (Exception, KeyboardInterrupt)):
         error = {"code": 1, "message": str(error)}
 
     lines = []
