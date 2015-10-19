@@ -8,10 +8,8 @@ import os
 import sys
 import logging
 import uuid
-import shutil
 import time
 from functools import wraps
-from time import sleep
 from threading import Thread
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
