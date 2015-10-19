@@ -8,7 +8,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// ToDo(makhmedov): introduce a single interface for classes TYamrTable and TDsvTable
+// ToDo(max42): introduce a single interface for classes TYamrTable and TDsvTable
 // and refactor TYamrWriterBase::EscapeAndWrite.
 
 struct TYamrTable
