@@ -937,7 +937,7 @@ def run():
 
     sentry_endpoint = options.options["sentry_endpoint"]
     if sentry_endpoint:
-        logging.basicConfig("%(asctime)-15s\t%(name)s\t%(levelname)s\t%(message)s")
+        logging.basicConfig(format="%(asctime)-15s\t%(name)s\t%(levelname)s\t%(message)s")
         root_logger = logging.getLogger("")
         sentry_handler = SentryHandler(sentry_endpoint)
         sentry_handler.setLevel(logging.ERROR)
