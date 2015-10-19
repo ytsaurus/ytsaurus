@@ -1,5 +1,4 @@
 from config import get_config
-from yt.common import format_error
 from common import require
 from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
 from driver import make_request
@@ -7,10 +6,12 @@ from http import get_proxy_url, RETRIABLE_ERRORS
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from cypress_commands import get_attribute, exists, get, list
 from file_commands import read_file
+import yson
+
 import yt.logger as logger
-import yt.yson as yson
 import yt.packages.dateutil.parser as dateutil_parser
 from yt.packages.decorator import decorator
+from yt.common import format_error
 
 import os
 import logging

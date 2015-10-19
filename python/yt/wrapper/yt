@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
-from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
-
+import yt.wrapper.yson as yson
 from yt.wrapper.http import get_api_version
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper as yt
-import yt.yson as yson
 import yt.json as json
 
 import os
@@ -14,6 +12,7 @@ import sys
 import inspect
 import fnmatch
 import shlex
+from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
@@ -118,13 +117,7 @@ def fix_parser(parser):
     return parser
 
 def yson_dumps(data):
-    # TODO(ignat): fix this hack
-    if yt.config["proxy"]["url"] is not None:
-        version = get_api_version()
-        boolean_as_string = (version == "v2")
-    else:
-        boolean_as_string = False
-    return yson.dumps(data, yson_format="pretty", indent=2, boolean_as_string=boolean_as_string)
+    return yson.dumps(data, yson_format="pretty", indent=2)
 
 YT_ARGUMENTS_FORMAT = os.environ.get("YT_ARGUMENTS_FORMAT", "yson")
 YT_STRUCTURED_DATA_FORMAT = os.environ.get("YT_STRUCTURED_DATA_FORMAT", "yson")

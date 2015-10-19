@@ -7,9 +7,10 @@ parameters, and then by kwargs options.
 from config import get_config
 from common import get_value, require, filter_dict, merge_dicts, YtError
 from yamr_record import Record, SimpleRecord, SubkeyedRecord
+import yson
+
 import yt.logger as logger
 import yt.json as json
-import yt.yson as yson
 
 from abc import ABCMeta, abstractmethod
 import copy
