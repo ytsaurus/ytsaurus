@@ -7,7 +7,7 @@ def create(type, name):
     try:
         yt.create(type, attributes={"name": name})
     except yt.YtResponseError as err:
-        if yt.YtResponseError._contains_code(err.error, 501):
+        if err.contains_code(501):
             logger.warning("'%s' already exists", name)
         else:
             raise
