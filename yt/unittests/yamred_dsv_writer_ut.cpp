@@ -171,9 +171,6 @@ TEST_F(TSchemalessYamredDsvWriterTest, Simple)
    
     Stroka output = OutputStream_.Str(); 
 
-    std::cerr << "expectedOutput:" << std::endl << expectedOutput << std::endl;
-    std::cerr << "output:" << std::endl << output << std::endl;
-
     CompareKeyValue(output, expectedOutput); 
 }
 
@@ -209,9 +206,6 @@ TEST_F(TSchemalessYamredDsvWriterTest, SimpleWithSubkey)
         "a b2\tc\t\n";
    
     Stroka output = OutputStream_.Str(); 
-
-    std::cerr << "expectedOutput:" << std::endl << expectedOutput << std::endl;
-    std::cerr << "output:" << std::endl << output << std::endl;
 
     CompareKeySubkeyValue(output, expectedOutput); 
 }
@@ -270,7 +264,7 @@ TEST_F(TSchemalessYamredDsvWriterTest, Lenval)
 
     Stroka output = OutputStream_.Str(); 
     
-    EXPECT_EQ(expectedOutput, output);
+    EXPECT_EQ(output, expectedOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -279,12 +273,13 @@ TEST_F(TSchemalessYamredDsvWriterTest, Escaping)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
     Config_->KeyColumnNames.emplace_back("key_b");
+    int columnWithEscapedNameId = NameTable_->GetIdOrRegisterName("value\t_t");
     CreateStandardWriter();
     
     TUnversionedRowBuilder row1;
     row1.AddValue(MakeUnversionedStringValue("a\n", KeyAId_));
     row1.AddValue(MakeUnversionedStringValue("\nb\t", KeyBId_));
-    row1.AddValue(MakeUnversionedStringValue("\nva\\lue\t", ValueXId_));
+    row1.AddValue(MakeUnversionedStringValue("\nva\\lue\t", columnWithEscapedNameId));
  
     std::vector<TUnversionedRow> rows = {row1.GetRow()};
 
@@ -293,9 +288,10 @@ TEST_F(TSchemalessYamredDsvWriterTest, Escaping)
         .Get()
         .ThrowOnError();
     
-    Stroka output = "a\\n \\nb\\t\tvalue_x=\\nva\\\\lue\\t\n";
+    Stroka expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
+    Stroka output = OutputStream_.Str();
 
-    EXPECT_EQ(output, OutputStream_.Str());
+    EXPECT_EQ(output, expectedOutput);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

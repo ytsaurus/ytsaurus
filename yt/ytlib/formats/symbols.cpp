@@ -277,7 +277,7 @@ Stroka Escape(
     auto* next = begin;
     for (; begin != end; begin = next) {
         next = lookupTable.FindNext(begin, end);
-        result.append(begin, end);
+        result.append(begin, next);
         if (next != end) {
             result.append(escapingSymbol);
             result.append(escapeTable.Forward[static_cast<ui8>(*next)]);
