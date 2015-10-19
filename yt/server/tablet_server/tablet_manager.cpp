@@ -472,6 +472,7 @@ public:
             tablet->SetIndex(0);
             tablet->SetPivotKey(EmptyKey());
             table->Tablets().push_back(tablet);
+            table->SetSorted(true);
             firstTabletIndex = 0;
             lastTabletIndex = 0;
 
@@ -803,6 +804,8 @@ public:
         objectManager->RefObject(newRootChunkList);
         YCHECK(oldRootChunkList->OwningNodes().erase(table) == 1);
         objectManager->UnrefObject(oldRootChunkList);
+
+        table->SetSorted(true);
     }
 
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)
