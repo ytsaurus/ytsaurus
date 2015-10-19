@@ -87,14 +87,18 @@ void TSchedulerThread::Start()
 
 void TSchedulerThread::Shutdown()
 {
-    if (!IsRunning()) {
-        return;
+    while (true) {
+        auto epoch = Epoch.load(std::memory_order_acquire);
+        if ((epoch & 0x1) != 0x0) {
+            return;
+        }
+        if (Epoch.compare_exchange_strong(epoch, epoch + 1, std::memory_order_release)) {
+            break;
+        }
     }
 
     LOG_DEBUG_IF(EnableLogging, "Stopping thread (Name: %v)",
         ThreadName);
-
-    Epoch.fetch_add(0x1, std::memory_order_relaxed);
 
     CallbackEventCount->NotifyAll();
 
