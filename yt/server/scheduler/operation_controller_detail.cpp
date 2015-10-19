@@ -2607,6 +2607,7 @@ void TOperationControllerBase::RequestInputObjects()
         {
             auto req = TYPathProxy::Get(path);
             TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+            attributeFilter.Keys.push_back("dynamic");
             attributeFilter.Keys.push_back("sorted");
             attributeFilter.Keys.push_back("sorted_by");
             attributeFilter.Keys.push_back("chunk_count");
@@ -2640,6 +2641,11 @@ void TOperationControllerBase::RequestInputObjects()
                 const auto& rsp = rspOrError.Value();
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
+
+                if (attributes.Get<bool>("dynamic")) {
+                    THROW_ERROR_EXCEPTION("Expected a static table but got dynamic")
+                        << TErrorAttribute("input_table", table.Path.GetPath());
+                }
 
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
