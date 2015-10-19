@@ -104,6 +104,14 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     bool enableKeySwitch,
     int keyColumnCount);
 
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount);
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,
