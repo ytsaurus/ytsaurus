@@ -553,6 +553,7 @@ public:
 
     IChangelogPtr OpenMultiplexedChangelog(int changelogId)
     {
+        YCHECK(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(changelogId, NewPromise<void>())).second);
         auto path = GetMultiplexedChangelogPath(changelogId);
         return MultiplexedChangelogDispatcher_->OpenChangelog(path, Config_);
     }
@@ -683,7 +684,6 @@ private:
         MultiplexedChangelogRotationDeadline_ =
             NProfiling::GetCpuInstant() +
             NProfiling::DurationToCpuDuration(Config_->AutoRotationPeriod);
-        YCHECK(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(id, NewPromise<void>())).second);
     }
 
     IChangelogPtr CreateMultiplexedChangelog(int id)
@@ -698,6 +698,8 @@ private:
 
         LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
             id);
+
+        YCHECK(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(id, NewPromise<void>())).second);
 
         return changelog;
     }
