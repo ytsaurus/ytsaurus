@@ -176,6 +176,7 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
 
     path = get_root_path(path)
     sandbox_id = id if id is not None else generate_uuid()
+    require("/" not in sandbox_id, YtError('Instance id should not contain path separator "/"'))
 
     environment = YTEnvironment(master_config, scheduler_config, node_config, proxy_config)
 
