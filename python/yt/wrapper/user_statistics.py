@@ -1,4 +1,4 @@
-import yt.yson as yson
+import yson
 
 import os
 import sys
