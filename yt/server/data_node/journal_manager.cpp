@@ -560,15 +560,22 @@ public:
     void MarkMultiplexedChangelogClean(int changelogId)
     {
         LOG_INFO("Multiplexed changelog will be marked as clean (ChangelogId: %v)", changelogId);
-        TDelayedExecutor::Submit(
-            BIND([=, this_ = MakeStrong(this)] () {
-                auto dataFileName = GetMultiplexedChangelogPath(changelogId);
-                auto cleanDataFileName = dataFileName + "." + CleanExtension;
-                NFS::Rename(dataFileName, cleanDataFileName);
-                NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
-                LOG_INFO("Multiplexed changelog is marked as clean (ChangelogId: %v)", changelogId);
-            }),
-            Config_->CleanDelay);
+
+        auto curResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId);
+        YCHECK(curResultIt != MultiplexedChangelogIdToCleanResult_.end());
+        auto curResult = curResultIt->second;
+
+        auto prevResultIt = MultiplexedChangelogIdToCleanResult_.find(changelogId - 1);
+        auto prevResult = prevResultIt == MultiplexedChangelogIdToCleanResult_.end()
+            ? VoidFuture
+            : prevResultIt->second.ToFuture();
+
+        auto delayedResult = TDelayedExecutor::MakeDelayed(Config_->CleanDelay);
+
+        auto combinedResult = Combine(std::vector<TFuture<void>>{prevResult, delayedResult});
+        curResult.SetFrom(combinedResult.Apply(
+            BIND(&TMultiplexedWriter::DoMarkMultiplexedChangelogClean, MakeStrong(this), changelogId)
+                .Via(GetHydraIOInvoker())));
     }
 
 private:
@@ -592,6 +599,10 @@ private:
     //! A collection of futures for various activities recorded in the current multiplexed changelog.
     //! One must wait for these futures to become set before marking the changelog as clean.
     yhash_set<TFuture<void>> Barriers_;
+
+    //! Maps multiplexed changelog ids to cleanup results.
+    //! Used to guarantee that multiplexed changelogs are being marked as clean in proper order.
+    yhash_map<int, TPromise<void>> MultiplexedChangelogIdToCleanResult_;
 
     TPeriodicExecutorPtr MultiplexedCleanupExecutor_;
     TPeriodicExecutorPtr BarrierCleanupExecutor_;
@@ -672,6 +683,7 @@ private:
         MultiplexedChangelogRotationDeadline_ =
             NProfiling::GetCpuInstant() +
             NProfiling::DurationToCpuDuration(Config_->AutoRotationPeriod);
+        YCHECK(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(id, NewPromise<void>())).second);
     }
 
     IChangelogPtr CreateMultiplexedChangelog(int id)
@@ -782,6 +794,18 @@ private:
         Barriers_ = yhash_set<TFuture<void>>(activeBarriers.begin(), activeBarriers.end());
     }
 
+    void DoMarkMultiplexedChangelogClean(int changelogId)
+    {
+        try {
+            auto dataFileName = GetMultiplexedChangelogPath(changelogId);
+            auto cleanDataFileName = dataFileName + "." + CleanExtension;
+            NFS::Rename(dataFileName, cleanDataFileName);
+            NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
+            LOG_INFO("Multiplexed changelog is marked as clean (ChangelogId: %v)", changelogId);
+        } catch (const std::exception& ex) {
+            LOG_FATAL(ex, "Error marking multiplexed changelog as clean (ChangelogId: %v) ", changelogId);
+        }
+    }
 
 };
 
