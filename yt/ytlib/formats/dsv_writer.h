@@ -29,12 +29,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessDsvWriter
+class TShemalessWriterForDsv
     : public TSchemalessFormatWriterBase
     , public TDsvWriterBase
 {
 public:
-    TSchemalessDsvWriter(
+    TShemalessWriterForDsv(
         NTableClient::TNameTablePtr nameTable,
         bool enableContextSaving,
         NConcurrency::IAsyncOutputStreamPtr output,
@@ -55,7 +55,7 @@ private:
     void FinalizeRow(bool firstValue);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemalessDsvWriter)
+DEFINE_REFCOUNTED_TYPE(TShemalessWriterForDsv)
 
 ////////////////////////////////////////////////////////////////////////////////
 

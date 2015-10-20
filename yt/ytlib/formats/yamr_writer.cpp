@@ -17,14 +17,14 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessYamrWriter::TSchemalessYamrWriter(
+TShemalessWriterForYamr::TShemalessWriterForYamr(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount,
     TYamrFormatConfigPtr config)
-    : TSchemalessYamrWriterBase(
+    : TShemalessWriterForYamrBase(
         nameTable, 
         std::move(output),
         enableContextSaving, 
@@ -44,14 +44,14 @@ TSchemalessYamrWriter::TSchemalessYamrWriter(
     ValueId_ = nameTable->GetIdOrRegisterName(config->Value);
 }
     
-void TSchemalessYamrWriter::ValidateColumnType(const TUnversionedValue* value)
+void TShemalessWriterForYamr::ValidateColumnType(const TUnversionedValue* value)
 {
     if (value->Type != EValueType::String) {
         THROW_ERROR_EXCEPTION("Wrong column type %Qlv in YAMR record", value->Type);
     }
 }
 
-void TSchemalessYamrWriter::DoWrite(const std::vector<TUnversionedRow>& rows)
+void TShemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
     auto* stream = GetOutputStream();
     // This nasty line is needed to use Config as TYamrFormatConfigPtr

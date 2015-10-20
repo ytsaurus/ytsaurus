@@ -41,7 +41,7 @@ void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey, TOutpu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessDsvWriter::TSchemalessDsvWriter(
+TShemalessWriterForDsv::TShemalessWriterForDsv(
     TNameTablePtr nameTable, 
     bool enableContextSaving,
     IAsyncOutputStreamPtr output,
@@ -55,7 +55,7 @@ TSchemalessDsvWriter::TSchemalessDsvWriter(
     , TDsvWriterBase(config)
 { }
 
-void TSchemalessDsvWriter::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+void TShemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
 {
     auto* output = GetOutputStream();
     for (const auto& row : rows) {
@@ -86,7 +86,7 @@ void TSchemalessDsvWriter::DoWrite(const std::vector<NTableClient::TUnversionedR
     TryFlushBuffer();
 }
 
-void TSchemalessDsvWriter::FinalizeRow(bool firstValue)
+void TShemalessWriterForDsv::FinalizeRow(bool firstValue)
 {
     auto* output = GetOutputStream();
     if (Config_->EnableTableIndex) {
@@ -102,7 +102,7 @@ void TSchemalessDsvWriter::FinalizeRow(bool firstValue)
     output->Write(Config_->RecordSeparator);
 }
 
-void TSchemalessDsvWriter::WriteValue(const TUnversionedValue& value) 
+void TShemalessWriterForDsv::WriteValue(const TUnversionedValue& value) 
 {
     auto nameTable = GetNameTable();
     auto* output = GetOutputStream();
@@ -138,17 +138,17 @@ void TSchemalessDsvWriter::WriteValue(const TUnversionedValue& value)
     }
 }
 
-void TSchemalessDsvWriter::WriteTableIndex(int tableIndex)
+void TShemalessWriterForDsv::WriteTableIndex(int tableIndex)
 {
     TableIndex_ = tableIndex;
 }
 
-void TSchemalessDsvWriter::WriteRangeIndex(i32 rangeIndex)
+void TShemalessWriterForDsv::WriteRangeIndex(i32 rangeIndex)
 {
     THROW_ERROR_EXCEPTION("Range indexes are not supported by dsv format");
 }
 
-void TSchemalessDsvWriter::WriteRowIndex(i64 rowIndex)
+void TShemalessWriterForDsv::WriteRowIndex(i64 rowIndex)
 {
     THROW_ERROR_EXCEPTION("Row indexes are not supported by dsv format");
 }

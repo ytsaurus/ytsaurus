@@ -16,11 +16,11 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessYamredDsvWriter
-    : public TSchemalessYamrWriterBase
+class TShemalessWriterForYamredDsv
+    : public TShemalessWriterForYamrBase
 {
 public:
-    TSchemalessYamredDsvWriter(
+    TShemalessWriterForYamredDsv(
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
@@ -46,7 +46,7 @@ private:
     ui32 CalculateLength(const TStringBuf& string, bool inKey);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSchemalessYamredDsvWriter)
+DEFINE_REFCOUNTED_TYPE(TShemalessWriterForYamredDsv)
 
 ////////////////////////////////////////////////////////////////////////////////
 
