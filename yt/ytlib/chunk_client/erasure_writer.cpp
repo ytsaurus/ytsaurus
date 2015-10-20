@@ -139,10 +139,12 @@ public:
     TErasureWriter(
         TErasureWriterConfigPtr config,
         const TChunkId& chunkId,
+        NErasure::ECodec codecId,
         NErasure::ICodec* codec,
         const std::vector<IChunkWriterPtr>& writers)
         : Config_(config)
         , ChunkId_(chunkId)
+        , CodecId_(codecId)
         , Codec_(codec)
         , Writers_(writers)
     {
@@ -184,6 +186,11 @@ public:
     virtual const NProto::TChunkInfo& GetChunkInfo() const override
     {
         return ChunkInfo_;
+    }
+
+    virtual NErasure::ECodec GetErasureCodecId() const override
+    {
+        return CodecId_;
     }
 
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override
@@ -228,6 +235,7 @@ private:
 
     const TErasureWriterConfigPtr Config_;
     const TChunkId ChunkId_;
+    const NErasure::ECodec CodecId_;
     NErasure::ICodec* const Codec_;
 
     bool IsOpen_ = false;
@@ -444,12 +452,14 @@ void TErasureWriter::OnClosed()
 IChunkWriterPtr CreateErasureWriter(
     TErasureWriterConfigPtr config,
     const TChunkId& chunkId,
+    NErasure::ECodec codecId,
     NErasure::ICodec* codec,
     const std::vector<IChunkWriterPtr>& writers)
 {
     return New<TErasureWriter>(
         config,
         chunkId,
+        codecId,
         codec,
         writers);
 }

@@ -203,6 +203,11 @@ TChunkId TFileWriter::GetChunkId() const
     return ChunkId_;
 }
 
+NErasure::ECodec TFileWriter::GetErasureCodecId() const
+{
+    return NErasure::ECodec::None;
+}
+
 i64 TFileWriter::GetDataSize() const
 {
     return DataSize_;
