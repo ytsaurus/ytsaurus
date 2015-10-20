@@ -117,17 +117,25 @@ IInvokerPtr TLocation::GetWritePoolInvoker()
 
 std::vector<TChunkDescriptor> TLocation::Scan()
 {
-    std::vector<TChunkDescriptor> result;
-
     try {
-        result = DoScan();
-        Enabled_.store(true);
+        ValidateLockFile();
+        ValidateMinimumSpace();
+        ValidateWritable();
     } catch (const std::exception& ex) {
-        auto error = TError("Location scan failed") << ex;
-        LOG_ERROR(error);
+        LOG_ERROR(ex, "Location disabled");
         MarkAsDisabled(ex);
+        return std::vector<TChunkDescriptor>();
     }
 
+    std::vector<TChunkDescriptor> result;
+    try {
+        result = DoScan();
+    } catch (const std::exception& ex) {
+        Disable(TError("Location scan failed") << ex);
+        YUNREACHABLE(); // Disable() exits the process.
+    }
+
+    Enabled_.store(true);
     return result;
 }
 
@@ -139,9 +147,7 @@ void TLocation::Start()
     try {
         DoStart();
     } catch (const std::exception& ex) {
-        auto error = TError("Location startup failed") << ex;
-        LOG_ERROR(error);
-        MarkAsDisabled(ex);
+        Disable(TError("Location start failed") << ex);
     }
 }
 
@@ -168,6 +174,7 @@ void TLocation::Disable(const TError& reason)
         TFileOutput fileOutput(file);
         fileOutput << errorData;
     } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error creating location lock file");
         // Exit anyway.
     }
 
@@ -287,7 +294,7 @@ Stroka TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
     return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
 }
 
-void TLocation::CheckMinimumSpace()
+void TLocation::ValidateMinimumSpace()
 {
     LOG_INFO("Checking minimum space");
 
@@ -302,7 +309,7 @@ void TLocation::CheckMinimumSpace()
     }
 }
 
-void TLocation::CheckLockFile()
+void TLocation::ValidateLockFile()
 {
     LOG_INFO("Checking lock file");
 
@@ -311,24 +318,28 @@ void TLocation::CheckLockFile()
         return;
     }
 
-    TError error;
-    {
-        TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-        TBufferedFileInput fileInput(file);
-        auto errorData = fileInput.ReadAll();
-        if (!errorData.Empty()) {
-            try {
-                error = ConvertTo<TError>(TYsonString(errorData));
-            } catch (const std::exception& ex) {
-                error = TError("Error parsing lock file contents")
-                    << ex;
-            }
-        } else {
-            error = TError("Empty lock file detected");
-        }
+    TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
+    TBufferedFileInput fileInput(file);
+
+    auto errorData = fileInput.ReadAll();
+    if (errorData.Empty()) {
+        THROW_ERROR_EXCEPTION("Empty lock file found");
     }
 
-    THROW_ERROR error;
+    try {
+        THROW_ERROR ConvertTo<TError>(TYsonString(errorData));
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing lock file contents")
+            << ex;
+    }
+}
+
+void TLocation::ValidateWritable()
+{
+    // Run first health check before to sort out read-only drives.
+    HealthChecker_->RunCheck()
+        .Get()
+        .ThrowOnError();
 }
 
 void TLocation::OnHealthCheckFailed(const TError& error)
@@ -337,9 +348,9 @@ void TLocation::OnHealthCheckFailed(const TError& error)
     YUNREACHABLE(); // Disable() exits the process.
 }
 
-void TLocation::MarkAsDisabled(const std::exception& ex)
+void TLocation::MarkAsDisabled(const TError& error)
 {
-    auto alert = TError("Location at %v is disabled", GetPath()) << ex;
+    auto alert = TError("Location at %v is disabled", GetPath()) << error;
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
 
@@ -376,10 +387,6 @@ void TLocation::DoAdditionalScan()
 
 std::vector<TChunkDescriptor> TLocation::DoScan()
 {
-    CheckMinimumSpace();
-
-    CheckLockFile();
-
     LOG_INFO("Scanning storage location");
 
     NFS::ForcePath(GetPath(), ChunkFilesPermissions);
@@ -425,11 +432,6 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     LOG_INFO("Done, %v chunks found", descriptors.size());
 
     DoAdditionalScan();
-
-    // Run first health check before initialization is complete to sort out read-only drives.
-    HealthChecker_->RunCheck()
-        .Get()
-        .ThrowOnError();
 
     return descriptors;
 }
