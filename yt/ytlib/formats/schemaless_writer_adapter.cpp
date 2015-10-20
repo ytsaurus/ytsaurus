@@ -186,7 +186,7 @@ void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
     TryFlushBuffer();
 }
 
-void TSchemalessWriterAdapter::WriteTableIndex(int tableIndex)
+void TSchemalessWriterAdapter::WriteTableIndex(i32 tableIndex)
 {
     WriteControlAttribute(EControlAttribute::TableIndex, tableIndex);
 }

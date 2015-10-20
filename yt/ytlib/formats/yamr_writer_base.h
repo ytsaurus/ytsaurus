@@ -29,7 +29,7 @@ public:
         TYamrFormatConfigBasePtr config);
 
     // ISchemalessFormatWriter overrides.
-    virtual void WriteTableIndex(int tableIndex) override;
+    virtual void WriteTableIndex(i32 tableIndex) override;
     virtual void WriteRangeIndex(i32 rangeIndex) override;
     virtual void WriteRowIndex(i64 rowIndex) override;
 
