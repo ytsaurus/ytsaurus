@@ -87,8 +87,8 @@ void TShemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnve
 
 void TShemalessWriterForYamredDsv::WriteYamrKey(const std::vector<int>& columnIds) 
 {
-    char YamrKeysSeparator = 
-        static_cast<TYamredDsvFormatConfig*>(Config_.Get())->YamrKeysSeparator;
+    char yamrKeysSeparator = 
+        static_cast<TYamredDsvFormatConfig*>(Config_.Get())->yamrKeysSeparator;
     auto* stream = GetOutputStream();
     if (Config_->Lenval) {
         ui32 keyLength = CalculateTotalKeyLength(columnIds);
@@ -98,7 +98,7 @@ void TShemalessWriterForYamredDsv::WriteYamrKey(const std::vector<int>& columnId
     bool firstColumn = true;
     for (int id : columnIds) {
         if (!firstColumn) {
-            stream->Write(YamrKeysSeparator);
+            stream->Write(yamrKeysSeparator);
         } else {
             firstColumn = false;
         }
