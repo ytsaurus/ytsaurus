@@ -163,6 +163,7 @@ public:
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
     virtual TChunkId GetChunkId() const override;
+    virtual NErasure::ECodec GetErasureCodecId() const override;
 
 private:
     friend class TGroup;
@@ -1024,6 +1025,13 @@ TChunkId TReplicationWriter::GetChunkId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return ChunkId_;
+}
+
+NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return NErasure::ECodec::None;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

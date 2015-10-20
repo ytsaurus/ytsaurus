@@ -30,6 +30,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
         logger))
 {
     MiscExt_.set_compression_codec(static_cast<int>(options->CompressionCodec));
+    MiscExt_.set_erasure_codec(static_cast<int>(ChunkWriter_->GetErasureCodecId()));
     MiscExt_.set_eden(options->ChunksEden);
 }
 
