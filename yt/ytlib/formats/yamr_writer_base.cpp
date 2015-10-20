@@ -56,7 +56,7 @@ void TShemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
     stream->Write(value);
 }
 
-void TShemalessWriterForYamrBase::WriteTableIndex(int tableIndex)
+void TShemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
 {
     auto* stream = GetOutputStream();
     

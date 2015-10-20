@@ -65,7 +65,7 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 struct ISchemalessFormatWriter
     : public NTableClient::ISchemalessWriter
 {
-    virtual void WriteTableIndex(int tableIndex) = 0;
+    virtual void WriteTableIndex(i32 tableIndex) = 0;
 
     virtual void WriteRangeIndex(i32 rangeIndex) = 0;
 

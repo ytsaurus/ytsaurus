@@ -138,7 +138,7 @@ void TShemalessWriterForDsv::WriteValue(const TUnversionedValue& value)
     }
 }
 
-void TShemalessWriterForDsv::WriteTableIndex(int tableIndex)
+void TShemalessWriterForDsv::WriteTableIndex(i32 tableIndex)
 {
     TableIndex_ = tableIndex;
 }

@@ -88,7 +88,7 @@ public:
         bool enableKeySwitch,
         int keyColumnCount);
 
-    virtual void WriteTableIndex(int tableIndex) override;
+    virtual void WriteTableIndex(i32 tableIndex) override;
 
     virtual void WriteRangeIndex(i32 rangeIndex) override;
 

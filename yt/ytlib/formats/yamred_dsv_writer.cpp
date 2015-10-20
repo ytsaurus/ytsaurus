@@ -117,7 +117,6 @@ void TShemalessWriterForYamredDsv::WriteYamrKey(const std::vector<int>& columnId
 ui32 TShemalessWriterForYamredDsv::CalculateTotalKeyLength(const std::vector<int>& columnIds) 
 {
     ui32 sum = 0;
-    bool firstColumn = true;
     for (int id : columnIds) {
         if (!RowValues_[id]) {
             THROW_ERROR_EXCEPTION("Key column %Qv is missing.", NameTable_->GetName(id));
@@ -125,7 +124,7 @@ ui32 TShemalessWriterForYamredDsv::CalculateTotalKeyLength(const std::vector<int
             
         sum += CalculateLength(*RowValues_[id], false /* inKey */);
     }
-    if (!columnIds.empty() {
+    if (!columnIds.empty()) {
         sum += columnIds.size() - 1;
     }
     return sum;
