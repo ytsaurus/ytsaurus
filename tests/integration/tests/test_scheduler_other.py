@@ -35,12 +35,6 @@ class TestSchedulerOther(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "chunk_scratch_period" : 500
-        }
-    }
-
     def _create_table(self, table):
         create("table", table)
         set(table + "/@replication_factor", 1)

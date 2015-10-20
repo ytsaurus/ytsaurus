@@ -40,7 +40,7 @@ TChunkScraper::TChunkScraper(
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TChunkScraper::LocateChunks, MakeWeak(this)),
-        Config_->ChunkScratchPeriod))
+        TDuration::Zero()))
 {
     Logger.AddTag("Scraper: %p", this);
 }
@@ -59,9 +59,8 @@ void TChunkScraper::DoStart()
     }
     Started_ = true;
 
-    LOG_DEBUG("Starting scraper (ChunkCount: %v, ChunkScratchPeriod: %v, MaxChunksPerScratch: %v)",
+    LOG_DEBUG("Starting scraper (ChunkCount: %v, MaxChunksPerScratch: %v)",
         ChunkIds_.size(),
-        Config_->ChunkScratchPeriod,
         Config_->MaxChunksPerScratch);
 
     PeriodicExecutor_->Start();
