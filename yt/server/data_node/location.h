@@ -157,11 +157,12 @@ private:
     const TDiskHealthCheckerPtr HealthChecker_;
 
 
-    void CheckMinimumSpace();
-    void CheckLockFile();
+    void ValidateMinimumSpace();
+    void ValidateLockFile();
+    void ValidateWritable();
 
     void OnHealthCheckFailed(const TError& error);
-    void MarkAsDisabled(const std::exception& ex);
+    void MarkAsDisabled(const TError& error);
 
     i64 GetTotalSpace() const;
 
