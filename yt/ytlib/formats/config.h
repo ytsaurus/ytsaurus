@@ -102,7 +102,6 @@ class TTableFormatConfigBase
     : public NYTree::TYsonSerializable 
 {
 public:
-    // Delimited specific options
     char RecordSeparator;
     char FieldSeparator;
     
