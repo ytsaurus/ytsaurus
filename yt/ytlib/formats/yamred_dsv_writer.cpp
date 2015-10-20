@@ -13,14 +13,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessYamredDsvWriter::TSchemalessYamredDsvWriter(
+TShemalessWriterForYamredDsv::TShemalessWriterForYamredDsv(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     bool enableKeySwitch,
     int keyColumnCount,
     TYamredDsvFormatConfigPtr config)
-    : TSchemalessYamrWriterBase(
+    : TShemalessWriterForYamrBase(
         nameTable, 
         std::move(output),
         enableContextSaving, 
@@ -45,7 +45,7 @@ TSchemalessYamredDsvWriter::TSchemalessYamredDsvWriter(
     }
 }
 
-void TSchemalessYamredDsvWriter::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) 
+void TShemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) 
 {
     auto* stream = GetOutputStream();
     
@@ -85,7 +85,7 @@ void TSchemalessYamredDsvWriter::DoWrite(const std::vector<NTableClient::TUnvers
     }
 }
 
-void TSchemalessYamredDsvWriter::WriteYamrKey(const std::vector<int>& columnIds) 
+void TShemalessWriterForYamredDsv::WriteYamrKey(const std::vector<int>& columnIds) 
 {
     char YamrKeysSeparator = 
         static_cast<TYamredDsvFormatConfig*>(Config_.Get())->YamrKeysSeparator;
@@ -114,7 +114,7 @@ void TSchemalessYamredDsvWriter::WriteYamrKey(const std::vector<int>& columnIds)
     }    
 }
 
-ui32 TSchemalessYamredDsvWriter::CalculateTotalKeyLength(const std::vector<int>& columnIds) 
+ui32 TShemalessWriterForYamredDsv::CalculateTotalKeyLength(const std::vector<int>& columnIds) 
 {
     ui32 sum = 0;
     bool firstColumn = true;
@@ -133,7 +133,7 @@ ui32 TSchemalessYamredDsvWriter::CalculateTotalKeyLength(const std::vector<int>&
     return sum;
 }
 
-void TSchemalessYamredDsvWriter::WriteYamrValue() 
+void TShemalessWriterForYamredDsv::WriteYamrValue() 
 {
     auto* stream = GetOutputStream();
 
@@ -165,7 +165,7 @@ void TSchemalessYamredDsvWriter::WriteYamrValue()
     }
 }
 
-ui32 TSchemalessYamredDsvWriter::CalculateTotalValueLength() 
+ui32 TShemalessWriterForYamredDsv::CalculateTotalValueLength() 
 {
     ui32 sum = 0;
     bool firstColumn = true;
@@ -184,7 +184,7 @@ ui32 TSchemalessYamredDsvWriter::CalculateTotalValueLength()
     return sum;
 }
 
-ui32 TSchemalessYamredDsvWriter::CalculateLength(const TStringBuf& string, bool inKey)
+ui32 TShemalessWriterForYamredDsv::CalculateLength(const TStringBuf& string, bool inKey)
 {
     return Config_->EnableEscaping
         ?  CalculateEscapedLength(

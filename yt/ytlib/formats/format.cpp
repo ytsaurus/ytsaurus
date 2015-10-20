@@ -256,7 +256,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     }
 
     auto config = ConvertTo<TDsvFormatConfigPtr>(&attributes);
-    return New<TSchemalessDsvWriter>(nameTable, enableContextSaving, output, config);
+    return New<TShemalessWriterForDsv>(nameTable, enableContextSaving, output, config);
 }
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
@@ -272,7 +272,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
         THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
     }
 
-    return New<TSchemalessYamrWriter>(
+    return New<TShemalessWriterForYamr>(
         nameTable, 
         output, 
         enableContextSaving, 
@@ -294,7 +294,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
         THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMRed DSV format");
     }
 
-    return New<TSchemalessYamredDsvWriter>(
+    return New<TShemalessWriterForYamredDsv>(
         nameTable, 
         output, 
         enableContextSaving, 
