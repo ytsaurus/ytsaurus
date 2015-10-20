@@ -65,7 +65,7 @@ void Deserialize(TFormat& value, NYTree::INodePtr node);
 struct ISchemalessFormatWriter
     : public NTableClient::ISchemalessWriter
 {
-    virtual void WriteTableIndex(int tableIndex) = 0;
+    virtual void WriteTableIndex(i32 tableIndex) = 0;
 
     virtual void WriteRangeIndex(i32 rangeIndex) = 0;
 
@@ -97,6 +97,14 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     int /* keyColumnCount */);
 
 ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
+    const NYTree::IAttributeDictionary& attributes,
+    NTableClient::TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int keyColumnCount);
+
+ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,

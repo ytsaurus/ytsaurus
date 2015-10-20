@@ -19,7 +19,7 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-class TSchemalessYamrWriterTest : 
+class TShemalessWriterForYamrTest : 
     public ::testing::Test
 {
 protected:
@@ -29,11 +29,11 @@ protected:
     int ValueId_;
     TYamrFormatConfigPtr Config_;
 
-    TSchemalessYamrWriterPtr Writer_;
+    TShemalessWriterForYamrPtr Writer_;
 
     TStringStream OutputStream_;
 
-    TSchemalessYamrWriterTest() {
+    TShemalessWriterForYamrTest() {
         NameTable_ = New<TNameTable>();
         KeyId_ = NameTable_->RegisterName("key");
         SubkeyId_ = NameTable_->RegisterName("subkey");
@@ -42,7 +42,7 @@ protected:
     }
 
     void CreateStandardWriter() {
-        Writer_ = New<TSchemalessYamrWriter>(
+        Writer_ = New<TShemalessWriterForYamr>(
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
@@ -52,7 +52,7 @@ protected:
     }
 };
 
-TEST_F(TSchemalessYamrWriterTest, Simple)
+TEST_F(TShemalessWriterForYamrTest, Simple)
 {
     CreateStandardWriter();
 
@@ -79,7 +79,7 @@ TEST_F(TSchemalessYamrWriterTest, Simple)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, SimpleWithSubkey)
+TEST_F(TShemalessWriterForYamrTest, SimpleWithSubkey)
 {
     Config_->HasSubkey = true;
     CreateStandardWriter();
@@ -108,7 +108,7 @@ TEST_F(TSchemalessYamrWriterTest, SimpleWithSubkey)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
+TEST_F(TShemalessWriterForYamrTest, SubkeyCouldBeSkipped)
 {
     Config_->HasSubkey = true;
     CreateStandardWriter();
@@ -128,7 +128,7 @@ TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeSkipped)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeNull)
+TEST_F(TShemalessWriterForYamrTest, SubkeyCouldBeNull)
 { 
     Config_->HasSubkey = true;
     CreateStandardWriter();
@@ -149,7 +149,7 @@ TEST_F(TSchemalessYamrWriterTest, SubkeyCouldBeNull)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, NonNullTerminatedStrings)
+TEST_F(TShemalessWriterForYamrTest, NonNullTerminatedStrings)
 {
     Config_->HasSubkey = true;
     CreateStandardWriter();
@@ -171,7 +171,7 @@ TEST_F(TSchemalessYamrWriterTest, NonNullTerminatedStrings)
     EXPECT_EQ(output, OutputStream_.Str());
 } 
 
-TEST_F(TSchemalessYamrWriterTest, SkippedKey)
+TEST_F(TShemalessWriterForYamrTest, SkippedKey)
 {
     CreateStandardWriter();
 
@@ -190,7 +190,7 @@ TEST_F(TSchemalessYamrWriterTest, SkippedKey)
     EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
-TEST_F(TSchemalessYamrWriterTest, SkippedValue)
+TEST_F(TShemalessWriterForYamrTest, SkippedValue)
 {
     CreateStandardWriter();
 
@@ -209,7 +209,7 @@ TEST_F(TSchemalessYamrWriterTest, SkippedValue)
     EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
-TEST_F(TSchemalessYamrWriterTest, NotStringType) {
+TEST_F(TShemalessWriterForYamrTest, NotStringType) {
     CreateStandardWriter();
     
     TUnversionedRowBuilder row;
@@ -228,7 +228,7 @@ TEST_F(TSchemalessYamrWriterTest, NotStringType) {
     EXPECT_THROW(callGetReadyEvent(), std::exception); 
 }
 
-TEST_F(TSchemalessYamrWriterTest, ExtraItem)
+TEST_F(TShemalessWriterForYamrTest, ExtraItem)
 {
     int trashId = NameTable_->RegisterName("trash");
     CreateStandardWriter();
@@ -253,7 +253,7 @@ TEST_F(TSchemalessYamrWriterTest, ExtraItem)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, Escaping)
+TEST_F(TShemalessWriterForYamrTest, Escaping)
 {
     Config_->HasSubkey = true;
     Config_->EnableEscaping = true;
@@ -275,7 +275,7 @@ TEST_F(TSchemalessYamrWriterTest, Escaping)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, SimpleWithTableIndex)
+TEST_F(TShemalessWriterForYamrTest, SimpleWithTableIndex)
 {
     Config_->EnableTableIndex = true;
     CreateStandardWriter();
@@ -316,7 +316,7 @@ TEST_F(TSchemalessYamrWriterTest, SimpleWithTableIndex)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, Lenval)
+TEST_F(TShemalessWriterForYamrTest, Lenval)
 {
     Config_->HasSubkey = true;
     Config_->Lenval = true;
@@ -353,7 +353,7 @@ TEST_F(TSchemalessYamrWriterTest, Lenval)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, LenvalWithEmptyFields)
+TEST_F(TShemalessWriterForYamrTest, LenvalWithEmptyFields)
 {
     Config_->HasSubkey = true;
     Config_->Lenval = true;
@@ -400,11 +400,11 @@ TEST_F(TSchemalessYamrWriterTest, LenvalWithEmptyFields)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, LenvalWithKeySwitch)
+TEST_F(TShemalessWriterForYamrTest, LenvalWithKeySwitch)
 {
     Config_->HasSubkey = true;
     Config_->Lenval = true;
-    Writer_ = New<TSchemalessYamrWriter>(
+    Writer_ = New<TShemalessWriterForYamr>(
         NameTable_, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
         false, // enableContextSaving  
@@ -470,7 +470,7 @@ TEST_F(TSchemalessYamrWriterTest, LenvalWithKeySwitch)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, LenvalWithTableIndex)
+TEST_F(TShemalessWriterForYamrTest, LenvalWithTableIndex)
 {
     Config_->EnableTableIndex = true;
     Config_->Lenval = true;
@@ -520,7 +520,7 @@ TEST_F(TSchemalessYamrWriterTest, LenvalWithTableIndex)
     EXPECT_EQ(output, OutputStream_.Str());
 }
 
-TEST_F(TSchemalessYamrWriterTest, LenvalWithRangeAndRowIndex)
+TEST_F(TShemalessWriterForYamrTest, LenvalWithRangeAndRowIndex)
 {
     Config_->Lenval = true;
     CreateStandardWriter();

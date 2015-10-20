@@ -17,6 +17,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/yamr_base_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamr_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamr_writer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_base.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_parser.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_writer.cpp
   ${CMAKE_CURRENT_LIST_DIR}/yson_parser.cpp
@@ -44,6 +45,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/yamr_parser.h
   ${CMAKE_CURRENT_LIST_DIR}/yamr_table.h
   ${CMAKE_CURRENT_LIST_DIR}/yamr_writer.h
+  ${CMAKE_CURRENT_LIST_DIR}/yamr_writer_base.h
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_parser.h
   ${CMAKE_CURRENT_LIST_DIR}/yamred_dsv_writer.h
   ${CMAKE_CURRENT_LIST_DIR}/yson_parser.h
