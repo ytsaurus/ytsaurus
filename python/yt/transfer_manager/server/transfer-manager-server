@@ -968,6 +968,9 @@ class Application(object):
             logger.info("Task completed")
 
             message_queue.put({"type": "completed"})
+
+            # NB: hack to avoid process died silently.
+            time.sleep(0.5)
         except KeyboardInterrupt:
             pass
         except yt.YtError as error:
