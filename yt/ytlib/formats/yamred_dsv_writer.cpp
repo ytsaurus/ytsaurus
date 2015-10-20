@@ -33,11 +33,10 @@ TSchemalessYamredDsvWriter::TSchemalessYamredDsvWriter(
     for (auto columnName : config->KeyColumnNames) {
         KeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
     }
-    if (config->HasSubkey) {
-        for (auto columnName : config->SubkeyColumnNames) {
-            SubkeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
-        }
+    for (auto columnName : config->SubkeyColumnNames) {
+        SubkeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
     }
+    
     // Storing escaped column names in order to not re-escape them each time we write a column name.
     EscapedColumnNames_.reserve(nameTable->GetSize());
     for (int columnIndex = 0; columnIndex < nameTable->GetSize(); columnIndex++) {
@@ -75,6 +74,12 @@ void TSchemalessYamredDsvWriter::DoWrite(const std::vector<NTableClient::TUnvers
         WriteYamrKey(KeyColumnIds_);
         if (Config_->HasSubkey) {
             WriteYamrKey(SubkeyColumnIds_);
+        } else {
+            // Due to YAMRed DSV format logic, when there is no subkey, but still some
+            // columns are marked as subkey columns, we should explicitly remove them
+            // from the row (i. e. don't print as a rest of values in YAMR value column).
+            for (int id : SubkeyColumnIds_)
+                RowValues_[id].Reset();
         }
         WriteYamrValue();
     }
