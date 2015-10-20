@@ -64,8 +64,10 @@ protected:
     bool ExtractKeyValue(Stroka output, Stroka& key, VectorStrok& value, char fieldSeparator = '\t') 
     {
         char delimiter[2] = {fieldSeparator, 0}; 
-        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS); // Splitting by field separator.
-        if (value.size() < 2) // We should at least have key and the rest of values.
+        // Splitting by field separator.
+        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);
+        // We should at least have key and the rest of values.
+        if (value.size() < 2)
             return false;
         key = value[0];
         value.erase(value.begin());
@@ -77,8 +79,10 @@ protected:
     bool ExtractKeySubkeyValue(Stroka output, Stroka& key, Stroka& subkey, VectorStrok& value, char fieldSeparator = '\t')
     {
         char delimiter[2] = {fieldSeparator, 0}; 
-        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS); // Splitting by field separator.
-        if (value.size() < 3) // We should at least have key, subkey and the rest of values.
+        // Splitting by field separator.
+        value = splitStroku(output, delimiter, 0 /* maxFields */, KEEP_EMPTY_TOKENS);         
+        // We should at least have key, subkey and the rest of values.
+        if (value.size() < 3) 
            return false;
         key = value[0];
         subkey = value[1];

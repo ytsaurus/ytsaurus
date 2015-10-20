@@ -122,13 +122,11 @@ ui32 TShemalessWriterForYamredDsv::CalculateTotalKeyLength(const std::vector<int
         if (!RowValues_[id]) {
             THROW_ERROR_EXCEPTION("Key column %Qv is missing.", NameTable_->GetName(id));
         }
-        if (!firstColumn) {
-            sum += 1; // The yamr_keys_separator.
-        } else {
-            firstColumn = false;
-        }
             
         sum += CalculateLength(*RowValues_[id], false /* inKey */);
+    }
+    if (!columnIds.empty() {
+        sum += columnIds.size() - 1;
     }
     return sum;
 }

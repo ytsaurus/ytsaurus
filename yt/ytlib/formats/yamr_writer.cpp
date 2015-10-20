@@ -37,7 +37,7 @@ TShemalessWriterForYamr::TShemalessWriterForYamr(
         config->EnableEscaping, // Enable key escaping
         config->EnableEscaping, // Enable value escaping
         config->EscapingSymbol,
-        true) 
+        true)
 {
     KeyId_ = nameTable->GetIdOrRegisterName(config->Key);
     SubkeyId_ = Config_->HasSubkey ? nameTable->GetIdOrRegisterName(config->Subkey) : -1;
