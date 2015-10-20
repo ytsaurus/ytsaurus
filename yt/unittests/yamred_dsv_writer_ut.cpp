@@ -171,7 +171,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, Simple)
    
     Stroka output = OutputStream_.Str(); 
 
-    CompareKeyValue(output, expectedOutput); 
+    CompareKeyValue(expectedOutput, output); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +207,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, SimpleWithSubkey)
    
     Stroka output = OutputStream_.Str(); 
 
-    CompareKeySubkeyValue(output, expectedOutput); 
+    CompareKeySubkeyValue(expectedOutput, output); 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +264,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, Lenval)
 
     Stroka output = OutputStream_.Str(); 
     
-    EXPECT_EQ(output, expectedOutput);
+    EXPECT_EQ(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,7 +291,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, Escaping)
     Stroka expectedOutput = "a\\n \\nb\\t\tvalue\\t_t=\\nva\\\\lue\\t\n";
     Stroka output = OutputStream_.Str();
 
-    EXPECT_EQ(output, expectedOutput);
+    EXPECT_EQ(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -309,12 +309,9 @@ TEST_F(TShemalessWriterForYamredDsvTest, SkippedKey)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    auto callGetReadyEvent = [&]() {
-        Writer_->Close()
-            .Get()
-            .ThrowOnError();
-    };
-    EXPECT_THROW(callGetReadyEvent(), std::exception);
+    EXPECT_THROW(Writer_->Close()
+                     .Get()
+                     .ThrowOnError(), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,12 +330,9 @@ TEST_F(TShemalessWriterForYamredDsvTest, SkippedSubkey)
 
     EXPECT_FALSE(Writer_->Write(rows));
 
-    auto callGetReadyEvent = [&]() {
-        Writer_->Close()
-            .Get()
-            .ThrowOnError();
-    };
-    EXPECT_THROW(callGetReadyEvent(), std::exception);
+    EXPECT_THROW(Writer_->Close()
+                     .Get()
+                     .ThrowOnError(), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -366,7 +360,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFals
     Stroka expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
     Stroka output = OutputStream_.Str();
 
-    EXPECT_EQ(output, expectedOutput);
+    EXPECT_EQ(expectedOutput, output);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
