@@ -341,6 +341,36 @@ TEST_F(TSchemalessYamredDsvWriterTest, SkippedSubkey)
     EXPECT_THROW(callGetReadyEvent(), std::exception);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSchemalessYamredDsvWriterTest, ErasingSubkeyColumnsWhenHasSubkeyIsFalse)
+{
+    Config_->KeyColumnNames.emplace_back("key_a");
+    Config_->SubkeyColumnNames.emplace_back("key_b");
+    // Config->HasSubkey = false by default.
+    CreateStandardWriter();
+    
+    TUnversionedRowBuilder row1;
+    row1.AddValue(MakeUnversionedStringValue("a", KeyAId_));
+    row1.AddValue(MakeUnversionedStringValue("b", KeyBId_));
+    row1.AddValue(MakeUnversionedStringValue("c", KeyCId_));
+    row1.AddValue(MakeUnversionedStringValue("x", ValueXId_));
+ 
+    std::vector<TUnversionedRow> rows = {row1.GetRow()};
+
+    EXPECT_EQ(true, Writer_->Write(rows));
+    Writer_->Close()
+        .Get()
+        .ThrowOnError();
+    
+    Stroka expectedOutput = "a\tkey_c=c\tvalue_x=x\n";
+    Stroka output = OutputStream_.Str();
+
+    EXPECT_EQ(output, expectedOutput);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NFormats
 } // namespace NYT
