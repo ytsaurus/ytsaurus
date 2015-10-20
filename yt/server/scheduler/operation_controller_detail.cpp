@@ -2730,62 +2730,65 @@ void TOperationControllerBase::FetchInputTables()
 
 void TOperationControllerBase::LockInputTables()
 {
-    LOG_INFO("Locking input tables");
-
     auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& table : InputTables) {
-        auto objectIdPath = FromObjectId(table.ObjectId);
-        {
-            auto req = TTableYPathProxy::Lock(objectIdPath);
-            req->set_mode(static_cast<int>(ELockMode::Snapshot));
-            SetTransactionId(req, InputTransactionId);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req, "lock");
-        }
-        {
-            auto req = TTableYPathProxy::Get(objectIdPath);
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-            attributeFilter.Keys.push_back("dynamic");
-            attributeFilter.Keys.push_back("sorted");
-            attributeFilter.Keys.push_back("sorted_by");
-            attributeFilter.Keys.push_back("chunk_count");
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
-            SetTransactionId(req, InputTransactionId);
-            batchReq->AddRequest(req, "get_attributes");
-        }
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error locking input tables");
-    const auto& batchRsp = batchRspOrError.Value();
+    LOG_INFO("Locking input tables");
 
     {
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto& table : InputTables) {
+            auto objectIdPath = FromObjectId(table.ObjectId);
+            {
+                auto req = TTableYPathProxy::Lock(objectIdPath);
+                req->set_mode(static_cast<int>(ELockMode::Snapshot));
+                SetTransactionId(req, InputTransactionId);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req, "lock");
+            }
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking input tables");
+    }
+
+    LOG_INFO("Getting input tables attributes");
+
+    {
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto& table : InputTables) {
+            auto objectIdPath = FromObjectId(table.ObjectId);
+            {
+                auto req = TTableYPathProxy::Get(objectIdPath);
+                TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+                attributeFilter.Keys.push_back("dynamic");
+                attributeFilter.Keys.push_back("sorted");
+                attributeFilter.Keys.push_back("sorted_by");
+                attributeFilter.Keys.push_back("chunk_count");
+                ToProto(req->mutable_attribute_filter(), attributeFilter);
+                SetTransactionId(req, InputTransactionId);
+                batchReq->AddRequest(req, "get_attributes");
+            }
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of input tables");
+        const auto& batchRsp = batchRspOrError.Value();
+
         auto lockInRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspLock>("lock");
         auto getInAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
         for (int index = 0; index < InputTables.size(); ++index) {
             auto& table = InputTables[index];
             auto path = table.Path.GetPath();
             {
-                const auto& rspOrError = lockInRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking input table %v",
-                    path);
-            }
-            {
-                const auto& rspOrError = getInAttributesRspsOrError[index];
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes for input table %v",
-                    path);
-
-                const auto& rsp = rspOrError.Value();
+                const auto& rsp = getInAttributesRspsOrError[index].Value();
                 auto node = ConvertToNode(TYsonString(rsp->value()));
                 const auto& attributes = node->Attributes();
 
                 if (attributes.Get<bool>("dynamic")) {
-                    THROW_ERROR_EXCEPTION("Expected a static table but got dynamic")
-                        << TErrorAttribute("input_table", table.Path.GetPath());
+                    THROW_ERROR_EXCEPTION("Input table %v is not static", path);
                 }
 
                 if (attributes.Get<bool>("sorted")) {
@@ -2810,98 +2813,105 @@ void TOperationControllerBase::LockInputTables()
 
 void TOperationControllerBase::BeginUploadOutputTables()
 {
-    LOG_INFO("Locking output tables");
-
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
-    auto batchReq = proxy.ExecuteBatch();
-    for (const auto& table : OutputTables) {
-        auto objectIdPath = FromObjectId(table.ObjectId);
-        {
-            auto req = TTableYPathProxy::Lock(objectIdPath);
-            req->set_mode(static_cast<int>(table.LockMode));
-            GenerateMutationId(req);
-            SetTransactionId(req, OutputTransactionId);
-            batchReq->AddRequest(req, "lock");
+    LOG_INFO("Locking output tables");
+
+    {
+        auto batchReq = proxy.ExecuteBatch();
+
+        for (const auto& table : OutputTables) {
+            auto objectIdPath = FromObjectId(table.ObjectId);
+            {
+                auto req = TTableYPathProxy::Lock(objectIdPath);
+                req->set_mode(static_cast<int>(table.LockMode));
+                GenerateMutationId(req);
+                SetTransactionId(req, OutputTransactionId);
+                batchReq->AddRequest(req, "lock");
+            }
+            {
+                auto req = TTableYPathProxy::BeginUpload(objectIdPath);
+                SetTransactionId(req, OutputTransactionId);
+                GenerateMutationId(req);
+                req->set_update_mode(static_cast<int>(table.UpdateMode));
+                req->set_lock_mode(static_cast<int>(table.LockMode));
+                batchReq->AddRequest(req, "begin_upload");
+            }
         }
-        {
-            auto req = TTableYPathProxy::Get(objectIdPath);
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-            attributeFilter.Keys.push_back("channels");
-            attributeFilter.Keys.push_back("compression_codec");
-            attributeFilter.Keys.push_back("erasure_codec");
-            attributeFilter.Keys.push_back("row_count");
-            attributeFilter.Keys.push_back("replication_factor");
-            attributeFilter.Keys.push_back("account");
-            attributeFilter.Keys.push_back("vital");
-            attributeFilter.Keys.push_back("effective_acl");
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
-            SetTransactionId(req, OutputTransactionId);
-            batchReq->AddRequest(req, "get_attributes");
-        }
-        {
-            auto req = TTableYPathProxy::BeginUpload(objectIdPath);
-            SetTransactionId(req, OutputTransactionId);
-            GenerateMutationId(req);
-            req->set_update_mode(static_cast<int>(table.UpdateMode));
-            req->set_lock_mode(static_cast<int>(table.LockMode));
-            batchReq->AddRequest(req, "begin_upload");
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking output tables");
+        const auto& batchRsp = batchRspOrError.Value();
+
+        auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
+        for (int index = 0; index < OutputTables.size(); ++index) {
+            auto& table = OutputTables[index];
+            {
+                const auto& rsp = beginUploadRspsOrError[index].Value();
+                table.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+            }
         }
     }
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Error locking output tables");
-    const auto& batchRsp = batchRspOrError.Value();
+    LOG_INFO("Getting output tables attributes");
 
-    auto lockOutRsps = batchRsp->GetResponses<TTableYPathProxy::TRspLock>("lock");
-    auto getOutAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
-    auto beginUploadRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspBeginUpload>("begin_upload");
-    for (int index = 0; index < OutputTables.size(); ++index) {
-        auto& table = OutputTables[index];
-        const auto& path = table.Path.GetPath();
-        {
-            const auto& rspOrError = lockOutRsps[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error locking output table %v",
-                path);
-        }
-        {
-            const auto& rspOrError = getOutAttributesRspsOrError[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting attributes of output table %v",
-                path);
+    {
+        auto batchReq = proxy.ExecuteBatch();
 
-            const auto& rsp = rspOrError.Value();
-            auto node = ConvertToNode(TYsonString(rsp->value()));
-            const auto& attributes = node->Attributes();
-
-            if (attributes.Get<i64>("row_count") > 0 &&
-                table.AppendRequested &&
-                table.UpdateMode == EUpdateMode::Overwrite) {
-                THROW_ERROR_EXCEPTION("Cannot append sorted data to non-empty output table %v",
-                    path);
+        for (const auto& table : OutputTables) {
+            auto objectIdPath = FromObjectId(table.ObjectId);
+            {
+                auto req = TTableYPathProxy::Get(objectIdPath);
+                TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+                attributeFilter.Keys.push_back("channels");
+                attributeFilter.Keys.push_back("compression_codec");
+                attributeFilter.Keys.push_back("erasure_codec");
+                attributeFilter.Keys.push_back("row_count");
+                attributeFilter.Keys.push_back("replication_factor");
+                attributeFilter.Keys.push_back("account");
+                attributeFilter.Keys.push_back("vital");
+                attributeFilter.Keys.push_back("effective_acl");
+                ToProto(req->mutable_attribute_filter(), attributeFilter);
+                SetTransactionId(req, OutputTransactionId);
+                batchReq->AddRequest(req, "get_attributes");
             }
-
-            table.Options->Channels = attributes.Get<NChunkClient::TChannels>("channels", TChannels());
-            table.Options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
-            table.Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
-            table.Options->ReplicationFactor = attributes.Get<int>("replication_factor");
-            table.Options->Account = attributes.Get<Stroka>("account");
-            table.Options->ChunksVital = attributes.Get<bool>("vital");
-
-            table.EffectiveAcl = attributes.GetYson("effective_acl");
         }
-        {
-            const auto& rspOrError = beginUploadRspsOrError[index];
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting upload to output table %v",
-                path);
 
-            const auto& rsp = rspOrError.Value();
-            table.UploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of output tables");
+        const auto& batchRsp = batchRspOrError.Value();
+
+        auto getOutAttributesRspsOrError = batchRsp->GetResponses<TTableYPathProxy::TRspGet>("get_attributes");
+        for (int index = 0; index < OutputTables.size(); ++index) {
+            auto& table = OutputTables[index];
+            const auto& path = table.Path.GetPath();
+            {
+                const auto& rsp = getOutAttributesRspsOrError[index].Value();
+                auto node = ConvertToNode(TYsonString(rsp->value()));
+                const auto& attributes = node->Attributes();
+
+                if (attributes.Get<i64>("row_count") > 0 &&
+                    table.AppendRequested &&
+                    table.UpdateMode == EUpdateMode::Overwrite) {
+                    THROW_ERROR_EXCEPTION("Cannot append sorted data to non-empty output table %v",
+                        path);
+                }
+
+                table.Options->Channels = attributes.Get<NChunkClient::TChannels>("channels", TChannels());
+                table.Options->CompressionCodec = attributes.Get<NCompression::ECodec>("compression_codec");
+                table.Options->ErasureCodec = attributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+                table.Options->ReplicationFactor = attributes.Get<int>("replication_factor");
+                table.Options->Account = attributes.Get<Stroka>("account");
+                table.Options->ChunksVital = attributes.Get<bool>("vital");
+
+                table.EffectiveAcl = attributes.GetYson("effective_acl");
+            }
+            LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
+                path,
+                ConvertToYsonString(table.Options, EYsonFormat::Text).Data(),
+                table.UploadTransactionId);
         }
-        LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
-            path,
-            ConvertToYsonString(table.Options, EYsonFormat::Text).Data(),
-            table.UploadTransactionId);
     }
 }
 
@@ -3016,61 +3026,72 @@ void TOperationControllerBase::LockUserFiles(
     std::vector<TUserFile>* files,
     const std::vector<Stroka>& attributeKeys)
 {
-    LOG_INFO("Locking user files");
-
     auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
-    auto batchReq = proxy.ExecuteBatch();
-
-    for (const auto& file : *files) {
-        auto objectIdPath = FromObjectId(file.ObjectId);
-
-        {
-            auto req = TCypressYPathProxy::Lock(objectIdPath);
-            req->set_mode(static_cast<int>(ELockMode::Snapshot));
-            GenerateMutationId(req);
-            SetTransactionId(req, InputTransactionId);
-            batchReq->AddRequest(req, "lock");
-        }
-        {
-            auto req = TYPathProxy::Get(objectIdPath);
-            SetTransactionId(req, InputTransactionId);
-            TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
-            if (file.Type == EObjectType::File) {
-                attributeFilter.Keys.push_back("executable");
-                attributeFilter.Keys.push_back("file_name");
-            }
-            attributeFilter.Keys.push_back("key");
-            attributeFilter.Keys.push_back("chunk_count");
-            attributeFilter.Keys.push_back("uncompressed_data_size");
-            attributeFilter.Keys.insert(attributeFilter.Keys.end(), attributeKeys.begin(), attributeKeys.end());
-            ToProto(req->mutable_attribute_filter(), attributeFilter);
-            batchReq->AddRequest(req, "get_attributes");
-        }
-    }
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
-    const auto& batchRsp = batchRspOrError.Value();
-
-    TEnumIndexedVector<yhash_set<Stroka>, EOperationStage> userFileNames;
-    auto validateUserFileName = [&] (const TUserFile& file) {
-        // TODO(babenko): more sanity checks?
-        auto path = file.Path.GetPath();
-        const auto& fileName = file.FileName;
-        if (fileName.empty()) {
-            THROW_ERROR_EXCEPTION("Empty user file name for %v",
-                path);
-        }
-        if (!userFileNames[file.Stage].insert(fileName).second) {
-            THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
-                fileName,
-                path);
-        }
-    };
+    LOG_INFO("Locking user files");
 
     {
+        auto batchReq = proxy.ExecuteBatch();
+        for (const auto& file : *files) {
+            auto objectIdPath = FromObjectId(file.ObjectId);
+
+            {
+                auto req = TCypressYPathProxy::Lock(objectIdPath);
+                req->set_mode(static_cast<int>(ELockMode::Snapshot));
+                GenerateMutationId(req);
+                SetTransactionId(req, InputTransactionId);
+                batchReq->AddRequest(req, "lock");
+            }
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error locking user files");
+    }
+
+    LOG_INFO("Getting user files attributes");
+
+    {
+        auto batchReq = proxy.ExecuteBatch();
+        for (const auto& file : *files) {
+            auto objectIdPath = FromObjectId(file.ObjectId);
+            {
+                auto req = TYPathProxy::Get(objectIdPath);
+                SetTransactionId(req, InputTransactionId);
+                TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly);
+                if (file.Type == EObjectType::File) {
+                    attributeFilter.Keys.push_back("executable");
+                    attributeFilter.Keys.push_back("file_name");
+                }
+                attributeFilter.Keys.push_back("key");
+                attributeFilter.Keys.push_back("chunk_count");
+                attributeFilter.Keys.push_back("uncompressed_data_size");
+                attributeFilter.Keys.insert(attributeFilter.Keys.end(), attributeKeys.begin(), attributeKeys.end());
+                ToProto(req->mutable_attribute_filter(), attributeFilter);
+                batchReq->AddRequest(req, "get_attributes");
+            }
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting attributes of user files");
+        const auto& batchRsp = batchRspOrError.Value();
+
+        TEnumIndexedVector<yhash_set<Stroka>, EOperationStage> userFileNames;
+        auto validateUserFileName = [&] (const TUserFile& file) {
+            // TODO(babenko): more sanity checks?
+            auto path = file.Path.GetPath();
+            const auto& fileName = file.FileName;
+            if (fileName.empty()) {
+                THROW_ERROR_EXCEPTION("Empty user file name for %v",
+                    path);
+            }
+            if (!userFileNames[file.Stage].insert(fileName).second) {
+                THROW_ERROR_EXCEPTION("Duplicate user file name %Qv for %v",
+                    fileName,
+                    path);
+            }
+        };
+
         auto getAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_attributes");
         for (int index = 0; index < files->size(); ++index) {
             auto& file = (*files)[index];
