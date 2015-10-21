@@ -125,8 +125,6 @@ private:
 
     std::vector<int> BlockIndexes_;
 
-    TSpinLock AddReadErrorLock_;
-    std::vector<TError> ReadErrors_;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -773,7 +771,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     NApi::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     const TChunkId& chunkId,
-    const TChunkReplicaList& replicas_,
+    const TChunkReplicaList& replicas,
     const NErasure::ICodec* codec,
     int partCount,
     IBlockCachePtr blockCache,
@@ -781,10 +779,10 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
 {
     YCHECK(IsErasureChunkId(chunkId));
 
-    TChunkReplicaList replicas = replicas_;
+    auto sortedReplicas = replicas;
     std::sort(
-        replicas.begin(),
-        replicas.end(),
+        sortedReplicas.begin(),
+        sortedReplicas.end(),
         [] (TChunkReplica lhs, TChunkReplica rhs) {
             return lhs.GetIndex() < rhs.GetIndex();
         });
@@ -793,10 +791,10 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     readers.reserve(partCount);
 
     {
-        auto it = replicas.begin();
-        while (it != replicas.end() && it->GetIndex() < partCount) {
+        auto it = sortedReplicas.begin();
+        while (it != sortedReplicas.end() && it->GetIndex() < partCount) {
             auto jt = it;
-            while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
+            while (jt != sortedReplicas.end() && it->GetIndex() == jt->GetIndex()) {
                 ++jt;
             }
 
