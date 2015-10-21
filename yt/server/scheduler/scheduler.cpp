@@ -519,11 +519,13 @@ public:
             lastJobsLogTime = now;
         }
 
+        yhash_set<TOperationPtr> operationsToLog;
+        std::vector<TFuture<void>> asyncResults;
+
         // NB: No exception must leave this try/catch block.
         try {
             std::vector<TJobPtr> runningJobs;
             bool hasWaitingJobs = false;
-            yhash_set<TOperationPtr> operationsToLog;
             PROFILE_TIMING ("/analysis_time") {
                 auto missingJobs = node->Jobs();
 
@@ -611,7 +613,6 @@ public:
                 ToProto(response->add_jobs_to_abort(), job->GetId());
             }
 
-            std::vector<TFuture<void>> asyncResults;
             auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
             for (auto job : schedulingContext->StartedJobs()) {
                 auto operation = FindOperation(job->GetOperationId());
@@ -634,15 +635,6 @@ public:
                 operationsToLog.insert(operation);
             }
 
-            context->ReplyFrom(Combine(asyncResults));
-
-            for (auto operation : operationsToLog) {
-                if (!FindOperation(operation->GetId())) {
-                    continue;
-                }
-
-                LogOperationProgress(operation);
-            }
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to process heartbeat");
         }
@@ -651,6 +643,17 @@ public:
         // "unsaturated CPU" phenomenon.
         TotalResourceUsage_ -= oldResourceUsage;
         TotalResourceUsage_ += node->ResourceUsage();
+
+        context->ReplyFrom(Combine(asyncResults));
+
+        // NB: Do heavy logging after responding to heartbeat.
+        for (auto operation : operationsToLog) {
+            if (!FindOperation(operation->GetId())) {
+                continue;
+            }
+
+            LogOperationProgress(operation);
+        }
     }
 
 
