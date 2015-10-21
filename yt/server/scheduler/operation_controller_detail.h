@@ -761,6 +761,7 @@ protected:
     static bool CheckKeyColumnsCompatible(
         const NTableClient::TKeyColumns& fullColumns,
         const NTableClient::TKeyColumns& prefixColumns);
+    //! Returns the longest common prefix of input table keys.
     NTableClient::TKeyColumns GetCommonInputKeyPrefix();
 
     void UpdateAllTasksIfNeeded(const TProgressCounter& jobCounter);
