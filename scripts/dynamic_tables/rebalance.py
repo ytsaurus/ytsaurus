@@ -3,8 +3,11 @@
 """
 This script rebalances given table, splitting large tablets if necessary.
 
-For Alyx, Seneca-Sas, Seneca-Fin, use --fitness_complexity_coef=0.
-For Pythia, Vanga, use --fitness_complexity_coef=1.
+Alyx/Seneca:
+  ./rebalance.py --table //yabs/OrderCounter --oversized --no-undersized --desired-size-gbs 80
+
+Pythia/Vanga:
+  ./rebalance.py --table //yabs/OrderCounter --no-oversized --no-undersized --desired-size-gbs 10
 
 TODO:
   - Option that rebalances table entirely.
@@ -15,6 +18,7 @@ import time
 import logging
 import json
 import math
+import re
 
 from collections import namedtuple
 
@@ -524,7 +528,7 @@ def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
         attributes={})
         for t in yt.get(table + "/@tablets")]
 
-    spans = []
+    original_spans = []
 
     if requested_spans is None or len(requested_spans) == 0:
         number_of_large_tablets = sum(1 for tablet in tablets if tablet.size > desired_size)
@@ -533,11 +537,11 @@ def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
         logging.info("Table has %s tablets, %s small and %s large",
                      len(tablets), number_of_small_tablets, number_of_large_tablets)
 
-        spans = extract_unbalanced_spans(tablets, desired_size)
+        original_spans = extract_unbalanced_spans(tablets, desired_size)
     else:
-        spans = extract_requested_spans(tablets, requested_spans)
+        original_spans = extract_requested_spans(tablets, requested_spans)
 
-    original_spans = [fill_span_partitions_from_tablets(tablets, span) for span in spans]
+    original_spans = [fill_span_partitions_from_tablets(tablets, span) for span in original_spans]
     balanced_spans = rebalance_spans(tablets, original_spans, number_of_key_columns, desired_size,
                                      allow_oversized, allow_undersized)
     balanced_spans = filter(lambda span: span.altered, balanced_spans)
@@ -551,46 +555,125 @@ def rebalance_table(table, number_of_key_columns, desired_size, requested_spans,
     return original_spans, balanced_spans
 
 
-def apply_changes(table, desired_size, fitness_variance_coef, fitness_complexity_coef,
-                  old_spans, new_spans, yes):
-    # Check if it worth doing it.
-    def _compute_fitness(spans):
-        # Compute normalized variance with prior samples [DS; DS/2] = [1; 1/2]
-        x0 = float(desired_size) / GB
-        s1 = 1.5  # L1
-        s2 = 1.25  # L2
-        n = 2
-        for span in spans:
-            for partition in span.partitions:
-                xi = float(partition.size) / GB
-                xi = xi / x0
-                s1 += xi
-                s2 += xi * xi
-                n += 1
-        mean1 = s1 / n
-        mean2 = s2 / n
-        # Balance variance -vs- number of tablets.
-        variance = math.sqrt(mean2 - mean1 * mean1)
-        complexity = math.log(n)
-        return variance * fitness_variance_coef + complexity * fitness_complexity_coef
+def compute_logit_coefficients(spans, desired_size):
+    # Compute with prior samples [DS; DS/2] = [1; 1/2]
+    x0 = float(desired_size) / GB
+    s1 = 1.5
+    s2 = 1.25
+    sO = 0.0
+    sU = 0.0
+    n = 2
+    for span in spans:
+        for partition in span.partitions:
+            xi = float(partition.size) / GB
+            xi = xi / x0
+            s1 += xi
+            s2 += xi * xi
+            if xi > 1.0:
+                sO += xi - 1.0
+            if xi < 0.5:
+                sU += 0.5 - xi
+            n += 1
+    # variance, complexity, total overdraft, total underdraft.
+    m1 = s1 / n
+    m2 = s2 / n
+    var = math.sqrt((float(n) / float(n - 1.5)) * (m2 - m1 * m1))
+    cpx = math.log(n)
+    return [var, cpx, sO, sU]
 
-    logging.info("Cumulative difference follows")
 
-    for old_span, new_span in zip(old_spans, new_spans):
-        logging.info("Span %s |> -- {%s}", old_span.nice_str, old_span.nice_partitions_str)
-        # logging.info("%s", map(lambda x: float(x) / GB, old_span.sizes))
-        logging.info("Span %s |> ++ {%s}", new_span.nice_str, new_span.nice_partitions_str)
-        # logging.info("%s", map(lambda x: float(x) / GB, new_span.sizes))
+def make_table_list(args):
+    tables = []
+    for table in args.table:
+        tables.append(table)
 
-    old_fitness = _compute_fitness(old_spans)
-    new_fitness = _compute_fitness(new_spans)
+    if len(args.include) + len(args.exclude) > 0:
+        all_tables = []
+        for table in yt.search("/", node_type="table", attributes=["tablets"]):
+            tablets = table.attributes.get("tablets", [])
+            sizes = [tablet["statistics"]["uncompressed_data_size"] for tablet in tablets]
+            if sum(sizes) < args.desired_size_gbs * GB / 2:
+                continue
+            all_tables.append(str(table))
+        for regexp in args.include:
+            all_tables = filter(lambda table: re.match(regexp, table), all_tables)
+        for regexp in args.exclude:
+            all_tables = filter(lambda table: not re.match(regexp, table), all_tables)
+        tables = list(sorted(set(tables + all_tables)))
 
-    logging.info("Cumulative fitness change is %.2f -> %.2f", old_fitness, new_fitness)
-    if new_fitness > 0.999 * old_fitness:
-        logging.warning("Fitness change is _not_ significant; aborting")
+    if len(tables) == 0:
+        logging.error("You must specify at least one table with either `--table` or `--include`/`--exclude`")
+        return None
+
+    if len(tables) > 1 and args.span:
+        logging.error("Cannot use --span with multiple input tables")
+        return None
+
+    return tables
+
+
+def main(args):
+    tables = make_table_list(args)
+    if tables is None:
+        return
+
+    for table in tables:
+        old_spans, new_spans = rebalance_table(
+            table, args.key_columns, args.desired_size_gbs * GB, args.span,
+            args.allow_oversized, args.allow_undersized)
+        if old_spans is None or new_spans is None:
+            continue
+
+        for old_span, new_span in zip(old_spans, new_spans):
+            print "Span %s |> -- {%s}" % (old_span.nice_str, old_span.nice_partitions_str)
+            print "Span %s |> ++ {%s}" % (new_span.nice_str, new_span.nice_partitions_str)
+
+        old_coefs = compute_logit_coefficients(old_spans, args.desired_size_gbs * GB)
+        new_coefs = compute_logit_coefficients(new_spans, args.desired_size_gbs * GB)
+
+        delta_coefs = [(new - old) for new, old in zip(new_coefs, old_coefs)]
+
+        if args.action == "build_logit_train_set":
+            main_build_logit_train_set(delta_coefs, args.output)
+        elif args.action == "improve":
+            main_improve(table, old_spans, new_spans, delta_coefs, args.yes)
+        else:
+            logging.fatal("Unknown action `%s`", args.action)
+
+
+def main_build_logit_train_set(delta_coefs, output):
+    while True:
+        decision = raw_input("Yes/No/Skip? ")
+        if decision.lower() in ["y", "ye", "yes"]:
+            klass = 1
+            break
+        elif decision.lower() in ["n", "no"]:
+            klass = 0
+            break
+        elif decision.lower() in ["s", "sk", "ski", "skip"]:
+            klass = None
+            break
+
+    if klass is not None:
+        with open(output, "a") as handle:
+            handle.write("\t".join(map(str, [klass] + [d for d in delta_coefs])))
+            handle.write("\n")
+            handle.write("\t".join(map(str, [1 - klass] + [-d for d in delta_coefs])))
+            handle.write("\n")
+
+
+def main_improve(table, old_spans, new_spans, delta_coefs, yes):
+    logit = \
+        delta_coefs[0] * args.logit_variance_coef + \
+        delta_coefs[1] * args.logit_complexity_coef + \
+        delta_coefs[2] * args.logit_overdraft_coef + \
+        delta_coefs[3] * args.logit_underdraft_coef
+
+    if logit < -1e-5:
+        logging.warning("Logit %.4f < 0.0; skipping this change", logit)
         return
     else:
-        logging.info("Fitness change is significant; continuing")
+        logging.info("Logit %.4f > 0.0; applying this change", logit)
 
     if yes:
         if yes == 1:
@@ -599,50 +682,96 @@ def apply_changes(table, desired_size, fitness_variance_coef, fitness_complexity
     else:
         logging.warning("`--yes` was not specified; performing dry run")
 
-    if yes:
-        logging.info("Unmounting %s", table)
-        yt.unmount_table(table)
-        wait_tablet_state(table, "unmounted")
-
-    fmt = lambda x: "'" + yson.dumps(x)[1:-1] + "'"
-    for span in reversed(new_spans):
+    try:
         if yes:
-            logging.info("Resharding tablets %s-%s in table %s", span.first_index, span.last_index, table)
-            yt.reshard_table(table, span.pivot_keys,
-                             first_tablet_index=span.first_index, last_tablet_index=span.last_index)
-        else:
-            print "yt reshard_table --first '%s' --last '%s' '%s' %s" % (
-                span.first_index, span.last_index, table, " ".join(map(fmt, span.pivot_keys)))
+            logging.info("Unmounting %s", table)
+            yt.unmount_table(table)
+            wait_tablet_state(table, "unmounted")
 
-    if yes:
-        logging.info("Mounting %s", table)
-        yt.mount_table(table)
-        wait_tablet_state(table, "mounted")
+        fmt = lambda x: "'" + yson.dumps(x)[1:-1] + "'"
+        for span in reversed(new_spans):
+            if yes:
+                logging.info("Resharding tablets %s-%s in table %s", span.first_index, span.last_index, table)
+                yt.reshard_table(table, span.pivot_keys,
+                                 first_tablet_index=span.first_index, last_tablet_index=span.last_index)
+            else:
+                print "yt reshard_table --first '%s' --last '%s' '%s' %s" % (
+                    span.first_index, span.last_index, table, " ".join(map(fmt, span.pivot_keys)))
+    finally:
+        if yes:
+            logging.info("Mounting %s", table)
+            yt.mount_table(table)
+            wait_tablet_state(table, "mounted")
 
     logging.info("Done!")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--table", type=str, required=True, help="Table to rebalance")
-    parser.add_argument("--key-columns", type=int, required=False, default=1,
-                        help="How many key columns to take into account")
-    parser.add_argument("--threshold-gbs", type=long, required=False, default=80,
-                        help="Maximum tablet size (in GBs)")
-    parser.add_argument("--span", action="append", type=str, required=False,
-                        help="Rebalance specific tablet spans (e.g.: 143, 156-158, ...)")
-    parser.add_argument("--allow-oversized", action="store_true", default=True,
-                        help="Allow rebalancing algorithm to produce oversized tablets")
-    parser.add_argument("--allow-undersized", action="store_true", default=False,
-                        help="Allow rebalancing algorithm to produce undersized tablets")
-    parser.add_argument("--fitness-variance-coef", type=float, default=1.0,
-                        help="Variance coefficient for fitness evaluation")
-    parser.add_argument("--fitness-complexity-coef", type=float, default=0.0,
-                        help="Complexity coefficient for fitness evaluation")
-    parser.add_argument("--silent", action="store_true",
-                        help="Do not log anything")
-    parser.add_argument("--yes", action="count",
-                        help="Actually do something (do nothing by default)")
+    parser.add_argument("--key-columns", metavar="N", type=int, required=False, default=1,
+                        help="Number of key columns to use in pivot keys")
+    parser.add_argument("--desired-size-gbs", metavar="N", type=long, required=False, default=80,
+                        help="Desired tablet size (in GBs)")
+
+    input_spec_group = parser.add_argument_group("input specification")
+
+    input_spec_group.add_argument("--table", action="append", type=str,
+                                  help="Add a single table to task list")
+    input_spec_group.add_argument("--span", action="append", type=str,
+                                  help="Rebalance specific tablet spans (e.g.: 143, 156-158)")
+
+    input_spec_group.add_argument("--include", metavar="REGEXP", action="append", type=str,
+                                  help="Add tables matching regular expression to task list")
+    input_spec_group.add_argument("--exclude", metavar="REGEXP", action="append", type=str,
+                                  help="Remove tables matching regular expression from task list")
+    input_spec_group.set_defaults(table=[], include=[], exclude=[])
+
+    oversized_group = parser.add_mutually_exclusive_group()
+    oversized_group.add_argument("--oversized", dest="allow_oversized", action="store_true",
+                                 help="Allow rebalancing algorithm to produce oversized tablets")
+    oversized_group.add_argument("--no-oversized", dest="allow_oversized", action="store_false",
+                                 help="Disallow rebalancing algorithm to produce oversized tablets")
+    oversized_group.set_defaults(oversized=True)
+
+    undersized_group = parser.add_mutually_exclusive_group()
+    undersized_group.add_argument("--undersized", dest="allow_undersized", action="store_true",
+                                  help="Allow rebalancing algorithm to produce undersized tablets")
+    undersized_group.add_argument("--no-undersized", dest="allow_undersized", action="store_false",
+                                  help="Disallow rebalancing algorithm to produce undersized tablets")
+    undersized_group.set_defaults(undersized=False)
+
+    parser.add_argument("--silent", action="store_true", help="Do not log anything")
+
+    subparsers = parser.add_subparsers()
+
+    build_logit_train_set_parser = subparsers.add_parser(
+        "build_logit_train_set",
+        help="Write out a train set of logit coefficients for further training")
+    build_logit_train_set_parser.add_argument("--output", type=str, required=True,
+                                              help="Output file")
+    build_logit_train_set_parser.set_defaults(action="build_logit_train_set")
+
+    improve_parser = subparsers.add_parser(
+        "improve",
+        help="Rebalance tables satisfying logit decision criteria")
+    coefs = [
+        -0.60321193,
+        +5.4304166,
+        -4.19723123,
+        -7.20775292,
+    ]
+    improve_parser.add_argument("--logit-variance-coef", type=float, default=coefs[0],
+                                help="Variance weight in decision criteria")
+    improve_parser.add_argument("--logit-complexity-coef", type=float, default=coefs[1],
+                                help="Complexity weight in decision criteria")
+    improve_parser.add_argument("--logit-overdraft-coef", type=float, default=coefs[2],
+                                help="Size overdraft weight in decision criteria")
+    improve_parser.add_argument("--logit-underdraft-coef", type=float, default=coefs[3],
+                                help="Size underdraft weight in decision criteria")
+    improve_parser.add_argument("--yes", action="count",
+                                help="Actually do something (do nothing by default)")
+    improve_parser.set_defaults(action="improve")
+
     args = parser.parse_args()
 
     if args.silent:
@@ -650,11 +779,4 @@ if __name__ == "__main__":
     else:
         logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-    old_spans, new_spans = rebalance_table(
-        args.table, args.key_columns, args.threshold_gbs * GB, args.span,
-        args.allow_oversized, args.allow_undersized)
-    if old_spans is not None and new_spans is not None:
-        apply_changes(
-            args.table, args.threshold_gbs * GB,
-            args.fitness_variance_coef, args.fitness_complexity_coef,
-            old_spans, new_spans, args.yes)
+    main(args)
