@@ -556,83 +556,83 @@ public:
                                 break;
                             default:
                                 break;
-                            }
                         }
                     }
-
-                    // Check for missing jobs.
-                    for (auto job : missingJobs) {
-                        LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
-                            node->GetDefaultAddress(),
-                            job->GetId(),
-                            job->GetOperationId());
-                        AbortJob(job, TError("Job vanished"));
-                        UnregisterJob(job);
-                    }
                 }
 
-                auto schedulingContext = CreateSchedulingContext(
-                    Config_,
-                    node,
-                    runningJobs,
-                    Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
+                // Check for missing jobs.
+                for (auto job : missingJobs) {
+                    LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
+                        node->GetDefaultAddress(),
+                        job->GetId(),
+                        job->GetOperationId());
+                    AbortJob(job, TError("Job vanished"));
+                    UnregisterJob(job);
+                }
+            }
 
-                if (hasWaitingJobs) {
-                    LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-                } else {
-                    PROFILE_TIMING ("/schedule_time") {
-                        Strategy_->ScheduleJobs(schedulingContext.get());
-                    }
+            auto schedulingContext = CreateSchedulingContext(
+                Config_,
+                node,
+                runningJobs,
+                Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
+
+            if (hasWaitingJobs) {
+                LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
+            } else {
+                PROFILE_TIMING ("/schedule_time") {
+                    Strategy_->ScheduleJobs(schedulingContext.get());
+                }
+            }
+
+            for (auto job : schedulingContext->StartedJobs()) {
+                auto operation = FindOperation(job->GetOperationId());
+                if (!operation || operation->GetState() != EOperationState::Running) {
+                    LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                    continue;
                 }
 
-                for (auto job : schedulingContext->StartedJobs()) {
-                    auto operation = FindOperation(job->GetOperationId());
-                    if (!operation || operation->GetState() != EOperationState::Running) {
-                        LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
-                        continue;
-                    }
+                RegisterJob(job);
 
-                    RegisterJob(job);
+                LogEventFluently(ELogEventType::JobStarted)
+                    .Item("job_id").Value(job->GetId())
+                    .Item("operation_id").Value(job->GetOperationId())
+                    .Item("resource_limits").Value(job->ResourceLimits())
+                    .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
+                    .Item("job_type").Value(job->GetType());
+            }
 
-                    LogEventFluently(ELogEventType::JobStarted)
-                        .Item("job_id").Value(job->GetId())
-                        .Item("operation_id").Value(job->GetOperationId())
-                        .Item("resource_limits").Value(job->ResourceLimits())
-                        .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
-                        .Item("job_type").Value(job->GetType());
+            for (auto job : schedulingContext->PreemptedJobs()) {
+                if (!FindOperation(job->GetOperationId())) {
+                    LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                    continue;
+                }
+                PreemptJob(job);
+                ToProto(response->add_jobs_to_abort(), job->GetId());
+            }
+
+            std::vector<TFuture<void>> asyncResults;
+            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
+            for (auto job : schedulingContext->StartedJobs()) {
+                auto operation = FindOperation(job->GetOperationId());
+                if (!operation || operation->GetState() != EOperationState::Running) {
+                    continue;
                 }
 
-                for (auto job : schedulingContext->PreemptedJobs()) {
-                    if (!FindOperation(job->GetOperationId())) {
-                        LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
-                        continue;
-                    }
-                    PreemptJob(job);
-                    ToProto(response->add_jobs_to_abort(), job->GetId());
-                }
+                auto* startInfo = response->add_jobs_to_start();
+                ToProto(startInfo->mutable_job_id(), job->GetId());
+                *startInfo->mutable_resource_limits() = job->ResourceUsage();
 
-                std::vector<TFuture<void>> asyncResults;
-                auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
-                for (auto job : schedulingContext->StartedJobs()) {
-                    auto operation = FindOperation(job->GetOperationId());
-                    if (!operation || operation->GetState() != EOperationState::Running) {
-                        continue;
-                    }
+                // Build spec asynchronously.
+                asyncResults.push_back(
+                    BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                        .AsyncVia(specBuilderInvoker)
+                        .Run());
 
-                    auto* startInfo = response->add_jobs_to_start();
-                    ToProto(startInfo->mutable_job_id(), job->GetId());
-                    *startInfo->mutable_resource_limits() = job->ResourceUsage();
-
-                    // Build spec asynchronously.
-                    asyncResults.push_back(
-                        BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                            .AsyncVia(specBuilderInvoker)
-                            .Run());
-
-                        // Release to avoid circular references.
-                        job->SetSpecBuilder(TJobSpecBuilder());
-                        operationsToLog.insert(operation);
-                }
+                // Release to avoid circular references.
+                job->SetSpecBuilder(TJobSpecBuilder());
+                operationsToLog.insert(operation);
+            }
 
             context->ReplyFrom(Combine(asyncResults));
 
