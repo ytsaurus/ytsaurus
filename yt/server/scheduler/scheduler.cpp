@@ -17,6 +17,8 @@
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
 
+#include <core/misc/finally.h>
+
 #include <core/profiling/scoped_timer.h>
 
 #include <core/rpc/message.h>
@@ -493,6 +495,17 @@ public:
             THROW_ERROR_EXCEPTION("Node is not online");
         }
 
+        // We should process only one heartbeat at a time from the same node.
+        if (node->GetHasOngoingHeartbeat()) {
+            LOG_WARNING("Ignoring concurrent heartbeat from node %v",
+                node->GetDefaultAddress());
+            THROW_ERROR_EXCEPTION("Node has ongoing heartbeat");
+        }
+        node->SetHasOngoingHeartbeat(true);
+        TFinallyGuard heartbeatGuard([&] {
+            node->SetHasOngoingHeartbeat(false);
+        });
+
         TLeaseManager::RenewLease(node->GetLease());
 
         auto oldResourceLimits = node->ResourceLimits();
@@ -644,6 +657,8 @@ public:
         TotalResourceUsage_ -= oldResourceUsage;
         TotalResourceUsage_ += node->ResourceUsage();
 
+        heartbeatGuard.Release();
+        node->SetHasOngoingHeartbeat(false);
         context->ReplyFrom(Combine(asyncResults));
 
         // NB: Do heavy logging after responding to heartbeat.

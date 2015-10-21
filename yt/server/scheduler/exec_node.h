@@ -51,6 +51,9 @@ public:
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
+    //! Is |true| iff heartbeat from this node is processed at the moment.
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,
