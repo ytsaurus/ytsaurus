@@ -490,8 +490,7 @@ public:
 
     virtual TYPath GetPath(INodePtr node) override
     {
-        auto* nodeProxy = dynamic_cast<ICypressNodeProxy*>(node.Get());
-        YCHECK(nodeProxy);
+        auto* nodeProxy = ICypressNodeProxy::FromNode(node.Get());
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         if (!cypressManager->IsAlive(nodeProxy->GetTrunkNode(), nodeProxy->GetTransaction())) {
@@ -501,9 +500,7 @@ public:
         INodePtr root;
         auto path = GetNodeYPath(node, &root);
 
-        auto* rootProxy = dynamic_cast<ICypressNodeProxy*>(root.Get());
-        YCHECK(rootProxy);
-
+        auto* rootProxy = ICypressNodeProxy::FromNode(root.Get());
         return rootProxy->GetId() == cypressManager->GetRootNode()->GetId()
             ? "/" + path
             : "?" + path;
@@ -955,7 +952,7 @@ public:
 
     void AbortSubtreeTransactions(INodePtr node)
     {
-        auto cypressNode = dynamic_cast<ICypressNodeProxy*>(node.Get());
+        auto* cypressNode = ICypressNodeProxy::FromNode(node.Get());
         AbortSubtreeTransactions(cypressNode->GetTrunkNode(), cypressNode->GetTransaction());
     }
 
