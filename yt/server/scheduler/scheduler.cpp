@@ -603,7 +603,9 @@ public:
             for (auto job : schedulingContext->StartedJobs()) {
                 auto operation = FindOperation(job->GetOperationId());
                 if (!operation || operation->GetState() != EOperationState::Running) {
-                    LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                    LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)",
+                        job->GetId(),
+                        job->GetOperationId());
                     continue;
                 }
 
@@ -619,7 +621,9 @@ public:
 
             for (auto job : schedulingContext->PreemptedJobs()) {
                 if (!FindOperation(job->GetOperationId())) {
-                    LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)", job->GetId(), job->GetOperationId());
+                    LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)",
+                        job->GetId(),
+                        job->GetOperationId());
                     continue;
                 }
                 PreemptJob(job);
