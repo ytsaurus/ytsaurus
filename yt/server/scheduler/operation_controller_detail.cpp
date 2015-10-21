@@ -3393,7 +3393,6 @@ bool TOperationControllerBase::CheckKeyColumnsCompatible(
     return true;
 }
 
-//! Returns longest common prefix of input table keys.
 TKeyColumns TOperationControllerBase::GetCommonInputKeyPrefix()
 {
     auto commonKey = InputTables[0].KeyColumns;
