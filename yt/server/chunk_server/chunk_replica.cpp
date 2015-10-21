@@ -18,16 +18,20 @@ using namespace NChunkClient;
 
 Stroka ToString(TNodePtrWithIndex value)
 {
-    return Format("%v/%v",
-        value.GetPtr()->GetDefaultAddress(),
-        value.GetIndex());
+    if (value.GetIndex() == GenericChunkReplicaIndex) {
+        return value.GetPtr()->GetDefaultAddress();
+    } else {
+        return Format("%v/%v",
+            value.GetPtr()->GetDefaultAddress(),
+            value.GetIndex());
+    }
 }
 
 Stroka ToString(TChunkPtrWithIndex value)
 {
     auto* chunk = value.GetPtr();
     int index = value.GetIndex();
-    if (chunk->IsErasure() && index != GenericChunkReplicaIndex) {
+    if (index != GenericChunkReplicaIndex) {
         return Format("%v/%v",
             chunk->GetId(),
             index);
