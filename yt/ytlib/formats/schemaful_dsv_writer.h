@@ -80,8 +80,27 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This class contains methods common for SchemafulDsvWriter and SchemalessWriterForSchemafulDsv.
+class TSchemafulDsvWriterBase
+{
+protected:
+    void WriteValue(const NTableClient::TUnversionedValue& value);
+    
+    void WriteRaw(const TStringBuf& str);
+    void WriteRaw(char ch);
+    
+    TBlob Buffer_;
+
+private:
+    static char* WriteInt64Reversed(char* ptr, i64 value);
+    static char* WriteUint64Reversed(char* ptr, ui64 value);    
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchemafulDsvWriter
     : public NTableClient::ISchemafulWriter
+    , public TSchemafulDsvWriterBase
 {
 public:
     TSchemafulDsvWriter(
@@ -95,19 +114,13 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-private:
-    void WriteValue(const NTableClient::TUnversionedValue& value);
-    static char* WriteInt64Reversed(char* ptr, i64 value);
-    static char* WriteUint64Reversed(char* ptr, ui64 value);
 
-    void WriteRaw(const TStringBuf& str);
-    void WriteRaw(char ch);
+private:
 
     NConcurrency::IAsyncOutputStreamPtr Stream_;
     std::vector<int> ColumnIdMapping_;
-    TSchemafulDsvFormatConfigPtr Config_;
 
-    TBlob Buffer_;
+    TSchemafulDsvFormatConfigPtr Config_;
 
     TFuture<void> Result_;
 };

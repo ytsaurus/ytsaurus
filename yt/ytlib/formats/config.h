@@ -82,21 +82,20 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TJsonFormatConfig)
 
-////////////////////////////////////////////////////////////////////////////////
-
-// Readers for Yamr and Dsv share lots of methods and functionality //
-// and dependency diagram has the following shape:                  //
-//                                                                  //
-//                    TTableFormatConfigBase                        //
-//                      /                 \                         //
-//                     /                   \                        //
-//       TYamrFormatConfigBase        TDsvFormatConfigBase          //
-//            /        \                   /            \           //
-//           /          \                 /              \          //
-// TYamrFormatConfig   TYamredDsvFormatConfig   TDsvFormatConfig    //
-//                                                                  //
-// All fields are declared in Base classes, all parameters are      //
-// registered in derived classes.                                   //
+///////////////////////////////////////////////////////////////////////////////////////////////
+// Readers for Yamr and Dsv share lots of methods and functionality                          //
+// and dependency diagram has the following shape:                                           //
+//                                                                                           //
+//                    TTableFormatConfigBase --------------------------.                     //
+//                      /                 \                             \                    //
+//                     /                   \                             \                   //
+//       TYamrFormatConfigBase        TDsvFormatConfigBase                \                  //
+//            /        \                   /            \                  \                 //
+//           /          \                 /              \                  \                //
+// TYamrFormatConfig   TYamredDsvFormatConfig   TDsvFormatConfig  TSchemafulDsvFormatConfig  //
+//                                                                                           //
+// All fields are declared in Base classes, all parameters are                               //
+// registered in derived classes.                                                            //
 
 class TTableFormatConfigBase 
     : public NYTree::TYsonSerializable 
@@ -283,17 +282,9 @@ DEFINE_ENUM(EMissingSchemafulDsvValueMode,
 );
 
 class TSchemafulDsvFormatConfig
-    : public NYTree::TYsonSerializable
+    : public TTableFormatConfigBase
 {
 public:
-    char RecordSeparator;
-    char FieldSeparator;
-
-    bool EnableTableIndex;
-
-    bool EnableEscaping;
-    char EscapingSymbol;
-
     TNullable<std::vector<Stroka>> Columns;
 
     EMissingSchemafulDsvValueMode MissingValueMode;

@@ -234,49 +234,6 @@ void TSchemafulDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemafulDsvWriter::TSchemafulDsvWriter(
-    IAsyncOutputStreamPtr stream,
-    std::vector<int> columnIdMapping,
-    TSchemafulDsvFormatConfigPtr config)
-    : Stream_(stream)
-    , ColumnIdMapping_(std::move(columnIdMapping))
-    , Config_(config)
-{ }
-
-TFuture<void> TSchemafulDsvWriter::Close()
-{
-    return VoidFuture;
-}
-
-bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
-{
-    // TODO(babenko): handle escaping properly
-    Buffer_.Clear();
-
-    auto idMappingBegin = ColumnIdMapping_.begin();
-    auto idMappingEnd = ColumnIdMapping_.end();
-    for (auto row : rows) {
-        for (auto idMappingCurrent = idMappingBegin; idMappingCurrent != idMappingEnd; ++idMappingCurrent) {
-            int id = *idMappingCurrent;
-            WriteValue(row[id]);
-            if (idMappingCurrent != idMappingEnd) {
-                WriteRaw('\t');
-            }
-        }
-        WriteRaw('\n');
-    }
-
-    auto buffer = TSharedRef::FromBlob(std::move(Buffer_));
-    Result_ = Stream_->Write(buffer);
-
-    return Result_.IsSet() && Result_.Get().IsOK();
-}
-
-TFuture<void> TSchemafulDsvWriter::GetReadyEvent()
-{
-    return Result_;
-}
-
 static ui16 DigitPairs[100] = {
     12336,  12337,  12338,  12339,  12340,  12341,  12342,  12343,  12344,  12345,
     12592,  12593,  12594,  12595,  12596,  12597,  12598,  12599,  12600,  12601,
@@ -290,7 +247,7 @@ static ui16 DigitPairs[100] = {
     14640,  14641,  14642,  14643,  14644,  14645,  14646,  14647,  14648,  14649
 };
 
-char* TSchemafulDsvWriter::WriteInt64Reversed(char* ptr, i64 value)
+char* TSchemafulDsvWriterBase::WriteInt64Reversed(char* ptr, i64 value)
 {
     if (value == 0) {
         *ptr++ = '0';
@@ -322,7 +279,7 @@ char* TSchemafulDsvWriter::WriteInt64Reversed(char* ptr, i64 value)
     return ptr;
 }
 
-char* TSchemafulDsvWriter::WriteUint64Reversed(char* ptr, ui64 value)
+char* TSchemafulDsvWriterBase::WriteUint64Reversed(char* ptr, ui64 value)
 {
     if (value == 0) {
         *ptr++ = '0';
@@ -344,7 +301,7 @@ char* TSchemafulDsvWriter::WriteUint64Reversed(char* ptr, ui64 value)
     return ptr;
 }
 
-void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
+void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Null:
@@ -392,14 +349,59 @@ void TSchemafulDsvWriter::WriteValue(const TUnversionedValue& value)
     }
 }
 
-void TSchemafulDsvWriter::WriteRaw(const TStringBuf& str)
+void TSchemafulDsvWriterBase::WriteRaw(const TStringBuf& str)
 {
     Buffer_.Append(str.begin(), str.length());
 }
 
-void TSchemafulDsvWriter::WriteRaw(char ch)
+void TSchemafulDsvWriterBase::WriteRaw(char ch)
 {
     Buffer_.Append(ch);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchemafulDsvWriter::TSchemafulDsvWriter(
+    IAsyncOutputStreamPtr stream,
+    std::vector<int> columnIdMapping,
+    TSchemafulDsvFormatConfigPtr config)
+    : Stream_(stream)
+    , ColumnIdMapping_(std::move(columnIdMapping))
+    , Config_(config)
+{ }
+
+TFuture<void> TSchemafulDsvWriter::Close()
+{
+    return VoidFuture;
+}
+
+bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
+{
+    // TODO(babenko): handle escaping properly
+    Buffer_.Clear();
+
+    auto idMappingBegin = ColumnIdMapping_.begin();
+    auto idMappingEnd = ColumnIdMapping_.end();
+    for (auto row : rows) {
+        for (auto idMappingCurrent = idMappingBegin; idMappingCurrent != idMappingEnd; ++idMappingCurrent) {
+            int id = *idMappingCurrent;
+            WriteValue(row[id]);
+            if (idMappingCurrent != idMappingEnd) {
+                WriteRaw('\t');
+            }
+        }
+        WriteRaw('\n');
+    }
+
+    auto buffer = TSharedRef::FromBlob(std::move(Buffer_));
+    Result_ = Stream_->Write(buffer);
+
+    return Result_.IsSet() && Result_.Get().IsOK();
+}
+
+TFuture<void> TSchemafulDsvWriter::GetReadyEvent()
+{
+    return Result_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
