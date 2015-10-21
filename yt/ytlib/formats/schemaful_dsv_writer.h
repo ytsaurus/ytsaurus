@@ -4,6 +4,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "schemaful_dsv_table.h"
+#include "schemaless_writer_adapter.h"
 
 #include <core/misc/blob.h>
 #include <core/misc/nullable.h>
@@ -90,11 +91,41 @@ protected:
     void WriteRaw(char ch);
     
     TBlob Buffer_;
+    
+    TSchemafulDsvFormatConfigPtr Config_;
+
+    TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config);
+    
+    std::vector<int> ColumnIdMapping_;
 
 private:
     static char* WriteInt64Reversed(char* ptr, i64 value);
     static char* WriteUint64Reversed(char* ptr, ui64 value);    
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TShemalessWriterForSchemafulDsv
+    : public TSchemalessFormatWriterBase
+    , public TSchemafulDsvWriterBase
+{
+public:
+    TShemalessWriterForSchemafulDsv(
+        NTableClient::TNameTablePtr nameTable,
+        NConcurrency::IAsyncOutputStreamPtr output,
+        bool enableContextSaving,
+        TSchemafulDsvFormatConfigPtr config);
+       
+    // ISchemalessFormatWriter overrides.
+    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
+    virtual void WriteTableIndex(i32 tableIndex) override;
+    virtual void WriteRangeIndex(i32 rangeIndex) override;
+    virtual void WriteRowIndex(i64 rowIndex) override;
+private:
+    std::vector<int> IdToIndexInRowMapping_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TShemalessWriterForSchemafulDsv)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,13 +145,8 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-
 private:
-
     NConcurrency::IAsyncOutputStreamPtr Stream_;
-    std::vector<int> ColumnIdMapping_;
-
-    TSchemafulDsvFormatConfigPtr Config_;
 
     TFuture<void> Result_;
 };

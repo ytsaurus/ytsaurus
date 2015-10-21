@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "schemaful_dsv_writer.h"
 
+#include <ytlib/table_client/name_table.h>
+
 #include <core/misc/error.h>
 
 #include <core/yson/format.h>
@@ -234,6 +236,10 @@ void TSchemafulDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSchemafulDsvWriterBase::TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config)
+    : Config_(config)
+{ }
+
 static ui16 DigitPairs[100] = {
     12336,  12337,  12338,  12339,  12340,  12341,  12342,  12343,  12344,  12345,
     12592,  12593,  12594,  12595,  12596,  12597,  12598,  12599,  12600,  12601,
@@ -329,7 +335,7 @@ void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
             // TODO(babenko): optimize
             const size_t maxSize = 64;
             Buffer_.Resize(Buffer_.Size() + maxSize);
-            int size = sprintf(Buffer_.End() - maxSize, "%lf", value.Data.Double);
+            int size = sprintf(Buffer_.End() - maxSize, "%lg", value.Data.Double);
             Buffer_.Resize(Buffer_.Size() - maxSize + size);
             break;
         }
@@ -361,14 +367,79 @@ void TSchemafulDsvWriterBase::WriteRaw(char ch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TShemalessWriterForSchemafulDsv::TShemalessWriterForSchemafulDsv(
+    TNameTablePtr nameTable, 
+    IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    TSchemafulDsvFormatConfigPtr config)
+    : TSchemalessFormatWriterBase(
+        nameTable,
+        std::move(output),
+        enableContextSaving,
+        false /* enableKeySwitch */,
+        0 /* keyColumnCount */)
+    , TSchemafulDsvWriterBase(config)
+{
+    YCHECK(Config_->Columns);
+    const std::vector<Stroka>& columns = Config_->Columns.Get();
+    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); columnIndex++) {
+        ColumnIdMapping_.push_back(NameTable_->GetId(columns[columnIndex]));
+    }
+    IdToIndexInRowMapping_.resize(nameTable->GetSize());
+}
+
+void TShemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+{
+    auto idMappingBegin = ColumnIdMapping_.begin();
+    auto idMappingEnd = ColumnIdMapping_.end();
+    for (auto row : rows) {
+        IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);        
+        for (auto item = row.Begin(); item != row.End(); item++) {
+            IdToIndexInRowMapping_[item->Id] = item - row.Begin();
+        }
+        for (auto idMappingCurrent = idMappingBegin; idMappingCurrent != idMappingEnd; ++idMappingCurrent) {
+            int index = IdToIndexInRowMapping_[*idMappingCurrent];
+            if (index == -1) {
+                THROW_ERROR_EXCEPTION("Column %d is in schema but missing.", *idMappingCurrent);
+            }
+            WriteValue(row[index]);
+            if (idMappingCurrent + 1 != idMappingEnd) {
+                WriteRaw(Config_->FieldSeparator);
+            }
+        }
+        WriteRaw(Config_->RecordSeparator);
+    }
+    
+    auto* stream = GetOutputStream();
+    stream->Write(TStringBuf(Buffer_.Begin(), Buffer_.Size()));
+}
+    
+void TShemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
+{
+    THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV.");
+}
+
+void TShemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)
+{
+    THROW_ERROR_EXCEPTION("Range inidices are not supported in schemaful DSV.");
+}
+    
+void TShemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
+{
+    THROW_ERROR_EXCEPTION("Row inidices are not supported in schemaful DSV.");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchemafulDsvWriter::TSchemafulDsvWriter(
     IAsyncOutputStreamPtr stream,
     std::vector<int> columnIdMapping,
     TSchemafulDsvFormatConfigPtr config)
-    : Stream_(stream)
-    , ColumnIdMapping_(std::move(columnIdMapping))
-    , Config_(config)
-{ }
+    : TSchemafulDsvWriterBase(config)
+    , Stream_(stream)
+{
+   ColumnIdMapping_.swap(columnIdMapping); 
+}
 
 TFuture<void> TSchemafulDsvWriter::Close()
 {
@@ -377,7 +448,6 @@ TFuture<void> TSchemafulDsvWriter::Close()
 
 bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
-    // TODO(babenko): handle escaping properly
     Buffer_.Clear();
 
     auto idMappingBegin = ColumnIdMapping_.begin();
@@ -386,16 +456,15 @@ bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
         for (auto idMappingCurrent = idMappingBegin; idMappingCurrent != idMappingEnd; ++idMappingCurrent) {
             int id = *idMappingCurrent;
             WriteValue(row[id]);
-            if (idMappingCurrent != idMappingEnd) {
-                WriteRaw('\t');
+            if (idMappingCurrent + 1 != idMappingEnd) {
+                WriteRaw(Config_->FieldSeparator);
             }
         }
-        WriteRaw('\n');
+        WriteRaw(Config_->RecordSeparator);
     }
-
+    
     auto buffer = TSharedRef::FromBlob(std::move(Buffer_));
     Result_ = Stream_->Write(buffer);
-
     return Result_.IsSet() && Result_.Get().IsOK();
 }
 
