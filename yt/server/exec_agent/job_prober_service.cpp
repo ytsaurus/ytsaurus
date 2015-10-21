@@ -35,6 +35,7 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
     }
 
 private:
@@ -64,6 +65,21 @@ private:
         context->SetResponseInfo("Trace: %Qv", trace.Data());
 
         ToProto(response->mutable_trace(), trace.Data());
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto signalName = FromProto<Stroka>(request->signal_name());
+
+        context->SetRequestInfo("JobId: %v, SignalName: %v",
+            jobId,
+            signalName);
+
+        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
+        job->SignalJob(signalName);
+
         context->Reply();
     }
 };

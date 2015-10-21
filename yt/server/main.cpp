@@ -8,7 +8,6 @@
 #include <yt/server/cell_scheduler/config.h>
 
 #include <yt/server/job_proxy/job_proxy.h>
-#include <yt/server/job_proxy/stracer.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 

@@ -260,6 +260,18 @@ public:
         return TYsonString(FromProto<Stroka>(res->trace()));
     }
 
+    virtual void SignalJob(const Stroka& signalName) override
+    {
+        auto jobProberProxy = CreateJobProber();
+        auto req = jobProberProxy.SignalJob();
+
+        ToProto(req->mutable_job_id(), JobId);
+        ToProto(req->mutable_signal_name(), signalName);
+        Signaled = true;
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
 private:
     const TJobId JobId;
     NCellNode::TBootstrap* const Bootstrap;
@@ -276,6 +288,7 @@ private:
 
     double Progress = 0.0;
     NJobTrackerClient::NProto::TStatistics Statistics;
+    bool Signaled = false;
 
     TNullable<TJobResult> JobResult;
 
@@ -377,7 +390,7 @@ private:
             return;
         }
 
-        auto abortReason = GetAbortReason(jobResult);
+        auto abortReason = GetAbortReason(jobResult, Signaled);
         if (abortReason) {
             error.Attributes().Set("abort_reason", abortReason);
             ToProto(JobResult->mutable_error(), error);
@@ -580,7 +593,7 @@ private:
             fileName);
     }
 
-    static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult)
+    static TNullable<EAbortReason> GetAbortReason(const TJobResult& jobResult, bool signaled)
     {
         auto resultError = FromProto<TError>(jobResult.error());
 
@@ -602,6 +615,10 @@ private:
             if (schedulerResultExt.failed_chunk_ids_size() > 0) {
                 return MakeNullable(EAbortReason::FailedChunks);
             }
+        }
+
+        if (signaled) {
+            return EAbortReason::Other;
         }
 
         return Null;

@@ -344,7 +344,7 @@ void TNonOwningCGroup::DoKill() const
             JoinToString(pids));
 
         for (int pid : pids) {
-            auto result = kill(pid, 9);
+            auto result = kill(pid, SIGKILL);
             if (result == -1) {
                 YCHECK(errno == ESRCH);
             }

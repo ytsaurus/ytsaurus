@@ -455,6 +455,27 @@ public:
             path);
     }
 
+    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName)
+    {
+        return BIND(&TImpl::DoSignalJob, MakeStrong(this), jobId, signalName)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto proxy = CreateJobProberProxy(jobId);
+
+        auto req = proxy.SignalJob();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_signal_name(), signalName);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
     TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
     {
         auto job = FindJob(jobId);
@@ -2331,14 +2352,19 @@ TFuture<void> TScheduler::ResumeOperation(TOperationPtr operation)
     return Impl_->ResumeOperation(operation);
 }
 
+TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+{
+    return Impl_->DumpInputContext(jobId, path);
+}
+
 TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
 {
     return Impl_->Strace(jobId);
 }
 
-TFuture<void> TScheduler::DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path)
+TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName)
 {
-    return Impl_->DumpInputContext(jobId, path);
+    return Impl_->SignalJob(jobId, signalName);
 }
 
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)

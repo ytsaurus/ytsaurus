@@ -193,6 +193,11 @@ public:
         THROW_ERROR_EXCEPTION("Stracing is not supported");
     }
 
+    virtual void SignalJob(const Stroka& /*signalName*/) override
+    {
+        THROW_ERROR_EXCEPTION("Signaling is not supported for chunk jobs");
+    }
+
 protected:
     const TJobId JobId_;
     const TJobSpec JobSpec_;

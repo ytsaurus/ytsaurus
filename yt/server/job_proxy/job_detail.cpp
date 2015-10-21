@@ -59,6 +59,11 @@ TYsonString TJob::Strace()
     THROW_ERROR_EXCEPTION("Stracing is not supported for built-in jobs");
 }
 
+void TJob::SignalJob(const Stroka& /*signalName*/)
+{
+    THROW_ERROR_EXCEPTION("Signaling is not supported for built-in jobs");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHost* host)

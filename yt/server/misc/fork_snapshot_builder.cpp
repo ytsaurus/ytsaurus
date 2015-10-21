@@ -159,7 +159,7 @@ void TForkSnapshotBuilderBase::DoCancel()
     LOG_INFO("Killing snapshot child process (ChildPid: %v)", ChildPid_);
 
 #ifdef _unix_
-    ::kill(ChildPid_, 9);
+    ::kill(ChildPid_, SIGKILL);
     ::waitpid(ChildPid_, nullptr, 0);
 #endif
 
