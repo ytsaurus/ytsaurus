@@ -80,14 +80,13 @@ IChunkReaderPtr CreateRemoteReader(
     IBlockCachePtr blockCache,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
-    const auto& Logger = ChunkClientLogger;
-
     LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
 
     if (IsErasureChunkId(chunkId)) {
+        auto sortedReplicas = replicas;
         std::sort(
-            replicas.begin(),
-            replicas.end(),
+            sortedReplicas.begin(),
+            sortedReplicas.end(),
             [] (TChunkReplica lhs, TChunkReplica rhs) {
                 return lhs.GetIndex() < rhs.GetIndex();
             });
@@ -98,10 +97,10 @@ IChunkReaderPtr CreateRemoteReader(
         std::vector<IChunkReaderPtr> readers;
         readers.reserve(dataPartCount);
 
-        auto it = replicas.begin();
-        while (it != replicas.end() && it->GetIndex() < dataPartCount) {
+        auto it = sortedReplicas.begin();
+        while (it != sortedReplicas.end() && it->GetIndex() < dataPartCount) {
             auto jt = it;
-            while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
+            while (jt != sortedReplicas.end() && it->GetIndex() == jt->GetIndex()) {
                 ++jt;
             }
 
