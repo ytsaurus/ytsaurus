@@ -8,6 +8,8 @@
 
 #include <yt/server/exec_agent/public.h>
 
+#include <yt/server/job_proxy/job_signaler.h>
+
 #include <yt/ytlib/cgroup/cgroup.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -279,7 +281,6 @@ private:
 
     NLogging::TLogger Logger;
 
-
     void Prepare()
     {
         PrepareCGroups();
@@ -453,7 +454,7 @@ private:
         {
             TGuard<TSpinLock> guard(FreezerLock_);
             if (!Freezer_.IsCreated()) {
-                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgoup is not created");
+                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgroup is not created");
             }
 
             pids = Freezer_.GetTasks();
@@ -479,6 +480,34 @@ private:
         }
 
         return ConvertToYsonString(asyncTraces.Value());
+    }
+
+    virtual void SignalJob(const Stroka& signalName) override
+    {
+        if (!Prepared_) {
+            THROW_ERROR_EXCEPTION("Job has not started yet");
+        }
+
+        TJobSignalerArg arg;
+
+        {
+            TGuard<TSpinLock> guard(FreezerLock_);
+            if (!Freezer_.IsCreated()) {
+                THROW_ERROR_EXCEPTION("Cannot determine user job processes: freezer cgroup is not created");
+            }
+
+            arg.Pids = Freezer_.GetTasks();
+        }
+
+        arg.Pids.erase(std::find(arg.Pids.begin(), arg.Pids.end(), Process_.GetProcessId()));
+        arg.SignalName = signalName;
+        LOG_INFO("Sending signal %v to pids [%v]", arg.SignalName, JoinToString(arg.Pids.begin(), arg.Pids.end()));
+
+        WaitFor(BIND([&] () {
+            return RunTool<TJobSignalerTool>(arg);
+        })
+            .AsyncVia(JobProberQueue_->GetInvoker())
+            .Run());
     }
 
     int GetMaxReservedDescriptor() const

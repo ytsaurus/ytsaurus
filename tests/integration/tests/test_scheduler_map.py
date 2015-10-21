@@ -162,6 +162,135 @@ class TestJobProber(YTEnvSetup):
                 assert trace['trace'].startswith("Process {0} attached".format(pid))
         track_op(op_id)
 
+    def test_signal_job_with_no_job_restart(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        tmpdir = tempfile.mkdtemp(prefix="signal_job")
+        mapper = \
+"""
+#!/bin/bash
+trap "echo got=SIGUSR1" USR1
+trap "echo got=SIGUSR2" USR2
+cat
+touch {0}/started || exit 1
+until rmdir {0} 2>/dev/null
+    do sleep 1
+done
+""".format(tmpdir)
+
+        create("file", "//tmp/mapper.sh")
+        write_file("//tmp/mapper.sh", mapper)
+        set("//tmp/mapper.sh/@executable", True)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="./mapper.sh",
+            file="//tmp/mapper.sh",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.5)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+
+            signal_job(jobs[0], "SIGUSR1")
+            signal_job(jobs[0], "SIGUSR2")
+
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+
+        track_op(op_id)
+        try:
+            os.unlink(tmpdir)
+        except OSError:
+            pass
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+        assert read_table("//tmp/t2") == [{"foo": "bar"}, {"got": "SIGUSR1"}, {"got": "SIGUSR2"}]
+
+    def test_signal_job_with_job_restart(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        tmpdir = tempfile.mkdtemp(prefix="signal_job")
+        mapper = \
+"""
+#!/bin/bash
+trap "echo got=SIGUSR1; rm -f {0}/started; exit 1" USR1
+cat
+touch {0}/started || exit 1
+until rmdir {0} 2>/dev/null
+    do sleep 1
+done
+""".format(tmpdir)
+
+        create("file", "//tmp/mapper.sh")
+        write_file("//tmp/mapper.sh", mapper)
+        set("//tmp/mapper.sh/@executable", True)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="./mapper.sh",
+            file="//tmp/mapper.sh",
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "max_failed_job_count": 1
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.5)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+            initial_job = jobs[0]
+
+            # Send signal and wait for a new job
+            signal_job(jobs[0], "SIGUSR1")
+            while get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 0:
+                time.sleep(0.5)
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.5)
+
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+
+        track_op(op_id)
+        try:
+            os.unlink(tmpdir)
+        except OSError:
+            pass
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/total".format(op_id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/aborted/other".format(op_id)) == 1
+        assert get("//sys/operations/{0}/@progress/jobs/failed".format(op_id)) == 0
+        assert read_table("//tmp/t2") == [{"foo": "bar"}]
+
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3

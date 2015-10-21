@@ -40,6 +40,14 @@ void TStraceJobCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSignalJobCommand::Execute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->SignalJob(JobId, SignalName))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStartOperationCommandBase::Execute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(

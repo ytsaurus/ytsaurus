@@ -29,6 +29,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, DumpInputContext);
     DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, Strace);
+    DEFINE_RPC_PROXY_METHOD(NJobProberClient::NProto, SignalJob);
 };
 
 ////////////////////////////////////////////////////////////////////

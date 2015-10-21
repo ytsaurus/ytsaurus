@@ -38,6 +38,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) override;
     virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) override;
+    virtual void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName) override;
 
 private:
     const NYTree::INodePtr ConfigNode_;

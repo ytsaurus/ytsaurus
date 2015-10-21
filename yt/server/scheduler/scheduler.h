@@ -66,8 +66,9 @@ public:
     TFuture<void> SuspendOperation(TOperationPtr operation);
     TFuture<void> ResumeOperation(TOperationPtr operation);
 
-    TFuture<NYTree::TYsonString> Strace(const TJobId& jobId);
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
+    TFuture<NYTree::TYsonString> Strace(const TJobId& jobId);
+    TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName);
 
     typedef
         NRpc::TTypedServiceContext<

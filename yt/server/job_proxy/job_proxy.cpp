@@ -98,6 +98,12 @@ NYTree::TYsonString TJobProxy::Strace(const TJobId& jobId)
     return Job_->Strace();
 }
 
+void TJobProxy::SignalJob(const TJobId& jobId, const Stroka& signalName)
+{
+    ValidateJobId(jobId);
+    Job_->SignalJob(signalName);
+}
+
 void TJobProxy::ValidateJobId(const TJobId& jobId)
 {
     if (JobId_ != jobId) {

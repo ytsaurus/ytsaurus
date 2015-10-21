@@ -28,6 +28,7 @@ set( SRCS
   ${BASE}/hash_filter_ut.cpp
   ${BASE}/heap_ut.cpp
   ${BASE}/intrusive_ptr_ut.cpp
+  ${BASE}/job_signaler_ut.cpp
   ${BASE}/json_parser_ut.cpp
   ${BASE}/json_writer_ut.cpp
   ${BASE}/lexer_ut.cpp

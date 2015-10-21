@@ -143,7 +143,7 @@ TEST(TProcessTest, Kill)
 
     NConcurrency::TDelayedExecutor::Submit(
         BIND([&] () {
-            p.Kill(9);
+            p.Kill(SIGKILL);
         }),
         TDuration::MilliSeconds(100));
 
@@ -162,7 +162,7 @@ TEST(TProcessTest, KillFinished)
     auto error = p.Wait();
     EXPECT_TRUE(error.IsOK());
 
-    p.Kill(9);
+    p.Kill(SIGKILL);
 }
 
 TEST(TProcessTest, KillZombie)
@@ -178,7 +178,7 @@ TEST(TProcessTest, KillZombie)
     EXPECT_TRUE(res == 0);
     EXPECT_EQ(p.GetProcessId(), infop.si_pid);
 
-    p.Kill(9);
+    p.Kill(SIGKILL);
     auto error = p.Wait();
     EXPECT_TRUE(error.IsOK());
 }

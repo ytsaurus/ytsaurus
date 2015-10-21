@@ -979,6 +979,11 @@ public:
         const TJobId& jobId,
         const TStraceJobOptions& options),
         (jobId, options))
+    IMPLEMENT_METHOD(void, SignalJob, (
+        const TJobId& jobId,
+        const Stroka& signalName,
+        const TSignalJobOptions& options),
+        (jobId, signalName, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -2033,6 +2038,19 @@ private:
             .ValueOrThrow();
 
         return TYsonString(FromProto<Stroka>(rsp->trace()));
+    }
+
+    void DoSignalJob(
+        const TJobId& jobId,
+        const Stroka& signalName,
+        const TSignalJobOptions& /*options*/)
+    {
+        auto req = JobProberProxy_->SignalJob();
+        ToProto(req->mutable_job_id(), jobId);
+        ToProto(req->mutable_signal_name(), signalName);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
     }
 };
 

@@ -45,6 +45,26 @@ public:
 
 };
 
+class TSignalJobCommand
+    : public TTypedCommand<NApi::TSignalJobOptions>
+{
+private:
+    NJobTrackerClient::TJobId JobId;
+    Stroka SignalName;
+
+public:
+    TSignalJobCommand()
+    {
+        RegisterParameter("job_id", JobId);
+        RegisterParameter("signal_name", SignalName);
+    }
+
+    void Execute(ICommandContextPtr context);
+
+};
+
+//////////////////////////////////////////////////////////////////////////////
+
 class TStartOperationCommandBase
     : public TTypedCommand<NApi::TStartOperationOptions>
 {

@@ -386,6 +386,10 @@ struct TStraceJobOptions
     : public TTimeoutOptions
 { };
 
+struct TSignalJobOptions
+    : public TTimeoutOptions
+{ };
+
 typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -607,6 +611,11 @@ struct IClient
     virtual TFuture<NYTree::TYsonString> StraceJob(
         const NJobTrackerClient::TJobId& jobId,
         const TStraceJobOptions& options = TStraceJobOptions()) = 0;
+
+    virtual TFuture<void> SignalJob(
+        const NJobTrackerClient::TJobId& jobId,
+        const Stroka& signalName,
+        const TSignalJobOptions& options = TSignalJobOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

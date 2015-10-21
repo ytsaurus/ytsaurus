@@ -90,7 +90,7 @@ TStrace DoStrace(int pid)
 
     auto cookie = TDelayedExecutor::Submit(BIND([&] () {
             try {
-                tracer.Kill(2);
+                tracer.Kill(SIGINT);
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Failed to interrupt stracer %v", pid);
             }
@@ -99,7 +99,7 @@ TStrace DoStrace(int pid)
 
     auto killCookie = TDelayedExecutor::Submit(BIND([&] () {
             try {
-                tracer.Kill(9);
+                tracer.Kill(SIGKILL);
             } catch (const std::exception& ex) {
                 LOG_ERROR(ex, "Failed to kill stracer %v", pid);
             }

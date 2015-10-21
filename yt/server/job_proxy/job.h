@@ -44,6 +44,7 @@ struct IJobHost
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext(const NJobTrackerClient::TJobId& jobId) = 0;
     virtual NYTree::TYsonString Strace(const NJobTrackerClient::TJobId& jobId) = 0;
+    virtual void SignalJob(const NJobTrackerClient::TJobId& jobId, const Stroka& signalName) = 0;
 
 };
 
@@ -72,6 +73,7 @@ struct IJob
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual NYTree::TYsonString Strace() = 0;
+    virtual void SignalJob(const Stroka& signalName) = 0;
 
 };
 

@@ -123,7 +123,7 @@ public:
         // before this line due to thread affinity
         if (Process.Started()) {
             try {
-                Process.Kill(9);
+                Process.Kill(SIGKILL);
             } catch (const std::exception& ex) {
                 LOG_FATAL(ex, "Failed to kill job proxy: kill failed");
             }
