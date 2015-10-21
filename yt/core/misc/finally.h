@@ -15,12 +15,20 @@ public:
         : Finally_(std::move(finally))
     { }
 
+    void Release()
+    {
+        Released_ = true;
+    }
+
     ~TFinallyGuard()
     {
-        Finally_();
+        if (!Released_) {
+            Finally_();
+        }
     }
 
 private:
+    bool Released_ = false;
     const std::function<void()> Finally_;
 
 };
