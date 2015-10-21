@@ -261,7 +261,7 @@ void TPythonObjectBuilder::OnEndAttributes()
 
 PyObject* TPythonObjectBuilder::AddObject(PyObject* obj, const Py::Callable& type, bool forceYsonTypeCreation)
 {
-    if ((AlwaysCreateAttributes_ && !Attributes_) || forceYsonTypeCreation) {
+    if ((AlwaysCreateAttributes_ || forceYsonTypeCreation) && !Attributes_) {
         Attributes_ = Py::Dict();
     }
 
