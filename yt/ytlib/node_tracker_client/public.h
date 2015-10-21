@@ -32,7 +32,7 @@ class TRspFullHeartbeat;
 
 using TNodeId = i32;
 const TNodeId InvalidNodeId = 0;
-const TNodeId MaxNodeId = (1 << 28) - 1; // TNodeId must fit into 28 bits (see TChunkReplica)
+const TNodeId MaxNodeId = (1 << 24) - 1; // TNodeId must fit into 24 bits (see TChunkReplica)
 
 using TRackId = NObjectClient::TObjectId;
 extern const TRackId NullRackId;

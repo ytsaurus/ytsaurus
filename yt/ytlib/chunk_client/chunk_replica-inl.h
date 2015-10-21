@@ -8,7 +8,7 @@ namespace NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 FORCED_INLINE TChunkReplica::TChunkReplica()
-    : Value(NNodeTrackerClient::InvalidNodeId | (0 << 28))
+    : Value(NNodeTrackerClient::InvalidNodeId)
 { }
 
 FORCED_INLINE TChunkReplica::TChunkReplica(ui32 value)
@@ -16,7 +16,7 @@ FORCED_INLINE TChunkReplica::TChunkReplica(ui32 value)
 { }
 
 FORCED_INLINE TChunkReplica::TChunkReplica(int nodeId, int index)
-    : Value(nodeId | (index << 28))
+    : Value(nodeId | (index << 24))
 {
     YASSERT(nodeId >= 0 && nodeId <= NNodeTrackerClient::MaxNodeId);
     YASSERT(index >= 0 && index < ChunkReplicaIndexBound);
@@ -24,12 +24,12 @@ FORCED_INLINE TChunkReplica::TChunkReplica(int nodeId, int index)
 
 FORCED_INLINE int TChunkReplica::GetNodeId() const
 {
-    return Value & 0x0fffffff;
+    return Value & 0x00ffffff;
 }
 
 FORCED_INLINE int TChunkReplica::GetIndex() const
 {
-    return Value >> 28;
+    return Value >> 24;
 }
 
 FORCED_INLINE void ToProto(ui32* value, TChunkReplica replica)
@@ -45,7 +45,7 @@ FORCED_INLINE void FromProto(TChunkReplica* replica, ui32 value)
 ////////////////////////////////////////////////////////////////////////////////
 
 FORCED_INLINE TChunkIdWithIndex::TChunkIdWithIndex()
-    : Index(0)
+    : Index(GenericChunkReplicaIndex)
 { }
 
 FORCED_INLINE TChunkIdWithIndex::TChunkIdWithIndex(const TChunkId& id, int index)
