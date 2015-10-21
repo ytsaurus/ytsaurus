@@ -32,7 +32,7 @@ TFuture<NObjectClient::TMasterYPathProxy::TRspCreateObjectsPtr> CreateChunk(
 IChunkReaderPtr CreateRemoteReader(
     const TChunkId& chunkId,
     const TChunkReplicaList& replicas,
-    const NErasure::ECodec& erasureCodecId,
+    NErasure::ECodec erasureCodecId,
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::IClientPtr client,
