@@ -477,10 +477,126 @@ public:
         return proxy;
     }
 
-    void ProcessHeartbeat(TCtxHeartbeatPtr context)
+    void ProcessHeartbeatJobs(
+        TExecNodePtr node,
+        NJobTrackerClient::NProto::TReqHeartbeat* request,
+        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        std::vector<TJobPtr>* runningJobs,
+        bool* hasWaitingJobs,
+        yhash_set<TOperationPtr>* operationsToLog)
     {
         auto now = TInstant::Now();
 
+        bool forceJobsLogging = false;
+        auto& lastJobsLogTime = node->LastJobsLogTime();
+        if (!lastJobsLogTime || now > lastJobsLogTime.Get() + Config_->JobsLoggingPeriod) {
+            forceJobsLogging = true;
+            lastJobsLogTime = now;
+        }
+
+        auto missingJobs = node->Jobs();
+
+        for (auto& jobStatus : *request->mutable_jobs()) {
+            auto jobType = EJobType(jobStatus.job_type());
+            // Skip jobs that are not issued by the scheduler.
+            if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
+                continue;
+            }
+
+            auto job = ProcessJobHeartbeat(
+                node,
+                request,
+                response,
+                &jobStatus,
+                forceJobsLogging);
+            if (job) {
+                YCHECK(missingJobs.erase(job) == 1);
+                switch (job->GetState()) {
+                    case EJobState::Completed:
+                    case EJobState::Failed:
+                    case EJobState::Aborted:
+                        operationsToLog->insert(job->GetOperation());
+                        break;
+                    case EJobState::Running:
+                        runningJobs->push_back(job);
+                        break;
+                    case EJobState::Waiting:
+                        *hasWaitingJobs = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        // Check for missing jobs.
+        for (auto job : missingJobs) {
+            LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
+                node->GetDefaultAddress(),
+                job->GetId(),
+                job->GetOperationId());
+            AbortJob(job, TError("Job vanished"));
+            UnregisterJob(job);
+        }
+    }
+
+    TFuture<void> ProcessScheduledJobs(
+        ISchedulingContext* schedulingContext,
+        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        yhash_set<TOperationPtr>* operationsToLog)
+    {
+        std::vector<TFuture<void>> asyncResults;
+
+        auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
+        for (auto job : schedulingContext->StartedJobs()) {
+            auto operation = FindOperation(job->GetOperationId());
+            if (!operation || operation->GetState() != EOperationState::Running) {
+                LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
+                continue;
+            }
+
+            RegisterJob(job);
+
+            LogEventFluently(ELogEventType::JobStarted)
+                .Item("job_id").Value(job->GetId())
+                .Item("operation_id").Value(job->GetOperationId())
+                .Item("resource_limits").Value(job->ResourceLimits())
+                .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
+                .Item("job_type").Value(job->GetType());
+
+            auto* startInfo = response->add_jobs_to_start();
+            ToProto(startInfo->mutable_job_id(), job->GetId());
+            *startInfo->mutable_resource_limits() = job->ResourceUsage();
+
+            // Build spec asynchronously.
+            asyncResults.push_back(
+                BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
+                    .AsyncVia(specBuilderInvoker)
+                    .Run());
+
+            // Release to avoid circular references.
+            job->SetSpecBuilder(TJobSpecBuilder());
+            operationsToLog->insert(operation);
+        }
+
+        for (auto job : schedulingContext->PreemptedJobs()) {
+            if (!FindOperation(job->GetOperationId())) {
+                LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)",
+                    job->GetId(),
+                    job->GetOperationId());
+                continue;
+            }
+            PreemptJob(job);
+            ToProto(response->add_jobs_to_abort(), job->GetId());
+        }
+
+        return Combine(asyncResults);
+    }
+
+    void ProcessHeartbeat(TCtxHeartbeatPtr context)
+    {
         auto* request = &context->Request();
         auto* response = &context->Response();
 
@@ -501,169 +617,78 @@ public:
                 node->GetDefaultAddress());
             THROW_ERROR_EXCEPTION("Node has ongoing heartbeat");
         }
-        node->SetHasOngoingHeartbeat(true);
-        TFinallyGuard heartbeatGuard([&] {
-            node->SetHasOngoingHeartbeat(false);
-        });
-
-        TLeaseManager::RenewLease(node->GetLease());
-
-        auto oldResourceLimits = node->ResourceLimits();
-        auto oldResourceUsage = node->ResourceUsage();
-
-        node->ResourceLimits() = request->resource_limits();
-        node->ResourceUsage() = request->resource_usage();
-
-        // Update total resource limits _before_ processing the heartbeat to
-        // maintain exact values of total resource limits.
-        TotalResourceLimits_ -= oldResourceLimits;
-        TotalResourceLimits_ += node->ResourceLimits();
-
-        for (const auto& tag : node->SchedulingTags()) {
-            auto& resources = SchedulingTagResources_[tag];
-            resources -= oldResourceLimits;
-            resources += node->ResourceLimits();
-        }
-
-        bool forceJobsLogging = false;
-        auto& lastJobsLogTime = node->LastJobsLogTime();
-        if (!lastJobsLogTime || now > lastJobsLogTime.Get() + Config_->JobsLoggingPeriod) {
-            forceJobsLogging = true;
-            lastJobsLogTime = now;
-        }
 
         yhash_set<TOperationPtr> operationsToLog;
-        std::vector<TFuture<void>> asyncResults;
+        TFuture<void> scheduleJobsAsyncResult = VoidFuture;
 
-        // NB: No exception must leave this try/catch block.
-        try {
-            std::vector<TJobPtr> runningJobs;
-            bool hasWaitingJobs = false;
-            PROFILE_TIMING ("/analysis_time") {
-                auto missingJobs = node->Jobs();
+        {
+            node->SetHasOngoingHeartbeat(true);
+            TFinallyGuard heartbeatGuard([&] {
+                node->SetHasOngoingHeartbeat(false);
+            });
 
-                for (auto& jobStatus : *request->mutable_jobs()) {
-                    auto jobType = EJobType(jobStatus.job_type());
-                    // Skip jobs that are not issued by the scheduler.
-                    if (jobType <= EJobType::SchedulerFirst || jobType >= EJobType::SchedulerLast) {
-                        continue;
-                    }
+            TLeaseManager::RenewLease(node->GetLease());
 
-                    auto job = ProcessJobHeartbeat(
+            auto oldResourceLimits = node->ResourceLimits();
+            auto oldResourceUsage = node->ResourceUsage();
+
+            node->ResourceLimits() = request->resource_limits();
+            node->ResourceUsage() = request->resource_usage();
+
+            // Update total resource limits _before_ processing the heartbeat to
+            // maintain exact values of total resource limits.
+            TotalResourceLimits_ -= oldResourceLimits;
+            TotalResourceLimits_ += node->ResourceLimits();
+
+            for (const auto& tag : node->SchedulingTags()) {
+                auto& resources = SchedulingTagResources_[tag];
+                resources -= oldResourceLimits;
+                resources += node->ResourceLimits();
+            }
+
+            // NB: No exception must leave this try/catch block.
+            try {
+                std::vector<TJobPtr> runningJobs;
+                bool hasWaitingJobs = false;
+                PROFILE_TIMING ("/analysis_time") {
+                    ProcessHeartbeatJobs(
                         node,
                         request,
                         response,
-                        &jobStatus,
-                        forceJobsLogging);
-                    if (job) {
-                        YCHECK(missingJobs.erase(job) == 1);
-                        switch (job->GetState()) {
-                            case EJobState::Completed:
-                            case EJobState::Failed:
-                            case EJobState::Aborted:
-                                operationsToLog.insert(job->GetOperation());
-                                break;
-                            case EJobState::Running:
-                                runningJobs.push_back(job);
-                                break;
-                            case EJobState::Waiting:
-                                hasWaitingJobs = true;
-                                break;
-                            default:
-                                break;
-                        }
+                        &runningJobs,
+                        &hasWaitingJobs,
+                        &operationsToLog);
+                }
+
+                if (hasWaitingJobs) {
+                    LOG_INFO("Waiting jobs found, suppressing new jobs scheduling");
+                } else {
+                    auto schedulingContext = CreateSchedulingContext(
+                        Config_,
+                        node,
+                        runningJobs,
+                        Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
+
+                    PROFILE_TIMING ("/schedule_time") {
+                        Strategy_->ScheduleJobs(schedulingContext.get());
                     }
-                }
 
-                // Check for missing jobs.
-                for (auto job : missingJobs) {
-                    LOG_ERROR("Job is missing (Address: %v, JobId: %v, OperationId: %v)",
-                        node->GetDefaultAddress(),
-                        job->GetId(),
-                        job->GetOperationId());
-                    AbortJob(job, TError("Job vanished"));
-                    UnregisterJob(job);
+                    scheduleJobsAsyncResult = ProcessScheduledJobs(
+                        schedulingContext.get(),
+                        response,
+                        &operationsToLog);
                 }
+            } catch (const std::exception& ex) {
+                LOG_FATAL(ex, "Failed to process heartbeat");
             }
 
-            auto schedulingContext = CreateSchedulingContext(
-                Config_,
-                node,
-                runningJobs,
-                Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag());
-
-            if (hasWaitingJobs) {
-                LOG_DEBUG("Waiting jobs found, suppressing new jobs scheduling");
-            } else {
-                PROFILE_TIMING ("/schedule_time") {
-                    Strategy_->ScheduleJobs(schedulingContext.get());
-                }
-            }
-
-            for (auto job : schedulingContext->StartedJobs()) {
-                auto operation = FindOperation(job->GetOperationId());
-                if (!operation || operation->GetState() != EOperationState::Running) {
-                    LOG_INFO("Dangling started job found (JobId: %v, OperationId: %v)",
-                        job->GetId(),
-                        job->GetOperationId());
-                    continue;
-                }
-
-                RegisterJob(job);
-
-                LogEventFluently(ELogEventType::JobStarted)
-                    .Item("job_id").Value(job->GetId())
-                    .Item("operation_id").Value(job->GetOperationId())
-                    .Item("resource_limits").Value(job->ResourceLimits())
-                    .Item("node_address").Value(job->GetNode()->GetDefaultAddress())
-                    .Item("job_type").Value(job->GetType());
-            }
-
-            for (auto job : schedulingContext->PreemptedJobs()) {
-                if (!FindOperation(job->GetOperationId())) {
-                    LOG_INFO("Dangling preempted job found (JobId: %v, OperationId: %v)",
-                        job->GetId(),
-                        job->GetOperationId());
-                    continue;
-                }
-                PreemptJob(job);
-                ToProto(response->add_jobs_to_abort(), job->GetId());
-            }
-
-            auto specBuilderInvoker = NRpc::TDispatcher::Get()->GetInvoker();
-            for (auto job : schedulingContext->StartedJobs()) {
-                auto operation = FindOperation(job->GetOperationId());
-                if (!operation || operation->GetState() != EOperationState::Running) {
-                    continue;
-                }
-
-                auto* startInfo = response->add_jobs_to_start();
-                ToProto(startInfo->mutable_job_id(), job->GetId());
-                *startInfo->mutable_resource_limits() = job->ResourceUsage();
-
-                // Build spec asynchronously.
-                asyncResults.push_back(
-                    BIND(job->GetSpecBuilder(), startInfo->mutable_spec())
-                        .AsyncVia(specBuilderInvoker)
-                        .Run());
-
-                // Release to avoid circular references.
-                job->SetSpecBuilder(TJobSpecBuilder());
-                operationsToLog.insert(operation);
-            }
-
-        } catch (const std::exception& ex) {
-            LOG_FATAL(ex, "Failed to process heartbeat");
+            // Update total resource usage _after_ processing the heartbeat to avoid
+            // "unsaturated CPU" phenomenon.
+            TotalResourceUsage_ -= oldResourceUsage;
+            TotalResourceUsage_ += node->ResourceUsage();
         }
 
-        // Update total resource usage _after_ processing the heartbeat to avoid
-        // "unsaturated CPU" phenomenon.
-        TotalResourceUsage_ -= oldResourceUsage;
-        TotalResourceUsage_ += node->ResourceUsage();
-
-        heartbeatGuard.Release();
-        node->SetHasOngoingHeartbeat(false);
-        context->ReplyFrom(Combine(asyncResults));
+        context->ReplyFrom(scheduleJobsAsyncResult);
 
         // NB: Do heavy logging after responding to heartbeat.
         for (auto operation : operationsToLog) {
