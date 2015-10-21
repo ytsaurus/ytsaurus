@@ -2793,12 +2793,6 @@ void TOperationControllerBase::LockInputTables()
 
                 if (attributes.Get<bool>("sorted")) {
                     table.KeyColumns = attributes.Get<TKeyColumns>("sorted_by");
-                    LOG_INFO("Input table is sorted (Path: %v, KeyColumns: [%v])",
-                        path,
-                        JoinToString(table.KeyColumns));
-                } else {
-                    LOG_INFO("Input table is not sorted (Path: %v)",
-                        path);
                 }
 
                 table.ChunkCount = attributes.Get<int>("chunk_count");
