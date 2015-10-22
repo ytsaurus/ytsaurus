@@ -25,7 +25,7 @@ TChunkedMemoryPool* TRowBuffer::GetPool()
 
 void TRowBuffer::Capture(TUnversionedValue* value)
 {
-    if (IsStringLikeType(EValueType(value->Type))) {
+    if (IsStringLikeType(value->Type)) {
         char* dst = Pool_.AllocateUnaligned(value->Length);
         memcpy(dst, value->Data.String, value->Length);
         value->Data.String = dst;

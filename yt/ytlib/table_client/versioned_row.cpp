@@ -304,7 +304,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
     size_t variableSize = 0;
     auto adjustVariableSize = [&] (const TUnversionedValue& value) {
-        if (IsStringLikeType(EValueType(value.Type))) {
+        if (IsStringLikeType(value.Type)) {
             variableSize += value.Length;
         }
     };
@@ -323,7 +323,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
     if (variableSize > 0) {
         char* current = Data_.Begin() + fixedSize;
         auto captureValue = [&] (TUnversionedValue* value) {
-            if (IsStringLikeType(EValueType(value->Type))) {
+            if (IsStringLikeType(value->Type)) {
                 ::memcpy(current, value->Data.String, value->Length);
                 value->Data.String = current;
                 current += value->Length;

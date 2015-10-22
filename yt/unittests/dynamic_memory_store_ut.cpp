@@ -425,7 +425,7 @@ private:
                  index < minLength;
                  ++index, nullKeyBit <<= 1, ++lhsValue, ++rhsValue, ++columnIt)
             {
-                auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType(EValueType::Null) : columnIt->Type;
+                auto lhsType = (lhsNullKeyMask & nullKeyBit) ? EValueType::Null : columnIt->Type;
                 if (lhsType < rhsValue->Type) {
                     return -1;
                 } else if (lhsType > rhsValue->Type) {

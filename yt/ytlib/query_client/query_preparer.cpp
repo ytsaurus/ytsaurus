@@ -750,7 +750,7 @@ protected:
         };
 
         if (auto value = foldConstants(unaryExpr->Opcode, operand)) {
-            return New<TLiteralExpression>(EValueType(value->Type), *value);
+            return New<TLiteralExpression>(value->Type, *value);
         }
 
         return TConstExpressionPtr();
@@ -957,7 +957,7 @@ protected:
         };
 
         if (auto value = foldConstants(binaryExpr->Opcode, lhsExpr, rhsExpr)) {
-            return New<TLiteralExpression>(EValueType(value->Type), *value);
+            return New<TLiteralExpression>(value->Type, *value);
         }
 
         if (binaryExpr->Opcode == EBinaryOp::Divide) {
