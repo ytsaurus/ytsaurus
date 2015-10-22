@@ -47,7 +47,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedBlocksTestOneRow
-    :public TVersionedBlocksTestBase
+    : public TVersionedBlocksTestBase
 {
 protected:
     virtual void SetUp() override
@@ -64,7 +64,7 @@ protected:
 
         TSimpleVersionedBlockWriter blockWriter(Schema, KeyColumns);
 
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
+        auto row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
         row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
         row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
         row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
