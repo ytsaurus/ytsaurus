@@ -1330,8 +1330,12 @@ private:
 
             for (int index = 0; index < keys.size(); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
-                evaluator->EvaluateKeys(keys[index], rowBuffer);
-                sortedKeys.push_back(std::make_pair(keys[index], index));
+                auto newKey = TUnversionedRow::Allocate(rowBuffer->GetPool(), keys[index].GetCount());
+                for (int columnIndex = 0; columnIndex < keys[index].GetCount(); ++columnIndex) {
+                    newKey[columnIndex] = keys[index][columnIndex];
+                }
+                evaluator->EvaluateKeys(newKey, rowBuffer);
+                sortedKeys.push_back(std::make_pair(newKey, index));
             }
         } else {
             for (int index = 0; index < static_cast<int>(keys.size()); ++index) {
@@ -2264,9 +2268,12 @@ private:
 
                 for (auto row : rows) {
                     validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    evaluator->EvaluateKeys(row, rowBuffer);
-                    writeRequest(row);
-                    rowBuffer->Clear();
+                    auto newRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), row.GetCount());
+                    for (int columnIndex = 0; columnIndex < row.GetCount(); ++columnIndex) {
+                        newRow[columnIndex] = row[columnIndex];
+                    }
+                    evaluator->EvaluateKeys(newRow, rowBuffer);
+                    writeRequest(newRow);
                 }
             } else {
                 for (auto row : rows) {
