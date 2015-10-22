@@ -199,12 +199,7 @@ private:
             ToProto(request.mutable_pivot_keys(), pivotKeys);
 
             CreateMutation(hydraManager, request)
-                ->Commit()
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing partition split mutation");
-                    }
-                }));
+                ->CommitAndLog(Logger);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partitioning aborted");
             partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
@@ -250,12 +245,7 @@ private:
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
         CreateMutation(hydraManager, request)
-            ->Commit()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_ERROR(error, "Error committing partition merge mutation");
-                }
-            }));
+            ->CommitAndLog(Logger);
     }
 
 
@@ -302,12 +292,7 @@ private:
             ToProto(request.mutable_sample_keys(), samples);
 
             CreateMutation(hydraManager, request)
-                ->Commit()
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing sample keys update mutation");
-                    }
-                }));
+                ->CommitAndLog(Logger);
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Partition sampling aborted");
         }

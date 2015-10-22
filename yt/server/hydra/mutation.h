@@ -6,6 +6,10 @@
 #include <core/misc/error.h>
 #include <core/misc/ref.h>
 
+#include <core/rpc/public.h>
+
+#include <core/logging/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -18,6 +22,8 @@ public:
     explicit TMutation(IHydraManagerPtr hydraManager);
 
     TFuture<TMutationResponse> Commit();
+    TFuture<TMutationResponse> CommitAndLog(const NLogging::TLogger& logger);
+    void CommitAndReply(NRpc::IServiceContextPtr context);
 
     TMutationPtr SetRequestData(TSharedRef data, Stroka type);
     template <class TRequest>

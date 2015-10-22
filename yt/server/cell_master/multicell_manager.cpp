@@ -430,12 +430,7 @@ private:
 
         NProto::TReqRegisterAtPrimaryMaster request;
         CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->Commit()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_WARNING(error, "Error committing registration mutation");
-                }
-            }));
+            ->CommitAndLog(Logger);
     }
 
     void OnCellStatisticsGossip()

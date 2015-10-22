@@ -131,12 +131,10 @@ void TAccessTracker::OnFlush()
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
     CreateMutation(hydraManager, UpdateAccessStatisticsRequest_)
         ->SetAllowLeaderForwarding(true)
-        ->Commit()
+        ->CommitAndLog(Logger)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
-            } else {
-                LOG_WARNING(error, "Error committing access statistics update");
             }
             FlushExecutor_->ScheduleNext();
         }).Via(invoker));

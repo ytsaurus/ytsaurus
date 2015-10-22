@@ -21,7 +21,6 @@
 
 #include <server/hydra/hydra_manager.h>
 #include <server/hydra/mutation.h>
-#include <server/hydra/rpc_helpers.h>
 
 #include <server/query_agent/helpers.h>
 
@@ -94,8 +93,7 @@ private:
         auto transactionManager = Slot_->GetTransactionManager();
         transactionManager
             ->CreateStartTransactionMutation(*request)
-            ->Commit()
-             .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Read)

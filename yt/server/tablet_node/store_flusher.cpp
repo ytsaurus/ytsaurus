@@ -374,12 +374,7 @@ private:
             }
 
             CreateMutation(slot->GetHydraManager(), hydraRequest)
-                ->Commit()
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing tablet stores update mutation");
-                    }
-                }));
+                ->CommitAndLog(Logger);
 
             LOG_INFO("Store flush completed (ChunkIds: [%v])",
                 JoinToString(chunkIds));

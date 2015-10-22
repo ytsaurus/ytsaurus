@@ -25,7 +25,6 @@
 #include <server/hydra/mutation.h>
 #include <server/hydra/entity_map.h>
 #include <server/hydra/hydra_service.h>
-#include <server/hydra/rpc_helpers.h>
 
 #include <server/election/election_manager.h>
 
@@ -295,14 +294,8 @@ private:
         ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
         ToProto(hydraRequest.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         hydraRequest.set_prepare_timestamp(prepareTimestamp);
-
         CreateMutation(HydraManager_, hydraRequest)
-            ->Commit()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_WARNING(error, "Error committing distributed transaction phase one start");
-                }
-            }));
+            ->CommitAndLog(Logger);
     }
 
     TFuture<TSharedRefArray> DoAbortTransaction(
@@ -330,7 +323,6 @@ private:
         ToProto(hydraRequest.mutable_transaction_id(), transactionId);
         ToProto(hydraRequest.mutable_mutation_id(), mutationId);
         hydraRequest.set_force(force);
-
         return CreateMutation(HydraManager_, hydraRequest)
             ->Commit()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& result) -> TSharedRefArray {
@@ -755,24 +747,14 @@ private:
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager_, hydraRequest)
-                ->Commit()
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing distributed transaction phase two start mutation");
-                    }
-                }));
+                ->CommitAndLog(Logger);
         } else {
             TReqCommitSimpleTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             ToProto(hydraRequest.mutable_mutation_id(), commit->GetMutationId());
             hydraRequest.set_commit_timestamp(timestamp);
             CreateMutation(HydraManager_, hydraRequest)
-                ->Commit()
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing simple transaction commit mutation");
-                    }
-                }));
+                ->CommitAndLog(Logger);
         }
     }
 

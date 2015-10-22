@@ -1172,14 +1172,8 @@ private:
         request.set_node_id(node->GetId());
 
         auto mutation = CreateUnregisterNodeMutation(request);
-        BIND(&TMutation::Commit, mutation)
-            .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
-            .Run()
-            .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_ERROR(error, "Error committing node unregistration mutation");
-                }
-            }));
+        Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
+            BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
     }
 
     void MaybePostDisposeNodeMutations()
@@ -1197,14 +1191,8 @@ private:
             ++PendingDisposeNodeMutationCount_;
 
             auto mutation = CreateDisposeNodeMutation(request);
-            BIND(&TMutation::Commit, mutation)
-                .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker())
-                .Run()
-                .Subscribe(BIND([] (const TErrorOr<TMutationResponse>& error) {
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing node disposal mutation");
-                    }
-                }));
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker()->Invoke(
+                BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
         }
     }
 
