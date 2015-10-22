@@ -15,6 +15,8 @@
 
 #include <core/erasure/codec.h>
 
+#include <core/concurrency/scheduler.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
@@ -100,8 +102,7 @@ void TChunkReplicator::Start()
     PropertiesUpdateExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnPropertiesUpdate, MakeWeak(this)),
-        Config_->ChunkPropertiesUpdatePeriod,
-        EPeriodicExecutorMode::Manual);
+        Config_->ChunkPropertiesUpdatePeriod);
     PropertiesUpdateExecutor_->Start();
 }
 
@@ -1390,7 +1391,6 @@ void TChunkReplicator::OnPropertiesUpdate()
     if (PropertiesUpdateList_.empty() ||
         !Bootstrap_->GetHydraFacade()->GetHydraManager()->IsActiveLeader())
     {
-        PropertiesUpdateExecutor_->ScheduleNext();
         return;
     }
 
@@ -1440,20 +1440,13 @@ void TChunkReplicator::OnPropertiesUpdate()
         request.updates_size());
 
     if (request.updates_size() == 0) {
-        PropertiesUpdateExecutor_->ScheduleNext();
         return;
     }
 
-    auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
-    chunkManager
+    auto asyncResult = chunkManager
         ->CreateUpdateChunkPropertiesMutation(request)
-        ->CommitAndLog(Logger)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& result) {
-            if (result.IsOK()) {
-                PropertiesUpdateExecutor_->ScheduleOutOfBand();
-            }
-            PropertiesUpdateExecutor_->ScheduleNext();
-        }).Via(invoker));
+        ->CommitAndLog(Logger);
+    WaitFor(asyncResult);
 }
 
 TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
