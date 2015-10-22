@@ -68,7 +68,7 @@ void TPeriodicExecutor::ScheduleNext()
     // There several reasons why this may fail:
     // 1) Calling ScheduleNext outside of the periodic action
     // 2) Calling ScheduleNext more than once
-    // 3) Calling ScheduleNext for an invoker in automatic mode
+    // 3) Calling ScheduleNext for an executor in automatic mode
     YCHECK(Busy_);
     Busy_ = false;
 
