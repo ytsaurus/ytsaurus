@@ -486,7 +486,7 @@ void TComparerBuilder::BuildMainLoop(
 
         auto* lhsType = lhsBuilder.GetType(index);
         auto* rhsType = rhsBuilder.GetType(index);
-        BuildCmp(lhsType, rhsType, EValueType(EValueType::Uint64));
+        BuildCmp(lhsType, rhsType, EValueType::Uint64);
         BuildNullTypeCheck(lhsType);
 
         auto type = columnIt->Type;

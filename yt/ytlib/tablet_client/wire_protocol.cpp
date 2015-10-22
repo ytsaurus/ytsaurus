@@ -167,7 +167,7 @@ private:
     {
         // This includes the value itself and possible serialization alignment.
         i64 bytes = 2 * sizeof (i64);
-        if (IsStringLikeType(EValueType(value.Type))) {
+        if (IsStringLikeType(value.Type)) {
             bytes += value.Length;
         }
         EnsureCapacity(bytes);

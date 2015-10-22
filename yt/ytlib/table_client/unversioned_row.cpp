@@ -202,7 +202,7 @@ int ReadValue(const char* input, TUnversionedValue* value)
 void Save(TStreamSaveContext& context, const TUnversionedValue& value)
 {
     auto* output = context.GetOutput();
-    if (IsStringLikeType(EValueType(value.Type))) {
+    if (IsStringLikeType(value.Type)) {
         output->Write(&value, sizeof (ui16) + sizeof (ui16) + sizeof (ui32)); // Id, Type, Length
         if (value.Length != 0) {
             output->Write(value.Data.String, value.Length);
@@ -217,7 +217,7 @@ void Load(TStreamLoadContext& context, TUnversionedValue& value, TChunkedMemoryP
     auto* input = context.GetInput();
     const size_t fixedSize = sizeof (ui16) + sizeof (ui16) + sizeof (ui32); // Id, Type, Length
     YCHECK(input->Load(&value, fixedSize) == fixedSize);
-    if (IsStringLikeType(EValueType(value.Type))) {
+    if (IsStringLikeType(value.Type)) {
         if (value.Length != 0) {
             value.Data.String = pool->AllocateUnaligned(value.Length);
             YCHECK(input->Load(const_cast<char*>(value.Data.String), value.Length) == value.Length);
@@ -238,7 +238,7 @@ Stroka ToString(const TUnversionedValue& value)
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            return Format("<%v>", EValueType(value.Type));
+            return Format("<%v>", value.Type);
 
         case EValueType::Int64:
             return Format("%vi", value.Data.Int64);
@@ -750,7 +750,7 @@ void ValidateValueType(
 
 void ValidateStaticValue(const TUnversionedValue& value)
 {
-    ValidateDataValueType(EValueType(value.Type));
+    ValidateDataValueType(value.Type);
     switch (value.Type) {
         case EValueType::String:
         case EValueType::Any:
@@ -774,13 +774,13 @@ void ValidateStaticValue(const TUnversionedValue& value)
 
 void ValidateDataValue(const TUnversionedValue& value)
 {
-    ValidateDataValueType(EValueType(value.Type));
+    ValidateDataValueType(value.Type);
     ValidateDynamicValue(value);
 }
 
 void ValidateKeyValue(const TUnversionedValue& value)
 {
-    ValidateKeyValueType(EValueType(value.Type));
+    ValidateKeyValueType(value.Type);
     ValidateDynamicValue(value);
 }
 
@@ -1115,7 +1115,7 @@ void Serialize(const TKey& key, IYsonConsumer* consumer)
     for (int index = 0; index < key.GetCount(); ++index) {
         consumer->OnListItem();
         const auto& value = key[index];
-        auto type = EValueType(value.Type);
+        auto type = value.Type;
         switch (type) {
             case EValueType::Int64:
                 consumer->OnInt64Scalar(value.Data.Int64);
