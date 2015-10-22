@@ -336,10 +336,10 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
         };
 
         for (int index = 0; index < other.GetKeyCount(); ++index) {
-            captureValue(other.BeginKeys() + index);
+            captureValue(BeginKeys() + index);
         }
         for (int index = 0; index < other.GetValueCount(); ++index) {
-            captureValue(other.BeginValues() + index);
+            captureValue(BeginValues() + index);
         }
     }
 }
