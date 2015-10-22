@@ -43,10 +43,16 @@ void TNodeBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr context)
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
+    // TODO(babenko): make use of limit
+    auto limit = request->has_limit()
+        ? MakeNullable(request->limit())
+        : Null;
+
     bool ignoreOpaque = request->ignore_opaque();
 
-    context->SetRequestInfo("AttributeFilterMode: %v, IgnoreOpaque: %v",
+    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v, IgnoreOpaque: %v",
         attributeFilter.Mode,
+        limit,
         ignoreOpaque);
 
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
@@ -245,20 +251,24 @@ IYPathService::TResolveResult TMapNodeMixin::ResolveRecursive(
 
 void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr context)
 {
-    context->SetRequestInfo();
-
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 
     auto attributeFilter = request->has_attribute_filter()
         ? NYT::FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    i64 limit = request->limit();
+    auto limit = request->has_limit()
+        ? MakeNullable(request->limit())
+        : Null;
+
+    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
+        attributeFilter.Mode,
+        limit);
 
     TAsyncYsonWriter writer;
 
     auto children = GetChildren();
-    if (children.size() > limit) {
+    if (limit && children.size() > *limit) {
         writer.OnBeginAttributes();
         writer.OnKeyedItem("incomplete");
         writer.OnBooleanScalar(true);
@@ -274,9 +284,7 @@ void TMapNodeMixin::ListSelf(TReqList* request, TRspList* response, TCtxListPtr 
         writer.OnListItem();
         node->WriteAttributes(&writer, attributeFilter, false);
         writer.OnStringScalar(key);
-
-        counter += 1;
-        if (counter == limit) {
+        if (limit && ++counter >= *limit) {
             break;
         }
     }

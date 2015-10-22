@@ -55,6 +55,9 @@ class TTypedYPathResponse;
 
 using NYPath::TYPath;
 
+//! Default limit for List and Get requests to virtual nodes.
+const i64 DefaultVirtualChildLimit = 1000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A static node type.

@@ -64,10 +64,16 @@ void TVirtualMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtxGetPtr co
         ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    i64 limit = request->limit();
+    i64 limit = request->has_limit()
+        ? request->limit()
+        : DefaultVirtualChildLimit;
+
+    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
+        attributeFilter.Mode,
+        limit);
 
     auto keys = GetKeys(limit);
-    size_t size = GetSize();
+    i64 size = GetSize();
 
     TAsyncYsonWriter writer;
 
@@ -108,10 +114,16 @@ void TVirtualMapBase::ListSelf(TReqList* request, TRspList* response, TCtxListPt
         ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    i64 limit = request->limit();
+    i64 limit = request->has_limit()
+        ? request->limit()
+        : DefaultVirtualChildLimit;
+
+    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
+        attributeFilter.Mode,
+        limit);
 
     auto keys = GetKeys(limit);
-    size_t size = GetSize();
+    i64 size = GetSize();
 
     TAsyncYsonWriter writer;
 

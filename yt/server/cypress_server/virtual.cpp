@@ -116,7 +116,13 @@ void TVirtualMulticellMapBase::GetSelf(TReqGet* request, TRspGet* response, TCtx
         ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    i64 limit = request->limit();
+    i64 limit = request->has_limit()
+        ? request->limit()
+        : DefaultVirtualChildLimit;
+
+    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
+        attributeFilter.Mode,
+        limit);
 
     // NB: Must deal with owning node's attributes here due to thread affinity issues.
     auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
@@ -179,7 +185,13 @@ void TVirtualMulticellMapBase::ListSelf(TReqList* request, TRspList* response, T
         ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    i64 limit = request->limit();
+    i64 limit = request->has_limit()
+        ? request->limit()
+        : DefaultVirtualChildLimit;
+
+    context->SetRequestInfo("AttributeFilterMode: %v",
+        attributeFilter.Mode,
+        limit);
 
     FetchItems(limit, attributeFilter)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
@@ -460,12 +472,15 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAt
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
-    i64 limit = request->limit();
     auto attributeFilter = request->has_attribute_filter()
         ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
 
-    context->SetRequestInfo("Limit: %v", limit);
+    i64 limit = request->limit();
+
+    context->SetRequestInfo("AttributeFilterMode: %v, Limit: %v",
+        attributeFilter.Mode,
+        limit);
 
     auto keys = GetKeys(limit);
 
