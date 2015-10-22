@@ -7,6 +7,8 @@
 
 #include <core/profiling/timing.h>
 
+#include <core/concurrency/scheduler.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 
@@ -43,8 +45,7 @@ void TAccessTracker::Start()
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TAccessTracker::OnFlush, MakeWeak(this)),
-        Config_->StatisticsFlushPeriod,
-        EPeriodicExecutorMode::Manual);
+        Config_->StatisticsFlushPeriod);
     FlushExecutor_->Start();
 }
 
@@ -121,25 +122,19 @@ void TAccessTracker::OnFlush()
     if (NodesWithAccessStatisticsUpdate_.empty() ||
         !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
     {
-        FlushExecutor_->ScheduleNext();
         return;
     }
 
     LOG_DEBUG("Starting access statistics commit for %v nodes",
         UpdateAccessStatisticsRequest_.updates_size());
 
-    auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
-    CreateMutation(hydraManager, UpdateAccessStatisticsRequest_)
+    auto asyncResult = CreateMutation(hydraManager, UpdateAccessStatisticsRequest_)
         ->SetAllowLeaderForwarding(true)
-        ->CommitAndLog(Logger)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-            if (error.IsOK()) {
-                FlushExecutor_->ScheduleOutOfBand();
-            }
-            FlushExecutor_->ScheduleNext();
-        }).Via(invoker));
+        ->CommitAndLog(Logger);
 
     Reset();
+
+    WaitFor(asyncResult);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

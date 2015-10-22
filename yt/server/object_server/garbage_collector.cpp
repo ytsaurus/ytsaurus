@@ -4,6 +4,8 @@
 #include "config.h"
 #include "object_manager.h"
 
+#include <core/concurrency/scheduler.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 #include <server/cell_master/serialize.h>
@@ -39,8 +41,7 @@ void TGarbageCollector::Start()
     SweepExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
-        Config_->GCSweepPeriod,
-        EPeriodicExecutorMode::Manual);
+        Config_->GCSweepPeriod);
     SweepExecutor_->Start();
 }
 
@@ -180,7 +181,6 @@ void TGarbageCollector::OnSweep()
     auto hydraFacade = Bootstrap_->GetHydraFacade();
     auto hydraManager = hydraFacade->GetHydraManager();
     if (Zombies_.empty() || !hydraManager->IsActiveLeader()) {
-        SweepExecutor_->ScheduleNext();
         return;
     }
 
@@ -197,17 +197,11 @@ void TGarbageCollector::OnSweep()
     LOG_DEBUG("Starting zombie objects sweep (Count: %v)",
         request.object_ids_size());
 
-    auto invoker = hydraFacade->GetEpochAutomatonInvoker();
-    Bootstrap_
+    auto asyncResult = Bootstrap_
         ->GetObjectManager()
         ->CreateDestroyObjectsMutation(request)
-        ->CommitAndLog(Logger)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-            if (error.IsOK()) {
-                SweepExecutor_->ScheduleOutOfBand();
-            }
-            SweepExecutor_->ScheduleNext();
-        }).Via(invoker));
+        ->CommitAndLog(Logger);
+    WaitFor(asyncResult);
 }
 
 int TGarbageCollector::GetZombieCount() const

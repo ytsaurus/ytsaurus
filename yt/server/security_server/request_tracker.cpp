@@ -7,6 +7,8 @@
 
 #include <core/profiling/timing.h>
 
+#include <core/concurrency/scheduler.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
 
@@ -39,8 +41,7 @@ void TRequestTracker::Start()
     FlushExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(),
         BIND(&TRequestTracker::OnFlush, MakeWeak(this)),
-        Config_->UserStatisticsFlushPeriod,
-        EPeriodicExecutorMode::Manual);
+        Config_->UserStatisticsFlushPeriod);
     FlushExecutor_->Start();
 }
 
@@ -108,7 +109,6 @@ void TRequestTracker::OnFlush()
     if (UsersWithsEntry_.empty() ||
         !hydraManager->IsActiveLeader() && !hydraManager->IsActiveFollower())
     {
-        FlushExecutor_->ScheduleNext();
         return;
     }
 
@@ -116,18 +116,13 @@ void TRequestTracker::OnFlush()
         Request_.entries_size());
 
     auto hydraFacade = Bootstrap_->GetHydraFacade();
-    auto invoker = hydraFacade->GetEpochAutomatonInvoker();
-    CreateMutation(hydraFacade->GetHydraManager(), Request_)
+    auto asyncResult = CreateMutation(hydraFacade->GetHydraManager(), Request_)
         ->SetAllowLeaderForwarding(true)
-        ->CommitAndLog(Logger)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-            if (error.IsOK()) {
-                FlushExecutor_->ScheduleOutOfBand();
-            }
-            FlushExecutor_->ScheduleNext();
-        }).Via(invoker));
+        ->CommitAndLog(Logger);
 
     Reset();
+
+    WaitFor(asyncResult);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
