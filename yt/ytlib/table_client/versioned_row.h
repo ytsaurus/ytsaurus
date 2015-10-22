@@ -108,7 +108,8 @@ void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPoo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetVersionedRowDataSize(
+//! Returns the number of bytes needed to store a versioned row (not including string data).
+size_t GetVersionedRowByteSize(
     int keyCount,
     int valueCount,
     int writeTimestampCount,
@@ -155,7 +156,7 @@ public:
         int deleteTimestampCount)
     {
         auto* header = reinterpret_cast<TVersionedRowHeader*>(pool->AllocateAligned(
-            GetVersionedRowDataSize(
+            GetVersionedRowByteSize(
                 keyCount,
                 valueCount,
                 writeTimestampCount,
@@ -372,27 +373,12 @@ public:
         return TVersionedRow(const_cast<TVersionedOwningRow*>(this)->GetHeader());
     }
 
-    const TVersionedRowHeader* GetHeader() const
-    {
-        return Data_ ? reinterpret_cast<const TVersionedRowHeader*>(Data_.Begin()) : nullptr;
-    }
-
     const TTimestamp* BeginWriteTimestamps() const
     {
         return reinterpret_cast<const TTimestamp*>(GetHeader() + 1);
     }
 
-    TTimestamp* BeginWriteTimestamps()
-    {
-        return reinterpret_cast<TTimestamp*>(GetHeader() + 1);
-    }
-
     const TTimestamp* EndWriteTimestamps() const
-    {
-        return BeginWriteTimestamps() + GetWriteTimestampCount();
-    }
-
-    TTimestamp* EndWriteTimestamps()
     {
         return BeginWriteTimestamps() + GetWriteTimestampCount();
     }
@@ -402,17 +388,7 @@ public:
         return EndWriteTimestamps();
     }
 
-    TTimestamp* BeginDeleteTimestamps()
-    {
-        return EndWriteTimestamps();
-    }
-
     const TTimestamp* EndDeleteTimestamps() const
-    {
-        return BeginDeleteTimestamps() + GetDeleteTimestampCount();
-    }
-
-    TTimestamp* EndDeleteTimestamps()
     {
         return BeginDeleteTimestamps() + GetDeleteTimestampCount();
     }
@@ -422,17 +398,7 @@ public:
         return reinterpret_cast<const TUnversionedValue*>(EndDeleteTimestamps());
     }
 
-    TUnversionedValue* BeginKeys()
-    {
-        return reinterpret_cast<TUnversionedValue*>(EndDeleteTimestamps());
-    }
-
     const TUnversionedValue* EndKeys() const
-    {
-        return BeginKeys() + GetKeyCount();
-    }
-
-    TUnversionedValue* EndKeys()
     {
         return BeginKeys() + GetKeyCount();
     }
@@ -442,17 +408,7 @@ public:
         return reinterpret_cast<const TVersionedValue*>(EndKeys());
     }
 
-    TVersionedValue* BeginValues()
-    {
-        return reinterpret_cast<TVersionedValue*>(EndKeys());
-    }
-
     const TVersionedValue* EndValues() const
-    {
-        return BeginValues() + GetValueCount();
-    }
-
-    TVersionedValue* EndValues()
     {
         return BeginValues() + GetValueCount();
     }
@@ -477,6 +433,11 @@ public:
         return GetHeader()->DeleteTimestampCount;
     }
 
+    size_t GetByteSize() const
+    {
+        return Data_.Size();
+    }
+
 
     friend void swap(TVersionedOwningRow& lhs, TVersionedOwningRow& rhs)
     {
@@ -498,6 +459,12 @@ public:
 
 private:
     TSharedMutableRef Data_;
+
+
+    const TVersionedRowHeader* GetHeader() const
+    {
+        return Data_ ? reinterpret_cast<const TVersionedRowHeader*>(Data_.Begin()) : nullptr;
+    }
 
     TVersionedRowHeader* GetHeader()
     {

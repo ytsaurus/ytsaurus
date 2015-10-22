@@ -262,8 +262,8 @@ ui64 GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>:
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedRow.
 TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
 
-//! Returns the number of bytes needed to store the fixed part of the row (header + values).
-size_t GetUnversionedRowDataSize(int valueCount);
+//! Returns the number of bytes needed to store an unversioned row (not including string data).
+size_t GetUnversionedRowByteSize(int valueCount);
 
 //! Returns the storage-invariant data weight of a given row.
 i64 GetDataWeight(TUnversionedRow row);
@@ -544,11 +544,6 @@ public:
         return TUnversionedRow(const_cast<TUnversionedOwningRow*>(this)->GetHeader());
     }
 
-    const TUnversionedRowHeader* GetHeader() const
-    {
-        return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
-    }
-
     const TUnversionedValue* Begin() const
     {
         const auto* header = GetHeader();
@@ -569,6 +564,11 @@ public:
     const TUnversionedValue& operator[] (int index) const
     {
         return Begin()[index];
+    }
+
+    size_t GetByteSize() const
+    {
+        return StringData_.length() + RowData_.Size();
     }
 
 
@@ -594,11 +594,6 @@ public:
         return *this;
     }
 
-    int GetSize() const
-    {
-        return StringData_.length() + RowData_.Size();
-    }
-
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 
@@ -612,17 +607,23 @@ private:
     TSharedMutableRef RowData_; // TRowHeader plus TValue-s
     Stroka StringData_;         // Holds string data
 
+
     TUnversionedOwningRow(TSharedMutableRef rowData, Stroka stringData)
         : RowData_(std::move(rowData))
         , StringData_(std::move(stringData))
     { }
+
+    void Init(const TUnversionedValue* begin, const TUnversionedValue* end);
 
     TUnversionedRowHeader* GetHeader()
     {
         return RowData_ ? reinterpret_cast<TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
     }
 
-    void Init(const TUnversionedValue* begin, const TUnversionedValue* end);
+    const TUnversionedRowHeader* GetHeader() const
+    {
+        return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
+    }
 
 };
 

@@ -58,7 +58,7 @@ void Load(TStreamLoadContext& context, TVersionedValue& value, TChunkedMemoryPoo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t GetVersionedRowDataSize(
+size_t GetVersionedRowByteSize(
     int keyCount,
     int valueCount,
     int writeTimestampCount,
@@ -296,7 +296,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
     if (!other)
         return;
 
-    size_t fixedSize = GetVersionedRowDataSize(
+    size_t fixedSize = GetVersionedRowByteSize(
         other.GetKeyCount(),
         other.GetValueCount(),
         other.GetWriteTimestampCount(),
@@ -318,12 +318,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
     Data_ = TSharedMutableRef::Allocate(fixedSize + variableSize, false);
 
-    *GetHeader() = *other.GetHeader();
-
-    ::memcpy(BeginKeys(), other.BeginKeys(), sizeof (TUnversionedValue) * other.GetKeyCount());
-    ::memcpy(BeginValues(), other.BeginValues(), sizeof (TVersionedValue) * other.GetValueCount());
-    ::memcpy(BeginWriteTimestamps(), other.BeginWriteTimestamps(), sizeof (TTimestamp) * other.GetWriteTimestampCount());
-    ::memcpy(BeginDeleteTimestamps(), other.BeginDeleteTimestamps(), sizeof (TTimestamp) * other.GetDeleteTimestampCount());
+    ::memcpy(GetHeader(), other.GetHeader(), fixedSize);
 
     if (variableSize > 0) {
         char* current = Data_.Begin() + fixedSize;

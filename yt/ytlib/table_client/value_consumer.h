@@ -81,14 +81,14 @@ public:
     void Flush();
 
 private:
-    ISchemalessWriterPtr Writer_;
+    const ISchemalessWriterPtr Writer_;
+    const bool FlushImmediately_;
 
     TUnversionedOwningRowBuilder Builder_;
     std::vector<TUnversionedOwningRow> OwningRows_;
     std::vector<TUnversionedRow> Rows_;
 
     i64 CurrentBufferSize_ = 0;
-    bool FlushImmediately_;
 
     virtual TNameTablePtr GetNameTable() const override;
 

@@ -15,7 +15,7 @@ namespace NYT {
 namespace NQueryClient {
 
 using namespace NConcurrency;
-using NTableClient::GetUnversionedRowDataSize;
+using namespace NTableClient;
 
 static const auto& Logger = QueryClientLogger;
 
@@ -94,7 +94,7 @@ std::pair<TRow, int> TTopCollector::Capture(TRow row)
 
 void TTopCollector::AccountGarbage(TRow row)
 {
-    GarbageMemorySize_ += GetUnversionedRowDataSize(row.GetCount());
+    GarbageMemorySize_ += GetUnversionedRowByteSize(row.GetCount());
     for (int index = 0; index < row.GetCount(); ++index) {
         const auto& value = row[index];
 
