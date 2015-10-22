@@ -126,7 +126,6 @@ void TBuildingValueConsumer::OnEndRow()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TWritingValueConsumer::TWritingValueConsumer(ISchemalessWriterPtr writer, bool flushImmediately)
     : Writer_(writer)
     , FlushImmediately_(flushImmediately)
@@ -169,7 +168,7 @@ void TWritingValueConsumer::OnEndRow()
     OwningRows_.emplace_back(Builder_.FinishRow());
     const auto& row = OwningRows_.back();
 
-    CurrentBufferSize_ += row.GetSize();
+    CurrentBufferSize_ += row.GetByteSize();
     Rows_.emplace_back(row.Get());
 
     if (CurrentBufferSize_ > MaxBufferSize || FlushImmediately_) {

@@ -585,7 +585,7 @@ TFingerprint GetFarmFingerprint(TUnversionedRow row, int keyColumnCount)
     return GetFarmFingerprint(begin, begin + partCount);
 }
 
-size_t GetUnversionedRowDataSize(int valueCount)
+size_t GetUnversionedRowByteSize(int valueCount)
 {
     return sizeof(TUnversionedRowHeader) + sizeof(TUnversionedValue) * valueCount;
 }
@@ -606,7 +606,7 @@ i64 GetDataWeight(TUnversionedRow row)
 TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCount)
 {
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(
-        GetUnversionedRowDataSize(valueCount)));
+        GetUnversionedRowByteSize(valueCount)));
     header->Count = valueCount;
     header->Padding = 0;
     return TUnversionedRow(header);
@@ -996,7 +996,7 @@ TUnversionedOwningRow DeserializeFromString(const Stroka& data)
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
 
-    size_t fixedSize = GetUnversionedRowDataSize(valueCount);
+    size_t fixedSize = GetUnversionedRowByteSize(valueCount);
     auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
@@ -1220,7 +1220,7 @@ void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/)
 {
     ValueCapacity_ = initialValueCapacity;
-    RowData_.resize(GetUnversionedRowDataSize(ValueCapacity_));
+    RowData_.resize(GetUnversionedRowByteSize(ValueCapacity_));
     Reset();
 }
 
@@ -1228,7 +1228,7 @@ int TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
 {
     if (GetHeader()->Count == ValueCapacity_) {
         ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
-        RowData_.resize(GetUnversionedRowDataSize(ValueCapacity_));
+        RowData_.resize(GetUnversionedRowByteSize(ValueCapacity_));
     }
 
     auto* header = GetHeader();
@@ -1270,7 +1270,7 @@ int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
 {
     if (GetHeader()->Count == ValueCapacity_) {
         ValueCapacity_ = ValueCapacity_ == 0 ? 1 : ValueCapacity_ * 2;
-        RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+        RowData_.Resize(GetUnversionedRowByteSize(ValueCapacity_));
     }
 
     auto* header = GetHeader();
@@ -1320,7 +1320,7 @@ TUnversionedOwningRow TUnversionedOwningRowBuilder::FinishRow()
 void TUnversionedOwningRowBuilder::Reset()
 {
     ValueCapacity_ = InitialValueCapacity_;
-    RowData_.Resize(GetUnversionedRowDataSize(ValueCapacity_));
+    RowData_.Resize(GetUnversionedRowByteSize(ValueCapacity_));
 
     auto* header = GetHeader();
     header->Count = 0;
@@ -1342,7 +1342,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 {
     int count = std::distance(begin, end);
 
-    size_t fixedSize = GetUnversionedRowDataSize(count);
+    size_t fixedSize = GetUnversionedRowByteSize(count);
     RowData_ = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = GetHeader();
 
