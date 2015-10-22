@@ -170,7 +170,7 @@ config = {
         cache_max_token_age: 60 * 1000,
         cache_max_exist_age: 86400 * 1000,
         create_users_on_demand: true,
-        default_oauth_application_key: "kant",
+        default_oauth_application_key: "",
         guest_login: "guest",
         guest_realm: "guest",
         cypress: {
@@ -182,16 +182,6 @@ config = {
             grant: "yt:api",
         },
         oauth: [
-            {
-                key: "kant",
-                client_id: "7dc2b061bd884693b520730cfb61b011",
-                client_secret: "c494ca8a946a40f9bbdb36615b14551f"
-            },
-            {
-                key: "ui",
-                client_id: "d3aa642b20bf42e6a85cb8b62ddb25ed",
-                client_secret: "93008f89679c46b6a79fad9ebd776879"
-            },
         ],
     },
     coordination: {
