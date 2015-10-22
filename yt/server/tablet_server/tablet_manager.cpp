@@ -892,6 +892,7 @@ public:
         objectManager->UnrefObject(oldRootChunkList);
 
         table->SetSorted(true);
+        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
     }
 
     TTabletCell* GetTabletCellOrThrow(const TTabletCellId& id)
@@ -1511,6 +1512,7 @@ private:
             chunkManager->AttachToChunkList(chunkList, chunksToAttach);
             chunkManager->DetachFromChunkList(chunkList, chunksToDetach);
             cell->TotalStatistics() += GetTabletStatistics(tablet);
+            table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
             // Unstage just attached chunks.
             // Update table resource usage.

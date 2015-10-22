@@ -193,6 +193,7 @@ class TestTablets(YTEnvSetup):
         self.sync_unmount_table("//tmp/t")
 
         assert read_table("//tmp/t") == rows1
+        assert get("//tmp/t/@chunk_count") == 1
 
     def test_read_snapshot_lock(self):
         self.sync_create_cells(1, 1)
@@ -204,6 +205,7 @@ class TestTablets(YTEnvSetup):
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
             tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["children_ids"]]
             assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists]) 
+            assert get("//tmp/t/@chunk_count") == sum([len(chunk_list["children_ids"]) for chunk_list in tablet_chunk_lists])
             return root_chunk_list, tablet_chunk_lists
 
         def verify_chunk_tree_refcount(path, root_ref_count, tablet_ref_counts):
