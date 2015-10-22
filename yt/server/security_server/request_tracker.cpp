@@ -119,12 +119,10 @@ void TRequestTracker::OnFlush()
     auto invoker = hydraFacade->GetEpochAutomatonInvoker();
     CreateMutation(hydraFacade->GetHydraManager(), Request_)
         ->SetAllowLeaderForwarding(true)
-        ->Commit()
+        ->CommitAndLog(Logger)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (error.IsOK()) {
                 FlushExecutor_->ScheduleOutOfBand();
-            } else {
-                LOG_ERROR(error, "Error committing user statistics update mutation");
             }
             FlushExecutor_->ScheduleNext();
         }).Via(invoker));

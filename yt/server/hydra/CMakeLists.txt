@@ -26,7 +26,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/recovery.cpp
   ${CMAKE_CURRENT_LIST_DIR}/remote_changelog_store.cpp
   ${CMAKE_CURRENT_LIST_DIR}/remote_snapshot_store.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_helpers.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
   ${CMAKE_CURRENT_LIST_DIR}/snapshot.cpp
   ${CMAKE_CURRENT_LIST_DIR}/snapshot_discovery.cpp
@@ -67,7 +66,6 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/recovery.h
   ${CMAKE_CURRENT_LIST_DIR}/remote_changelog_store.h
   ${CMAKE_CURRENT_LIST_DIR}/remote_snapshot_store.h
-  ${CMAKE_CURRENT_LIST_DIR}/rpc_helpers.h
   ${CMAKE_CURRENT_LIST_DIR}/serialize.h
   ${CMAKE_CURRENT_LIST_DIR}/snapshot.h
   ${CMAKE_CURRENT_LIST_DIR}/snapshot_discovery.h

@@ -326,13 +326,7 @@ public:
 
         TReqRotateStore request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
-
-        CommitTabletMutation(request)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_ERROR(error, "Error committing tablet store rotation mutation");
-                }
-            }));
+        CommitTabletMutation(request);
     }
 
 
@@ -1551,13 +1545,7 @@ private:
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Flushing));
-
-        CommitTabletMutation(request)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_ERROR(error, "Error committing tablet state change mutation");
-                }
-            }));
+        CommitTabletMutation(request);
     }
 
     void CheckIfFullyFlushed(TTablet* tablet)
@@ -1578,13 +1566,7 @@ private:
         TReqSetTabletState request;
         ToProto(request.mutable_tablet_id(), tablet->GetTabletId());
         request.set_state(static_cast<int>(ETabletState::Unmounted));
-
-        CommitTabletMutation(request)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_ERROR(error, "Error committing tablet state change mutation");
-                }
-            }));
+        CommitTabletMutation(request);
     }
 
 
@@ -1594,12 +1576,11 @@ private:
     }
 
 
-    TFuture<TMutationResponse> CommitTabletMutation(const ::google::protobuf::MessageLite& message)
+    void CommitTabletMutation(const ::google::protobuf::MessageLite& message)
     {
         auto mutation = CreateMutation(Slot_->GetHydraManager(), message);
-        return BIND(&TMutation::Commit, mutation)
-            .AsyncVia(Slot_->GetEpochAutomatonInvoker())
-            .Run();
+        Slot_->GetEpochAutomatonInvoker()->Invoke(
+            BIND(IgnoreResult(&TMutation::CommitAndLog), mutation, Logger));
     }
 
     void PostMasterMutation(const ::google::protobuf::MessageLite& message)

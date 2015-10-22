@@ -9,8 +9,6 @@
 
 #include <ytlib/hive/cell_directory.h>
 
-#include <server/hydra/rpc_helpers.h>
-
 #include <server/object_server/object_manager.h>
 
 #include <server/chunk_server/chunk_manager.h>
@@ -97,8 +95,7 @@ private:
 
         nodeTracker
             ->CreateRegisterNodeMutation(*request)
-            ->Commit()
-            .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, FullHeartbeat)
@@ -119,8 +116,7 @@ private:
 
         nodeTracker
             ->CreateFullHeartbeatMutation(context)
-            ->Commit()
-            .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NNodeTrackerClient::NProto, IncrementalHeartbeat)
@@ -141,8 +137,7 @@ private:
 
         nodeTracker
             ->CreateIncrementalHeartbeatMutation(context)
-            ->Commit()
-            .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
 };

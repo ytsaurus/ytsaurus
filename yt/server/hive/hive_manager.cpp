@@ -31,7 +31,6 @@
 #include <server/hydra/mutation_context.h>
 #include <server/hydra/mutation.h>
 #include <server/hydra/hydra_service.h>
-#include <server/hydra/rpc_helpers.h>
 
 namespace NYT {
 namespace NHive {
@@ -337,8 +336,7 @@ private:
             firstMessageId + request->messages_size() - 1);
         
         CreatePostMessagesMutation(context)
-            ->Commit()
-             .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, SendMessages)
@@ -351,8 +349,7 @@ private:
             request->messages_size());
 
         CreateSendMessagesMutation(context)
-            ->Commit()
-             .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
 
@@ -614,15 +611,8 @@ private:
         if (IsLeader() && CellDirectory_->IsCellUnregistered(cellId)) {
             TReqUnregisterMailbox req;
             ToProto(req.mutable_cell_id(), cellId);
-
             CreateUnregisterMailboxMutation(req)
-                ->Commit()
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                    if (!error.IsOK()) {
-                        LOG_ERROR(error, "Error committing mailbox unregistration mutation");
-                    }
-                }));
-
+                ->CommitAndLog(Logger);
             return;
         }
 
@@ -894,12 +884,7 @@ private:
         req.set_last_acknowledged_message_id(lastAcknowledgedMessageId);
 
         CreateAcknowledgeMessagesMutation(req)
-            ->Commit()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-                if (!error.IsOK()) {
-                    LOG_ERROR(error, "Error committing message acknowledgment mutation");
-                }
-            }));
+            ->CommitAndLog(Logger);
     }
 
     void HandleReliableIncomingMessages(TMailbox* mailbox, const TReqPostMessages& req)

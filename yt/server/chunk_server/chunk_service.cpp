@@ -16,8 +16,6 @@
 
 #include <server/object_server/object.h>
 
-#include <server/hydra/rpc_helpers.h>
-
 #include <server/transaction_server/transaction.h>
 
 #include <server/cell_master/bootstrap.h>
@@ -172,8 +170,7 @@ private:
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
             ->CreateExportChunksMutation(context)
-            ->Commit()
-            .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ImportChunks)
@@ -190,8 +187,7 @@ private:
         auto chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
             ->CreateImportChunksMutation(context)
-            ->Commit()
-            .Subscribe(CreateRpcResponseHandler(context));
+            ->CommitAndReply(context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkOwningNodes)

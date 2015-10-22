@@ -1447,12 +1447,10 @@ void TChunkReplicator::OnPropertiesUpdate()
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker();
     chunkManager
         ->CreateUpdateChunkPropertiesMutation(request)
-        ->Commit()
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
-            if (error.IsOK()) {
+        ->CommitAndLog(Logger)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& result) {
+            if (result.IsOK()) {
                 PropertiesUpdateExecutor_->ScheduleOutOfBand();
-            } else {
-                LOG_ERROR(error, "Error committing properties update mutation");
             }
             PropertiesUpdateExecutor_->ScheduleNext();
         }).Via(invoker));
