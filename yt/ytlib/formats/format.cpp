@@ -303,6 +303,26 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
         config);
 }
 
+ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
+    const IAttributeDictionary& attributes,
+    TNameTablePtr nameTable,
+    NConcurrency::IAsyncOutputStreamPtr output,
+    bool enableContextSaving,
+    bool enableKeySwitch,
+    int /* keyColumnCount */)
+{
+    auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
+    if (enableKeySwitch) {
+        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format");
+    }
+    
+    return New<TShemalessWriterForSchemafulDsv>(
+        nameTable, 
+        output, 
+        enableContextSaving, 
+        config);
+}
+
 ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,

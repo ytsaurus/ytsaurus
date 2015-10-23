@@ -24,6 +24,7 @@ DECLARE_REFCOUNTED_STRUCT(ISchemalessFormatWriter)
 DECLARE_REFCOUNTED_CLASS(TShemalessWriterForDsv)
 DECLARE_REFCOUNTED_CLASS(TShemalessWriterForYamr)
 DECLARE_REFCOUNTED_CLASS(TShemalessWriterForYamredDsv)
+DECLARE_REFCOUNTED_CLASS(TShemalessWriterForSchemafulDsv)
 
 struct IParser;
 
