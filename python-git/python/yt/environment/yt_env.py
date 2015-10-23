@@ -15,6 +15,7 @@ import socket
 import shutil
 import sys
 import getpass
+import ctypes
 import yt.packages.simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -301,6 +302,11 @@ class YTEnv(object):
         self.pids_file.flush()
 
     def _run(self, args, name, number=1, timeout=0.1):
+        if sys.platform.startswith('linux'):
+            ctypes.cdll.LoadLibrary("libc.so.6")
+            LIBC = ctypes.CDLL('libc.so.6')
+            PR_SET_PDEATHSIG = 1
+
         with self._lock:
             if self.supress_yt_output:
                 stdout = open("/dev/null", "w")
@@ -308,8 +314,15 @@ class YTEnv(object):
             else:
                 stdout = sys.stdout
                 stderr = sys.stderr
-            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
+
+            def preexec():
+                os.setsid()
+                if sys.platform.startswith('linux'):
+                    LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+
+            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path_to_run,
                                  stdout=stdout, stderr=stderr)
+
             self._process_to_kill[name].append(p)
             self._all_processes[p.pid] = (p, args)
             self._append_pid(p.pid)
@@ -331,11 +344,12 @@ class YTEnv(object):
                 "ytserver", "--" + service_name,
                 "--config", self.config_paths[name][i]
             ]
-            if service_name == "node":
-                user_name = getpass.getuser()
-                for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
-                    cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/node{2}".format(type_, user_name, i)
-                    command.extend(["--cgroup", cgroup_path])
+            if sys.platform.startswith('linux'):
+                if service_name == "node":
+                    user_name = getpass.getuser()
+                    for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
+                        cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/node{2}".format(type_, user_name, i)
+                        command.extend(["--cgroup", cgroup_path])
             self._run(command, name, i)
 
     def _kill_previously_run_services(self):
