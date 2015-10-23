@@ -60,9 +60,6 @@ using TLocalFilePath = Stroka;
 template <class T>
 struct TKeyBase
 {
-    TKeyBase()
-    { }
-
     TKeyBase(const TKeyBase& rhs)
     {
         Parts_ = rhs.Parts_;
