@@ -127,7 +127,10 @@ class TTableReader<TNode>
 {
 public:
     using TBase = TTableReaderBase<TNode>;
-    using TBase::TBase;
+
+    explicit TTableReader(TIntrusivePtr<IReaderImpl> reader)
+        : TBase(reader)
+    { }
 };
 
 template <>
@@ -136,7 +139,10 @@ class TTableReader<TYaMRRow>
 {
 public:
     using TBase = TTableReaderBase<TYaMRRow>;
-    using TBase::TBase;
+
+    explicit TTableReader(TIntrusivePtr<IReaderImpl> reader)
+        : TBase(reader)
+    { }
 };
 
 template <>
@@ -197,7 +203,10 @@ class TTableReader<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
 public:
     using TRowType = T;
     using TBase = TTableReader<Message>;
-    using TBase::TBase;
+
+    explicit TTableReader(TIntrusivePtr<IProtoReaderImpl> reader)
+        : TBase(reader)
+    { }
 
     const T& GetRow() const
     {
@@ -299,7 +308,10 @@ class TTableWriter<TNode>
 {
 public:
     using TBase = TTableWriterBase<TNode>;
-    using TBase::TBase;
+
+    explicit TTableWriter(TIntrusivePtr<IWriterImpl> writer)
+        : TBase(writer)
+    { }
 };
 
 template <>
@@ -308,7 +320,10 @@ class TTableWriter<TYaMRRow>
 {
 public:
     using TBase = TTableWriterBase<TYaMRRow>;
-    using TBase::TBase;
+
+    explicit TTableWriter(TIntrusivePtr<IWriterImpl> writer)
+        : TBase(writer)
+    { }
 };
 
 template <>
@@ -353,7 +368,10 @@ class TTableWriter<T, TEnableIf<TIsBaseOf<Message, T>::Value>>
 public:
     using TRowType = T;
     using TBase = TTableWriter<Message>;
-    using TBase::TBase;
+
+    explicit TTableWriter(TIntrusivePtr<IProtoWriterImpl> writer)
+        : TBase(writer)
+    { }
 
     void AddRow(const T& row, size_t tableIndex = 0)
     {
