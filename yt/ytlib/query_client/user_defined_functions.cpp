@@ -6,6 +6,8 @@
 #include <ytlib/table_client/row_base.h>
 #include <ytlib/table_client/llvm_types.h>
 
+#include <core/codegen/routine_registry.h>
+
 #include <llvm/Object/ObjectFile.h>
 
 #include <llvm/Support/SourceMgr.h>
@@ -19,6 +21,9 @@ using namespace llvm;
 
 namespace NYT {
 namespace NQueryClient {
+
+using NCodegen::MangleSymbol;
+using NCodegen::DemangleSymbol;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -507,12 +512,19 @@ bool ObjectContainsFunction(
     const std::unique_ptr<llvm::object::ObjectFile>& objectFile,
     const Stroka& functionName)
 {
+    auto mangledName = MangleSymbol(functionName);
     auto symbols = objectFile->symbols();
     for (const auto symbol : symbols) {
+        // Skip symbols specific to the object file format (e.g. section symbols).
+        auto symbolFlags = symbol.getFlags();
+        if (symbolFlags & llvm::object::SymbolRef::SF_FormatSpecific) {
+            continue;
+        }
+
         auto name = llvm::StringRef();
         auto nameError = symbol.getName(name);
-        if (!nameError && name.equals(StringRef(functionName))) {
-            return true;
+        if (!nameError && name.equals(StringRef(mangledName))) {
+            return !(symbolFlags & llvm::object::SymbolRef::SF_Undefined);
         }
     }
     return false;
@@ -548,10 +560,23 @@ bool LoadSharedObject(
     }
 
     for (auto symbol : (*objectFileOrError)->symbols()) {
+        // Skip symbols specific to the object file format (e.g. section symbols).
+        auto symbolFlags = symbol.getFlags();
+        if (symbolFlags & llvm::object::SymbolRef::SF_FormatSpecific) {
+            continue;
+        }
+
         auto name = llvm::StringRef();
         auto nameError = symbol.getName(name);
         if (!nameError) {
-            auto nameStroka = Stroka(name.begin(), name.size());
+            auto mangledName = Stroka(name.begin(), name.size());
+            auto nameStroka = DemangleSymbol(mangledName);
+            if (nameStroka.empty()) {
+                THROW_ERROR_EXCEPTION(
+                    "Error loading shared object for function %Qv: invalid symbol name %Qv",
+                    functionName,
+                    mangledName);
+            }
             if (builder.Module->SymbolIsLoaded(nameStroka)) {
                 THROW_ERROR_EXCEPTION(
                     "Error loading shared object for function %Qv: symbol %Qv already exists",

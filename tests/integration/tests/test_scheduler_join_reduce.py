@@ -12,7 +12,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    @only_linux
+    @only_unix
     def test_join_reduce_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
         write_table(
@@ -55,7 +55,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @only_linux
+    @only_unix
     def test_join_reduce_cat_simple(self):
         create('table', '//tmp/in1')
         write_table(
@@ -102,7 +102,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @only_linux
+    @only_unix
     def test_join_reduce_control_attributes_yson(self):
         create('table', '//tmp/in1')
         write_table(
@@ -156,7 +156,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             '<"row_index"=1>#;\n' \
             '{"key"=5;"value"=3};\n'
 
-    @only_linux
+    @only_unix
     def test_join_reduce_cat_two_output(self):
         create('table', '//tmp/in1')
         write_table(
@@ -225,6 +225,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert get('//tmp/out1/@sorted')
         assert get('//tmp/out2/@sorted')
 
+    @only_unix
     def test_join_reduce_empty_in(self):
         create('table', '//tmp/in1', attributes={'key_columns': ['key']})
         create('table', '//tmp/in2', attributes={'key_columns': ['key']})
@@ -237,6 +238,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         assert read_table('//tmp/out') == []
 
+    @only_unix
     def test_join_reduce_duplicate_key_columns(self):
         create('table', '//tmp/in1', attributes={'key_columns': ['a', 'b']})
         create('table', '//tmp/in2', attributes={'key_columns': ['a', 'b']})
@@ -250,6 +252,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 command = 'cat',
                 join_by=["a", "b", "a"])
 
+    @only_unix
     def test_join_reduce_unsorted_input(self):
         create('table', '//tmp/in1')
         write_table('//tmp/in1', {'foo': 'bar'})
@@ -263,6 +266,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 out = '//tmp/out',
                 command = 'cat')
 
+    @only_unix
     def test_join_reduce_different_key_column(self):
         create('table', '//tmp/in1')
         write_table('//tmp/in1', {'foo': 'bar'}, sorted_by=['foo'])
@@ -276,6 +280,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 out = '//tmp/out',
                 command = 'cat')
 
+    @only_unix
     def test_join_reduce_non_prefix(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')
@@ -289,6 +294,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 command = 'cat',
                 join_by = 'subkey')
 
+    @only_unix
     def test_join_reduce_short_limits(self):
         create('table', '//tmp/in1')
         create('table', '//tmp/in2')
@@ -313,7 +319,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 {'key': "2", 'subkey': YsonEntity()}
             ]
 
-    @only_linux
+    @only_unix
     def test_join_reduce_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 
@@ -344,6 +350,7 @@ echo {v = 2} >&7
         assert read_table(output_tables[1]) == [{'v': 1}]
         assert read_table(output_tables[2]) == [{'v': 2}]
 
+    @only_unix
     def test_join_reduce_job_count(self):
         create('table', '//tmp/in1', attributes={"compression_codec": "none"})
         create('table', '//tmp/in2', attributes={"key_columns": ["key"]})
@@ -382,6 +389,7 @@ echo {v = 2} >&7
         # Check that operation has more than 1 job
         assert get("//tmp/out/@row_count") >= 2
 
+    @only_unix
     def test_join_reduce_key_switch_yamr(self):
         create('table', '//tmp/in')
         create('table', '//tmp/out')
@@ -427,6 +435,7 @@ echo {v = 2} >&7
             "010000006200000000" \
             "010000006200000000"
 
+    @only_unix
     def test_join_reduce_with_small_block_size(self):
         create('table', '//tmp/in1', attributes={"compression_codec": "none"})
         create('table', '//tmp/in2')
@@ -471,6 +480,7 @@ echo {v = 2} >&7
         # Compare with manually evaluated number of output rows
         assert get("//tmp/out/@row_count") == 1308
 
+    @only_unix
     def test_join_reduce_uneven_key_distribution(self):
         create('table', '//tmp/in1')
         create('table', '//tmp/in2')

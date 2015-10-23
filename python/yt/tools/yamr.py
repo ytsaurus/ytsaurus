@@ -11,13 +11,14 @@ import subprocess32 as subprocess
 from datetime import datetime, timedelta
 from urllib import quote_plus
 
-
-ctypes.cdll.LoadLibrary("libc.so.6")
-LIBC = ctypes.CDLL('libc.so.6')
-PR_SET_PDEATHSIG = 1
+if sys.platform.startswith('linux'):
+    ctypes.cdll.LoadLibrary("libc.so.6")
+    LIBC = ctypes.CDLL('libc.so.6')
+    PR_SET_PDEATHSIG = 1
 
 def set_pdeathsig():
-    LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+    if sys.platform.startswith('linux'):
+        LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
 class YamrError(YtError):
     pass

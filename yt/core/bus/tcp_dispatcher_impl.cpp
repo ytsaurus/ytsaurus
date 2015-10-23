@@ -7,7 +7,7 @@
 
 #include <core/profiling/profile_manager.h>
 
-#ifndef _win_
+#ifdef _linux_
     #include <sys/socket.h>
     #include <sys/un.h>
 #endif
@@ -26,9 +26,8 @@ static const int ThreadCount = 8;
 
 TNetworkAddress GetUnixDomainAddress(const Stroka& name)
 {
-#ifdef _win_
-    THROW_ERROR_EXCEPTION("Local bus transport is not supported under this platform");
-#else
+#ifdef _linux_
+    // Abstract unix sockets are supported only on Linux.
     sockaddr_un sockAddr;
     memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.sun_family = AF_UNIX;
@@ -38,6 +37,8 @@ TNetworkAddress GetUnixDomainAddress(const Stroka& name)
         sizeof (sockAddr.sun_family) +
         sizeof (char) +
         name.length());
+#else
+    THROW_ERROR_EXCEPTION("Local bus transport is not supported under this platform");
 #endif
 }
 
@@ -59,7 +60,7 @@ bool IsLocalServiceAddress(const Stroka& address)
         return false;
     }
 #else
-    // Domain sockets are only supported for Linux.
+    // Abstract unix sockets (domain sockets) are supported only on Linux.
     UNUSED(address);
     return false;
 #endif

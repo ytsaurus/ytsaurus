@@ -11,6 +11,7 @@ namespace NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 Stroka MangleSymbol(const Stroka& name);
+Stroka DemangleSymbol(const Stroka& name);
 
 template <typename TSignature, bool Cross>
 class FunctionTypeBuilder;

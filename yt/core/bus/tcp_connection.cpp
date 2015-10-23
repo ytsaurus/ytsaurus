@@ -417,7 +417,8 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         unsigned long value = 1;
         int result = ioctlsocket(Socket_, FIONBIO, &value);
 #else
-        int result = fcntl(Socket_, F_SETFL, O_NONBLOCK);
+        int flags = fcntl(Socket_, F_GETFL);
+        int result = fcntl(Socket_, F_SETFL, flags | O_NONBLOCK);
 #endif
         if (result != 0) {
             THROW_ERROR_EXCEPTION(
@@ -426,6 +427,17 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
                 << TError::FromSystem();
         }
     }
+
+#if defined _unix_ && !defined _linux_
+    {
+        int flags = fcntl(Socket_, F_GETFD);
+        int result = fcntl(Socket_, F_SETFD, flags | FD_CLOEXEC);
+        if (result != 0) {
+            THROW_ERROR_EXCEPTION("Failed to enable close-on-exec mode")
+                << TError::FromSystem();
+        }
+    }
+#endif
 
     PROFILE_TIMING ("/connect_time") {
         int result;
@@ -612,7 +624,7 @@ bool TTcpConnection::ReadSocket(char* buffer, size_t size, size_t* bytesRead)
 
     LOG_TRACE("%v bytes read", *bytesRead);
 
-#if !defined(_win_) && !defined(__APPLE__)
+#ifdef _linux_
     if (Config_->EnableQuickAck) {
         int value = 1;
         setsockopt(Socket_, IPPROTO_TCP, TCP_QUICKACK, (const char*) &value, sizeof(value));

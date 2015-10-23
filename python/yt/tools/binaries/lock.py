@@ -34,13 +34,18 @@ def main():
 
         signal.signal(signal.SIGTERM, lambda signum, frame: handler())
 
-        ctypes.cdll.LoadLibrary("libc.so.6")
-        libc = ctypes.CDLL('libc.so.6')
-        PR_SET_PDEATHSIG = 1
+        if sys.platform.startswith('linux'):
+            ctypes.cdll.LoadLibrary("libc.so.6")
+            LIBC = ctypes.CDLL('libc.so.6')
+            PR_SET_PDEATHSIG = 1
+
+        def set_pdeathsig():
+            if sys.platform.startswith('linux'):
+                LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
         logger.info("Running command %s", args.command)
         proc = subprocess.Popen(args.command, stdout=sys.stdout, stderr=sys.stderr, shell=True, env=os.environ.copy(),
-                                preexec_fn=lambda: libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM))
+                                preexec_fn=set_pdeathsig)
 
         while True:
             if not tx._ping_thread.is_alive():

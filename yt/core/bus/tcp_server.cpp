@@ -173,13 +173,26 @@ protected:
 
     void InitSocket(SOCKET socket)
     {
-        // TODO(babenko): check results
 #ifdef _win_
         unsigned long value = 1;
-        ioctlsocket(socket, FIONBIO, &value);
+        int result = ioctlsocket(socket, FIONBIO, &value);
 #else
-        fcntl(socket, F_SETFL, O_NONBLOCK);
-        fcntl(socket, F_SETFD, FD_CLOEXEC);
+        int flags = fcntl(socket, F_GETFL);
+        int result = fcntl(socket, F_SETFL, flags | O_NONBLOCK);
+#endif
+        if (result != 0) {
+            THROW_ERROR_EXCEPTION("Failed to enable nonblocking mode")
+                << TError::FromSystem();
+        }
+#if defined _unix_ && !defined _linux_
+        {
+            int flags = fcntl(socket, F_GETFD);
+            int result = fcntl(socket, F_SETFD, flags | FD_CLOEXEC);
+            if (result != 0) {
+                THROW_ERROR_EXCEPTION("Failed to enable close-on-exec mode")
+                    << TError::FromSystem();
+            }
+        }
 #endif
     }
 
@@ -330,7 +343,7 @@ private:
                 << TError::FromSystem();
         }
 
-#ifdef _WIN32
+#ifdef _win_
         ServerFD = _open_osfhandle(ServerSocket, 0);
 #else
         ServerFD_ = ServerSocket_;
@@ -376,7 +389,7 @@ private:
     {
         TTcpBusServerBase::InitClientSocket(clientSocket);
 
-#if !defined(_win_) && !defined(__APPLE__)
+#ifdef _linux_
         {
             int priority = Config_->Priority;
             setsockopt(clientSocket, SOL_SOCKET, SO_PRIORITY, (const char*) &priority, sizeof(priority));
@@ -559,6 +572,7 @@ IBusServerPtr CreateTcpBusServer(TTcpBusServerConfigPtr config)
         servers.push_back(New< TTcpBusServerProxy<TRemoteTcpBusServer> >(config));
     }
 #ifdef _linux_
+    // Abstract unix sockets are supported only on Linux.
     servers.push_back(New< TTcpBusServerProxy<TLocalTcpBusServer> >(config));
 #endif
     return New<TCompositeBusServer>(servers);
