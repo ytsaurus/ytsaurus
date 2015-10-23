@@ -13,6 +13,76 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDefaultTimeoutChannel
+    : public TChannelWrapper
+{
+public:
+    TDefaultTimeoutChannel(IChannelPtr underlyingChannel, TDuration timeout)
+        : TChannelWrapper(std::move(underlyingChannel))
+        , Timeout_(timeout)
+    { }
+
+    virtual IClientRequestControlPtr Send(
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
+        TNullable<TDuration> timeout,
+        bool requestAck) override
+    {
+        return UnderlyingChannel_->Send(
+            request,
+            responseHandler,
+            timeout.Get(Timeout_),
+            requestAck);
+    }
+
+private:
+    const TDuration Timeout_;
+
+};
+
+IChannelPtr CreateDefaultTimeoutChannel(IChannelPtr underlyingChannel, TDuration timeout)
+{
+    YCHECK(underlyingChannel);
+
+    return New<TDefaultTimeoutChannel>(underlyingChannel, timeout);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDefaultTimeoutChannelFactory
+    : public IChannelFactory
+{
+public:
+    TDefaultTimeoutChannelFactory(
+        IChannelFactoryPtr underlyingFactory,
+        TDuration timeout)
+        : UnderlyingFactory_(underlyingFactory)
+        , Timeout_(timeout)
+    { }
+
+    virtual IChannelPtr CreateChannel(const Stroka& address) override
+    {
+        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
+        return CreateDefaultTimeoutChannel(underlyingChannel, Timeout_);
+    }
+
+private:
+    const IChannelFactoryPtr UnderlyingFactory_;
+    const TDuration Timeout_;
+
+};
+
+IChannelFactoryPtr CreateDefaultTimeoutChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    TDuration timeout)
+{
+    YCHECK(underlyingFactory);
+
+    return New<TDefaultTimeoutChannelFactory>(underlyingFactory, timeout);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAuthenticatedChannel
     : public TChannelWrapper
 {

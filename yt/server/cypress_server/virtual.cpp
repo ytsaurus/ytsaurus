@@ -301,29 +301,27 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
 
     if (Bootstrap_->IsPrimaryMaster()) {
         auto multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellDirectory = Bootstrap_->GetCellDirectory();
         for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-            auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
-            auto channel = cellDirectory->FindChannel(cellId);
-            if (channel) {
-                TObjectServiceProxy proxy(channel);
-                proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
+            auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::LeaderOrFollower);
+            if (!channel)
+                continue;
 
-                auto path = GetWellKnownPath();
-                auto req = TYPathProxy::Get(path + "/@count");
-                auto asyncResult = proxy.Execute(req).Apply(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
-                    if (!rspOrError.IsOK()) {
-                        THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
-                            path,
-                            cellTag)
-                            << rspOrError;
-                    }
-                    const auto& rsp = rspOrError.Value();
-                    return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
-                }));
+            auto path = GetWellKnownPath();
+            auto req = TYPathProxy::Get(path + "/@count");
 
-                asyncResults.push_back(asyncResult);
-            }
+            TObjectServiceProxy proxy(channel);
+            auto asyncResult = proxy.Execute(req).Apply(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
+                        path,
+                        cellTag)
+                        << rspOrError;
+                }
+                const auto& rsp = rspOrError.Value();
+                return std::make_pair(cellTag, ConvertTo<i64>(TYsonString(rsp->value())));
+            }));
+
+            asyncResults.push_back(asyncResult);
         }
     }
 
@@ -416,23 +414,20 @@ void TVirtualMulticellMapBase::FetchItemsFromRemote(
     TVirtualMulticellMapBase::TFetchItemsSessionPtr session,
     TPromise<TFetchItemsSessionPtr> promise)
 {
-    auto cellDirectory = Bootstrap_->GetCellDirectory();
     auto cellTag = session->CellTags[session->CellTagIndex++];
-    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
-    auto channel = cellDirectory->FindChannel(cellId);
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::LeaderOrFollower);
     if (!channel) {
         FetchItemsFromAnywhere(session, promise);
         return;
     }
-
-    TObjectServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
 
     auto path = GetWellKnownPath();
     auto req = TCypressYPathProxy::Enumerate(path);
     req->set_limit(session->Limit - session->Items.size());
     ToProto(req->mutable_attribute_filter(), session->AttributeFilter);
 
+    TObjectServiceProxy proxy(channel);
     proxy.Execute(req)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TCypressYPathProxy::TErrorOrRspEnumeratePtr& rspOrError) mutable {
             if (!rspOrError.IsOK()) {
