@@ -84,7 +84,9 @@ configure_arcadia_mirror contrib-libs-zlib
 configure_arcadia_mirror util
 
 configure_arcadia_mirror library-blockcodecs
-configure_arcadia_mirror library-httpserver
+configure_arcadia_mirror library-streams-lz
+configure_arcadia_mirror library-threading-future
+configure_arcadia_mirror library-getopt
 configure_arcadia_mirror library-lfalloc
 configure_arcadia_mirror library-lwtrace
 configure_arcadia_mirror library-messagebus

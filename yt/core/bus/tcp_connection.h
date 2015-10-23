@@ -15,6 +15,8 @@
 
 #include <core/logging/log.h>
 
+#include <util/network/init.h>
+
 #include <contrib/libev/ev++.h>
 
 #ifndef _win_

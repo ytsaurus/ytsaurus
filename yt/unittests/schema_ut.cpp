@@ -15,20 +15,22 @@ class TSchemaTest
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const char ZeroLiteral = '\0'; // workaround for gcc
+
 TEST_F(TSchemaTest, RangeContains)
 {
     {
         TColumnRange range(""); // Infinite range
         EXPECT_TRUE(range.Contains(""));
-        EXPECT_TRUE(range.Contains(Stroka('\0')));
+        EXPECT_TRUE(range.Contains(Stroka(ZeroLiteral)));
         EXPECT_TRUE(range.Contains(TColumnRange("")));
         EXPECT_TRUE(range.Contains("anything"));
     }
 
     {
-        TColumnRange range("", Stroka('\0'));
+        TColumnRange range("", Stroka(ZeroLiteral));
         EXPECT_TRUE(range.Contains(""));
-        EXPECT_FALSE(range.Contains(Stroka('\0')));
+        EXPECT_FALSE(range.Contains(Stroka(ZeroLiteral)));
         EXPECT_FALSE(range.Contains(TColumnRange("")));
         EXPECT_FALSE(range.Contains("anything"));
     }
@@ -56,7 +58,7 @@ TEST_F(TSchemaTest, RangeOverlaps)
     {
         TColumnRange range("");
         EXPECT_TRUE(range.Overlaps(TColumnRange("")));
-        EXPECT_TRUE(range.Overlaps(TColumnRange("", Stroka('\0'))));
+        EXPECT_TRUE(range.Overlaps(TColumnRange("", Stroka(ZeroLiteral))));
         EXPECT_TRUE(range.Overlaps(TColumnRange("anything", "c")));
     }
 }

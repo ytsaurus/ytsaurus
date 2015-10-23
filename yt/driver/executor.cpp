@@ -210,7 +210,7 @@ void TRequestExecutor::DoExecute()
     }
 
     // Buffering is done in the upper layers.
-    request.OutputStream = CreateAsyncAdapter(&StdOutStream());
+    request.OutputStream = CreateAsyncAdapter(&Cout);
     try {
         request.Parameters->AddChild(
             ConvertToNode(GetFormat(descriptor.OutputType, outputFormat)),
@@ -219,7 +219,7 @@ void TRequestExecutor::DoExecute()
         THROW_ERROR_EXCEPTION("Error parsing output format") << ex;
     }
 
-    TYsonWriter ysonWriter(&StdErrStream(), NYson::EYsonFormat::Pretty);
+    TYsonWriter ysonWriter(&Cerr, NYson::EYsonFormat::Pretty);
     if (ResponseParametersArg.getValue()) {
         request.ResponseParametersConsumer = &ysonWriter;
     }
@@ -280,7 +280,7 @@ void TRequestExecutor::BuildParameters(IYsonConsumer* consumer)
 
 TInputStream* TRequestExecutor::GetInputStream()
 {
-    return &StdInStream();
+    return &Cin;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -66,7 +66,7 @@ void TSetExecutor::BuildParameters(IYsonConsumer* consumer)
 TInputStream* TSetExecutor::GetInputStream()
 {
     if (UseStdIn) {
-        return &StdInStream();
+        return &Cin;
     } else {
         return &Stream;
     }

@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <queue>
 
+#include <util/system/compiler.h>
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>
 #include <util/system/spinlock.h>

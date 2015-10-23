@@ -15,6 +15,8 @@
 
 #include <util/system/byteorder.h>
 
+#include <util/network/init.h>
+
 namespace NYT {
 namespace NTracing {
 
