@@ -79,7 +79,7 @@ def get_master_config():
     };
 
     security_manager = {
-        statistics_flush_period = 10;
+        user_statistics_flush_period = 10;
         request_rate_smoothing_period = 60000;
     };
 
