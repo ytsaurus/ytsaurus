@@ -367,7 +367,7 @@ void TSchemafulDsvWriterBase::WriteRaw(char ch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShemalessWriterForSchemafulDsv::TShemalessWriterForSchemafulDsv(
+TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
@@ -388,7 +388,7 @@ TShemalessWriterForSchemafulDsv::TShemalessWriterForSchemafulDsv(
     IdToIndexInRowMapping_.resize(nameTable->GetSize());
 }
 
-void TShemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
 {
     auto idMappingBegin = ColumnIdMapping_.begin();
     auto idMappingEnd = ColumnIdMapping_.end();
@@ -414,17 +414,17 @@ void TShemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::TU
     stream->Write(TStringBuf(Buffer_.Begin(), Buffer_.Size()));
 }
     
-void TShemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
+void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
 {
     THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV.");
 }
 
-void TShemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)
+void TSchemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)
 {
     THROW_ERROR_EXCEPTION("Range inidices are not supported in schemaful DSV.");
 }
     
-void TShemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
+void TSchemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
 {
     THROW_ERROR_EXCEPTION("Row inidices are not supported in schemaful DSV.");
 }

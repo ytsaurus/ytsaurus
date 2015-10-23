@@ -29,7 +29,7 @@ protected:
     int KeyDId_;
     TSchemafulDsvFormatConfigPtr Config_;
 
-    TShemalessWriterForSchemafulDsvPtr Writer_;
+    TSchemalessWriterForSchemafulDsvPtr Writer_;
 
     TStringStream OutputStream_;
 
@@ -43,7 +43,7 @@ protected:
     }
 
     void CreateStandardWriter() {
-        Writer_ = New<TShemalessWriterForSchemafulDsv>(
+        Writer_ = New<TSchemalessWriterForSchemafulDsv>(
             NameTable_, 
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  

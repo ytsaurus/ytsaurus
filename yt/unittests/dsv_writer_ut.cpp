@@ -154,7 +154,7 @@ TEST(TDsvWriterTest, SimpleTabular)
     TStringStream outputStream;
     auto config = New<TDsvFormatConfig>();
     config->EnableTableIndex = true;
-    auto writer = New<TShemalessWriterForDsv>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
@@ -183,7 +183,7 @@ TEST(TDsvWriterTest, AnyTabular)
     std::vector<TUnversionedRow> rows = { row.GetRow() };
 
     TStringStream outputStream;
-    auto writer = New<TShemalessWriterForDsv>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
@@ -196,7 +196,7 @@ TEST(TDsvWriterTest, RangeAndRowIndex)
 {
     auto nameTable = New<TNameTable>();
     TStringStream outputStream;
-    auto writer = New<TShemalessWriterForDsv>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)));
@@ -229,7 +229,7 @@ TEST(TTskvWriterTest, SimpleTabular)
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    auto writer = New<TShemalessWriterForDsv>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
@@ -266,7 +266,7 @@ TEST(TTskvWriterTest, Escaping)
     auto config = New<TDsvFormatConfig>();
     config->LinePrefix = "tskv";
 
-    auto writer = New<TShemalessWriterForDsv>(
+    auto writer = New<TSchemalessWriterForDsv>(
         nameTable, 
         false, 
         CreateAsyncAdapter(static_cast<TOutputStream*>(&outputStream)),
