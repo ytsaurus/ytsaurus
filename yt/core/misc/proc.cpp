@@ -234,6 +234,7 @@ void SafeDup2(int oldFD, int newFD)
 
 void SetPermissions(int fd, int permissions)
 {
+#ifdef _linux_
     auto procPath = Format("/proc/self/fd/%v", fd);
     auto res = chmod(~procPath, permissions);
 
@@ -243,6 +244,7 @@ void SetPermissions(int fd, int permissions)
             << TErrorAttribute("permissions", permissions)
             << TError::FromSystem();
     }
+#endif
 }
 
 void SafePipe(int fd[2])
@@ -262,13 +264,13 @@ void SafePipe(int fd[2])
         }
     }
     for (int index = 0; index < 2; ++index) {
-        int getResult = ::fcntl(fd[index], F_GETFL);
+        int getResult = ::fcntl(fd[index], F_GETFD);
         if (getResult == -1) {
             THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to get descriptor flags")
                 << TError::FromSystem();
         }
 
-        int setResult = ::fcntl(fd[index], F_SETFL, getResult | FD_CLOEXEC);
+        int setResult = ::fcntl(fd[index], F_SETFD, getResult | FD_CLOEXEC);
         if (setResult == -1) {
             THROW_ERROR_EXCEPTION("Error creating pipe: fcntl failed to set descriptor flags")
                 << TError::FromSystem();

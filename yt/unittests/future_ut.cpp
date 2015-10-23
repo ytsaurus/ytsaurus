@@ -95,11 +95,18 @@ TEST_F(TFutureTest, SetAndGet)
 #ifndef NDEBUG
 TEST_F(TFutureTest, DoubleSet)
 {
+#ifdef _darwin_
+    // DEATH tests are working on Darwin platform only in single-thread applications.
+    if (testing::internal::GetThreadCount() != 1) {
+        GTEST_LOG_(WARNING) << "TFutureTest.DoubleSet was skipped, but it can be run separately";
+        return;
+    }
+#endif
     // Debug-only.
     auto promise = NewPromise<int>();
 
     promise.Set(17);
-    ASSERT_DEATH({ promise.Set(42); }, ".*");
+    ASSERT_DEATH({ promise.Set(42); }, "YCHECK\\(!Set_\\).*");
 }
 #endif
 

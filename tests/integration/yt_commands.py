@@ -14,6 +14,7 @@ from cStringIO import StringIO
 ###########################################################################
 
 only_linux = pytest.mark.skipif('not sys.platform.startswith("linux")')
+only_unix = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
 driver = None
 

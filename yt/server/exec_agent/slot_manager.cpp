@@ -39,10 +39,19 @@ void TSlotManager::Initialize(int slotCount)
 {
     bool jobControlEnabled = false;
 
-#if defined(_unix_) && !defined(_darwin_)
+#ifdef _unix_
     if (Config_->EnforceJobControl) {
         uid_t ruid, euid, suid;
+#ifdef _linux_
         YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+#else
+        ruid = getuid();
+        euid = geteuid();
+        setuid(0);
+        suid = getuid();
+        YCHECK(seteuid(euid) == 0);
+        YCHECK(setruid(ruid) == 0);
+#endif
         if (suid != 0) {
             THROW_ERROR_EXCEPTION("Failed to initialize job control, make sure you run as root");
         }

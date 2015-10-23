@@ -12,7 +12,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
+#ifdef _unix_
 
 TEST(TProcessTest, Basic)
 {
@@ -153,7 +153,9 @@ TEST(TProcessTest, Kill)
 
 TEST(TProcessTest, KillFinished)
 {
-    TProcess p("/bin/true");
+    TProcess p("/bin/sh");
+    p.AddArgument("-c");
+    p.AddArgument("true");
 
     ASSERT_NO_THROW(p.Spawn());
 
@@ -165,7 +167,9 @@ TEST(TProcessTest, KillFinished)
 
 TEST(TProcessTest, KillZombie)
 {
-    TProcess p("/bin/true");
+    TProcess p("/bin/sh");
+    p.AddArgument("-c");
+    p.AddArgument("true");
 
     ASSERT_NO_THROW(p.Spawn());
 
