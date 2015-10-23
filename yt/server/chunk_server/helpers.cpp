@@ -14,8 +14,6 @@
 #include <ytlib/table_client/unversioned_row.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
 
-#include <ytlib/hive/cell_directory.h>
-
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <ytlib/object_client/object_service_proxy.h>
@@ -32,6 +30,7 @@
 
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/hydra_facade.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/config.h>
 
 namespace NYT {
@@ -235,7 +234,7 @@ TYsonString DoGetMulticellOwningNodes(
         }
     }
 
-    auto cellDirectory = bootstrap->GetCellDirectory();
+    auto multicellManager = bootstrap->GetMulticellManager();
 
     // Request owning nodes from all cells.
     auto requestIdsFromCell = [&] (TCellTag cellTag) {
@@ -248,11 +247,10 @@ TYsonString DoGetMulticellOwningNodes(
             type != EObjectType::JournalChunk)
             return;
 
-        auto cellId = bootstrap->GetSecondaryCellId(cellTag);
-        auto channel = cellDirectory->GetChannel(cellId, NHydra::EPeerKind::LeaderOrFollower);
-
+        auto channel = multicellManager->GetMasterChannelOrThrow(
+            cellTag,
+            NHydra::EPeerKind::LeaderOrFollower);
         TChunkServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(bootstrap->GetConfig()->ObjectManager->ForwardingRpcTimeout);
 
         auto req = proxy.GetChunkOwningNodes();
         ToProto(req->mutable_chunk_id(), chunkTreeId);
@@ -280,13 +278,12 @@ TYsonString DoGetMulticellOwningNodes(
 
     // Request node paths from the primary cell.
     {
-        auto cellId = bootstrap->GetPrimaryCellId();
-        auto channel = cellDirectory->GetChannel(cellId, NHydra::EPeerKind::LeaderOrFollower);
+        auto channel = multicellManager->GetMasterChannelOrThrow(
+            bootstrap->GetPrimaryCellTag(),
+            NHydra::EPeerKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
 
         // TODO(babenko): improve
-        TObjectServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(bootstrap->GetConfig()->ObjectManager->ForwardingRpcTimeout);
-
         auto batchReq = proxy.ExecuteBatch();
         for (const auto& versionedId : nodeIds) {
             auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");

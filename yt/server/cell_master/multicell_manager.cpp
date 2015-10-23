@@ -206,6 +206,38 @@ public:
     }
 
 
+    IChannelPtr GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind)
+    {
+        auto channel = FindMasterChannel(cellTag, peerKind);
+        if (!channel) {
+            THROW_ERROR_EXCEPTION("Unknown cell tag %v",
+                cellTag);
+        }
+        return channel;
+    }
+
+    IChannelPtr FindMasterChannel(TCellTag cellTag, EPeerKind peerKind)
+    {
+        auto key = std::make_tuple(cellTag, peerKind);
+        auto it = MasterChannelCache_.find(key);
+        if (it != MasterChannelCache_.end()) {
+            return it->second;
+        }
+
+        auto cellDirectory = Bootstrap_->GetCellDirectory();
+        auto cellId = Bootstrap_->GetCellId(cellTag);
+        auto channel = cellDirectory->FindChannel(cellId, peerKind);
+        if (!channel) {
+            return nullptr;
+        }
+
+        auto wrappedChannel = CreateDefaultTimeoutChannel(channel, Config_->MasterRpcTimeout);
+        YCHECK(MasterChannelCache_.insert(std::make_pair(key, wrappedChannel)).second);
+
+        return wrappedChannel;
+    }
+
+
     DEFINE_SIGNAL(void(TCellTag), SecondaryMasterRegistered);
 
 private:
@@ -235,6 +267,9 @@ private:
 
     //! A temporary buffer used in PickCellForNode.
     std::vector<TCellTag> PickCellList_;
+
+    //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
+    std::map<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
 
 
     virtual void OnAfterSnapshotLoaded()
@@ -287,7 +322,7 @@ private:
     }
 
 
-    virtual void OnLeaderActive()
+    virtual void OnLeaderActive() override
     {
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -306,7 +341,7 @@ private:
         }
     }
 
-    virtual void OnStopLeading()
+    virtual void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
 
@@ -319,6 +354,21 @@ private:
             CellStatiticsGossipExecutor_->Stop();
             CellStatiticsGossipExecutor_.Reset();
         }
+
+        ClearMasterChannelCache();
+    }
+
+    virtual void OnStopFollowing() override
+    {
+        TMasterAutomatonPart::OnStopFollowing();
+
+        ClearMasterChannelCache();
+    }
+
+
+    void ClearMasterChannelCache()
+    {
+        MasterChannelCache_.clear();
     }
 
 
@@ -487,7 +537,7 @@ private:
     {
         auto hiveManager = Bootstrap_->GetHiveManager();
         if (cellTag >= MinimumValidCellTag && cellTag <= MaximumValidCellTag) {
-            auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
+            auto cellId = Bootstrap_->GetCellId(cellTag);
             auto* mailbox = hiveManager->GetOrCreateMailbox(cellId);
             hiveManager->PostMessage(mailbox, requestMessage, reliable);
         } else if (cellTag == PrimaryMasterCellTag) {
@@ -502,7 +552,7 @@ private:
         } else if (cellTag == AllSecondaryMastersCellTag) {
             YCHECK(Bootstrap_->IsPrimaryMaster());
             for (const auto& pair : RegisteredMasterMap_) {
-                auto currentCellId = Bootstrap_->GetSecondaryCellId(pair.first);
+                auto currentCellId = Bootstrap_->GetCellId(pair.first);
                 auto* currentMailbox = hiveManager->GetOrCreateMailbox(currentCellId);
                 hiveManager->PostMessage(currentMailbox, requestMessage, reliable);
             }
@@ -604,6 +654,16 @@ int TMulticellManager::GetRegisteredMasterCellIndex(TCellTag cellTag)
 TCellTag TMulticellManager::PickSecondaryMasterCell()
 {
     return Impl_->PickCellForNode();
+}
+
+IChannelPtr TMulticellManager::GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind)
+{
+    return Impl_->GetMasterChannelOrThrow(cellTag, peerKind);
+}
+
+IChannelPtr TMulticellManager::FindMasterChannel(TCellTag cellTag, EPeerKind peerKind)
+{
+    return Impl_->FindMasterChannel(cellTag, peerKind);
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), SecondaryMasterRegistered, *Impl_);

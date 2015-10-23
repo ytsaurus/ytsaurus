@@ -22,11 +22,10 @@
 
 #include <core/ypath/tokenizer.h>
 
-#include <ytlib/hive/cell_directory.h>
-
 #include <ytlib/object_client/object_service_proxy.h> // XXX(babenko): improve
 
 #include <server/cell_master/config.h>
+#include <server/cell_master/multicell_manager.h>
 #include <server/cell_master/bootstrap.h>
 
 #include <server/security_server/account.h>
@@ -310,20 +309,17 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     }
 
     auto cellTag = node->GetExternalCellTag();
-    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
-
-    auto cellDirectory = Bootstrap_->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelOrThrow(cellId);
-
-    // XXX(babenko): improve
-    TObjectServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
-
     auto versionedId = GetVersionedId();
+
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->GetMasterChannelOrThrow(
+        cellTag,
+        NHydra::EPeerKind::LeaderOrFollower);
 
     auto req = TYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@" + key);
     SetTransactionId(req, versionedId.TransactionId);
 
+    TObjectServiceProxy proxy(channel);
     return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
         if (!rspOrError.IsOK()) {
             if (rspOrError.GetCode() == NYTree::EErrorCode::ResolveError) {

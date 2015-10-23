@@ -159,6 +159,11 @@ const TCellId& TBootstrap::GetCellId() const
     return CellId_;
 }
 
+TCellId TBootstrap::GetCellId(TCellTag cellTag) const
+{
+    return ReplaceCellTagInId(PrimaryCellId_, cellTag);
+}
+
 TCellTag TBootstrap::GetCellTag() const
 {
     return CellTag_;
@@ -172,11 +177,6 @@ const TCellId& TBootstrap::GetPrimaryCellId() const
 TCellTag TBootstrap::GetPrimaryCellTag() const
 {
     return PrimaryCellTag_;
-}
-
-TCellId TBootstrap::GetSecondaryCellId(TCellTag cellTag) const
-{
-    return ReplaceCellTagInId(PrimaryCellId_, cellTag);
 }
 
 const std::vector<TCellTag>& TBootstrap::GetSecondaryCellTags() const

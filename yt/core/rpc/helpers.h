@@ -14,13 +14,19 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns a wrapper that sets the timeout for every request (unless it is given
+//! explicitly in the request itself).
+IChannelPtr CreateDefaultTimeoutChannel(
+    IChannelPtr underlyingChannel,
+    TDuration timeout);
+IChannelFactoryPtr CreateDefaultTimeoutChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    TDuration timeout);
+
 //! Returns a wrapper that sets "authenticated_user" attribute in every request.
 IChannelPtr CreateAuthenticatedChannel(
     IChannelPtr underlyingChannel,
     const Stroka& user);
-
-//! Returns a wrapper that sets "authenticated_user" attribute in every request
-//! for every created channel.
 IChannelFactoryPtr CreateAuthenticatedChannelFactory(
     IChannelFactoryPtr underlyingFactory,
     const Stroka& user);
@@ -29,8 +35,6 @@ IChannelFactoryPtr CreateAuthenticatedChannelFactory(
 IChannelPtr CreateRealmChannel(
     IChannelPtr underlyingChannel,
     const TRealmId& realmId);
-
-//! Returns a wrapper that sets realm id in every request for every created channel.
 IChannelFactoryPtr CreateRealmChannelFactory(
     IChannelFactoryPtr underlyingFactory,
     const TRealmId& realmId);

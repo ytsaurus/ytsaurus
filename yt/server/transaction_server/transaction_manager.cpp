@@ -289,14 +289,15 @@ private:
 
     TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
     {
-        auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
-        auto cellDirectory = Bootstrap_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannel(cellId);
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        auto channel = multicellManager->GetMasterChannelOrThrow(
+            cellTag,
+            EPeerKind::LeaderOrFollower);
 
-        TObjectServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Bootstrap_->GetConfig()->ObjectManager->ForwardingRpcTimeout);
         auto id = GetId();
         auto req = TYPathProxy::Get(FromObjectId(id) + "/@resource_usage");
+
+        TObjectServiceProxy proxy(channel);
         return proxy.Execute(req).Apply(BIND([=] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching resource usage of transaction %v from cell %v",
                 id,

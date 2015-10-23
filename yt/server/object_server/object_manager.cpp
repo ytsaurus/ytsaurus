@@ -1143,13 +1143,12 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto cellId = Bootstrap_->GetSecondaryCellId(cellTag);
-    auto cellDirectory = Bootstrap_->GetCellDirectory();
-    auto channel = cellDirectory->GetChannel(cellId, EPeerKind::Leader);
+    auto multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->GetMasterChannelOrThrow(
+        cellTag,
+        EPeerKind::Leader);
 
     TObjectServiceProxy proxy(std::move(channel));
-    proxy.SetDefaultTimeout(timeout.Get(Config_->ForwardingRpcTimeout));
-
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
     batchReq->AddRequestMessage(requestMessage);

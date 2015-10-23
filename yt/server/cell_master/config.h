@@ -64,10 +64,17 @@ class TMulticellManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Timeout for requests issued between masters. This applies to
+    //! follower-to-leader forwarding and cross-cell interactions.
+    TDuration MasterRpcTimeout;
+
     TDuration CellStatisticsGossipPeriod;
 
     TMulticellManagerConfig()
     {
+        RegisterParameter("master_rpc_timeout", MasterRpcTimeout)
+            .Default(TDuration::Seconds(30));
+
         RegisterParameter("cell_statistics_gossip_period", CellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(10));
     }

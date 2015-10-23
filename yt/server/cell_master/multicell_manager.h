@@ -12,6 +12,8 @@
 
 #include <ytlib/object_client/public.h>
 
+#include <ytlib/hydra/public.h>
+
 namespace NYT {
 namespace NCellMaster {
 
@@ -75,6 +77,14 @@ public:
     //! a new chunk owner node. Cells with less-than-average number of chunks are preferred.
     //! If no secondary cells are registered then #InvalidCellTag is returned.
     NObjectClient::TCellTag PickSecondaryMasterCell();
+
+    //! Returns the channel to be used for communicating with another master.
+    //! This channel has a properly configured timeout.
+    //! Throws on error.
+    NRpc::IChannelPtr GetMasterChannelOrThrow(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind);
+
+    //! Same as #GetMasterChannelOrThrow but returns |nullptr| if no channel is currently known.
+    NRpc::IChannelPtr FindMasterChannel(NObjectClient::TCellTag cellTag, NHydra::EPeerKind peerKind);
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegistered);
 
