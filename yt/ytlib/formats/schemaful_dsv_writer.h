@@ -105,12 +105,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TShemalessWriterForSchemafulDsv
+class TSchemalessWriterForSchemafulDsv
     : public TSchemalessFormatWriterBase
     , public TSchemafulDsvWriterBase
 {
 public:
-    TShemalessWriterForSchemafulDsv(
+    TSchemalessWriterForSchemafulDsv(
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
@@ -125,7 +125,7 @@ private:
     std::vector<int> IdToIndexInRowMapping_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TShemalessWriterForSchemafulDsv)
+DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForSchemafulDsv)
 
 ////////////////////////////////////////////////////////////////////////////////
 

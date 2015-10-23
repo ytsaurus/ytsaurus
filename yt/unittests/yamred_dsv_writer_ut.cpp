@@ -21,13 +21,13 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-class TShemalessWriterForYamredDsvTest
+class TSchemalessWriterForYamredDsvTest
     : public ::testing::Test
 {
 protected:
     TNameTablePtr NameTable_;
     TYamredDsvFormatConfigPtr Config_;
-    TShemalessWriterForYamredDsvPtr Writer_;
+    TSchemalessWriterForYamredDsvPtr Writer_;
 
     TStringStream OutputStream_;
 
@@ -37,7 +37,7 @@ protected:
     int ValueXId_;
     int ValueYId_;
     
-    TShemalessWriterForYamredDsvTest() 
+    TSchemalessWriterForYamredDsvTest() 
     {
         NameTable_ = New<TNameTable>();
         KeyAId_ = NameTable_->RegisterName("key_a");
@@ -50,7 +50,7 @@ protected:
 
     void CreateStandardWriter() 
     {
-        Writer_ = New<TShemalessWriterForYamredDsv>(
+        Writer_ = New<TSchemalessWriterForYamredDsv>(
             NameTable_,
             CreateAsyncAdapter(static_cast<TOutputStream*>(&OutputStream_)),
             false, // enableContextSaving  
@@ -147,7 +147,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TShemalessWriterForYamredDsvTest, Simple) 
+TEST_F(TSchemalessWriterForYamredDsvTest, Simple) 
 {
     Config_->KeyColumnNames.emplace_back("key_a");
     CreateStandardWriter();
@@ -180,7 +180,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, Simple)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TShemalessWriterForYamredDsvTest, SimpleWithSubkey)
+TEST_F(TSchemalessWriterForYamredDsvTest, SimpleWithSubkey)
 {
     Config_->HasSubkey = true;
     Config_->KeyColumnNames.emplace_back("key_a");
@@ -216,7 +216,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, SimpleWithSubkey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TShemalessWriterForYamredDsvTest, Lenval)
+TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
 {
     Config_->Lenval = true;
     Config_->HasSubkey = true;
@@ -273,7 +273,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, Lenval)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TShemalessWriterForYamredDsvTest, Escaping)
+TEST_F(TSchemalessWriterForYamredDsvTest, Escaping)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
     Config_->KeyColumnNames.emplace_back("key_b");
@@ -300,7 +300,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, Escaping)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TShemalessWriterForYamredDsvTest, SkippedKey)
+TEST_F(TSchemalessWriterForYamredDsvTest, SkippedKey)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
     Config_->KeyColumnNames.emplace_back("key_b");
@@ -320,7 +320,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, SkippedKey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TShemalessWriterForYamredDsvTest, SkippedSubkey)
+TEST_F(TSchemalessWriterForYamredDsvTest, SkippedSubkey)
 {
     Config_->HasSubkey = true;
     Config_->KeyColumnNames.emplace_back("key_a");
@@ -341,7 +341,7 @@ TEST_F(TShemalessWriterForYamredDsvTest, SkippedSubkey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TShemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFalse)
+TEST_F(TSchemalessWriterForYamredDsvTest, ErasingSubkeyColumnsWhenHasSubkeyIsFalse)
 {
     Config_->KeyColumnNames.emplace_back("key_a");
     Config_->SubkeyColumnNames.emplace_back("key_b");
