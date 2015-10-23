@@ -15,8 +15,9 @@
 
 #include <core/logging/log.h>
 
-#include <util/stream/lz.h>
 #include <util/stream/file.h>
+
+#include <library/streams/lz/lz.h>
 
 namespace NYT {
 namespace NHydra {

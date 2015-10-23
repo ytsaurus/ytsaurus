@@ -60,6 +60,8 @@
 
 #include <util/system/execpath.h>
 
+#include <util/stream/null.h>
+
 namespace NYT {
 namespace NJobProxy {
 

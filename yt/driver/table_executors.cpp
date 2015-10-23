@@ -71,7 +71,7 @@ void TWriteTableExecutor::BuildParameters(IYsonConsumer* consumer)
 
 TInputStream* TWriteTableExecutor::GetInputStream()
 {
-    return UseStdIn ? &StdInStream() : &Stream;
+    return UseStdIn ? &Cin : &Stream;
 }
 
 Stroka TWriteTableExecutor::GetCommandName() const
@@ -213,7 +213,7 @@ void TInsertRowsExecutor::BuildParameters(IYsonConsumer* consumer)
 
 TInputStream* TInsertRowsExecutor::GetInputStream()
 {
-    return UseStdIn ? &StdInStream() : &Stream;
+    return UseStdIn ? &Cin : &Stream;
 }
 
 Stroka TInsertRowsExecutor::GetCommandName() const
@@ -307,7 +307,7 @@ Stroka TLookupRowsExecutor::GetCommandName() const
 
 TInputStream* TLookupRowsExecutor::GetInputStream()
 {
-    return UseStdIn ? &StdInStream() : &Stream;
+    return UseStdIn ? &Cin : &Stream;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,7 +341,7 @@ Stroka TDeleteRowsExecutor::GetCommandName() const
 
 TInputStream* TDeleteRowsExecutor::GetInputStream()
 {
-    return UseStdIn ? &StdInStream() : &Stream;
+    return UseStdIn ? &Cin : &Stream;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

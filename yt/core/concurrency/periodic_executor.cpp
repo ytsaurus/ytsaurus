@@ -6,7 +6,7 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <util/random/random.h>
+#include <core/utilex/random.h>
 
 namespace NYT {
 namespace NConcurrency {
