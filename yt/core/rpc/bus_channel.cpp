@@ -51,16 +51,6 @@ public:
         YCHECK(Client_);
     }
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const override
-    {
-        return DefaultTimeout_;
-    }
-
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
-    {
-        DefaultTimeout_ = timeout;
-    }
-
     virtual Stroka GetEndpointTextDescription() const override
     {
         return Client_->GetEndpointTextDescription();
@@ -128,8 +118,6 @@ private:
 
     const IBusClientPtr Client_;
 
-    TNullable<TDuration> DefaultTimeout_;
-
     TSpinLock SpinLock_;
     volatile bool Terminated_ = false;
     TError TerminationError_;
@@ -151,7 +139,7 @@ private:
                     << TerminationError_;
             }
 
-            session = New<TSession>(DefaultTimeout_);
+            session = New<TSession>();
             auto messageHandler = New<TMessageHandler>(session);
 
             try {
@@ -218,10 +206,6 @@ private:
         : public IMessageHandler
     {
     public:
-        explicit TSession(TNullable<TDuration> defaultTimeout)
-            : DefaultTimeout_(defaultTimeout)
-        { }
-
         void Initialize(IBusPtr bus)
         {
             YCHECK(bus);
@@ -488,8 +472,6 @@ private:
         }
 
     private:
-        const TNullable<TDuration> DefaultTimeout_;
-
         IBusPtr Bus_;
 
         TSpinLock SpinLock_;

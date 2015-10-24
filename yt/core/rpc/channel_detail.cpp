@@ -16,16 +16,6 @@ TChannelWrapper::TChannelWrapper(IChannelPtr underlyingChannel)
     YASSERT(UnderlyingChannel_);
 }
 
-TNullable<TDuration> TChannelWrapper::GetDefaultTimeout() const
-{
-    return DefaultTimeout_;
-}
-
-void TChannelWrapper::SetDefaultTimeout(const TNullable<TDuration>& timeout)
-{
-    DefaultTimeout_ = timeout;
-}
-
 Stroka TChannelWrapper::GetEndpointTextDescription() const
 {
     return UnderlyingChannel_->GetEndpointTextDescription();
@@ -45,7 +35,7 @@ IClientRequestControlPtr TChannelWrapper::Send(
     return UnderlyingChannel_->Send(
         std::move(request),
         std::move(responseHandler),
-        timeout ? timeout : DefaultTimeout_,
+        timeout,
         requestAck);
 }
 

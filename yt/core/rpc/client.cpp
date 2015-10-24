@@ -313,8 +313,7 @@ TProxyBase::TProxyBase(
     IChannelPtr channel,
     const Stroka& serviceName,
     int protocolVersion)
-    : DefaultTimeout_(channel->GetDefaultTimeout())
-    , DefaultRequestAck_(true)
+    : DefaultRequestAck_(true)
     , Channel_(std::move(channel))
     , ServiceName_(serviceName)
     , ProtocolVersion_(protocolVersion)

@@ -13,9 +13,6 @@ class TChannelWrapper
 public:
     explicit TChannelWrapper(IChannelPtr underlyingChannel);
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const override;
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override;
-
     virtual Stroka GetEndpointTextDescription() const override;
     virtual NYson::TYsonString GetEndpointYsonDescription() const override;
 
@@ -29,8 +26,6 @@ public:
 
 protected:
     const IChannelPtr UnderlyingChannel_;
-
-    TNullable<TDuration> DefaultTimeout_;
 
 };
 

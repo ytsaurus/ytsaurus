@@ -258,20 +258,23 @@ private:
             config,
             GetBusChannelFactory(),
             kind);
+
         auto isRetryableError = BIND([options = Options_] (const TError& error) {
-            if (options.RetryRequestRateLimitExceeded &&
-                error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded)
-            {
+            if (options.RetryRequestRateLimitExceeded) {
                 return true;
             }
+
+            if (error.GetCode() == NSecurityClient::EErrorCode::RequestRateLimitExceeded) {
+                return true;
+            }
+
             return IsRetriableError(error);
         });
-        auto retryingChannel = CreateRetryingChannel(
-            config,
-            channel,
-            isRetryableError);
-        retryingChannel->SetDefaultTimeout(config->RpcTimeout);
-        return retryingChannel;
+        channel = CreateRetryingChannel(config, channel, isRetryableError);
+
+        channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
+
+        return channel;
     }
 
 };

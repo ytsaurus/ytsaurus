@@ -24,16 +24,6 @@ public:
         , IsChannelFailureError_(isChannelFailureError)
     { }
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const override
-    {
-        return DefaultTimeout_;
-    }
-
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
-    {
-        DefaultTimeout_ = timeout;
-    }
-
     virtual Stroka GetEndpointTextDescription() const override
     {
         TGuard<TSpinLock> guard(SpinLock);
@@ -65,8 +55,6 @@ public:
         YASSERT(request);
         YASSERT(responseHandler);
 
-        auto actualTimeout = timeout ? timeout : DefaultTimeout_;
-
         TPromise<IChannelPtr> channelPromise;
         {
             TGuard<TSpinLock> guard(SpinLock);
@@ -96,7 +84,7 @@ public:
             MakeStrong(this),
             request,
             responseHandler,
-            actualTimeout,
+            timeout,
             requestAck,
             requestControlThunk));
 
@@ -231,8 +219,6 @@ private:
 
     const IRoamingChannelProviderPtr Provider_;
     const TCallback<bool(const TError&)> IsChannelFailureError_;
-
-    TNullable<TDuration> DefaultTimeout_;
 
     TSpinLock SpinLock;
     volatile bool Terminated_ = false;
