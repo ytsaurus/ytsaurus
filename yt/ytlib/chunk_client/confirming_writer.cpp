@@ -302,7 +302,7 @@ void TConfirmingWriter::DoClose()
         masterMetaTags);
 
     auto cellTag = CellTagFromId(ChunkId_);
-    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy objectProxy(channel);
     
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId_));

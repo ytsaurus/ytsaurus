@@ -167,7 +167,7 @@ private:
         }
 
         auto outputCellTag = CellTagFromId(OutputChunkListId_);
-        auto outputMasterChannel = host->GetClient()->GetMasterChannel(EMasterChannelKind::Leader, outputCellTag);
+        auto outputMasterChannel = host->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, outputCellTag);
         TObjectServiceProxy outputObjectProxy(outputMasterChannel);
 
         CopiedChunkSize_ = 0.0;

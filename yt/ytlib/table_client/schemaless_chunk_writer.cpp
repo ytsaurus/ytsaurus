@@ -885,7 +885,7 @@ void TSchemalessTableWriter::DoOpen()
     bool sorted = !KeyColumns_.empty();
 
     {
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
         TObjectServiceProxy proxy(channel);
 
         LOG_INFO("Requesting basic table attributes");
@@ -919,13 +919,13 @@ void TSchemalessTableWriter::DoOpen()
         }
     }
 
-    auto uploadMasterChannel = Client_->GetMasterChannel(EMasterChannelKind::Leader, CellTag_);
+    auto uploadMasterChannel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
     auto objectIdPath = FromObjectId(ObjectId_);
 
     {
         LOG_INFO("Requesting extended table attributes");
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
         TObjectServiceProxy proxy(channel);
 
         auto req = TCypressYPathProxy::Get(objectIdPath);
@@ -992,7 +992,7 @@ void TSchemalessTableWriter::DoOpen()
     {
         LOG_INFO("Starting table upload");
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -1036,7 +1036,7 @@ void TSchemalessTableWriter::DoOpen()
     {
         LOG_INFO("Requesting table upload parameters");
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, CellTag_);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTag_);
         TObjectServiceProxy proxy(channel);
 
         auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
@@ -1095,7 +1095,7 @@ void TSchemalessTableWriter::DoClose()
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing chunk writer");
     }
 
-    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();

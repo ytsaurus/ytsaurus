@@ -1883,7 +1883,7 @@ private:
         if (!transaction)
             return;
 
-        auto channel = GetMasterClient()->GetMasterChannel(NApi::EMasterChannelKind::Leader);
+        auto channel = GetMasterClient()->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
         auto req = TMasterYPathProxy::UnstageObject();

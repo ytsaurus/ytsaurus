@@ -521,7 +521,7 @@ struct IClient
     : public IClientBase
 {
     // TODO(babenko): consider hiding these guys
-    virtual NRpc::IChannelPtr GetMasterChannel(
+    virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag) = 0;
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
