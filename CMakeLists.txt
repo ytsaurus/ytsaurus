@@ -165,6 +165,8 @@ add_subdirectory(library/lfalloc)
 
 add_subdirectory(yt)
 
+add_subdirectory(python)
+
 if (YT_BUILD_ENABLE_PERL)
   add_subdirectory(perl)
 endif()
