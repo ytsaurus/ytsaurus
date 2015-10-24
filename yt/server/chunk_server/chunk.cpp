@@ -44,7 +44,7 @@ TChunk::TChunk(const TChunkId& id)
     , ReadQuorum_(0)
     , WriteQuorum_(0)
     , ErasureCodec_(NErasure::ECodec::None)
-    , ExportDataList_ {}
+    , ExportDataList_{}
 {
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
