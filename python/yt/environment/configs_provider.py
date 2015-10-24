@@ -72,6 +72,17 @@ class ConfigsProvider(object):
     def get_driver_configs(self):
         pass
 
+    # XXX(ignat): is it properly work fo 0.18 with multiple cells?
+    def get_ui_config(self, proxy_address):
+        return default_configs.get_ui_config()\
+            .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
+            .replace("%%master_addresses%%",
+                "[{0}]".format(
+                    ", ".join(
+                        [
+                            "'{0}'".format(address) for address in self._master_addresses["primary"]
+                        ])))
+
 class ConfigsProvider_17(ConfigsProvider):
     def __init__(self, enable_debug_logging=True):
         super(ConfigsProvider_17, self).__init__(enable_debug_logging)
@@ -435,6 +446,7 @@ class ConfigsProvider_18(ConfigsProvider):
         proxy_config["port"] = ports[0]
         proxy_config["log_port"] = ports[1]
         proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
+        proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
         return proxy_config
 
