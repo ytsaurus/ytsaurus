@@ -16,7 +16,7 @@ namespace NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulRowMerger
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TUnversionedRow;
@@ -37,7 +37,7 @@ private:
     int KeyColumnCount_;
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
 
-    TUnversionedRow MergedRow_;
+    TMutableUnversionedRow MergedRow_;
     SmallVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;
 
     SmallVector<int, TypicalColumnCount> ColumnIds_;
@@ -52,10 +52,12 @@ private:
     void Cleanup();
 };
 
+DEFINE_REFCOUNTED_TYPE(TSchemafulRowMerger)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedRowMerger
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TUnversionedRow;
@@ -79,17 +81,19 @@ private:
     bool Started_;
     bool Deleted_;
 
-    TUnversionedRow MergedRow_;
+    TMutableUnversionedRow MergedRow_;
     SmallVector<bool, TypicalColumnCount> ValidValues_;
 
     void InitPartialRow(TUnversionedRow row);
     void Cleanup();
 };
 
+DEFINE_REFCOUNTED_TYPE(TUnversionedRowMerger)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVersionedRowMerger
-    : public TRefCounted
+    : public TIntrinsicRefCounted
 {
 public:
     using TResultingRow = TVersionedRow;
@@ -130,6 +134,8 @@ private:
 
     void Cleanup();
 };
+
+DEFINE_REFCOUNTED_TYPE(TVersionedRowMerger)
 
 ////////////////////////////////////////////////////////////////////////////////
 

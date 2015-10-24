@@ -66,7 +66,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 
     if (!Started_) {
         if (!MergedRow_) {
-            MergedRow_ = TUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
+            MergedRow_ = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), ColumnIds_.size());
         }
 
         const auto* keyBegin = row.BeginKeys();
@@ -169,7 +169,7 @@ TUnversionedRow TSchemafulRowMerger::BuildMergedRow()
 
             for (int valueIndex = begin; valueIndex <= index; ++valueIndex) {
                 TUnversionedValue tmpValue;
-                ColumnEvaluator_->MergeAggregate(id, &tmpValue, &state, &AggregateValues_[valueIndex], RowBuffer_);
+                ColumnEvaluator_->MergeAggregate(id, &tmpValue, state, AggregateValues_[valueIndex], RowBuffer_);
                 state = tmpValue;
             }
 
@@ -198,19 +198,17 @@ void TSchemafulRowMerger::Reset()
 {
     YASSERT(!Started_);
     RowBuffer_->Clear();
-    MergedRow_ = TUnversionedRow();
+    MergedRow_ = TMutableUnversionedRow();
 }
 
 void TSchemafulRowMerger::Cleanup()
 {
-    MergedRow_ = TUnversionedRow();
+    MergedRow_ = TMutableUnversionedRow();
     AggregateValues_.clear();
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;
     Started_ = false;
 }
-
-DEFINE_REFCOUNTED_TYPE(TSchemafulRowMerger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -233,7 +231,7 @@ TUnversionedRowMerger::TUnversionedRowMerger(
 void TUnversionedRowMerger::InitPartialRow(TUnversionedRow row)
 {
     if (!Started_) {
-        MergedRow_ = TUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
+        MergedRow_ = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
 
         for (int index = 0; index < TableSchema_.Columns().size(); ++index) {
             if (index < KeyColumnCount_) {
@@ -260,14 +258,14 @@ void TUnversionedRowMerger::AddPartialRow(TUnversionedRow row)
     InitPartialRow(row);
 
     for (int partialIndex = KeyColumnCount_; partialIndex < row.GetCount(); ++partialIndex) {
-        auto& partialValue = row[partialIndex];
+        const auto& partialValue = row[partialIndex];
         int id = partialValue.Id;
         ValidValues_[id] = true;
 
         if (partialValue.Aggregate) {
             YCHECK(TableSchema_.Columns()[id].Aggregate);
             TUnversionedValue tmpValue;
-            ColumnEvaluator_->MergeAggregate(id, &tmpValue, &MergedRow_[id], &partialValue, RowBuffer_);
+            ColumnEvaluator_->MergeAggregate(id, &tmpValue, MergedRow_[id], partialValue, RowBuffer_);
             tmpValue.Aggregate = MergedRow_[id].Aggregate;
             MergedRow_[id] = tmpValue;
         } else {
@@ -314,12 +312,12 @@ TUnversionedRow TUnversionedRowMerger::BuildMergedRow()
         }
     }
 
-    TUnversionedRow mergedRow;
+    TMutableUnversionedRow mergedRow;
 
     if (fullRow) {
         mergedRow = MergedRow_;
     } else {
-        mergedRow = TUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
+        mergedRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), TableSchema_.Columns().size());
         int currentIndex = 0;
         for (int index = 0; index < MergedRow_.GetCount(); ++index) {
             if (ValidValues_[index]) {
@@ -338,16 +336,14 @@ void TUnversionedRowMerger::Reset()
 {
     YASSERT(!Started_);
     RowBuffer_->Clear();
-    MergedRow_ = TUnversionedRow();
+    MergedRow_ = TMutableUnversionedRow();
 }
 
 void TUnversionedRowMerger::Cleanup()
 {
-    MergedRow_ = TUnversionedRow();
+    MergedRow_ = TMutableUnversionedRow();
     Started_ = false;
 }
-
-DEFINE_REFCOUNTED_TYPE(TUnversionedRowMerger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -529,7 +525,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
                     for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
                         TUnversionedValue tmpValue;
-                        ColumnEvaluator_->MergeAggregate(id, &tmpValue, &state, &(*valueIt), RowBuffer_);
+                        ColumnEvaluator_->MergeAggregate(id, &tmpValue, state, *valueIt, RowBuffer_);
                         state = tmpValue;
                     }
 
@@ -583,7 +579,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
     }
 
     // Construct output row.
-    auto row = TVersionedRow::Allocate(
+    auto row = TMutableVersionedRow::Allocate(
         RowBuffer_->GetPool(),
         KeyColumnCount_,
         MergedValues_.size(),
@@ -621,8 +617,6 @@ void TVersionedRowMerger::Cleanup()
 
     Started_ = false;
 }
-
-DEFINE_REFCOUNTED_TYPE(TVersionedRowMerger)
 
 ////////////////////////////////////////////////////////////////////////////////
 

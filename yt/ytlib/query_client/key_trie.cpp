@@ -20,13 +20,18 @@ TKeyTriePtr ReduceKeyTrie(TKeyTriePtr keyTrie)
 
 struct TKeyTrieComparer
 {
-    bool operator () (const std::pair<TValue, TKeyTriePtr>& element, TValue pivot) const {
+    bool operator () (const std::pair<TValue, TKeyTriePtr>& element, TValue pivot) const
+    {
         return element.first < pivot;
     }
-    bool operator () (TValue pivot, const std::pair<TValue, TKeyTriePtr>& element) const {
+
+    bool operator () (TValue pivot, const std::pair<TValue, TKeyTriePtr>& element) const
+    {
         return pivot < element.first;
     }
-    bool operator () (const std::pair<TValue, TKeyTriePtr>& lhs, const std::pair<TValue, TKeyTriePtr>& rhs) const {
+
+    bool operator () (const std::pair<TValue, TKeyTriePtr>& lhs, const std::pair<TValue, TKeyTriePtr>& rhs) const
+    {
         return lhs.first < rhs.first;
     }
 };
@@ -377,7 +382,7 @@ TKeyTriePtr IntersectKeyTrie(TKeyTriePtr lhs, TKeyTriePtr rhs)
 void GetRangesFromTrieWithinRangeImpl(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
-    std::vector<TRowRange>* result,
+    std::vector<TMutableRowRange>* result,
     TRowBufferPtr rowBuffer,
     bool insertUndefined,
     ui64 rangeCountLimit,
@@ -440,7 +445,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::TheBottom));
                 states.push_back(TState{trie, std::move(prefix), false, false});
             } else {
-                std::pair<TRow, TRow> range;
+                TMutableRowRange range;
                 for (size_t i = 0; i < offset; ++i) {
                     builder.AddValue(makeValue(prefix[i], i));
                 }
@@ -452,7 +457,6 @@ void GetRangesFromTrieWithinRangeImpl(
                 }
                 range.first = rowBuffer->Capture(builder.GetRow());
                 builder.Reset();
-
 
                 for (size_t i = 0; i < offset; ++i) {
                     builder.AddValue(makeValue(prefix[i], i));
@@ -467,7 +471,6 @@ void GetRangesFromTrieWithinRangeImpl(
                 }
                 range.second = rowBuffer->Capture(builder.GetRow());
                 builder.Reset();
-
 
                 if (insertUndefined || !IsEmpty(range)) {
                      result->push_back(range);
@@ -545,8 +548,8 @@ void GetRangesFromTrieWithinRangeImpl(
         ui64 subrangeCount = resultBounds.size() / 2 + nextValues.size();
 
         if (subrangeCount > rangeCountLimit) {
-            TBound min = TBound(MakeUnversionedSentinelValue(EValueType::Max), false);
-            TBound max = TBound(MakeUnversionedSentinelValue(EValueType::Min), true);
+            auto min = TBound(MakeUnversionedSentinelValue(EValueType::Max), false);
+            auto max = TBound(MakeUnversionedSentinelValue(EValueType::Min), true);
 
             auto updateMinMax = [&] (const TBound& lower, const TBound& upper) {
                 if (CompareBound(lower, min, true, true) < 0) {
@@ -568,7 +571,7 @@ void GetRangesFromTrieWithinRangeImpl(
                 updateMinMax(value, value);
             }
 
-            std::pair<TRow, TRow> range;
+            TMutableRowRange range;
 
             for (size_t j = 0; j < offset; ++j) {
                 builder.AddValue(makeValue(prefix[j], j));
@@ -620,7 +623,7 @@ void GetRangesFromTrieWithinRangeImpl(
             bool lowerBoundRefined = std::get<1>(resultBounds[i]);
             bool upperBoundRefined = std::get<1>(resultBounds[i + 1]);
 
-            std::pair<TRow, TRow> range;
+            TMutableRowRange range;
             for (size_t j = 0; j < offset; ++j) {
                 builder.AddValue(makeValue(prefix[j], j));
             }
@@ -674,14 +677,14 @@ void GetRangesFromTrieWithinRangeImpl(
     }
 }
 
-TRowRanges GetRangesFromTrieWithinRange(
+TMutableRowRanges GetRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
     TRowBufferPtr rowBuffer,
     bool insertUndefined,
     ui64 rangeCountLimit)
 {
-    TRowRanges result;
+    TMutableRowRanges result;
     GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer, insertUndefined, rangeCountLimit);
     return insertUndefined ? result : MergeOverlappingRanges(std::move(result));
 }

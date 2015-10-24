@@ -68,7 +68,7 @@ private:
     i64 RowIndex_;
 
     TUnversionedRowBuilder KeyBuilder_;
-    TKey Key_;
+    TMutableKey Key_;
 
     const char* KeyDataPtr_;
     i64 TimestampOffset_;

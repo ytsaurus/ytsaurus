@@ -64,7 +64,7 @@ protected:
 
         TSimpleVersionedBlockWriter blockWriter(Schema, KeyColumns);
 
-        auto row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
         row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
         row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
         row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -106,7 +106,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         schemaIdMapping,
         7);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 5, 2, 1, 0);
+    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 5, 2, 1, 0);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -135,7 +135,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         schemaIdMapping,
         9);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
+    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -160,7 +160,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         schemaIdMapping,
         SyncLastCommittedTimestamp);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 1, 1);
+    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 1, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -187,7 +187,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         schemaIdMapping,
         AllCommittedTimestamp);
 
-    TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);
+    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);

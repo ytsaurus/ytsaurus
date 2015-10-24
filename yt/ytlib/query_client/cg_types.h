@@ -14,6 +14,7 @@ using NYT::NQueryClient::TExpressionContext;
 using NYT::NQueryClient::TFunctionContext;
 using NYT::NQueryClient::TExecutionContext;
 using NYT::NQueryClient::TRow;
+using NYT::NQueryClient::TMutableRow;
 using NYT::NQueryClient::TRowHeader;
 using NYT::NQueryClient::TValue;
 using NYT::NQueryClient::TValueData;
@@ -44,7 +45,17 @@ class TypeBuilder<std::vector<TRow>*, Cross>
 { };
 
 template <bool Cross>
+class TypeBuilder<std::vector<TMutableRow>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
 class TypeBuilder<const std::vector<TRow>*, Cross>
+    : public TypeBuilder<void*, Cross>
+{ };
+
+template <bool Cross>
+class TypeBuilder<const std::vector<TMutableRow>*, Cross>
     : public TypeBuilder<void*, Cross>
 { };
 
@@ -86,6 +97,25 @@ public:
 
 template <bool Cross>
 class TypeBuilder<TRow, Cross>
+{
+public:
+    typedef TypeBuilder<TRowHeader*, Cross> THeader;
+
+    enum Fields
+    {
+        Header
+    };
+
+    static StructType* get(LLVMContext& context)
+    {
+        return StructType::get(
+            THeader::get(context),
+            nullptr);
+    }
+};
+
+template <bool Cross>
+class TypeBuilder<TMutableRow, Cross>
 {
 public:
     typedef TypeBuilder<TRowHeader*, Cross> THeader;

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <ytlib/tablet_client/public.h>
+
 #include <ytlib/table_client/public.h>
+
 #include <ytlib/node_tracker_client/public.h>
 
 // TODO(babenko): kill this when refactoring TDataSplit
@@ -99,6 +101,7 @@ using NTableClient::TRowBufferPtr;
 using NNodeTrackerClient::TNodeDirectoryPtr;
 
 typedef NTableClient::TUnversionedRow TRow;
+typedef NTableClient::TMutableUnversionedRow TMutableRow;
 typedef NTableClient::TUnversionedRowHeader TRowHeader;
 typedef NTableClient::TUnversionedRowBuilder TRowBuilder;
 typedef NTableClient::TUnversionedOwningRow TOwningRow;
@@ -110,7 +113,9 @@ typedef NTableClient::TOwningKey TOwningKey;
 
 typedef std::pair<TOwningKey, TOwningKey> TKeyRange;
 typedef std::pair<TRow, TRow> TRowRange;
+typedef std::pair<TMutableRow, TMutableRow> TMutableRowRange;
 typedef std::vector<TRowRange> TRowRanges;
+typedef std::vector<TMutableRowRange> TMutableRowRanges;
 
 const int MaxRowsPerRead = 1024;
 const int MaxRowsPerWrite = 1024;

@@ -71,7 +71,7 @@ const TOwningKey& THorizontalSchemalessBlockReader::GetKey() const
 
 TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    TUnversionedRow row = TUnversionedRow::Allocate(memoryPool, ValueCount_);
+    auto row = TMutableUnversionedRow::Allocate(memoryPool, ValueCount_);
     int valueCount = 0;
     for (int i = 0; i < ValueCount_; ++i) {
         TUnversionedValue value;
@@ -90,7 +90,7 @@ TUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* mem
             ++valueCount;
         }
     }
-    row.GetHeader()->Count = valueCount;
+    row.SetCount(valueCount);
     return row;
 }
 

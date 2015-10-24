@@ -1399,7 +1399,7 @@ TCodegenSource MakeCodegenOrderOp(
 
         auto collectRows = MakeClosure<void(void*)>(builder, "CollectRows", [&] (
             TCGContext& builder,
-            Value* topN
+            Value* topCollector
         ) {
             Value* newRowPtr = builder.CreateAlloca(TypeBuilder<TRow, false>::get(builder.getContext()));
 
@@ -1414,7 +1414,7 @@ TCodegenSource MakeCodegenOrderOp(
             codegenSource(
                 builder,
                 [&] (TCGContext& builder, Value* row) {
-                    Value* topNRef = builder.ViaClosure(topN);
+                    Value* topCollectorRef = builder.ViaClosure(topCollector);
                     Value* newRowRef = builder.ViaClosure(newRow);
 
                     for (size_t index = 0; index < schemaSize; ++index) {
@@ -1438,7 +1438,7 @@ TCodegenSource MakeCodegenOrderOp(
 
                     builder.CreateCall2(
                         builder.Module->GetRoutine("AddRow"),
-                        topNRef,
+                        topCollectorRef,
                         newRowRef);
                 });
 

@@ -160,12 +160,12 @@ void InsertJoinRow(
     TExecutionContext* context,
     TLookupRows* lookupRows,
     std::vector<TRow>* rows,
-    TRow* rowPtr,
+    TMutableRow* rowPtr,
     int valueCount)
 {
     CHECK_STACK();
 
-    TRow row = *rowPtr;
+    auto row = *rowPtr;
     auto inserted = lookupRows->insert(row);
 
     if (inserted.second) {
@@ -173,7 +173,7 @@ void InsertJoinRow(
         for (int index = 0; index < valueCount; ++index) {
             context->PermanentBuffer->Capture(&row[index]);
         }
-        *rowPtr = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
+        *rowPtr = TMutableRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
     }
 }
 
@@ -265,18 +265,18 @@ const TRow* FindRow(TExpressionContext* context, TLookupRows* rows, TRow row)
     return it != rows->end()? &*it : nullptr;
 }
 
-void AllocatePermanentRow(TExecutionContext* context, int valueCount, TRow* row)
+void AllocatePermanentRow(TExecutionContext* context, int valueCount, TMutableRow* row)
 {
     CHECK_STACK();
 
-    *row = TRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
+    *row = TMutableRow::Allocate(context->PermanentBuffer->GetPool(), valueCount);
 }
 
 const TRow* InsertGroupRow(
     TExecutionContext* context,
     TLookupRows* lookupRows,
     std::vector<TRow>* groupedRows,
-    TRow row,
+    TMutableRow row,
     int keySize)
 {
     CHECK_STACK();
@@ -298,11 +298,11 @@ const TRow* InsertGroupRow(
     return &*inserted.first;
 }
 
-void AllocateRow(TExpressionContext* context, int valueCount, TRow* row)
+void AllocateRow(TExpressionContext* context, int valueCount, TMutableRow* row)
 {
     CHECK_STACK();
 
-    *row = TRow::Allocate(context->IntermediateBuffer->GetPool(), valueCount);
+    *row = TMutableRow::Allocate(context->IntermediateBuffer->GetPool(), valueCount);
 }
 
 TRow* GetRowsData(std::vector<TRow>* groupedRows)
@@ -315,25 +315,25 @@ int GetRowsSize(std::vector<TRow>* groupedRows)
     return groupedRows->size();
 }
 
-void AddRow(TTopCollector* topN, TRow row)
+void AddRow(TTopCollector* topCollector, TRow row)
 {
-    topN->AddRow(row);
+    topCollector->AddRow(row);
 }
 
 void OrderOpHelper(
     TExecutionContext* context,
     TComparerFunction* comparer,
     void** collectRowsClosure,
-    void (*collectRows)(void** closure, TTopCollector* topN),
+    void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, std::vector<TRow>* rows, char* stopFlag),
+    void (*consumeRows)(void** closure, std::vector<TMutableRow>* rows, char* stopFlag),
     int rowSize)
 {
     auto limit = context->Limit;
 
-    TTopCollector topN(limit, comparer);
-    collectRows(collectRowsClosure, &topN);
-    auto rows = topN.GetRows(rowSize);
+    TTopCollector topCollector(limit, comparer);
+    collectRows(collectRowsClosure, &topCollector);
+    auto rows = topCollector.GetRows(rowSize);
 
     // Consume joined rows.
     context->StopFlag = false;

@@ -78,7 +78,7 @@ void TColumnEvaluator::Prepare()
     }
 }
 
-void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, int index) const
+void TColumnEvaluator::EvaluateKey(TMutableRow fullRow, const TRowBufferPtr& buffer, int index) const
 {
     YCHECK(index < fullRow.GetCount());
     YCHECK(index < KeyColumnCount_);
@@ -115,7 +115,7 @@ void TColumnEvaluator::EvaluateKey(TRow fullRow, const TRowBufferPtr& buffer, in
     fullRow[index].Id = index;
 }
 
-void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer) const
+void TColumnEvaluator::EvaluateKeys(TMutableRow fullRow, const TRowBufferPtr& buffer) const
 {
     for (int index = 0; index < KeyColumnCount_; ++index) {
         if (TableSchema_.Columns()[index].Expression) {
@@ -124,8 +124,8 @@ void TColumnEvaluator::EvaluateKeys(TRow fullRow, const TRowBufferPtr& buffer) c
     }
 }
 
-TRow TColumnEvaluator::EvaluateKeys(
-    TRow partialRow,
+TMutableRow TColumnEvaluator::EvaluateKeys(
+    TMutableRow partialRow,
     const TRowBufferPtr& buffer,
     const TNameTableToSchemaIdMapping& idMapping) const
 {
@@ -164,7 +164,7 @@ TRow TColumnEvaluator::EvaluateKeys(
     }
 
     columnCount += KeyColumnCount_;
-    auto fullRow = TUnversionedRow::Allocate(buffer->GetPool(), columnCount);
+    auto fullRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), columnCount);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
         fullRow[index].Type = EValueType::Null;
@@ -223,8 +223,8 @@ void TColumnEvaluator::InitAggregate(
 void TColumnEvaluator::UpdateAggregate(
     int index,
     TUnversionedValue* result,
-    TUnversionedValue* state,
-    TUnversionedValue* update,
+    const TUnversionedValue& state,
+    const TUnversionedValue& update,
     const TRowBufferPtr& buffer)
 {
     VerifyAggregate(index);
@@ -234,15 +234,15 @@ void TColumnEvaluator::UpdateAggregate(
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
-    Aggregates_[index].Update(&executionContext, result, state, update);
+    Aggregates_[index].Update(&executionContext, result, &state, &update);
     result->Id = index;
 }
 
 void TColumnEvaluator::MergeAggregate(
     int index,
     TUnversionedValue* result,
-    TUnversionedValue* state,
-    TUnversionedValue* mergeeState,
+    const TUnversionedValue& state,
+    const TUnversionedValue& mergeeState,
     const TRowBufferPtr& buffer)
 {
     VerifyAggregate(index);
@@ -252,14 +252,14 @@ void TColumnEvaluator::MergeAggregate(
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
-    Aggregates_[index].Merge(&executionContext, result, state, mergeeState);
+    Aggregates_[index].Merge(&executionContext, result, &state, &mergeeState);
     result->Id = index;
 }
 
 void TColumnEvaluator::FinalizeAggregate(
     int index,
     TUnversionedValue* result,
-    TUnversionedValue* state,
+    const TUnversionedValue& state,
     const TRowBufferPtr& buffer)
 {
     VerifyAggregate(index);
@@ -269,7 +269,7 @@ void TColumnEvaluator::FinalizeAggregate(
     executionContext.OutputBuffer = buffer;
     executionContext.IntermediateBuffer = buffer;
 
-    Aggregates_[index].Finalize(&executionContext, result, state);
+    Aggregates_[index].Finalize(&executionContext, result, &state);
     result->Id = index;
 }
 

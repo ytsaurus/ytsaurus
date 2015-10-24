@@ -47,7 +47,7 @@ protected:
     {
         THorizontalSchemalessBlockWriter blockWriter;
 
-        TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 5);
+        auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 5);
         row[0] = MakeUnversionedStringValue("a", 0);
         row[1] = MakeUnversionedInt64Value(1, 3);
         row[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -70,9 +70,9 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
     // Reorder value columns in reading schema.
     std::vector<int> idMapping = {-1, -1, 0, -1, -1, -1, -1, 1};
 
-    TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 2);
-        row[0] = MakeUnversionedDoubleValue(1.5, 0);
-        row[1] = MakeVersionedInt64Value(7, 1);
+    auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
+    row[0] = MakeUnversionedDoubleValue(1.5, 0);
+    row[1] = MakeVersionedInt64Value(7, 1);
 
     std::vector<TUnversionedRow> rows;
     rows.push_back(row);
@@ -143,7 +143,7 @@ protected:
     {
         std::vector<TUnversionedRow> result;
         for (int i = beginIndex; i < endIndex ; ++i) {
-            TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 2);
+            auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 2);
             row[0] = MakeUnversionedInt64Value(i, 0);
             row[1] = MakeUnversionedStringValue("big data", 1);
             result.push_back(row);

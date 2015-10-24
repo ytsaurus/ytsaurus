@@ -1330,10 +1330,7 @@ private:
 
             for (int index = 0; index < keys.size(); ++index) {
                 ValidateClientKey(keys[index], keyColumnCount, tableInfo->Schema);
-                auto newKey = TUnversionedRow::Allocate(rowBuffer->GetPool(), keys[index].GetCount());
-                for (int columnIndex = 0; columnIndex < keys[index].GetCount(); ++columnIndex) {
-                    newKey[columnIndex] = keys[index][columnIndex];
-                }
+                auto newKey = rowBuffer->Capture(keys[index], false);
                 evaluator->EvaluateKeys(newKey, rowBuffer);
                 sortedKeys.push_back(std::make_pair(newKey, index));
             }
@@ -2229,7 +2226,11 @@ private:
         : public TRequestBase
     {
     protected:
-        using TRowValidator = std::function<void(TUnversionedRow, int, const TNameTableToSchemaIdMapping&, const TTableSchema&)>;
+        using TRowValidator = std::function<void(
+            TUnversionedRow,
+            int,
+            const TNameTableToSchemaIdMapping&,
+            const TTableSchema&)>;
 
         TModifyRequest(
             TTransaction* transaction,
@@ -2248,38 +2249,31 @@ private:
             const auto& idMapping = Transaction_->GetColumnIdMapping(TableInfo_, NameTable_);
             int keyColumnCount = TableInfo_->KeyColumns.size();
             const auto& schema = TableInfo_->Schema;
+            const auto& rowBuffer = Transaction_->GetRowBuffer();
+            auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
+            auto evaluator = TableInfo_->NeedKeyEvaluation
+                ? evaluatorCache->Find(TableInfo_->Schema, keyColumnCount)
+                : nullptr;
 
-            auto writeRequest = [&] (TUnversionedRow row) {
-                for (int index = keyColumnCount; index < row.GetCount(); ++index) {
-                    int schemaId = idMapping[row[index].Id];
-                    row[index].Aggregate = schema.Columns()[schemaId].Aggregate.HasValue()
-                        ? writeOptions.Aggregate
-                        : false;
+            for (auto row : rows) {
+                validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
+
+                auto capturedRow = rowBuffer->Capture(row, false);
+
+                for (int index = keyColumnCount; index < capturedRow.GetCount(); ++index) {
+                    auto& value = capturedRow[index];
+                    int schemaId = idMapping[value.Id];
+                    const auto& columnSchema = schema.Columns()[schemaId];
+                    value.Aggregate = columnSchema.Aggregate ? writeOptions.Aggregate : false;
                 }
-                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, row);
+
+                if (evaluator) {
+                    evaluator->EvaluateKeys(capturedRow, rowBuffer);
+                }
+
+                auto tabletInfo = Transaction_->Client_->SyncGetTabletInfo(TableInfo_, capturedRow);
                 auto* session = Transaction_->GetTabletSession(tabletInfo, TableInfo_);
-                session->SubmitRow(command, row, &idMapping);
-            };
-
-            if (TableInfo_->NeedKeyEvaluation) {
-                const auto& rowBuffer = Transaction_->GetRowBuffer();
-                auto evaluatorCache = Transaction_->GetConnection()->GetColumnEvaluatorCache();
-                auto evaluator = evaluatorCache->Find(TableInfo_->Schema, keyColumnCount);
-
-                for (auto row : rows) {
-                    validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    auto newRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), row.GetCount());
-                    for (int columnIndex = 0; columnIndex < row.GetCount(); ++columnIndex) {
-                        newRow[columnIndex] = row[columnIndex];
-                    }
-                    evaluator->EvaluateKeys(newRow, rowBuffer);
-                    writeRequest(newRow);
-                }
-            } else {
-                for (auto row : rows) {
-                    validateRow(row, keyColumnCount, idMapping, TableInfo_->Schema);
-                    writeRequest(row);
-                }
+                session->SubmitRow(command, capturedRow, &idMapping);
             }
         }
     };

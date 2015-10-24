@@ -14,7 +14,7 @@ namespace NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRangeInferrer = std::function<std::vector<TRowRange>(
+using TRangeInferrer = std::function<std::vector<TMutableRowRange>(
     const TRowRange& keyRange,
     const TRowBufferPtr& rowBuffer)>;
 

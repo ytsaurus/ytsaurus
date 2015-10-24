@@ -241,7 +241,7 @@ private:
     void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
     void AddDeleteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
     void AddWriteRevisionNonAtomic(TDynamicRow row, TTimestamp commitTimestamp, ui32 commitRevision);
-    void SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys);
+    void SetKeys(TDynamicRow dstRow, const TUnversionedValue* srcKeys);
     void SetKeys(TDynamicRow dstRow, TDynamicRow srcRow);
 
     struct TLoadScratchData

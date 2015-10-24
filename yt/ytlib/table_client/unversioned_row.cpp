@@ -565,7 +565,7 @@ bool operator > (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& 
     return CompareRows(lhs, rhs) > 0;
 }
 
-void ResetRowValues(TUnversionedRow* row)
+void ResetRowValues(TMutableUnversionedRow* row)
 {
     for (int index = 0; index < row->GetCount(); ++index) {
         (*row)[index].Type = EValueType::Null;
@@ -603,13 +603,13 @@ i64 GetDataWeight(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedRow TUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCount)
+TMutableUnversionedRow TMutableUnversionedRow::Allocate(TChunkedMemoryPool* pool, int valueCount)
 {
-    auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(
-        GetUnversionedRowByteSize(valueCount)));
+    size_t byteSize = GetUnversionedRowByteSize(valueCount);
+    auto* header = reinterpret_cast<TUnversionedRowHeader*>(pool->AllocateAligned(byteSize));
     header->Count = valueCount;
     header->Padding = 0;
-    return TUnversionedRow(header);
+    return TMutableUnversionedRow(header);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1046,9 +1046,10 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
 
-    *row = TUnversionedRow::Allocate(rowBuffer->GetPool(), valueCount);
+    auto mutableRow = TMutableUnversionedRow::Allocate(rowBuffer->GetPool(), valueCount);
+    *row = mutableRow;
 
-    auto* values = row->Begin();
+    auto* values = mutableRow.Begin();
     for (auto* value = values; value < values + valueCount; ++value) {
         current += ReadValue(current, value);
         rowBuffer->Capture(value);
@@ -1060,6 +1061,11 @@ Stroka ToString(TUnversionedRow row)
     return row
         ? "[" + JoinToString(row.Begin(), row.End()) + "]"
         : "<Null>";
+}
+
+Stroka ToString(TMutableUnversionedRow row)
+{
+    return ToString(TUnversionedRow(row));
 }
 
 Stroka ToString(const TUnversionedOwningRow& row)
@@ -1236,9 +1242,9 @@ int TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
     return header->Count++;
 }
 
-TUnversionedRow TUnversionedRowBuilder::GetRow()
+TMutableUnversionedRow TUnversionedRowBuilder::GetRow()
 {
-    return TUnversionedRow(GetHeader());
+    return TMutableUnversionedRow(GetHeader());
 }
 
 void TUnversionedRowBuilder::Reset()
@@ -1397,7 +1403,6 @@ TOwningKey WidenKey(const TOwningKey& key, int keyColumnCount)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TUnversionedOwningRow BuildRow(
     const Stroka& yson,

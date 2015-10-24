@@ -30,7 +30,7 @@ TTopCollector::TTopCollector(i64 limit, TComparerFunction* comparer)
     Rows_.reserve(limit);
 }
 
-std::pair<TRow, int> TTopCollector::Capture(TRow row)
+std::pair<TMutableRow, int> TTopCollector::Capture(TRow row)
 {
     if (EmptyBufferIds_.empty()) {
         if (GarbageMemorySize_ > TotalMemorySize_ / 2) {
@@ -117,6 +117,20 @@ void TTopCollector::AddRow(TRow row)
         Rows_.back() = capturedRow;
         std::push_heap(Rows_.begin(), Rows_.end(), Comparer_);
     }
+}
+
+std::vector<TMutableRow> TTopCollector::GetRows(int rowSize) const
+{
+    std::vector<TMutableRow> result;
+    result.reserve(Rows_.size());
+    for (const auto& pair : Rows_) {
+        result.push_back(pair.first);
+    }
+    std::sort(result.begin(), result.end(), Comparer_);
+    for (auto& row : result) {
+        row.SetCount(rowSize);
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

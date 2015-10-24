@@ -106,7 +106,7 @@ protected:
     {
         std::vector<TUnversionedRow> rows;
         for (int i = startIndex; i < endIndex; ++i) {
-            TUnversionedRow row = TUnversionedRow::Allocate(&MemoryPool, 4);
+            auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 4);
             row[0] = MakeUnversionedStringValue(A, 0);
             row[1] = MakeUnversionedInt64Value(i, 1);
             row[2] = MakeUnversionedSentinelValue(EValueType::Null, 2);

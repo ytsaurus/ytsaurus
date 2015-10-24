@@ -97,7 +97,7 @@ protected:
         }
     }
 
-    void FillKey(TVersionedRow row, TNullable<Stroka> k1, TNullable<i64> k2, TNullable<double> k3)
+    void FillKey(TMutableVersionedRow row, TNullable<Stroka> k1, TNullable<i64> k2, TNullable<double> k3)
     {
         row.BeginKeys()[0] = k1 
             ? MakeUnversionedStringValue(*k1, 0)
@@ -114,7 +114,7 @@ protected:
     {
         std::vector<TVersionedRow> rows;
         {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
+            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
             FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
 
             // v1
@@ -131,7 +131,7 @@ protected:
 
             rows.push_back(row);
         } {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 0);
+            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 0);
             FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
             // v1
@@ -146,7 +146,7 @@ protected:
 
             rows.push_back(row);
         } {
-            TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 5, 4, 2);
+            auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 4, 2);
             FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
 
             // v1
@@ -185,7 +185,7 @@ protected:
 
     TVersionedRow CreateSingleRow(int index)
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
         FillKey(row, MakeNullable(A), MakeNullable(index), Null);
 
         // v1
@@ -271,7 +271,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 1, 1, 1);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 4, 1, 1, 1);
         FillKey(row, MakeNullable(A), MakeNullable(1), MakeNullable(1.5));
         row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
 
@@ -282,7 +282,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 2, 1, 0);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 4, 2, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
         row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
 
@@ -295,7 +295,7 @@ TEST_F(TVersionedChunksTest, ReadLastCommitted)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 4, 0, 0, 1);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 4, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
         row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
         row.BeginDeleteTimestamps()[0] = 20;
@@ -354,7 +354,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v1
@@ -363,7 +363,7 @@ TEST_F(TVersionedChunksTest, ReadByTimestamp)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
         row.BeginDeleteTimestamps()[0] = 2;
 
@@ -404,7 +404,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
 {
     std::vector<TVersionedRow> expected;
     {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 1, 1, 0);
         FillKey(row, MakeNullable(A), MakeNullable(2), Null);
 
         // v2
@@ -414,7 +414,7 @@ TEST_F(TVersionedChunksTest, ReadAllLimitsSchema)
 
         expected.push_back(row);
     } {
-        TVersionedRow row = TVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
         FillKey(row, MakeNullable(B), MakeNullable(1), MakeNullable(1.5));
         row.BeginDeleteTimestamps()[0] = 20;
 

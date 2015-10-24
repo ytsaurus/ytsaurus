@@ -156,7 +156,7 @@ ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
 
 TVersionedRow TSimpleVersionedBlockReader::ReadAllValues(TChunkedMemoryPool* memoryPool)
 {
-    auto row = TVersionedRow::Allocate(
+    auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
         GetColumnValueCount(ChunkSchema_.Columns().size() - 1),
@@ -225,7 +225,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
     if (deleteTimestamp > writeTimestamp) {
         // Row has been deleted at given timestamp.
-        auto row = TVersionedRow::Allocate(
+        auto row = TMutableVersionedRow::Allocate(
             memoryPool,
             KeyColumnCount_,
             0, // no values
@@ -267,7 +267,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
         }
     }
 
-    auto row = TVersionedRow::Allocate(
+    auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
         SchemaIdMapping_.size() + aggregateCountDelta,
@@ -312,7 +312,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
             }
         }
     }
-    row.GetHeader()->ValueCount = (currentValue - beginValues);
+    row.SetValueCount(currentValue - beginValues);
 
     return row;
 }

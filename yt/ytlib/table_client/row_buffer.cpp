@@ -46,32 +46,34 @@ TUnversionedValue TRowBuffer::Capture(const TUnversionedValue& value)
     return capturedValue;
 }
 
-TUnversionedRow TRowBuffer::Capture(TUnversionedRow row)
+TMutableUnversionedRow TRowBuffer::Capture(TUnversionedRow row, bool deep)
 {
     if (!row) {
-        return row;
+        return TMutableUnversionedRow();
     }
 
     int count = row.GetCount();
     auto* values = row.Begin();
 
-    auto capturedRow = TUnversionedRow::Allocate(&Pool_, count);
+    auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, count);
     auto* capturedValues = capturedRow.Begin();
 
-    memcpy(capturedValues, values, count * sizeof (TUnversionedValue));
+    ::memcpy(capturedValues, values, count * sizeof (TUnversionedValue));
 
-    for (int index = 0; index < count; ++index) {
-        Capture(&capturedValues[index]);
+    if (deep) {
+        for (int index = 0; index < count; ++index) {
+            Capture(&capturedValues[index]);
+        }
     }
 
     return capturedRow;
 }
 
-std::vector<TUnversionedRow> TRowBuffer::Capture(const std::vector<TUnversionedRow>& rows)
+std::vector<TMutableUnversionedRow> TRowBuffer::Capture(const std::vector<TUnversionedRow>& rows, bool deep)
 {
-    std::vector<TUnversionedRow> capturedRows(rows.size());
+    std::vector<TMutableUnversionedRow> capturedRows(rows.size());
     for (int index = 0; index < static_cast<int>(rows.size()); ++index) {
-        capturedRows[index] = Capture(rows[index]);
+        capturedRows[index] = Capture(rows[index], deep);
     }
     return capturedRows;
 }

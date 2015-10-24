@@ -709,7 +709,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 }
 
 
-TRowRanges GetRangesFromTrieWithinRange(
+TMutableRowRanges GetRangesFromTrieWithinRange(
     const TKeyRange& keyRange,
     TKeyTriePtr trie,
     TRowBufferPtr rowBuffer)
