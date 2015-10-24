@@ -69,7 +69,7 @@ public:
         NCellScheduler::TBootstrap* bootstrap)
         : Config(config)
         , Bootstrap(bootstrap)
-        , Proxy(Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader))
+        , Proxy(Bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader))
         , ClusterDirectory(Bootstrap->GetClusterDirectory())
     { }
 
@@ -1148,7 +1148,7 @@ private:
     {
         LOG_DEBUG("Operation update list registered (OperationId: %v)",
             operation->GetId());
-        auto channel = Bootstrap->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+        auto channel = Bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TUpdateList list(channel, operation);
         auto pair = UpdateLists.insert(std::make_pair(operation->GetId(), list));
         YCHECK(pair.second);

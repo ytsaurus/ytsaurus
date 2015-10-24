@@ -97,7 +97,7 @@ void TChunkListPool::Release(const std::vector<TChunkListId>& ids)
         auto cellTag = pair.first;
         const auto& ids = pair.second;
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TObjectServiceProxy objectProxy(channel);
 
         auto batchReq = objectProxy.ExecuteBatch();
@@ -136,7 +136,7 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
         cellTag,
         count);
 
-    auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy objectProxy(channel);
 
     auto req = TMasterYPathProxy::CreateObjects();

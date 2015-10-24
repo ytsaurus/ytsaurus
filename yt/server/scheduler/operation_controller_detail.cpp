@@ -1100,7 +1100,7 @@ void TOperationControllerBase::StartAsyncSchedulerTransaction()
 {
     LOG_INFO("Starting async scheduler transaction");
 
-    auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = AuthenticatedMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -1143,7 +1143,7 @@ void TOperationControllerBase::StartSyncSchedulerTransaction()
 {
     LOG_INFO("Starting sync scheduler transaction");
 
-    auto channel = AuthenticatedMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = AuthenticatedMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -1189,7 +1189,7 @@ void TOperationControllerBase::StartInputTransaction(TTransactionId parentTransa
 {
     LOG_INFO("Starting input transaction");
 
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -1233,7 +1233,7 @@ void TOperationControllerBase::StartOutputTransaction(TTransactionId parentTrans
 {
     LOG_INFO("Starting output transaction");
 
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -1443,7 +1443,8 @@ void TOperationControllerBase::AttachOutputChunks()
         LOG_INFO("Attaching output chunks (Path: %v)",
             path);
 
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader, table.CellTag);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
+            EMasterChannelKind::Leader, table.CellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -1537,7 +1538,7 @@ void TOperationControllerBase::CustomCommit()
 
 void TOperationControllerBase::EndUploadOutputTables()
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2370,7 +2371,7 @@ bool TOperationControllerBase::IsFinished() const
 void TOperationControllerBase::CreateLivePreviewTables()
 {
     // NB: use root credentials.
-    auto channel = Host->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+    auto channel = Host->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2515,7 +2516,7 @@ void TOperationControllerBase::GetInputTablesBasicAttributes()
 {
     LOG_INFO("Getting basic attributes of input tables");
 
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2565,7 +2566,7 @@ void TOperationControllerBase::GetOutputTablesBasicAttributes()
 {
     LOG_INFO("Getting basic attributes of output tables");
 
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2614,7 +2615,7 @@ void TOperationControllerBase::GetFilesBasicAttributes(std::vector<TUserFile>* f
 {
     LOG_INFO("Getting basic attributes of files");
 
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
@@ -2667,7 +2668,8 @@ void TOperationControllerBase::FetchInputTables()
             path,
             ranges.size());
 
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, table.CellTag);
+        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
+            EMasterChannelKind::LeaderOrFollower, table.CellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -2730,7 +2732,7 @@ void TOperationControllerBase::FetchInputTables()
 
 void TOperationControllerBase::LockInputTables()
 {
-    auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     LOG_INFO("Locking input tables");
@@ -2807,7 +2809,7 @@ void TOperationControllerBase::LockInputTables()
 
 void TOperationControllerBase::BeginUploadOutputTables()
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     LOG_INFO("Locking output tables");
@@ -2922,7 +2924,8 @@ void TOperationControllerBase::GetOutputTablesUploadParams()
 
         LOG_INFO("Getting output tables upload parameters (CellTag: %v)", cellTag);
 
-        auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(
+            EMasterChannelKind::LeaderOrFollower, cellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -2968,7 +2971,8 @@ void TOperationControllerBase::FetchUserFiles(std::vector<TUserFile>* files)
         LOG_INFO("Fetching user file (Path: %v)",
             path);
 
-        auto channel = AuthenticatedInputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, file.CellTag);
+        auto channel = AuthenticatedInputMasterClient->GetMasterChannelOrThrow(
+            EMasterChannelKind::LeaderOrFollower, file.CellTag);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
@@ -3020,7 +3024,7 @@ void TOperationControllerBase::LockUserFiles(
     std::vector<TUserFile>* files,
     const std::vector<Stroka>& attributeKeys)
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
     TObjectServiceProxy proxy(channel);
 
     LOG_INFO("Locking user files");

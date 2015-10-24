@@ -111,7 +111,7 @@ private:
         {
             LOG_INFO("Requesting basic attributes");
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::GetBasicAttributes(Path_);
@@ -151,7 +151,7 @@ private:
         {
             LOG_INFO("Fetching file chunks");
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, cellTag);
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::Fetch(objectIdPath);

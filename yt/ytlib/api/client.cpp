@@ -738,7 +738,7 @@ public:
         NodeChannelFactory_ = wrapChannelFactory(Connection_->GetNodeChannelFactory());
 
         for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-            ObjectProxies_[kind].reset(new TObjectServiceProxy(GetMasterChannel(kind)));
+            ObjectProxies_[kind].reset(new TObjectServiceProxy(GetMasterChannelOrThrow(kind)));
         }
         SchedulerProxy_.reset(new TSchedulerServiceProxy(GetSchedulerChannel()));
         JobProberProxy_.reset(new TJobProberServiceProxy(GetSchedulerChannel()));
@@ -746,13 +746,13 @@ public:
         TransactionManager_ = New<TTransactionManager>(
             Connection_->GetConfig()->TransactionManager,
             Connection_->GetConfig()->PrimaryMaster->CellId,
-            GetMasterChannel(EMasterChannelKind::Leader),
+            GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             Connection_->GetTimestampProvider(),
             Connection_->GetCellDirectory());
 
         QueryHelper_ = New<TQueryHelper>(
             Connection_,
-            GetMasterChannel(EMasterChannelKind::LeaderOrFollower),
+            GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower),
             NodeChannelFactory_,
             FunctionRegistry_);
 
@@ -765,7 +765,7 @@ public:
         return Connection_;
     }
 
-    virtual IChannelPtr GetMasterChannel(
+    virtual IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTag) override
     {

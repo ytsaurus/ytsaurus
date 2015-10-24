@@ -189,7 +189,7 @@ private:
 
         LOG_DEBUG("Requesting chunk seeds from master");
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, CellTagFromId(ChunkId_));
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTagFromId(ChunkId_));
         TChunkServiceProxy proxy(channel);
 
         auto req = proxy.LocateChunks();

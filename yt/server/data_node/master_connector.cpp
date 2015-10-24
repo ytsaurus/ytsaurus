@@ -259,7 +259,7 @@ void TMasterConnector::RegisterAtMaster()
         BIND(&TMasterConnector::OnLeaseTransactionAborted, MakeWeak(this))
             .Via(HeartbeatInvoker_));
 
-    auto masterChannel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader);
+    auto masterChannel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TNodeTrackerServiceProxy proxy(masterChannel);
 
     auto req = proxy.RegisterNode();
@@ -408,7 +408,7 @@ void TMasterConnector::SendFullNodeHeartbeat(TCellTag cellTag)
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
-    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    auto channel = Bootstrap_->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.FullHeartbeat()
@@ -477,7 +477,7 @@ void TMasterConnector::SendIncrementalNodeHeartbeat(TCellTag cellTag)
     auto client = Bootstrap_->GetMasterClient();
     auto connection = client->GetConnection();
 
-    auto channel = client->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TNodeTrackerServiceProxy proxy(channel);
 
     auto request = proxy.IncrementalHeartbeat()
@@ -685,7 +685,7 @@ void TMasterConnector::SendJobHeartbeat()
     auto* delta = GetChunksDelta(cellTag);
     if (delta->State == EState::Online) {
         auto masterClient = Bootstrap_->GetMasterClient();
-        auto channel = masterClient->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+        auto channel = masterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TJobTrackerServiceProxy proxy(channel);
 
         auto req = proxy.Heartbeat();

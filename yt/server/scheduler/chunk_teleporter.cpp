@@ -71,7 +71,7 @@ void TChunkTeleporter::Export()
         auto cellTag = pair.first;
         const auto& chunks = pair.second;
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TChunkServiceProxy proxy(channel);
 
         for (int beginIndex = 0; beginIndex < chunks.size(); beginIndex += Config_->MaxTeleportChunksPerRequest) {
@@ -116,7 +116,7 @@ void TChunkTeleporter::Import()
         auto cellTag = pair.first;
         const auto& chunks = pair.second;
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
         TChunkServiceProxy proxy(channel);
 
         for (int beginIndex = 0; beginIndex < chunks.size(); beginIndex += Config_->MaxTeleportChunksPerRequest) {

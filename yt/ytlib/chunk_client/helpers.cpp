@@ -43,7 +43,7 @@ TChunkId CreateChunk(
         options->ReplicationFactor, 
         transactionId);
 
-    auto channel = client->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
 
     auto chunkType = options->ErasureCodec == ECodec::None
@@ -96,7 +96,7 @@ void ProcessFetchResponse(
         auto foreignCellTag = pair.first;
         auto& foreignChunkSpecs = pair.second;
 
-        auto channel = client->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, foreignCellTag);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, foreignCellTag);
         TChunkServiceProxy proxy(channel);
 
         for (int beginIndex = 0; beginIndex < foreignChunkSpecs.size(); beginIndex += maxChunksPerLocateRequest) {

@@ -499,7 +499,7 @@ TChunkReplicaList TReplicationWriter::AllocateTargets()
             "Allocating new target nodes is disabled");
     }
 
-    auto channel = Client_->GetMasterChannel(NApi::EMasterChannelKind::Leader, CellTagFromId(ChunkId_));
+    auto channel = Client_->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, CellTagFromId(ChunkId_));
     TChunkServiceProxy proxy(channel);
 
     auto req = proxy.AllocateWriteTargets();

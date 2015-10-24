@@ -120,7 +120,7 @@ private:
         {
             LOG_INFO("Requesting basic file attributes");
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::GetBasicAttributes(Path_);
@@ -157,7 +157,7 @@ private:
         {
             LOG_INFO("Requesting extended file attributes");
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
             TObjectServiceProxy proxy(channel);
 
             auto req = TCypressYPathProxy::Get(objectIdPath);
@@ -190,7 +190,7 @@ private:
         {
             LOG_INFO("Starting file upload");
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
@@ -245,7 +245,7 @@ private:
         {
             LOG_INFO("Requesting file upload parameters");
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, CellTag_);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, CellTag_);
             TObjectServiceProxy proxy(channel);
 
             auto req = TFileYPathProxy::GetUploadParams(objectIdPath);
@@ -300,7 +300,7 @@ private:
 
         auto objectIdPath = FromObjectId(ObjectId_);
 
-        auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();

@@ -334,7 +334,7 @@ private:
             {
                 LOG_INFO("Requesting basic journal attributes");
 
-                auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TJournalYPathProxy::GetBasicAttributes(Path_);
@@ -366,13 +366,13 @@ private:
                 }
             }
 
-            UploadMasterChannel_ = Client_->GetMasterChannel(EMasterChannelKind::Leader, cellTag);
+            UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
             auto objectIdPath = FromObjectId(ObjectId_);
 
             {
                 LOG_INFO("Requesting extended journal attributes");
 
-                auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TCypressYPathProxy::Get(objectIdPath);
@@ -408,7 +408,7 @@ private:
             {
                 LOG_INFO("Starting journal upload");
 
-                auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
                 TObjectServiceProxy proxy(channel);
 
                 auto batchReq = proxy.ExecuteBatch();
@@ -461,7 +461,7 @@ private:
             {
                 LOG_INFO("Requesting journal upload parameters");
 
-                auto channel = Client_->GetMasterChannel(EMasterChannelKind::LeaderOrFollower, cellTag);
+                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower, cellTag);
                 TObjectServiceProxy proxy(channel);
 
                 auto req = TJournalYPathProxy::GetUploadParams(objectIdPath);
@@ -490,7 +490,7 @@ private:
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
-            auto channel = Client_->GetMasterChannel(EMasterChannelKind::Leader);
+            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
             TObjectServiceProxy proxy(channel);
 
             auto batchReq = proxy.ExecuteBatch();
