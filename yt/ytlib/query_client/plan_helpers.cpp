@@ -469,7 +469,7 @@ TConstExpressionPtr RefinePredicate(
             for (int index = 0; index < idMapping.size(); ++index) {
                 reverseIdMapping[idMapping[index]] = index;
             }
-            auto compareValues = [&] (const TRow& lhs, const TRow& rhs) {
+            auto compareValues = [&] (TRow lhs, TRow rhs) {
                 for (int index = 0; index < reverseIdMapping.size(); ++index) {
                     if (reverseIdMapping[index] != -1) {
                         int result = CompareRowValues(
@@ -484,7 +484,7 @@ TConstExpressionPtr RefinePredicate(
                 return false;
             };
 
-            auto compareKeys = [&] (const TRow& lhs, const TRow& rhs) {
+            auto compareKeys = [&] (TRow lhs, TRow rhs) {
                 for (int index = 0; index < reverseIdMapping.size(); ++index) {
                     if (reverseIdMapping[index] != -1) {
                         if (index >= lhs.GetCount() || index >= rhs.GetCount()) {
@@ -503,7 +503,7 @@ TConstExpressionPtr RefinePredicate(
                 return false;
             };
 
-            auto compareKeyAndValue = [&] (const TRow& lhs, const TRow& rhs) {
+            auto compareKeyAndValue = [&] (TRow lhs, TRow rhs) {
                 for (int index = 0; index < reverseIdMapping.size(); ++index) {
                     if (reverseIdMapping[index] != -1) {
                         if (index >= lhs.GetCount()) {

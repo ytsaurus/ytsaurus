@@ -105,9 +105,9 @@ private:
         NTableClient::EControlAttribute controlAttribute,
         T value);
 
-    void ConsumeRow(const NTableClient::TUnversionedRow& row);
+    void ConsumeRow(NTableClient::TUnversionedRow row);
 
-    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) override;
+    virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
