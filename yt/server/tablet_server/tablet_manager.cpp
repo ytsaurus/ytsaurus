@@ -860,7 +860,7 @@ public:
             chunks.begin(),
             chunks.end(),
             [] (TChunk* lhs, TChunk* rhs) {
-                    return lhs->GetId() < rhs->GetId();
+                return lhs->GetId() < rhs->GetId();
             });
         chunks.erase(
             std::unique(
