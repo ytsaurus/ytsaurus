@@ -32,16 +32,6 @@ public:
         : Server_(std::move(server))
     { }
 
-    virtual TNullable<TDuration> GetDefaultTimeout() const override
-    {
-        return DefaultTimeout_;
-    }
-
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override
-    {
-        DefaultTimeout_ = timeout;
-    }
-
     virtual Stroka GetEndpointTextDescription() const override
     {
         return "<local>";
@@ -58,8 +48,6 @@ public:
         TNullable<TDuration> timeout,
         bool /*requestAck*/) override
     {
-        auto actualTimeout = timeout ? timeout : DefaultTimeout_;
-
         TServiceId serviceId(request->GetService(), request->GetRealmId());
         auto service = Server_->FindService(serviceId);
         if (!service) {
@@ -74,10 +62,7 @@ public:
 
         auto serializedRequest = request->Serialize();
 
-
-        auto session = New<TSession>(
-            std::move(responseHandler),
-            actualTimeout);
+        auto session = New<TSession>(std::move(responseHandler), timeout);
 
         service->HandleRequest(
             std::make_unique<NProto::TRequestHeader>(request->Header()),
@@ -100,8 +85,6 @@ private:
     typedef TIntrusivePtr<TClientRequestControl> TClientRequestControlPtr;
 
     const IServerPtr Server_;
-
-    TNullable<TDuration> DefaultTimeout_;
 
 
     class TSession

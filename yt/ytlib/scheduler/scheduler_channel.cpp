@@ -77,9 +77,13 @@ IChannelPtr CreateSchedulerChannel(
     YCHECK(masterChannel);
 
     auto channelProvider = New<TSchedulerChannelProvider>(channelFactory, masterChannel);
-    auto roamingChannel = CreateRoamingChannel(channelProvider);
-    roamingChannel->SetDefaultTimeout(config->RpcTimeout);
-    return CreateRetryingChannel(config, roamingChannel);
+    auto channel = CreateRoamingChannel(channelProvider);
+
+    channel = CreateRetryingChannel(config, channel);
+
+    channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
+
+    return channel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

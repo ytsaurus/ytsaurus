@@ -39,12 +39,6 @@ DEFINE_REFCOUNTED_TYPE(IClientRequestControl)
 struct IChannel
     : public virtual TRefCounted
 {
-    //! Gets the default timeout.
-    virtual TNullable<TDuration> GetDefaultTimeout() const = 0;
-
-    //! Sets the default timeout.
-    virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) = 0;
-
     //! Returns a textual representation of the channel's endpoint.
     //! Typically used for logging
     virtual Stroka GetEndpointTextDescription() const = 0;
