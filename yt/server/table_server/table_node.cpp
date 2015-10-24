@@ -214,12 +214,13 @@ protected:
 
     virtual void DoBranch(
         const TTableNode* originatingNode,
-        TTableNode* branchedNode) override
+        TTableNode* branchedNode,
+        ELockMode mode) override
     {
         branchedNode->KeyColumns() = originatingNode->KeyColumns();
         branchedNode->SetSorted(originatingNode->GetSorted());
 
-        TBase::DoBranch(originatingNode, branchedNode);
+        TBase::DoBranch(originatingNode, branchedNode, mode);
     }
 
     virtual void DoMerge(

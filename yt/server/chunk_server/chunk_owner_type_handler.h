@@ -48,9 +48,19 @@ protected:
 
     virtual void DoBranch(
         const TChunkOwner* originatingNode,
-        TChunkOwner* branchedNode) override;
+        TChunkOwner* branchedNode,
+        NCypressServer::ELockMode mode) override;
+
+    virtual void DoLogBranch(
+        const TChunkOwner* originatingNode,
+        TChunkOwner* branchedNode,
+        NCypressServer::ELockMode mode) override;
 
     virtual void DoMerge(
+        TChunkOwner* originatingNode,
+        TChunkOwner* branchedNode) override;
+
+    virtual void DoLogMerge(
         TChunkOwner* originatingNode,
         TChunkOwner* branchedNode) override;
 

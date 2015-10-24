@@ -229,9 +229,10 @@ void TMapNodeTypeHandler::DoDestroy(TMapNode* node)
 
 void TMapNodeTypeHandler::DoBranch(
     const TMapNode* originatingNode,
-    TMapNode* branchedNode)
+    TMapNode* branchedNode,
+    ELockMode mode)
 {
-    TBase::DoBranch(originatingNode, branchedNode);
+    TBase::DoBranch(originatingNode, branchedNode, mode);
 }
 
 void TMapNodeTypeHandler::DoMerge(
@@ -241,10 +242,8 @@ void TMapNodeTypeHandler::DoMerge(
     TBase::DoMerge(originatingNode, branchedNode);
 
     auto objectManager = Bootstrap_->GetObjectManager();
-    auto transactionManager = Bootstrap_->GetTransactionManager();
-    auto cypressManager = Bootstrap_->GetCypressManager();
 
-    bool isOriginatingNodeBranched = originatingNode->GetTransaction();
+    bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
 
     auto& keyToChild = originatingNode->KeyToChild();
     auto& childToKey = originatingNode->ChildToKey();
@@ -431,9 +430,10 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
 
 void TListNodeTypeHandler::DoBranch(
     const TListNode* originatingNode,
-    TListNode* branchedNode)
+    TListNode* branchedNode,
+    ELockMode mode)
 {
-    TBase::DoBranch(originatingNode, branchedNode);
+    TBase::DoBranch(originatingNode, branchedNode, mode);
 
     branchedNode->IndexToChild() = originatingNode->IndexToChild();
     branchedNode->ChildToIndex() = originatingNode->ChildToIndex();
@@ -569,9 +569,10 @@ std::unique_ptr<TLinkNode> TLinkNodeTypeHandler::DoCreate(
 
 void TLinkNodeTypeHandler::DoBranch(
     const TLinkNode* originatingNode,
-    TLinkNode* branchedNode)
+    TLinkNode* branchedNode,
+    ELockMode mode)
 {
-    TBase::DoBranch(originatingNode, branchedNode);
+    TBase::DoBranch(originatingNode, branchedNode, mode);
 
     branchedNode->SetTargetId(originatingNode->GetTargetId());
 }
@@ -655,9 +656,10 @@ ICypressNodeProxyPtr TDocumentNodeTypeHandler::DoGetProxy(
 
 void TDocumentNodeTypeHandler::DoBranch(
     const TDocumentNode* originatingNode,
-    TDocumentNode* branchedNode)
+    TDocumentNode* branchedNode,
+    ELockMode mode)
 {
-    TBase::DoBranch(originatingNode, branchedNode);
+    TBase::DoBranch(originatingNode, branchedNode, mode);
 
     branchedNode->SetValue(CloneNode(originatingNode->GetValue()));
 }

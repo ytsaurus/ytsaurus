@@ -116,32 +116,40 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoDestroy(TChunkOwner* node)
 template <class TChunkOwner>
 void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
     const TChunkOwner* originatingNode,
-    TChunkOwner* branchedNode)
+    TChunkOwner* branchedNode,
+    NCypressServer::ELockMode mode)
 {
-    TBase::DoBranch(originatingNode, branchedNode);
-
-    auto* chunkList = originatingNode->GetChunkList();
-    auto chunkListId = NObjectServer::GetObjectId(chunkList);
+    TBase::DoBranch(originatingNode, branchedNode, mode);
 
     if (!originatingNode->IsExternal()) {
-        auto objectManager = TBase::Bootstrap_->GetObjectManager();
-
+        auto* chunkList = originatingNode->GetChunkList();
         branchedNode->SetChunkList(chunkList);
-        objectManager->RefObject(branchedNode->GetChunkList());
+
         YCHECK(branchedNode->GetChunkList()->OwningNodes().insert(branchedNode).second);
+
+        auto objectManager = TBase::Bootstrap_->GetObjectManager();
+        objectManager->RefObject(chunkList);
     }
 
     branchedNode->SetReplicationFactor(originatingNode->GetReplicationFactor());
     branchedNode->SetVital(originatingNode->GetVital());
     branchedNode->SnapshotStatistics() = originatingNode->ComputeTotalStatistics();
+}
 
+template <class TChunkOwner>
+void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
+    const TChunkOwner* originatingNode,
+    TChunkOwner* branchedNode,
+    NCypressServer::ELockMode mode)
+{
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
-        "Chunk owner node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v)",
+        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, ReplicationFactor: %v, Mode: %v)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
-        chunkListId,
-        originatingNode->GetReplicationFactor());
+        NObjectServer::GetObjectId(originatingNode->GetChunkList()),
+        originatingNode->GetReplicationFactor(),
+        mode);
 }
 
 template <class TChunkOwner>
@@ -152,12 +160,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     TBase::DoMerge(originatingNode, branchedNode);
 
     bool isExternal = originatingNode->IsExternal();
-
-    auto originatingChunkListId = NObjectServer::GetObjectId(originatingNode->GetChunkList());
-    auto branchedChunkListId = NObjectServer::GetObjectId(branchedNode->GetChunkList());
-
-    auto originatingUpdateMode = originatingNode->GetUpdateMode();
-    auto branchedUpdateMode = branchedNode->GetUpdateMode();
 
     auto hydraManager = TBase::Bootstrap_->GetHydraFacade()->GetHydraManager();
     auto chunkManager = TBase::Bootstrap_->GetChunkManager();
@@ -188,7 +190,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     bool isPropertiesUpdateNeeded = isTopmostCommit && hasPropertiesChanged && hydraManager->IsLeader();
     auto newOriginatingMode = isTopmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
         ? NChunkClient::EUpdateMode::None
-        : (originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite)
+        : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
             : NChunkClient::EUpdateMode::Append;
 
@@ -234,7 +236,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
 
             originatingNode->DeltaStatistics() += branchedNode->DeltaStatistics();
-       } else {
+        } else {
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
                 chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
@@ -249,7 +251,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             } else {
                 originatingNode->SnapshotStatistics() += branchedNode->DeltaStatistics();
             }
-       }
+        }
 
         if (!isExternal) {
             objectManager->UnrefObject(originatingChunkList);
@@ -258,7 +260,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     }
 
     auto* newOriginatingChunkList = originatingNode->GetChunkList();
-    auto newOriginatingChunkListId = NObjectServer::GetObjectId(newOriginatingChunkList);
 
     if (isTopmostCommit && !isExternal) {
         // Rebalance when the topmost transaction commits.
@@ -266,21 +267,25 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     }
 
     originatingNode->SetUpdateMode(newOriginatingMode);
+}
 
+template <class TChunkOwner>
+void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
+    TChunkOwner* originatingNode,
+    TChunkOwner* branchedNode)
+{
     LOG_DEBUG_UNLESS(
         TBase::IsRecovery(),
-        "Chunk owner node merged (OriginatingNodeId: %v, OriginatingChunkListId: %v, OriginatingUpdateMode: %v, OriginatingReplicationFactor: %v, "
+        "Node merged (OriginatingNodeId: %v, OriginatingReplicationFactor: %v, "
         "BranchedNodeId: %v, BranchedChunkListId: %v, BranchedUpdateMode: %v, BranchedReplicationFactor: %v, "
         "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v)",
         originatingNode->GetVersionedId(),
-        originatingChunkListId,
-        originatingUpdateMode,
         originatingNode->GetReplicationFactor(),
         branchedNode->GetVersionedId(),
-        branchedChunkListId,
-        branchedUpdateMode,
+        NObjectServer::GetObjectId(branchedNode->GetChunkList()),
+        branchedNode->GetUpdateMode(),
         branchedNode->GetReplicationFactor(),
-        newOriginatingChunkListId,
+        NObjectServer::GetObjectId(originatingNode->GetChunkList()),
         originatingNode->GetUpdateMode());
 }
 
