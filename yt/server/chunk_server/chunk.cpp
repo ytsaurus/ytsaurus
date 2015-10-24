@@ -210,14 +210,6 @@ bool TChunk::IsConfirmed() const
     return EChunkType(ChunkMeta_.type()) != EChunkType::Unknown;
 }
 
-void TChunk::ValidateConfirmed()
-{
-    if (!IsConfirmed()) {
-        THROW_ERROR_EXCEPTION("Chunk %v is not confirmed",
-            Id_);
-    }
-}
-
 bool TChunk::IsAvailable() const
 {
     if (IsRegular()) {

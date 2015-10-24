@@ -106,7 +106,6 @@ public:
         NChunkClient::NProto::TChunkMeta* chunkMeta);
 
     bool IsConfirmed() const;
-    void ValidateConfirmed();
 
     bool GetMovable() const;
     void SetMovable(bool value);
