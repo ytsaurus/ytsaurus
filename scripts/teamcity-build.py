@@ -331,14 +331,14 @@ def kill_by_name(name):
 
 @yt_register_build_step
 def run_integration_tests(options):
-    kill_by_name("ytserver")
+    kill_by_name("^ytserver")
     run_pytest(options, "integration", "{0}/tests/integration".format(options.checkout_directory))
 
 
 @yt_register_build_step
 def run_python_libraries_tests(options):
-    kill_by_name("ytserver")
-    kill_by_name("node")
+    kill_by_name("^ytserver")
+    kill_by_name("^node")
     run_pytest(options, "python_libraries", "{0}/python".format(options.checkout_directory),
                pytest_args=["--ignore=pyinstaller"])
 
@@ -396,7 +396,7 @@ def build_python_packages(options):
 def run_perl_tests(options):
     if options.build_enable_perl != "YES":
         return
-    kill_by_name("ytserver")
+    kill_by_name("^ytserver")
     run_pytest(options, "perl", "{0}/perl/tests".format(options.checkout_directory))
 
 
