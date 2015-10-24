@@ -211,6 +211,11 @@ Stroka ToString(TVersionedRow row)
     return builder.Flush();
 }
 
+Stroka ToString(TMutableVersionedRow row)
+{
+    return ToString(TVersionedRow(row));
+}
+
 Stroka ToString(const TVersionedOwningRow& row)
 {
     return ToString(row.Get());
@@ -238,7 +243,7 @@ void TVersionedRowBuilder::AddDeleteTimestamp(TTimestamp timestamp)
     DeleteTimestamps_.push_back(timestamp);
 }
 
-TVersionedRow TVersionedRowBuilder::FinishRow()
+TMutableVersionedRow TVersionedRowBuilder::FinishRow()
 {
     std::sort(
         Values_.begin(),
@@ -269,7 +274,7 @@ TVersionedRow TVersionedRowBuilder::FinishRow()
         std::unique(DeleteTimestamps_.begin(), DeleteTimestamps_.end()),
         DeleteTimestamps_.end());
 
-    auto row = TVersionedRow::Allocate(
+    auto row = TMutableVersionedRow::Allocate(
         Buffer_->GetPool(),
         Keys_.size(),
         Values_.size(),
@@ -318,7 +323,7 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 
     Data_ = TSharedMutableRef::Allocate(fixedSize + variableSize, false);
 
-    ::memcpy(GetHeader(), other.GetHeader(), fixedSize);
+    ::memcpy(GetMutableHeader(), other.GetHeader(), fixedSize);
 
     if (variableSize > 0) {
         char* current = Data_.Begin() + fixedSize;
@@ -331,10 +336,10 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
         };
 
         for (int index = 0; index < other.GetKeyCount(); ++index) {
-            captureValue(other.BeginKeys() + index);
+            captureValue(BeginMutableKeys() + index);
         }
         for (int index = 0; index < other.GetValueCount(); ++index) {
-            captureValue(other.BeginValues() + index);
+            captureValue(BeginMutableValues() + index);
         }
     }
 }

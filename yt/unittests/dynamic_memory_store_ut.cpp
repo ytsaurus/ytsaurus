@@ -411,7 +411,7 @@ private:
             return 0;
         }
 
-        int Compare(TDynamicRow lhs, TUnversionedValue* rhsBegin, int rhsLength) const
+        int Compare(TDynamicRow lhs, const TUnversionedValue* rhsBegin, int rhsLength) const
         {
             ui32 nullKeyBit = 1;
             ui32 lhsNullKeyMask = lhs.GetNullKeyMask();

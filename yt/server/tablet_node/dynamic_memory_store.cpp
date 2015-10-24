@@ -232,7 +232,7 @@ protected:
             }
         }
 
-        auto versionedRow = TVersionedRow::Allocate(
+        auto versionedRow = TMutableVersionedRow::Allocate(
             &Pool_,
             KeyColumnCount_,
             VersionedValues_.size(),
@@ -302,7 +302,7 @@ protected:
             return TVersionedRow();
         }
 
-        auto versionedRow = TVersionedRow::Allocate(
+        auto versionedRow = TMutableVersionedRow::Allocate(
             &Pool_,
             KeyColumnCount_,
             VersionedValues_.size(),
@@ -1355,7 +1355,7 @@ void TDynamicMemoryStore::AddWriteRevisionNonAtomic(
     UpdateTimestampRange(commitTimestamp);
 }
 
-void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, TUnversionedValue* srcKeys)
+void TDynamicMemoryStore::SetKeys(TDynamicRow dstRow, const TUnversionedValue* srcKeys)
 {
     ui32 nullKeyMask = 0;
     ui32 nullKeyBit = 1;

@@ -30,7 +30,7 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
 TUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
 {
     int valueCount = KeyColumns_.size() + row.GetCount();
-    TUnversionedRow result = TUnversionedRow::Allocate(memoryPool, valueCount);
+    auto result = TMutableUnversionedRow::Allocate(memoryPool, valueCount);
 
     // Initialize with empty key.
     ::memcpy(result.Begin(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
@@ -56,7 +56,7 @@ TUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunke
 
 TUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
 {
-    TUnversionedRow result = TUnversionedRow::Allocate(memoryPool, KeyColumns_.size());
+    auto result = TMutableUnversionedRow::Allocate(memoryPool, KeyColumns_.size());
     // Initialize with empty key.
     ::memcpy(result.Begin(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
 
@@ -74,7 +74,7 @@ TUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row, TChunke
 
 TUnversionedOwningRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row)
 {
-    std::vector<TUnversionedValue> result = EmptyKey_;
+    auto result = EmptyKey_;
 
     for (auto it = row.Begin(); it != row.End(); ++it) {
         const auto& value = *it;

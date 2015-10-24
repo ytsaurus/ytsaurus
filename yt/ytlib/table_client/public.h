@@ -121,12 +121,15 @@ struct TUnversionedRowHeader;
 struct TVersionedRowHeader;
 
 class TUnversionedRow;
+class TMutableUnversionedRow;
 class TUnversionedOwningRow;
 
 class TVersionedRow;
+class TMutableVersionedRow;
 class TVersionedOwningRow;
 
 typedef TUnversionedRow TKey;
+typedef TMutableUnversionedRow TMutableKey;
 typedef TUnversionedOwningRow TOwningKey;
 
 class TUnversionedRowBuilder;

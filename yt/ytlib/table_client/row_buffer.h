@@ -40,8 +40,8 @@ public:
     TVersionedValue Capture(const TVersionedValue& value);
     TUnversionedValue Capture(const TUnversionedValue& value);
 
-    TUnversionedRow Capture(TUnversionedRow row);
-    std::vector<TUnversionedRow> Capture(const std::vector<TUnversionedRow>& rows);
+    TMutableUnversionedRow Capture(TUnversionedRow row, bool deep = true);
+    std::vector<TMutableUnversionedRow> Capture(const std::vector<TUnversionedRow>& rows, bool deep = true);
 
     i64 GetSize() const;
     i64 GetCapacity() const;

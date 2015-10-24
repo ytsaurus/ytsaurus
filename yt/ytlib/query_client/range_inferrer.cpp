@@ -303,7 +303,7 @@ ui64 Estimate(TUnversionedValue lower, TUnversionedValue upper, TDivisors partia
     return 1;
 }
 
-static TNullable<TUnversionedValue> TrimSentinel(TRow row)
+static TNullable<TUnversionedValue> TrimSentinel(TMutableRow row)
 {
     TNullable<TUnversionedValue> result;
     for (int index = row.GetCount() - 1; index >= 0 && IsSentinelType(row[index].Type); --index) {
@@ -313,7 +313,7 @@ static TNullable<TUnversionedValue> TrimSentinel(TRow row)
     return result;
 }
 
-static void AppendSentinel(TRow row, TNullable<TUnversionedValue> sentinel)
+static void AppendSentinel(TMutableRow row, const TNullable<TUnversionedValue>& sentinel)
 {
     if (sentinel) {
         row[row.GetCount()] = sentinel.Get();
@@ -321,7 +321,7 @@ static void AppendSentinel(TRow row, TNullable<TUnversionedValue> sentinel)
     }
 }
 
-void Copy(TRow source, TRow dest, int count)
+void Copy(TRow source, TMutableRow dest, int count)
 {
     count = std::min(count, source.GetCount());
     for (int index = 0; index < count; ++index) {
@@ -329,10 +329,10 @@ void Copy(TRow source, TRow dest, int count)
     }
 }
 
-TRow Copy(TRowBuffer* buffer, TRow source, int size = std::numeric_limits<int>::max())
+TMutableRow Copy(TRowBuffer* buffer, TRow source, int size = std::numeric_limits<int>::max())
 {
     size = std::min(size, source.GetCount());
-    auto row = TUnversionedRow::Allocate(buffer->GetPool(), size);
+    auto row = TMutableUnversionedRow::Allocate(buffer->GetPool(), size);
     for (int index = 0; index < size; ++index) {
         row[index] = source[index];
     }
@@ -423,13 +423,13 @@ void EnrichKeyRange(
     const TColumnEvaluator& evaluator,
     const std::vector<TColumnSchema>& columns,
     TRowBuffer* buffer,
-    TRowRange& range,
-    std::vector<TRowRange>& ranges,
+    TMutableRowRange& range,
+    std::vector<TMutableRowRange>& ranges,
     size_t keySize,
     ui64* rangeExpansionLeft)
 {
-    TRow lower = range.first;
-    TRow upper = range.second;
+    auto lower = range.first;
+    auto upper = range.second;
 
     auto lowerSentinel = TrimSentinel(lower);
     auto upperSentinel = TrimSentinel(upper);
@@ -546,7 +546,8 @@ void EnrichKeyRange(
 
     TDivisors divisors(divisorsSet.begin(), divisorsSet.end());
 
-    auto enumerateModulo = [&] (TUnversionedRow& prefixRow, auto yield) {
+    // TODO(babenko): why &?
+    auto enumerateModulo = [&] (TMutableUnversionedRow& prefixRow, auto yield) {
         for (auto& column : computedColumns) {
             auto columnIndex = column.first;
             if (column.second) {
@@ -579,8 +580,8 @@ void EnrichKeyRange(
         }
     };
 
-    auto lowerRow = TUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
-    auto upperRow = TUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+    auto lowerRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+    auto upperRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
 
     size_t lowerSize = shrinkSize;
     while (lowerSize < range.first.GetCount() && !IsSentinelType(range.first[lowerSize].Type)) {
@@ -595,24 +596,25 @@ void EnrichKeyRange(
     Copy(range.first, lowerRow, keySize + 1);
     Copy(range.second, upperRow, keySize + 1);
 
-    std::function<void(TUnversionedRow& row,
-        size_t,
-        TNullable<TUnversionedValue> finalizeSentinel,
-        TNullable<TUnversionedValue> sentinel)> finalizeRow;
+    std::function<void(
+        TMutableRow& row,
+        size_t size,
+        const TNullable<TUnversionedValue>& finalizeSentinel,
+        const TNullable<TUnversionedValue>& sentinel)> finalizeRow;
     if (shrinkSize < prefixSize) {
         // Shrinked.
         // If is shrinked, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
         // upper bound
-        finalizeRow = [&] (TUnversionedRow& row,
+        finalizeRow = [&] (TMutableRow& row,
             size_t size,
-            TNullable<TUnversionedValue> finalizeSentinel,
-            TNullable<TUnversionedValue> sentinel)
+            const TNullable<TUnversionedValue>& finalizeSentinel,
+            const TNullable<TUnversionedValue>& sentinel)
         {
             row.SetCount(shrinkSize);
             AppendSentinel(row, finalizeSentinel);
         };
     } else {
-        finalizeRow = [&] (TUnversionedRow& row,
+        finalizeRow = [&] (TMutableRow& row,
             size_t size,
             TNullable<TUnversionedValue> finalizeSentinel,
             TNullable<TUnversionedValue> sentinel)
@@ -624,10 +626,10 @@ void EnrichKeyRange(
 
     // Add range to result.
     auto yieldRange = [&] (
-        TUnversionedRow lowerRow,
-        TUnversionedRow upperRow,
-        TNullable<TUnversionedValue> lowerSentinel,
-        TNullable<TUnversionedValue> upperSentinel)
+        TMutableRow lowerRow,
+        TMutableRow upperRow,
+        const TNullable<TUnversionedValue>& lowerSentinel,
+        const TNullable<TUnversionedValue>& upperSentinel)
     {
         finalizeRow(lowerRow, lowerSize, Null, lowerSentinel);
         finalizeRow(upperRow, upperSize, MakeUnversionedSentinelValue(EValueType::Max), upperSentinel);
@@ -635,7 +637,7 @@ void EnrichKeyRange(
         ranges.push_back(std::make_pair(Copy(buffer, lowerRow), Copy(buffer, upperRow)));
     };
 
-    TRow prefixRow = TUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
+    auto prefixRow = TMutableUnversionedRow::Allocate(buffer->GetPool(), keySize + 1);
     Copy(range.first, prefixRow, prefixSize);
 
     if (canEnumerate && !divisors.empty()) {
@@ -765,11 +767,11 @@ TRangeInferrer CreateHeavyRangeInferrer(
         "Got %v from key trie",
         ranges.size());
 
-    auto rangeExpansionLeft = (rangeExpansionLimit > ranges.size())
+    auto rangeExpansionLeft = rangeExpansionLimit > ranges.size()
         ? rangeExpansionLimit - ranges.size()
         : 0;
 
-    std::vector<TRowRange> enrichedRanges;
+    std::vector<TMutableRowRange> enrichedRanges;
     for (int index = 0; index < ranges.size(); ++index) {
         EnrichKeyRange(
             *evaluator,
@@ -778,7 +780,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
             ranges[index],
             enrichedRanges,
             keySize,
-            &rangeExpansionLeft );
+            &rangeExpansionLeft);
     }
     enrichedRanges = MergeOverlappingRanges(std::move(enrichedRanges));
 
@@ -794,10 +796,10 @@ TRangeInferrer CreateHeavyRangeInferrer(
                 return it.second <= value.first;
             });
 
-        std::vector<TRowRange> result;
+        std::vector<TMutableRowRange> result;
         while (startIt < enrichedRanges.end() && startIt->first < keyRange.second) {
-            auto lower = std::max(startIt->first, keyRange.first);
-            auto upper = std::min(startIt->second, keyRange.second);
+            auto lower = std::max(TRow(startIt->first), keyRange.first);
+            auto upper = std::min(TRow(startIt->second), keyRange.second);
             result.emplace_back(rowBuffer->Capture(lower), rowBuffer->Capture(upper));
             ++startIt;
         }

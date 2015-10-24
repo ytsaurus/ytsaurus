@@ -366,7 +366,7 @@ TConstExpressionPtr RefinePredicate(
             }
 
             auto rowBuffer = New<TRowBuffer>();
-            auto tempRow = TUnversionedRow::Allocate(rowBuffer->GetPool(), keyColumns.size());
+            auto tempRow = TMutableUnversionedRow::Allocate(rowBuffer->GetPool(), keyColumns.size());
 
             auto inRange = [&, tempRow] (TRow literalTuple) mutable {
                 for (int tupleIndex = 0; tupleIndex < idMapping.size(); ++tupleIndex) {
@@ -613,7 +613,6 @@ TRowRange Intersect(const TRowRange& first, const TRowRange& second)
     }
 }
 
-
 bool IsEmpty(const TKeyRange& keyRange)
 {
     return keyRange.first >= keyRange.second;
@@ -677,8 +676,8 @@ TConstExpressionPtr ExtractPredicateForColumnSubset(
         MakeUnversionedBooleanValue(true));
 }
 
-std::vector<TRowRange> MergeOverlappingRanges(
-    std::vector<TRowRange> ranges)
+std::vector<TMutableRowRange> MergeOverlappingRanges(
+    std::vector<TMutableRowRange> ranges)
 {
     int lastIndex = ranges.empty() ? -1 : 0;
     std::sort(ranges.begin(), ranges.end());

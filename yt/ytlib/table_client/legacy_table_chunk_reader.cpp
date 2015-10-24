@@ -546,7 +546,7 @@ bool TLegacyTableChunkReader::Read(std::vector<TUnversionedRow> *rows)
     i64 dataWeight = 0;
     while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead) {
         if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
-            auto row = TUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
+            auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, CurrentRow_.size());
             std::copy(CurrentRow_.begin(), CurrentRow_.end(), row.Begin());
             rows->push_back(row);
             dataWeight += GetDataWeight(row);

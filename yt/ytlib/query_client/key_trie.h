@@ -83,7 +83,7 @@ struct TKeyTrie
 
 DEFINE_REFCOUNTED_TYPE(TKeyTrie)
 
-TRowRanges GetRangesFromTrieWithinRange(
+TMutableRowRanges GetRangesFromTrieWithinRange(
     const TRowRange& keyRange,
     TKeyTriePtr trie,
     TRowBufferPtr rowBuffer,

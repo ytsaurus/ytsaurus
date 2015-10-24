@@ -484,7 +484,7 @@ private:
 
         ValidateRowValueCount(valueCount);
 
-        auto row = TUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
+        auto row = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), valueCount);
         for (int index = 0; index < valueCount; ++index) {
             ReadRowValue(&row[index]);
         }

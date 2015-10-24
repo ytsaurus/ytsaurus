@@ -23,16 +23,16 @@ public:
         IFunctionRegistryPtr functionRegistry);
 
     void EvaluateKey(
-        TRow fullRow,
+        TMutableRow fullRow,
         const TRowBufferPtr& buffer,
         int index) const;
 
     void EvaluateKeys(
-        TRow fullRow,
+        TMutableRow fullRow,
         const TRowBufferPtr& buffer) const;
 
-    TRow EvaluateKeys(
-        TRow partialRow,
+    TMutableRow EvaluateKeys(
+        TMutableRow partialRow,
         const TRowBufferPtr& buffer,
         const NTableClient::TNameTableToSchemaIdMapping& idMapping) const;
 
@@ -47,21 +47,21 @@ public:
     void UpdateAggregate(
         int schemaId,
         NTableClient::TUnversionedValue* result,
-        NTableClient::TUnversionedValue* state,
-        NTableClient::TUnversionedValue* update,
+        const NTableClient::TUnversionedValue& state,
+        const NTableClient::TUnversionedValue& update,
         const TRowBufferPtr& buffer);
 
     void MergeAggregate(
         int index,
         NTableClient::TUnversionedValue* result,
-        NTableClient::TUnversionedValue* state,
-        NTableClient::TUnversionedValue* mergeeState,
+        const NTableClient::TUnversionedValue& state,
+        const NTableClient::TUnversionedValue& mergeeState,
         const TRowBufferPtr& buffer);
 
     void FinalizeAggregate(
         int index,
         NTableClient::TUnversionedValue* result,
-        NTableClient::TUnversionedValue* state,
+        const NTableClient::TUnversionedValue& state,
         const TRowBufferPtr& buffer);
 
     DEFINE_BYREF_RO_PROPERTY(TTableSchema, TableSchema);

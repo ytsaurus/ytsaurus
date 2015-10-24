@@ -254,7 +254,7 @@ bool operator >= (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow&
 bool operator >  (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs);
 
 //! Sets all value types of |row| to |EValueType::Null|. Ids are not changed.
-void ResetRowValues(TUnversionedRow* row);
+void ResetRowValues(TMutableUnversionedRow* row);
 
 //! Computes hash for a given TUnversionedRow.
 ui64 GetHash(TUnversionedRow row, int keyColumnCount = std::numeric_limits<int>::max());
@@ -285,80 +285,45 @@ class TUnversionedRow
 {
 public:
     TUnversionedRow()
-        : Header(nullptr)
+        : Header_(nullptr)
     { }
 
-    explicit TUnversionedRow(TUnversionedRowHeader* header)
-        : Header(header)
+    explicit TUnversionedRow(const TUnversionedRowHeader* header)
+        : Header_(header)
     { }
-
-    static TUnversionedRow Allocate(
-        TChunkedMemoryPool* pool,
-        int valueCount);
-
 
     explicit operator bool() const
     {
-        return Header != nullptr;
+        return Header_ != nullptr;
     }
-
 
     const TUnversionedRowHeader* GetHeader() const
     {
-        return Header;
+        return Header_;
     }
-
-    TUnversionedRowHeader* GetHeader()
-    {
-        return Header;
-    }
-
 
     const TUnversionedValue* Begin() const
     {
-        return reinterpret_cast<const TUnversionedValue*>(Header + 1);
+        return reinterpret_cast<const TUnversionedValue*>(Header_ + 1);
     }
-
-    TUnversionedValue* Begin()
-    {
-        return reinterpret_cast<TUnversionedValue*>(Header + 1);
-    }
-
 
     const TUnversionedValue* End() const
     {
         return Begin() + GetCount();
     }
 
-    TUnversionedValue* End()
-    {
-        return Begin() + GetCount();
-    }
-
-
     int GetCount() const
     {
-        return Header->Count;
+        return Header_->Count;
     }
-
-    void SetCount(int count)
-    {
-        Header->Count = count;
-    }
-
 
     const TUnversionedValue& operator[] (int index) const
     {
         return Begin()[index];
     }
 
-    TUnversionedValue& operator[] (int index)
-    {
-        return Begin()[index];
-    }
-
-private:
-    TUnversionedRowHeader* Header;
+protected:
+    const TUnversionedRowHeader* Header_;
 
 };
 
@@ -495,15 +460,60 @@ void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
 void Deserialize(TOwningKey& key, NYTree::INodePtr node);
 
 Stroka ToString(TUnversionedRow row);
+Stroka ToString(TMutableUnversionedRow row);
 Stroka ToString(const TUnversionedOwningRow& row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable owning version of TUnversionedRow.
+//! A variant of TUnversionedRow that enables mutating access to its content.
+class TMutableUnversionedRow
+    : public TUnversionedRow
+{
+public:
+    TMutableUnversionedRow()
+    { }
+
+    explicit TMutableUnversionedRow(TUnversionedRowHeader* header)
+        : TUnversionedRow(header)
+    { }
+
+    static TMutableUnversionedRow Allocate(
+        TChunkedMemoryPool* pool,
+        int valueCount);
+
+    TUnversionedRowHeader* GetHeader()
+    {
+        return const_cast<TUnversionedRowHeader*>(TUnversionedRow::GetHeader());
+    }
+
+    TUnversionedValue* Begin()
+    {
+        return reinterpret_cast<TUnversionedValue*>(GetHeader() + 1);
+    }
+
+    TUnversionedValue* End()
+    {
+        return Begin() + GetCount();
+    }
+
+    void SetCount(int count)
+    {
+        GetHeader()->Count = count;
+    }
+
+    TUnversionedValue& operator[] (int index)
+    {
+        return Begin()[index];
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! An owning variant of TUnversionedRow.
 /*!
- *  Instances of TUnversionedOwningRow are lightweight ref-counted handles.
- *  Fixed part is stored in a (shared) blob.
- *  Variable part is stored in a (shared) string.
+ *  Instances of TUnversionedOwningRow are lightweight handles.
+ *  Fixed part is stored in shared ref-counted blobs.
+ *  Variable part is stored in shared strings.
  */
 class TUnversionedOwningRow
 {
@@ -541,7 +551,7 @@ public:
 
     TUnversionedRow Get() const
     {
-        return TUnversionedRow(const_cast<TUnversionedOwningRow*>(this)->GetHeader());
+        return TUnversionedRow(GetHeader());
     }
 
     const TUnversionedValue* Begin() const
@@ -645,7 +655,7 @@ public:
     explicit TUnversionedRowBuilder(int initialValueCapacity = DefaultValueCapacity);
 
     int AddValue(const TUnversionedValue& value);
-    TUnversionedRow GetRow();
+    TMutableUnversionedRow GetRow();
     void Reset();
 
 private:

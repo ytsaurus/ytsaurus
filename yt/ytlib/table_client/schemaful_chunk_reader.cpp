@@ -266,7 +266,7 @@ void TChunkReader::DoOpen()
     }
 }
 
-bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
+bool TChunkReader::Read(std::vector<TUnversionedRow>* rows)
 {
     rows->clear();
 
@@ -290,14 +290,14 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
             continue;
         }
 
+        TMutableUnversionedRow row;
         if (IncludeAllColumns) {
             auto variableIt = BlockReader->GetVariableIterator();
 
-            rows->push_back(TUnversionedRow::Allocate(
+            row = TMutableUnversionedRow::Allocate(
                 &MemoryPool,
-                FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount()));
+                FixedColumns.size() + VariableColumns.size() + variableIt.GetRemainingCount());
 
-            auto& row = rows->back();
             for (const auto& column : VariableColumns) {
                 auto value = BlockReader->Read(column.IndexInBlock);
                 value.Id = column.IndexInNameTable;
@@ -311,10 +311,11 @@ bool TChunkReader::Read(std::vector<TUnversionedRow> *rows)
                 row[index] = value;
             }
         } else {
-            rows->push_back(TUnversionedRow::Allocate(&MemoryPool, FixedColumns.size()));
+            row = TMutableUnversionedRow::Allocate(&MemoryPool, FixedColumns.size());
         }
 
-        auto& row = rows->back();
+        rows->push_back(row);
+
         for (const auto& column : FixedColumns) {
             auto value = BlockReader->Read(column.IndexInBlock);
             value.Id = column.IndexInNameTable;

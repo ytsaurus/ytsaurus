@@ -151,20 +151,7 @@ class TTopCollector
 public:
     TTopCollector(i64 limit, TComparerFunction* comparer);
 
-    // TODO(babenko): TSharedRange?
-    std::vector<TRow> GetRows(int rowSize) const
-    {
-        std::vector<TRow> result;
-        result.reserve(Rows_.size());
-        for (const auto& pair : Rows_) {
-            result.push_back(pair.first);
-        }
-        std::sort(result.begin(), result.end(), Comparer_);
-        for (auto& row : result) {
-            row.SetCount(rowSize);
-        }
-        return result;
-    }
+    std::vector<TMutableRow> GetRows(int rowSize) const;
 
     void AddRow(TRow row);
 
@@ -178,9 +165,9 @@ private:
 
     std::vector<TRowBufferPtr> Buffers_;
     std::vector<int> EmptyBufferIds_;
-    std::vector<std::pair<TRow, int>> Rows_;
+    std::vector<std::pair<TMutableRow, int>> Rows_;
     
-    std::pair<TRow, int> Capture(TRow row);
+    std::pair<TMutableRow, int> Capture(TRow row);
 
     void AccountGarbage(TRow row);
 
@@ -196,9 +183,9 @@ struct TCGVariables
 typedef void (TCGQuerySignature)(TRow, TExecutionContext*, TFunctionContext**);
 typedef void (TCGExpressionSignature)(TValue*, TRow, TRow, TExpressionContext*, TFunctionContext**);
 typedef void (TCGAggregateInitSignature)(TExecutionContext*, TValue*);
-typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, TValue*, TValue*);
-typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, TValue*, TValue*);
-typedef void (TCGAggregateFinalizeSignature)(TExecutionContext*, TValue*, TValue*);
+typedef void (TCGAggregateUpdateSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateMergeSignature)(TExecutionContext*, TValue*, const TValue*, const TValue*);
+typedef void (TCGAggregateFinalizeSignature)(TExecutionContext*, TValue*, const TValue*);
 
 using TCGQueryCallback = NCodegen::TCGFunction<TCGQuerySignature>;
 using TCGExpressionCallback = NCodegen::TCGFunction<TCGExpressionSignature>;

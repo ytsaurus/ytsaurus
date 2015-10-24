@@ -144,38 +144,13 @@ public:
         : Header_(nullptr)
     { }
 
-    explicit TVersionedRow(TVersionedRowHeader* header)
+    explicit TVersionedRow(const TVersionedRowHeader* header)
         : Header_(header)
     { }
-
-    static TVersionedRow Allocate(
-        TChunkedMemoryPool* pool,
-        int keyCount,
-        int valueCount,
-        int writeTimestampCount,
-        int deleteTimestampCount)
-    {
-        auto* header = reinterpret_cast<TVersionedRowHeader*>(pool->AllocateAligned(
-            GetVersionedRowByteSize(
-                keyCount,
-                valueCount,
-                writeTimestampCount,
-                deleteTimestampCount)));
-        header->KeyCount = keyCount;
-        header->ValueCount = valueCount;
-        header->WriteTimestampCount = writeTimestampCount;
-        header->DeleteTimestampCount = deleteTimestampCount;
-        return TVersionedRow(header);
-    }
 
     explicit operator bool()
     {
         return Header_ != nullptr;
-    }
-
-    TVersionedRowHeader* GetHeader()
-    {
-        return Header_;
     }
 
     const TVersionedRowHeader* GetHeader() const
@@ -188,17 +163,7 @@ public:
         return reinterpret_cast<const TTimestamp*>(Header_ + 1);
     }
 
-    TTimestamp* BeginWriteTimestamps()
-    {
-        return reinterpret_cast<TTimestamp*>(Header_ + 1);
-    }
-
     const TTimestamp* EndWriteTimestamps() const
-    {
-        return BeginWriteTimestamps() + GetWriteTimestampCount();
-    }
-
-    TTimestamp* EndWriteTimestamps()
     {
         return BeginWriteTimestamps() + GetWriteTimestampCount();
     }
@@ -208,17 +173,7 @@ public:
         return EndWriteTimestamps();
     }
 
-    TTimestamp* BeginDeleteTimestamps()
-    {
-        return EndWriteTimestamps();
-    }
-
     const TTimestamp* EndDeleteTimestamps() const
-    {
-        return BeginDeleteTimestamps() + GetDeleteTimestampCount();
-    }
-
-    TTimestamp* EndDeleteTimestamps()
     {
         return BeginDeleteTimestamps() + GetDeleteTimestampCount();
     }
@@ -228,17 +183,7 @@ public:
         return reinterpret_cast<const TUnversionedValue*>(EndDeleteTimestamps());
     }
 
-    TUnversionedValue* BeginKeys()
-    {
-        return reinterpret_cast<TUnversionedValue*>(EndDeleteTimestamps());
-    }
-
     const TUnversionedValue* EndKeys() const
-    {
-        return BeginKeys() + GetKeyCount();
-    }
-
-    TUnversionedValue* EndKeys()
     {
         return BeginKeys() + GetKeyCount();
     }
@@ -248,17 +193,7 @@ public:
         return reinterpret_cast<const TVersionedValue*>(EndKeys());
     }
 
-    TVersionedValue* BeginValues()
-    {
-        return reinterpret_cast<TVersionedValue*>(EndKeys());
-    }
-
     const TVersionedValue* EndValues() const
-    {
-        return BeginValues() + GetValueCount();
-    }
-
-    TVersionedValue* EndValues()
     {
         return BeginValues() + GetValueCount();
     }
@@ -283,15 +218,8 @@ public:
         return Header_->DeleteTimestampCount;
     }
 
-    TTimestamp GetLatestTimestamp() const
-    {
-        auto deleteTimestamp = GetDeleteTimestampCount() == 0 ? NullTimestamp : EndDeleteTimestamps()[-1];
-        auto writeTimestamp = GetWriteTimestampCount() == 0 ? NullTimestamp : EndWriteTimestamps()[-1];
-        return std::max(deleteTimestamp, writeTimestamp);
-    }
-
 private:
-    TVersionedRowHeader* Header_;
+    const TVersionedRowHeader* Header_;
 
 };
 
@@ -310,7 +238,108 @@ bool operator == (TVersionedRow lhs, TVersionedRow rhs);
 bool operator != (TVersionedRow lhs, TVersionedRow rhs);
 
 Stroka ToString(TVersionedRow row);
+Stroka ToString(TMutableVersionedRow row);
 Stroka ToString(const TVersionedOwningRow& row);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A variant of TVersionedRow that enables mutating access to its content.
+class TMutableVersionedRow
+    : public TVersionedRow
+{
+public:
+    TMutableVersionedRow()
+    { }
+
+    explicit TMutableVersionedRow(TVersionedRowHeader* header)
+        : TVersionedRow(header)
+    { }
+
+    static TMutableVersionedRow Allocate(
+        TChunkedMemoryPool* pool,
+        int keyCount,
+        int valueCount,
+        int writeTimestampCount,
+        int deleteTimestampCount)
+    {
+        size_t byteSize = GetVersionedRowByteSize(
+            keyCount,
+            valueCount,
+            writeTimestampCount,
+            deleteTimestampCount);
+        auto* header = reinterpret_cast<TVersionedRowHeader*>(pool->AllocateAligned(byteSize));
+        header->KeyCount = keyCount;
+        header->ValueCount = valueCount;
+        header->WriteTimestampCount = writeTimestampCount;
+        header->DeleteTimestampCount = deleteTimestampCount;
+        return TMutableVersionedRow(header);
+    }
+
+    TVersionedRowHeader* GetHeader()
+    {
+        return const_cast<TVersionedRowHeader*>(TVersionedRow::GetHeader());
+    }
+
+    TTimestamp* BeginWriteTimestamps()
+    {
+        return reinterpret_cast<TTimestamp*>(GetHeader() + 1);
+    }
+
+    TTimestamp* EndWriteTimestamps()
+    {
+        return BeginWriteTimestamps() + GetWriteTimestampCount();
+    }
+
+    TTimestamp* BeginDeleteTimestamps()
+    {
+        return EndWriteTimestamps();
+    }
+
+    TTimestamp* EndDeleteTimestamps()
+    {
+        return BeginDeleteTimestamps() + GetDeleteTimestampCount();
+    }
+
+    TUnversionedValue* BeginKeys()
+    {
+        return reinterpret_cast<TUnversionedValue*>(EndDeleteTimestamps());
+    }
+
+    TUnversionedValue* EndKeys()
+    {
+        return BeginKeys() + GetKeyCount();
+    }
+
+    TVersionedValue* BeginValues()
+    {
+        return reinterpret_cast<TVersionedValue*>(EndKeys());
+    }
+
+    TVersionedValue* EndValues()
+    {
+        return BeginValues() + GetValueCount();
+    }
+
+    void SetKeyCount(int count)
+    {
+        GetHeader()->KeyCount = count;
+    }
+
+    void SetValueCount(int count)
+    {
+        GetHeader()->ValueCount = count;
+    }
+
+    void SetWriteTimestampCount(int count)
+    {
+        GetHeader()->WriteTimestampCount = count;
+    }
+
+    void SetDeleteTimestampCount(int count)
+    {
+        GetHeader()->DeleteTimestampCount = count;
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,7 +357,7 @@ public:
     void AddValue(const TVersionedValue& value);
     void AddDeleteTimestamp(TTimestamp timestamp);
 
-    TVersionedRow FinishRow();
+    TMutableVersionedRow FinishRow();
 
 private:
     const TRowBufferPtr Buffer_;
@@ -342,10 +371,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable owning version of TVersionedRow.
+//! An owning variant of TVersionedRow.
 /*!
- *  Instances of TVersionedOwningRow are lightweight ref-counted handles.
- *  All data is stored in a (shared) blob.
+ *  Instances of TVersionedOwningRow are lightweight handles.
+ *  All data is stored in shared ref-counted blobs.
  */
 class TVersionedOwningRow
 {
@@ -370,7 +399,7 @@ public:
 
     TVersionedRow Get() const
     {
-        return TVersionedRow(const_cast<TVersionedOwningRow*>(this)->GetHeader());
+        return TVersionedRow(GetHeader());
     }
 
     const TTimestamp* BeginWriteTimestamps() const
@@ -466,9 +495,19 @@ private:
         return Data_ ? reinterpret_cast<const TVersionedRowHeader*>(Data_.Begin()) : nullptr;
     }
 
-    TVersionedRowHeader* GetHeader()
+    TVersionedRowHeader* GetMutableHeader()
     {
         return Data_ ? reinterpret_cast<TVersionedRowHeader*>(Data_.Begin()) : nullptr;
+    }
+
+    TUnversionedValue* BeginMutableKeys()
+    {
+        return const_cast<TUnversionedValue*>(BeginKeys());
+    }
+
+    TVersionedValue* BeginMutableValues()
+    {
+        return const_cast<TVersionedValue*>(BeginValues());
     }
 
 };
