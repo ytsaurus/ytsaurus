@@ -148,15 +148,19 @@ def write_config(config, filename, format="yson"):
     with open(filename, "wt") as f:
         if format == "yson":
             yson.dump(config, f, yson_format="pretty", boolean_as_string=False)
-        else:  # json
+        elif format == "json":
             json.dump(_fix_yson_booleans(config), f, indent=4)
+        else:
+            f.write(config)
 
 def read_config(filename, format="yson"):
     with open(filename, "r") as f:
         if format == "yson":
             return yson.load(f)
-        else:  # json
+        elif format == "json":
             return json.load(f)
+        else:
+            return f.read()
 
 def is_dead_or_zombie(pid):
     try:

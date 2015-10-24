@@ -78,7 +78,7 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True,
-              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None):
+              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None, enable_ui=False):
         self._lock = RLock()
 
         logger.propagate = False
@@ -123,7 +123,8 @@ class YTEnv(object):
                       start_secondary_master_cells=self.START_SECONDARY_MASTER_CELLS,
                       proxy_port=proxy_port,
                       enable_debug_logging=enable_debug_logging,
-                      load_existing_environment=load_existing_environment)
+                      load_existing_environment=load_existing_environment,
+                      enable_ui=enable_ui)
 
     def get_proxy_address(self):
         if not self.START_PROXY:
@@ -158,7 +159,7 @@ class YTEnv(object):
                     callback_func(self, args)
                     break
 
-    def _run_all(self, master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy,
+    def _run_all(self, master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy, enable_ui=False,
                  use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
                  proxy_port=None, enable_debug_logging=True, load_existing_environment=False):
 
@@ -197,7 +198,7 @@ class YTEnv(object):
             self._prepare_masters(master_count, master_name, secondary_master_cell_count, cell_tag)
             self._prepare_schedulers(scheduler_count, scheduler_name)
             self._prepare_nodes(node_count, node_name)
-            self._prepare_proxy(has_proxy, proxy_name, proxy_port)
+            self._prepare_proxy(has_proxy, proxy_name, proxy_port, enable_ui=enable_ui)
             self._prepare_driver(driver_name, secondary_master_cell_count)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
 
@@ -677,6 +678,17 @@ class YTEnv(object):
             self.config_paths[console_driver_name].append(config_path)
             self.log_paths[console_driver_name].append(config["logging"]["writers"]["info"]["file_name"])
 
+    def _get_ui_config(self, proxy_name):
+        if self._load_existing_environment:
+            config_path = os.path.join(self.path_to_run, proxy_name, "ui/config.js")
+
+            if not os.path.isfile(config_path):
+                raise YtError("Proxy config {0} not found.".format(config_path))
+
+            return read_config(config_path, format=None)
+        else:
+            return self._configs_provider.get_ui_config("localhost:" + str(self.configs[proxy_name]["port"]))
+
     def _get_proxy_config(self, proxy_name, proxy_dir, proxy_port):
         if self._load_existing_environment:
             config_path = os.path.join(self.path_to_run, proxy_name, "proxy_config.json")
@@ -688,7 +700,7 @@ class YTEnv(object):
         else:
             return self._configs_provider.get_proxy_config(proxy_dir, proxy_port)
 
-    def _prepare_proxy(self, has_proxy, proxy_name, proxy_port):
+    def _prepare_proxy(self, has_proxy, proxy_name, proxy_port, enable_ui):
         if not has_proxy:
             return
 
@@ -707,6 +719,17 @@ class YTEnv(object):
         self.configs[proxy_name] = proxy_config
         self.config_paths[proxy_name] = config_path
         self.log_paths[proxy_name] = os.path.join(proxy_dir, "http_application.log")
+
+        if enable_ui:
+            if not os.path.exists("/usr/share/yt-thor/"):
+                logger.warning("Failed to configure UI, /usr/share/yt-thor/ is missing, try to install yandex-yt-web-interface.")
+                return
+            if not self._load_existing_environment:
+                shutil.copytree("/usr/share/yt-thor/", os.path.join(proxy_dir, "ui/"))
+            config_path = os.path.join(proxy_dir, "ui/config.js")
+            ui_config = self._get_ui_config(proxy_name)
+            if not self._load_existing_environment:
+                write_config(ui_config, config_path, format=None)
 
     def _start_proxy_from_package(self, proxy_name):
         node_path = filter(lambda x: x != "", os.environ.get("NODE_PATH", "").split(":"))

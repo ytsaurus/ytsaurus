@@ -357,6 +357,32 @@ def get_proxy_config():
         "driver" : { },
         "logging" : { },
         "tracing" : { }
-    }
+    },
+
+    "static": []
 }
 """)
+
+def get_ui_config():
+    return """
+tm.managers = {
+    production: {
+        url: '//transfer-manager.yt.yandex.net/api/v1',
+        version: '1'
+    }
+};
+
+YT.odinPath = '';
+
+YT.clusters = {
+    'ui' : {
+        name: 'Local',
+        proxy: %%proxy_address%%,
+        oauthApplication: '',
+        type: 'infrastructural',
+        theme: 'grapefruit',
+        description: 'Local',
+        masters: %%master_addresses%%
+    }
+};
+"""
