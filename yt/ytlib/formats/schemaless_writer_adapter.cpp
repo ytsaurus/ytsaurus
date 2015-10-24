@@ -214,7 +214,7 @@ void TSchemalessWriterAdapter::WriteControlAttribute(
         .Entity();
 }
 
-void TSchemalessWriterAdapter::ConsumeRow(const TUnversionedRow& row)
+void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)
 {
     auto nameTable = GetNameTable();
     Consumer_->OnListItem();

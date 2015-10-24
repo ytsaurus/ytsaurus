@@ -17,7 +17,7 @@ struct IPartitioner
     { }
 
     virtual int GetPartitionCount() = 0;
-    virtual int GetPartitionIndex(const TUnversionedRow& row) = 0;
+    virtual int GetPartitionIndex(TUnversionedRow row) = 0;
 };
 
 std::unique_ptr<IPartitioner> CreateOrderedPartitioner(const std::vector<TOwningKey>* keys);

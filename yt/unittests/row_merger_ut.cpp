@@ -24,7 +24,7 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TVersionedRow& row, ::std::ostream* os)
+void PrintTo(TVersionedRow row, ::std::ostream* os)
 {
     *os << ToString(row);
 }

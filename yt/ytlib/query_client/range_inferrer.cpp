@@ -546,8 +546,7 @@ void EnrichKeyRange(
 
     TDivisors divisors(divisorsSet.begin(), divisorsSet.end());
 
-    // TODO(babenko): why &?
-    auto enumerateModulo = [&] (TMutableUnversionedRow& prefixRow, auto yield) {
+    auto enumerateModulo = [&] (TMutableUnversionedRow prefixRow, auto yield) {
         for (auto& column : computedColumns) {
             auto columnIndex = column.first;
             if (column.second) {
@@ -597,7 +596,7 @@ void EnrichKeyRange(
     Copy(range.second, upperRow, keySize + 1);
 
     std::function<void(
-        TMutableRow& row,
+        TMutableRow row,
         size_t size,
         const TNullable<TUnversionedValue>& finalizeSentinel,
         const TNullable<TUnversionedValue>& sentinel)> finalizeRow;
@@ -605,7 +604,7 @@ void EnrichKeyRange(
         // Shrinked.
         // If is shrinked, then we append fixed sentinels: No sentinel for lower bound and Max sentinel for
         // upper bound
-        finalizeRow = [&] (TMutableRow& row,
+        finalizeRow = [&] (TMutableRow row,
             size_t size,
             const TNullable<TUnversionedValue>& finalizeSentinel,
             const TNullable<TUnversionedValue>& sentinel)
@@ -614,7 +613,7 @@ void EnrichKeyRange(
             AppendSentinel(row, finalizeSentinel);
         };
     } else {
-        finalizeRow = [&] (TMutableRow& row,
+        finalizeRow = [&] (TMutableRow row,
             size_t size,
             TNullable<TUnversionedValue> finalizeSentinel,
             TNullable<TUnversionedValue> sentinel)

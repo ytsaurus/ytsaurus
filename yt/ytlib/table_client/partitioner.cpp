@@ -14,28 +14,28 @@ class TOrderedPartitioner
 {
 public:
     explicit TOrderedPartitioner(const std::vector<TOwningKey>* keys)
-        : Keys(keys)
+        : Keys_(keys)
     { }
 
     virtual int GetPartitionCount() override
     {
-        return Keys->size() + 1;
+        return Keys_->size() + 1;
     }
 
-    virtual int GetPartitionIndex(const TUnversionedRow& row) override
+    virtual int GetPartitionIndex(TUnversionedRow row) override
     {
         auto it = std::upper_bound(
-            Keys->begin(),
-            Keys->end(),
+            Keys_->begin(),
+            Keys_->end(),
             row,
-            [] (const TUnversionedRow& row, const TOwningKey& element) {
+            [] (TUnversionedRow row, const TOwningKey& element) {
                 return row < element.Get();
             });
-        return std::distance(Keys->begin(), it);
+        return std::distance(Keys_->begin(), it);
     }
 
 private:
-    const std::vector<TOwningKey>* Keys;
+    const std::vector<TOwningKey>* const Keys_;
 
 };
 
@@ -51,23 +51,23 @@ class THashPartitioner
 {
 public:
     THashPartitioner(int partitionCount, int keyColumnCount)
-        : PartitionCount(partitionCount)
-        , KeyColumnCount(keyColumnCount)
+        : PartitionCount_(partitionCount)
+        , KeyColumnCount_(keyColumnCount)
     { }
 
     virtual int GetPartitionCount() override
     {
-        return PartitionCount;
+        return PartitionCount_;
     }
 
-    virtual int GetPartitionIndex(const TUnversionedRow& row) override
+    virtual int GetPartitionIndex(TUnversionedRow row) override
     {
-        return GetHash(row, KeyColumnCount) % PartitionCount;
+        return GetHash(row, KeyColumnCount_) % PartitionCount_;
     }
 
 private:
-    int PartitionCount;
-    int KeyColumnCount;
+    const int PartitionCount_;
+    const int KeyColumnCount_;
 
 };
 

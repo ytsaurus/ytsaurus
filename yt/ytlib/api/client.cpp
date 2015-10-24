@@ -408,7 +408,7 @@ private:
                 chunkSpecs.begin(),
                 chunkSpecs.end(),
                 lowerBound,
-                [] (const TDataSplit& chunkSpec, const TRow& key) {
+                [] (const TDataSplit& chunkSpec, TRow key) {
                     return GetUpperBoundFromDataSplit(chunkSpec) <= key;
                 });
 
@@ -468,7 +468,7 @@ private:
                 tableInfo->Tablets.begin(),
                 tableInfo->Tablets.end(),
                 lowerBound,
-                [] (const TRow& key, const TTabletInfoPtr& tabletInfo) {
+                [] (TRow key, const TTabletInfoPtr& tabletInfo) {
                     return key < tabletInfo->PivotKey.Get();
                 }) - 1;
 

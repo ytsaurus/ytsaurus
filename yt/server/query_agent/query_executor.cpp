@@ -527,8 +527,8 @@ private:
 
     std::pair<int, int> GetBoundSampleKeys(
         TTabletSnapshotPtr tabletSnapshot,
-        const TRow& lowerBound,
-        const TRow& upperBound)
+        TRow lowerBound,
+        TRow upperBound)
     {
         YCHECK(lowerBound <= upperBound);
 
@@ -553,14 +553,14 @@ private:
             partitions.begin(),
             partitions.end(),
             lowerBound,
-            [] (const TRow& lhs, const TPartitionSnapshotPtr& rhs) {
+            [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
                 return lhs < rhs->PivotKey.Get();
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
-            [] (const TPartitionSnapshotPtr& lhs, const TRow& rhs) {
+            [] (const TPartitionSnapshotPtr& lhs, TRow rhs) {
                 return lhs->PivotKey.Get() < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
@@ -584,8 +584,8 @@ private:
 
     std::vector<TOwningKey> BuildSplitKeys(
         TTabletSnapshotPtr tabletSnapshot,
-        const TRow& lowerBound,
-        const TRow& upperBound,
+        TRow lowerBound,
+        TRow upperBound,
         int& nextSampleIndex,
         int& currentSampleCount,
         int totalSampleCount,
@@ -611,14 +611,14 @@ private:
             partitions.begin(),
             partitions.end(),
             lowerBound,
-            [] (const TRow& lhs, const TPartitionSnapshotPtr& rhs) {
+            [] (TRow lhs, const TPartitionSnapshotPtr& rhs) {
                 return lhs < rhs->PivotKey.Get();
             }) - 1;
         auto endPartitionIt = std::lower_bound(
             startPartitionIt,
             partitions.end(),
             upperBound,
-            [] (const TPartitionSnapshotPtr& lhs, const TRow& rhs) {
+            [] (const TPartitionSnapshotPtr& lhs, TRow rhs) {
                 return lhs->PivotKey.Get() < rhs;
             });
         int partitionCount = std::distance(startPartitionIt, endPartitionIt);
