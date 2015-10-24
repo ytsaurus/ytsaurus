@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "node.h"
 #include "cypress_manager.h"
 #include "helpers.h"
@@ -125,26 +126,21 @@ public:
         NTransactionServer::TTransaction* transaction,
         ELockMode mode) override
     {
-        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
-
         // Instantiate a branched copy.
         auto originatingId = originatingNode->GetVersionedId();
         auto branchedId = TVersionedNodeId(originatingId.ObjectId, GetObjectId(transaction));
-        auto branchedNode = std::make_unique<TImpl>(branchedId);
+        auto branchedNodeHolder = std::make_unique<TImpl>(branchedId);
+        auto* typedBranchedNode = branchedNodeHolder.get();
 
         // Run core stuff.
-        BranchCore(
-            originatingNode,
-            branchedNode.get(),
-            transaction,
-            mode);
+        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
+        BranchCore(typedOriginatingNode, typedBranchedNode, transaction, mode);
 
         // Run custom stuff.
-        DoBranch(
-            typedOriginatingNode,
-            branchedNode.get());
+        DoBranch(typedOriginatingNode, typedBranchedNode, mode);
+        DoLogBranch(typedOriginatingNode, typedBranchedNode, mode);
 
-        return std::move(branchedNode);
+        return std::move(branchedNodeHolder);
     }
 
     virtual void Unbranch(
@@ -152,7 +148,10 @@ public:
         TCypressNodeBase* branchedNode) override
     {
         // Run custom stuff.
-        DoUnbranch(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
+        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
+        auto* typedBranchedNode = dynamic_cast<TImpl*>(branchedNode);
+        DoUnbranch(typedOriginatingNode, typedBranchedNode);
+        DoLogUnbranch(typedOriginatingNode, typedBranchedNode);
     }
 
     virtual void Merge(
@@ -160,10 +159,13 @@ public:
         TCypressNodeBase* branchedNode) override
     {
         // Run core stuff.
-        MergeCore(originatingNode, branchedNode);
+        auto* typedOriginatingNode = dynamic_cast<TImpl*>(originatingNode);
+        auto* typedBranchedNode = dynamic_cast<TImpl*>(branchedNode);
+        MergeCore(typedOriginatingNode, typedBranchedNode);
 
         // Run custom stuff.
-        DoMerge(dynamic_cast<TImpl*>(originatingNode), dynamic_cast<TImpl*>(branchedNode));
+        DoMerge(typedOriginatingNode, typedBranchedNode);
+        DoLogMerge(typedOriginatingNode, typedBranchedNode);
     }
 
     virtual TCypressNodeBase* Clone(
@@ -179,11 +181,9 @@ public:
             sourceNode->GetExternalCellTag());
 
         // Run custom stuff.
-        DoClone(
-            dynamic_cast<TImpl*>(sourceNode),
-            dynamic_cast<TImpl*>(clonedNode),
-            factory,
-            mode);
+        auto* typedSourceNode = dynamic_cast<TImpl*>(sourceNode);
+        auto* typedClonedNode = dynamic_cast<TImpl*>(clonedNode);
+        DoClone(typedSourceNode, typedClonedNode, factory, mode);
 
         // Run core epilogue stuff.
         CloneCoreEpilogue(sourceNode, clonedNode, factory);
@@ -229,15 +229,47 @@ protected:
 
     virtual void DoBranch(
         const TImpl* /*originatingNode*/,
-        TImpl* /*branchedNode*/)
+        TImpl* /*branchedNode*/,
+        ELockMode mode)
     { }
+
+    virtual void DoLogBranch(
+        const TImpl* originatingNode,
+        TImpl* branchedNode,
+        ELockMode mode)
+    {
+        const auto& Logger = CypressServerLogger;
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v)",
+            originatingNode->GetVersionedId(),
+            branchedNode->GetVersionedId(),
+            mode);
+    }
 
     virtual void DoMerge(
         TImpl* /*originatingNode*/,
         TImpl* /*branchedNode*/)
     { }
 
+    virtual void DoLogMerge(
+        TImpl* originatingNode,
+        TImpl* branchedNode)
+    {
+        const auto& Logger = CypressServerLogger;
+        LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
+            originatingNode->GetVersionedId(),
+            branchedNode->GetVersionedId());
+    }
+
     virtual void DoUnbranch(
+        TImpl* /*originatingNode*/,
+        TImpl* /*branchedNode*/)
+    { }
+
+    virtual void DoLogUnbranch(
         TImpl* /*originatingNode*/,
         TImpl* /*branchedNode*/)
     { }
@@ -369,9 +401,10 @@ protected:
 
     virtual void DoBranch(
         const TScalarNode<TValue>* originatingNode,
-        TScalarNode<TValue>* branchedNode) override
+        TScalarNode<TValue>* branchedNode,
+        ELockMode mode) override
     {
-        TBase::DoBranch(originatingNode, branchedNode);
+        TBase::DoBranch(originatingNode, branchedNode, mode);
 
         branchedNode->Value() = originatingNode->Value();
     }
@@ -449,7 +482,8 @@ private:
 
     virtual void DoBranch(
         const TMapNode* originatingNode,
-        TMapNode* branchedNode) override;
+        TMapNode* branchedNode,
+        ELockMode mode) override;
 
     virtual void DoMerge(
         TMapNode* originatingNode,
@@ -506,7 +540,8 @@ private:
 
     virtual void DoBranch(
         const TListNode* originatingNode,
-        TListNode* branchedNode) override;
+        TListNode* branchedNode,
+        ELockMode mode) override;
 
     virtual void DoMerge(
         TListNode* originatingNode,
@@ -563,7 +598,8 @@ private:
 
     virtual void DoBranch(
         const TLinkNode* originatingNode,
-        TLinkNode* branchedNode) override;
+        TLinkNode* branchedNode,
+        ELockMode mode) override;
 
     virtual void DoMerge(
         TLinkNode* originatingNode,
@@ -614,7 +650,8 @@ private:
 
     virtual void DoBranch(
         const TDocumentNode* originatingNode,
-        TDocumentNode* branchedNode) override;
+        TDocumentNode* branchedNode,
+        ELockMode mode) override;
 
     virtual void DoMerge(
         TDocumentNode* originatingNode,

@@ -203,7 +203,8 @@ protected:
 
     virtual void DoBranch(
         const TJournalNode* originatingNode,
-        TJournalNode* branchedNode) override
+        TJournalNode* branchedNode,
+        ELockMode mode) override
     {
         // NB: Don't call TBase::DoBranch.
 
@@ -212,27 +213,33 @@ protected:
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
         branchedNode->SetVital(originatingNode->GetVital());
 
-        auto* chunkList = originatingNode->GetChunkList();
-        auto chunkListId = GetObjectId(chunkList);
-
         if (!originatingNode->IsExternal()) {
+            auto* chunkList = originatingNode->GetChunkList();
             branchedNode->SetChunkList(chunkList);
+
             YCHECK(chunkList->OwningNodes().insert(branchedNode).second);
 
             auto objectManager = Bootstrap_->GetObjectManager();
             objectManager->RefObject(chunkList);
         }
+    }
 
+    virtual void DoLogBranch(
+        const TJournalNode* originatingNode,
+        TJournalNode* branchedNode,
+        ELockMode mode) override
+    {
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v)",
+            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
+            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
-            chunkListId,
+            GetObjectId(originatingNode->GetChunkList()),
             originatingNode->GetReplicationFactor(),
             originatingNode->GetReadQuorum(),
-            originatingNode->GetWriteQuorum());
+            originatingNode->GetWriteQuorum(),
+            mode);
     }
 
     virtual void DoMerge(
@@ -243,7 +250,6 @@ protected:
 
         YCHECK(originatingNode->GetChunkList() == branchedNode->GetChunkList());
         auto* chunkList = originatingNode->GetChunkList();
-        auto chunkListId = GetObjectId(chunkList);
 
         if (!originatingNode->IsExternal()) {
             YCHECK(chunkList->OwningNodes().erase(branchedNode) == 1);
@@ -253,13 +259,18 @@ protected:
         }
 
         HandleTransactionFinished(originatingNode, branchedNode);
+    }
 
+    virtual void DoLogMerge(
+        TJournalNode* originatingNode,
+        TJournalNode* branchedNode) override
+    {
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node merged (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
+            "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
-            chunkListId);
+            GetObjectId(originatingNode->GetChunkList()));
     }
 
     virtual void DoUnbranch(
@@ -269,17 +280,20 @@ protected:
         // NB: Don't call TBase::DoUnbranch.
 
         YCHECK(originatingNode->GetChunkList() == branchedNode->GetChunkList());
-        auto* chunkList = originatingNode->GetChunkList();
-        auto chunkListId = GetObjectId(chunkList);
 
         HandleTransactionFinished(originatingNode, branchedNode);
+    }
 
+    virtual void DoLogUnbranch(
+        TJournalNode* originatingNode,
+        TJournalNode* branchedNode) override
+    {
         LOG_DEBUG_UNLESS(
             IsRecovery(),
-            "Journal node unbranched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
+            "Node unbranched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
-            chunkListId);
+            GetObjectId(originatingNode->GetChunkList()));
     }
 
     virtual void DoClone(

@@ -1835,10 +1835,6 @@ private:
         auto* account = originatingNode->GetAccount();
         securityManager->SetAccount(branchedNode, account);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Node branched (NodeId: %v, Mode: %v)",
-            TVersionedNodeId(id, transaction->GetId()),
-            mode);
-
         return branchedNode;
     }
 
@@ -1873,8 +1869,6 @@ private:
 
             // Update resource usage.
             securityManager->UpdateAccountNodeUsage(originatingNode);
-
-            LOG_DEBUG_UNLESS(IsRecovery(), "Node merged (NodeId: %v)", branchedId);
         } else {
             // Destroy the branched copy.
             handler->Destroy(branchedNode);
