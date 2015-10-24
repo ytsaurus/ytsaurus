@@ -212,7 +212,8 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
                       supress_yt_output=True,
                       enable_debug_logging=enable_debug_logging,
                       preserve_working_dir=True,
-                      tmpfs_path=sandbox_tmpfs_path)
+                      tmpfs_path=sandbox_tmpfs_path,
+                      enable_ui=True)
 
     environment.id = sandbox_id
 
