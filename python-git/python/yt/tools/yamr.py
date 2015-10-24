@@ -188,19 +188,48 @@ class Yamr(object):
             error.inner_errors = [YamrError(stderr, proc.returncode)]
             raise error
 
-    def create_read_range_commands(self, ranges, table, fastbone, transaction_id=None):
+    def create_read_range_commands(self, ranges, table, fastbone, transaction_id=None, timeout=None, enable_logging=False):
         commands = []
         if transaction_id is None:
             transaction_id = "yt_" + generate_uuid()
+
+        timeout_str = ""
+        if timeout is not None:
+            timeout_str = "timeout {0}s".format(timeout)
         for i, range in enumerate(ranges):
             start, end = range
             if self.proxies:
-                command = 'curl "http://{0}/table/{1}?subkey=1&lenval=1&startindex={2}&endindex={3}"'\
-                        .format(self.proxies[i % len(self.proxies)], quote_plus(table), start, end)
+                logging_str = ""
+                if enable_logging:
+                    logging_str = "-v"
+                # NB: shared transasction is not supported.
+                command = '{timeout} curl {logging} "http://{proxy}/table/{1}?subkey=1&lenval=1&startindex={2}&endindex={3}"'\
+                        .format(
+                            timeout=timeout,
+                            logging=logging_str,
+                            proxy=self.proxies[i % len(self.proxies)],
+                            table=quote_plus(table),
+                            start=start,
+                            end=end)
             else:
+                logging_str = ""
+                if enable_logging:
+                    logging_str = "-stderrlevel 11"
                 shared_tx_str = ("-sharedtransactionid " + transaction_id) if self.supports_shared_transactions else ""
-                command = '{0} MR_USER={1} USER=yt ./{2} -server {3} {4} -read "{5}:[{6},{7}]" -lenval -subkey {8}\n'\
-                        .format(self.opts, self.mr_user, self.binary_name, self.server, self._make_fastbone(fastbone), table, start, end, shared_tx_str)
+                command = '{timeout} {opts} MR_USER={mr_user} USER=yt '\
+                          './{binary} -server {server} {fastbone_option} -read "{table}:[{start},{end}]" -lenval -subkey {shared_tx} {logging}\n'\
+                        .format(
+                            timeout=timeout_str,
+                            opts=self.opts,
+                            mr_user=self.mr_user,
+                            binary=self.binary_name,
+                            server=self.server,
+                            fastbone_option=self._make_fastbone(fastbone),
+                            table=table,
+                            start=start,
+                            end=end,
+                            shared_tx=shared_tx_str,
+                            logging=logging_str)
             commands.append(command)
         return commands
 
@@ -242,8 +271,6 @@ class Yamr(object):
                     self.scheduler_info = json.loads_as_bytes(scheduler_info)
                 except ValueError:
                     self.scheduler_info = {}
-            #except sh.ErrorReturnCode_28:
-            #    logger.warning("Timeout occured while requesting scheduler info from %s", self.http_server)
             except Exception as err:
                 logger.warning("Error occured (%s: %s) while requesting scheduler info from %s", str(type(err)), str(err), self.http_server)
         return self.scheduler_info

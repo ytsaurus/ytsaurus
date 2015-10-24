@@ -156,7 +156,8 @@ class Task(object):
     def __init__(self, source_cluster, source_table, destination_cluster, creation_time, id, state, user,
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
                  start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
-                 destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None):
+                 destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
+                 job_timeout=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -182,6 +183,8 @@ class Task(object):
         self.kwworm_options = kwworm_options
         self.copy_spec = copy_spec
         self.postprocess_spec = postprocess_spec
+        # NB: supported only for yamr_to_yt_pull
+        self.job_timeout = job_timeout
 
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec
@@ -934,7 +937,8 @@ class Application(object):
                     erasure_codec=task.destination_erasure_codec,
                     force_sort=task.destination_force_sort,
                     copy_spec_template=copy_spec,
-                    postprocess_spec_template=postprocess_spec)
+                    postprocess_spec_template=postprocess_spec,
+                    job_timeout=task.job_timeout)
             elif source_client._type == "yamr" and destination_client._type == "yamr":
                 destination_client.remote_copy(
                     source_client.server,
