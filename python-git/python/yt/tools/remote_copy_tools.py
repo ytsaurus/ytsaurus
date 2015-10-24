@@ -262,7 +262,7 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
         shutil.rmtree(tmp_dir)
 
 
-def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None):
+def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None, compression_codec=None, erasure_codec=None, force_sort=None, job_timeout=None):
     proxies = yamr_client.proxies
     if not proxies:
         proxies = [yamr_client.server]
@@ -287,7 +287,7 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
     logger.info("Importing table '%s' (row count: %d, sorted: %d)", src, record_count, sorted)
 
     ranges = _split_rows(record_count, 1024 * yt.common.MB, yamr_client.data_size(src))
-    read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id)
+    read_commands = yamr_client.create_read_range_commands(ranges, src, fastbone=fastbone, transaction_id=transaction_id, enable_logging=True, timeout=job_timeout)
     temp_table = yt_client.create_temp_table(prefix=os.path.basename(src))
     yt_client.write_table(temp_table, read_commands, format=yt.SchemafulDsvFormat(columns=["command"]))
 
