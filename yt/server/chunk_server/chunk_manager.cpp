@@ -1604,10 +1604,10 @@ private:
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
             LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Cached: %v, Address: %v, NodeId: %v)",
-                 chunkIdWithIndex,
-                 cached,
+                chunkIdWithIndex,
+                cached,
                 node->GetDefaultAddress(),
-                 nodeId);
+                nodeId);
             return;
         }
 
