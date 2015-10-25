@@ -19,12 +19,28 @@ using namespace NObjectClient;
 
 Stroka ToString(TChunkReplica replica)
 {
-    return Format("%v/%v", replica.GetNodeId(), replica.GetIndex());
+    if (replica.GetIndex() == GenericChunkReplicaIndex) {
+        return ToString(replica.GetNodeId());
+    } else {
+        return Format("%v/%v",
+            replica.GetNodeId(),
+            replica.GetIndex());
+    }
 }
 
 Stroka ToString(const TChunkIdWithIndex& id)
 {
-    return Format("%v/%v", id.Id, id.Index);
+    if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
+        return Format("%v/%v",
+            id.Id,
+            EJournalReplicaType(id.Index));
+    } else if (id.Index != GenericChunkReplicaIndex) {
+        return Format("%v/%v",
+            id.Id,
+            id.Index);
+    } else {
+        return ToString(id.Id);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
