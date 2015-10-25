@@ -31,14 +31,14 @@ Stroka ToString(TChunkPtrWithIndex value)
 {
     auto* chunk = value.GetPtr();
     int index = value.GetIndex();
-    if (index != GenericChunkReplicaIndex) {
-        return Format("%v/%v",
-            chunk->GetId(),
-            index);
-    } else if (chunk->IsJournal()) {
+    if (chunk->IsJournal()) {
         return Format("%v/%v",
             chunk->GetId(),
             EJournalReplicaType(index));
+    } else if (index != GenericChunkReplicaIndex) {
+        return Format("%v/%v",
+            chunk->GetId(),
+            index);
     } else {
         return ToString(chunk->GetId());
     }
