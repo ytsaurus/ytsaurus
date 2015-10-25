@@ -167,17 +167,13 @@ TTcpDispatcherStatistics& TTcpConnection::Statistics()
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
     switch (ConnectionType_) {
-        case EConnectionType::Client: {
-            int value = (Statistics().ClientConnections += delta);
-            Profiler.Enqueue("/client_connection_count", value);
+        case EConnectionType::Client:
+            Profiler.Increment(ProfilingData_->ClientConnectionCounter, delta);
             break;
-        }
 
-        case EConnectionType::Server: {
-            int value = (Statistics().ServerConnections += delta);
-            Profiler.Enqueue("/server_connection_count", value);
+        case EConnectionType::Server:
+            Profiler.Increment(ProfilingData_->ServerConnectionCounter, delta);
             break;
-        }
 
         default:
             YUNREACHABLE();
@@ -187,11 +183,11 @@ void TTcpConnection::UpdateConnectionCount(int delta)
 void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
     {
-        int value = (Statistics().PendingOutPackets += countDelta);
+        auto value = (Statistics().PendingOutPackets += countDelta);
         Profiler.Update(ProfilingData_->PendingOutPacketCounter, value);
     }
     {
-        size_t value = (Statistics().PendingOutBytes += sizeDelta);
+        auto value = (Statistics().PendingOutBytes += sizeDelta);
         Profiler.Update(ProfilingData_->PendingOutByteCounter, value);
     }
 }

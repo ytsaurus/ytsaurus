@@ -18,9 +18,6 @@ struct TTcpDispatcherStatistics
 
     int PendingOutPackets = 0;
     i64 PendingOutBytes = 0;
-
-    int ClientConnections = 0;
-    int ServerConnections = 0;
 };
 
 TTcpDispatcherStatistics operator + (
@@ -52,6 +49,9 @@ struct TTcpProfilingData
     NProfiling::TSimpleCounter OutPacketCounter;
     NProfiling::TAggregateCounter PendingOutPacketCounter;
     NProfiling::TAggregateCounter PendingOutByteCounter;
+
+    NProfiling::TSimpleCounter ClientConnectionCounter;
+    NProfiling::TSimpleCounter ServerConnectionCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
