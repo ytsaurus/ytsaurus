@@ -170,7 +170,7 @@ private:
 
     virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* transaction) override;
 
-    virtual void DoDestroyObject(TRack* rack) override;
+    virtual void DoZombifyObject(TRack* rack) override;
 
 };
 
@@ -1443,7 +1443,7 @@ IObjectProxyPtr TNodeTracker::TRackTypeHandler::DoGetProxy(
     return CreateRackProxy(Owner_->Bootstrap_, rack);
 }
 
-void TNodeTracker::TRackTypeHandler::DoDestroyObject(TRack* rack)
+void TNodeTracker::TRackTypeHandler::DoZombifyObject(TRack* rack)
 {
     TObjectTypeHandlerWithMapBase::DoDestroyObject(rack);
     Owner_->DestroyRack(rack);
