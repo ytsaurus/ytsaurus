@@ -136,7 +136,7 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError TCheckPermissionResult::ToError(const Stroka& user, NYTree::EPermission permission) const
+TError TCheckPermissionResult::ToError(const Stroka& user, EPermission permission) const
 {
     switch (Action) {
         case NSecurityClient::ESecurityAction::Allow:

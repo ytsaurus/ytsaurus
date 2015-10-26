@@ -105,10 +105,8 @@ void TDiskHealthChecker::DoRunCheck()
             THROW_ERROR_EXCEPTION("Test file is corrupt");
         }
     } catch (const std::exception& ex) {
-        auto wrappedError = TError("Disk health check failed at %v", Path_)
+        THROW_ERROR_EXCEPTION("Disk health check failed at %v", Path_)
             << ex;
-        LOG_ERROR(wrappedError);
-        THROW_ERROR(wrappedError);
     }
 
     LOG_DEBUG("Disk health check finished");
