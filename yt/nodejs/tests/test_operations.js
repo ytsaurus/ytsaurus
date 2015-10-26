@@ -57,12 +57,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     }
 
     var empty_operations_list = {
-        operations: [],
-        user_counts: {
-            "all": 0,
-            "personal": 0,
-            "other": 0
-        },
+        operations: [], 
         state_counts: {
             "all": 0,
             "running": 0,
