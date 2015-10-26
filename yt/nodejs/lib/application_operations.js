@@ -82,17 +82,12 @@ function escape(string) {
 function YtApplicationOperations(driver)
 {
     this.list = function(parameters) {
-        var text_filter = (parameters.filter || "").toString().toLowerCase();
-        var user_filter = parameters.user_filter,
-            current_user = parameters.current_user,
-            selected_user = parameters.user,
-            start_time_begin = Date.parse(parameters.start_time_begin);
-
-        var filtered_user = user_filter === "personal" ? current_user : user_filter === "other" && selected_user;
-
-        var state_filter = parameters.state;
-        var type_filter = parameters.type;
-        var jobs_filter = parameters.has_failed_jobs;
+        var text_filter = (parameters.filter || "").toString().toLowerCase(),
+            filtered_user = parameters.user,
+            start_time_begin = Date.parse(parameters.start_time_begin),
+            state_filter = parameters.state,
+            type_filter = parameters.type,
+            jobs_filter = parameters.has_failed_jobs;
 
 
         var month_ago = new Date();
@@ -150,7 +145,7 @@ function YtApplicationOperations(driver)
             {
                 query: "* {} where {}".format(source, filter_condition.join(" and ")) +
                     " order by finish_time desc" +
-                    " limit 100"
+                    " limit 50"
             });
 
         function getFilterFactors(item) {
@@ -193,29 +188,18 @@ function YtApplicationOperations(driver)
                 }, { });
             }
 
-            var user_counts = makeCounts(["all", "personal", "other"]),
-                state_counts = makeCounts(["all", "running", "completed", "failed", "aborted"]),
+            var state_counts = makeCounts(["all", "running", "completed", "failed", "aborted"]),
                 type_counts = makeCounts(["all", "join_reduce", "map", "map_reduce", "merge", "reduce", "remote_copy", "sort"]);
 
-            var all_users = { };
+            var users = { };
 
             return {
                 filter: function(user, state, type, count) {
                     // USER
-                    if (!all_users.hasOwnProperty(user)) {
-                        all_users[user] = 0;
+                    if (!users.hasOwnProperty(user)) {
+                        users[user] = 0;
                     }
-                    all_users[user] += count; 
-
-                    user_counts.all += count;
-
-                    if (user === current_user) {
-                        user_counts.personal += count;
-                    }
-
-                    if (!selected_user || user === selected_user) {
-                        user_counts.other += count;
-                    }
+                    users[user] += count; 
 
                     if (filtered_user && user !== filtered_user) {
                         return false;
@@ -240,10 +224,9 @@ function YtApplicationOperations(driver)
                     return true;
                 },
                 result: {
-                    user: user_counts,
                     state: state_counts,
                     type: type_counts,
-                    all_users: all_users
+                    users: users
                 }
             }
         }
@@ -313,11 +296,10 @@ function YtApplicationOperations(driver)
 
             return {
                 operations: merged_data,
-                user_counts: preparer.result.user,
+                users: preparer.result.users,
                 state_counts: preparer.result.state,
                 type_counts: preparer.result.type,
-                failed_jobs_count: failed_jobs_count,
-                users: preparer.result.all_users
+                failed_jobs_count: failed_jobs_count
             };
         }
  
