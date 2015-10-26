@@ -57,7 +57,7 @@ describe("YtApplicationOperations - list, get operations and scheduling info", f
     }
 
     var empty_operations_list = {
-        operations: [], 
+        operations: {$attributes: {incomplete: true}, $value: []}, 
         state_counts: {
             "all": 0,
             "running": 0,

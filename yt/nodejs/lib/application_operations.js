@@ -20,6 +20,7 @@ var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id",
     OPERATIONS_CYPRESS_PATH = "//sys/operations",
     OPERATIONS_ORCHID_PATH = "//sys/scheduler/orchid/scheduler/operations",
     SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
+    RESULT_LIMIT = 50;
 
 var INTERMEDIATE_STATES = [
     "pending",
@@ -84,20 +85,24 @@ function YtApplicationOperations(driver)
     this.list = function(parameters) {
         var text_filter = (parameters.filter || "").toString().toLowerCase(),
             filtered_user = parameters.user,
-            start_time_begin = Date.parse(parameters.start_time_begin),
+            start_time_begin = Date.parse(parameters.from_time),
+            start_time_end = Date.parse(parameters.to_time),
             state_filter = parameters.state,
             type_filter = parameters.type,
             jobs_filter = parameters.has_failed_jobs;
 
-
+        start_time_end = isNaN(start_time_begin) ? new Date() : start_time_end;
         var month_ago = new Date();
-        month_ago.setDate(month_ago.getDate() - MAX_TIME_SPAN);
+        month_ago.setDate(start_time_end.getDate() - MAX_TIME_SPAN);        
+        var incomplete = false;
 
         if (isNaN(start_time_begin) || start_time_begin < month_ago) {
             start_time_begin = month_ago;
+            incomplete = true;
         }
 
-        var date_filter = "start_time > {}".format(escape(start_time_begin.toISOString()));
+        var date_filter = "start_time > {} and start_time < {}".format(
+                escape(start_time_begin.toISOString()), escape(start_time_end.toISOString()));
 
         var runtime_data = driver.executeSimple(
             "get", {
@@ -145,7 +150,7 @@ function YtApplicationOperations(driver)
             {
                 query: "* {} where {}".format(source, filter_condition.join(" and ")) +
                     " order by finish_time desc" +
-                    " limit 50"
+                    " limit {}".format(RESULT_LIMIT + 1)
             });
 
         function getFilterFactors(item) {
@@ -295,7 +300,7 @@ function YtApplicationOperations(driver)
             });
 
             return {
-                operations: merged_data,
+                operations: incomplete ? {$attributes: {incomplete: true}, $value: merged_data} : merged_data,
                 users: preparer.result.users,
                 state_counts: preparer.result.state,
                 type_counts: preparer.result.type,
@@ -304,7 +309,7 @@ function YtApplicationOperations(driver)
         }
  
         return Q.settle([cypress_data, runtime_data, archive_data, archive_counts])
-        .spread(function (cypress_data, runtime_data, archive_data, archive_counts) {
+        .spread(function (cypress_data, runtime_data, archive_data, archive_counts) {            
             if (cypress_data.isRejected()) {
                 return Q.reject(new YtError(
                     "Failed to get operations from Cypress",
@@ -321,6 +326,11 @@ function YtApplicationOperations(driver)
             } else {
                 archive_data = archive_data.value();
                 archive_counts = archive_counts.value();
+            }
+
+            if (archive_data.length > RESULT_LIMIT) {
+                incomplete = true;
+                archive_data.pop();
             }
 
             archive_data = archive_data.map(function (operation) {
