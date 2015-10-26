@@ -2,7 +2,7 @@ from config import get_config
 from common import require
 from errors import YtError, YtOperationFailedError, YtTimeoutError, YtResponseError
 from driver import make_request
-from http import get_proxy_url, RETRIABLE_ERRORS
+from http import get_proxy_url, get_retriable_errors
 from keyboard_interrupts_catcher import KeyboardInterruptsCatcher
 from cypress_commands import get_attribute, exists, get, list
 from file_commands import read_file
@@ -259,7 +259,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         if has_stderr:
             try:
                 job_with_stderr["stderr"] = read_file(stderr_path, client=client).read()
-            except tuple(list(RETRIABLE_ERRORS) + [YtResponseError]):
+            except tuple(list(get_retriable_errors()) + [YtResponseError]):
                 if ignore_errors:
                     continue
                 else:

@@ -107,4 +107,8 @@ class YtTokenError(YtError):
     """Some problem occurred with authentication token."""
     pass
 
+class YtRetriableError(Exception):
+    """Just simple retriable error for test purposes. """
+    pass
+
 

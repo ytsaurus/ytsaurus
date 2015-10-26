@@ -4,11 +4,11 @@ import yt.logger as logger
 import config
 from config import get_option, get_config, get_total_request_timeout, get_single_request_timeout, get_request_retry_count
 from common import get_backoff, chunk_iter_lines
-from errors import YtResponseError
+from errors import YtResponseError, YtRetriableError 
 from table import to_table, to_name
 from transaction import Transaction
 from transaction_commands import _make_transactional_request
-from http import RETRIABLE_ERRORS, HTTPError
+from http import get_retriable_errors
 from response_stream import ResponseStream
 from lock import lock
 
@@ -60,7 +60,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                     current_time = datetime.now()
                     try:
                         if get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
-                            raise HTTPError()
+                            raise YtRetriableError()
                         with Transaction(timeout=request_timeout, client=client):
                             params["path"] = path.to_yson_type()
 
@@ -72,7 +72,7 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                                 retry_unavailable_proxy=False,
                                 client=client)
                         break
-                    except RETRIABLE_ERRORS as err:
+                    except get_retriable_errors() as err:
                         if attempt + 1 == get_request_retry_count(client):
                             raise
                         logger.warning("%s: %s", type(err), str(err))
@@ -91,13 +91,13 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
                 client=client)
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client):
-    retriable_errors = tuple(list(RETRIABLE_ERRORS) + [YtResponseError])
+    retriable_errors = tuple(list(get_retriable_errors()) + [YtResponseError])
 
     def execute_with_retries(func):
         for attempt in xrange(config.get_request_retry_count(client)):
             try:
                 return func()
-            except RETRIABLE_ERRORS as err:
+            except get_retriable_errors() as err:
                 if attempt + 1 == config.get_request_retry_count(client):
                     raise
                 logger.warning(str(err))
@@ -130,7 +130,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
                     try:
                         for elem in iter():
                             if get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
-                                raise HTTPError()
+                                raise YtRetriableError()
                             yield elem
                         break
                     except retriable_errors as err:
