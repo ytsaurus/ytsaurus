@@ -4,10 +4,13 @@
 This script rebalances given table, splitting large tablets if necessary.
 
 Alyx/Seneca:
-  ./rebalance.py --table //yabs/OrderCounter --oversized --no-undersized --desired-size-gbs 80
+  ./rebalance.py --oversized --no-undersized --desired-size-gbs 80 \
+    --table //yabs/OrderCounter
 
 Pythia/Vanga:
-  ./rebalance.py --table //yabs/OrderCounter --no-oversized --no-undersized --desired-size-gbs 10
+  ./rebalance.py --no-oversized --no-undersized --desired-size-gbs 10 \
+    --include '^//home/statface/webface.*' \
+    --exclude '.*/_rm/.*' \
 
 TODO:
   - Option that rebalances table entirely.
@@ -617,7 +620,9 @@ def main(args):
     if tables is None:
         return
 
-    for table in tables:
+    for i, table in enumerate(tables):
+        logging.info("Table %s/%s -- %s", i, len(tables), table)
+
         old_spans, new_spans = rebalance_table(
             table, args.key_columns, args.desired_size_gbs * GB, args.span,
             args.allow_oversized, args.allow_undersized)
