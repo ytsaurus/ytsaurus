@@ -613,8 +613,6 @@ public:
 
         // We should process only one heartbeat at a time from the same node.
         if (node->GetHasOngoingHeartbeat()) {
-            LOG_WARNING("Ignoring concurrent heartbeat from node %v",
-                node->GetDefaultAddress());
             THROW_ERROR_EXCEPTION("Node has ongoing heartbeat");
         }
 
