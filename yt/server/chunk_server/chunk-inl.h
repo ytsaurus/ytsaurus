@@ -22,16 +22,6 @@ inline void TChunk::SetMovable(bool value)
     Flags_.Movable = value;
 }
 
-inline bool TChunk::GetVital() const
-{
-    return Flags_.Vital;
-}
-
-inline void TChunk::SetVital(bool value)
-{
-    Flags_.Vital = value;
-}
-
 inline bool TChunk::GetRefreshScheduled() const
 {
     return GetDynamicData()->Flags.RefreshScheduled;
@@ -79,12 +69,54 @@ inline void TChunk::Reset()
     data->RepairQueueIterator.Reset();
 }
 
-inline int TChunk::GetReplicationFactor() const
+inline bool TChunk::ComputeVital() const
+{
+    // NB: Shortcut for non-exported chunk.
+    if (ExportCounter_ == 0) {
+        return GetLocalVital();
+    }
+
+    if (GetLocalVital()) {
+        return true;
+    }
+    for (auto data : ExportDataList_) {
+        if (data.Vital) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline int TChunk::ComputeReplicationFactor() const
+{
+    // NB: Shortcut for non-exported chunk.
+    if (ExportCounter_ == 0) {
+        return GetLocalReplicationFactor();
+    }
+
+    int result = GetLocalReplicationFactor();
+    for (auto data : ExportDataList_) {
+        result = std::max(result, static_cast<int>(data.ReplicationFactor));
+    }
+    return result;
+}
+
+inline bool TChunk::GetLocalVital() const
+{
+    return Flags_.Vital;
+}
+
+inline void TChunk::SetLocalVital(bool value)
+{
+    Flags_.Vital = value;
+}
+
+inline int TChunk::GetLocalReplicationFactor() const
 {
     return ReplicationFactor_;
 }
 
-inline void TChunk::SetReplicationFactor(int value)
+inline void TChunk::SetLocalReplicationFactor(int value)
 {
     ReplicationFactor_ = value;
 }

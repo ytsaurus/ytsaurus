@@ -183,12 +183,15 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         return;
     }
 
-    bool isTopmostCommit = !originatingNode->GetTransaction();
-    bool hasPropertiesChanged =
+    bool topmostCommit = !originatingNode->GetTransaction();
+    bool propertiesMismatch =
         originatingNode->GetReplicationFactor() != branchedNode->GetReplicationFactor() ||
         originatingNode->GetVital() != branchedNode->GetVital();
-    bool isPropertiesUpdateNeeded = isTopmostCommit && hasPropertiesChanged && hydraManager->IsLeader();
-    auto newOriginatingMode = isTopmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
+    bool propertiesUpdateNeeded =
+        topmostCommit &&
+        (propertiesMismatch || branchedNode->GetChunkPropertiesUpdateNeeded()) &&
+        hydraManager->IsLeader();
+    auto newOriginatingMode = topmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
         ? NChunkClient::EUpdateMode::None
         : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
             ? NChunkClient::EUpdateMode::Overwrite
@@ -200,7 +203,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             YCHECK(branchedChunkList->OwningNodes().insert(originatingNode).second);
             originatingNode->SetChunkList(branchedChunkList);
 
-            if (isPropertiesUpdateNeeded) {
+            if (propertiesUpdateNeeded) {
                 chunkManager->ScheduleChunkPropertiesUpdate(branchedChunkList);
             }
 
@@ -226,7 +229,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
 
         if (originatingMode == NChunkClient::EUpdateMode::Append) {
-            YCHECK(!isTopmostCommit); // No need to update properties.
+            YCHECK(!topmostCommit); // No need to update properties.
             if (!isExternal) {
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList->Children()[0]);
                 auto* newDeltaChunkList = chunkManager->CreateChunkList();
@@ -241,7 +244,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                 chunkManager->AttachToChunkList(newOriginatingChunkList, originatingChunkList);
                 chunkManager->AttachToChunkList(newOriginatingChunkList, deltaTree);
 
-                if (isPropertiesUpdateNeeded) {
+                if (propertiesUpdateNeeded) {
                     chunkManager->ScheduleChunkPropertiesUpdate(deltaTree);
                 }
             }
@@ -259,9 +262,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         }
     }
 
+    if (!topmostCommit && branchedNode->GetChunkPropertiesUpdateNeeded()) {
+        originatingNode->SetChunkPropertiesUpdateNeeded(true);
+    }
+
     auto* newOriginatingChunkList = originatingNode->GetChunkList();
 
-    if (isTopmostCommit && !isExternal) {
+    if (topmostCommit && !isExternal) {
         // Rebalance when the topmost transaction commits.
         chunkManager->RebalanceChunkTree(newOriginatingChunkList);
     }

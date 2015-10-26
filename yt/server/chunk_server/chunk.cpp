@@ -39,12 +39,6 @@ bool operator!= (const TChunkProperties& lhs, const TChunkProperties& rhs)
 
 TChunk::TChunk(const TChunkId& id)
     : TChunkTree(id)
-    , Flags_{}
-    , ReplicationFactor_(1)
-    , ReadQuorum_(0)
-    , WriteQuorum_(0)
-    , ErasureCodec_(NErasure::ECodec::None)
-    , ExportDataList_{}
 {
     ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
@@ -77,7 +71,8 @@ TChunkTreeStatistics TChunk::GetStatistics() const
 
 TClusterResources TChunk::GetResourceUsage() const
 {
-    i64 diskSpace = IsConfirmed() ? ChunkInfo_.disk_space() * GetReplicationFactor() : 0;
+    // NB: Use just the local RF as this only makes sense for staged chunks.
+    i64 diskSpace = IsConfirmed() ? ChunkInfo_.disk_space() * GetLocalReplicationFactor() : 0;
     return TClusterResources(diskSpace, 0, 1);
 }
 
@@ -93,13 +88,16 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, WriteQuorum_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
-    Save(context, GetVital());
+    Save(context, GetLocalVital());
     Save(context, Parents_);
     // NB: RemoveReplica calls do not commute and their order is not
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
     TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, StoredReplicas_);
     Save(context, CachedReplicas_);
-    TRangeSerializer::Save(context, TRef::FromPod(ExportDataList_));
+    Save(context, ExportCounter_);
+    if (ExportCounter_ > 0) {
+        TRangeSerializer::Save(context, TRef::FromPod(ExportDataList_));
+    }
 }
 
 void TChunk::Load(NCellMaster::TLoadContext& context)
@@ -109,20 +107,32 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, ChunkInfo_);
     Load(context, ChunkMeta_);
-    SetReplicationFactor(Load<i8>(context));
+    SetLocalReplicationFactor(Load<i8>(context));
     SetReadQuorum(Load<i8>(context));
     SetWriteQuorum(Load<i8>(context));
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
-    SetVital(Load<bool>(context));
+    SetLocalVital(Load<bool>(context));
     Load(context, Parents_);
     Load(context, StoredReplicas_);
     Load(context, CachedReplicas_);
     // COMPAT(babenko)
-    if (context.GetVersion() >= 201) {
+    if (context.GetVersion() >= 201 && context.GetVersion() < 203) {
         TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
+        for (auto data : ExportDataList_) {
+            if (data.RefCounter > 0) {
+                ++ExportCounter_;
+            }
+        }
     }
-    
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 203) {
+        Load(context, ExportCounter_);
+        if (ExportCounter_ > 0) {
+            TRangeSerializer::Load(context, TMutableRef::FromPod(ExportDataList_));
+        }
+    }
+
     if (IsConfirmed()) {
         MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
     }
@@ -275,17 +285,52 @@ void TChunk::Seal(const TMiscExt& info)
     ChunkInfo_.set_disk_space(info.uncompressed_data_size());  // an approximation
 }
 
-TChunkProperties TChunk::GetChunkProperties() const
+TChunkProperties TChunk::GetLocalProperties() const
 {
     TChunkProperties result;
-    result.ReplicationFactor = GetReplicationFactor();
-    result.Vital = GetVital();
+    result.ReplicationFactor = GetLocalReplicationFactor();
+    result.Vital = GetLocalVital();
+    return result;
+}
+
+bool TChunk::UpdateLocalProperties(const TChunkProperties& properties)
+{
+    bool result = false;
+
+    if (GetLocalReplicationFactor() != properties.ReplicationFactor) {
+        SetLocalReplicationFactor(properties.ReplicationFactor);
+        result = true;
+    }
+
+    if (GetLocalVital() != properties.Vital) {
+        SetLocalVital(properties.Vital);
+        result = true;
+    }
+
+    return result;
+}
+
+bool TChunk::UpdateExternalProprties(int cellIndex, const TChunkProperties& properties)
+{
+    bool result = false;
+    auto& data = ExportDataList_[cellIndex];
+
+    if (data.ReplicationFactor != properties.ReplicationFactor) {
+        data.ReplicationFactor = properties.ReplicationFactor;
+        result = true;
+    }
+
+    if (data.Vital != properties.Vital) {
+        data.Vital = properties.Vital;
+        result = true;
+    }
+
     return result;
 }
 
 int TChunk::GetMaxReplicasPerRack(TNullable<int> replicationFactorOverride) const
 {
-    int replicationFactor = replicationFactorOverride.Get(GetReplicationFactor());
+    int replicationFactor = replicationFactorOverride.Get(ComputeReplicationFactor());
     switch (GetType()) {
         case EObjectType::Chunk:
             return std::max(replicationFactor - 1, 1);
@@ -309,14 +354,19 @@ const TChunkExportData& TChunk::GetExportData(int cellIndex) const
 void TChunk::Export(int cellIndex)
 {
     auto& data = ExportDataList_[cellIndex];
-    ++data.RefCounter;
+    if (++data.RefCounter == 1) {
+        ++ExportCounter_;
+    }
 }
 
 void TChunk::Unexport(int cellIndex, int importRefCounter)
 {
     auto& data = ExportDataList_[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
-        data = TChunkExportData();
+        // NB: Reset the entry to the neutral state as ComputeReplicationFactor and
+        // ComputeVital always scan the whole array.
+        data = {};
+        --ExportCounter_;
     }
 }
 

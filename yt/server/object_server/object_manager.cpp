@@ -1254,7 +1254,10 @@ void TObjectManager::HydraExecuteFollower(const NProto::TReqExecute& request)
 void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& request)
 {
     // NB: Ordered map is a must to make the behavior deterministic.
-    std::map<TCellTag, NProto::TReqUnrefExportedObjects> unrefRequestMap;
+    std::map<TCellTag, NProto::TReqUnrefExportedObjects> crossCellRequestMap;
+    auto getCrossCellRequest = [&] (const TObjectId& id) -> NProto::TReqUnrefExportedObjects& {
+        return crossCellRequestMap[CellTagFromId(id)];
+    };
 
     for (const auto& protoId : request.object_ids()) {
         auto id = FromProto<TObjectId>(protoId);
@@ -1267,9 +1270,9 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
             continue;
 
         if (IsForeign(object) && object->GetImportRefCounter() > 0) {
-            auto& request = unrefRequestMap[CellTagFromId(id)];
-            request.set_cell_tag(Bootstrap_->GetCellTag());
-            auto* entry = request.add_entries();
+            auto& crossCellRequest = getCrossCellRequest(id);
+            crossCellRequest.set_cell_tag(Bootstrap_->GetCellTag());
+            auto* entry = crossCellRequest.add_entries();
             ToProto(entry->mutable_object_id(), id);
             entry->set_import_ref_counter(object->GetImportRefCounter());
         }
@@ -1287,7 +1290,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
     }
 
     auto multicellManager = Bootstrap_->GetMulticellManager();
-    for (const auto& pair : unrefRequestMap) {
+    for (const auto& pair : crossCellRequestMap) {
         auto cellTag = pair.first;
         const auto& request = pair.second;
         multicellManager->PostToMaster(request, cellTag);

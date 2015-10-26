@@ -237,6 +237,7 @@ protected:
         NCypressClient::ELockMode LockMode = NCypressClient::ELockMode::Exclusive;
         NTableClient::TTableWriterOptionsPtr Options = New<NTableClient::TTableWriterOptions>();
         NTableClient::TKeyColumns KeyColumns;
+        bool ChunkPropertiesUpdateNeeded = false;
 
         // Server-side upload transaction.
         NTransactionClient::TTransactionId UploadTransactionId;

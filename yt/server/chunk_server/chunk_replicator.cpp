@@ -164,7 +164,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
 {
     TChunkStatistics result;
 
-    int replicationFactor = chunk->GetReplicationFactor();
+    int replicationFactor = chunk->ComputeReplicationFactor();
 
     int replicaCount = 0;
     int decommissionedReplicaCount = 0;
@@ -308,7 +308,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeJournalChunkStatisti
 {
     TChunkStatistics result;
 
-    int replicationFactor = chunk->GetReplicationFactor();
+    int replicationFactor = chunk->ComputeReplicationFactor();
     int readQuorum = chunk->GetReadQuorum();
 
     int replicaCount = 0;
@@ -577,7 +577,7 @@ bool TChunkReplicator::CreateReplicationJob(
         return true;
     }
 
-    int replicationFactor = chunk->GetReplicationFactor();
+    int replicationFactor = chunk->ComputeReplicationFactor();
     auto statistics = ComputeChunkStatistics(chunk);
     int replicaCount = statistics.ReplicaCount[index];
     int decommissionedReplicaCount = statistics.DecommissionedReplicaCount[index];
@@ -979,7 +979,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
 
     if (Any(statistics.Status & EChunkStatus::Lost)) {
         YCHECK(LostChunks_.insert(chunk).second);
-        if (chunk->GetVital() && (chunk->IsErasure() || chunk->GetReplicationFactor() > 1)) {
+        if (chunk->ComputeVital() && (chunk->IsErasure() || chunk->ComputeReplicationFactor() > 1)) {
             YCHECK(LostVitalChunks_.insert(chunk).second);
         }
     }
@@ -1125,11 +1125,6 @@ bool TChunkReplicator::IsReplicaDecommissioned(TNodePtrWithIndex replica)
     return node->GetDecommissioned();
 }
 
-bool TChunkReplicator::IsForeign(TChunk* chunk)
-{
-    return CellTagFromId(chunk->GetId()) != Bootstrap_->GetCellTag();
-}
-
 bool TChunkReplicator::HasRunningJobs(TChunk* chunk)
 {
     auto jobList = FindJobList(chunk);
@@ -1168,9 +1163,11 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) ||
-        chunk->GetRefreshScheduled() ||
-        IsForeign(chunk))
+    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
+        return;
+
+    auto objectManager = Bootstrap_->GetObjectManager();
+    if (objectManager->IsForeign(chunk))
         return;
 
     TRefreshEntry entry;
@@ -1178,8 +1175,6 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     entry.When = GetCpuInstant() + ChunkRefreshDelay_;
     RefreshList_.push_back(entry);
     chunk->SetRefreshScheduled(true);
-
-    auto objectManager = Bootstrap_->GetObjectManager();
     objectManager->WeakRefObject(chunk);
 }
 
@@ -1328,34 +1323,30 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
     public:
         TVisitor(
             NCellMaster::TBootstrap* bootstrap,
-            TChunkReplicatorPtr replicator,
+            TChunkReplicatorPtr owner,
             TChunkList* root)
-            : Bootstrap(bootstrap)
-            , Replicator(std::move(replicator))
-            , Root(root)
+            : Bootstrap_(bootstrap)
+            , Owner_(std::move(owner))
+            , Root_(root)
         { }
 
         void Run()
         {
-            TraverseChunkTree(CreatePreemptableChunkTraverserCallbacks(Bootstrap), this, Root);
+            TraverseChunkTree(CreatePreemptableChunkTraverserCallbacks(Bootstrap_), this, Root_);
         }
 
     private:
-        TBootstrap* Bootstrap;
-        TChunkReplicatorPtr Replicator;
-        TChunkList* Root;
+        TBootstrap* const Bootstrap_;
+        const TChunkReplicatorPtr Owner_;
+        TChunkList* const Root_;
 
         virtual bool OnChunk(
             TChunk* chunk,
-            i64 rowIndex,
-            const TReadLimit& startLimit,
-            const TReadLimit& endLimit) override
+            i64 /*rowIndex*/,
+            const TReadLimit& /*startLimit*/,
+            const TReadLimit& /*endLimit*/) override
         {
-            UNUSED(rowIndex);
-            UNUSED(startLimit);
-            UNUSED(endLimit);
-
-            Replicator->SchedulePropertiesUpdate(chunk);
+            Owner_->SchedulePropertiesUpdate(chunk);
             return true;
         }
 
@@ -1375,8 +1366,7 @@ void TChunkReplicator::SchedulePropertiesUpdate(TChunkList* chunkList)
 void TChunkReplicator::SchedulePropertiesUpdate(TChunk* chunk)
 {
     if (!IsObjectAlive(chunk) ||
-        chunk->GetPropertiesUpdateScheduled() ||
-        IsForeign(chunk))
+        chunk->GetPropertiesUpdateScheduled())
         return;
 
     PropertiesUpdateList_.push_back(chunk);
@@ -1394,54 +1384,54 @@ void TChunkReplicator::OnPropertiesUpdate()
         return;
     }
 
-    // Extract up to MaxChunksPerPropertiesUpdate objects and post a mutation.
     auto chunkManager = Bootstrap_->GetChunkManager();
     auto objectManager = Bootstrap_->GetObjectManager();
-    TReqUpdateChunkProperties request;
 
+    TReqUpdateChunkProperties request;
+    request.set_cell_tag(Bootstrap_->GetCellTag());
+
+    // Extract up to MaxChunksPerPropertiesUpdate objects and post a mutation.
     int totalCount = 0;
     int aliveCount = 0;
     PROFILE_TIMING ("/properties_update_time") {
         for (int i = 0; i < Config_->MaxChunksPerPropertiesUpdate; ++i) {
-            if (PropertiesUpdateList_.empty())
+            if (PropertiesUpdateList_.empty()) {
                 break;
+            }
 
             auto* chunk = PropertiesUpdateList_.front();
             PropertiesUpdateList_.pop_front();
             ++totalCount;
 
-            if (IsObjectAlive(chunk)) {
-                ++aliveCount;
-                chunk->SetPropertiesUpdateScheduled(false);
-                auto newProperties = ComputeChunkProperties(chunk);
-                auto oldProperties = chunk->GetChunkProperties();
-                if (newProperties != oldProperties) {
-                    auto* update = request.add_updates();
-                    ToProto(update->mutable_chunk_id(), chunk->GetId());
-
-                    if (newProperties.ReplicationFactor != oldProperties.ReplicationFactor) {
-                        YCHECK(!chunk->IsErasure());
-                        update->set_replication_factor(newProperties.ReplicationFactor);
-                    }
-
-                    if (newProperties.Vital != oldProperties.Vital) {
-                        update->set_vital(newProperties.Vital);
-                    }
-                }
+            if (!IsObjectAlive(chunk)) {
+                continue;
             }
+
+            ++aliveCount;
+            chunk->SetPropertiesUpdateScheduled(false);
+            auto newProperties = ComputeChunkProperties(chunk);
+            auto oldProperties = chunk->GetLocalProperties();
+            if (newProperties == oldProperties) {
+                continue;
+            }
+
+            auto* update = request.add_updates();
+            ToProto(update->mutable_chunk_id(), chunk->GetId());
+            update->set_replication_factor(newProperties.ReplicationFactor);
+            update->set_vital(newProperties.Vital);
 
             objectManager->WeakUnrefObject(chunk);
         }
+    }
+
+    if (request.updates_size() == 0) {
+        return;
     }
 
     LOG_DEBUG("Starting chunk properties update (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
         totalCount,
         aliveCount,
         request.updates_size());
-
-    if (request.updates_size() == 0) {
-        return;
-    }
 
     auto asyncResult = chunkManager
         ->CreateUpdateChunkPropertiesMutation(request)
@@ -1508,7 +1498,7 @@ TChunkProperties TChunkReplicator::ComputeChunkProperties(TChunk* chunk)
         }
     }
 
-    return parentsVisited ? properties : chunk->GetChunkProperties();
+    return parentsVisited ? properties : chunk->GetLocalProperties();
 }
 
 TChunkList* TChunkReplicator::FollowParentLinks(TChunkList* chunkList)
