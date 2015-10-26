@@ -50,7 +50,7 @@ def main():
     # ordered_by_id
     yt.set_attribute(ordered_by_id, "schema", fields)
     yt.set_attribute(ordered_by_id, "key_columns", ["id_hash", "id"])
-    pivot_keys = [[]] + [[yson.YsonUint64((i * 2 ** 63) / SHARD_COUNT)] for i in xrange(1, SHARD_COUNT)]
+    pivot_keys = [[]] + [[yson.YsonUint64((i * 2 ** 64) / SHARD_COUNT)] for i in xrange(1, SHARD_COUNT)]
     yt.reshard_table(ordered_by_id, pivot_keys)
     yt.mount_table(ordered_by_id)
 
