@@ -1,7 +1,7 @@
 import yt.logger as logger
 from config import get_config, get_option, set_option, get_backend_type
 from common import require, get_backoff, get_value, total_seconds
-from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, YtRequestRateLimitExceeded
+from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError, YtRequestRateLimitExceeded, YtRetriableError
 from command import parse_commands
 
 import yt.yson as yson
@@ -12,23 +12,37 @@ import random
 import string
 import time
 import types
-import yt.packages.requests
+import imp
 from datetime import datetime
 from socket import error as SocketError
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
-from yt.packages.requests import HTTPError, ConnectionError, Timeout
 from httplib import BadStatusLine, IncompleteRead
-RETRIABLE_ERRORS = (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
-                    YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded)
 
-session_ = yt.packages.requests.Session()
+def get_retriable_errors():
+    from yt.packages.requests import HTTPError, ConnectionError, Timeout
+    return (HTTPError, ConnectionError, Timeout, IncompleteRead, BadStatusLine, SocketError,
+            YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded, YtRetriableError)
+
+requests = None
+def lazy_import_requests():
+    global requests
+    if requests is None:
+        fp, pathname, description = imp.find_module("yt/packages/requests")
+        requests = imp.load_module("yt/packages/requests", fp, pathname, description)
+
+session_ = None
 def get_session():
+    lazy_import_requests()
+    global session_
+    if session_ is None:
+        session_ = requests.Session()
     return session_
 
 def _cleanup_http_session():
+    lazy_import_requests()
     global session_
-    session_ = yt.packages.requests.Session()
+    session_ = requests.Session()
 
 def configure_ip(client):
     if get_option("_ip_configured", client):
@@ -117,7 +131,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
     if timeout is None:
         timeout = get_config(client)["proxy"]["request_retry_timeout"] / 1000.0
 
-    retriable_errors = list(RETRIABLE_ERRORS)
+    retriable_errors = list(get_retriable_errors())
     if not retry_unavailable_proxy:
         retriable_errors.remove(YtProxyUnavailable)
 
@@ -130,7 +144,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 response = create_response(get_session().request(method, url, timeout=timeout, **kwargs), headers, client)
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                     raise YtIncorrectResponse("", response)
-            except ConnectionError as error:
+            except requests.ConnectionError as error:
                 if hasattr(error, "response") and error.response:
                     raise YtHttpResponseError(url, headers, create_response(error.response, headers, client).error())
                 else:

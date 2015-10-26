@@ -48,7 +48,7 @@ static double EstimateCPUClock()
             break;
         }
     }
-    Sleep(TDuration::MicroSeconds(5000));
+    Sleep(TDuration::MicroSeconds(500));
     ui64 finishCycle = 0;
     ui64 finishMS = 0;
     for (;;) {
@@ -67,7 +67,7 @@ static double EstimateCPUClock()
 
 static void InitHPTimer()
 {
-    const size_t N_VEC = 9;
+    const size_t N_VEC = 5;
     double vec[N_VEC];
     for (unsigned i = 0; i < N_VEC; ++i)
         vec[i] = EstimateCPUClock();
