@@ -29,7 +29,6 @@ from transaction_commands import start_transaction, abort_transaction, commit_tr
 from lock import lock
 from transaction import Transaction, PingableTransaction, PingTransaction
 from py_wrapper import aggregator, raw, raw_io, simple, reduce_aggregator
-from yt.packages.requests import HTTPError, ConnectionError
 from string_iter_io import StringIterIO
 from http import _cleanup_http_session
 from user_statistics import write_statistics, get_blkio_cgroup_statistics, get_memory_cgroup_statistics

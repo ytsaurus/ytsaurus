@@ -1,6 +1,6 @@
 from yt.common import YtError
 from yt.wrapper.common import get_value, require, update, run_with_retries
-from yt.wrapper.http import RETRIABLE_ERRORS, get_token
+from yt.wrapper.http import get_retriable_errors, get_token
 import yt.logger as logger
 
 import yt.packages.requests as requests
@@ -106,7 +106,7 @@ class TransferManager(object):
             response = make_request()
         else:
             response = run_with_retries(make_request,
-                                        exceptions=RETRIABLE_ERRORS)
+                                        exceptions=get_retriable_errors())
 
         _raise_for_status(response)
         return response
