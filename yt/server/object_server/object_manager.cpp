@@ -598,7 +598,7 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
     }
 
     // COMPAT(sandello)
-    if (context.GetVersion() < 120) {
+    if (context.GetVersion() < 123) {
         PatchSchemasWithRemovePermissions_ = true;
     }
 
@@ -630,7 +630,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     }
 
     // COMPAT(sandello)
-    if (context.GetVersion() < 120) {
+    if (context.GetVersion() < 123) {
         PatchSchemasWithRemovePermissions_ = true;
     }
 
