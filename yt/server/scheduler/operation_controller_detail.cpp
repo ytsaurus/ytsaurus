@@ -1420,13 +1420,13 @@ void TOperationControllerBase::TeleportOutputChunks()
         Operation->GetOutputTransaction()->GetId(),
         Logger);
 
-    for (const auto& table : OutputTables) {
+    for (auto& table : OutputTables) {
         for (const auto& pair : table.OutputChunkTreeIds) {
             const auto& id = pair.second;
-            auto type = TypeFromId(id);
-            if (type == EObjectType::Chunk || type == EObjectType::ErasureChunk) {
-                teleporter->RegisterChunk(id, table.CellTag);
-            }
+            if (TypeFromId(id) == EObjectType::ChunkList)
+                continue;
+            table.ChunkPropertiesUpdateNeeded = true;
+            teleporter->RegisterChunk(id, table.CellTag);
         }
     }
 
@@ -1554,9 +1554,9 @@ void TOperationControllerBase::EndUploadOutputTables()
         {
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = table.DataStatistics;
-            if (!table.KeyColumns.empty()) {
-                ToProto(req->mutable_key_columns(), table.KeyColumns);
-            }
+            ToProto(req->mutable_key_columns(), table.KeyColumns);
+            req->set_chunk_properties_update_needed(table.ChunkPropertiesUpdateNeeded);
+
             SetTransactionId(req, table.UploadTransactionId);
             GenerateMutationId(req);
             batchReq->AddRequest(req, "end_upload");

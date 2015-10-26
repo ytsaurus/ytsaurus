@@ -25,6 +25,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode);
     DEFINE_BYVAL_RW_PROPERTY(int, ReplicationFactor);
     DEFINE_BYVAL_RW_PROPERTY(bool, Vital);
+    //! Only makes sense for branched nodes.
+    //! If |true| then properties update will be performed for the newly added chunks upon top-level commit.
+    DEFINE_BYVAL_RW_PROPERTY(bool, ChunkPropertiesUpdateNeeded);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, DeltaStatistics);
 

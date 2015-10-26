@@ -943,9 +943,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto keyColumns = FromProto<Stroka>(request->key_columns());
     const auto* statistics = request->has_statistics() ? &request->statistics() : nullptr;
     bool deriveStatistics = request->derive_statistics();
+    bool chunkPropertiesUpdateNeeded = request->chunk_properties_update_needed();
 
-    context->SetRequestInfo("KeyColumns: [%v]",
-        JoinToString(keyColumns));
+    context->SetRequestInfo("KeyColumns: [%v], ChunkPropertiesUpdateNeeded: %v",
+        JoinToString(keyColumns),
+        chunkPropertiesUpdateNeeded);
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     YCHECK(node->GetTransaction() == Transaction);
@@ -958,6 +960,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     }
 
     node->EndUpload(statistics, deriveStatistics, keyColumns);
+
+    node->SetChunkPropertiesUpdateNeeded(chunkPropertiesUpdateNeeded);
 
     SetModified();
 

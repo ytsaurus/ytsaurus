@@ -25,6 +25,7 @@ TChunkOwnerBase::TChunkOwnerBase(const TVersionedNodeId& id)
     , UpdateMode_(EUpdateMode::None)
     , ReplicationFactor_(0)
     , Vital_(true)
+    , ChunkPropertiesUpdateNeeded_(false)
 { }
 
 void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
@@ -36,6 +37,7 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     Save(context, UpdateMode_);
     Save(context, ReplicationFactor_);
     Save(context, Vital_);
+    Save(context, ChunkPropertiesUpdateNeeded_);
     Save(context, SnapshotStatistics_);
     Save(context, DeltaStatistics_);
 }
@@ -49,6 +51,11 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdateMode_);
     Load(context, ReplicationFactor_);
     Load(context, Vital_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 203) {
+        Load(context, ChunkPropertiesUpdateNeeded_);
+    }
+    // COMPAT(babenko)
     if (context.GetVersion() >= 200) {
         Load(context, SnapshotStatistics_);
         Load(context, DeltaStatistics_);

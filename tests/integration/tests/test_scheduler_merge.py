@@ -5,6 +5,7 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
+from time import sleep
 
 ##################################################################
 
@@ -370,11 +371,30 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
+    @linux_only
+    def test_merge_chunk_properties(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False})
+        write_table("//tmp/t1", [{"a": 1}])
+        chunk_id = get("//tmp/t1/@chunk_ids/0")
+
+        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert not get("#" + chunk_id + "/@vital")
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 3, "vital": True})
+        merge(mode="ordered",
+              in_=["//tmp/t1"],
+              out="//tmp/t2")
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 3
+        assert get("#" + chunk_id + "/@vital")
+
 ##################################################################
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @linux_only
     def test_multicell_merge_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -411,6 +431,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         get("#" + chunk_id1 + "/@exports") == {}
         get("#" + chunk_id2 + "/@exports") == {}
         
+    @linux_only
     def test_multicell_merge_multi_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -465,3 +486,51 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         multicell_sleep()
         assert not exists("#" + chunk_id)
 
+    @linux_only
+    def test_multicell_merge_chunk_properties(self):
+        create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False, "external_cell_tag": 1})
+        write_table("//tmp/t1", [{"a": 1}])
+        chunk_id = get("//tmp/t1/@chunk_ids/0")
+
+        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert not get("#" + chunk_id + "/@vital")
+
+        create("table", "//tmp/t2", attributes={"replication_factor": 3, "vital": False, "external_cell_tag": 2})
+        merge(mode="ordered",
+              in_=["//tmp/t1"],
+              out="//tmp/t2")
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 3
+        assert not get("#" + chunk_id + "/@vital")
+
+        set("//tmp/t2/@replication_factor", 2)
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 2
+
+        set("//tmp/t2/@replication_factor", 3)
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 3
+
+        set("//tmp/t2/@vital", True)
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@vital")
+        
+        set("//tmp/t1/@replication_factor", 4)
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 4
+
+        set("//tmp/t1/@replication_factor", 1)
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 3
+
+        remove("//tmp/t2")
+
+        sleep(0.2)
+        assert get("#" + chunk_id + "/@replication_factor") == 1
+        assert not get("#" + chunk_id + "/@vital")

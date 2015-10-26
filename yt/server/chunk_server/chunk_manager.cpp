@@ -815,7 +815,7 @@ public:
         ChunkReplicator_->SchedulePropertiesUpdate(chunkTree);
     }
 
-    void MaybeScheduleChunkSeal(TChunk* chunk)
+    void ScheduleChunkSeal(TChunk* chunk)
     {
         ChunkSealer_->ScheduleSeal(chunk);
     }
@@ -923,8 +923,8 @@ public:
         chunk->Seal(info);
         OnChunkSealed(chunk);
 
-        if (IsLeader()) {
-            ScheduleChunkRefresh(chunk);
+        if (ChunkReplicator_) {
+            ChunkReplicator_->ScheduleChunkRefresh(chunk);
         }
 
         LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed (ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
@@ -1124,32 +1124,63 @@ private:
 
     void HydraUpdateChunkProperties(const NProto::TReqUpdateChunkProperties& request)
     {
+        // NB: Ordered map is a must to make the behavior deterministic.
+        std::map<TCellTag, NProto::TReqUpdateChunkProperties> crossCellRequestMap;
+        auto getCrossCellRequest = [&] (const TChunk* chunk) -> NProto::TReqUpdateChunkProperties& {
+            auto cellTag = CellTagFromId(chunk->GetId());
+            auto it = crossCellRequestMap.find(cellTag);
+            if (it == crossCellRequestMap.end()) {
+                it = crossCellRequestMap.insert(std::make_pair(cellTag, NProto::TReqUpdateChunkProperties())).first;
+                it->second.set_cell_tag(Bootstrap_->GetCellTag());
+            }
+            return it->second;
+        };
+
+        bool local = request.cell_tag() == Bootstrap_->GetCellTag();
+
+        auto multicellManager = Bootstrap_->GetMulticellManager();
+        int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request.cell_tag());
+
+        auto objectManager = Bootstrap_->GetObjectManager();
         for (const auto& update : request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
             auto* chunk = FindChunk(chunkId);
-            if (!IsObjectAlive(chunk))
+            if (!IsObjectAlive(chunk)) {
                 continue;
+            }
 
             if (chunk->IsStaged()) {
-                LOG_WARNING("Updating properties for staged chunk %v", chunkId);
+                LOG_WARNING("Requested to update properties for staged chunk (ChunkId: %v)", chunkId);
                 continue;
             }
 
-            bool changed = false;
-            if (update.has_replication_factor() && chunk->GetReplicationFactor() != update.replication_factor()) {
-                YCHECK(!chunk->IsErasure());
-                changed = true;
-                chunk->SetReplicationFactor(update.replication_factor());
+            TChunkProperties properties;
+            properties.ReplicationFactor = update.replication_factor();
+            properties.Vital = update.vital();
+
+            bool updated = local
+                ? chunk->UpdateLocalProperties(properties)
+                : chunk->UpdateExternalProprties(cellIndex, properties);
+            if (!updated) {
+                continue;
             }
 
-            if (update.has_vital() && chunk->GetVital() != update.vital()) {
-                changed = true;
-                chunk->SetVital(update.vital());
-            }
-
-            if (ChunkReplicator_ && changed) {
+            if (objectManager->IsForeign(chunk)) {
+                YASSERT(local);
+                auto& crossCellRequest = getCrossCellRequest(chunk);
+                *crossCellRequest.add_updates() = update;
+            } else if (ChunkReplicator_) {
                 ChunkReplicator_->ScheduleChunkRefresh(chunk);
             }
+        }
+
+        for (const auto& pair : crossCellRequestMap) {
+            auto cellTag = pair.first;
+            const auto& request = pair.second;
+            multicellManager->PostToMaster(request, cellTag);
+            LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update properties of imported chunks (CellTag: %v, Count: %v)",
+                cellTag,
+                request.updates_size());
         }
     }
 
@@ -1729,12 +1760,12 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
     }
 
     auto* chunk = Owner_->CreateChunk(chunkType);
-    chunk->SetReplicationFactor(replicationFactor);
+    chunk->SetLocalReplicationFactor(replicationFactor);
     chunk->SetReadQuorum(readQuorum);
     chunk->SetWriteQuorum(writeQuorum);
     chunk->SetErasureCodec(erasureCodecId);
     chunk->SetMovable(requestExt.movable());
-    chunk->SetVital(requestExt.vital());
+    chunk->SetLocalVital(requestExt.vital());
 
     Owner_->StageChunkTree(chunk, transaction, account);
 
@@ -1750,7 +1781,7 @@ TObjectBase* TChunkManager::TChunkTypeHandlerBase::CreateObject(
         chunkListId,
         transaction->GetId(),
         account->GetName(),
-        chunk->GetReplicationFactor(),
+        chunk->GetLocalReplicationFactor(),
         chunk->GetReadQuorum(),
         chunk->GetWriteQuorum(),
         erasureCodecId,
@@ -2030,7 +2061,7 @@ void TChunkManager::ScheduleChunkPropertiesUpdate(TChunkTree* chunkTree)
 
 void TChunkManager::MaybeScheduleChunkSeal(TChunk* chunk)
 {
-    Impl_->MaybeScheduleChunkSeal(chunk);
+    Impl_->ScheduleChunkSeal(chunk);
 }
 
 int TChunkManager::GetTotalReplicaCount()

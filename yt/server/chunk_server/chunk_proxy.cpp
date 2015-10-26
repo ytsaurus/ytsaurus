@@ -236,7 +236,7 @@ private:
 
             if (key == "vital") {
                 BuildYsonFluently(consumer)
-                    .Value(chunk->GetVital());
+                    .Value(chunk->ComputeVital());
                 return true;
             }
 
@@ -292,7 +292,7 @@ private:
         } else {
             if (key == "replication_factor") {
                 BuildYsonFluently(consumer)
-                    .Value(chunk->GetReplicationFactor());
+                    .Value(chunk->ComputeReplicationFactor());
                 return true;
             }
         }

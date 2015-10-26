@@ -54,8 +54,8 @@ struct TChunkDynamicData
 struct TChunkExportData
 {
     ui32 RefCounter : 24;
-    // XXX(babenko): to be used later
-    ui32 Unused : 8;
+    bool Vital : 1;
+    ui8 ReplicationFactor : 7;
 };
 
 static_assert(sizeof(TChunkExportData) == 4, "sizeof(TChunkExportData) != 4");
@@ -110,9 +110,6 @@ public:
     bool GetMovable() const;
     void SetMovable(bool value);
 
-    bool GetVital() const;
-    void SetVital(bool value);
-
     bool GetRefreshScheduled() const;
     void SetRefreshScheduled(bool value);
 
@@ -127,8 +124,17 @@ public:
 
     void Reset();
 
-    int GetReplicationFactor() const;
-    void SetReplicationFactor(int value);
+    //! Computes the vitality flag by ORing the local and the external values.
+    bool ComputeVital() const;
+
+    //! Computes the replication factor by MAXing the local and the external values.
+    int ComputeReplicationFactor() const;
+
+    bool GetLocalVital() const;
+    void SetLocalVital(bool value);
+
+    int GetLocalReplicationFactor() const;
+    void SetLocalReplicationFactor(int value);
 
     int GetReadQuorum() const;
     void SetReadQuorum(int value);
@@ -165,7 +171,16 @@ public:
     //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
     void Seal(const NChunkClient::NProto::TMiscExt& info);
 
-    TChunkProperties GetChunkProperties() const;
+    //! Obtains the local properties of the chunk.
+    TChunkProperties GetLocalProperties() const;
+
+    //! Updates the local properties of the chunk.
+    //! Returns |true| if anything changes.
+    bool UpdateLocalProperties(const TChunkProperties& properties);
+
+    //! Updates the properties of the chunk, as seen by the external cell.
+    //! Returns |true| if anything changes.
+    bool UpdateExternalProprties(int cellIndex, const TChunkProperties& properties);
 
     //! Returns the maximum number of replicas that can be stored in the same
     //! rack without violating the availability guarantees.
@@ -191,13 +206,17 @@ private:
     struct {
         bool Movable : 1;
         bool Vital : 1;
-    } Flags_;
+    } Flags_ = {};
 
-    i8 ReplicationFactor_;
-    i8 ReadQuorum_;
-    i8 WriteQuorum_;
-    NErasure::ECodec ErasureCodec_;
-    TChunkExportDataList ExportDataList_;
+    ui8 ReplicationFactor_ = 0;
+    ui8 ReadQuorum_ = 0;
+    ui8 WriteQuorum_ = 0;
+    NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
+
+    //! The number of non-empty entries in #ExportDataList_.
+    ui8 ExportCounter_ = 0;
+    //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
+    TChunkExportDataList ExportDataList_ = {};
 
 };
 
