@@ -462,10 +462,9 @@ public:
             DispatcherThread_,
             std::move(handler));
 
-        auto error = DispatcherThread_->AsyncRegister(server).Get();
-        if (!error.IsOK()) {
-            THROW_ERROR error;
-        }
+        DispatcherThread_->AsyncRegister(server)
+            .Get()
+            .ThrowOnError();
 
         Server_ = server;
         Running_ = true;

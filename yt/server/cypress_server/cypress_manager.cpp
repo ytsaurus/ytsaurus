@@ -802,9 +802,7 @@ public:
                 true,
                 &isChildMandatory);
 
-            if (!error.IsOK()) {
-                THROW_ERROR error;
-            }
+            error.ThrowOnError();
 
             isMandatory |= isChildMandatory;
         }
