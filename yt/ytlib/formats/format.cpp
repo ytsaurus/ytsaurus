@@ -299,10 +299,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
 {
     auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
     if (enableKeySwitch) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format.");
+        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format");
     }
     if (!config->Columns) {
-        THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer.");
+        THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
     }
 
     return New<TSchemalessWriterForSchemafulDsv>(
