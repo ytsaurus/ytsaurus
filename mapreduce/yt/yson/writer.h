@@ -5,7 +5,9 @@
 #include "consumer.h"
 
 #include <util/generic/noncopyable.h>
-#include <util/stream/output.h>
+
+class TOutputStream;
+class TZeroCopyInput;
 
 namespace NYT {
 
@@ -63,6 +65,14 @@ protected:
     bool IsTopLevelFragmentContext() const;
     void EndNode();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ReformatYsonStream(
+    TZeroCopyInput* input,
+    TOutputStream* output,
+    EYsonFormat format = YF_BINARY,
+    EYsonType type = YT_NODE);
 
 ////////////////////////////////////////////////////////////////////////////////
 

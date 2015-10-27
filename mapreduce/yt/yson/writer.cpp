@@ -2,6 +2,7 @@
 #include "format.h"
 #include "detail.h"
 #include "zigzag.h"
+#include "parser.h"
 
 #include <util/string/cast.h>
 
@@ -346,6 +347,19 @@ void TYsonWriter::OnRaw(const TStringBuf& yson, EYsonType type)
     } else {
         TYsonConsumerBase::OnRaw(yson, type);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ReformatYsonStream(
+    TZeroCopyInput* input,
+    TOutputStream* output,
+    EYsonFormat format,
+    EYsonType type)
+{
+    TYsonWriter writer(output, format, type);
+    TYsonParser parser(&writer, input, type);
+    parser.Parse();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

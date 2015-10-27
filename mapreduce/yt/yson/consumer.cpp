@@ -8,13 +8,7 @@ namespace NYT {
 
 void TYsonConsumerBase::OnRaw(const TStringBuf& yson, EYsonType type)
 {
-    UNUSED(yson);
-    UNUSED(type);
-    /*
-    TYsonParser parser(this, type);
-    parser.Read(yson);
-    parser.Finish();
-    */
+    ParseYsonStringBuffer(yson, this, type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
