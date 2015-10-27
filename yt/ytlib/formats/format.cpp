@@ -156,18 +156,6 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForDsv(
     };
 }
 
-std::unique_ptr<IYsonConsumer> CreateConsumerForSchemafulDsv(
-    EDataType dataType,
-    const IAttributeDictionary& attributes,
-    TOutputStream* output)
-{
-    if (dataType != EDataType::Tabular) {
-        THROW_ERROR_EXCEPTION("Schemaful DSV only is only supported for tabular data");
-    }
-    auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
-    return std::unique_ptr<IYsonConsumer>(new TSchemafulDsvConsumer(output, config));
-}
-
 std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
     const TFormat& format,
     EDataType dataType,
@@ -180,8 +168,6 @@ std::unique_ptr<IYsonConsumer> CreateConsumerForFormat(
             return CreateConsumerForJson(dataType, format.Attributes(), output);
         case EFormatType::Dsv:
             return CreateConsumerForDsv(dataType, format.Attributes(), output);
-        case EFormatType::SchemafulDsv:
-            return CreateConsumerForSchemafulDsv(dataType, format.Attributes(), output);
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv",
                 format.GetType());
@@ -313,9 +299,12 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
 {
     auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
     if (enableKeySwitch) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format");
+        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format.");
     }
-    
+    if (!config->Columns) {
+        THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer.");
+    }
+
     return New<TSchemalessWriterForSchemafulDsv>(
         nameTable, 
         output, 

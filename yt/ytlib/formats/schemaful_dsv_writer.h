@@ -19,77 +19,10 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ESchemafulDsvConsumerState,
-    (None)
-    (ExpectValue)
-    (ExpectAttributeName)
-    (ExpectAttributeValue)
-    (ExpectEndAttributes)
-    (ExpectEntity)
-);
-
-//! Note: only tabular format is supported.
-class TSchemafulDsvConsumer
-    : public virtual TFormatsConsumerBase
-{
-public:
-    explicit TSchemafulDsvConsumer(
-        TOutputStream* stream,
-        TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
-
-    // IYsonConsumer overrides.
-    virtual void OnStringScalar(const TStringBuf& value) override;
-    virtual void OnInt64Scalar(i64 value) override;
-    virtual void OnUint64Scalar(ui64 value) override;
-    virtual void OnDoubleScalar(double value) override;
-    virtual void OnBooleanScalar(bool value) override;
-    virtual void OnEntity() override;
-    virtual void OnBeginList() override;
-    virtual void OnListItem() override;
-    virtual void OnEndList() override;
-    virtual void OnBeginMap() override;
-    virtual void OnKeyedItem(const TStringBuf& key) override;
-    virtual void OnEndMap() override;
-    virtual void OnBeginAttributes() override;
-    virtual void OnEndAttributes() override;
-
-private:
-    using EState = ESchemafulDsvConsumerState;
-
-    TOutputStream* Stream_;
-    TSchemafulDsvFormatConfigPtr Config_;
-
-    TSchemafulDsvTable Table_;
-
-    std::set<TStringBuf> Keys_;
-    std::map<TStringBuf, TStringBuf> Values_;
-
-    std::vector<Stroka> ValueHolder_;
-
-    int ValueCount_ = 0;
-    TStringBuf CurrentKey_;
-
-    int TableIndex_ = 0;
-
-    EState State_ = EState::None;
-
-    NTableClient::EControlAttribute ControlAttribute_;
-
-    void WriteRow();
-    void EscapeAndWrite(const TStringBuf& value) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-// This class contains methods common for SchemafulDsvWriter and SchemalessWriterForSchemafulDsv.
+// This class contains methods common for TSchemafulDsvWriter and TSchemalessWriterForSchemafulDsv.
 class TSchemafulDsvWriterBase
 {
 protected:
-    void WriteValue(const NTableClient::TUnversionedValue& value);
-    
-    void WriteRaw(const TStringBuf& str);
-    void WriteRaw(char ch);
-    
     TBlob Buffer_;
     
     TSchemafulDsvFormatConfigPtr Config_;
@@ -98,6 +31,11 @@ protected:
     
     std::vector<int> ColumnIdMapping_;
 
+    void WriteValue(const NTableClient::TUnversionedValue& value);
+    
+    void WriteRaw(const TStringBuf& str);
+    void WriteRaw(char ch);
+    
 private:
     static char* WriteInt64Reversed(char* ptr, i64 value);
     static char* WriteUint64Reversed(char* ptr, ui64 value);    

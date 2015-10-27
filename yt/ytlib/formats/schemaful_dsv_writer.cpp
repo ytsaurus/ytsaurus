@@ -16,226 +16,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemafulDsvConsumer::TSchemafulDsvConsumer(
-    TOutputStream* stream,
-    TSchemafulDsvFormatConfigPtr config)
-    : Stream_(stream)
-    , Config_(config)
-    , Table_(Config_)
-{
-    const auto& columns = Config_->GetColumnsOrThrow();
-    Keys_.insert(columns.begin(), columns.end());
-
-    // Initialize Values_ with alive keys.
-    for (const auto& key: Keys_) {
-        Values_[key] = TStringBuf();
-    }
-}
-
-void TSchemafulDsvConsumer::OnUint64Scalar(ui64 value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(::ToString(value));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnDoubleScalar(double value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(::ToString(value));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnBooleanScalar(bool value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(Stroka(FormatBool(value)));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnBeginList()
-{
-    THROW_ERROR_EXCEPTION("Lists are not supported by schemaful DSV");
-}
-
-void TSchemafulDsvConsumer::OnListItem()
-{
-    YASSERT(State_ == EState::None);
-}
-
-void TSchemafulDsvConsumer::OnEndList()
-{
-    YUNREACHABLE();
-}
-
-void TSchemafulDsvConsumer::OnBeginAttributes()
-{
-    if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Attributes are not supported by schemaful DSV");
-    }
-
-    YASSERT(State_ == EState::None);
-    State_ = EState::ExpectAttributeName;
-}
-
-void TSchemafulDsvConsumer::OnEndAttributes()
-{
-    YASSERT(State_ == EState::ExpectEndAttributes);
-    State_ = EState::ExpectEntity;
-}
-
-void TSchemafulDsvConsumer::OnBeginMap()
-{
-    if (State_ == EState::ExpectValue) {
-        THROW_ERROR_EXCEPTION("Embedded maps are not supported by schemaful DSV");
-    }
-    YASSERT(State_ == EState::None);
-}
-
-void TSchemafulDsvConsumer::OnEntity()
-{
-    YASSERT(State_ == EState::ExpectEntity || State_ == EState::ExpectValue || State_ == EState::None);
-    State_ = EState::None;
-}
-
-void TSchemafulDsvConsumer::OnInt64Scalar(i64 value)
-{
-    if (State_ == EState::None) {
-        return;
-    }
-
-    if (State_ == EState::ExpectValue) {
-        ValueHolder_.push_back(::ToString(value));
-        Values_[CurrentKey_] = ValueHolder_.back();
-        State_ = EState::None;
-        ValueCount_ += 1;
-        return;
-    }
-
-    YASSERT(State_ == EState::ExpectAttributeValue);
-
-    switch (ControlAttribute_) {
-    case EControlAttribute::TableIndex:
-        TableIndex_ = value;
-        break;
-
-    default:
-        YUNREACHABLE();
-    }
-
-    State_ = EState::ExpectEndAttributes;
-}
-
-void TSchemafulDsvConsumer::OnStringScalar(const TStringBuf& value)
-{
-    if (State_ == EState::ExpectValue) {
-        Values_[CurrentKey_] = value;
-        State_ = EState::None;
-        ValueCount_ += 1;
-    } else {
-        YCHECK(State_ == EState::None);
-    }
-}
-
-void TSchemafulDsvConsumer::OnKeyedItem(const TStringBuf& key)
-{
-    if (State_ ==  EState::ExpectAttributeName) {
-        ControlAttribute_ = ParseEnum<EControlAttribute>(ToString(key));
-        State_ = EState::ExpectAttributeValue;
-    } else {
-        YASSERT(State_ == EState::None);
-        if (Keys_.find(key) != Keys_.end()) {
-            CurrentKey_ = key;
-            State_ = EState::ExpectValue;
-        }
-    }
-}
-
-void TSchemafulDsvConsumer::OnEndMap()
-{
-    YASSERT(State_ == EState::None);
-
-    WriteRow();
-}
-
-void TSchemafulDsvConsumer::WriteRow()
-{
-    if (ValueCount_ != Keys_.size() && Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) {
-        THROW_ERROR_EXCEPTION("Some column is missing in row");
-    }
-
-    if (ValueCount_ == Keys_.size() || Config_->MissingValueMode == EMissingSchemafulDsvValueMode::PrintSentinel) {
-        if (Config_->EnableTableIndex) {
-            Stream_->Write(ToString(TableIndex_));
-            Stream_->Write(Config_->FieldSeparator);
-        }
-        for (int i = 0; i < Keys_.size(); ++i) {
-            auto key = (*Config_->Columns)[i];
-            TStringBuf value = Values_[key];
-            if (!value.IsInited()) {
-                value = Config_->MissingValueSentinel;
-            }
-            EscapeAndWrite(value);
-            Stream_->Write(
-                i + 1 < Keys_.size()
-                ? Config_->FieldSeparator
-                : Config_->RecordSeparator);
-        }
-    }
-
-    // Clear row
-    ValueCount_ = 0;
-    ValueHolder_.clear();
-    if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::PrintSentinel) {
-        for (const auto& key: Keys_) {
-            Values_[key] = TStringBuf();
-        }
-    }
-}
-
-void TSchemafulDsvConsumer::EscapeAndWrite(const TStringBuf& value) const
-{
-    if (Config_->EnableEscaping) {
-        WriteEscaped(
-            Stream_,
-            value,
-            Table_.Stops,
-            Table_.Escapes,
-            Config_->EscapingSymbol);
-    } else {
-        Stream_->Write(value);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSchemafulDsvWriterBase::TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config)
     : Config_(config)
 { }
@@ -381,8 +161,8 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
     , TSchemafulDsvWriterBase(config)
 {
     YCHECK(Config_->Columns);
-    const std::vector<Stroka>& columns = Config_->Columns.Get();
-    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); columnIndex++) {
+    const auto& columns = Config_->Columns.Get();
+    for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
         ColumnIdMapping_.push_back(NameTable_->GetId(columns[columnIndex]));
     }
     IdToIndexInRowMapping_.resize(nameTable->GetSize());
@@ -390,22 +170,23 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
 
 void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
 {
-    auto idMappingBegin = ColumnIdMapping_.begin();
-    auto idMappingEnd = ColumnIdMapping_.end();
     for (auto row : rows) {
         IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);        
-        for (auto item = row.Begin(); item != row.End(); item++) {
+        for (auto item = row.Begin(); item != row.End(); ++item) {
             IdToIndexInRowMapping_[item->Id] = item - row.Begin();
         }
-        for (auto idMappingCurrent = idMappingBegin; idMappingCurrent != idMappingEnd; ++idMappingCurrent) {
-            int index = IdToIndexInRowMapping_[*idMappingCurrent];
+        bool firstValue = true;
+        for (auto idMappingCurrent : ColumnIdMapping_) {
+            if (!firstValue) {
+                WriteRaw(Config_->FieldSeparator);
+            } else {
+                firstValue = false;
+            }
+            int index = IdToIndexInRowMapping_[idMappingCurrent];
             if (index == -1) {
-                THROW_ERROR_EXCEPTION("Column %d is in schema but missing.", *idMappingCurrent);
+                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", NameTable_->GetName(idMappingCurrent));
             }
             WriteValue(row[index]);
-            if (idMappingCurrent + 1 != idMappingEnd) {
-                WriteRaw(Config_->FieldSeparator);
-            }
         }
         WriteRaw(Config_->RecordSeparator);
     }
@@ -413,20 +194,20 @@ void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::T
     auto* stream = GetOutputStream();
     stream->Write(TStringBuf(Buffer_.Begin(), Buffer_.Size()));
 }
-    
+
 void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
 {
-    THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV.");
+    THROW_ERROR_EXCEPTION("Table inidices are not supported in schemaful DSV");
 }
 
 void TSchemalessWriterForSchemafulDsv::WriteRangeIndex(i32 rangeIndex)
 {
-    THROW_ERROR_EXCEPTION("Range inidices are not supported in schemaful DSV.");
+    THROW_ERROR_EXCEPTION("Range inidices are not supported in schemaful DSV");
 }
     
 void TSchemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
 {
-    THROW_ERROR_EXCEPTION("Row inidices are not supported in schemaful DSV.");
+    THROW_ERROR_EXCEPTION("Row inidices are not supported in schemaful DSV");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -450,15 +231,15 @@ bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
 {
     Buffer_.Clear();
 
-    auto idMappingBegin = ColumnIdMapping_.begin();
-    auto idMappingEnd = ColumnIdMapping_.end();
     for (auto row : rows) {
-        for (auto idMappingCurrent = idMappingBegin; idMappingCurrent != idMappingEnd; ++idMappingCurrent) {
-            int id = *idMappingCurrent;
-            WriteValue(row[id]);
-            if (idMappingCurrent + 1 != idMappingEnd) {
+        bool firstValue = true;
+        for (auto id : ColumnIdMapping_) {
+            if (!firstValue) {
                 WriteRaw(Config_->FieldSeparator);
+            } else {
+                firstValue = false;
             }
+            WriteValue(row[id]);
         }
         WriteRaw(Config_->RecordSeparator);
     }

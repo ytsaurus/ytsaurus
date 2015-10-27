@@ -289,7 +289,6 @@ public:
 
     EMissingSchemafulDsvValueMode MissingValueMode;
     Stroka MissingValueSentinel;
- 
 
     const std::vector<Stroka>& GetColumnsOrThrow() const
     {
