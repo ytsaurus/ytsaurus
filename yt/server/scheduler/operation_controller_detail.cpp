@@ -3902,6 +3902,8 @@ void TOperationControllerBase::Persist(TPersistenceContext& context)
 
     Persist(context, InputChunkMap);
 
+    Persist(context, CellTagToOutputTableCount);
+
     Persist(context, CachedPendingJobCount);
 
     Persist(context, CachedNeededResources);
