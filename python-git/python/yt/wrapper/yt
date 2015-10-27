@@ -13,6 +13,8 @@ import fnmatch
 import shlex
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
+import completers
+
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
     create, remove, exists, list, find, get, set,
@@ -111,7 +113,7 @@ def fix_parser(parser):
         if kwargs.get("action") == "append":
             help.append(" Accepted multiple times.")
         kwargs["help"] = "".join(help)
-        old_add_argument(*args, **kwargs)
+        return old_add_argument(*args, **kwargs)
     parser.add_argument = add_argument
     return parser
 
@@ -160,12 +162,13 @@ def add_argument(parser, name, help, description, **kwargs):
         help = "".join([help, ". ", description])
     else:
         help = description
-    parser.add_argument(name, help=help, **kwargs)
+    return parser.add_argument(name, help=help, **kwargs)
 
 def add_ypath_argument(parser, name="path", help="address in Cypress", **kwargs):
-    add_argument(parser, name, help,
+    argument = add_argument(parser, name, help,
                  description="See also: https://wiki.yandex-team.ru/yt/Design/YPath",
                  **kwargs)
+    argument.completer = completers.complete_ypath
 
 def add_structured_format_help(parser, name="--format", help="", **kwargs):
     STRUCTURED_FORMAT_HELP = 'response format: yson or json, for example: "<format=binary>yson". See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
@@ -773,6 +776,10 @@ def main():
     add_remove_member_parser(add_parser)
     add_check_permission_parser(add_parser)
     add_execute_parser(add_parser)
+
+    if "_ARGCOMPLETE" in os.environ:
+        completion_finder = completers.CompletionFinder(enable_bash_fallback=True)
+        completion_finder(parser)
 
     aliases_filename = os.path.join(os.path.expanduser("~"), ".yt/aliases")
     if os.path.isfile(aliases_filename):
