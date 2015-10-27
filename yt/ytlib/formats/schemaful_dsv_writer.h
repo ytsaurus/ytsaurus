@@ -19,7 +19,7 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This class contains methods common for TSchemafulDsvWriter and TSchemalessWriterForSchemafulDsv.
+// This class contains methods common for TSchemafulWriterForSchemafulDsv and TSchemalessWriterForSchemafulDsv.
 class TSchemafulDsvWriterBase
 {
 protected:
@@ -67,12 +67,12 @@ DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForSchemafulDsv)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemafulDsvWriter
+class TSchemafulWriterForSchemafulDsv
     : public NTableClient::ISchemafulWriter
     , public TSchemafulDsvWriterBase
 {
 public:
-    TSchemafulDsvWriter(
+    TSchemafulWriterForSchemafulDsv(
         NConcurrency::IAsyncOutputStreamPtr stream,
         std::vector<int> columnIdMapping,
         TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
@@ -91,7 +91,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
+NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     NConcurrency::IAsyncOutputStreamPtr stream,
     const NTableClient::TTableSchema& schema,
     TSchemafulDsvFormatConfigPtr config = New<TSchemafulDsvFormatConfig>());
