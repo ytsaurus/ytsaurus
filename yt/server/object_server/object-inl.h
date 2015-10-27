@@ -1,3 +1,5 @@
+#include "object.h"
+
 #ifndef OBJECT_INL_H_
 #error "Direct inclusion of this file is not allowed, include object.h"
 #endif
@@ -14,13 +16,18 @@ inline TObjectBase::TObjectBase(const TObjectId& id)
 inline TObjectBase::~TObjectBase()
 {
     // To make debugging easier.
-    RefCounter_ = DisposedRefCounter;
+    Flags_.Disposed = true;
 }
 
 inline void TObjectBase::SetDestroyed()
 {
     YASSERT(RefCounter_ == 0);
-    RefCounter_ = DestroyedRefCounter;
+    Flags_.Destroyed = true;
+}
+
+inline void TObjectBase::SetForeign()
+{
+    Flags_.Foreign = true;
 }
 
 inline const TObjectId& TObjectBase::GetId() const
@@ -91,12 +98,17 @@ inline bool TObjectBase::IsAlive() const
 
 inline bool TObjectBase::IsDestroyed() const
 {
-    return RefCounter_ == DestroyedRefCounter;
+    return Flags_.Destroyed;
 }
 
 inline bool TObjectBase::IsLocked() const
 {
     return WeakRefCounter_ > 0;
+}
+
+inline bool TObjectBase::IsForeign() const
+{
+    return Flags_.Foreign;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

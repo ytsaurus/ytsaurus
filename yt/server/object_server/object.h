@@ -23,6 +23,9 @@ public:
     //! Marks the object as destroyed.
     void SetDestroyed();
 
+    //! Marks the object as foreign.
+    void SetForeign();
+
     //! Returns the object id.
     const TObjectId& GetId() const;
 
@@ -100,6 +103,9 @@ public:
     //! Returns |true| iff the object is either non-versioned or versioned but does not belong to a transaction.
     bool IsTrunk() const;
 
+    //! Returns |true| if the object was replicated here from another cell.
+    bool IsForeign() const;
+
 
     //! Returns an immutable collection of attributes associated with the object or |nullptr| is there are none.
     const TAttributeSet* GetAttributes() const;
@@ -120,9 +126,12 @@ protected:
     int WeakRefCounter_ = 0;
     int ImportRefCounter_ = 0;
 
-    static constexpr int DestroyedRefCounter = -1;
-    static constexpr int DisposedRefCounter = -2;
-    
+    struct {
+        bool Foreign : 1;
+        bool Destroyed : 1;
+        bool Disposed : 1;
+    } Flags_ = {};
+
     std::unique_ptr<TAttributeSet> Attributes_;
 
 };

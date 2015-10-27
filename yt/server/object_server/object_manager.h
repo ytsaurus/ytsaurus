@@ -85,9 +85,6 @@ public:
     //! Otherwise returns |hintId| (but checks its type).
     TObjectId GenerateId(EObjectType type, const TObjectId& hintId);
 
-    //! Returns |true| if the object was replicated here from another cell.
-    bool IsForeign(const TObjectBase* object);
-
     //! Adds a reference.
     //! Returns the strong reference counter.
     int RefObject(TObjectBase* object);
