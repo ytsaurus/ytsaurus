@@ -77,6 +77,7 @@ void TOperationControllerBase::TUserObjectBase::Persist(TPersistenceContext& con
     using NYT::Persist;
     Persist(context, Path);
     Persist(context, ObjectId);
+    Persist(context, CellTag);
 }
 
 ////////////////////////////////////////////////////////////////////
