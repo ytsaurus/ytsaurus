@@ -63,8 +63,8 @@ struct TSchemafulPipe::TData
         }
 
         WriterOpened.TrySet(error);
-        readerReadyEvent.Set(error);
-        writerReadyEvent.Set(error);
+        readerReadyEvent.TrySet(error);
+        writerReadyEvent.TrySet(error);
     }
 
 };
