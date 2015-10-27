@@ -72,6 +72,11 @@ ui64 TChunkList::GenerateVisitMark()
     return ++counter;
 }
 
+int TChunkList::GetGCWeight() const
+{
+    return TObjectBase::GetGCWeight() + Children_.size();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NChunkServer

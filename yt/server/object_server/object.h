@@ -116,6 +116,10 @@ public:
     //! Clears the collection of attributes associated with the object.
     void ClearAttributes();
 
+    //! Returns the relative complexity of object destruction.
+    //! This value must always be positive. The default is 10.
+    virtual int GetGCWeight() const;
+
 protected:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

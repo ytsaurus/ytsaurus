@@ -49,10 +49,6 @@ public:
     // Enables optimistic locking during chunk tree traversing.
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
-    ui64 GetVisitMark() const;
-    void SetVisitMark(ui64 value);
-    static ui64 GenerateVisitMark();
-
 public:
     explicit TChunkList(const TChunkListId& id);
 
@@ -64,6 +60,12 @@ public:
     void IncrementVersion();
 
     void ValidateSealed();
+
+    ui64 GetVisitMark() const;
+    void SetVisitMark(ui64 value);
+    static ui64 GenerateVisitMark();
+
+    virtual int GetGCWeight() const override;
 
 };
 

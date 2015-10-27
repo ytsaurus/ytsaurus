@@ -458,6 +458,8 @@ public:
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
+    virtual int GetGCWeight() const override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -515,6 +517,8 @@ public:
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
+
+    virtual int GetGCWeight() const override;
 
 };
 

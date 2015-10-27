@@ -197,6 +197,11 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     }
 }
 
+int TMapNode::GetGCWeight() const
+{
+    return TObjectBase::GetGCWeight() + KeyToChild_.size();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMapNodeTypeHandler::TMapNodeTypeHandler(TBootstrap* bootstrap)
@@ -388,6 +393,11 @@ void TListNode::Load(NCellMaster::TLoadContext& context)
     for (int index = 0; index < IndexToChild_.size(); ++index) {
         YCHECK(ChildToIndex_.insert(std::make_pair(IndexToChild_[index], index)).second);
     }
+}
+
+int TListNode::GetGCWeight() const
+{
+    return TObjectBase::GetGCWeight() + IndexToChild_.size();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
