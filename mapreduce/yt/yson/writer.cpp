@@ -261,7 +261,11 @@ void TYsonWriter::OnDoubleScalar(double value)
         Stream->Write(NDetail::DoubleMarker);
         Stream->Write(&value, sizeof(double));
     } else {
-        Stream->Write(::ToString(value));
+        auto str = ::ToString(value);
+        Stream->Write(str);
+        if (str.find('.') == Stroka::npos) {
+            Stream->Write(".");
+        }
     }
     EndNode();
 }
