@@ -176,7 +176,9 @@ default_config = {
         "action": "log",
         "min_chunk_count": 1000,
         "max_chunk_size": 32 * common.MB
-    }
+    },
+
+    "argcomplete_verbose": False
 }
 
 def get_default_config():
