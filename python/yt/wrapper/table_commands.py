@@ -532,6 +532,7 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=No
 
     If :py:data:`yt.wrapper.config["read_retries"]["enable"]` is specified,
     command is executed under self-pinged transaction with retries and snapshot lock on the table.
+    This transaction is alive until your finish reading your table, or call `close` method of ResponseStream.
     """
     if raw is None:
         raw = get_config(client)["default_value_of_raw_option"]

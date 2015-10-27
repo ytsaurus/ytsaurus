@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import yt.wrapper.yson as yson
-from yt.wrapper.http import get_api_version
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB
 from yt.wrapper.cli_helpers import write_silently, run_main
 import yt.wrapper as yt
@@ -693,7 +692,6 @@ def main():
     parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.get_version())
 
     subparsers = parser.add_subparsers(metavar="command")
-
 
     def extract_help(help, function):
         if not help:
