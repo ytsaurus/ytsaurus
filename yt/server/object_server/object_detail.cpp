@@ -444,9 +444,7 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     auto* acd = FindThisAcd();
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
-
-    auto objectManager = Bootstrap_->GetObjectManager();
-    bool isForeign = objectManager->IsForeign(Object_);
+    bool isForeign = Object_->IsForeign();
 
     descriptors->push_back("id");
     descriptors->push_back("type");
@@ -476,8 +474,7 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
 {
     auto securityManager = Bootstrap_->GetSecurityManager();
 
-    auto objectManager = Bootstrap_->GetObjectManager();
-    bool isForeign = objectManager->IsForeign(Object_);
+    bool isForeign = Object_->IsForeign();
 
     if (key == "id") {
         BuildYsonFluently(consumer)
@@ -517,11 +514,12 @@ bool TObjectProxyBase::GetBuiltinAttribute(const Stroka& key, IYsonConsumer* con
 
     if (key == "foreign") {
         BuildYsonFluently(consumer)
-            .Value(objectManager->IsForeign(Object_));
+            .Value(isForeign);
         return true;
     }
 
     if (key == "supported_permissions") {
+        auto objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(Object_);
         auto permissions = handler->GetSupportedPermissions();
         BuildYsonFluently(consumer)

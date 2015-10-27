@@ -6,6 +6,7 @@
 #include <server/cypress_server/node.h>
 
 #include <server/cell_master/serialize.h>
+#include <server/cell_master/bootstrap.h>
 
 namespace NYT {
 namespace NObjectServer {
@@ -64,6 +65,7 @@ void TObjectBase::Save(NCellMaster::TSaveContext& context) const
     } else {
         Save(context, false);
     }
+    Save(context, IsForeign());
 }
 
 void TObjectBase::Load(NCellMaster::TLoadContext& context)
@@ -77,6 +79,16 @@ void TObjectBase::Load(NCellMaster::TLoadContext& context)
     if (Load<bool>(context)) {
         Attributes_ = std::make_unique<TAttributeSet>();
         Load(context, *Attributes_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 204) {
+        if (Load<bool>(context)) {
+            SetForeign();
+        }
+    } else {
+        if (CellTagFromId(Id_) != context.GetBootstrap()->GetCellTag()) {
+            SetForeign();
+        }
     }
 }
 

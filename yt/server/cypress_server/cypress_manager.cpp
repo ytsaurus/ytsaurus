@@ -1282,6 +1282,9 @@ private:
         node->SetModificationTime(mutationContext->GetTimestamp());
         node->SetAccessTime(mutationContext->GetTimestamp());
         node->SetRevision(mutationContext->GetVersion().ToRevision());
+        if (CellTagFromId(nodeId) != Bootstrap_->GetCellTag()) {
+            node->SetForeign();
+        }
 
         if (node->IsExternal()) {
             LOG_DEBUG_UNLESS(IsRecovery(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
@@ -1289,7 +1292,8 @@ private:
                 node->GetType(),
                 node->GetExternalCellTag());
         } else {
-            LOG_DEBUG_UNLESS(IsRecovery(), "Local node registered (NodeId: %v, Type: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "%v node registered (NodeId: %v, Type: %v)",
+                node->IsForeign() ? "Foreign" : "Local",
                 node->GetId(),
                 node->GetType());
         }

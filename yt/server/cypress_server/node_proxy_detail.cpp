@@ -584,11 +584,11 @@ void TNontemplateCypressNodeProxyBase::RemoveSelf(
     TCtxRemovePtr context)
 {
     auto* node = GetThisImpl();
-    auto objectManager = Bootstrap_->GetObjectManager();
-    if (objectManager->IsForeign(node)) {
+    if (node->IsForeign()) {
         YCHECK(node->IsTrunk());
         YCHECK(node->AcquiredLocks().empty());
         YCHECK(node->GetObjectRefCounter() == 1);
+        auto objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(node);
     } else {
         TNodeBase::RemoveSelf(request, response, std::move(context));

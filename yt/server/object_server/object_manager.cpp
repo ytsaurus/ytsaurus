@@ -584,11 +584,6 @@ TObjectId TObjectManager::GenerateId(EObjectType type, const TObjectId& hintId)
     return id;
 }
 
-bool TObjectManager::IsForeign(const TObjectBase* object)
-{
-    return CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag();
-}
-
 int TObjectManager::RefObject(TObjectBase* object)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1024,6 +1019,10 @@ TObjectBase* TObjectManager::CreateObject(
         attributes,
         extensions);
 
+    if (CellTagFromId(object->GetId()) != Bootstrap_->GetCellTag()) {
+        object->SetForeign();
+    }
+
     FillAttributes(object, *attributes);
 
     auto* stagingTransaction = handler->GetStagingTransaction(object);
@@ -1269,7 +1268,7 @@ void TObjectManager::HydraDestroyObjects(const NProto::TReqDestroyObjects& reque
         if (!object || object->GetObjectRefCounter() > 0)
             continue;
 
-        if (IsForeign(object) && object->GetImportRefCounter() > 0) {
+        if (object->IsForeign() && object->GetImportRefCounter() > 0) {
             auto& crossCellRequest = getCrossCellRequest(id);
             crossCellRequest.set_cell_tag(Bootstrap_->GetCellTag());
             auto* entry = crossCellRequest.add_entries();

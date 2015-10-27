@@ -68,8 +68,7 @@ public:
         LOG_DEBUG_UNLESS(IsRecovery(), "Journal node sealed (NodeId: %v)",
             trunkNode->GetId());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        if (objectManager->IsForeign(trunkNode)) {
+        if (trunkNode->IsForeign()) {
             auto req = TJournalYPathProxy::Seal(FromObjectId(trunkNode->GetId()));
             *req->mutable_statistics() = trunkNode->SnapshotStatistics();
 

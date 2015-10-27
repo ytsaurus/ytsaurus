@@ -1141,7 +1141,6 @@ private:
         auto multicellManager = Bootstrap_->GetMulticellManager();
         int cellIndex = local ? -1 : multicellManager->GetRegisteredMasterCellIndex(request.cell_tag());
 
-        auto objectManager = Bootstrap_->GetObjectManager();
         for (const auto& update : request.updates()) {
             auto chunkId = FromProto<TChunkId>(update.chunk_id());
             auto* chunk = FindChunk(chunkId);
@@ -1165,7 +1164,7 @@ private:
                 continue;
             }
 
-            if (objectManager->IsForeign(chunk)) {
+            if (chunk->IsForeign()) {
                 YASSERT(local);
                 auto& crossCellRequest = getCrossCellRequest(chunk);
                 *crossCellRequest.add_updates() = update;
@@ -1241,6 +1240,7 @@ private:
             if (!chunk) {
                 auto chunkHolder = std::make_unique<TChunk>(chunkId);
                 chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
+                chunk->SetForeign();
                 chunk->Confirm(importData.mutable_info(), importData.mutable_meta());
                 chunk->SetErasureCodec(NErasure::ECodec(importData.erasure_codec()));
             }

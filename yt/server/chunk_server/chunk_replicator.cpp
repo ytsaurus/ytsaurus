@@ -1163,11 +1163,9 @@ void TChunkReplicator::ScheduleChunkRefresh(const TChunkId& chunkId)
 
 void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
 {
-    if (!IsObjectAlive(chunk) || chunk->GetRefreshScheduled())
-        return;
-
-    auto objectManager = Bootstrap_->GetObjectManager();
-    if (objectManager->IsForeign(chunk))
+    if (!IsObjectAlive(chunk) ||
+        chunk->GetRefreshScheduled() ||
+        chunk->IsForeign())
         return;
 
     TRefreshEntry entry;
@@ -1175,6 +1173,8 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
     entry.When = GetCpuInstant() + ChunkRefreshDelay_;
     RefreshList_.push_back(entry);
     chunk->SetRefreshScheduled(true);
+
+    auto objectManager = Bootstrap_->GetObjectManager();
     objectManager->WeakRefObject(chunk);
 }
 

@@ -75,9 +75,7 @@ private:
         YCHECK(!chunk->IsConfirmed() || miscExt);
 
         bool hasBoundaryKeysExt = HasProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
-
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto isForeign = objectManager->IsForeign(chunk);
+        auto isForeign = chunk->IsForeign();
 
         descriptors->push_back(TAttributeDescriptor("cached_replicas")
             .SetPresent(!isForeign));
@@ -164,8 +162,7 @@ private:
         auto* chunk = GetThisTypedImpl();
         auto status = chunkManager->ComputeChunkStatus(chunk);
 
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto isForeign = objectManager->IsForeign(chunk);
+        auto isForeign = chunk->IsForeign();
 
         auto multicellManager = Bootstrap_->GetMulticellManager();
 
