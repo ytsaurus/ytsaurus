@@ -79,7 +79,7 @@ TNameTablePtr TSchemalessFormatWriterBase::GetNameTable() const
     return NameTable_;
 }
 
-TOutputStream* TSchemalessFormatWriterBase::GetOutputStream()
+TBlobOutput* TSchemalessFormatWriterBase::GetOutputStream()
 {
     return &CurrentBuffer_;
 }

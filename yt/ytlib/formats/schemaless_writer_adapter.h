@@ -46,7 +46,7 @@ protected:
         bool enableKeySwitch,
         int keyColumnCount);
 
-    TOutputStream* GetOutputStream();
+    TBlobOutput* GetOutputStream();
 
     void TryFlushBuffer();
 

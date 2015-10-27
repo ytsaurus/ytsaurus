@@ -7,6 +7,7 @@
 #include "schemaless_writer_adapter.h"
 
 #include <core/misc/blob.h>
+#include <core/misc/blob_output.h>
 #include <core/misc/nullable.h>
 
 #include <core/concurrency/async_stream.h>
@@ -23,7 +24,7 @@ namespace NFormats {
 class TSchemafulDsvWriterBase
 {
 protected:
-    TBlob Buffer_;
+    TBlobOutput* BlobOutput_;
     
     TSchemafulDsvFormatConfigPtr Config_;
 
@@ -37,8 +38,8 @@ protected:
     void WriteRaw(char ch);
     
 private:
-    static char* WriteInt64Reversed(char* ptr, i64 value);
-    static char* WriteUint64Reversed(char* ptr, ui64 value);    
+    static char* WriteInt64EndingHere(char* ptr, i64 value);
+    static char* WriteUint64EndingHere(char* ptr, ui64 value);    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,9 +85,14 @@ public:
     virtual TFuture<void> GetReadyEvent() override;
 
 private:
-    NConcurrency::IAsyncOutputStreamPtr Stream_;
+    std::unique_ptr<TOutputStream> Output_;
+
+    void TryFlushBuffer();
+    void DoFlushBuffer(bool force);
 
     TFuture<void> Result_;
+
+    TBlobOutput UnderlyingBlobOutput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

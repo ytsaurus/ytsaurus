@@ -16,27 +16,28 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemafulDsvWriterBase::TSchemafulWriterForSchemafulDsvBase(TSchemafulDsvFormatConfigPtr config)
+TSchemafulDsvWriterBase::TSchemafulDsvWriterBase(
+        TSchemafulDsvFormatConfigPtr config)
     : Config_(config)
 { }
 
 static ui16 DigitPairs[100] = {
-    12336,  12337,  12338,  12339,  12340,  12341,  12342,  12343,  12344,  12345,
-    12592,  12593,  12594,  12595,  12596,  12597,  12598,  12599,  12600,  12601,
-    12848,  12849,  12850,  12851,  12852,  12853,  12854,  12855,  12856,  12857,
-    13104,  13105,  13106,  13107,  13108,  13109,  13110,  13111,  13112,  13113,
-    13360,  13361,  13362,  13363,  13364,  13365,  13366,  13367,  13368,  13369,
-    13616,  13617,  13618,  13619,  13620,  13621,  13622,  13623,  13624,  13625,
-    13872,  13873,  13874,  13875,  13876,  13877,  13878,  13879,  13880,  13881,
-    14128,  14129,  14130,  14131,  14132,  14133,  14134,  14135,  14136,  14137,
-    14384,  14385,  14386,  14387,  14388,  14389,  14390,  14391,  14392,  14393,
-    14640,  14641,  14642,  14643,  14644,  14645,  14646,  14647,  14648,  14649
+    12336,  12592,  12848,  13104,  13360,  13616,  13872,  14128,  14384,  14640,
+    12337,  12593,  12849,  13105,  13361,  13617,  13873,  14129,  14385,  14641,
+    12338,  12594,  12850,  13106,  13362,  13618,  13874,  14130,  14386,  14642,
+    12339,  12595,  12851,  13107,  13363,  13619,  13875,  14131,  14387,  14643,
+    12340,  12596,  12852,  13108,  13364,  13620,  13876,  14132,  14388,  14644,
+    12341,  12597,  12853,  13109,  13365,  13621,  13877,  14133,  14389,  14645,
+    12342,  12598,  12854,  13110,  13366,  13622,  13878,  14134,  14390,  14646,
+    12343,  12599,  12855,  13111,  13367,  13623,  13879,  14135,  14391,  14647,
+    12344,  12600,  12856,  13112,  13368,  13624,  13880,  14136,  14392,  14648,
+    12345,  12601,  12857,  13113,  13369,  13625,  13881,  14137,  14393,  14649,
 };
 
-char* TSchemafulDsvWriterBase::WriteInt64Reversed(char* ptr, i64 value)
+char* TSchemafulDsvWriterBase::WriteInt64EndingHere(char* ptr, i64 value)
 {
     if (value == 0) {
-        *ptr++ = '0';
+        *(--ptr) = '0';
         return ptr;
     }
 
@@ -49,39 +50,37 @@ char* TSchemafulDsvWriterBase::WriteInt64Reversed(char* ptr, i64 value)
     while (value >= 10) {
         i64 rem = value % 100;
         i64 quot = value / 100;
-        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-        ptr += 2;
+        *reinterpret_cast<ui16*>(ptr -= 2) = DigitPairs[rem];
         value = quot;
     }
 
     if (value > 0) {
-        *ptr++ = ('0' + value);
+        *(--ptr) = ('0' + value);
     }
 
     if (negative) {
-        *ptr++ = '-';
+        *(--ptr) = '-';
     }
 
     return ptr;
 }
 
-char* TSchemafulDsvWriterBase::WriteUint64Reversed(char* ptr, ui64 value)
+char* TSchemafulDsvWriterBase::WriteUint64EndingHere(char* ptr, ui64 value)
 {
     if (value == 0) {
-        *ptr++ = '0';
+        *(--ptr) = '0';
         return ptr;
     }
 
     while (value >= 10) {
         i64 rem = value % 100;
         i64 quot = value / 100;
-        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
-        ptr += 2;
+        *reinterpret_cast<ui16*>(ptr -= 2) = DigitPairs[rem];
         value = quot;
     }
 
     if (value > 0) {
-        *ptr++ = ('0' + value);
+        *(--ptr) = ('0' + value);
     }
 
     return ptr;
@@ -96,27 +95,21 @@ void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
         case EValueType::Int64:
         case EValueType::Uint64: {
             char buf[64];
-            char* begin = buf;
-            char* end = value.Type == EValueType::Int64
-                ? WriteInt64Reversed(begin, value.Data.Int64)
-                : WriteUint64Reversed(begin, value.Data.Uint64);
+            char* end = buf + 64;
+            char* begin = value.Type == EValueType::Int64
+                ? WriteInt64EndingHere(end, value.Data.Int64)
+                : WriteUint64EndingHere(end, value.Data.Uint64);
             size_t length = end - begin;
-
-            Buffer_.Resize(Buffer_.Size() + length, false);
-            char* src = begin;
-            char* dst = Buffer_.End() - 1;
-            while (src != end) {
-                *dst-- = *src++;
-            }
+            BlobOutput_->Write(begin, length);
             break;
         }
 
         case EValueType::Double: {
             // TODO(babenko): optimize
-            const size_t maxSize = 64;
-            Buffer_.Resize(Buffer_.Size() + maxSize);
-            int size = sprintf(Buffer_.End() - maxSize, "%lg", value.Data.Double);
-            Buffer_.Resize(Buffer_.Size() - maxSize + size);
+            char buf[64];
+            char* begin = buf;
+            int length = sprintf(buf, "%lg", value.Data.Double);
+            BlobOutput_->Write(begin, length);
             break;
         }
 
@@ -137,12 +130,12 @@ void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
 
 void TSchemafulDsvWriterBase::WriteRaw(const TStringBuf& str)
 {
-    Buffer_.Append(str.begin(), str.length());
+    BlobOutput_->Write(str.begin(), str.length());
 }
 
 void TSchemafulDsvWriterBase::WriteRaw(char ch)
 {
-    Buffer_.Append(ch);
+    BlobOutput_->Write(ch);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,6 +153,7 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
         0 /* keyColumnCount */)
     , TSchemafulDsvWriterBase(config)
 {
+    BlobOutput_ = GetOutputStream();
     YCHECK(Config_->Columns);
     const auto& columns = Config_->Columns.Get();
     for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
@@ -189,10 +183,8 @@ void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::T
             WriteValue(row[index]);
         }
         WriteRaw(Config_->RecordSeparator);
-    }
-    
-    auto* stream = GetOutputStream();
-    stream->Write(TStringBuf(Buffer_.Begin(), Buffer_.Size()));
+        TryFlushBuffer();
+    }    
 }
 
 void TSchemalessWriterForSchemafulDsv::WriteTableIndex(i32 tableIndex)
@@ -217,20 +209,20 @@ TSchemafulWriterForSchemafulDsv::TSchemafulWriterForSchemafulDsv(
     std::vector<int> columnIdMapping,
     TSchemafulDsvFormatConfigPtr config)
     : TSchemafulDsvWriterBase(config)
-    , Stream_(stream)
+    , Output_(CreateSyncAdapter(stream))
 {
-   ColumnIdMapping_.swap(columnIdMapping); 
+    BlobOutput_ = &UnderlyingBlobOutput_; 
+    ColumnIdMapping_.swap(columnIdMapping); 
 }
 
 TFuture<void> TSchemafulWriterForSchemafulDsv::Close()
 {
+    DoFlushBuffer(true);
     return VoidFuture;
 }
 
 bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& rows)
 {
-    Buffer_.Clear();
-
     for (auto row : rows) {
         bool firstValue = true;
         for (auto id : ColumnIdMapping_) {
@@ -242,11 +234,32 @@ bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& 
             WriteValue(row[id]);
         }
         WriteRaw(Config_->RecordSeparator);
+        TryFlushBuffer();
     }
     
-    auto buffer = TSharedRef::FromBlob(std::move(Buffer_));
-    Result_ = Stream_->Write(buffer);
-    return Result_.IsSet() && Result_.Get().IsOK();
+    return true;
+}
+
+// TODO(max42): Eliminate copy-paste from schemaless_writer_adapter.cpp.
+void TSchemafulWriterForSchemafulDsv::TryFlushBuffer()
+{
+    DoFlushBuffer(false);
+}
+
+void TSchemafulWriterForSchemafulDsv::DoFlushBuffer(bool force)
+{
+    if (UnderlyingBlobOutput_.Size() == 0) {
+        return;
+    }
+
+    if (!force && UnderlyingBlobOutput_.Size() < UnderlyingBlobOutput_.Blob().Capacity() / 2) {
+        return;
+    }
+
+    const auto& buffer = UnderlyingBlobOutput_.Blob();
+    Output_->Write(buffer.Begin(), buffer.Size());
+
+    UnderlyingBlobOutput_.Clear();
 }
 
 TFuture<void> TSchemafulWriterForSchemafulDsv::GetReadyEvent()
