@@ -21,7 +21,7 @@
 #include <mapreduce/yt/io/proto_table_writer.h>
 
 #include <util/string/printf.h>
-#include <util/lambda/bind.h>
+
 #include <util/system/execpath.h>
 #include <util/folder/path.h>
 #include <util/stream/file.h>
@@ -291,13 +291,14 @@ TOperationId ExecuteMap(
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("mapper").DoMap(BindFirst(
+        .Item("mapper").DoMap(std::bind(
             BuildUserJobFluently,
             command,
             uploader.GetFiles(),
             format,
             spec.InputDesc_,
-            spec.OutputDesc_))
+            spec.OutputDesc_,
+            std::placeholders::_1))
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
         .Item("output_table_paths").DoListFor(spec.Outputs_, BuildPathPrefix)
         .Item("job_io").BeginMap()
@@ -348,13 +349,14 @@ TOperationId ExecuteReduce(
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
-        .Item("reducer").DoMap(BindFirst(
+        .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
             command,
             uploader.GetFiles(),
             format,
             spec.InputDesc_,
-            spec.OutputDesc_))
+            spec.OutputDesc_,
+            std::placeholders::_1))
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
@@ -444,21 +446,23 @@ TOperationId ExecuteMapReduce(
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
         .DoIf(mapper, [&] (TFluentMap fluent) {
-            fluent.Item("mapper").DoMap(BindFirst(
+            fluent.Item("mapper").DoMap(std::bind(
                 BuildUserJobFluently,
                 mapCommand,
                 mapUploader.GetFiles(),
                 format,
                 spec.InputDesc_,
-                outputMapperDesc));
+                outputMapperDesc,
+                std::placeholders::_1));
         })
-        .Item("reducer").DoMap(BindFirst(
+        .Item("reducer").DoMap(std::bind(
             BuildUserJobFluently,
             reduceCommand,
             reduceUploader.GetFiles(),
             mapper ? TMaybe<TNode>() : format,
             inputReducerDesc,
-            spec.OutputDesc_))
+            spec.OutputDesc_,
+            std::placeholders::_1))
         .Item("sort_by").Value(sortBy)
         .Item("reduce_by").Value(reduceBy)
         .Item("input_table_paths").DoListFor(spec.Inputs_, BuildPathPrefix)
