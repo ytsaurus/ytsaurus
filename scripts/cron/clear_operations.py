@@ -96,7 +96,7 @@ def get_filter_factors(op, attributes):
 def clean_operation(op_id, archive=False):
     if archive:
         if not yt.exists(prepare_operation_tablets.BY_ID_ARCHIVE) or not yt.exists(prepare_operation_tablets.BY_START_TIME_ARCHIVE):
-            prepare_operation_tablets.prepare_tables()
+            prepare_operation_tablets.prepare_tables(yt.config["proxy"]["url"])
 
         logger.info("Archiving operation %s", op_id)
         data = yt.get("//sys/operations/{}/@".format(op_id))
