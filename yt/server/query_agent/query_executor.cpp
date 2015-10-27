@@ -169,7 +169,7 @@ private:
 
                 LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", subquery->Id);
 
-                auto foreignExecuteCallback = [fragment, remoteExecutor, &Logger] (
+                auto foreignExecuteCallback = [fragment, remoteExecutor, Logger] (
                     const TQueryPtr& subquery,
                     TGuid dataId,
                     ISchemafulWriterPtr writer) -> TQueryStatistics
