@@ -44,7 +44,7 @@ using namespace NTableServer;
 
 int GetCurrentSnapshotVersion()
 {
-    return 123;
+    return 124;
 }
 
 bool ValidateSnapshotVersion(int version)
@@ -74,7 +74,8 @@ bool ValidateSnapshotVersion(int version)
         version == 120 ||
         version == 121 ||
         version == 122 ||
-        version == 123;
+        version == 123 ||
+        version == 124;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
