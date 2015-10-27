@@ -184,18 +184,19 @@ void TGarbageCollector::OnSweep()
         return;
     }
 
-    // Extract up to MaxObjectsPerGCSweep objects and post a mutation.
+    // Extract up to MaxWeightPerGCSweep and post a mutation.
+    int totalWeight = 0;
     NProto::TReqDestroyObjects request;
-    for (auto it = Zombies_.begin();
-         it != Zombies_.end() && request.object_ids_size() < Config_->MaxObjectsPerGCSweep;
-         ++it)
-    {
-        auto* object = *it;
+    for (const auto* object : Zombies_) {
         ToProto(request.add_object_ids(), object->GetId());
+        totalWeight += object->GetGCWeight();
+        if (totalWeight >= Config_->MaxWeightPerGCSweep)
+            break;
     }
 
-    LOG_DEBUG("Starting zombie objects sweep (Count: %v)",
-        request.object_ids_size());
+    LOG_DEBUG("Starting zombie objects sweep (Count: %v, Weight: %v)",
+        request.object_ids_size(),
+        totalWeight);
 
     auto asyncResult = Bootstrap_
         ->GetObjectManager()

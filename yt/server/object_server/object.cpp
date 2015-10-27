@@ -54,6 +54,11 @@ void TObjectBase::ClearAttributes()
     Attributes_.reset();
 }
 
+int TObjectBase::GetGCWeight() const
+{
+    return 10;
+}
+
 void TObjectBase::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;

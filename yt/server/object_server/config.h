@@ -17,8 +17,8 @@ class TObjectManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Maximum number to objects to destroy per a single GC mutation.
-    int MaxObjectsPerGCSweep;
+    //! Maximum total weight of objects processed per a single GC mutation.
+    int MaxWeightPerGCSweep;
 
     //! Period between subsequent GC queue checks.
     TDuration GCSweepPeriod;
@@ -28,8 +28,8 @@ public:
 
     TObjectManagerConfig()
     {
-        RegisterParameter("max_objects_per_gc_sweep", MaxObjectsPerGCSweep)
-            .Default(1000);
+        RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
+            .Default(10000);
         RegisterParameter("gc_sweep_period", GCSweepPeriod)
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("yield_timeout", YieldTimeout)
