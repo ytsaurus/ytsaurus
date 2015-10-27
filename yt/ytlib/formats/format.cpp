@@ -206,7 +206,7 @@ ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
-    return CreateSchemafulDsvWriter(output, schema, config);
+    return CreateSchemafulWriterForSchemafulDsv(output, schema, config);
 }
 
 ISchemafulWriterPtr CreateSchemafulWriterForFormat(

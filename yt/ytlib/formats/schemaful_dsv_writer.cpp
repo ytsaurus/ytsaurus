@@ -16,7 +16,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemafulDsvWriterBase::TSchemafulDsvWriterBase(TSchemafulDsvFormatConfigPtr config)
+TSchemafulDsvWriterBase::TSchemafulWriterForSchemafulDsvBase(TSchemafulDsvFormatConfigPtr config)
     : Config_(config)
 { }
 
@@ -212,7 +212,7 @@ void TSchemalessWriterForSchemafulDsv::WriteRowIndex(i64 rowIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemafulDsvWriter::TSchemafulDsvWriter(
+TSchemafulWriterForSchemafulDsv::TSchemafulWriterForSchemafulDsv(
     IAsyncOutputStreamPtr stream,
     std::vector<int> columnIdMapping,
     TSchemafulDsvFormatConfigPtr config)
@@ -222,12 +222,12 @@ TSchemafulDsvWriter::TSchemafulDsvWriter(
    ColumnIdMapping_.swap(columnIdMapping); 
 }
 
-TFuture<void> TSchemafulDsvWriter::Close()
+TFuture<void> TSchemafulWriterForSchemafulDsv::Close()
 {
     return VoidFuture;
 }
 
-bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
+bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& rows)
 {
     Buffer_.Clear();
 
@@ -249,14 +249,14 @@ bool TSchemafulDsvWriter::Write(const std::vector<TUnversionedRow>& rows)
     return Result_.IsSet() && Result_.Get().IsOK();
 }
 
-TFuture<void> TSchemafulDsvWriter::GetReadyEvent()
+TFuture<void> TSchemafulWriterForSchemafulDsv::GetReadyEvent()
 {
     return Result_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
+NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
     NConcurrency::IAsyncOutputStreamPtr stream,
     const NTableClient::TTableSchema& schema,
     TSchemafulDsvFormatConfigPtr config)
@@ -272,7 +272,7 @@ NTableClient::ISchemafulWriterPtr CreateSchemafulDsvWriter(
         }
     }
 
-    return New<TSchemafulDsvWriter>(stream, std::move(columnIdMapping), config);
+    return New<TSchemafulWriterForSchemafulDsv>(stream, std::move(columnIdMapping), config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
