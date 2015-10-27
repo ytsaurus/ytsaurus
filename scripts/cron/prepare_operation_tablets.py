@@ -3,6 +3,8 @@
 import yt.yson as yson
 import yt.wrapper as yt
 
+import argparse
+
 BY_ID_ARCHIVE = "//sys/operations_archive/ordered_by_id"
 BY_START_TIME_ARCHIVE = "//sys/operations_archive/ordered_by_start_time"
 SHARD_COUNT = 100
@@ -24,6 +26,7 @@ def create_ordered_by_id_table():
         {"name": "brief_spec", "type": "any"},
         {"name": "start_time", "type": "string"},
         {"name": "finish_time", "type": "string"},
+        {"name": "filter_factors", "type": "string"},
         {"name": "result", "type": "any"}])
 
     yt.set_attribute(path, "key_columns", ["id_hash", "id"])
@@ -45,15 +48,20 @@ def create_ordered_by_start_time_table():
     yt.set(path + "/@key_columns", ["start_time", "id_hash", "id"])
     yt.mount_table(path)
 
-def prepare_tables():
-    yt.config.VERSION = "v3"
-    yt.config.http.HEADER_FORMAT = "yson"
+def prepare_tables(proxy):
+    yt.config["proxy"]["url"] = proxy
+    yt.config["api_version"] = "v3"
+    yt.config["proxy"]["header_format"] = "yson"
 
     create_ordered_by_id_table()
     create_ordered_by_start_time_table()
 
 def main():
-    prepare_tables()
+    parser = argparse.ArgumentParser(description="Prepare dynamic tables for operations archive")
+    parser.add_argument("--proxy", metavar="PROXY")
+    args = parser.parse_args()
+
+    prepare_tables(args.proxy)
 
 if __name__ == "__main__":
     main()
