@@ -20,7 +20,7 @@ var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id",
     OPERATIONS_CYPRESS_PATH = "//sys/operations",
     OPERATIONS_ORCHID_PATH = "//sys/scheduler/orchid/scheduler/operations",
     SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
-    RESULT_LIMIT = 50;
+    RESULT_LIMIT = 200;
 
 var INTERMEDIATE_STATES = [
     "pending",
@@ -93,7 +93,7 @@ function YtApplicationOperations(driver)
 
         start_time_end = isNaN(start_time_begin) ? new Date() : start_time_end;
         var month_ago = new Date();
-        month_ago.setDate(start_time_end.getDate() - MAX_TIME_SPAN);        
+        month_ago.setDate(start_time_end.getDate() - MAX_TIME_SPAN);
         var incomplete = false;
 
         if (isNaN(start_time_begin) || start_time_begin < month_ago) {
@@ -384,7 +384,7 @@ function YtApplicationOperations(driver)
         .spread(function (cypress_data, archive_data) {
             if (cypress_data.isFulfilled()) {
                 return cypress_data.value();
-            } else if (cypress_data.error().checkFor(500)) {                
+            } else if (cypress_data.error().checkFor(500)) {
                 if (archive_data.isFulfilled()) {
                     if (archive_data.value().length) {
                         return archive_data.value()[0];
