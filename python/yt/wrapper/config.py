@@ -96,7 +96,9 @@ class Config(types.ModuleType):
             "format.TABULAR_DATA_FORMAT": "tabular_data_format",
 
             "CONFIG_PATH": "config_path",
-            "CONFIG_FORMAT": "config_format"
+            "CONFIG_FORMAT": "config_format",
+
+            "ARGCOMPLETE_VERBOSE": "argcomplete_verbose"
         }
 
         # Some shortcuts can't be backported one-to-one so they are processed manually
