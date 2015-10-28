@@ -395,9 +395,9 @@ public:
         TTabletStatistics tabletStatistics;
         tabletStatistics.PartitionCount = nodeStatistics.partition_count();
         tabletStatistics.StoreCount = nodeStatistics.store_count();
-        tabletStatistics.StorePreloadPendingCount = nodeStatistics.store_preload_pending_count();
-        tabletStatistics.StorePreloadCompletedCount = nodeStatistics.store_preload_completed_count();
-        tabletStatistics.StorePreloadFailedCount = nodeStatistics.store_preload_failed_count();
+        tabletStatistics.PreloadPendingStoreCount = nodeStatistics.preload_pending_store_count();
+        tabletStatistics.PreloadCompletedStoreCount = nodeStatistics.preload_completed_store_count();
+        tabletStatistics.PreloadFailedStoreCount = nodeStatistics.preload_failed_store_count();
         tabletStatistics.UnmergedRowCount = treeStatistics.RowCount;
         tabletStatistics.UncompressedDataSize = treeStatistics.UncompressedDataSize;
         tabletStatistics.CompressedDataSize = treeStatistics.CompressedDataSize;

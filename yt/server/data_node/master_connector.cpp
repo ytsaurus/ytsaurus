@@ -433,9 +433,9 @@ void TMasterConnector::SendIncrementalNodeHeartbeat()
         auto* protoStatistics = protoTabletInfo->mutable_statistics();
         protoStatistics->set_partition_count(snapshot->Partitions.size());
         protoStatistics->set_store_count(snapshot->StoreCount);
-        protoStatistics->set_store_preload_pending_count(snapshot->StorePreloadPendingCount);
-        protoStatistics->set_store_preload_completed_count(snapshot->StorePreloadCompletedCount);
-        protoStatistics->set_store_preload_failed_count(snapshot->StorePreloadFailedCount);
+        protoStatistics->set_preload_pending_store_count(snapshot->PreloadPendingStoreCount);
+        protoStatistics->set_preload_completed_store_count(snapshot->PreloadCompletedStoreCount);
+        protoStatistics->set_preload_failed_store_count(snapshot->PreloadFailedStoreCount);
 
         auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
         auto performanceCounters = snapshot->PerformanceCounters;

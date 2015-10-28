@@ -31,9 +31,9 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, StoreCount);
     // COMPAT(sandello)
     if (context.IsSave() || context.LoadContext().GetVersion() >= 122) {
-        Persist(context, StorePreloadPendingCount);
-        Persist(context, StorePreloadCompletedCount);
-        Persist(context, StorePreloadFailedCount);
+        Persist(context, PreloadPendingStoreCount);
+        Persist(context, PreloadCompletedStoreCount);
+        Persist(context, PreloadFailedStoreCount);
     }
 }
 
@@ -47,9 +47,9 @@ TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.PartitionCount += rhs.PartitionCount;
     lhs.StoreCount += rhs.StoreCount;
-    lhs.StorePreloadPendingCount += rhs.StorePreloadPendingCount;
-    lhs.StorePreloadCompletedCount += rhs.StorePreloadCompletedCount;
-    lhs.StorePreloadFailedCount += rhs.StorePreloadFailedCount;
+    lhs.PreloadPendingStoreCount += rhs.PreloadPendingStoreCount;
+    lhs.PreloadCompletedStoreCount += rhs.PreloadCompletedStoreCount;
+    lhs.PreloadFailedStoreCount += rhs.PreloadFailedStoreCount;
     return lhs;
 }
 
@@ -70,9 +70,9 @@ TTabletStatistics& operator -=(TTabletStatistics& lhs, const TTabletStatistics& 
     lhs.ChunkCount -= rhs.ChunkCount;
     lhs.PartitionCount -= rhs.PartitionCount;
     lhs.StoreCount -= rhs.StoreCount;
-    lhs.StorePreloadPendingCount -= rhs.StorePreloadPendingCount;
-    lhs.StorePreloadCompletedCount -= rhs.StorePreloadCompletedCount;
-    lhs.StorePreloadFailedCount -= rhs.StorePreloadFailedCount;
+    lhs.PreloadPendingStoreCount -= rhs.PreloadPendingStoreCount;
+    lhs.PreloadCompletedStoreCount -= rhs.PreloadCompletedStoreCount;
+    lhs.PreloadFailedStoreCount -= rhs.PreloadFailedStoreCount;
     return lhs;
 }
 
@@ -95,9 +95,9 @@ void Serialize(const TTabletStatistics& statistics, NYson::IYsonConsumer* consum
             .Item("chunk_count").Value(statistics.ChunkCount)
             .Item("partition_count").Value(statistics.PartitionCount)
             .Item("store_count").Value(statistics.StoreCount)
-            .Item("store_preload_pending_count").Value(statistics.StorePreloadPendingCount)
-            .Item("store_preload_completed_count").Value(statistics.StorePreloadCompletedCount)
-            .Item("store_preload_failed_count").Value(statistics.StorePreloadFailedCount)
+            .Item("preload_pending_store_count").Value(statistics.PreloadPendingStoreCount)
+            .Item("preload_completed_store_count").Value(statistics.PreloadCompletedStoreCount)
+            .Item("preload_failed_store_count").Value(statistics.PreloadFailedStoreCount)
         .EndMap();
 }
 
