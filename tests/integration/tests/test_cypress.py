@@ -15,7 +15,10 @@ class TestCypress(YTEnvSetup):
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
             # See test_map_node_children_limit
-            "max_node_child_count" : 100
+            "max_node_child_count" : 100,
+
+            # See test_string_node_length_limit
+            "max_string_node_length" : 300
         }
     }
 
@@ -813,6 +816,19 @@ class TestCypress(YTEnvSetup):
             create("map_node", "//tmp/test_node/" + str(i))
         with pytest.raises(YtError):
             create("map_node", "//tmp/test_node/100")
+
+    def test_string_node_length_limit(self):
+        set("//tmp/test_node", "x" * 300)
+        remove("//tmp/test_node")
+
+        with pytest.raises(YtError):
+            set("//tmp/test_node", "x" * 301)
+
+        with pytest.raises(YtError):
+            set("//tmp/test_node", {"key": "x" * 301})
+
+        with pytest.raises(YtError):
+            set("//tmp/test_node", ["x" * 301])
 
 ##################################################################
 

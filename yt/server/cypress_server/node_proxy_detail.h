@@ -9,7 +9,7 @@
 
 #include <server/object_server/public.h>
 
-#include <server/cell_master/public.h>
+#include <server/cell_master/config.h>
 
 #include <server/transaction_server/public.h>
 
@@ -279,6 +279,7 @@ public:
 
     virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) override
     {
+        this->ValidateValue(value);
         this->LockThisTypedImpl()->Value() = value;
         this->SetModified();
     }
@@ -286,11 +287,14 @@ public:
 private:
     typedef TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl> TBase;
 
+    virtual void ValidateValue(typename NMpl::TCallTraits<TValue>::TType /*value*/)
+    { }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_SCALAR_TYPE(key, type) \
+#define BEGIN_DEFINE_SCALAR_TYPE(key, type) \
     class T##key##NodeProxy \
         : public TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node> \
     { \
@@ -307,7 +311,9 @@ private:
                 bootstrap, \
                 transaction, \
                 node) \
-        { } \
+        { }
+
+#define END_DEFINE_SCALAR_TYPE(key, type) \
     }; \
     \
     template <> \
@@ -322,13 +328,34 @@ private:
             node); \
     }
 
-DECLARE_SCALAR_TYPE(String, Stroka)
-DECLARE_SCALAR_TYPE(Int64, i64)
-DECLARE_SCALAR_TYPE(Uint64, ui64)
-DECLARE_SCALAR_TYPE(Double, double)
-DECLARE_SCALAR_TYPE(Boolean, bool)
+BEGIN_DEFINE_SCALAR_TYPE(String, Stroka)
+    protected:
+        virtual void ValidateValue(const Stroka& value) override
+        {
+            auto length = value.length();
+            auto limit = Bootstrap_->GetConfig()->CypressManager->MaxStringNodeLength;
+            if (length > limit) {
+                THROW_ERROR_EXCEPTION("String node length limit exceeded: %v > %v",
+                    length,
+                    limit);
+            }
+        }
+END_DEFINE_SCALAR_TYPE(String, Stroka)
 
-#undef DECLARE_SCALAR_TYPE
+BEGIN_DEFINE_SCALAR_TYPE(Int64, i64)
+END_DEFINE_SCALAR_TYPE(Int64, i64)
+
+BEGIN_DEFINE_SCALAR_TYPE(Uint64, ui64)
+END_DEFINE_SCALAR_TYPE(Uint64, ui64)
+
+BEGIN_DEFINE_SCALAR_TYPE(Double, double)
+END_DEFINE_SCALAR_TYPE(Double, double)
+
+BEGIN_DEFINE_SCALAR_TYPE(Boolean, bool)
+END_DEFINE_SCALAR_TYPE(Boolean, bool)
+
+#undef BEGIN_DEFINE_SCALAR_TYPE
+#undef END_DEFINE_SCALAR_TYPE
 
 ////////////////////////////////////////////////////////////////////////////////
 

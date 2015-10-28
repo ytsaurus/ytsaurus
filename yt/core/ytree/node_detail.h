@@ -204,6 +204,7 @@ public: \
         return this; \
     } \
     \
+protected: \
     virtual void SetSelf(TReqSet* request, TRspSet* response, TCtxSetPtr context) override \
     { \
         UNUSED(response); \
