@@ -58,9 +58,6 @@ class TestQuery(YTEnvSetup):
         self._wait_for_tablet_state(path, ["mounted"])
         insert_rows(path, data)
 
-    # TODO(sandello): TableMountCache is not invalidated at the moment,
-    # so table names must be unique.
-
     def test_simple(self):
         for i in xrange(0, 50, 10):
             path = "//tmp/t{0}".format(i)

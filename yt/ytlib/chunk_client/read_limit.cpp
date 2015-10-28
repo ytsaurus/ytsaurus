@@ -163,12 +163,12 @@ Stroka ToString(const TReadLimit& limit)
 {
     using ::ToString;
 
-    Stroka result;
+    TStringBuilder builder;
     auto append = [&] (const TStringBuf& part) {
-        if (result.empty()) {
-            result.append(" ");
+        if (builder.GetLength() > 0) {
+            builder.AppendChar(' ');
         }
-        result.append(part);
+        builder.AppendString(part);
     };
 
     if (limit.HasKey()) {
@@ -191,7 +191,7 @@ Stroka ToString(const TReadLimit& limit)
         append(ToString(limit.GetOffset()));
     }
 
-    return result;
+    return builder.Flush();
 }
 
 bool IsNontrivial(const TReadLimit& limit)
