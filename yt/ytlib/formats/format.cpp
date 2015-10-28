@@ -345,14 +345,23 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForFormat(
                 enableContextSaving,
                 enableKeySwitch,
                 keyColumnCount);
+        case EFormatType::SchemafulDsv:
+            return CreateSchemalessWriterForSchemafulDsv(
+                format.Attributes(),
+                nameTable,
+                std::move(output),
+                enableContextSaving,
+                enableKeySwitch,
+                keyColumnCount); 
         default:
-            return New<TSchemalessWriterAdapter>(
-                format,
+            auto adapter = New<TSchemalessWriterAdapter>(
                 nameTable,
                 std::move(output),
                 enableContextSaving,
                 enableKeySwitch,
                 keyColumnCount);
+            adapter->Init(format);
+            return adapter;
     }
 }
 

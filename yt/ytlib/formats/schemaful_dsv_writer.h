@@ -36,8 +36,11 @@ protected:
     
     void WriteRaw(const TStringBuf& str);
     void WriteRaw(char ch);
-    
+
+    void EscapeAndWrite(const TStringBuf& string);
 private:
+    TSchemafulDsvTable Table_;
+    
     static char* WriteInt64Backwards(char* ptr, i64 value);
     static char* WriteUint64Backwards(char* ptr, ui64 value);    
 };
