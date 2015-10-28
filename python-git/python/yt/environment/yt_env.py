@@ -313,7 +313,7 @@ class YTEnv(object):
             ]
             if service_name == "node":
                 user_name = getpass.getuser()
-                for type_ in ["cpuacct", "blkio", "memory", "freezer"]:
+                for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
                     cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/node{2}".format(type_, user_name, i)
                     command.extend(["--cgroup", cgroup_path])
             self._run(command, name, i)
