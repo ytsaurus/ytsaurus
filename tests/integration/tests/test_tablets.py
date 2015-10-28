@@ -506,7 +506,6 @@ class TestTablets(YTEnvSetup):
             self.sync_unmount_table("//tmp/t1")
             reshard_table("//tmp/t1", pivots)
             self.sync_mount_table("//tmp/t1")
-            #clear_metadata_caches()
 
         rows = [{"key": i, "value": str(i)} for i in xrange(3)]
         insert_rows("//tmp/t1", rows)
@@ -840,8 +839,6 @@ class TestTablets(YTEnvSetup):
             rows = [{"key": i, "value": str(i)} for i in xrange(100)]
             with pytest.raises(YtError): insert_rows("//tmp/t", rows, atomicity=a2)
             remove("//tmp/t")
-
-            clear_metadata_caches()
 
         do("full", "none")
         do("none", "full")
