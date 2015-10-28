@@ -263,11 +263,18 @@ public:
     //! Updated expiration timeout (see TPeerBlockUpdater).
     TDuration PeerUpdateExpirationTimeout;
 
-    //! Read requests are throttled when pending outcoming size (including bus buffers) reaches this limit.
-    i64 BusOutThrottlingLimit;
+    //! Read requests are throttled when the number of bytes queued at Bus layer exceeds this limit.
+    //! This is a global limit.
+    //! Cf. TTcpDispatcherStatistics::PendingOutBytes
+    i64 NetOutThrottlingLimit;
 
-    //! Write requests are throttled when pending incoming size reaches this limit.
-    i64 BusInThrottlingLimit;
+    //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
+    //! This is a per-location limit.
+    i64 DiskWriteThrottlingLimit;
+
+    //! Read requests are throttled when the number of bytes scheduled for read exceeds this limit.
+    //! This is a per-location limit.
+    i64 DiskReadThrottlingLimit;
 
     //! Regular storage locations.
     std::vector<TStoreLocationConfigPtr> StoreLocations;
@@ -363,13 +370,15 @@ public:
         RegisterParameter("peer_update_expiration_timeout", PeerUpdateExpirationTimeout)
             .Default(TDuration::Seconds(40));
 
-        RegisterParameter("bus_out_throttling_limit", BusOutThrottlingLimit)
+        RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
             .GreaterThan(0)
             .Default((i64) 512 * 1024 * 1024);
-        RegisterParameter("bus_in_throttling_limit", BusInThrottlingLimit)
+        RegisterParameter("disk_write_throttling_limit", DiskWriteThrottlingLimit)
             .GreaterThan(0)
-            // TODO(babenko): provide some meaningful default
-            .Default((i64) 100 * 1024 * 1024 * 1024);
+            .Default((i64) 1024 * 1024 * 1024);
+        RegisterParameter("disk_read_throttling_limit", DiskReadThrottlingLimit)
+            .GreaterThan(0)
+            .Default((i64) 512 * 1024 * 1024);
 
         RegisterParameter("store_locations", StoreLocations)
             .NonEmpty();

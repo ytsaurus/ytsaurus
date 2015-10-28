@@ -89,7 +89,7 @@ private:
 
     void DoReadBlockSet(
         TReadBlockSetSessionPtr session,
-        TPendingReadSizeGuard pendingReadSizeGuard);
+        TPendingIOGuard pendingIOGuard);
 
 };
 

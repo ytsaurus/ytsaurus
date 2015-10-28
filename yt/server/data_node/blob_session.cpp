@@ -177,12 +177,12 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
     auto sessionManager = Bootstrap_->GetSessionManager();
     while (WindowIndex_ < Window_.size()) {
-        const auto& slot = GetSlot(WindowIndex_);
+        auto& slot = GetSlot(WindowIndex_);
         YCHECK(slot.State == ESlotState::Received || slot.State == ESlotState::Empty);
         if (slot.State == ESlotState::Empty)
             break;
 
-        sessionManager->UpdatePendingWriteSize(slot.Block.Size());
+        slot.PendingIOGuard = Location_->IncreasePendingIOSize(EIODirection::Write, slot.Block.Size());
 
         BIND(
             &TBlobSession::DoWriteBlock,
@@ -192,8 +192,9 @@ TFuture<void> TBlobSession::DoPutBlocks(
         .AsyncVia(WriteInvoker_)
         .Run()
         .Subscribe(
-            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WindowIndex_, slot.Block.Size())
+            BIND(&TBlobSession::OnBlockWritten, MakeStrong(this), WindowIndex_)
                 .Via(Bootstrap_->GetControlInvoker()));
+
         ++WindowIndex_;
     }
 
@@ -266,16 +267,13 @@ void TBlobSession::DoWriteBlock(const TSharedRef& block, int blockIndex)
     THROW_ERROR_EXCEPTION_IF_FAILED(Error_);
 }
 
-void TBlobSession::OnBlockWritten(int blockIndex, i64 blockSize, const TError& error)
+void TBlobSession::OnBlockWritten(int blockIndex, const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // NB: slot could have already been erased (e.g. in case of failure).
-    auto sessionManager = Bootstrap_->GetSessionManager();
-    sessionManager->UpdatePendingWriteSize(-blockSize);
-
+    auto& slot = GetSlot(blockIndex);
+    slot.PendingIOGuard.Release();
     if (error.IsOK()) {
-        auto& slot = GetSlot(blockIndex);
         YCHECK(slot.State == ESlotState::Received);
         slot.State = ESlotState::Written;
         slot.WrittenPromise.Set(TError());
@@ -471,6 +469,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         YCHECK(slot.State == ESlotState::Written);
         slot.Block = TSharedRef();
         slot.MemoryTrackerGuard.Release();
+        slot.PendingIOGuard.Release();
         slot.WrittenPromise.Reset();
         ++WindowStartBlockIndex_;
     }

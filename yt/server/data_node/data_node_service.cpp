@@ -16,7 +16,6 @@
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/string.h>
-#include <core/misc/lazy_ptr.h>
 #include <core/misc/random.h>
 #include <core/misc/nullable.h>
 
@@ -230,13 +229,6 @@ private:
     {
         UNUSED(response);
 
-        if (IsInThrottling()) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Write throttling is active"));
-            return;
-        }
-
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
@@ -255,6 +247,11 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
+
+        auto location = session->GetStoreLocation();
+        if (IsDiskWriteThrottling(location)) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Disk write throttling is active");
+        }
 
         // Put blocks.
         auto result = session->PutBlocks(
@@ -341,14 +338,18 @@ private:
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto blockStore = Bootstrap_->GetBlockStore();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
-        response->set_throttling(IsOutThrottling());
+        bool hasCompleteChunk = HasCompleteChunk(chunkId);
+        auto netOutThrottling = IsNetOutThrottling();
+        bool diskReadThrottling = IsDiskReadThrottling(chunkId);
+        bool throttling = netOutThrottling || diskReadThrottling;
 
-        if (IsOutThrottling()) {
+        response->set_has_complete_chunk(hasCompleteChunk);
+        response->set_throttling(throttling);
+
+        if (throttling) {
             // Cannot send the actual data to the client due to throttling.
             // Let's try to suggest some other peers.
             for (int blockIndex : request->block_indexes()) {
@@ -397,9 +398,12 @@ private:
             }
         }
 
-        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
-            response->has_complete_chunk(),
-            response->throttling(),
+        context->SetResponseInfo(
+            "HasCompleteChunk: %v, NetOutThrottling: %v, DiskReadThrottling: %v, "
+            "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
+            hasCompleteChunk,
+            netOutThrottling,
+            diskReadThrottling,
             blocksWithData,
             response->peer_descriptors_size(),
             blocksSize);
@@ -426,12 +430,15 @@ private:
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
+        bool hasCompleteChunk = HasCompleteChunk(chunkId);
+        auto netOutThrottling = IsNetOutThrottling();
+        bool diskReadThrottling = IsDiskReadThrottling(chunkId);
+        bool throttling = netOutThrottling || diskReadThrottling;
 
-        response->set_throttling(IsOutThrottling());
+        response->set_has_complete_chunk(hasCompleteChunk);
+        response->set_throttling(netOutThrottling);
 
-        if (!IsOutThrottling()) {
+        if (!throttling) {
             auto blockStore = Bootstrap_->GetBlockStore();
             auto blockCache = Bootstrap_->GetBlockCache();
             auto asyncBlocks = blockStore->ReadBlockRange(
@@ -448,9 +455,12 @@ private:
         int blocksWithData = response->Attachments().size();
         i64 blocksSize = GetByteSize(response->Attachments());
 
-        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
-            response->has_complete_chunk(),
-            response->throttling(),
+        context->SetResponseInfo(
+            "HasCompleteChunk: %v, NetOutThrottling: %v, DiskReadThrottling: %v, "
+            "BlocksWithData: %v, BlocksSize: %v",
+            hasCompleteChunk,
+            netOutThrottling,
+            diskReadThrottling,
             blocksWithData,
             blocksSize);
 
@@ -914,43 +924,36 @@ private:
         }
     }
 
-    i64 GetPendingOutSize() const
+
+    bool IsNetOutThrottling()
     {
         return
-            NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes +
-            Bootstrap_->GetBlockStore()->GetPendingReadSize();
+            NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes >
+            Config_->NetOutThrottlingLimit;
     }
 
-    i64 GetPendingInSize() const
+    bool HasCompleteChunk(const TChunkId& chunkId)
     {
-        return Bootstrap_->GetSessionManager()->GetPendingWriteSize();
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        return chunkRegistry->FindChunk(chunkId).operator bool();
     }
 
-    bool IsOutThrottling() const
+    bool IsDiskReadThrottling(const TChunkId& chunkId)
     {
-        i64 pendingSize = GetPendingOutSize();
-        if (pendingSize > Config_->BusOutThrottlingLimit) {
-            LOG_DEBUG("Outcoming throttling is active: %v > %v",
-                pendingSize,
-                Config_->BusOutThrottlingLimit);
-            return true;
-        } else {
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->FindChunk(chunkId);
+        if (!chunk) {
             return false;
         }
+        auto location = chunk->GetLocation();
+        return location->GetPendingIOSize(EIODirection::Read) > Config_->DiskReadThrottlingLimit;
     }
 
-    bool IsInThrottling() const
+    bool IsDiskWriteThrottling(TLocationPtr location)
     {
-        i64 pendingSize = GetPendingInSize();
-        if (pendingSize > Config_->BusInThrottlingLimit) {
-            LOG_DEBUG("Incoming throttling is active: %v > %v",
-                pendingSize,
-                Config_->BusInThrottlingLimit);
-            return true;
-        } else {
-            return false;
-        }
+        return location->GetPendingIOSize(EIODirection::Write) > Config_->DiskWriteThrottlingLimit;
     }
+
 
     static i64 GetRequestPriority(IServiceContextPtr context)
     {
@@ -961,9 +964,6 @@ private:
 
     void OnProfiling()
     {
-        Profiler.Enqueue("/pending_out_size", GetPendingOutSize());
-        Profiler.Enqueue("/pending_in_size", GetPendingInSize());
-
         auto sessionManager = Bootstrap_->GetSessionManager();
         for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
             Profiler.Enqueue(

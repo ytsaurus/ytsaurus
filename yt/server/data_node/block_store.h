@@ -109,48 +109,13 @@ public:
     //! Gets a vector of all blocks stored in the cache. Thread-safe.
     std::vector<TCachedBlockPtr> GetAllBlocks() const;
 
-    //! Returns the number of bytes that are scheduled for disk read IO.
-    i64 GetPendingReadSize() const;
-
-    //! Acquires a lock for the given number of bytes to be read.
-    TPendingReadSizeGuard IncreasePendingReadSize(i64 delta);
-
 private:
     class TImpl;
-
-    friend class TPendingReadSizeGuard;
-
     const TIntrusivePtr<TImpl> Impl_;
 
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockStore)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPendingReadSizeGuard
-{
-public:
-    TPendingReadSizeGuard() = default;
-    TPendingReadSizeGuard(TPendingReadSizeGuard&& other) = default;
-    ~TPendingReadSizeGuard();
-
-    TPendingReadSizeGuard& operator = (TPendingReadSizeGuard&& other);
-
-    explicit operator bool() const;
-    i64 GetSize() const;
-
-    friend void swap(TPendingReadSizeGuard& lhs, TPendingReadSizeGuard& rhs);
-
-private:
-    friend TBlockStore;
-
-    TPendingReadSizeGuard(i64 size, TBlockStorePtr owner);
-        
-    i64 Size_ = 0;
-    TBlockStorePtr Owner_;
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

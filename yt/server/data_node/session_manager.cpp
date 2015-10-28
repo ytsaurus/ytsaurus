@@ -173,13 +173,6 @@ int TSessionManager::GetSessionCount(EWriteSessionType type)
     return PerTypeSessionCount_[type];
 }
 
-i64 TSessionManager::GetPendingWriteSize() 
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return static_cast<i64>(PendingWriteSize_);
-}
-
 void TSessionManager::RegisterSession(ISessionPtr session)
 {
     ++PerTypeSessionCount_[session->GetType()];
@@ -190,16 +183,6 @@ void TSessionManager::UnregisterSession(ISessionPtr session)
 {
     --PerTypeSessionCount_[session->GetType()];
     YCHECK(SessionMap_.erase(session->GetChunkId()) == 1);
-}
-
-void TSessionManager::UpdatePendingWriteSize(i64 delta)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    i64 result = (PendingWriteSize_ += delta);
-    LOG_TRACE("Pending write size updated (PendingWriteSize: %v, Delta: %v"")",
-        result,
-        delta);
 }
 
 std::vector<ISessionPtr> TSessionManager::GetSessions()
