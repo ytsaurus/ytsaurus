@@ -7,7 +7,7 @@
 
 #include <core/yson/format.h>
 
-#include <climits>
+#include <limits>
 
 namespace NYT {
 namespace NFormats {
@@ -50,7 +50,7 @@ char* TSchemafulDsvWriterBase::WriteInt64Backwards(char* ptr, i64 value)
     }
 
     // The negative value handling code below works incorrectly for value = -2^63.
-    if (value == LLONG_MIN) {
+    if (value == std::numeric_limits<i64>::min()) {
         ptr -= 20;
         memcpy(ptr, "-9223372036854775808", 20);
         return ptr;
@@ -200,7 +200,7 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
     IdToIndexInRowMapping_.resize(nameTable->GetSize());
 }
 
-void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
     for (auto row : rows) {
         IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);        
@@ -307,9 +307,9 @@ TFuture<void> TSchemafulWriterForSchemafulDsv::GetReadyEvent()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
-    NConcurrency::IAsyncOutputStreamPtr stream,
-    const NTableClient::TTableSchema& schema,
+ISchemafulWriterPtr CreateSchemafulWriterForSchemafulDsv(
+    IAsyncOutputStreamPtr stream,
+    const TTableSchema& schema,
     TSchemafulDsvFormatConfigPtr config)
 {
     std::vector<int> columnIdMapping;
