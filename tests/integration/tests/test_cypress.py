@@ -18,7 +18,10 @@ class TestCypress(YTEnvSetup):
             "max_node_child_count" : 100,
 
             # See test_string_node_length_limit
-            "max_string_node_length" : 300
+            "max_string_node_length" : 300,
+
+            # See test_attribute_size_limit
+            "max_attribute_size" : 300
         }
     }
 
@@ -829,6 +832,16 @@ class TestCypress(YTEnvSetup):
 
         with pytest.raises(YtError):
             set("//tmp/test_node", ["x" * 301])
+
+    def test_attribute_size_limit(self):
+        set("//tmp/test_node", {})
+
+        # The limit is 300 but this is for binary YSON.
+        set("//tmp/test_node/@test_attr", "x" * 290)
+
+        with pytest.raises(YtError):
+            # This must definitely exceed the limit of 300.
+            set("//tmp/test_node/@test_attr", "x" * 301)
 
 ##################################################################
 

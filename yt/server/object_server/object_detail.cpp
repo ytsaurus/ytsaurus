@@ -632,6 +632,9 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     const TNullable<TYsonString>& newValue)
 {
     try {
+        if (newValue) {
+            ValidateCustomAttributeLength(*newValue);
+        }
         ValidateCustomAttributeUpdate(key, oldValue, newValue);
     } catch (const std::exception& ex) {
         if (newValue) {
@@ -643,6 +646,17 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
                 ToYPathLiteral(key))
                     << ex;
         }
+    }
+}
+
+void TObjectProxyBase::ValidateCustomAttributeLength(const NYson::TYsonString& value)
+{
+    auto size = value.Data().length();
+    auto limit = Bootstrap_->GetConfig()->CypressManager->MaxAttributeSize;
+    if (size > limit) {
+        THROW_ERROR_EXCEPTION("Attribute size exceeded: %v > %v",
+            size,
+            limit);
     }
 }
 
