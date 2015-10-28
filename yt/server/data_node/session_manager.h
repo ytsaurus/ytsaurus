@@ -4,9 +4,9 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <server/cell_node/public.h>
+#include <core/profiling/profiler.h>
 
-#include <atomic>
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -44,11 +44,11 @@ public:
     std::vector<ISessionPtr> GetSessions();
 
 private:
-    TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     yhash_map<TChunkId, ISessionPtr> SessionMap_;
-    TEnumIndexedVector<int, EWriteSessionType> PerTypeSessionCount_;
+    TEnumIndexedVector<NProfiling::TSimpleCounter, EWriteSessionType> PerTypeSessionCounters_;
 
 
     ISessionPtr CreateSession(const TChunkId& chunkId, const TSessionOptions& options);
