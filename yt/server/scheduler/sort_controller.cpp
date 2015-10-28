@@ -1171,15 +1171,19 @@ protected:
 
         LOG_DEBUG("Examining online nodes");
 
-        std::vector<TAssignedNodePtr> nodeHeap;
         auto nodes = Host->GetExecNodes();
         auto maxResourceLimits = ZeroNodeResources();
+        double maxIOWeight = 0;
         for (auto node : nodes) {
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
+            maxIOWeight = std::max(maxIOWeight, node->GetIOWeight());
         }
+
+        std::vector<TAssignedNodePtr> nodeHeap;
         for (auto node : nodes) {
-            double weight = std::min(
-                    1.0, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
+            double weight = 1.0;
+            weight = std::min(weight, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
+            weight = std::min(weight, node->GetIOWeight() > 0 ? node->GetIOWeight() / maxIOWeight : 0);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
