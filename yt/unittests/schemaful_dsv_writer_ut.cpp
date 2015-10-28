@@ -7,7 +7,7 @@
 
 #include <core/concurrency/async_stream.h>
 
-#include <climits>
+#include <limits>
 
 namespace NYT {
 namespace NFormats {
@@ -144,10 +144,10 @@ TEST_F(TSchemalessWriterForSchemafulDsvTest, IntegralTypeRepresentations)
     row3.AddValue(MakeUnversionedUint64Value(9876ULL, KeyDId_));
 
     TUnversionedRowBuilder row4;
-    row4.AddValue(MakeUnversionedInt64Value(LLONG_MAX, KeyAId_));
-    row4.AddValue(MakeUnversionedInt64Value(LLONG_MIN, KeyBId_));
-    row4.AddValue(MakeUnversionedInt64Value(LLONG_MIN + 1LL, KeyCId_));
-    row4.AddValue(MakeUnversionedUint64Value(ULLONG_MAX, KeyDId_));
+    row4.AddValue(MakeUnversionedInt64Value(std::numeric_limits<i64>::max(), KeyAId_));
+    row4.AddValue(MakeUnversionedInt64Value(std::numeric_limits<i64>::min(), KeyBId_));
+    row4.AddValue(MakeUnversionedInt64Value(std::numeric_limits<i64>::min() + 1LL, KeyCId_));
+    row4.AddValue(MakeUnversionedUint64Value(std::numeric_limits<ui64>::max(), KeyDId_));
 
     std::vector<TUnversionedRow> rows = 
         {row1.GetRow(), row2.GetRow(), row3.GetRow(), row4.GetRow()};
