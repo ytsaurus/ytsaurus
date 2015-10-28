@@ -178,35 +178,9 @@ public:
         }
     }
 
-    i64 GetPendingReadSize() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return PendingReadSize_.load();
-    }
-
-    TPendingReadSizeGuard IncreasePendingReadSize(i64 delta)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        YASSERT(delta >= 0);
-        UpdatePendingReadSize(delta);
-        return TPendingReadSizeGuard(delta, Bootstrap_->GetBlockStore());
-    }
-
-    void DecreasePendingReadSize(i64 delta)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        UpdatePendingReadSize(-delta);
-    }
-
 private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
-
-    std::atomic<i64> PendingReadSize_ = {0};
-
 
 
     virtual i64 GetWeight(const TCachedBlockPtr& block) const override
@@ -216,14 +190,6 @@ private:
         return block->GetData().Size();
     }
 
-
-    void UpdatePendingReadSize(i64 delta)
-    {
-        i64 result = (PendingReadSize_ += delta);
-        LOG_TRACE("Pending read size updated (PendingReadSize: %v, Delta: %v)",
-            result,
-            delta);
-    }
 
     TChunkReadGuard AcquireReadGuard(IChunkPtr chunk)
     {
@@ -306,58 +272,9 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
         populateCache);
 }
 
-i64 TBlockStore::GetPendingReadSize() const
-{
-    return Impl_->GetPendingReadSize();
-}
-
-TPendingReadSizeGuard TBlockStore::IncreasePendingReadSize(i64 delta)
-{
-    return Impl_->IncreasePendingReadSize(delta);
-}
-
 std::vector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
 {
     return Impl_->GetAll();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TPendingReadSizeGuard::TPendingReadSizeGuard(
-    i64 size,
-    TBlockStorePtr owner)
-    : Size_(size)
-    , Owner_(owner)
-{ }
-
-TPendingReadSizeGuard& TPendingReadSizeGuard::operator=(TPendingReadSizeGuard&& other)
-{
-    swap(*this, other);
-    return *this;
-}
-
-TPendingReadSizeGuard::~TPendingReadSizeGuard()
-{
-    if (Owner_) {
-        Owner_->Impl_->DecreasePendingReadSize(Size_);
-    }
-}
-
-TPendingReadSizeGuard::operator bool() const
-{
-    return Owner_.operator bool();
-}
-
-i64 TPendingReadSizeGuard::GetSize() const
-{
-    return Size_;
-}
-
-void swap(TPendingReadSizeGuard& lhs, TPendingReadSizeGuard& rhs)
-{
-    using std::swap;
-    swap(lhs.Size_, rhs.Size_);
-    swap(lhs.Owner_, rhs.Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -16,8 +16,6 @@
 
 #include <ytlib/chunk_client/format.h>
 
-#include <ytlib/election/public.h>
-
 #include <ytlib/object_client/helpers.h>
 
 #include <server/hydra/changelog.h>
@@ -32,7 +30,6 @@ namespace NDataNode {
 using namespace NChunkClient;
 using namespace NCellNode;
 using namespace NConcurrency;
-using namespace NElection;
 using namespace NObjectClient;
 using namespace NHydra;
 using namespace NYTree;
@@ -73,6 +70,8 @@ TLocation::TLocation(
     tagIds.push_back(profilingManager->RegisterTag("location_id", Id_));
     tagIds.push_back(profilingManager->RegisterTag("location_type", Type_));
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+    PendingIOSizeCounters_[EIODirection::Read] = NProfiling::TSimpleCounter("/pending_read_size");
+    PendingIOSizeCounters_[EIODirection::Write] = NProfiling::TSimpleCounter("/pending_write_size");
 }
 
 ELocationType TLocation::GetType() const
@@ -224,6 +223,40 @@ double TLocation::GetLoadFactor() const
     i64 used = GetUsedSpace();
     i64 quota = GetQuota();
     return used >= quota ? 1.0 : (double) used / quota;
+}
+
+i64 TLocation::GetPendingIOSize(EIODirection direction)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return PendingIOSizeCounters_[direction].Current.load();
+}
+
+TPendingIOGuard TLocation::IncreasePendingIOSize(EIODirection direction, i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YASSERT(delta >= 0);
+    UpdatePendingIOSize(direction, delta);
+    return TPendingIOGuard(direction, delta, this);
+}
+
+void TLocation::DecreasePendingIOSize(EIODirection direction, i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    UpdatePendingIOSize(direction, -delta);
+}
+
+void TLocation::UpdatePendingIOSize(EIODirection direction, i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    i64 result = Profiler_.Increment(PendingIOSizeCounters_[direction], delta);
+    LOG_TRACE("Pending IO size updated (Direction: %v, PendingSize: %v, Delta: %v)",
+        direction,
+        result,
+        delta);
 }
 
 void TLocation::UpdateSessionCount(int delta)
@@ -979,6 +1012,53 @@ std::vector<Stroka> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) c
         default:
             YUNREACHABLE();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPendingIOGuard::TPendingIOGuard(
+    EIODirection direction,
+    i64 size,
+    TLocationPtr owner)
+    : Direction_(direction)
+    , Size_(size)
+    , Owner_(owner)
+{ }
+
+TPendingIOGuard& TPendingIOGuard::operator=(TPendingIOGuard&& other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+TPendingIOGuard::~TPendingIOGuard()
+{
+    Release();
+}
+
+void TPendingIOGuard::Release()
+{
+    if (Owner_) {
+        Owner_->DecreasePendingIOSize(Direction_, Size_);
+        Owner_.Reset();
+    }
+}
+
+TPendingIOGuard::operator bool() const
+{
+    return Owner_.operator bool();
+}
+
+i64 TPendingIOGuard::GetSize() const
+{
+    return Size_;
+}
+
+void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs)
+{
+    using std::swap;
+    swap(lhs.Size_, rhs.Size_);
+    swap(lhs.Owner_, rhs.Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

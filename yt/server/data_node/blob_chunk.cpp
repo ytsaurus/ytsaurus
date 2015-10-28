@@ -227,13 +227,13 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
             }
         }
 
-        auto pendingReadSizeGuard = blockStore->IncreasePendingReadSize(pendingDataSize);
+        auto pendingIOGuard = Location_->IncreasePendingIOSize(EIODirection::Read, pendingDataSize);
 
         auto callback = BIND(
             &TBlobChunkBase::DoReadBlockSet,
             MakeStrong(this),
             session,
-            Passed(std::move(pendingReadSizeGuard)));
+            Passed(std::move(pendingIOGuard)));
 
         Location_
             ->GetDataReadInvoker()
@@ -245,7 +245,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
 
 void TBlobChunkBase::DoReadBlockSet(
     TReadBlockSetSessionPtr session,
-    TPendingReadSizeGuard pendingReadSizeGuard)
+    TPendingIOGuard pendingIOGuard)
 {
     try {
         auto& locationProfiler = Location_->GetProfiler();

@@ -43,25 +43,12 @@ public:
     //! Returns the list of all registered sessions.
     std::vector<ISessionPtr> GetSessions();
 
-    //! Updates (increments or decrements) pending write size.
-    /*!
-     *  Thread affinity: any
-     */
-    void UpdatePendingWriteSize(i64 delta);
-
-    //! Returns the number of bytes pending for write.
-    /*!
-     *  Thread affinity: any
-     */
-    i64 GetPendingWriteSize();
-
 private:
     TDataNodeConfigPtr Config_;
     NCellNode::TBootstrap* Bootstrap_;
 
     yhash_map<TChunkId, ISessionPtr> SessionMap_;
     TEnumIndexedVector<int, EWriteSessionType> PerTypeSessionCount_;
-    std::atomic<i64> PendingWriteSize_ = {0};
 
 
     ISessionPtr CreateSession(const TChunkId& chunkId, const TSessionOptions& options);

@@ -28,6 +28,11 @@ DEFINE_ENUM(ELocationType,
     (Cache)
 );
 
+DEFINE_ENUM(EIODirection,
+    (Read)
+    (Write)
+);
+
 class TLocation
     : public TRefCounted
 {
@@ -99,6 +104,12 @@ public:
     //! Returns the load factor.
     double GetLoadFactor() const;
 
+    //! Returns the number of bytes pending for disk IO.
+    i64 GetPendingIOSize(EIODirection direction);
+
+    //! Acquires a lock for the given number of bytes to be read or written.
+    TPendingIOGuard IncreasePendingIOSize(EIODirection direction, i64 delta);
+
     //! Changes the number of currently active sessions by a given delta.
     void UpdateSessionCount(int delta);
 
@@ -132,11 +143,11 @@ protected:
     virtual void DoStart();
 
 private:
+    friend class TPendingIOGuard;
+
     const ELocationType Type_;
     const Stroka Id_;
     const TLocationConfigBasePtr Config_;
-    
-    NProfiling::TProfiler Profiler_;
 
     std::atomic<bool> Enabled_ = {false};
 
@@ -156,6 +167,12 @@ private:
 
     const TDiskHealthCheckerPtr HealthChecker_;
 
+    NProfiling::TProfiler Profiler_;
+    TEnumIndexedVector<NProfiling::TSimpleCounter, EIODirection> PendingIOSizeCounters_;
+
+
+    void DecreasePendingIOSize(EIODirection direction, i64 delta);
+    void UpdatePendingIOSize(EIODirection direction, i64 delta);
 
     void ValidateMinimumSpace();
     void ValidateLockFile();
@@ -270,6 +287,35 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocation);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPendingIOGuard
+{
+public:
+    TPendingIOGuard() = default;
+    TPendingIOGuard(TPendingIOGuard&& other) = default;
+    ~TPendingIOGuard();
+
+    void Release();
+
+    TPendingIOGuard& operator = (TPendingIOGuard&& other);
+
+    explicit operator bool() const;
+    i64 GetSize() const;
+
+    friend void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs);
+
+private:
+    friend class TLocation;
+
+    TPendingIOGuard(EIODirection direction, i64 size, TLocationPtr owner);
+
+    EIODirection Direction_;
+    i64 Size_ = 0;
+    TLocationPtr Owner_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
