@@ -52,6 +52,13 @@ function YtCoordinatedHost(config, name)
         enumerable: true
     });
 
+    // COMPAT(sandello): Web-interface requires `host` for now.
+    Object.defineProperty(this, "host", {
+        value: name,
+        writable: false,
+        enumerable: true
+    });
+
     Object.defineProperty(this, "role", {
         get: function() { return role; },
         set: function(value) {
