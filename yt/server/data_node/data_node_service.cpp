@@ -26,8 +26,6 @@
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/action_queue.h>
 
-#include <core/profiling/profile_manager.h>
-
 #include <ytlib/table_client/name_table.h>
 #include <ytlib/table_client/private.h>
 #include <ytlib/table_client/chunk_meta_extensions.h>
@@ -62,12 +60,6 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = DataNodeProfiler;
-
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDataNodeService
     : public TServiceBase
 {
@@ -80,7 +72,6 @@ public:
             TDataNodeServiceProxy::GetServiceName(),
             DataNodeLogger)
         , Config_(config)
-        , WorkerThread_(New<TActionQueue>("DataNodeWorker"))
         , Bootstrap_(bootstrap)
     {
         YCHECK(Config_);
@@ -117,26 +108,13 @@ public:
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
-
-        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
-            SessionTypeToTag_[type] = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
-        }
-
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
-            BIND(&TDataNodeService::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
     }
 
 private:
     const TDataNodeConfigPtr Config_;
-    const TActionQueuePtr WorkerThread_;
     TBootstrap* const Bootstrap_;
 
-    TPeriodicExecutorPtr ProfilingExecutor_;
-
-    TEnumIndexedVector<NProfiling::TTagId, EWriteSessionType> SessionTypeToTag_;
+    const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -959,18 +937,6 @@ private:
     {
         auto startTime = context->GetRequestStartTime();
         return startTime ? -startTime->MicroSeconds() : 0;
-    }
-
-
-    void OnProfiling()
-    {
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
-            Profiler.Enqueue(
-                "/session_count",
-                sessionManager->GetSessionCount(type),
-                {SessionTypeToTag_[type]});
-        }
     }
 };
 
