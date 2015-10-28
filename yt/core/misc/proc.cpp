@@ -167,9 +167,12 @@ TError StatusToError(int status)
     }
 }
 
-bool TryExecve(const char *path, char* const argv[], char* const env[])
+bool TryExecve(const char* path, const char* const* argv, const char* const* env)
 {
-    ::execve(path, argv, env);
+    ::execve(
+        path,
+        const_cast<char* const*>(argv),
+        const_cast<char* const*>(env));
     // If we are still here, it's an error.
     return false;
 }
