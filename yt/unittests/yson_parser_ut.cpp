@@ -18,19 +18,26 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonParserTest: public ::testing::Test
+class TYsonParserTest
+    : public ::testing::Test
 {
 public:
     StrictMock<TMockYsonConsumer> Mock;
 
-    void Run(const Stroka& input, EYsonType mode = EYsonType::Node, TNullable<i64> memoryLimit = Null)
+    void Run(
+        const Stroka& input,
+        EYsonType mode = EYsonType::Node,
+        i64 memoryLimit = std::numeric_limits<i64>::max())
     {
         TYsonParser parser(&Mock, mode, true, memoryLimit);
         parser.Read(input);
         parser.Finish();
     }
 
-    void Run(const std::vector<Stroka>& input, EYsonType mode = EYsonType::Node, TNullable<i64> memoryLimit = Null)
+    void Run(
+        const std::vector<Stroka>& input,
+        EYsonType mode = EYsonType::Node,
+        i64 memoryLimit = std::numeric_limits<i64>::max())
     {
         TYsonParser parser(&Mock, mode, true, memoryLimit);
         for (const auto& str : input) {
@@ -448,7 +455,7 @@ TEST_F(TYsonParserTest, EmptyMapFragment)
     Run("  ", EYsonType::MapFragment);
 }
 
-TEST_F(TYsonParserTest, MemoryLimit)
+TEST_F(TYsonParserTest, MemoryLimitOK)
 {
     InSequence dummy;
     EXPECT_CALL(Mock, OnBeginMap());

@@ -20,7 +20,10 @@ private:
     TConsumer* Consumer;
 
 public:
-    TParser(const TBlockStream& blockStream, TConsumer* consumer, TNullable<i64> memoryLimit)
+    TParser(
+        const TBlockStream& blockStream,
+        TConsumer* consumer,
+        i64 memoryLimit)
         : TBase(blockStream, memoryLimit)
         , Consumer(consumer)
     { }
@@ -329,7 +332,7 @@ void ParseYsonStreamImpl(
     IYsonConsumer* consumer, 
     EYsonType parsingMode, 
     bool enableLinePositionInfo,
-    TNullable<i64> memoryLimit)
+    i64 memoryLimit)
 {
     if (enableLinePositionInfo) {
         typedef NDetail::TParser<TConsumer, TBlockStream, true> TImpl;
@@ -360,7 +363,9 @@ private:
     TParser Parser;
 
 public:
-    TStatelessYsonParserImpl(TConsumer* consumer, TNullable<i64> memoryLimit)
+    TStatelessYsonParserImpl(
+        TConsumer* consumer,
+        i64 memoryLimit)
         : Parser(TStringReader(), consumer, memoryLimit)
     { }
 

@@ -572,7 +572,7 @@ class TListFragmentLexer::TImpl
 {
 public:
     explicit TImpl(TInputStream* stream)
-        : Lexer_(TStreamReader(stream), Null)
+        : Lexer_(TStreamReader(stream))
     { }
 
     TSharedRef NextItem()
