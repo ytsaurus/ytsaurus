@@ -129,7 +129,7 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
 
 Stroka ToString(const TArtifactKey& key)
 {
-    return key.DebugString();
+    return Format("{%v}", key.DebugString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
