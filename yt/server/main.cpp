@@ -327,12 +327,18 @@ EExitCode GuardedMain(int argc, const char* argv[])
         }
         env.push_back(nullptr);
 
-        char* command = const_cast<char*>(~parser.Command.getValue());
-        std::vector<char*> args { "/bin/sh", "-c", command, nullptr };
+        std::vector<const char*> args {
+            "/bin/sh",
+            "-c",
+            parser.Command.getValue().c_str(),
+            nullptr
+        };
 
-        TryExecve("/bin/sh",
+        TryExecve(
+            "/bin/sh",
             args.data(),
             env.data());
+
         return EExitCode::ExecutorError;
     }
 #endif
