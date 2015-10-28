@@ -23,7 +23,7 @@ using namespace NBus;
 
 Stroka GetSlotProcessGroup(int slotId)
 {
-    return "slot" + ToString(slotId);
+    return "slots/" + ToString(slotId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

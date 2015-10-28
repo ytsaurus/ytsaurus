@@ -159,7 +159,8 @@ void TJobProxy::RetrieveJobSpec()
         FormatResources(ResourceUsage_),
         rsp->job_spec().DebugString());
 
-    JobProxyMemoryLimit_ = rsp->resource_usage().memory();
+    JobProxyMemoryLimit_ = ResourceUsage_.memory();
+    CpuLimit_ = ResourceUsage_.cpu();
 }
 
 void TJobProxy::Run()
@@ -294,6 +295,11 @@ TJobResult TJobProxy::DoRun()
     const auto& schedulerJobSpecExt = JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
     SetLargeBlockLimit(schedulerJobSpecExt.lfalloc_buffer_size());
     EnableJobProxyMemoryControl_ = schedulerJobSpecExt.enable_job_proxy_memory_control();
+
+    if (Config_->IsCGroupSupported(TCpu::Name)) {
+        auto cpuCGroup = GetCurrentCGroup<TCpu>();
+        cpuCGroup.SetShare(CpuLimit_);
+    }
 
     NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
     NodeDirectory_->MergeFrom(schedulerJobSpecExt.node_directory());

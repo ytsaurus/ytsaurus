@@ -480,6 +480,22 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const Stroka TCpu::Name = "cpu";
+
+static const int DefaultCpuShare = 1024;
+
+TCpu::TCpu(const Stroka& name)
+    : TCGroup(Name, name)
+{ }
+
+void TCpu::SetShare(double share)
+{
+    int cpuShare = static_cast<int>(share * DefaultCpuShare);
+    Set("cpu.shares", ToString(cpuShare));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const Stroka TBlockIO::Name = "blkio";
 
 TBlockIO::TBlockIO(const Stroka& name)
@@ -691,6 +707,9 @@ std::map<Stroka, Stroka> ParseProcessCGroups(const Stroka& str)
 bool IsValidCGroupType(const Stroka& type)
 {
     if (type == TCpuAccounting::Name) {
+        return true;
+    }
+    if (type == TCpu::Name) {
         return true;
     }
     if (type == TBlockIO::Name) {

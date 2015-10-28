@@ -21,6 +21,8 @@ using namespace NCellNode;
 
 static const auto& Logger = ExecAgentLogger;
 
+static const char* CGroupPrefix = "slots";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSlotManager::TSlotManager(
@@ -77,6 +79,12 @@ void TSlotManager::Initialize(int slotCount)
                 userId);
             slot->Initialize();
             Slots_.push_back(slot);
+        }
+
+        if (Config_->EnableCGroups && Config_->IsCGroupSupported(NCGroup::TCpu::Name)) {
+            auto cpuCGroup = NCGroup::TCpu(CGroupPrefix);
+            cpuCGroup.EnsureExistance();
+            cpuCGroup.SetShare(Config_->CGroupCpuShare);
         }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to initialize slots") << ex;
