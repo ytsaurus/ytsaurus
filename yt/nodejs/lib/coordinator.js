@@ -54,7 +54,7 @@ function YtCoordinatedHost(config, name)
 
     // COMPAT(sandello): Web-interface requires `host` for now.
     Object.defineProperty(this, "host", {
-        value: name,
+        value: name.split(":")[0],
         writable: false,
         enumerable: true
     });

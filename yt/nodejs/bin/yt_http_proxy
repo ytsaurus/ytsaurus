@@ -108,10 +108,12 @@ config = {
     monitoring_port   : null,
     neighbours        : [ "::1" ],
     memory_limit      : 32 * 1024 * 1024,
+    rss_limit         : 512 * 1024 * 1024,
     number_of_workers : 4,
     thread_limit      : 32,
     spare_threads     : 4,
     concurrency_limit : null,
+    show_ports        : false,
     agent             : opts.argv.agent,
 
     proxy             : {
@@ -259,7 +261,7 @@ function runProxy(logger, profiler) {
     process.env.YT_PROXY_MASTER = process.pid.toString();
 
     var master = new (require(__dirname + "/../lib/master.js").that)(
-        logger, profiler, config.number_of_workers, {
+        logger, profiler, config, {
             exec : __dirname + "/../lib/worker.js",
             args : []
     });
