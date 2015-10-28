@@ -7,6 +7,8 @@
 
 #include <core/yson/format.h>
 
+#include <climits>
+
 namespace NYT {
 namespace NFormats {
 
@@ -34,10 +36,22 @@ static ui16 DigitPairs[100] = {
     12345,  12601,  12857,  13113,  13369,  13625,  13881,  14137,  14393,  14649,
 };
 
-char* TSchemafulDsvWriterBase::WriteInt64EndingHere(char* ptr, i64 value)
+// This function fills a specific range in the memory with a decimal representation
+// of value in backwards, meaning that the resulting representation will occupy
+// range [ptr - length, ptr). Return value is ptr - length, i. e. the pointer to the
+// beginning of the result.
+char* TSchemafulDsvWriterBase::WriteInt64Backwards(char* ptr, i64 value)
 {
     if (value == 0) {
-        *(--ptr) = '0';
+        --ptr;
+        *ptr = '0';
+        return ptr;
+    }
+
+    // The negative value handling code below works incorrectly for value = -2^63.
+    if (value == LLONG_MIN) {
+        ptr -= 20;
+        memcpy(ptr, "-9223372036854775808", 20);
         return ptr;
     }
 
@@ -50,37 +64,44 @@ char* TSchemafulDsvWriterBase::WriteInt64EndingHere(char* ptr, i64 value)
     while (value >= 10) {
         i64 rem = value % 100;
         i64 quot = value / 100;
-        *reinterpret_cast<ui16*>(ptr -= 2) = DigitPairs[rem];
+        ptr -= 2;
+        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
         value = quot;
     }
 
     if (value > 0) {
-        *(--ptr) = ('0' + value);
+        --ptr;
+        *ptr = ('0' + value);
     }
 
     if (negative) {
-        *(--ptr) = '-';
+        --ptr;
+        *ptr = '-';
     }
 
     return ptr;
 }
 
-char* TSchemafulDsvWriterBase::WriteUint64EndingHere(char* ptr, ui64 value)
+// Same as WriteInt64Backwards for ui64.
+char* TSchemafulDsvWriterBase::WriteUint64Backwards(char* ptr, ui64 value)
 {
     if (value == 0) {
-        *(--ptr) = '0';
+        --ptr;
+        *ptr = '0';
         return ptr;
     }
 
     while (value >= 10) {
         i64 rem = value % 100;
         i64 quot = value / 100;
-        *reinterpret_cast<ui16*>(ptr -= 2) = DigitPairs[rem];
+        ptr -= 2;
+        *reinterpret_cast<ui16*>(ptr) = DigitPairs[rem];
         value = quot;
     }
 
     if (value > 0) {
-        *(--ptr) = ('0' + value);
+        --ptr;
+        *ptr = ('0' + value);
     }
 
     return ptr;
@@ -97,8 +118,8 @@ void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
             char buf[64];
             char* end = buf + 64;
             char* begin = value.Type == EValueType::Int64
-                ? WriteInt64EndingHere(end, value.Data.Int64)
-                : WriteUint64EndingHere(end, value.Data.Uint64);
+                ? WriteInt64Backwards(end, value.Data.Int64)
+                : WriteUint64Backwards(end, value.Data.Uint64);
             size_t length = end - begin;
             BlobOutput_->Write(begin, length);
             break;
@@ -170,15 +191,15 @@ void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<NTableClient::T
             IdToIndexInRowMapping_[item->Id] = item - row.Begin();
         }
         bool firstValue = true;
-        for (auto idMappingCurrent : ColumnIdMapping_) {
+        for (auto currentId : ColumnIdMapping_) {
             if (!firstValue) {
                 WriteRaw(Config_->FieldSeparator);
             } else {
                 firstValue = false;
             }
-            int index = IdToIndexInRowMapping_[idMappingCurrent];
+            int index = IdToIndexInRowMapping_[currentId];
             if (index == -1) {
-                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", NameTable_->GetName(idMappingCurrent));
+                THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", NameTable_->GetName(currentId));
             }
             WriteValue(row[index]);
         }

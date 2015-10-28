@@ -38,8 +38,8 @@ protected:
     void WriteRaw(char ch);
     
 private:
-    static char* WriteInt64EndingHere(char* ptr, i64 value);
-    static char* WriteUint64EndingHere(char* ptr, ui64 value);    
+    static char* WriteInt64Backwards(char* ptr, i64 value);
+    static char* WriteUint64Backwards(char* ptr, ui64 value);    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
