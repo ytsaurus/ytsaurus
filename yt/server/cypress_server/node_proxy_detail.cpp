@@ -84,11 +84,10 @@ public:
 
     virtual void SetYson(const Stroka& key, const TYsonString& value) override
     {
-        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
-
         auto oldValue = FindYson(key);
         Proxy_->GuardedValidateCustomAttributeUpdate(key, oldValue, value);
 
+        auto cypressManager = Proxy_->Bootstrap_->GetCypressManager();
         auto* node = cypressManager->LockNode(
             Proxy_->TrunkNode,
             Proxy_->Transaction,
