@@ -14,7 +14,7 @@ class TCypressManagerConfig
 {
 public:
     TDuration StatisticsFlushPeriod;
-    TNullable<int> MaxNodeChildCount;
+    int MaxNodeChildCount;
 
     TCypressManagerConfig()
     {

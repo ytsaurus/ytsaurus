@@ -361,25 +361,29 @@ DEFINE_ENUM(ENumericResult,
 
 template <class TBlockStream, bool EnableLinePositionInfo>
 class TLexerBase
-    : public TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo> > >
+    : public TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo>>>
 {
 private:
-    typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo> > > TBaseStream;
+    typedef TCodedStream<TCharStream<TBlockStream, TPositionInfo<EnableLinePositionInfo>>> TBaseStream;
+
     std::vector<char> Buffer_;
-    TNullable<i64> MemoryLimit_;
+
+    const i64 MemoryLimit_;
 
     void CheckMemoryLimit()
     {
-        if (MemoryLimit_ && Buffer_.capacity() > *MemoryLimit_) {
+        if (Buffer_.capacity() > MemoryLimit_) {
             THROW_ERROR_EXCEPTION(
                 "Memory limit exceeded while parsing YSON stream: allocated %v, limit %v",
                 Buffer_.capacity(),
-                *MemoryLimit_);
+                MemoryLimit_);
         }
     }
 
 public:
-    TLexerBase(const TBlockStream& blockStream, TNullable<i64> memoryLimit)
+    TLexerBase(
+        const TBlockStream& blockStream,
+        i64 memoryLimit = std::numeric_limits<i64>::max())
         : TBaseStream(blockStream)
         , MemoryLimit_(memoryLimit)
     { }
@@ -391,7 +395,7 @@ protected:
     ENumericResult ReadNumeric(TStringBuf* value)
     {
         Buffer_.clear();
-        ENumericResult result = ENumericResult::Int64;
+        auto result = ENumericResult::Int64;
         while (true) {
             char ch = TBaseStream::template GetChar<AllowFinish>();
             if (isdigit(ch) || ch == '+' || ch == '-') { // Seems like it can't be '+' or '-'
@@ -494,16 +498,15 @@ protected:
         if (TBaseStream::Begin() + length <= TBaseStream::End()) {
             *value = TStringBuf(TBaseStream::Begin(), length);
             TBaseStream::Advance(length);
-        } else { // reading in Buffer
+        } else {
             size_t needToRead = length;
             Buffer_.clear();
-            while (needToRead) {
+            while (needToRead > 0) {
                 if (TBaseStream::IsEmpty()) {
                     TBaseStream::Refresh();
                     continue;
                 }
-                size_t readingBytes = needToRead < TBaseStream::Length() ? needToRead : TBaseStream::Length(); // TODO: min
-
+                size_t readingBytes = std::min(needToRead, TBaseStream::Length());
                 Buffer_.insert(Buffer_.end(), TBaseStream::Begin(), TBaseStream::Begin() + readingBytes);
                 CheckMemoryLimit();
                 needToRead -= readingBytes;
@@ -518,8 +521,8 @@ protected:
     {
         Buffer_.clear();
 
-        static auto trueString = STRINGBUF("true");
-        static auto falseString = STRINGBUF("false");
+        static const auto trueString = STRINGBUF("true");
+        static const auto falseString = STRINGBUF("false");
 
         auto throwIncorrectBoolean = [&] () {
             THROW_ERROR_EXCEPTION("Incorrect boolean string %Qv",

@@ -366,6 +366,13 @@ TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
     return TVersionedObjectId(Object_->GetId(), GetObjectId(Transaction));
 }
 
+TAccessControlDescriptor* TNontemplateCypressNodeProxyBase::FindThisAcd()
+{
+    auto securityManager = Bootstrap_->GetSecurityManager();
+    auto* node = GetThisImpl();
+    return securityManager->FindAcd(node);
+}
+
 void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     TObjectProxyBase::ListSystemAttributes(descriptors);
@@ -1011,13 +1018,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     context->Reply();
 }
 
-TAccessControlDescriptor* TNontemplateCypressNodeProxyBase::FindThisAcd()
-{
-    auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* node = GetThisImpl();
-    return securityManager->FindAcd(node);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TNontemplateCompositeCypressNodeProxyBase::TNontemplateCompositeCypressNodeProxyBase(
@@ -1270,7 +1270,7 @@ void TMapNodeProxy::SetChildNode(
 
 int TMapNodeProxy::GetMaxChildCount() const
 {
-    return Config->MaxNodeChildCount.Get(std::numeric_limits<int>::max());
+    return Config->MaxNodeChildCount;
 }
 
 IYPathService::TResolveResult TMapNodeProxy::ResolveRecursive(
@@ -1480,7 +1480,7 @@ void TListNodeProxy::SetChildNode(
 
 int TListNodeProxy::GetMaxChildCount() const
 {
-    return Config->MaxNodeChildCount.Get(std::numeric_limits<int>::max());
+    return Config->MaxNodeChildCount;
 }
 
 IYPathService::TResolveResult TListNodeProxy::ResolveRecursive(

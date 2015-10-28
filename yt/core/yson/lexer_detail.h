@@ -152,7 +152,9 @@ private:
     }
 
 public:
-    TLexer(const TBlockStream& blockStream, TNullable<i64> memoryLimit)
+    TLexer(
+        const TBlockStream& blockStream,
+        i64 memoryLimit = std::numeric_limits<i64>::max())
         : TBase(blockStream, memoryLimit)
     { }
 
@@ -279,12 +281,12 @@ class TStatelessYsonLexerImplBase
 public:
     virtual size_t GetToken(const TStringBuf& data, TToken* token) = 0;
 
-    virtual ~TStatelessYsonLexerImplBase()
-    { }
+    virtual ~TStatelessYsonLexerImplBase() = default;
 };
 
 template <bool EnableLinePositionInfo>
-class TStatelesYsonLexerImpl : public TStatelessYsonLexerImplBase
+class TStatelesYsonLexerImpl
+    : public TStatelessYsonLexerImplBase
 {
 private:
     typedef NDetail::TLexer<TStringReader, EnableLinePositionInfo> TLexer;
@@ -292,7 +294,7 @@ private:
 
 public:
     TStatelesYsonLexerImpl()
-        : Lexer(TStringReader(), Null)
+        : Lexer(TStringReader())
     { }
 
     size_t GetToken(const TStringBuf& data, TToken* token) override

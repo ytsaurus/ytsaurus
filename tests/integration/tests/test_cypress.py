@@ -15,7 +15,7 @@ class TestCypress(YTEnvSetup):
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
             # See test_map_node_children_limit
-            "max_node_child_count" : 100 
+            "max_node_child_count" : 100
         }
     }
 
