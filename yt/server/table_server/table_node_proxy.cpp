@@ -82,10 +82,12 @@ private:
         attributes->push_back(TAttributeInfo("sorted_by", table->GetSorted()));
         attributes->push_back("dynamic");
         attributes->push_back(TAttributeInfo("tablets", table->IsDynamic(), true));
+        attributes->push_back(TAttributeInfo("tablet_statistics", table->IsDynamic(), true));
         attributes->push_back(TAttributeInfo("channels", true, false, true));
         attributes->push_back(TAttributeInfo("schema", true, false, true));
         attributes->push_back("atomicity");
         TBase::ListSystemAttributes(attributes);
+
     }
 
     virtual bool GetBuiltinAttribute(const Stroka& key, IYsonConsumer* consumer) override
@@ -149,6 +151,16 @@ private:
                             })
                         .EndMap();
                 });
+            return true;
+        }
+
+        if (key == "tablet_statistics" && table->IsDynamic()) {
+            TTabletStatistics tabletStatistics;
+            for (const auto& tablet : table->Tablets()) {
+                tabletStatistics += tabletManager->GetTabletStatistics(tablet);
+            }
+            BuildYsonFluently(consumer)
+                .Value(tabletStatistics);
             return true;
         }
 
