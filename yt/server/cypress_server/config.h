@@ -24,6 +24,11 @@ public:
     //! NB: Changing these values will invalidate all changelogs!
     int MaxStringNodeLength;
 
+    //! Maximum allowed size of custom attributes for objects (transactions, Cypress nodes etc).
+    //! This limit concerns the binary YSON representation of attributes.
+    //! NB: Changing these values will invalidate all changelogs!
+    int MaxAttributeSize;
+
     TCypressManagerConfig()
     {
         RegisterParameter("statistics_flush_period", StatisticsFlushPeriod)
@@ -33,6 +38,9 @@ public:
             .GreaterThan(20)
             .Default(50000);
         RegisterParameter("max_string_node_length", MaxStringNodeLength)
+            .GreaterThan(256)
+            .Default(65536);
+        RegisterParameter("max_attribute_size", MaxAttributeSize)
             .GreaterThan(256)
             .Default(65536);
     }

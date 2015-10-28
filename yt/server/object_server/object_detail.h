@@ -102,6 +102,8 @@ protected:
         const TNullable<NYson::TYsonString>& oldValue,
         const TNullable<NYson::TYsonString>& newValue);
 
+    void ValidateCustomAttributeLength(const NYson::TYsonString& value);
+
     //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
     void GuardedValidateCustomAttributeUpdate(
         const Stroka& key,
