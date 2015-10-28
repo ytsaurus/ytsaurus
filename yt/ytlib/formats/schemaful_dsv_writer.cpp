@@ -21,6 +21,7 @@ using namespace NTableClient;
 TSchemafulDsvWriterBase::TSchemafulDsvWriterBase(
         TSchemafulDsvFormatConfigPtr config)
     : Config_(config)
+    , Table_(config)
 { }
 
 static ui16 DigitPairs[100] = {
@@ -139,13 +140,15 @@ void TSchemafulDsvWriterBase::WriteValue(const TUnversionedValue& value)
             break;
         }
 
-        case EValueType::String:
-            WriteRaw(TStringBuf(value.Data.String, value.Length));
+        case EValueType::String: {
+            EscapeAndWrite(TStringBuf(value.Data.String, value.Length));
             break;
+        }
 
-        default:
+        default: {
             WriteRaw('?');
             break;
+        }
     }
 }
 
@@ -157,6 +160,20 @@ void TSchemafulDsvWriterBase::WriteRaw(const TStringBuf& str)
 void TSchemafulDsvWriterBase::WriteRaw(char ch)
 {
     BlobOutput_->Write(ch);
+}
+
+void TSchemafulDsvWriterBase::EscapeAndWrite(const TStringBuf& string)
+{
+    if (Config_->EnableEscaping) {
+        WriteEscaped(
+            BlobOutput_,
+            string,
+            Table_.Stops,
+            Table_.Escapes,
+            Config_->EscapingSymbol);
+    } else {
+        BlobOutput_->Write(string);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
