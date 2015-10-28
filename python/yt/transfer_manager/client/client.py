@@ -9,6 +9,7 @@ import yt.packages.simplejson as json
 import time
 
 TM_BACKEND_URL = "http://transfer-manager.yt.yandex.net/api/v1"
+TM_TASK_URL_PATTERN = "https://transfer-manager.yt.yandex-team.ru/task?id={id}&tab=details&backend={backend_tag}"
 
 TM_HEADERS = {
     "Accept-Type": "application/json",
@@ -24,13 +25,22 @@ def _raise_for_status(response):
 class TransferManager(object):
     def __init__(self, url=None, token=None, http_request_timeout=10000,
                  enable_read_retries=True, read_retry_count=5):
-        self.backend_url = get_value(url, TM_BACKEND_URL)
+        backend_url = get_value(url, TM_BACKEND_URL)
+
+        # Backend url can be specified in short form.
+        if backend_url.startswith("http://"):
+            self.backend_url = backend_url
+        else:
+            self.backend_url = "http://{0}".format(backend_url)
+
         self.token = get_value(token, get_token())
 
         self.http_request_timeout = http_request_timeout
 
         self.enable_read_retries = enable_read_retries
         self.read_retry_count = read_retry_count
+
+        self._backend_config = self.get_backend_config()
 
     def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, params=None,
                  sync=False, poll_period=None):
@@ -48,7 +58,8 @@ class TransferManager(object):
 
         task_id = self._make_post_request(self.backend_url + "/tasks/", data=json.dumps(data)).content
 
-        logger.info("Transfer task started: %s", task_id)
+        logger.info("Transfer task started: %s", TM_TASK_URL_PATTERN.format(
+            id=task_id, backend_tag=self._backend_config["backend_tag"]))
 
         if sync:
             self._wait_for_tasks([task_id], poll_period)
