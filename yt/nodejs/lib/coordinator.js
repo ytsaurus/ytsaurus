@@ -52,6 +52,13 @@ function YtCoordinatedHost(config, name)
         enumerable: true
     });
 
+    // COMPAT(sandello): Web-interface requires `host` for now.
+    Object.defineProperty(this, "host", {
+        value: name,
+        writable: false,
+        enumerable: true
+    });
+
     Object.defineProperty(this, "role", {
         get: function() { return role; },
         set: function(value) {
@@ -100,14 +107,14 @@ function YtCoordinatedHost(config, name)
 
     Object.defineProperty(this, "ban_message", {
         get: function() {
-            if (ban_message.length === 0) {
-                return undefined;
-            } else {
-                return ban_message;
-            }
+            return ban_message;
         },
         set: function(value) {
-            ban_message = value + "";
+            if (typeof(value) === "undefined" || value === null) {
+                ban_message = null;
+            } else {
+                ban_message = value + "";
+            }
         },
         enumerable: true
     });

@@ -9,13 +9,13 @@ var utils = require("./utils");
 
 var __DBG = require("./debug").that("H", "Hosts");
 
-function addHostNameSuffix(host, suffix)
+function addHostNameSuffix(name, suffix)
 {
-    var index = host.indexOf(".");
+    var index = name.indexOf(".");
     if (index > 0) {
-        return host.substr(0, index) + suffix + host.substr(index);
+        return name.substr(0, index) + suffix + name.substr(index);
     } else {
-        return host + suffix;
+        return name + suffix;
     }
 }
 
@@ -56,7 +56,7 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
     var hosts = this.coordinator
     .getProxies("data", false, false)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
-    .map(function(entry) { return addHostNameSuffix(entry.host, suffix); });
+    .map(function(entry) { return addHostNameSuffix(entry.name, suffix); });
 
     var mime, body;
     mime = utils.bestAcceptedType(
