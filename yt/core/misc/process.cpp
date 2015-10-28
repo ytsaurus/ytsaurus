@@ -166,7 +166,6 @@ void TProcess::Swap(TProcess& other)
     SpawnActions_.swap(other.SpawnActions_);
 }
 
-
 TProcess TProcess::CreateCurrentProcessSpawner()
 {
     return TProcess(GetExecPath(), true);
@@ -271,7 +270,7 @@ void TProcess::Spawn()
     });
 
     SpawnActions_.push_back(TSpawnAction {
-        std::bind(TryExecve, ~Path_, Args_.data(), Env_.data()),
+        std::bind(TryExecve, Path_.c_str(), Args_.data(), Env_.data()),
         "Error starting child process: execve failed"
     });
 
@@ -486,7 +485,7 @@ Stroka TProcess::GetCommandLine() const
 char* TProcess::Capture(TStringBuf arg)
 {
     StringHolder_.push_back(Stroka(arg));
-    return const_cast<char*>(~StringHolder_.back());
+    return const_cast<char*>(StringHolder_.back().c_str());
 }
 
 void TProcess::Child()
