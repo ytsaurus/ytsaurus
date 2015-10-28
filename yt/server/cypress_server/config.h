@@ -13,8 +13,16 @@ class TCypressManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Period between Cypress access statistics commits.
     TDuration StatisticsFlushPeriod;
+
+    //! Maximum number of children map and list nodes are allowed to contain.
+    //! NB: Changing these values will invalidate all changelogs!
     int MaxNodeChildCount;
+
+    //! Maximum allowed length of string nodes.
+    //! NB: Changing these values will invalidate all changelogs!
+    int MaxStringNodeLength;
 
     TCypressManagerConfig()
     {
@@ -24,6 +32,9 @@ public:
         RegisterParameter("max_node_child_count", MaxNodeChildCount)
             .GreaterThan(20)
             .Default(50000);
+        RegisterParameter("max_string_node_length", MaxStringNodeLength)
+            .GreaterThan(256)
+            .Default(65536);
     }
 };
 
