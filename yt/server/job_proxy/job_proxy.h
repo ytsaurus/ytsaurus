@@ -60,6 +60,8 @@ private:
     i64 JobProxyMemoryLimit_;
     std::atomic<i64> MaxMemoryUsage_ = { 0 };
 
+    int CpuLimit_;
+
     NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
     NConcurrency::TPeriodicExecutorPtr MemoryWatchdogExecutor_;
 

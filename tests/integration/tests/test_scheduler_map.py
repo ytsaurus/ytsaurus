@@ -25,7 +25,7 @@ class TestCGroups(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
             "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory"],
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu"],
             "slot_manager" : {
                 "enforce_job_control" : True,
             }
@@ -68,7 +68,7 @@ class TestEventLog(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
             "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory"],
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu"],
             "slot_manager" : {
                 "enforce_job_control" : True
             }
@@ -113,7 +113,7 @@ class TestJobProber(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
             'enable_cgroups' : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory"]
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu"]
         }
     }
 

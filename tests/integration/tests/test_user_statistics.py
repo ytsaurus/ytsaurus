@@ -33,7 +33,7 @@ class TestUserStatistics(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent" : {
             "enable_cgroups" : True,
-            "supported_cgroups" : [ "cpuacct", "blkio", "memory" ]
+            "supported_cgroups" : [ "cpuacct", "blkio", "memory", "cpu" ]
         }
     }
 

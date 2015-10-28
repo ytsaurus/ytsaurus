@@ -123,6 +123,19 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCpu
+    : public TCGroup
+{
+public:
+    static const Stroka Name;
+
+    explicit TCpu(const Stroka& name);
+
+    void SetShare(double share);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlockIO
     : public TCGroup
 {
