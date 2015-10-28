@@ -38,10 +38,11 @@ def _working_dir(test_name):
     return os.path.join(path_to_test, "run")
 
 def _wait(predicate):
-    for i in xrange(100):
+    for _ in xrange(100):
         if predicate():
-            break
+            return
         sleep(1.0)
+    pytest.fail("wait failed")
 
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
