@@ -19,8 +19,8 @@ using namespace NYson;
 using namespace NConcurrency;
 using namespace NTableClient;
 
-class TSchemalessWriterForYamrTest : 
-    public ::testing::Test
+class TSchemalessWriterForYamrTest 
+    : public ::testing::Test
 {
 protected:
     TNameTablePtr NameTable_;
