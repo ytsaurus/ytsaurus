@@ -1,0 +1,291 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""mount-cypress -- mount a Cypress, an YT cluster metainformation tree.
+
+Usage:
+  mount-cypress <proxy> <mountpoint>
+  mount-cypress (-h | --help)
+
+Arguments:
+  <proxy>       Proxy alias like "aristotle.yt.yandex.net" or just "aristotle".
+  <mountpoint>  Mountpoint directory like "/mnt/aristotle".
+
+Options:
+  -h, --help    Show this help. 
+
+"""
+import stat
+import errno
+import time
+import logging
+import functools
+import sys
+
+import docopt
+import expiringdict
+import fuse
+import yt.wrapper.client
+
+
+logging.basicConfig(
+    format="%(name)s\t%(asctime)s.%(msecs)03d\t%(message)s",
+    datefmt="%H:%M:%S"
+)
+
+
+def log_calls(logger, message_format):
+    """Create a decorator for logging each wrapped function call.
+
+    message_format:
+      An old-style format string.
+      Items with names corresponding to function's arguments are allowed.
+      A special key "__name__" corresponds to the wrapped function's name.
+    """
+    def get_logged_version(function):
+        positional_names = function.__code__.co_varnames
+
+        def log_call(*args, **kwargs):
+            kwargs.update(zip(positional_names, args))
+            kwargs["__name__"] = function.__name__
+            logger.debug(message_format, kwargs)
+
+        @functools.wraps(function)
+        def logged_function(*args, **kwargs):
+            log_call(*args, **kwargs)
+            return function(*args, **kwargs) 
+
+        return logged_function
+
+    return get_logged_version
+
+
+def handle_yt_errors(function):
+    """Modify the function so it raises FuseOSError instead of YtError."""
+    @functools.wraps(function)
+    def cautious_function(*args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        except yt.wrapper.YtError:
+            raise fuse.FuseOSError(errno.ENOENT)
+
+    return cautious_function
+
+
+class CachedYtClient(yt.wrapper.client.Yt):
+    """An YT client which caches nodes and their attributes for some time."""
+
+    _logger = logging.getLogger(__name__ + ".CachedYtClient")
+    _logger.setLevel(level=logging.DEBUG)
+
+    def __init__(self, *args, **kwargs):
+        """Initialize the client.
+
+          max_len:
+            Maximum number of cached nodes; the default is 16384.
+          max_age_seconds:
+            After this period the node is removed from cache;
+            the default value is 2 seconds.
+
+          The rest of the arguments are passed to the parent constructor.
+        """
+        max_len = kwargs.pop("max_len", 16384)
+        max_age_seconds = kwargs.pop("max_age_seconds", 2)
+        super(CachedYtClient, self).__init__(*args, **kwargs)
+
+        self._cache = expiringdict.ExpiringDict(
+            max_len=max_len,
+            max_age_seconds=max_age_seconds
+        )
+
+    def _cache_child_nodes(self, node, path, attributes):
+        try:
+            children = node.iteritems()
+        except AttributeError:
+            pass
+        else:
+            for child_name, child_node in children:
+                # Hereinafter we assume that node path elements
+                # are proper utf-8 strings.
+                cache_key = (
+                    path + u"/" + child_name.decode("utf-8"),
+                    frozenset(attributes)
+                )
+                self._cache[cache_key] = child_node
+
+    def get(self, path, attributes=[], spec={}):
+        """Get a node specified by a ypath.
+
+        attributes:
+          Warning! The argument changed semantically!
+          If it is not empty, the returned node *might* be a YsonEntity!
+        spec:
+          A dictionary; the only understood key is "force_request";
+          by setting it to True one can disable cache lookup.
+        """
+        cache_key = (path, frozenset(attributes))
+
+        need_request = spec.pop("force_request", False)
+        if not need_request:
+            try:
+                node = self._cache[cache_key]
+                message = "hit"
+            except KeyError:
+                need_request = True
+                message = "miss"
+        else:
+            message = "force"
+
+        if need_request:
+            node = self._cache[cache_key] = super(CachedYtClient, self).get(
+                path, attributes=attributes, spec=spec
+            )
+            if attributes:
+                self._cache_child_nodes(node, path, attributes)
+
+        self._logger.debug("get(%r)\t%s", path, message)
+        return node
+
+
+class Cypress(fuse.Operations):
+    """An implementation of FUSE operations on a Cypress tree."""
+
+    _logger = logging.getLogger(__name__ + ".Cypress")
+    _logger.setLevel(level=logging.DEBUG)
+
+    _system_attributes = [
+        "type",
+        "ref_counter",
+        "access_time",
+        "modification_time",
+        "creation_time",
+        "uncompressed_data_size"
+    ]
+
+    def __init__(self, client):
+        super(fuse.Operations, self).__init__()
+        self._client = client
+    
+    @staticmethod
+    def _to_ypath(path):
+        """Convert an absolute file path to YPath."""
+        if path == u"/":
+            return u"/"
+        return u"/" + path
+
+    @staticmethod
+    def _to_timestamp(timestring):
+        """Convert a time string in YT format to UNIX timestamp."""
+        parsed_time = time.strptime(timestring, "%Y-%m-%dT%H:%M:%S.%fZ")
+        return time.mktime(parsed_time)
+
+    def _get_st_mode(self, attributes):
+        """Get st_mode for a node based on its attributes."""
+        node_type = attributes["type"]
+        if node_type == "file":
+            mask = stat.S_IFREG
+        elif node_type == "map_node":
+            mask = stat.S_IFDIR | stat.S_IXUSR
+        elif node_type == "table":
+            mask =  stat.S_IFREG
+        else:
+            mask = stat.S_IFBLK
+        return mask | stat.S_IRUSR
+
+    def _get_stat(self, attributes):
+        """Get stat sturcture for a node based on its attributes."""
+        return {
+            "st_dev": 0,
+            "st_ino": 0,
+            "st_mode": self._get_st_mode(attributes),
+            "st_nlink": attributes["ref_counter"],
+            "st_uid": -1,
+            "st_gid": -1,
+            "st_atime": Cypress._to_timestamp(attributes["access_time"]),
+            "st_mtime": Cypress._to_timestamp(attributes["modification_time"]),
+            "st_ctime": Cypress._to_timestamp(attributes["creation_time"]),
+            "st_size": attributes.get("uncompressed_data_size", 0L)
+        }
+
+    def _get_xattr(self, attribute):
+        """Convert Cypress attribute name to Linux attribute name."""
+        return "user.cypress." + attribute
+
+    def _get_attribute(self, xattr):
+        """Convert Linux attribute name to Cypress attribute name."""
+        return ".".join(xattr.split(".")[2:])
+
+    @handle_yt_errors
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def getattr(self, path, fh):
+        ypath = self._to_ypath(path)
+        node = self._client.get(ypath, attributes=self._system_attributes)
+        return self._get_stat(node.attributes)
+
+    @handle_yt_errors
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def readdir(self, path, fh):
+        ypath = self._to_ypath(path)
+
+        # "attributes" are used to speed up subsequent "getattr" queries
+        # about the node's children in case of "ls" command.
+        # See help(CachedYtClient.get) for why "force_request" is used.
+        node = self._client.get(
+            ypath, attributes=self._system_attributes,
+            spec={"force_request": True}
+        )
+        return (child.decode("utf-8") for child in node.iterkeys())
+
+    @handle_yt_errors
+    @log_calls(_logger, "%(__name__)s(%(path)r, flags=%(flags)r)")
+    def open(self, path, flags):
+        ypath = self._to_ypath(path)
+        type_ = self._client.get(ypath + "/@type")
+        if type_ != "file":
+            raise fuse.FuseOSError(errno.EINVAL)
+        return 0
+
+    def _read_file(self, ypath, length, offset, fh):
+        lines = self._client.download_file(ypath, length=length, offset=offset)
+        return "".join(lines)
+
+    @handle_yt_errors
+    @log_calls(
+        _logger, "%(__name__)s(%(path)r, offset=%(offset)r, length=%(length)r)"
+    )
+    def read(self, path, length, offset, fh):
+        ypath = self._to_ypath(path)
+        type_ = self._client.get(ypath + "/@type")
+
+        if type_ == "file":
+            return self._read_file(ypath, length, offset, fh)
+        if type_ == "map_node":
+            raise fuse.FuseOSError(errno.EISDIR)
+        raise fuse.FuseOSError(errno.EINVAL)
+
+    @handle_yt_errors
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def listxattr(self, path):
+        ypath = self._to_ypath(path)
+        attributes = self._client.get(ypath + "/@")
+        return (self._get_xattr(attribute) for attribute in attributes)
+
+    @handle_yt_errors
+    @log_calls(_logger, "%(__name__)s(%(path)r, name=%(name)r)")
+    def getxattr(self, path, name, position=0):
+        ypath = self._to_ypath(path) 
+        attribute = self._get_attribute(name)
+        return repr(self._client.get(ypath + "/@" + attribute))
+
+
+def mount_cypress(proxy, mountpoint):
+    """Mount a Cypress."""
+    cypress = Cypress(CachedYtClient(proxy=proxy))
+    fuse.FUSE(cypress, mountpoint, foreground=True)
+    return 0
+
+
+if __name__ == "__main__":
+    arguments = docopt.docopt(__doc__)
+    sys.exit(
+        mount_cypress(arguments["<proxy>"], arguments["<mountpoint>"])
+    )
