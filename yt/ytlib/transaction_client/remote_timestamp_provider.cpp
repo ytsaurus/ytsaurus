@@ -10,11 +10,14 @@
 
 #include <core/rpc/balancing_channel.h>
 
+#include <core/ytree/convert.h>
+
 namespace NYT {
 namespace NTransactionClient {
 
 using namespace NRpc;
 using namespace NConcurrency;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,7 +34,9 @@ public:
         IChannelFactoryPtr channelFactory)
         : Config_(config)
     {
-        auto channel = CreateBalancingChannel(config, channelFactory);
+        auto textDescription = Format("[%v]", JoinToString(Config_->Addresses));
+        auto ysonDescription = ConvertToYsonString(Config_->Addresses);
+        auto channel = CreateBalancingChannel(config, channelFactory, textDescription, ysonDescription);
         Proxy_ = std::make_unique<TTimestampServiceProxy>(channel);
         Proxy_->SetDefaultTimeout(Config_->RpcTimeout);
     }
