@@ -131,7 +131,7 @@ def make_request_with_retries(method, url, make_retries=True, retry_unavailable_
                 if get_option("_ENABLE_HTTP_CHAOS_MONKEY", client) and random.randint(1, 5) == 1:
                     raise YtIncorrectResponse("", response)
             except ConnectionError as error:
-                if hasattr(error, "response"):
+                if hasattr(error, "response") and error.response:
                     raise YtHttpResponseError(url, headers, create_response(error.response, headers, client).error())
                 else:
                     raise
