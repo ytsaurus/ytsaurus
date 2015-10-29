@@ -240,7 +240,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
     jobs_path = os.path.join(OPERATIONS_PATH, operation, "jobs")
     if not exists(jobs_path, client=client):
         return ""
-    jobs = list(jobs_path, attributes=["error"], absolute=True, client=client)
+    jobs = list(jobs_path, attributes=["error", "address"], absolute=True, client=client)
     if only_failed_jobs:
         jobs = filter(lambda obj: "error" in obj.attributes, jobs)
 
@@ -248,7 +248,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
 
     for path in jobs:
         job_with_stderr = {}
-        job_with_stderr["host"] = get_attribute(path, "address", client=client)
+        job_with_stderr["host"] = path.attributes["address"]
 
         if only_failed_jobs:
             job_with_stderr["error"] = path.attributes["error"]
