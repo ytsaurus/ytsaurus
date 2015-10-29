@@ -20,7 +20,7 @@ std::vector<typename T::mapped_type> GetValues(
     size_t sizeLimit = std::numeric_limits<size_t>::max());
 
 template <class T>
-void ShrinkHashTable(T* collection);
+bool ShrinkHashTable(T* collection);
 
 ////////////////////////////////////////////////////////////////////////////////
 
