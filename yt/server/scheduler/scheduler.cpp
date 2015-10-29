@@ -2132,8 +2132,10 @@ private:
                     .Item("resource_limits").Value(TotalResourceLimits_)
                     .Item("resource_usage").Value(TotalResourceUsage_)
                 .EndMap()
-                .Item("operations").DoMapFor(IdToOperation_, [=] (TFluentMap fluent, const TOperationIdMap::value_type& pair) {
-                    BuildOperationYson(pair.second, fluent);
+                .Item("operations").DoMapFor(GetOperations(), [=] (TFluentMap fluent, const TOperationPtr& operation) {
+                    if (FindOperation(operation->GetId())) {
+                        BuildOperationYson(operation, fluent);
+                    }
                 })
                 .Item("nodes").DoMapFor(GetExecNodes(), [=] (TFluentMap fluent, const TExecNodePtr& node) {
                     BuildNodeYson(node, fluent);
