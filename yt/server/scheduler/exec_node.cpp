@@ -21,6 +21,7 @@ TExecNode::TExecNode(const TAddressMap& addresses)
     , ResourceLimits_(ZeroNodeResources())
     , ResourceUsage_(ZeroNodeResources())
     , MasterState_(ENodeState::Offline)
+    , IOWeight_(0)
 { }
 
 bool TExecNode::HasEnoughResources(const TNodeResources& neededResources) const

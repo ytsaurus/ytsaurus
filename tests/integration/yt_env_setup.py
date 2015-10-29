@@ -8,10 +8,16 @@ import os
 import sys
 import logging
 import uuid
+<<<<<<< HEAD
 
 from time import sleep
 from functools import wraps
 import pytest
+=======
+import time
+from functools import wraps
+from threading import Thread
+>>>>>>> prestable/0.17.3
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
@@ -25,6 +31,7 @@ def _working_dir(test_name):
     path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
     return os.path.join(path_to_test, "run")
 
+<<<<<<< HEAD
 def _wait(predicate):
     while not predicate():
         sleep(1)
@@ -33,6 +40,30 @@ def _pytest_finalize_func(environment, process_call_args):
     pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
                 .format(" ".join(process_call_args)))
     environment.clear_environment(safe=False)
+=======
+def _pytest_finalize_func(environment, process_call_args):
+    print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
+    environment.clear_environment()
+
+    print >>sys.stderr, "Killing pytest process"
+    os._exit(42)
+
+class Checker(Thread):
+    def __init__(self, check_function):
+        super(Checker, self).__init__()
+        self._check_function = check_function
+        self._active = None
+
+    def run(self):
+        self._active = True
+        while self._active:
+            self._check_function()
+            time.sleep(1.0)
+
+    def stop(self):
+        self._active = False
+        self.join()
+>>>>>>> prestable/0.17.3
 
 class YTEnvSetup(YTEnv):
     @classmethod
@@ -55,8 +86,14 @@ class YTEnvSetup(YTEnv):
             yt_commands.init_driver(cls.Env.configs['driver'])
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 
+        cls.liveness_checker = Checker(lambda: cls.Env.check_liveness(callback_func=_pytest_finalize_func))
+        cls.liveness_checker.daemon = True
+        cls.liveness_checker.start()
+
     @classmethod
     def teardown_class(cls):
+        cls.liveness_checker.stop()
+
         cls.Env.clear_environment()
         yt_commands.driver = None
         gc.collect()

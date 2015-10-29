@@ -140,6 +140,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 void TNode::ReserveStoredReplicas(int sizeHint)
 {
     StoredReplicas_.resize(sizeHint);
+    RandomReplicaIt_ = StoredReplicas_.end();
 }
 
 bool TNode::AddReplica(TChunkPtrWithIndex replica, bool cached)
@@ -357,8 +358,9 @@ void TNode::DetachTabletCell(const TTabletCell* cell)
 
 void TNode::ShrinkHashTables()
 {
-    ShrinkHashTable(&StoredReplicas_);
-    RandomReplicaIt_ = StoredReplicas_.end();
+    if (ShrinkHashTable(&StoredReplicas_)) {
+        RandomReplicaIt_ = StoredReplicas_.end();
+    }
     ShrinkHashTable(&CachedReplicas_);
     ShrinkHashTable(&UnapprovedReplicas_);
     ShrinkHashTable(&Jobs_);

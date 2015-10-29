@@ -106,7 +106,7 @@ public:
         return refs;
     }
 
-    static void WriteErasureChunk(ICodec* codec, std::vector<TSharedRef> data)
+    static void WriteErasureChunk(ECodec codecId, ICodec* codec, std::vector<TSharedRef> data)
     {
         auto config = NYT::New<TErasureWriterConfig>();
         config->ErasureWindowSize = 64;
@@ -122,7 +122,7 @@ public:
         meta.set_version(1);
 
         i64 dataSize = 0;
-        auto erasureWriter = CreateErasureWriter(config, NullChunkId, codec, writers);
+        auto erasureWriter = CreateErasureWriter(config, NullChunkId, codecId, codec, writers);
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
@@ -157,7 +157,8 @@ public:
 
 TEST_F(TErasureMixture, WriterTest)
 {
-    auto codec = GetCodec(ECodec::Lrc_12_2_2);
+    auto codecId = ECodec::Lrc_12_2_2;
+    auto codec = GetCodec(codecId);
 
     // Prepare data
     std::vector<Stroka> dataStrings = {
@@ -167,7 +168,7 @@ TEST_F(TErasureMixture, WriterTest)
         "Hello world"};
     auto dataRefs = ToSharedRefs(dataStrings);
 
-    WriteErasureChunk(codec, dataRefs);
+    WriteErasureChunk(codecId, codec, dataRefs);
 
     // Manually check that data in files is correct
     for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
@@ -188,7 +189,8 @@ TEST_F(TErasureMixture, WriterTest)
 
 TEST_F(TErasureMixture, ReaderTest)
 {
-    auto codec = GetCodec(ECodec::Lrc_12_2_2);
+    auto codecId = ECodec::Lrc_12_2_2;
+    auto codec = GetCodec(codecId);
 
     // Prepare data
     std::vector<Stroka> dataStrings = {
@@ -198,7 +200,7 @@ TEST_F(TErasureMixture, ReaderTest)
         "Hello world"};
     auto dataRefs = ToSharedRefs(dataStrings);
 
-    WriteErasureChunk(codec, dataRefs);
+    WriteErasureChunk(codecId, codec, dataRefs);
 
     auto erasureReader = CreateErasureReader(codec);
 
@@ -232,13 +234,14 @@ TEST_F(TErasureMixture, ReaderTest)
 // TODO(ignat): refactor this tests to eliminate copy-paste
 TEST_F(TErasureMixture, RepairTest1)
 {
-    auto codec = GetCodec(ECodec::ReedSolomon_6_3);
+    auto codecId = ECodec::ReedSolomon_6_3;
+    auto codec = GetCodec(codecId);
 
     // Prepare data
     std::vector<Stroka> dataStrings({"a"});
     auto dataRefs = ToSharedRefs(dataStrings);
 
-    WriteErasureChunk(codec, dataRefs);
+    WriteErasureChunk(codecId, codec, dataRefs);
 
     TPartIndexList erasedIndices;
     erasedIndices.push_back(2);
@@ -287,6 +290,7 @@ TEST_F(TErasureMixture, RepairTest1)
 
 TEST_F(TErasureMixture, RepairTest2)
 {
+    auto codecId = ECodec::Lrc_12_2_2;
     auto codec = GetCodec(ECodec::Lrc_12_2_2);
 
     // Prepare data
@@ -297,7 +301,7 @@ TEST_F(TErasureMixture, RepairTest2)
         "Hello world"};
     auto dataRefs = ToSharedRefs(dataStrings);
 
-    WriteErasureChunk(codec, dataRefs);
+    WriteErasureChunk(codecId, codec, dataRefs);
 
     TPartIndexList erasedIndices;
     erasedIndices.push_back(0);
@@ -349,7 +353,8 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
 {
     TRand rand;
 
-    auto codec = GetCodec(ECodec::Lrc_12_2_2);
+    auto codecId = ECodec::Lrc_12_2_2;
+    auto codec = GetCodec(codecId);
 
     // Prepare data
     std::vector<TSharedRef> dataRefs;
@@ -360,7 +365,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
         }
         dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
     }
-    WriteErasureChunk(codec, dataRefs);
+    WriteErasureChunk(codecId, codec, dataRefs);
 
     { // Check reader
         auto erasureReader = CreateErasureReader(codec);
