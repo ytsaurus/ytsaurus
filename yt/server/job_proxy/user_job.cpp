@@ -581,7 +581,7 @@ private:
 
         InputActions_.push_back(BIND([=] () {
             try {
-                WaitFor(Reader_->Open())
+                WaitFor(reader->Open())
                     .ThrowOnError();
 
                 PipeReaderToWriter(
