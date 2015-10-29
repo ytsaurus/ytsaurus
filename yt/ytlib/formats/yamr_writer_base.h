@@ -16,11 +16,11 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TShemalessWriterForYamrBase
+class TSchemalessWriterForYamrBase
     : public TSchemalessFormatWriterBase
 {
 public:
-    TShemalessWriterForYamrBase(
+    TSchemalessWriterForYamrBase(
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
@@ -41,7 +41,7 @@ protected:
     void EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes);
 };
 
-DEFINE_REFCOUNTED_TYPE(TShemalessWriterForYamrBase)
+DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForYamrBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

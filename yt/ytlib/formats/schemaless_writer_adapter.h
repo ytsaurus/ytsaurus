@@ -46,7 +46,7 @@ protected:
         bool enableKeySwitch,
         int keyColumnCount);
 
-    TOutputStream* GetOutputStream();
+    TBlobOutput* GetOutputStream();
 
     void TryFlushBuffer();
 
@@ -81,12 +81,13 @@ class TSchemalessWriterAdapter
 {
 public:
     TSchemalessWriterAdapter(
-        const TFormat& format,
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         bool enableKeySwitch,
         int keyColumnCount);
+
+    void Init(const TFormat& format);
 
     virtual void WriteTableIndex(i32 tableIndex) override;
 

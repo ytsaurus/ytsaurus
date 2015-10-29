@@ -16,11 +16,11 @@ namespace NFormats {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TShemalessWriterForYamr
-    : public TShemalessWriterForYamrBase
+class TSchemalessWriterForYamr
+    : public TSchemalessWriterForYamrBase
 {
 public:
-    TShemalessWriterForYamr(
+    TSchemalessWriterForYamr(
         NTableClient::TNameTablePtr nameTable,
         NConcurrency::IAsyncOutputStreamPtr output,
         bool enableContextSaving,
@@ -41,7 +41,7 @@ private:
     void ValidateColumnType(const NTableClient::TUnversionedValue* value);
 };
 
-DEFINE_REFCOUNTED_TYPE(TShemalessWriterForYamr)
+DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForYamr)
 
 ////////////////////////////////////////////////////////////////////////////////
 

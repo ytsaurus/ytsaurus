@@ -17,7 +17,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShemalessWriterForYamrBase::TShemalessWriterForYamrBase(
+TSchemalessWriterForYamrBase::TSchemalessWriterForYamrBase(
     TNameTablePtr nameTable, 
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
@@ -34,7 +34,7 @@ TShemalessWriterForYamrBase::TShemalessWriterForYamrBase(
 {
 }
 
-void TShemalessWriterForYamrBase::EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes)
+void TSchemalessWriterForYamrBase::EscapeAndWrite(const TStringBuf& value, TLookupTable stops, TEscapeTable escapes)
 {
     auto* stream = GetOutputStream();
     if (Config_->EnableEscaping) {
@@ -49,14 +49,14 @@ void TShemalessWriterForYamrBase::EscapeAndWrite(const TStringBuf& value, TLooku
     }
 }
 
-void TShemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
+void TSchemalessWriterForYamrBase::WriteInLenvalMode(const TStringBuf& value)
 {
     auto* stream = GetOutputStream();
     WritePod(*stream, static_cast<ui32>(value.size()));
     stream->Write(value);
 }
 
-void TShemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
+void TSchemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
 {
     auto* stream = GetOutputStream();
     
@@ -74,7 +74,7 @@ void TShemalessWriterForYamrBase::WriteTableIndex(i32 tableIndex)
     }
 }
 
-void TShemalessWriterForYamrBase::WriteRangeIndex(i32 rangeIndex)
+void TSchemalessWriterForYamrBase::WriteRangeIndex(i32 rangeIndex)
 {
     auto* stream = GetOutputStream();
 
@@ -85,7 +85,7 @@ void TShemalessWriterForYamrBase::WriteRangeIndex(i32 rangeIndex)
     WritePod(*stream, static_cast<ui32>(rangeIndex));
 }
 
-void TShemalessWriterForYamrBase::WriteRowIndex(i64 rowIndex)
+void TSchemalessWriterForYamrBase::WriteRowIndex(i64 rowIndex)
 {
     auto* stream = GetOutputStream();
 
