@@ -357,8 +357,9 @@ void TNode::DetachTabletCell(const TTabletCell* cell)
 
 void TNode::ShrinkHashTables()
 {
-    ShrinkHashTable(&StoredReplicas_);
-    RandomReplicaIt_ = StoredReplicas_.end();
+    if (ShrinkHashTable(&StoredReplicas_)) {
+        RandomReplicaIt_ = StoredReplicas_.end();
+    }
     ShrinkHashTable(&CachedReplicas_);
     ShrinkHashTable(&UnapprovedReplicas_);
     ShrinkHashTable(&Jobs_);
