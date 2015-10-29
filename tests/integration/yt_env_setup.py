@@ -61,6 +61,9 @@ class YTEnvSetup(YTEnv):
             test_name = cls.__name__
         path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
+        # Should create before env start for correct behaviour of teardown.
+        cls.liveness_checker = None
+
         # For running parallel
         path_to_run = os.path.join(path_to_test, "run_" + str(uuid.uuid4().hex)[:8])
         pids_filename = os.path.join(path_to_run, 'pids.txt')
@@ -81,7 +84,8 @@ class YTEnvSetup(YTEnv):
 
     @classmethod
     def teardown_class(cls):
-        cls.liveness_checker.stop()
+        if cls.liveness_checker is not None:
+            cls.liveness_checker.stop()
 
         cls.Env.clear_environment()
         yt_commands.driver = None
