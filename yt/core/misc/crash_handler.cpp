@@ -259,7 +259,7 @@ void InvokeDefaultSignalHandler(int signal)
 void Terminate(int signal)
 {
     if (signal == SIGTERM) {
-        _exit(-1);
+        _exit(0);
     } else {
         // Invoke default handler to create core file.
         InvokeDefaultSignalHandler(signal);
