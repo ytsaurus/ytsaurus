@@ -11,13 +11,24 @@ import time
 import signal
 import socket
 import shutil
-import subprocess
 import sys
 import getpass
 import yt.packages.simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
+<<<<<<< HEAD
 from itertools import chain
+=======
+from threading import RLock
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    if sys.version_info[:2] <= (2, 6):
+        print >>sys.stderr, "Environment may not work properly on python of version <= 2.6 " \
+                            "because subprocess32 library is not installed."
+    import subprocess
+>>>>>>> prestable/0.17.3
 
 GEN_PORT_ATTEMPTS = 10
 
@@ -83,6 +94,7 @@ class YTEnv(object):
     def modify_scheduler_config(self, config):
         pass
 
+<<<<<<< HEAD
     # to be redefined in successors
     def modify_proxy_config(self, config):
         pass
@@ -92,6 +104,11 @@ class YTEnv(object):
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
         logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
+=======
+    def set_environment(self, path_to_run, pids_filename, ports=None, supress_yt_output=False):
+        logging.basicConfig(format='%(message)s')
+        self._lock = RLock()
+>>>>>>> prestable/0.17.3
 
         self.supress_yt_output = supress_yt_output
         self.path_to_run = os.path.abspath(path_to_run)
@@ -275,13 +292,60 @@ class YTEnv(object):
         if proc.returncode is None:
             return False, "Alarm! {0} (pid {1}) was not killed after 50 iterations\n".format(name, proc.pid)
 
+<<<<<<< HEAD
         return True, ""
+=======
+    def kill_service(self, name):
+        with self._lock:
+            print "Killing", name
+
+            ok = True
+            message = ""
+            for p in self._process_to_kill[name]:
+                p_message, p_ok = self.kill_process(p, name)
+                if not p_ok:
+                    ok = False
+                del self._all_processes[p.pid]
+                message += p_message
+
+            if ok:
+                self._process_to_kill[name] = []
+            
+            return ok, message
+
+
+    def clear_environment(self, safe=True):
+        with self._lock:
+            total_ok = True
+            total_message = ""
+            for name in self.configs:
+                ok, message = self.kill_service(name)
+                if not ok:
+                    total_ok = False
+                    total_message += message + "\n\n"
+
+            if safe:
+                assert total_ok, total_message
+
+    def check_liveness(self, callback_func=None):
+        with self._lock:
+            for pid, info in self._all_processes.iteritems():
+                proc, args = info
+                if proc.returncode is not None:
+                    if callback_func is None:
+                        self.clear_environment(safe=False)
+                        py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
+                                     .format(" ".join(args)))
+                    else:
+                        callback_func()
+>>>>>>> prestable/0.17.3
 
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")
         self.pids_file.flush()
 
     def _run(self, args, name, number=1, timeout=0.1):
+<<<<<<< HEAD
         if self.supress_yt_output:
             stdout = open("/dev/null", "w")
             stderr = open("/dev/null", "w")
@@ -299,6 +363,26 @@ class YTEnv(object):
             raise YtError("Process %s-%d unexpectedly terminated with error code %d. "
                           "If the problem is reproducible please report to yt@yandex-team.ru mailing list",
                           name, number, p.returncode)
+=======
+        with self._lock:
+            if self.supress_yt_output:
+                stdout = open("/dev/null", "w")
+                stderr = open("/dev/null", "w")
+            else:
+                stdout = sys.stdout
+                stderr = sys.stderr
+            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
+                                 stdout=stdout, stderr=stderr)
+            self._process_to_kill[name].append(p)
+            self._all_processes[p.pid] = (p, args)
+            self._append_pid(p.pid)
+
+            time.sleep(timeout)
+            if p.poll():
+                print >>sys.stderr, "Process %s-%d unexpectedly terminated." % (name, number)
+                print >>sys.stderr, "Check that there are no other incarnations of this process."
+                assert False, "Process unexpectedly terminated"
+>>>>>>> prestable/0.17.3
 
     def _run_ytserver(self, service_name, name):
         logger.info("Starting %s", name)
