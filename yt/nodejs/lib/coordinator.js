@@ -21,7 +21,7 @@ function parseBoolean(x)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtCoordinatedHost(config, host)
+function YtCoordinatedHost(config, name)
 {
     var role = "data";
     var dead = true;
@@ -46,8 +46,15 @@ function YtCoordinatedHost(config, host)
 
     var self = this;
 
+    Object.defineProperty(this, "name", {
+        value: name,
+        writable: false,
+        enumerable: true
+    });
+
+    // COMPAT(sandello): Web-interface requires `host` for now.
     Object.defineProperty(this, "host", {
-        value: host,
+        value: name.split(":")[0],
         writable: false,
         enumerable: true
     });
@@ -100,14 +107,14 @@ function YtCoordinatedHost(config, host)
 
     Object.defineProperty(this, "ban_message", {
         get: function() {
-            if (ban_message.length === 0) {
-                return undefined;
-            } else {
-                return ban_message;
-            }
+            return ban_message;
         },
         set: function(value) {
-            ban_message = value + "";
+            if (typeof(value) === "undefined" || value === null) {
+                ban_message = null;
+            } else {
+                ban_message = value + "";
+            }
         },
         enumerable: true
     });
@@ -115,7 +122,7 @@ function YtCoordinatedHost(config, host)
     Object.defineProperty(this, "liveness", {
         get: function() { return liveness; },
         set: function(value) {
-            if (typeof(liveness) !== "object") {
+            if (typeof(value) !== "object") {
                 throw new TypeError("Liveness has to be an object");
             }
 
@@ -195,7 +202,7 @@ function YtCoordinatedHost(config, host)
 
 util.inherits(YtCoordinatedHost, events.EventEmitter);
 
-function YtCoordinator(config, logger, driver, fqdn)
+function YtCoordinator(config, logger, driver, fqdn, port)
 {
     this.__DBG = __DBG.Tagged();
 
@@ -203,13 +210,16 @@ function YtCoordinator(config, logger, driver, fqdn)
     this.logger = logger;
     this.driver = driver;
 
-    this.fqdn = fqdn;
-    this.host = new YtCoordinatedHost(this.config, this.fqdn);
+    this.name = fqdn + ":" + port;
+    this.host = new YtCoordinatedHost(this.config, this.name);
 
     this.hosts = {};
-    this.hosts[this.fqdn] = this.host;
+    this.hosts[this.name] = this.host;
 
     this.initialized = false;
+
+    this.initDeferred = Q.defer();
+    this.syncDeferred = Q.defer();
 
     if (this.config.enable) {
         this.sync_at = new Date(0);
@@ -218,19 +228,30 @@ function YtCoordinator(config, logger, driver, fqdn)
         this.network_traffic_reservoir = new YtReservoir(this.config.afd_window_size);
 
         this.timer = setInterval(this._refresh.bind(this), this.config.heartbeat_interval);
-        if (this.timer.unref) { this.timer.unref(); }
+        if (this.timer && this.timer.unref) { this.timer.unref(); }
 
         this._refresh(); // Fire |_refresh| ASAP to avoid empty host list.
+    } else {
+        this.initDeferred.reject(new YtError("Coordination is disabled"));
+        this.syncDeferred.reject(new YtError("Coordination is disabled"));
     }
 
     this.__DBG("New");
 }
 
+YtCoordinator.prototype.stop = function()
+{
+    if (this.timer) {
+        clearInterval(this.timer);
+        this.timer = null;
+    }
+};
+
 YtCoordinator.prototype._initialize = function()
 {
     var self = this;
-    var fqdn = self.fqdn;
-    var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
+    var name = self.name;
+    var path = "//sys/proxies/" + utils.escapeYPath(name);
 
     return self.driver.executeSimple("create", {
         type: "map_node",
@@ -254,6 +275,8 @@ YtCoordinator.prototype._initialize = function()
     })
     .then(function() {
         self.initialized = true;
+        self.initDeferred.resolve();
+
         return self._refresh();
     })
     .catch(function(err) {
@@ -262,6 +285,8 @@ YtCoordinator.prototype._initialize = function()
             "An error occured while initializing coordination",
             // TODO(sandello): Embed.
             { error: error.toJson() });
+
+        self.initDeferred.reject(err);
     })
     .done();
 };
@@ -269,14 +294,14 @@ YtCoordinator.prototype._initialize = function()
 YtCoordinator.prototype._refresh = function()
 {
     var self = this;
-    var fqdn = self.fqdn;
-    var path = "//sys/proxies/" + utils.escapeYPath(fqdn);
+    var name = self.name;
+    var path = "//sys/proxies/" + utils.escapeYPath(name);
 
     var sync = Q.resolve();
 
     if (self.config.announce) {
         if (!self.initialized) {
-            return self._initialize();
+            return void self._initialize();
         }
 
         self.__DBG("Updating coordination information");
@@ -320,6 +345,9 @@ YtCoordinator.prototype._refresh = function()
         });
     }
 
+    var deferred = self.syncDeferred;
+    self.syncDeferred = Q.defer();
+
     return sync
     .then(function() {
         // We are resetting timed as we have successfully reported to masters.
@@ -332,29 +360,29 @@ YtCoordinator.prototype._refresh = function()
     })
     .then(function(entries) {
         entries.forEach(function(entry) {
-            var host = utils.getYsonValue(entry);
+            var otherName = utils.getYsonValue(entry);
 
-            var ref = self.hosts[host];
+            var ref = self.hosts[otherName];
             if (typeof(ref) === "undefined") {
-                self.logger.info("Discovered a new proxy", { host: host });
-                ref = new YtCoordinatedHost(self.config, host);
-                self.hosts[host] = ref;
+                self.logger.info("Discovered a new proxy", { name: otherName });
+                ref = new YtCoordinatedHost(self.config, otherName);
+                self.hosts[otherName] = ref;
 
                 ref.on("dead", function() {
-                    self.logger.info("Marking proxy as dead", { host: host });
+                    self.logger.info("Marking proxy as dead", { name: otherName });
                 });
                 ref.on("alive", function() {
-                    self.logger.info("Marking proxy as alive", { host: host });
+                    self.logger.info("Marking proxy as alive", { name: otherName });
                 });
                 ref.on("banned", function() {
-                    self.logger.info("Proxy was banned", { host: host });
+                    self.logger.info("Proxy was banned", { name: otherName });
                 });
                 ref.on("unbanned", function() {
-                    self.logger.info("Proxy was unbanned", { host: host });
+                    self.logger.info("Proxy was unbanned", { name: otherName });
                 });
             }
 
-            self.__DBG("Proxy '%s' has been updated to %j", host, entry);
+            self.__DBG("Proxy '%s' has been updated to %j", otherName, entry);
 
             try {
                 ref.role = utils.getYsonAttribute(entry, "role");
@@ -364,20 +392,26 @@ YtCoordinator.prototype._refresh = function()
             } catch (err) {
                 var error = YtError.ensureWrapped(err);
                 self.logger.error(
-                    "Failed to update coordination information for " + host,
+                    "Failed to update coordination information for '" + otherName + "'",
                     { error: error.toJson() });
             }
         });
     })
+    .then(function() {
+        deferred.resolve();
+    })
     .catch(function(err) {
-        // Re-run initialization next time, just in case.
-        self.initialized = false;
-
         var error = YtError.ensureWrapped(err);
         self.logger.error(
             "An error occured while updating coordination",
             // TODO(sandello): Embed.
             { error: error.toJson() });
+
+        deferred.reject(error);
+
+        // Re-run initialization next time, just in case.
+        self.initialized = false;
+        self.initDeferred = Q.defer();
     })
     .done();
 };
