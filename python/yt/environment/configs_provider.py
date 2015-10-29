@@ -83,6 +83,22 @@ class ConfigsProvider(object):
                             "'{0}'".format(address) for address in self._master_addresses["primary"]
                         ])))
 
+def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging):
+    if proxy_port is not None and isinstance(proxy_port, int):
+        ports = [proxy_port, get_open_port()]
+    else:
+        ports = [get_open_port(), get_open_port()]
+
+    proxy_config = default_configs.get_proxy_config()
+    proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
+                                                    enable_debug_logging)
+    proxy_config["port"] = ports[0]
+    proxy_config["log_port"] = ports[1]
+    proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
+    proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
+
+    return proxy_config
+
 class ConfigsProvider_17(ConfigsProvider):
     def __init__(self, enable_debug_logging=True):
         super(ConfigsProvider_17, self).__init__(enable_debug_logging)
@@ -225,11 +241,6 @@ class ConfigsProvider_17(ConfigsProvider):
         return configs
 
     def get_proxy_config(self, proxy_dir, proxy_port=None):
-        if proxy_port is not None and isinstance(proxy_port, int):
-            ports = [proxy_port, get_open_port()]
-        else:
-            ports = [get_open_port(), get_open_port()]
-
         driver_config = default_configs.get_driver_config()
         driver_config["master"] = {
             "addresses": self._master_addresses["primary"],
@@ -238,12 +249,8 @@ class ConfigsProvider_17(ConfigsProvider):
         }
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = default_configs.get_proxy_config()
-        proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
-                                                        self.enable_debug_logging)
+        proxy_config = _generate_common_proxy_config(proxy_dir, proxy_port, self.enable_debug_logging)
         proxy_config["proxy"]["driver"] = driver_config
-        proxy_config["port"] = ports[0]
-        proxy_config["log_port"] = ports[1]
 
         return proxy_config
 
@@ -425,11 +432,6 @@ class ConfigsProvider_18(ConfigsProvider):
         return configs
 
     def get_proxy_config(self, proxy_dir, proxy_port=None):
-        if proxy_port is not None and isinstance(proxy_port, int):
-            ports = [proxy_port, get_open_port()]
-        else:
-            ports = [get_open_port(), get_open_port()]
-
         driver_config = default_configs.get_driver_config()
         driver_config["primary_master"] = {}
         driver_config["primary_master"]["addresses"] = self._master_addresses["primary"]
@@ -439,14 +441,8 @@ class ConfigsProvider_18(ConfigsProvider):
                 for addresses, cell_id in secondary_masters_info]
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = default_configs.get_proxy_config()
-        proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
-                                                        self.enable_debug_logging)
+        proxy_config = _generate_common_proxy_config(proxy_dir, proxy_port, self.enable_debug_logging)
         proxy_config["proxy"]["driver"] = driver_config
-        proxy_config["port"] = ports[0]
-        proxy_config["log_port"] = ports[1]
-        proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
-        proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
         return proxy_config
 
