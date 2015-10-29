@@ -7,6 +7,7 @@
 #include <util/generic/buffer.h>
 #include <util/system/event.h>
 #include <util/system/thread.h>
+#include <util/system/spinlock.h>
 #include <util/thread/lfqueue.h>
 
 namespace NYT {
