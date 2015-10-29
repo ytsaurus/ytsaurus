@@ -88,6 +88,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("sorted_by")
             .SetPresent(table->GetSorted()));
         descriptors->push_back("dynamic");
+        descriptors->push_back(TAttributeDescriptor("tablet_count")
+            .SetPresent(isDynamic));
         descriptors->push_back(TAttributeDescriptor("tablets")
             .SetPresent(isDynamic)
             .SetOpaque(true));
@@ -138,6 +140,12 @@ private:
         if (key == "dynamic") {
             BuildYsonFluently(consumer)
                 .Value(table->IsDynamic());
+            return true;
+        }
+
+        if (key == "tablet_count" && table->IsDynamic()) {
+            BuildYsonFluently(consumer)
+                .Value(table->Tablets().size());
             return true;
         }
 
