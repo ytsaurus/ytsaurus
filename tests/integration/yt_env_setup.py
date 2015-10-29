@@ -172,17 +172,23 @@ class YTEnvSetup(YTEnv):
     def wait_until_sealed(self, path):
         _wait(lambda: yt_commands.get(path + "/@sealed"))
 
-    def sync_mount_table(self, path):
-        yt_commands.mount_table(path)
+    def _wait_for_tablets(self, path, state, **kwargs):
+        tablet_count = yt_commands.get(path + '/@tablet_count')
+        first_tablet_index = kwargs.get("first_tablet_index", 0)
+        last_tablet_index = kwargs.get("last_tablet_index", tablet_count - 1)
+        _wait(lambda: all(x["state"] == state for x in yt_commands.get(path + "/@tablets")[first_tablet_index:last_tablet_index + 1]))
+
+    def sync_mount_table(self, path, **kwargs):
+        yt_commands.mount_table(path, **kwargs)
 
         print "Waiting for tablets to become mounted..."
-        _wait(lambda: all(x["state"] == "mounted" for x in yt_commands.get(path + "/@tablets")))
+        self._wait_for_tablets(path, "mounted", **kwargs)
 
-    def sync_unmount_table(self, path):
-        yt_commands.unmount_table(path)
+    def sync_unmount_table(self, path, **kwargs):
+        yt_commands.unmount_table(path, **kwargs)
 
         print "Waiting for tablets to become unmounted..."
-        _wait(lambda: all(x["state"] == "unmounted" for x in yt_commands.get(path + "/@tablets")))
+        self._wait_for_tablets(path, "unmounted", **kwargs)
 
     def sync_compact_table(self, path):
         self.sync_unmount_table(path)
@@ -191,9 +197,6 @@ class YTEnvSetup(YTEnv):
 
         print "Waiting for tablets to become compacted..."
         _wait(lambda: all(x["statistics"]["chunk_count"] == 1 for x in yt_commands.get(path + "/@tablets")))
-
-    def sync_predicate(self, predicate):
-        _wait(predicate)
 
     def _abort_transactions(self, txs):
         for tx in txs:
