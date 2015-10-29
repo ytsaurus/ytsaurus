@@ -29,19 +29,16 @@ IChannelPtr CreatePeerChannel(
     auto realmChannelFactory = CreateRealmChannelFactory(
         channelFactory,
         config->CellId);
-    auto textDescription = Format("%v@[%v]",
-        kind,
-        JoinToString(config->Addresses));
-    auto ysonDescription = BuildYsonStringFluently()
-        .BeginAttributes()
+    auto endpointDescription = Format("%v", kind);
+    auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+        .BeginMap()
             .Item("kind").Value(kind)
-        .EndAttributes()
-        .Value(config->Addresses);
+        .EndMap());
     auto balancingChannel = CreateBalancingChannel(
         config,
         realmChannelFactory,
-        textDescription,
-        ysonDescription,
+        endpointDescription,
+        *endpointAttributes,
         BIND([=] (TReqDiscover* request) {
             auto* ext = request->MutableExtension(TPeerKindExt::peer_kind_ext);
             ext->set_peer_kind(static_cast<int>(kind));

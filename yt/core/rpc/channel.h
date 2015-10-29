@@ -47,11 +47,11 @@ struct IChannel
 
     //! Returns a textual representation of the channel's endpoint.
     //! Typically used for logging.
-    virtual Stroka GetEndpointTextDescription() const = 0;
+    virtual const Stroka& GetEndpointDescription() const = 0;
 
-    //! Returns a YSON representation of the channel's endpoint.
-    //! Typically used for constructing error attributes.
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
+    //! Returns channel's endpoint attributes.
+    //! Typically used for constructing errors.
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
     //! Sends a request via the channel.
     /*!

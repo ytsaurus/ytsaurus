@@ -31,14 +31,14 @@ public:
         DefaultTimeout_ = timeout;
     }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    virtual const Stroka& GetEndpointDescription() const override
     {
-        return Provider_->GetEndpointTextDescription();
+        return Provider_->GetEndpointDescription();
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return Provider_->GetEndpointYsonDescription();
+        return Provider_->GetEndpointAttributes();
     }
 
     virtual IClientRequestControlPtr Send(

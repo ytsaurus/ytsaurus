@@ -49,8 +49,10 @@ public:
         ETcpInterfaceType interfaceType,
         const TConnectionId& id,
         int socket,
-        const Stroka& address,
-        bool isUnixDomain,
+        const Stroka& endpointDescription,
+        const NYTree::IAttributeDictionary& endpointAttributes,
+        const TNullable<Stroka>& address,
+        const TNullable<Stroka>& unixDomainName,
         int priority,
         IMessageHandlerPtr handler);
 
@@ -64,8 +66,8 @@ public:
     virtual Stroka GetLoggingId() const override;
 
     // IBus implementation.
-    virtual Stroka GetEndpointTextDescription() const override;
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const override;
+    virtual const Stroka& GetEndpointDescription() const override;
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
     virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override;
     virtual void Terminate(const TError& error) override;
 
@@ -134,8 +136,10 @@ private:
     const ETcpInterfaceType InterfaceType_;
     const TConnectionId Id_;
     int Socket_;
-    const Stroka Address_;
-    const bool IsUnixDomain_;
+    const Stroka EndpointDescription_;
+    const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
+    const TNullable<Stroka> Address_;
+    const TNullable<Stroka> UnixDomainName_;
 #ifdef _linux_
     const int Priority_;
 #endif

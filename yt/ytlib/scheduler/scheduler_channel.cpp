@@ -6,6 +6,7 @@
 
 #include <core/ytree/convert.h>
 #include <core/ytree/ypath_proxy.h>
+#include <core/ytree/fluent.h>
 
 #include <core/bus/config.h>
 #include <core/bus/tcp_client.h>
@@ -31,16 +32,23 @@ public:
     TSchedulerChannelProvider(IChannelFactoryPtr channelFactory, IChannelPtr masterChannel)
         : ChannelFactory_(std::move(channelFactory))
         , MasterChannel_(std::move(masterChannel))
+        , EndpointDescription_(Format("Scheduler@%v",
+            MasterChannel_->GetEndpointDescription()))
+        , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("scheduler").Value(true)
+                .Items(MasterChannel_->GetEndpointAttributes())
+            .EndMap()))
     { }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    virtual const Stroka& GetEndpointDescription() const override
     {
-        return Format("Scheduler@%v", MasterChannel_->GetEndpointTextDescription());
+        return EndpointDescription_;
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return ConvertToYsonString(GetEndpointTextDescription());
+        return *EndpointAttributes_;
     }
 
     virtual TFuture<IChannelPtr> GetChannel(const Stroka& /*serviceName*/) override
@@ -89,6 +97,9 @@ public:
 private:
     const IChannelFactoryPtr ChannelFactory_;
     const IChannelPtr MasterChannel_;
+
+    const Stroka EndpointDescription_;
+    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
     TSpinLock SpinLock_;
     IChannelPtr CachedChannel_;

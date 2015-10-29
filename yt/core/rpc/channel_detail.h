@@ -16,8 +16,8 @@ public:
     virtual TNullable<TDuration> GetDefaultTimeout() const override;
     virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) override;
 
-    virtual Stroka GetEndpointTextDescription() const override;
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const override;
+    virtual const Stroka& GetEndpointDescription() const override;
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override;
 
     virtual IClientRequestControlPtr Send(
         IClientRequestPtr request,

@@ -7,6 +7,7 @@
 #include "message.h"
 
 #include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
 
 #include <core/concurrency/delayed_executor.h>
 
@@ -20,6 +21,15 @@ namespace NRpc {
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const Stroka EndpointDescription = "<local>";
+static const std::unique_ptr<IAttributeDictionary> EndpointAttributes =
+    ConvertToAttributes(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("local").Value(true)
+        .EndMap());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,14 +51,14 @@ public:
         DefaultTimeout_ = timeout;
     }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    virtual const Stroka& GetEndpointDescription() const override
     {
-        return "<local>";
+        return EndpointDescription;
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return ConvertToYsonString(GetEndpointTextDescription());
+        return *EndpointAttributes;
     }
 
     virtual IClientRequestControlPtr Send(
@@ -117,14 +127,14 @@ private:
             }
         }
 
-        virtual Stroka GetEndpointTextDescription() const
+        virtual const Stroka& GetEndpointDescription() const
         {
-            return "<local>";
+            return EndpointDescription;
         }
 
-        virtual TYsonString GetEndpointYsonDescription() const
+        virtual const IAttributeDictionary& GetEndpointAttributes() const
         {
-            return ConvertToYsonString(GetEndpointTextDescription());
+            return *EndpointAttributes;
         }
 
         virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel /*level*/) override
@@ -176,7 +186,7 @@ private:
         void ReportError(const TError& error)
         {
             auto detailedError = error
-                << TErrorAttribute("endpoint", GetEndpointYsonDescription());
+                << GetEndpointAttributes();
             Handler_->HandleError(detailedError);
         }
 
