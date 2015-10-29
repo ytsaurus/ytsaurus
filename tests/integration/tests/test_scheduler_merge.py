@@ -247,7 +247,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_sorted_with_row_limits(self):
         create("table", "//tmp/t1")
 
-        write("//tmp/t1", [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by="a")
+        write_table("//tmp/t1", [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by="a")
 
         create("table", "//tmp/t_out")
         merge(combine_chunks=False,
@@ -255,7 +255,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
               in_="//tmp/t1[:#2]",
               out="//tmp/t_out")
 
-        assert read("//tmp/t_out") == [{"a": 2}, {"a": 3}]
+        assert read_table("//tmp/t_out") == [{"a": 2}, {"a": 3}]
         assert get("//tmp/t_out/@chunk_count") == 1
 
     def test_sorted_by(self):
