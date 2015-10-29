@@ -11,6 +11,7 @@
 #include <core/rpc/balancing_channel.h>
 
 #include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTransactionClient {
@@ -34,9 +35,17 @@ public:
         IChannelFactoryPtr channelFactory)
         : Config_(config)
     {
-        auto textDescription = Format("[%v]", JoinToString(Config_->Addresses));
-        auto ysonDescription = ConvertToYsonString(Config_->Addresses);
-        auto channel = CreateBalancingChannel(config, channelFactory, textDescription, ysonDescription);
+        auto endpointDescription = Stroka("TimestampProvider@");
+        auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("timestamp_provider").Value(true)
+            .EndMap());
+        auto channel = CreateBalancingChannel(
+            config,
+            channelFactory,
+            endpointDescription,
+            *endpointAttributes);
+
         Proxy_ = std::make_unique<TTimestampServiceProxy>(channel);
         Proxy_->SetDefaultTimeout(Config_->RpcTimeout);
     }

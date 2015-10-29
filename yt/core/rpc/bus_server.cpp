@@ -109,7 +109,7 @@ private:
             header->has_user() ? header->user() : RootUserName,
             isOneWay,
             timeout,
-            replyBus->GetEndpointTextDescription(),
+            replyBus->GetEndpointDescription(),
             requestStartTime,
             retryStartTime,
             isRetry);

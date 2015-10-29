@@ -12,6 +12,7 @@
 #include <core/misc/variant.h>
 
 #include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
 
 #include <core/logging/log.h>
 
@@ -35,14 +36,18 @@ public:
     explicit TBalancingChannelSubprovider(
         TBalancingChannelConfigPtr config,
         IChannelFactoryPtr channelFactory,
-        const Stroka& textDescription,
-        const TYsonString& ysonDescription,
+        const Stroka& endpointDescription,
+        const IAttributeDictionary& endpointAttributes,
         const Stroka& serviceName,
         TDiscoverRequestHook discoverRequestHook)
         : Config_(config)
         , ChannelFactory_(channelFactory)
-        , TextDescription_(textDescription)
-        , YsonDescription_(ysonDescription)
+        , EndpointDescription_(endpointDescription)
+        , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Items(endpointAttributes)
+                .Item("service").Value(serviceName)
+            .EndMap()))
         , ServiceName_(serviceName)
         , DiscoverRequestHook_(discoverRequestHook)
     {
@@ -50,7 +55,7 @@ public:
 
         Logger = RpcClientLogger;
         Logger.AddTag("Endpoint: %v, Service: %v",
-            TextDescription_,
+            EndpointDescription_,
             ServiceName_);
     }
 
@@ -81,8 +86,8 @@ public:
 private:
     const TBalancingChannelConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
-    const Stroka TextDescription_;
-    const TYsonString YsonDescription_;
+    const Stroka EndpointDescription_;
+    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
     const Stroka ServiceName_;
     const TDiscoverRequestHook DiscoverRequestHook_;
 
@@ -196,14 +201,12 @@ private:
                 } else {
                     LOG_DEBUG("Peer is down (Address: %v)", address);
                     auto error = TError("Peer %v is down", address)
-                         << TErrorAttribute("endpoint", Owner_->YsonDescription_)
-                         << TErrorAttribute("service", Owner_->ServiceName_);
+                         << *Owner_->EndpointAttributes_;
                     BanPeer(address, error, Owner_->Config_->SoftBackoffTime);
                 }
             } else {
                 auto error = TError("Discovery request failed for peer %v", address)
-                    << TErrorAttribute("endpoint", Owner_->YsonDescription_)
-                    << TErrorAttribute("service", Owner_->ServiceName_)
+                    << *Owner_->EndpointAttributes_
                     << rspOrError;
                 LOG_WARNING(error);
                 BanPeer(address, error, Owner_->Config_->HardBackoffTime);
@@ -247,8 +250,7 @@ private:
             {
                 TGuard<TSpinLock> guard(SpinLock_);
                 result = TError(NRpc::EErrorCode::Unavailable, "No alive peers left")
-                    << TErrorAttribute("endpoint", Owner_->YsonDescription_)
-                    << TErrorAttribute("service", Owner_->ServiceName_)
+                    << *Owner_->EndpointAttributes_
                     << InnerErrors_;
             }
 
@@ -272,8 +274,7 @@ private:
             TReaderGuard guard(SpinLock_);
             if (Terminated_) {
                 return MakeFuture<IChannelPtr>(TError(NRpc::EErrorCode::TransportError, "Channel terminated")
-                    << TErrorAttribute("endpoint", YsonDescription_)
-                    << TErrorAttribute("service", ServiceName_)
+                    << *EndpointAttributes_
                     << TerminationError_);
             }
         }
@@ -403,24 +404,30 @@ public:
     TBalancingChannelProvider(
         TBalancingChannelConfigPtr config,
         IChannelFactoryPtr channelFactory,
-        const Stroka& textDescription,
-        const TYsonString& ysonDescription,
+        const Stroka& endpointDescription,
+        const IAttributeDictionary& endpointAttributes,
         TDiscoverRequestHook discoverRequestHook)
         : Config_(config)
         , ChannelFactory_(channelFactory)
-        , TextDescription_(textDescription)
-        , YsonDescription_(ysonDescription)
         , DiscoverRequestHook_(discoverRequestHook)
+        , EndpointDescription_(Format("%v[%v]",
+            endpointDescription,
+            JoinToString(Config_->Addresses)))
+        , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("addresses").Value(Config_->Addresses)
+                .Items(endpointAttributes)
+            .EndMap()))
     { }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    virtual const Stroka& GetEndpointDescription() const override
     {
-        return TextDescription_;
+        return EndpointDescription_;
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return YsonDescription_;
+        return *EndpointAttributes_;
     }
 
     virtual TFuture<IChannelPtr> GetChannel(const Stroka& serviceName) override
@@ -449,9 +456,10 @@ public:
 private:
     const TBalancingChannelConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
-    const Stroka TextDescription_;
-    const TYsonString YsonDescription_;
     const TDiscoverRequestHook DiscoverRequestHook_;
+
+    const Stroka EndpointDescription_;
+    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
     mutable TReaderWriterSpinLock SpinLock_;
     yhash_map<Stroka, TBalancingChannelSubproviderPtr> SubproviderMap_;
@@ -477,8 +485,8 @@ private:
             auto subprovider = New<TBalancingChannelSubprovider>(
                 Config_,
                 ChannelFactory_,
-                TextDescription_,
-                YsonDescription_,
+                EndpointDescription_,
+                *EndpointAttributes_,
                 serviceName,
                 DiscoverRequestHook_);
             YCHECK(SubproviderMap_.insert(std::make_pair(serviceName, subprovider)).second);
@@ -493,8 +501,8 @@ DEFINE_REFCOUNTED_TYPE(TBalancingChannelProvider)
 IChannelPtr CreateBalancingChannel(
     TBalancingChannelConfigPtr config,
     IChannelFactoryPtr channelFactory,
-    const Stroka& textDescription,
-    const TYsonString& ysonDescription,
+    const Stroka& endpointDescription,
+    const IAttributeDictionary& endpointAttributes,
     TDiscoverRequestHook discoverRequestHook)
 {
     YCHECK(config);
@@ -503,8 +511,8 @@ IChannelPtr CreateBalancingChannel(
     auto channelProvider = New<TBalancingChannelProvider>(
         config,
         channelFactory,
-        textDescription,
-        ysonDescription,
+        endpointDescription,
+        endpointAttributes,
         discoverRequestHook);
     return CreateRoamingChannel(channelProvider);
 }

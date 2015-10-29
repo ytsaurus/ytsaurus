@@ -14,6 +14,7 @@
 #include <core/rpc/public.h>
 
 #include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
 
 #include <errno.h>
 
@@ -53,16 +54,16 @@ public:
         Connection_->Terminate(TError(NRpc::EErrorCode::TransportError, "Bus terminated"));
     }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    virtual const Stroka& GetEndpointDescription() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection_->GetEndpointTextDescription();
+        return Connection_->GetEndpointDescription();
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        return Connection_->GetEndpointYsonDescription();
+        return Connection_->GetEndpointAttributes();
     }
 
     virtual TFuture<void> Send(TSharedRefArray message, EDeliveryTrackingLevel level) override
@@ -94,14 +95,6 @@ private:
 
 };
 
-static ETcpInterfaceType GetInterfaceType(const Stroka& address)
-{
-    return
-        IsLocalServiceAddress(address)
-        ? ETcpInterfaceType::Local
-        : ETcpInterfaceType::Remote;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpBusClient
@@ -110,18 +103,27 @@ class TTcpBusClient
 public:
     explicit TTcpBusClient(TTcpBusClientConfigPtr config)
         : Config_(config)
+        , InterfaceType_(Config_->UnixDomainName || IsLocalServiceAddress(*Config_->Address)
+            ? ETcpInterfaceType::Local
+            : ETcpInterfaceType::Remote)
+        , EndpointDescription_(Config_->Address
+            ? *Config_->Address
+            : Format("unix://%v", *Config_->UnixDomainName))
+        , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("address").Value(EndpointDescription_)
+                .Item("interface_type").Value(InterfaceType_)
+            .EndMap()))
     { }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    virtual const Stroka& GetEndpointDescription() const override
     {
-        return Config_->Address
-            ? *Config_->Address
-            : "unix://" + *Config_->UnixDomainName;
+        return EndpointDescription_;
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return ConvertToYsonString(GetEndpointTextDescription());
+        return *EndpointAttributes_;
     }
 
     virtual IBusPtr CreateBus(IMessageHandlerPtr handler) override
@@ -131,24 +133,28 @@ public:
         auto id = TConnectionId::Create();
         auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
 
-        auto interfaceType = Config_->UnixDomainName
-             ? ETcpInterfaceType::Remote
-             : GetInterfaceType(Config_->Address.Get());
-
-        LOG_DEBUG("Connecting to %v (ConnectionId: %v, InterfaceType: %v)",
-            Config_->Address,
+        LOG_DEBUG("Connecting to server (Address: %v, ConnectionId: %v, InterfaceType: %v)",
+            EndpointDescription_,
             id,
-            interfaceType);
+            InterfaceType_);
+
+        auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Items(*EndpointAttributes_)
+                .Item("connection_id").Value(id)
+            .EndMap());
 
         auto connection = New<TTcpConnection>(
             Config_,
             dispatcherThread,
             EConnectionType::Client,
-            interfaceType,
+            InterfaceType_,
             id,
             INVALID_SOCKET,
-            Config_->UnixDomainName.HasValue() ? Config_->UnixDomainName.Get() : Config_->Address.Get(),
-            Config_->UnixDomainName.HasValue(),
+            EndpointDescription_,
+            *endpointAttributes,
+            Config_->Address,
+            Config_->UnixDomainName,
             Config_->Priority,
             handler);
 
@@ -158,7 +164,12 @@ public:
     }
 
 private:
-    TTcpBusClientConfigPtr Config_;
+    const TTcpBusClientConfigPtr Config_;
+
+    const ETcpInterfaceType InterfaceType_;
+
+    const Stroka EndpointDescription_;
+    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
 };
 

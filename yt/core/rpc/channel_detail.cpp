@@ -26,14 +26,14 @@ void TChannelWrapper::SetDefaultTimeout(const TNullable<TDuration>& timeout)
     DefaultTimeout_ = timeout;
 }
 
-Stroka TChannelWrapper::GetEndpointTextDescription() const
+const Stroka& TChannelWrapper::GetEndpointDescription() const
 {
-    return UnderlyingChannel_->GetEndpointTextDescription();
+    return UnderlyingChannel_->GetEndpointDescription();
 }
 
-NYTree::TYsonString TChannelWrapper::GetEndpointYsonDescription() const
+const NYTree::IAttributeDictionary& TChannelWrapper::GetEndpointAttributes() const
 {
-    return UnderlyingChannel_->GetEndpointYsonDescription();
+    return UnderlyingChannel_->GetEndpointAttributes();
 }
 
 IClientRequestControlPtr TChannelWrapper::Send(

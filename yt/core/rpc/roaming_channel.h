@@ -14,11 +14,11 @@ namespace NRpc {
 struct IRoamingChannelProvider
     : public virtual TRefCounted
 {
-    //! Cf. IChannel::GetEndpointTextDescription.
-    virtual Stroka GetEndpointTextDescription() const = 0;
+    //! Cf. IChannel::GetEndpointDescription.
+    virtual const Stroka& GetEndpointDescription() const = 0;
 
-    //! Cf. IChannel::GetEndpointYsonDescription.
-    virtual NYTree::TYsonString GetEndpointYsonDescription() const = 0;
+    //! Cf. IChannel::GetEndpointAttributes.
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
     //! Returns the actual channel to be used for sending to service with
     //! a given #serviceName.
