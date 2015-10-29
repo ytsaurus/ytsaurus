@@ -90,7 +90,7 @@ class TestClient(object):
             assert client.is_sorted(temp_table)
 
             client.run_erase(TablePath(temp_table, start_index=0, end_index=5, client=client))
-            assert client.records_count(temp_table) == 5
+            assert client.row_count(temp_table) == 5
 
             client.run_map("cat", other_table, TEST_DIR + "/map_output")
             assert "a=b\n" == client.read_table(other_table, raw=True).read()
@@ -101,12 +101,12 @@ class TestClient(object):
             assert client.read_table(TEST_DIR + "/merged_table").read() == "x=1\nx=2\n"
 
             client.run_reduce("head -n 3", temp_table, TEST_DIR + "/reduce_output", reduce_by=["x"])
-            assert client.records_count(TEST_DIR + "/reduce_output") == 3
+            assert client.row_count(TEST_DIR + "/reduce_output") == 3
 
             mr_operation = client.run_map_reduce("cat", "head -n 3", temp_table, TEST_DIR + "/mapreduce_output",
                                                  reduce_by=["x"])
             assert client.get_operation_state(mr_operation.id) == "completed"
-            assert client.records_count(TEST_DIR + "/mapreduce_output") == 3
+            assert client.row_count(TEST_DIR + "/mapreduce_output") == 3
 
             with client.Transaction():
                 client.set("//@attr", 10)

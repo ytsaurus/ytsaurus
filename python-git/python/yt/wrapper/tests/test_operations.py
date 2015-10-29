@@ -394,7 +394,7 @@ class TestOperations(object):
                    files=get_test_file_path("many_output.py"))
 
         for table in output_tables:
-            assert yt.records_count(table) == 1
+            assert yt.row_count(table) == 1
         check(["x=1\ty=1\n", "x=10\ty=10\n"], yt.read_table(append_table))
 
     def test_attached_mode(self):
