@@ -104,17 +104,17 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             yt.create_table(table)
         with pytest.raises(yt.YtError):
-            yt.records_count(table)
+            yt.row_count(table)
 
         yt.create_table(table, recursive=True, replication_factor=3)
-        assert yt.records_count(table) == 0
+        assert yt.row_count(table) == 0
         check([], yt.read_table(table, format=yt.DsvFormat()))
 
         yt.create_table(TEST_DIR + "/compressed", compression_codec="gzip_best_compression")
-        assert yt.records_count(TEST_DIR + "/compressed") == 0
+        assert yt.row_count(TEST_DIR + "/compressed") == 0
 
         yt.run_erase(table)
-        assert yt.records_count(table) == 0
+        assert yt.row_count(table) == 0
 
         yt.remove(dir, recursive=True)
         with pytest.raises(yt.YtError):
@@ -265,8 +265,8 @@ class TestTableCommands(object):
         yt.write_table(src_table_a, "1=a\t2=a\t3=a\n" * len_a, format=dsv)
         yt.write_table(src_table_b, "1=b\t2=b\t3=b\n" * len_b, format=dsv)
 
-        assert yt.records_count(src_table_a) == len_a
-        assert yt.records_count(src_table_b) == len_b
+        assert yt.row_count(src_table_a) == len_a
+        assert yt.row_count(src_table_b) == len_b
 
         def mix_table_indexes(row):
             row["_table_index_"] = row["TableIndex"]
@@ -279,9 +279,9 @@ class TestTableCommands(object):
                                   destination_table=[dst_table_a, dst_table_b, dst_table_ab],
                                   input_format=dsv,
                                   output_format=schemaful_dsv)
-        assert yt.records_count(dst_table_b) == len_b
-        assert yt.records_count(dst_table_a) == len_a
-        assert yt.records_count(dst_table_ab) == len_a + len_b
+        assert yt.row_count(dst_table_b) == len_b
+        assert yt.row_count(dst_table_a) == len_a
+        assert yt.row_count(dst_table_ab) == len_a + len_b
         for table in (dst_table_a, dst_table_b, dst_table_ab):
             row = yt.read_table(table, raw=False).next()
             for field in ("@table_index", "TableIndex", "_table_index_"):
@@ -290,11 +290,11 @@ class TestTableCommands(object):
     def test_erase(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, get_temp_dsv_records())
-        assert yt.records_count(table) == 10
+        assert yt.row_count(table) == 10
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
-        assert yt.records_count(table) == 5
+        assert yt.row_count(table) == 5
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
-        assert yt.records_count(table) == 0
+        assert yt.row_count(table) == 0
 
     def test_read_with_table_path(self):
         table = TEST_DIR + "/table"
@@ -350,12 +350,12 @@ class TestTableCommands(object):
                                       for i in xrange(10 ** power)))
         yt.write_table(table, yt.StringIterIO(records))
 
-        assert yt.records_count(table) == 10 ** power
+        assert yt.row_count(table) == 10 ** power
 
-        records_count = 0
+        row_count = 0
         for _ in yt.read_table(table):
-            records_count += 1
-        assert records_count == 10 ** power
+            row_count += 1
+        assert row_count == 10 ** power
 
     def test_remove_locks(self):
         from yt.wrapper.table_commands import _remove_locks

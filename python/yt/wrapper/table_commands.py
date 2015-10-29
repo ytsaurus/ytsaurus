@@ -688,7 +688,17 @@ def move_table(source_table, destination_table, replace=True, client=None):
 
 
 def records_count(table, client=None):
-    """Return number of records in the table.
+    """ Deprecated!
+
+    Return number of records in the table.
+
+    :param table: string or `TablePath`
+    :return: integer
+    """
+    return row_count(table, client)
+
+def row_count(table, client=None):
+    """Return number of rows in the table.
 
     :param table: string or `TablePath`
     :return: integer
@@ -704,7 +714,7 @@ def is_empty(table, client=None):
     :param table: (string or `TablePath`)
     :return: (bool)
     """
-    return records_count(to_name(table, client=client), client=client) == 0
+    return row_count(to_name(table, client=client), client=client) == 0
 
 def get_sorted_by(table, default=None, client=None):
     """Get 'sorted_by' table attribute or `default` if attribute doesn't exist.

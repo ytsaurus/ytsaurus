@@ -16,7 +16,7 @@ from cypress_commands import set, get, list, exists, remove, search, mkdir, copy
                           has_attribute, get_attribute, set_attribute, list_attributes
 from acl_commands import check_permission, add_member, remove_member
 from table_commands import create_table, create_temp_table, write_table, read_table, \
-                           records_count, is_sorted, is_empty, \
+                           records_count, row_count, is_sorted, is_empty, \
                            run_erase, run_sort, run_merge, \
                            run_map, run_reduce, run_join_reduce, run_map_reduce, run_remote_copy,\
                            mount_table, unmount_table, remount_table, reshard_table, \

@@ -147,7 +147,7 @@ class TestYamrMode(object):
 
     def test_treat_unexisting_as_empty(self):
         table = TEST_DIR + "/table"
-        assert yt.records_count(table) == 0
+        assert yt.row_count(table) == 0
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
 
     def test_map_reduce_operation(self):
@@ -180,7 +180,7 @@ class TestYamrMode(object):
                    files=get_test_file_path("many_output.py"))
 
         for table in output_tables:
-            assert yt.records_count(table) == 1
+            assert yt.row_count(table) == 1
         assert sorted(yt.read_table(append_table)) == ["1\t1\t1\n", "10\t10\t10\n"]
 
     def test_reduce_unsorted(self):
@@ -200,7 +200,7 @@ class TestYamrMode(object):
         yt.run_map("PYTHONPATH=. ./my_op.py",
                    table, other_table,
                    files=map(get_test_file_path, ["my_op.py", "helpers.py"]))
-        assert yt.records_count(other_table) == 2 * yt.records_count(table)
+        assert yt.row_count(other_table) == 2 * yt.row_count(table)
 
         yt.run_sort(table)
         yt.run_reduce("./cpp_bin",

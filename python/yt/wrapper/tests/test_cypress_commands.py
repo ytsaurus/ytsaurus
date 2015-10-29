@@ -138,7 +138,7 @@ class TestCypressCommands(object):
     def test_attributes_commands(self):
         table = TEST_DIR + "/table_with_attributes"
         yt.write_table(table, ["x=1\ty=1\n", "x=2\ty=2\n"], format="dsv")
-        assert yt.records_count(table) == 2
+        assert yt.row_count(table) == 2
         assert not yt.is_sorted(table)
 
         yt.set_attribute(table, "my_attribute", {})
