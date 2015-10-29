@@ -69,19 +69,21 @@ exports.dispatchJson = function(rsp, object)
 };
 
 // Dispatches a 401.
-exports.dispatchUnauthorized = function(rsp, scope)
+exports.dispatchUnauthorized = function(rsp, scope, message)
 {
     rsp.statusCode = 401;
     rsp.setHeader("WWW-Authenticate", scope);
-    exports.dispatchAs(rsp);
+    // Mimic to YtError.
+    exports.dispatchJson(rsp, {code: 1, message: message, attributes: {}, inner_errors: []});
 };
 
 // Dispatches a 503.
-exports.dispatchLater = function(rsp, after)
+exports.dispatchLater = function(rsp, after, message)
 {
     rsp.statusCode = 503;
     rsp.setHeader("Retry-After", after);
-    exports.dispatchAs(rsp);
+    // Mimic to YtError.
+    exports.dispatchJson(rsp, {code: 1, message: message, attributes: {}, inner_errors: []});
 };
 
 // Checks whether MIME pattern |mime| matches actual MIME type |actual|.

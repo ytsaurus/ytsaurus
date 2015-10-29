@@ -937,7 +937,13 @@ private:
         LOG_INFO("Updating nodes information");
 
         auto req = TYPathProxy::Get("//sys/nodes");
-        TAttributeFilter attributeFilter(EAttributeFilterMode::MatchingOnly, {"scheduling_tags", "state"});
+        TAttributeFilter attributeFilter(
+            EAttributeFilterMode::MatchingOnly,
+            {
+                "scheduling_tags",
+                "state",
+                "io_weight"
+            });
         ToProto(req->mutable_attribute_filter(), attributeFilter);
         batchReq->AddRequest(req, "get_nodes");
     }
@@ -956,7 +962,9 @@ private:
             for (const auto& child : nodesMap->GetChildren()) {
                 auto address = child.first;
                 auto node = child.second;
-                auto newState = node->Attributes().Get<ENodeState>("state");
+                const auto& attributes = node->Attributes();
+                auto newState = attributes.Get<ENodeState>("state");
+                auto ioWeight = attributes.Get<double>("io_weight", 0.0);
 
                 if (AddressToNode_.find(address) == AddressToNode_.end()) {
                     if (newState == ENodeState::Online) {
@@ -984,6 +992,7 @@ private:
                 }
 
                 execNode->SetMasterState(newState);
+                execNode->SetIOWeight(ioWeight);
 
                 if (oldState != newState) {
                     LOG_INFO("Node %lv (Address: %v)", newState, address);

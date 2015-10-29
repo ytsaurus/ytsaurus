@@ -53,6 +53,9 @@ class TExecNode
     //! State of node at master.
     DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::ENodeState, MasterState);
 
+    //! Node IO weight, as reported by node to master.
+    DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
+
 public:
     bool HasEnoughResources(const NNodeTrackerClient::NProto::TNodeResources& neededResources) const;
     bool HasSpareResources() const;

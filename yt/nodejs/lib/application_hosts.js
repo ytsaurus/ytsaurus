@@ -21,10 +21,11 @@ function addHostNameSuffix(name, suffix)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtApplicationHosts(logger, coordinator)
+function YtApplicationHosts(logger, coordinator, show_ports)
 {
     this.logger = logger;
     this.coordinator = coordinator;
+    this.show_ports = show_ports;
 }
 
 YtApplicationHosts.prototype.dispatch = function(req, rsp, next)
@@ -58,10 +59,12 @@ YtApplicationHosts.prototype._dispatchBasic = function(req, rsp, suffix)
     .sort(function(lhs, rhs) { return lhs.fitness - rhs.fitness; })
     .map(function(entry) { return addHostNameSuffix(entry.name, suffix); });
 
+    if (!this.show_ports) {
+        hosts = hosts.map(function(entry) { return entry.split(":")[0]; });
+    }
+
     var mime, body;
-    mime = utils.bestAcceptedType(
-        [ "application/json", "text/plain" ],
-        req.headers["accept"]);
+    mime = utils.bestAcceptedType(["application/json", "text/plain"], req.headers["accept"]);
     mime = mime || "application/json";
 
     switch (mime) {
