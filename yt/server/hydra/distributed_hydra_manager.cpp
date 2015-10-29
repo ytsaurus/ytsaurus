@@ -1433,13 +1433,14 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-
-        YCHECK(!epochContext->ActiveLeaderSyncVersion);
-        epochContext->ActiveLeaderSyncVersion = TVersion::FromRevision(rsp->committed_revision());
+        auto committedVersion = TVersion::FromRevision(rsp->committed_revision());
 
         LOG_DEBUG("Received sync response from leader (CommittedVersion: %s)",
-            epochContext->ActiveLeaderSyncVersion);
+            committedVersion);
 
+        YCHECK(!epochContext->ActiveLeaderSyncVersion);
+        epochContext->ActiveLeaderSyncVersion = committedVersion;
+        DecoratedAutomaton_->CommitMutations(committedVersion, true);
         CheckForPendingLeaderSync(epochContext);
     }
 
