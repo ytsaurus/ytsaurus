@@ -46,7 +46,7 @@ struct IChannel
     virtual void SetDefaultTimeout(const TNullable<TDuration>& timeout) = 0;
 
     //! Returns a textual representation of the channel's endpoint.
-    //! Typically used for logging
+    //! Typically used for logging.
     virtual Stroka GetEndpointTextDescription() const = 0;
 
     //! Returns a YSON representation of the channel's endpoint.
