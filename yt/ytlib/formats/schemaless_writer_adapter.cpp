@@ -79,7 +79,7 @@ TNameTablePtr TSchemalessFormatWriterBase::GetNameTable() const
     return NameTable_;
 }
 
-TOutputStream* TSchemalessFormatWriterBase::GetOutputStream()
+TBlobOutput* TSchemalessFormatWriterBase::GetOutputStream()
 {
     return &CurrentBuffer_;
 }
@@ -156,7 +156,6 @@ bool TSchemalessFormatWriterBase::CheckKeySwitch(TUnversionedRow row, bool isLas
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchemalessWriterAdapter::TSchemalessWriterAdapter(
-    const TFormat& format,
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
@@ -168,6 +167,11 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
         enableContextSaving, 
         enableKeySwitch, 
         keyColumnCount)
+{ }
+
+// CreateConsumerForFormat may throw an exception if there is no consumer for the given format,
+// so we set Consumer_ inside Init function rather than inside the constructor.
+void TSchemalessWriterAdapter::Init(const TFormat& format)
 {
     Consumer_ = CreateConsumerForFormat(format, EDataType::Tabular, GetOutputStream());
 }

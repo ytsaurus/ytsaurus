@@ -41,7 +41,7 @@ void TDsvWriterBase::EscapeAndWrite(const TStringBuf& string, bool inKey, TOutpu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShemalessWriterForDsv::TShemalessWriterForDsv(
+TSchemalessWriterForDsv::TSchemalessWriterForDsv(
     TNameTablePtr nameTable, 
     bool enableContextSaving,
     IAsyncOutputStreamPtr output,
@@ -55,7 +55,7 @@ TShemalessWriterForDsv::TShemalessWriterForDsv(
     , TDsvWriterBase(config)
 { }
 
-void TShemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
+void TSchemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversionedRow>& rows)
 {
     auto* output = GetOutputStream();
     for (const auto& row : rows) {
@@ -86,7 +86,7 @@ void TShemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversione
     TryFlushBuffer();
 }
 
-void TShemalessWriterForDsv::FinalizeRow(bool firstValue)
+void TSchemalessWriterForDsv::FinalizeRow(bool firstValue)
 {
     auto* output = GetOutputStream();
     if (Config_->EnableTableIndex) {
@@ -102,7 +102,7 @@ void TShemalessWriterForDsv::FinalizeRow(bool firstValue)
     output->Write(Config_->RecordSeparator);
 }
 
-void TShemalessWriterForDsv::WriteValue(const TUnversionedValue& value) 
+void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value) 
 {
     auto nameTable = GetNameTable();
     auto* output = GetOutputStream();
@@ -138,17 +138,17 @@ void TShemalessWriterForDsv::WriteValue(const TUnversionedValue& value)
     }
 }
 
-void TShemalessWriterForDsv::WriteTableIndex(i32 tableIndex)
+void TSchemalessWriterForDsv::WriteTableIndex(i32 tableIndex)
 {
     TableIndex_ = tableIndex;
 }
 
-void TShemalessWriterForDsv::WriteRangeIndex(i32 rangeIndex)
+void TSchemalessWriterForDsv::WriteRangeIndex(i32 rangeIndex)
 {
     THROW_ERROR_EXCEPTION("Range indexes are not supported by dsv format");
 }
 
-void TShemalessWriterForDsv::WriteRowIndex(i64 rowIndex)
+void TSchemalessWriterForDsv::WriteRowIndex(i64 rowIndex)
 {
     THROW_ERROR_EXCEPTION("Row indexes are not supported by dsv format");
 }
