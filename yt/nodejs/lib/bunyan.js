@@ -1,14 +1,16 @@
 /**
  * Copyright (c) 2015 Trent Mick.
  * Copyright (c) 2015 Joyent Inc.
+ * Copyright (c) 2015 Yandex.
  *
  * The bunyan logging library for node.js.
+ * Patched by sandello@yandex-team.ru.
  *
  * -*- mode: js -*-
  * vim: expandtab:ts=4:sw=4
  */
 
-var VERSION = '1.5.1';
+var VERSION = '1.5.1-yandex';
 
 /*
  * Bunyan log format version. This becomes the 'v' field on all log records.
@@ -48,34 +50,13 @@ var util = require('util');
 var assert = require('assert');
 var EventEmitter = require('events').EventEmitter;
 
-try {
-    var safeJsonStringify = require('safe-json-stringify');
-} catch (e) {
-    safeJsonStringify = null;
-}
-if (process.env.BUNYAN_TEST_NO_SAFE_JSON_STRINGIFY) {
-    safeJsonStringify = null;
-}
-
-// The 'mv' module is required for rotating-file stream support.
-try {
-    /* Use `+ ''` to hide this import from browserify. */
-    var mv = require('mv' + '');
-} catch (e) {
-    mv = null;
-}
-
 // Are we in the browser (e.g. running via browserify)?
 var isBrowser = function () {
         return typeof (window) !== 'undefined'; }();
 
-try {
-    /* Use `+ ''` to hide this import from browserify. */
-    var sourceMapSupport = require('source-map-support' + '');
-} catch (_) {
-    sourceMapSupport = null;
-}
-
+// XXX(sandello): Stubs.
+var mv = null;
+var sourceMapSupport = null;
 
 
 //---- Internal support stuff
@@ -139,39 +120,6 @@ if (!format) {
         }
         return str;
     };
-}
-
-
-/**
- * Gather some caller info 3 stack levels up.
- * See <http://code.google.com/p/v8/wiki/JavaScriptStackTraceApi>.
- */
-function getCaller3Info() {
-    if (this === undefined) {
-        // Cannot access caller info in 'strict' mode.
-        return;
-    }
-    var obj = {};
-    var saveLimit = Error.stackTraceLimit;
-    var savePrepare = Error.prepareStackTrace;
-    Error.stackTraceLimit = 3;
-    Error.captureStackTrace(this, getCaller3Info);
-
-    Error.prepareStackTrace = function (_, stack) {
-        var caller = stack[2];
-        if (sourceMapSupport) {
-            caller = sourceMapSupport.wrapCallSite(caller);
-        }
-        obj.file = caller.getFileName();
-        obj.line = caller.getLineNumber();
-        var func = caller.getFunctionName();
-        if (func)
-            obj.func = func;
-    };
-    this.stack;
-    Error.stackTraceLimit = saveLimit;
-    Error.prepareStackTrace = savePrepare;
-    return obj;
 }
 
 
@@ -282,8 +230,6 @@ function resolveLevel(nameOrNum) {
  *        with `streams`)
  *      - `stream`: the output stream for a logger with just one, e.g.
  *        `process.stdout` (cannot be used with `streams`)
- *      - `serializers`: object mapping log record field names to
- *        serializing functions. See README.md for details.
  *      - `src`: Boolean (default false). Set true to enable 'src' automatic
  *        field with log call source info.
  *    All other keys are log record fields.
@@ -331,10 +277,6 @@ function Logger(options, _childOptions, _childSimple) {
     if (options.streams && !Array.isArray(options.streams)) {
         throw new TypeError('invalid options.streams: must be an array')
     }
-    if (options.serializers && (typeof (options.serializers) !== 'object' ||
-            Array.isArray(options.serializers))) {
-        throw new TypeError('invalid options.serializers: must be an object')
-    }
 
     EventEmitter.call(this);
 
@@ -346,7 +288,6 @@ function Logger(options, _childOptions, _childSimple) {
 
         this._level = parent._level;
         this.streams = parent.streams;
-        this.serializers = parent.serializers;
         this.src = parent.src;
         var fields = this.fields = {};
         var parentFieldNames = Object.keys(parent.fields);
@@ -372,7 +313,6 @@ function Logger(options, _childOptions, _childSimple) {
             s.closeOnExit = false; // Don't own parent stream.
             this.streams.push(s);
         }
-        this.serializers = objCopy(parent.serializers);
         this.src = parent.src;
         this.fields = objCopy(parent.fields);
         if (options.level) {
@@ -381,7 +321,6 @@ function Logger(options, _childOptions, _childSimple) {
     } else {
         this._level = Number.POSITIVE_INFINITY;
         this.streams = [];
-        this.serializers = null;
         this.src = false;
         this.fields = {};
     }
@@ -441,9 +380,6 @@ function Logger(options, _childOptions, _childSimple) {
             });
         }
     }
-    if (options.serializers) {
-        self.addSerializers(options.serializers);
-    }
     if (options.src) {
         this.src = true;
     }
@@ -460,9 +396,6 @@ function Logger(options, _childOptions, _childSimple) {
     delete fields.streams;
     delete fields.serializers;
     delete fields.src;
-    if (this.serializers) {
-        this._applySerializers(fields);
-    }
     if (!fields.hostname) {
         fields.hostname = os.hostname();
     }
@@ -530,8 +463,7 @@ Logger.prototype.addStream = function addStream(s, defaultLevel) {
         break;
     case 'file':
         if (!s.stream) {
-            s.stream = fs.createWriteStream(s.path,
-                                            {flags: 'a', encoding: 'utf8'});
+            s.stream = new BufferedFileStream(s.path);
             s.stream.on('error', function (err) {
                 self.emit('error', err, s);
             });
@@ -542,17 +474,6 @@ Logger.prototype.addStream = function addStream(s, defaultLevel) {
             if (!s.closeOnExit) {
                 s.closeOnExit = false;
             }
-        }
-        break;
-    case 'rotating-file':
-        assert.ok(!s.stream,
-                  '"rotating-file" stream should not give a "stream"');
-        assert.ok(s.path);
-        assert.ok(mv, '"rotating-file" stream type is not supported: '
-                      + 'missing "mv" module');
-        s.stream = new RotatingFileStream(s);
-        if (!s.closeOnExit) {
-            s.closeOnExit = true;
         }
         break;
     case 'raw':
@@ -567,32 +488,6 @@ Logger.prototype.addStream = function addStream(s, defaultLevel) {
     self.streams.push(s);
     delete self.haveNonRawStreams;  // reset
 }
-
-
-/**
- * Add serializers
- *
- * @param serializers {Object} Optional. Object mapping log record field names
- *    to serializing functions. See README.md for details.
- */
-Logger.prototype.addSerializers = function addSerializers(serializers) {
-    var self = this;
-
-    if (!self.serializers) {
-        self.serializers = {};
-    }
-    Object.keys(serializers).forEach(function (field) {
-        var serializer = serializers[field];
-        if (typeof (serializer) !== 'function') {
-            throw new TypeError(format(
-                'invalid serializer for "%s" field: must be a function',
-                field));
-        } else {
-            self.serializers[field] = serializer;
-        }
-    });
-}
-
 
 
 /**
@@ -654,8 +549,7 @@ Logger.prototype.reopenFileStreams = function () {
                 s.stream.destroySoon();
                 delete s.stream;
             }
-            s.stream = fs.createWriteStream(s.path,
-                {flags: 'a', encoding: 'utf8'});
+            s.stream = new BufferedFileStream(s.path);
             s.stream.on('error', function (err) {
                 self.emit('error', err, s);
             });
@@ -783,43 +677,6 @@ Logger.prototype.levels = function levels(name, value) {
 
 
 /**
- * Apply registered serializers to the appropriate keys in the given fields.
- *
- * Pre-condition: This is only called if there is at least one serializer.
- *
- * @param fields (Object) The log record fields.
- * @param excludeFields (Object) Optional mapping of keys to `true` for
- *    keys to NOT apply a serializer.
- */
-Logger.prototype._applySerializers = function (fields, excludeFields) {
-    var self = this;
-
-    xxx('_applySerializers: excludeFields', excludeFields);
-
-    // Check each serializer against these (presuming number of serializers
-    // is typically less than number of fields).
-    Object.keys(this.serializers).forEach(function (name) {
-        if (fields[name] === undefined ||
-            (excludeFields && excludeFields[name]))
-        {
-            return;
-        }
-        xxx('_applySerializers; apply to "%s" key', name)
-        try {
-            fields[name] = self.serializers[name](fields[name]);
-        } catch (err) {
-            _warn(format('bunyan: ERROR: Exception thrown from the "%s" '
-                + 'Bunyan serializer. This should never happen. This is a bug'
-                + 'in that serializer function.\n%s',
-                name, err.stack || err));
-            fields[name] = format('(Error in Bunyan log "%s" serializer '
-                + 'broke field. See stderr for details.)', name);
-        }
-    });
-}
-
-
-/**
  * Emit a log record.
  *
  * @param rec {log record}
@@ -845,21 +702,16 @@ Logger.prototype._emit = function (rec, noemit) {
     var str;
     if (noemit || this.haveNonRawStreams) {
         try {
-            str = JSON.stringify(rec, safeCycles()) + '\n';
+            // XXX(sandello): Omit `safeCycles()` to save some CPU time.
+            str = JSON.stringify(rec) + '\n';
         } catch (e) {
-            if (safeJsonStringify) {
-                str = safeJsonStringify(rec) + '\n';
-            } else {
-                var dedupKey = e.stack.split(/\n/g, 2).join('\n');
-                _warn('bunyan: ERROR: Exception in '
-                    + '`JSON.stringify(rec)`. You can install the '
-                    + '"safe-json-stringify" module to have Bunyan fallback '
-                    + 'to safer stringification. Record:\n'
-                    + _indent(format('%s\n%s', util.inspect(rec), e.stack)),
-                    dedupKey);
-                str = format('(Exception in JSON.stringify(rec): %j. '
-                    + 'See stderr for details.)\n', e.message);
-            }
+            var dedupKey = e.stack.split(/\n/g, 2).join('\n');
+            _warn('bunyan: ERROR: Exception in '
+                + '`JSON.stringify(rec)`. Record:\n'
+                + _indent(format('%s\n%s', util.inspect(rec), e.stack)),
+                dedupKey);
+            str = format('(Exception in JSON.stringify(rec): %j. '
+                + 'See stderr for details.)\n', e.message);
         }
     }
 
@@ -881,103 +733,25 @@ Logger.prototype._emit = function (rec, noemit) {
 
 
 /**
- * Build a log emitter function for level minLevel. I.e. this is the
+ * Build a log emitter function for level msgLevel. I.e. this is the
  * creator of `log.info`, `log.error`, etc.
  */
-function mkLogEmitter(minLevel) {
-    return function () {
-        var log = this;
+function mkLogEmitter(msgLevel) {
+    return function (fields, msg) {
+        var rec = objCopy(this.fields);
 
-        function mkRecord(args) {
-            var excludeFields;
-            if (args[0] instanceof Error) {
-                // `log.<level>(err, ...)`
-                fields = {
-                    // Use this Logger's err serializer, if defined.
-                    err: (log.serializers && log.serializers.err
-                        ? log.serializers.err(args[0])
-                        : Logger.stdSerializers.err(args[0]))
-                };
-                excludeFields = {err: true};
-                if (args.length === 1) {
-                    msgArgs = [fields.err.message];
-                } else {
-                    msgArgs = Array.prototype.slice.call(args, 1);
-                }
-            } else if (typeof (args[0]) !== 'object' && args[0] !== null ||
-                       Array.isArray(args[0])) {
-                // `log.<level>(msg, ...)`
-                fields = null;
-                msgArgs = Array.prototype.slice.call(args);
-            } else if (Buffer.isBuffer(args[0])) {  // `log.<level>(buf, ...)`
-                // Almost certainly an error, show `inspect(buf)`. See bunyan
-                // issue #35.
-                fields = null;
-                msgArgs = Array.prototype.slice.call(args);
-                msgArgs[0] = util.inspect(msgArgs[0]);
-            } else {  // `log.<level>(fields, msg, ...)`
-                fields = args[0];
-                msgArgs = Array.prototype.slice.call(args, 1);
-            }
+        rec.level = msgLevel;
+        // XXX(sandello): This results in 4x performance improvement.
+        // rec.msg = format.apply(log, msgArgs);
+        rec.msg = msg;
 
-            // Build up the record object.
-            var rec = objCopy(log.fields);
-            var level = rec.level = minLevel;
-            var recFields = (fields ? objCopy(fields) : null);
-            if (recFields) {
-                if (log.serializers) {
-                    log._applySerializers(recFields, excludeFields);
-                }
-                Object.keys(recFields).forEach(function (k) {
-                    rec[k] = recFields[k];
-                });
-            }
-            rec.msg = format.apply(log, msgArgs);
-            if (!rec.time) {
-                rec.time = (new Date());
-            }
-            // Get call source info
-            if (log.src && !rec.src) {
-                rec.src = getCaller3Info()
-            }
-            rec.v = LOG_VERSION;
-
-            return rec;
-        };
-
-        var fields = null;
-        var msgArgs = arguments;
-        var str = null;
-        var rec = null;
-        if (! this._emit) {
-            /*
-             * Show this invalid Bunyan usage warning *once*.
-             *
-             * See <https://github.com/trentm/node-bunyan/issues/100> for
-             * an example of how this can happen.
-             */
-            var dedupKey = 'unbound';
-            if (!_haveWarned[dedupKey]) {
-                var caller = getCaller3Info();
-                _warn(format('bunyan usage error: %s:%s: attempt to log '
-                    + 'with an unbound log method: `this` is: %s',
-                    caller.file, caller.line, util.inspect(this)),
-                    dedupKey);
-            }
-            return;
-        } else if (arguments.length === 0) {   // `log.<level>()`
-            return (this._level <= minLevel);
-        } else if (this._level > minLevel) {
-            /* pass through */
-        } else {
-            rec = mkRecord(msgArgs);
-            str = this._emit(rec);
+        if (!rec.time) {
+            rec.time = (new Date());
         }
-        probes && probes[minLevel].fire(function () {
-                return [ str ||
-                    (rec && log._emit(rec, true)) ||
-                    log._emit(mkRecord(msgArgs), true) ];
-        });
+
+        if (this._level >= msgLevel) {
+            this._emit(rec);
+        }
     }
 }
 
@@ -1008,80 +782,6 @@ Logger.prototype.error = mkLogEmitter(ERROR);
 Logger.prototype.fatal = mkLogEmitter(FATAL);
 
 
-
-//---- Standard serializers
-// A serializer is a function that serializes a JavaScript object to a
-// JSON representation for logging. There is a standard set of presumed
-// interesting objects in node.js-land.
-
-Logger.stdSerializers = {};
-
-// Serialize an HTTP request.
-Logger.stdSerializers.req = function req(req) {
-    if (!req || !req.connection)
-        return req;
-    return {
-        method: req.method,
-        url: req.url,
-        headers: req.headers,
-        remoteAddress: req.connection.remoteAddress,
-        remotePort: req.connection.remotePort
-    };
-    // Trailers: Skipping for speed. If you need trailers in your app, then
-    // make a custom serializer.
-    //if (Object.keys(trailers).length > 0) {
-    //  obj.trailers = req.trailers;
-    //}
-};
-
-// Serialize an HTTP response.
-Logger.stdSerializers.res = function res(res) {
-    if (!res || !res.statusCode)
-        return res;
-    return {
-        statusCode: res.statusCode,
-        header: res._header
-    }
-};
-
-
-/*
- * This function dumps long stack traces for exceptions having a cause()
- * method. The error classes from
- * [verror](https://github.com/davepacheco/node-verror) and
- * [restify v2.0](https://github.com/mcavage/node-restify) are examples.
- *
- * Based on `dumpException` in
- * https://github.com/davepacheco/node-extsprintf/blob/master/lib/extsprintf.js
- */
-function getFullErrorStack(ex)
-{
-    var ret = ex.stack || ex.toString();
-    if (ex.cause && typeof (ex.cause) === 'function') {
-        var cex = ex.cause();
-        if (cex) {
-            ret += '\nCaused by: ' + getFullErrorStack(cex);
-        }
-    }
-    return (ret);
-}
-
-// Serialize an Error object
-// (Core error properties are enumerable in node 0.4, not in 0.6).
-var errSerializer = Logger.stdSerializers.err = function err(err) {
-    if (!err || !err.stack)
-        return err;
-    var obj = {
-        message: err.message,
-        name: err.name,
-        stack: getFullErrorStack(err),
-        code: err.code,
-        signal: err.signal
-    }
-    return obj;
-};
-
-
 // A JSON stringifier that handles cycles safely.
 // Usage: JSON.stringify(obj, safeCycles())
 function safeCycles() {
@@ -1099,323 +799,102 @@ function safeCycles() {
 }
 
 
-
-var RotatingFileStream = null;
-if (mv) {
-
-RotatingFileStream = function RotatingFileStream(options) {
-    this.path = options.path;
-    this.stream = fs.createWriteStream(this.path,
-        {flags: 'a', encoding: 'utf8'});
-    this.count = (options.count == null ? 10 : options.count);
-    assert.equal(typeof (this.count), 'number',
-        format('rotating-file stream "count" is not a number: %j (%s) in %j',
-            this.count, typeof (this.count), this));
-    assert.ok(this.count >= 0,
-        format('rotating-file stream "count" is not >= 0: %j in %j',
-            this.count, this));
-
-    // Parse `options.period`.
-    if (options.period) {
-        // <number><scope> where scope is:
-        //    h   hours (at the start of the hour)
-        //    d   days (at the start of the day, i.e. just after midnight)
-        //    w   weeks (at the start of Sunday)
-        //    m   months (on the first of the month)
-        //    y   years (at the start of Jan 1st)
-        // with special values 'hourly' (1h), 'daily' (1d), "weekly" (1w),
-        // 'monthly' (1m) and 'yearly' (1y)
-        var period = {
-            'hourly': '1h',
-            'daily': '1d',
-            'weekly': '1w',
-            'monthly': '1m',
-            'yearly': '1y'
-        }[options.period] || options.period;
-        var m = /^([1-9][0-9]*)([hdwmy]|ms)$/.exec(period);
-        if (!m) {
-            throw new Error(format('invalid period: "%s"', options.period));
-        }
-        this.periodNum = Number(m[1]);
-        this.periodScope = m[2];
-    } else {
-        this.periodNum = 1;
-        this.periodScope = 'd';
-    }
-
-    // TODO: template support for backup files
-    // template: <path to which to rotate>
-    //      default is %P.%n
-    //      '/var/log/archive/foo.log'  -> foo.log.%n
-    //      '/var/log/archive/foo.log.%n'
-    //      codes:
-    //          XXX support strftime codes (per node version of those)
-    //              or whatever module. Pick non-colliding for extra
-    //              codes
-    //          %P      `path` base value
-    //          %n      integer number of rotated log (1,2,3,...)
-    //          %d      datetime in YYYY-MM-DD_HH-MM-SS
-    //                      XXX what should default date format be?
-    //                          prior art? Want to avoid ':' in
-    //                          filenames (illegal on Windows for one).
-
-    this.rotQueue = [];
-    this.rotating = false;
-    this._setupNextRot();
-}
-
-util.inherits(RotatingFileStream, EventEmitter);
-
-RotatingFileStream.prototype._setupNextRot = function () {
-    var self = this;
-    this.rotAt = this._nextRotTime();
-    var delay = this.rotAt - Date.now();
-    // Cap timeout to Node's max setTimeout, see
-    // <https://github.com/joyent/node/issues/8656>.
-    var TIMEOUT_MAX = 2147483647; // 2^31-1
-    if (delay > TIMEOUT_MAX) {
-        delay = TIMEOUT_MAX;
-    }
-    this.timeout = setTimeout(
-        function () { self.rotate(); },
-        delay);
-    if (typeof (this.timeout.unref) === 'function') {
-        this.timeout.unref();
-    }
-}
-
-RotatingFileStream.prototype._nextRotTime = function _nextRotTime(first) {
-    var _DEBUG = false;
-    if (_DEBUG)
-        console.log('-- _nextRotTime: %s%s', this.periodNum, this.periodScope);
-    var d = new Date();
-
-    if (_DEBUG) console.log('  now local: %s', d);
-    if (_DEBUG) console.log('    now utc: %s', d.toISOString());
-    var rotAt;
-    switch (this.periodScope) {
-    case 'ms':
-        // Hidden millisecond period for debugging.
-        if (this.rotAt) {
-            rotAt = this.rotAt + this.periodNum;
-        } else {
-            rotAt = Date.now() + this.periodNum;
-        }
-        break;
-    case 'h':
-        if (this.rotAt) {
-            rotAt = this.rotAt + this.periodNum * 60 * 60 * 1000;
-        } else {
-            // First time: top of the next hour.
-            rotAt = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(),
-                d.getUTCDate(), d.getUTCHours() + 1);
-        }
-        break;
-    case 'd':
-        if (this.rotAt) {
-            rotAt = this.rotAt + this.periodNum * 24 * 60 * 60 * 1000;
-        } else {
-            // First time: start of tomorrow (i.e. at the coming midnight) UTC.
-            rotAt = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(),
-                d.getUTCDate() + 1);
-        }
-        break;
-    case 'w':
-        // Currently, always on Sunday morning at 00:00:00 (UTC).
-        if (this.rotAt) {
-            rotAt = this.rotAt + this.periodNum * 7 * 24 * 60 * 60 * 1000;
-        } else {
-            // First time: this coming Sunday.
-            rotAt = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(),
-                d.getUTCDate() + (7 - d.getUTCDay()));
-        }
-        break;
-    case 'm':
-        if (this.rotAt) {
-            rotAt = Date.UTC(d.getUTCFullYear(),
-                d.getUTCMonth() + this.periodNum, 1);
-        } else {
-            // First time: the start of the next month.
-            rotAt = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1);
-        }
-        break;
-    case 'y':
-        if (this.rotAt) {
-            rotAt = Date.UTC(d.getUTCFullYear() + this.periodNum, 0, 1);
-        } else {
-            // First time: the start of the next year.
-            rotAt = Date.UTC(d.getUTCFullYear() + 1, 0, 1);
-        }
-        break;
-    default:
-        assert.fail(format('invalid period scope: "%s"', this.periodScope));
-    }
-
-    if (_DEBUG) {
-        console.log('  **rotAt**: %s (utc: %s)', rotAt,
-            new Date(rotAt).toUTCString());
-        var now = Date.now();
-        console.log('        now: %s (%sms == %smin == %sh to go)',
-            now,
-            rotAt - now,
-            (rotAt-now)/1000/60,
-            (rotAt-now)/1000/60/60);
-    }
-    return rotAt;
-};
-
-RotatingFileStream.prototype.rotate = function rotate() {
-    // XXX What about shutdown?
-    var self = this;
-    var _DEBUG = false;
-
-    // If rotation period is > ~25 days, we have to break into multiple
-    // setTimeout's. See <https://github.com/joyent/node/issues/8656>.
-    if (self.rotAt && self.rotAt > Date.now()) {
-        return self._setupNextRot();
-    }
-
-    if (_DEBUG) {
-        console.log('-- [%s, pid=%s] rotating %s',
-            new Date(), process.pid, self.path);
-    }
-    if (self.rotating) {
-        throw new TypeError('cannot start a rotation when already rotating');
-    }
-    self.rotating = true;
-
-    self.stream.end();  // XXX can do moves sync after this? test at high rate
-
-    function del() {
-        var toDel = self.path + '.' + String(n - 1);
-        if (n === 0) {
-            toDel = self.path;
-        }
-        n -= 1;
-        if (_DEBUG) console.log('rm %s', toDel);
-        fs.unlink(toDel, function (delErr) {
-            //XXX handle err other than not exists
-            moves();
-        });
-    }
-
-    function moves() {
-        if (self.count === 0 || n < 0) {
-            return finish();
-        }
-        var before = self.path;
-        var after = self.path + '.' + String(n);
-        if (n > 0) {
-            before += '.' + String(n - 1);
-        }
-        n -= 1;
-        fs.exists(before, function (exists) {
-            if (!exists) {
-                moves();
-            } else {
-                if (_DEBUG) {
-                    console.log('[pid %s] mv %s %s',
-                        process.pid, before, after);
-                }
-                mv(before, after, function (mvErr) {
-                    if (mvErr) {
-                        self.emit('error', mvErr);
-                        finish(); // XXX finish here?
-                    } else {
-                        moves();
-                    }
-                });
-            }
-        })
-    }
-
-    function finish() {
-        if (_DEBUG) console.log('[pid %s] open %s', process.pid, self.path);
-        self.stream = fs.createWriteStream(self.path,
-            {flags: 'a', encoding: 'utf8'});
-        var q = self.rotQueue, len = q.length;
-        for (var i = 0; i < len; i++) {
-            self.stream.write(q[i]);
-        }
-        self.rotQueue = [];
-        self.rotating = false;
-        self.emit('drain');
-        self._setupNextRot();
-    }
-
-    var n = this.count;
-    del();
-};
-
-RotatingFileStream.prototype.write = function write(s) {
-    if (this.rotating) {
-        this.rotQueue.push(s);
-        return false;
-    } else {
-        return this.stream.write(s);
-    }
-};
-
-RotatingFileStream.prototype.end = function end(s) {
-    this.stream.end();
-};
-
-RotatingFileStream.prototype.destroy = function destroy(s) {
-    this.stream.destroy();
-};
-
-RotatingFileStream.prototype.destroySoon = function destroySoon(s) {
-    this.stream.destroySoon();
-};
-
-} /* if (mv) */
-
-
-
 /**
- * RingBuffer is a Writable Stream that just stores the last N records in
- * memory.
- *
- * @param options {Object}, with the following fields:
- *
- *    - limit: number of records to keep in memory
+ * BufferedFileStream buffers data to amortize calls to underlying file stream.
  */
-function RingBuffer(options) {
-    this.limit = options && options.limit ? options.limit : 100;
-    this.writable = true;
-    this.records = [];
+ 
+function BufferedFileStream(path, limit) {
     EventEmitter.call(this);
+    this.writable = true;
+    this.destroyed = false;
+
+    this._underlying = fs.createWriteStream(path, {flags: 'a', encoding: 'utf8'});
+    this._chunks = [];
+    this._draining = false;
+    this._weight = 0;
+    this._limit = limit;
+
+    var self = this;
+    self._underlying.on('drain', function() {
+        if (self._chunks.length > 0) {
+            process.nextTick(self._drain.bind(self));
+        } else if (self.destroyed) {
+            self._underlying.destroySoon();
+        }
+    });
+    self._underlying.on('error', function(err) {
+        self.writable = false;
+        self._chunks = [];
+        self.emit('error', err);
+    });
+    self._underlying.on('close', function() {
+        self.emit('close');
+    });
 }
 
-util.inherits(RingBuffer, EventEmitter);
+util.inherits(BufferedFileStream, EventEmitter);
 
-RingBuffer.prototype.write = function (record) {
+BufferedFileStream.prototype.write = function(chunk) {
     if (!this.writable)
-        throw (new Error('RingBuffer has been ended already'));
+        throw (new Error('BufferedFileStream has been ended already'));
 
-    this.records.push(record);
+    this._chunks.push(chunk);
+    this._weight += chunk.length;
 
-    if (this.records.length > this.limit)
-        this.records.shift();
-
-    return (true);
+    this._drain();
+    return this._weight > this._limit;;
 };
 
-RingBuffer.prototype.end = function () {
+BufferedFileStream.prototype.end = function() {
     if (arguments.length > 0)
         this.write.apply(this, Array.prototype.slice.call(arguments));
     this.writable = false;
 };
 
-RingBuffer.prototype.destroy = function () {
+BufferedFileStream.prototype.destroy = function() {
     this.writable = false;
-    this.emit('close');
+    this.destroyed = true;
+
+    this._chunks = [];
+    this._underlying.destroy();
 };
 
-RingBuffer.prototype.destroySoon = function () {
-    this.destroy();
+BufferedFileStream.prototype.destroySoon = function() {
+    this.writeable = false;
+    this.destroyed = true;
+
+    this._drain();
+    if (!this._draining) {
+        this._underlying.destroySoon();
+    }
 };
 
+BufferedFileStream.prototype._drain = function() {
+    if (this._draining) {
+        return;
+    }
+
+    this._draining = true;
+    process.nextTick(this._drainSoon.bind(this));
+};
+
+BufferedFileStream.prototype._drainSoon = function() {
+    var i = 0, n = this._chunks.length;
+    if (n === 0) {
+        return;
+    }
+
+    var blob = "";
+    for (; i < n; ++i) {
+        blob += this._chunks[i];
+    }
+
+    this._underlying.write(blob);
+
+    this._draining = false;
+    this._chunks = [];
+    this._weight = 0;
+};
 
 //---- Exports
 
@@ -1438,8 +917,7 @@ module.exports.createLogger = function createLogger(options) {
     return new Logger(options);
 };
 
-module.exports.RingBuffer = RingBuffer;
-module.exports.RotatingFileStream = RotatingFileStream;
+module.exports.BufferedFileStream = BufferedFileStream;
 
 // Useful for custom `type == 'raw'` streams that may do JSON stringification
 // of log records themselves. Usage:
