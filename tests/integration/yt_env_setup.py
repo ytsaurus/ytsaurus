@@ -8,16 +8,10 @@ import os
 import sys
 import logging
 import uuid
-<<<<<<< HEAD
 
 from time import sleep
 from functools import wraps
-import pytest
-=======
-import time
-from functools import wraps
 from threading import Thread
->>>>>>> prestable/0.17.3
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
@@ -31,16 +25,10 @@ def _working_dir(test_name):
     path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
     return os.path.join(path_to_test, "run")
 
-<<<<<<< HEAD
 def _wait(predicate):
     while not predicate():
         sleep(1)
 
-def _pytest_finalize_func(environment, process_call_args):
-    pytest.exit('Process run by command "{0}" is dead! Tests terminated.' \
-                .format(" ".join(process_call_args)))
-    environment.clear_environment(safe=False)
-=======
 def _pytest_finalize_func(environment, process_call_args):
     print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
     environment.clear_environment()
@@ -58,12 +46,11 @@ class Checker(Thread):
         self._active = True
         while self._active:
             self._check_function()
-            time.sleep(1.0)
+            sleep(1.0)
 
     def stop(self):
         self._active = False
         self.join()
->>>>>>> prestable/0.17.3
 
 class YTEnvSetup(YTEnv):
     @classmethod
