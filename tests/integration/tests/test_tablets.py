@@ -86,7 +86,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
-        mount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
         tablet_id = tablets[0]["tablet_id"]
@@ -99,7 +99,7 @@ class TestTablets(YTEnvSetup):
         self.sync_create_cells(1, 1)
         self._create_table("//tmp/t")
 
-        mount_table("//tmp/t")
+        self.sync_mount_table("//tmp/t")
 
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
@@ -243,9 +243,7 @@ class TestTablets(YTEnvSetup):
         lock("//tmp/t", mode="snapshot", tx=tx)
         verify_chunk_tree_refcount("//tmp/t", 2, [1, 1])
 
-        mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
-        print "Waiting for tablet 1 to become mounted..."
-        self.sync_predicate(lambda: any(x["state"] == "mounted" for x in get("//tmp/t/@tablets")))
+        self.sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
 
         rows2 = [{"key": i, "value": str(i)} for i in xrange(1, 5, 2)]
         insert_rows("//tmp/t", rows2)

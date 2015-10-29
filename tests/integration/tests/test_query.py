@@ -40,8 +40,7 @@ class TestQuery(YTEnvSetup):
                 "schema": schema,
                 "key_columns": key_columns
             })
-        mount_table(path)
-        self.wait_for_tablet_state(path, ["mounted"])
+        self.sync_mount_table(path)
         insert_rows(path, data)
 
     def test_simple(self):
@@ -101,9 +100,7 @@ class TestQuery(YTEnvSetup):
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
-        mount_table("//tmp/t")
-
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         data = [{"a" : i, "b" : i * 10} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -133,9 +130,7 @@ class TestQuery(YTEnvSetup):
         pivots.insert(0, [])
         reshard_table("//tmp/t", pivots)
 
-        mount_table("//tmp/t")
-
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         data = [{"a" : i, "b" : str(i)} for i in xrange(0,100)]
         insert_rows("//tmp/t", data)
@@ -164,8 +159,7 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["k"]
             })
 
-        mount_table("//tmp/t")
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         values = [i for i in xrange(0, 300)]
         shuffle(values)
@@ -339,8 +333,7 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["key"]
             })
 
-        mount_table("//tmp/t")
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         stripe = 10
 
@@ -350,11 +343,9 @@ class TestQuery(YTEnvSetup):
                 for j in xrange(1, 1 + stripe)]
             insert_rows("//tmp/t", data)
 
-        unmount_table("//tmp/t")
-        self.wait_for_tablet_state("//tmp/t", ["unmounted"])
+        self.sync_unmount_table("//tmp/t")
         reshard_table("//tmp/t", [[], [10], [30], [50], [70], [90]])
-        mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=2)
-        self.wait_for_tablet_state("//tmp/t", ["unmounted", "mounted"])
+        self.sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=2)
 
         select_rows("* from [//tmp/t] where key < 50")
 
@@ -372,8 +363,7 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["hash", "key"]
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
-        mount_table("//tmp/t")
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": i, "value": i * 2} for i in xrange(0,100)])
 
@@ -402,8 +392,7 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["hash", "key1", "key2"]
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
-        mount_table("//tmp/t")
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         def expected(key_range):
             return [{"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
@@ -435,8 +424,7 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["hash", "key1", "key2"]
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
-        mount_table("//tmp/t")
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         def expected(key_range):
             return [{"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
@@ -555,9 +543,7 @@ class TestQuery(YTEnvSetup):
         pivots.insert(0, [])
         reshard_table("//tmp/card", pivots)
 
-        mount_table("//tmp/card")
-
-        self.wait_for_tablet_state("//tmp/card", ["mounted"])
+        self.sync_mount_table("//tmp/card")
 
         data = [{"a" : i} for i in xrange(0,20000)]
         insert_rows("//tmp/card", data)
@@ -604,8 +590,7 @@ class TestQuery(YTEnvSetup):
                 "key_columns": ["key"],
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
-        mount_table("//tmp/t")
-        self.wait_for_tablet_state("//tmp/t", ["mounted"])
+        self.sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": i, "value": 10 * i} for i in xrange(0, 1000)])
         # should not raise
