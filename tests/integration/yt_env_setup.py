@@ -73,9 +73,11 @@ class YTEnvSetup(YTEnv):
             yt_commands.init_driver(cls.Env.configs['driver'])
             yt_driver_bindings.configure_logging(cls.Env.driver_logging_config)
 
-        cls.liveness_checker = Checker(lambda: cls.Env.check_liveness(callback_func=_pytest_finalize_func))
-        cls.liveness_checker.daemon = True
-        cls.liveness_checker.start()
+        # To avoid strange hangups.
+        if cls.NUM_MASTERS > 0:
+            cls.liveness_checker = Checker(lambda: cls.Env.check_liveness(callback_func=_pytest_finalize_func))
+            cls.liveness_checker.daemon = True
+            cls.liveness_checker.start()
 
     @classmethod
     def teardown_class(cls):
