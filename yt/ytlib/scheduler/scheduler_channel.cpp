@@ -35,7 +35,7 @@ public:
 
     virtual Stroka GetEndpointTextDescription() const override
     {
-        return "<scheduler>";
+        return Format("Scheduler@%v", MasterChannel_->GetEndpointTextDescription());
     }
 
     virtual TYsonString GetEndpointYsonDescription() const override
@@ -43,8 +43,15 @@ public:
         return ConvertToYsonString(GetEndpointTextDescription());
     }
 
-    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override
+    virtual TFuture<IChannelPtr> GetChannel(const Stroka& /*serviceName*/) override
     {
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            if (CachedChannel_) {
+                return MakeFuture(CachedChannel_);
+            }
+        }
+
         TObjectServiceProxy proxy(MasterChannel_);
         auto batchReq = proxy.ExecuteBatch();
         batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@address"));
@@ -54,15 +61,47 @@ public:
                 if (rsp.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION("No scheduler is configured");
                 }
+
                 THROW_ERROR_EXCEPTION_IF_FAILED(rsp, "Cannot determine scheduler address");
+
                 auto address = ConvertTo<Stroka>(TYsonString(rsp.Value()->value()));
-                return ChannelFactory_->CreateChannel(address);
+
+                auto channel = ChannelFactory_->CreateChannel(address);
+                channel = CreateFailureDetectingChannel(
+                    channel,
+                    BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));
+
+                {
+                    TGuard<TSpinLock> guard(SpinLock_);
+                    CachedChannel_ = channel;
+                }
+
+                return channel;
             }));
+    }
+
+    virtual TFuture<void> Terminate(const TError& error) override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        return CachedChannel_ ? CachedChannel_->Terminate(error) : VoidFuture;
     }
 
 private:
     const IChannelFactoryPtr ChannelFactory_;
     const IChannelPtr MasterChannel_;
+
+    TSpinLock SpinLock_;
+    IChannelPtr CachedChannel_;
+
+
+    void OnChannelFailed(IChannelPtr channel)
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+        if (CachedChannel_ != channel) {
+            return;
+        }
+        CachedChannel_.Reset();
+    }
 
 };
 

@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <core/concurrency/delayed_executor.h>
+#include <core/concurrency/rw_spinlock.h>
 
 #include <core/misc/string.h>
 #include <core/misc/variant.h>
@@ -24,66 +25,93 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TBalancingChannelSubprovider)
 DECLARE_REFCOUNTED_CLASS(TBalancingChannelProvider)
 
-class TBalancingChannelProvider
-    : public IRoamingChannelProvider
+class TBalancingChannelSubprovider
+    : public TRefCounted
 {
 public:
-    explicit TBalancingChannelProvider(
+    explicit TBalancingChannelSubprovider(
         TBalancingChannelConfigPtr config,
         IChannelFactoryPtr channelFactory,
+        const Stroka& textDescription,
+        const TYsonString& ysonDescription,
+        const Stroka& serviceName,
         TDiscoverRequestHook discoverRequestHook)
         : Config_(config)
         , ChannelFactory_(channelFactory)
+        , TextDescription_(textDescription)
+        , YsonDescription_(ysonDescription)
+        , ServiceName_(serviceName)
         , DiscoverRequestHook_(discoverRequestHook)
-        , Logger(RpcClientLogger)
     {
-        Logger.AddTag("Channel: %v", this);
-
         AddPeers(Config_->Addresses);
+
+        Logger = RpcClientLogger;
+        Logger.AddTag("Endpoint: %v, Service: %v",
+            TextDescription_,
+            ServiceName_);
     }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    TFuture<IChannelPtr> GetChannel()
     {
-        return "[" + JoinToString(GetAllAddresses()) + "]";
+        auto channel = PickViableChannel();
+        return channel ? MakeFuture(std::move(channel)) : RunDiscovery();
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    TFuture<void> Terminate(const TError& error)
     {
-        return ConvertToYsonString(GetAllAddresses());
-    }
+        std::vector<IChannelPtr> channels;
+        {
+            TWriterGuard guard(SpinLock_);
+            Terminated_ = true;
+            TerminationError_ = error;
+            channels = std::move(ViableChannels_);
+        }
 
-    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) override
-    {
-        return New<TSession>(this, request)->Run();
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& channel : channels) {
+            asyncResults.push_back(channel->Terminate(error));
+        }
+
+        return Combine(asyncResults);
     }
 
 private:
     const TBalancingChannelConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
+    const Stroka TextDescription_;
+    const TYsonString YsonDescription_;
+    const Stroka ServiceName_;
     const TDiscoverRequestHook DiscoverRequestHook_;
 
-    mutable TSpinLock SpinLock_;
+    mutable TReaderWriterSpinLock SpinLock_;
+    bool Terminated_ = false;
+    TError TerminationError_;
     yhash_set<Stroka> ActiveAddresses_;
     yhash_set<Stroka> BannedAddresses_;
+    std::vector<IChannelPtr> ViableChannels_;
 
     NLogging::TLogger Logger;
 
 
-    class TSession
+    struct TTooManyConcurrentRequests { };
+    struct TNoMorePeers { };
+
+    using TPickPeerResult = TVariant<
+        Stroka,
+        TTooManyConcurrentRequests,
+        TNoMorePeers>;
+
+    class TDiscoverySession
         : public TRefCounted
     {
     public:
-        TSession(
-            TBalancingChannelProviderPtr owner,
-            IClientRequestPtr request)
-            : Owner_(owner)
-            , Request_(request)
+        explicit TDiscoverySession(TBalancingChannelSubproviderPtr owner)
+            : Owner_(std::move(owner))
             , Logger(Owner_->Logger)
-        {
-            Logger.AddTag("Service: %v", Request_->GetService());
-        }
+        { }
 
         TFuture<IChannelPtr> Run()
         {
@@ -93,13 +121,13 @@ private:
         }
 
     private:
-        const TBalancingChannelProviderPtr Owner_;
-        const IClientRequestPtr Request_;
+        const TBalancingChannelSubproviderPtr Owner_;
 
         TPromise<IChannelPtr> Promise_ = NewPromise<IChannelPtr>();
 
         TSpinLock SpinLock_;
         yhash_set<Stroka> RequestedAddresses_;
+        yhash_set<Stroka> RequestingAddresses_;
         std::vector<TError> InnerErrors_;
 
         NLogging::TLogger Logger;
@@ -107,43 +135,41 @@ private:
 
         void DoRun()
         {
-            if (Promise_.IsSet())
-                return;
-
             while (true) {
                 auto pickResult = PickPeer();
-                
-                if (auto* error = pickResult.TryAs<TError>()) {
-                    Promise_.TrySet(
-                        *error
-                        << TErrorAttribute("endpoint", Owner_->GetEndpointYsonDescription()));
-                    return;
-                }
 
                 if (pickResult.Is<TTooManyConcurrentRequests>()) {
                     break;
                 }
-                
-                auto address = pickResult.As<Stroka>();
 
-                LOG_DEBUG("Querying peer %v", address);
-
-                auto channel = Owner_->ChannelFactory_->CreateChannel(address);
-       
-                TGenericProxy proxy(channel, Request_->GetService());
-                proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
-
-                auto req = proxy.Discover();
-                if (Owner_->DiscoverRequestHook_) {
-                    Owner_->DiscoverRequestHook_.Run(req.Get());
+                if (pickResult.Is<TNoMorePeers>()) {
+                    OnFinished();
+                    break;
                 }
-                
-                req->Invoke().Subscribe(BIND(
-                    &TSession::OnResponse,
-                    MakeStrong(this),
-                    address,
-                    channel));
+
+                QueryPeer(pickResult.As<Stroka>());
             }
+        }
+
+        void QueryPeer(const Stroka& address)
+        {
+            LOG_DEBUG("Querying peer (Address: %v)", address);
+
+            auto channel = Owner_->ChannelFactory_->CreateChannel(address);
+
+            TGenericProxy proxy(channel, Owner_->ServiceName_);
+            proxy.SetDefaultTimeout(Owner_->Config_->DiscoverTimeout);
+
+            auto req = proxy.Discover();
+            if (Owner_->DiscoverRequestHook_) {
+                Owner_->DiscoverRequestHook_.Run(req.Get());
+            }
+
+            req->Invoke().Subscribe(BIND(
+                &TDiscoverySession::OnResponse,
+                MakeStrong(this),
+                address,
+                channel));
         }
 
         void OnResponse(
@@ -151,27 +177,33 @@ private:
             IChannelPtr channel,
             const TGenericProxy::TErrorOrRspDiscoverPtr& rspOrError)
         {
+            OnPeerQueried(address);
+
             if (rspOrError.IsOK()) {
                 const auto& rsp = rspOrError.Value();
                 bool up = rsp->up();
                 auto suggestedAddresses = FromProto<Stroka>(rsp->suggested_addresses());
 
-                LOG_DEBUG("Peer %v is %v (SuggestedAddresses: [%v])",
-                    address,
-                    up ? "up" : "down",
-                    JoinToString(suggestedAddresses));
-
-                Owner_->AddPeers(suggestedAddresses);
-
-                if (up) {
-                    Promise_.TrySet(channel);
-                    return;
+                if (!suggestedAddresses.empty()) {
+                    LOG_DEBUG("Peers suggested (SuggestorAddress: %v, SuggestedAddresses: [%v])",
+                        address,
+                        JoinToString(suggestedAddresses));
+                    Owner_->AddPeers(suggestedAddresses);
                 }
 
-                auto error = TError("Peer %v is down", address);
-                BanPeer(address, error, Owner_->Config_->SoftBackoffTime);
+                if (up) {
+                    AddViablePeer(address, channel);
+                } else {
+                    LOG_DEBUG("Peer is down (Address: %v)", address);
+                    auto error = TError("Peer %v is down", address)
+                         << TErrorAttribute("endpoint", Owner_->YsonDescription_)
+                         << TErrorAttribute("service", Owner_->ServiceName_);
+                    BanPeer(address, error, Owner_->Config_->SoftBackoffTime);
+                }
             } else {
                 auto error = TError("Discovery request failed for peer %v", address)
+                    << TErrorAttribute("endpoint", Owner_->YsonDescription_)
+                    << TErrorAttribute("service", Owner_->ServiceName_)
                     << rspOrError;
                 LOG_WARNING(error);
                 BanPeer(address, error, Owner_->Config_->HardBackoffTime);
@@ -180,68 +212,78 @@ private:
             DoRun();
         }
 
-        struct TTooManyConcurrentRequests { };
-
-        TVariant<Stroka, TError, TTooManyConcurrentRequests> PickPeer()
+        TPickPeerResult PickPeer()
         {
-            TGuard<TSpinLock> thisGuard(SpinLock_);
-            TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);
-
-            if (RequestedAddresses_.size() >= Owner_->Config_->MaxConcurrentDiscoverRequests) {
-                return TTooManyConcurrentRequests();
-            }
-
-            std::vector<Stroka> candidates;
-            candidates.reserve(Owner_->ActiveAddresses_.size());
-
-            for (const auto& address : Owner_->ActiveAddresses_) {
-                if (RequestedAddresses_.find(address) == RequestedAddresses_.end()) {
-                    candidates.push_back(address);
-                }
-            }
-
-            if (candidates.empty()) {
-                if (RequestedAddresses_.empty()) {
-                    return TError(NRpc::EErrorCode::Unavailable, "No alive peers left")
-                         << InnerErrors_;
-                } else {
-                    return TTooManyConcurrentRequests();
-                }
-            }
-
-            const auto& result = candidates[RandomNumber(candidates.size())];
-            YCHECK(RequestedAddresses_.insert(result).second);
-            return result;
+            TGuard<TSpinLock> guard(SpinLock_);
+            return Owner_->PickPeer(&RequestingAddresses_, &RequestedAddresses_);
         }
 
-       void BanPeer(const Stroka& address, const TError& error, TDuration backoffTime)
-       {
+        void OnPeerQueried(const Stroka& address)
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            YCHECK(RequestingAddresses_.erase(address) == 1);
+        }
+
+        void BanPeer(const Stroka& address, const TError& error, TDuration backoffTime)
+        {
             {
-                TGuard<TSpinLock> thisGuard(SpinLock_);
-                TGuard<TSpinLock> ownerGuard(Owner_->SpinLock_);
+                TGuard<TSpinLock> guard(SpinLock_);
                 YCHECK(RequestedAddresses_.erase(address) == 1);
                 InnerErrors_.push_back(error);
-                if (Owner_->ActiveAddresses_.erase(address) != 1)
-                    return;
-                Owner_->BannedAddresses_.insert(address);
             }
 
-            LOG_DEBUG("Peer %v banned (BackoffTime: %v)",
-                address,
-                backoffTime);
-
-            TDelayedExecutor::Submit(
-                BIND(&TBalancingChannelProvider::OnPeerBanTimeout, Owner_, address),
-                backoffTime);
+            Owner_->BanPeer(address, backoffTime);
         }
 
+        void AddViablePeer(const Stroka& address, IChannelPtr channel)
+        {
+            auto wrappedChannel = Owner_->AddViablePeer(address, channel);
+            Promise_.TrySet(wrappedChannel);
+        }
+
+        void OnFinished()
+        {
+            TError result;
+            {
+                TGuard<TSpinLock> guard(SpinLock_);
+                result = TError(NRpc::EErrorCode::Unavailable, "No alive peers left")
+                    << TErrorAttribute("endpoint", Owner_->YsonDescription_)
+                    << TErrorAttribute("service", Owner_->ServiceName_)
+                    << InnerErrors_;
+            }
+
+            Promise_.TrySet(result);
+        }
     };
 
+
+    IChannelPtr PickViableChannel()
+    {
+        TReaderGuard guard(SpinLock_);
+        if (ViableChannels_.empty()) {
+            return nullptr;
+        }
+        return ViableChannels_[RandomNumber(ViableChannels_.size())];
+    }
+
+    TFuture<IChannelPtr> RunDiscovery()
+    {
+        {
+            TReaderGuard guard(SpinLock_);
+            if (Terminated_) {
+                return MakeFuture<IChannelPtr>(TError(NRpc::EErrorCode::TransportError, "Channel terminated")
+                    << TErrorAttribute("endpoint", YsonDescription_)
+                    << TErrorAttribute("service", ServiceName_)
+                    << TerminationError_);
+            }
+        }
+        return New<TDiscoverySession>(this)->Run();
+    }
 
     std::vector<Stroka> GetAllAddresses() const
     {
         std::vector<Stroka> result;
-        TGuard<TSpinLock> guard(SpinLock_);
+        TReaderGuard guard(SpinLock_);
         result.insert(result.end(), ActiveAddresses_.begin(), ActiveAddresses_.end());
         result.insert(result.end(), BannedAddresses_.begin(), BannedAddresses_.end());
         return result;
@@ -249,7 +291,7 @@ private:
 
     void AddPeers(const std::vector<Stroka>& addresses)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TWriterGuard guard(SpinLock_);
         for (const auto& address : addresses) {
             if (!ActiveAddresses_.insert(address).second)
                 continue;
@@ -257,21 +299,193 @@ private:
                 continue;
 
             ActiveAddresses_.insert(address);
-            LOG_DEBUG("Added peer %v", address);
+            LOG_DEBUG("Peer added (Address: %v)", address);
         }
+    }
+
+    TPickPeerResult PickPeer(
+        yhash_set<Stroka>* requestingAddresses,
+        yhash_set<Stroka>* requestedAddresses)
+    {
+        TWriterGuard guard(SpinLock_);
+
+        if (requestingAddresses->size() >= Config_->MaxConcurrentDiscoverRequests) {
+            return TTooManyConcurrentRequests();
+        }
+
+        std::vector<Stroka> candidates;
+        candidates.reserve(ActiveAddresses_.size());
+
+        for (const auto& address : ActiveAddresses_) {
+            if (requestedAddresses->find(address) == requestedAddresses->end()) {
+                candidates.push_back(address);
+            }
+        }
+
+        if (candidates.empty()) {
+            if (requestedAddresses->empty()) {
+                return TNoMorePeers();
+            } else {
+                return TTooManyConcurrentRequests();
+            }
+        }
+
+        const auto& result = candidates[RandomNumber(candidates.size())];
+        YCHECK(requestedAddresses->insert(result).second);
+        YCHECK(requestingAddresses->insert(result).second);
+        return result;
+    }
+
+    void BanPeer(const Stroka& address, TDuration backoffTime)
+    {
+        {
+            TWriterGuard guard(SpinLock_);
+            if (ActiveAddresses_.erase(address) != 1)
+                return;
+            BannedAddresses_.insert(address);
+        }
+
+        LOG_DEBUG("Peer banned (Address: %v, BackoffTime: %v)",
+            address,
+            backoffTime);
+
+        TDelayedExecutor::Submit(
+            BIND(&TBalancingChannelSubprovider::OnPeerBanTimeout, MakeWeak(this), address),
+            backoffTime);
     }
 
     void OnPeerBanTimeout(const Stroka& address)
     {
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TWriterGuard guard(SpinLock_);
             if (BannedAddresses_.erase(address) != 1)
                 return;
             ActiveAddresses_.insert(address);
         }
 
-        LOG_DEBUG("Peer %v unbanned", address);
+        LOG_DEBUG("Peer unbanned (Address: %v)", address);
     }
+
+    IChannelPtr AddViablePeer(const Stroka& address, IChannelPtr channel)
+    {
+        auto wrappedChannel = CreateFailureDetectingChannel(
+            channel,
+            BIND(&TBalancingChannelSubprovider::OnChannelFailed, MakeWeak(this), address));
+
+        {
+            TWriterGuard guard(SpinLock_);
+            ViableChannels_.push_back(wrappedChannel);
+        }
+
+        LOG_DEBUG("Peer is up (Address: %v)", address);
+        return wrappedChannel;
+    }
+
+    void OnChannelFailed(const Stroka& address, IChannelPtr channel)
+    {
+        {
+            TWriterGuard guard(SpinLock_);
+            auto it = std::find(ViableChannels_.begin(), ViableChannels_.end(), channel);
+            YCHECK(it != ViableChannels_.end());
+            ViableChannels_.erase(it);
+        }
+
+        LOG_DEBUG("Peer failed (Address: %v)", address);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBalancingChannelSubprovider)
+
+class TBalancingChannelProvider
+    : public IRoamingChannelProvider
+{
+public:
+    TBalancingChannelProvider(
+        TBalancingChannelConfigPtr config,
+        IChannelFactoryPtr channelFactory,
+        const Stroka& textDescription,
+        const TYsonString& ysonDescription,
+        TDiscoverRequestHook discoverRequestHook)
+        : Config_(config)
+        , ChannelFactory_(channelFactory)
+        , TextDescription_(textDescription)
+        , YsonDescription_(ysonDescription)
+        , DiscoverRequestHook_(discoverRequestHook)
+    { }
+
+    virtual Stroka GetEndpointTextDescription() const override
+    {
+        return TextDescription_;
+    }
+
+    virtual TYsonString GetEndpointYsonDescription() const override
+    {
+        return YsonDescription_;
+    }
+
+    virtual TFuture<IChannelPtr> GetChannel(const Stroka& serviceName) override
+    {
+        return GetSubprovider(serviceName)->GetChannel();
+    }
+
+    virtual TFuture<void> Terminate(const TError& error)
+    {
+        std::vector<TBalancingChannelSubproviderPtr> subproviders;
+        {
+            TReaderGuard guard(SpinLock_);
+            for (const auto& pair : SubproviderMap_) {
+                subproviders.push_back(pair.second);
+            }
+        }
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& subprovider : subproviders) {
+            asyncResults.push_back(subprovider->Terminate(error));
+        }
+
+        return Combine(asyncResults);
+    }
+
+private:
+    const TBalancingChannelConfigPtr Config_;
+    const IChannelFactoryPtr ChannelFactory_;
+    const Stroka TextDescription_;
+    const TYsonString YsonDescription_;
+    const TDiscoverRequestHook DiscoverRequestHook_;
+
+    mutable TReaderWriterSpinLock SpinLock_;
+    yhash_map<Stroka, TBalancingChannelSubproviderPtr> SubproviderMap_;
+
+
+    TBalancingChannelSubproviderPtr GetSubprovider(const Stroka& serviceName)
+    {
+        {
+            TReaderGuard guard(SpinLock_);
+            auto it = SubproviderMap_.find(serviceName);
+            if (it != SubproviderMap_.end()) {
+                return it->second;
+            }
+        }
+
+        {
+            TWriterGuard guard(SpinLock_);
+            auto it = SubproviderMap_.find(serviceName);
+            if (it != SubproviderMap_.end()) {
+                return it->second;
+            }
+
+            auto subprovider = New<TBalancingChannelSubprovider>(
+                Config_,
+                ChannelFactory_,
+                TextDescription_,
+                YsonDescription_,
+                serviceName,
+                DiscoverRequestHook_);
+            YCHECK(SubproviderMap_.insert(std::make_pair(serviceName, subprovider)).second);
+            return subprovider;
+        }
+    }
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TBalancingChannelProvider)
@@ -279,21 +493,20 @@ DEFINE_REFCOUNTED_TYPE(TBalancingChannelProvider)
 IChannelPtr CreateBalancingChannel(
     TBalancingChannelConfigPtr config,
     IChannelFactoryPtr channelFactory,
+    const Stroka& textDescription,
+    const TYsonString& ysonDescription,
     TDiscoverRequestHook discoverRequestHook)
 {
     YCHECK(config);
     YCHECK(channelFactory);
 
-    if (config->Addresses.size() == 1) {
-        // Shortcut: don't run any discovery if just one address is given.
-        return channelFactory->CreateChannel(config->Addresses[0]);
-    } else {
-        auto channelProvider = New<TBalancingChannelProvider>(
-            config,
-            channelFactory,
-            discoverRequestHook);
-        return CreateRoamingChannel(channelProvider);
-    }
+    auto channelProvider = New<TBalancingChannelProvider>(
+        config,
+        channelFactory,
+        textDescription,
+        ysonDescription,
+        discoverRequestHook);
+    return CreateRoamingChannel(channelProvider);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

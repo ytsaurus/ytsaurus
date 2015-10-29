@@ -9,6 +9,8 @@
 
 #include <core/tracing/trace_context.h>
 
+#include <core/actions/public.h>
+
 namespace NYT {
 namespace NRpc {
 
@@ -34,6 +36,14 @@ IChannelPtr CreateRealmChannel(
 IChannelFactoryPtr CreateRealmChannelFactory(
     IChannelFactoryPtr underlyingFactory,
     const TRealmId& realmId);
+
+//! Returns a wrapper that informs about channel failures.
+/*!
+ *  Channel failures are being detected via NRpc::IsChannelFailureError.
+ */
+IChannelPtr CreateFailureDetectingChannel(
+    IChannelPtr underlyingChannel,
+    TCallback<void(IChannelPtr)> onFailure);
 
 //! Returns the trace context associated with the request.
 //! If no trace context is attached, returns a disabled context.
