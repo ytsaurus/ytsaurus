@@ -54,7 +54,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
                 header: req.headers["authorization"]
             });
             // Reject all invalid requests.
-            utils.dispatchUnauthorized(rsp, "YT");
+            utils.dispatchUnauthorized(rsp, "YT", "Invalid 'Authorization' header");
             if (typeof(prev) === "function") { prev(); }
             return void 0;
         }
@@ -93,7 +93,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
             return void epilogue(result.login, result.realm);
         } else {
             logger.debug("Client has failed to authenticate");
-            utils.dispatchUnauthorized(rsp, "YT");
+            utils.dispatchUnauthorized(rsp, "YT", "Authentication has failed");
             if (typeof(prev) === "function") { prev(); }
             return void 0;
         }
@@ -104,7 +104,7 @@ YtAuthentication.prototype.dispatch = function(req, rsp, next, prev)
         logger.info("An error occured during authentication", {
             error: error.toJson()
         });
-        utils.dispatchLater(rsp, 60);
+        utils.dispatchLater(rsp, 60, "Authentication is currently unavailable");
         if (typeof(prev) === "function") { prev(); }
         return void 0;
     })

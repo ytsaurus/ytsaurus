@@ -245,19 +245,6 @@ application = connect()
     .use("/hosts", yt.YtApplicationHosts())
     .use("/auth", yt.YtApplicationAuth())
     .use("/upravlyator", yt.YtApplicationUpravlyator())
-    // TODO(sandello): Can we remove this?
-    .use("/_check_availability_time", function(req, rsp, next) {
-        fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
-            if (err) {
-                var body = "0";
-                rsp.writeHead(200, { "Content-Length" : body.length, "Content-Type" : "text/plain" });
-                rsp.end(body);
-            } else {
-                rsp.writeHead(200, { "Content-Length" : data.length, "Content-Type" : "text/plain" });
-                rsp.end(data);
-            }
-        });
-    })
     // TODO(sandello): This would be deprecated with nodejs 0.10.
     // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {
