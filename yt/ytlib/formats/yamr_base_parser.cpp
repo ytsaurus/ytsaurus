@@ -126,7 +126,7 @@ void TYamrDelimitedBaseParser::ProcessTableSwitch(const TStringBuf& tableIndex)
         }
         THROW_ERROR_EXCEPTION("YAMR line %Qv cannot be parsed as a table switch; did you forget a record separator?",
             tableIndexString)
-            << GetDebugInfo();
+            << *GetDebugInfo();
     }
     Consumer->SwitchTable(value);
 }
@@ -209,7 +209,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
                 "YAMR token length limit exceeded: %v > %v",
                 CurrentToken.length(),
                 MaxRowWeightLimit)
-                << GetDebugInfo();
+                << *GetDebugInfo();
         }
         return end;
     }
@@ -238,7 +238,7 @@ const char* TYamrDelimitedBaseParser::Consume(const char* begin, const char* end
             }
 
             if (*next == RecordSeparator) {
-                // Look yamr_parser_yt.cpp: IncompleteRows() for details.
+                // See yamr_parser_ut.cpp: IncompleteRows() for details.
                 return ProcessToken(&TYamrDelimitedBaseParser::ProcessSubkeyBadFormat, begin, next);
             }
             break;
@@ -261,7 +261,7 @@ void TYamrDelimitedBaseParser::ThrowIncorrectFormat() const
     THROW_ERROR_EXCEPTION("Unexpected symbol in YAMR row: expected %Qv, found %Qv",
         EscapeC(FieldSeparator),
         EscapeC(RecordSeparator))
-        << GetDebugInfo();
+        << *GetDebugInfo();
 }
 
 void TYamrDelimitedBaseParser::OnRangeConsumed(const char* begin, const char* end)
