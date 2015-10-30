@@ -4,6 +4,8 @@ from helpers import unorderable_list_difference, _AssertRaisesContext, Counter
 from yt.common import update, YtError
 import yt.yson as yson
 
+import pytest
+
 import logging
 import os
 import re
@@ -288,10 +290,10 @@ class YTEnv(object):
                 if proc.returncode is not None:
                     if callback_func is None:
                         self.clear_environment(safe=False)
-                        py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
+                        pytest.exit("Process run by command '{0}' is dead! Tests terminated."\
                                      .format(" ".join(args)))
                     else:
-                        callback_func()
+                        callback_func(self, args)
                     break
 
     def _append_pid(self, pid):
