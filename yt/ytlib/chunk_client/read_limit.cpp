@@ -203,14 +203,14 @@ Stroka ToString(const TReadLimit& limit)
 {
     using ::ToString;
 
-    Stroka result;
+    TStringBuilder builder;
     auto append = [&] (const char* label, const TStringBuf& value) {
-        if (!result.empty()) {
-            result.append(", ");
+        if (builder.GetLength() > 0) {
+            builder.AppendString(", ");
         }
-        result.append(label);
-        result.append(": ");
-        result.append(value);
+        builder.AppendString(label);
+        builder.AppendString(": ");
+        builder.AppendString(value);
     };
 
     if (limit.HasKey()) {
@@ -229,7 +229,7 @@ Stroka ToString(const TReadLimit& limit)
         append("ChunkIndex", ToString(limit.GetOffset()));
     }
 
-    return result;
+    return builder.Flush();
 }
 
 bool IsNontrivial(const TReadLimit& limit)

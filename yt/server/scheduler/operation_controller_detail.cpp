@@ -1482,7 +1482,6 @@ void TOperationControllerBase::OnJobStarted(const TJobId& jobId)
     auto address = joblet->Address;
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(joblet->JobId)
-        .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(address)
         .Item("job_type").Value(joblet->JobType)
