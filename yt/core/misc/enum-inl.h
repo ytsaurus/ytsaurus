@@ -2,6 +2,8 @@
 #error "Direct inclusion of this file is not allowed, include enum.h"
 #endif
 
+#include <stdexcept>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +85,7 @@ namespace NYT {
         { \
             TType value; \
             if (!FindValueByLiteral(str, &value)) { \
-                throw std::runtime_error(Sprintf("Error parsing %s value %s", \
+                throw std::runtime_error(~Sprintf("Error parsing %s value %s", \
                     PP_STRINGIZE(name), \
                     ~Stroka(str).Quote())); \
             } \
