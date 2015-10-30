@@ -1059,6 +1059,7 @@ i64 TPendingIOGuard::GetSize() const
 void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs)
 {
     using std::swap;
+    swap(lhs.Direction_, rhs.Direction_);
     swap(lhs.Size_, rhs.Size_);
     swap(lhs.Owner_, rhs.Owner_);
 }
