@@ -30,6 +30,7 @@ DEFINE_ENUM(EOperationType,
 DEFINE_ENUM(EOperationState,
     (Initializing)
     (Preparing)
+    (Materializing)
     (Reviving)
     (Pending)
     (Running)
