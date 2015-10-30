@@ -388,8 +388,10 @@ private:
         {
             TWriterGuard guard(SpinLock_);
             auto it = std::find(ViableChannels_.begin(), ViableChannels_.end(), channel);
-            YCHECK(it != ViableChannels_.end());
-            ViableChannels_.erase(it);
+            // NB: Multiple failures is possible.
+            if (it != ViableChannels_.end()) {
+                ViableChannels_.erase(it);
+            }
         }
 
         LOG_DEBUG("Peer failed (Address: %v)", address);
