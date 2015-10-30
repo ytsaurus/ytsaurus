@@ -41,7 +41,7 @@ std::pair<TRow, int> TTopCollector::Capture(TRow row)
                 buffersToRows[Rows_[rowId].second].push_back(rowId);
             }
 
-            auto buffer = New<TRowBuffer>(PoolChunkSize, PoolChunkSize);
+            auto buffer = New<TRowBuffer>(PoolChunkSize);
 
             TotalMemorySize_ = 0;
             AllocatedMemorySize_ = 0;
@@ -58,17 +58,17 @@ std::pair<TRow, int> TTopCollector::Capture(TRow row)
 
                 TotalMemorySize_ += buffer->GetCapacity();
 
-                std::swap(buffer, Buffers_[bufferId]);
-                buffer->Clear();
-
                 if (buffer->GetSize() < BufferLimit) {
                     EmptyBufferIds_.push_back(bufferId);
                 }
+
+                std::swap(buffer, Buffers_[bufferId]);
+                buffer->Clear();
             }
         } else {
             // Allocate buffer and add to emptyBufferIds.
             EmptyBufferIds_.push_back(Buffers_.size());
-            Buffers_.push_back(New<TRowBuffer>(PoolChunkSize, PoolChunkSize));
+            Buffers_.push_back(New<TRowBuffer>(PoolChunkSize));
         }
     }
 
