@@ -11,13 +11,21 @@ import time
 import signal
 import socket
 import shutil
-import subprocess
 import sys
 import getpass
 import yt.packages.simplejson as json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import chain
+from threading import RLock
+
+try:
+    import subprocess32 as subprocess
+except ImportError:
+    if sys.version_info[:2] <= (2, 6):
+        print >>sys.stderr, "Environment may not work properly on python of version <= 2.6 " \
+                            "because subprocess32 library is not installed."
+    import subprocess
 
 GEN_PORT_ATTEMPTS = 10
 
@@ -88,6 +96,7 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False):
+        self._lock = RLock()
         logger.propagate = False
         if not logger.handlers:
             logger.addHandler(logging.StreamHandler())
@@ -135,45 +144,6 @@ class YTEnv(object):
         if not self.START_PROXY:
             raise YtError("Proxy is not started")
         return "{0}:{1}".format(self._hostname, self._ports["proxy"][0])
-
-    def kill_service(self, name):
-        logger.info("Killing %s", name)
-
-        ok = True
-        message_parts = []
-        remaining_processes = []
-        for p in self._process_to_kill[name]:
-            p_ok, p_message = self._kill_process(p, name)
-            if not p_ok:
-                ok = False
-                remaining_processes.append(p)
-            else:
-                del self._all_processes[p.pid]
-            message_parts.append(p_message)
-
-        self._process_to_kill[name] = remaining_processes
-
-        return ok, "".join(message_parts)
-
-    def clear_environment(self, safe=True):
-        total_ok = True
-        total_message_parts = []
-        for name in self.configs:
-            ok, message = self.kill_service(name)
-            if not ok:
-                total_ok = False
-                total_message_parts.append(message)
-        if safe and not total_ok:
-            raise YtError("Failed to clear environment. Message: {0}"\
-                          .format("\n\n".join(total_message_parts)))
-
-    def check_liveness(self, callback_func):
-        for pid, info in self._all_processes.iteritems():
-            proc, args = info
-            proc.poll()
-            if proc.returncode is not None:
-                callback_func(self, args)
-                break
 
     def _run_all(self, masters_count, nodes_count, schedulers_count, has_proxy, use_proxy_from_package=False,
                  instance_id="", cell_tag=0, proxy_port=None):
@@ -277,28 +247,76 @@ class YTEnv(object):
 
         return True, ""
 
+    def kill_service(self, name):
+        with self._lock:
+            logger.info("Killing %s", name)
+
+            ok = True
+            message_parts = []
+            remaining_processes = []
+            for p in self._process_to_kill[name]:
+                p_ok, p_message = self._kill_process(p, name)
+                if not p_ok:
+                    ok = False
+                    remaining_processes.append(p)
+                else:
+                    del self._all_processes[p.pid]
+                message_parts.append(p_message)
+
+            self._process_to_kill[name] = remaining_processes
+
+            return ok, "".join(message_parts)
+
+    def clear_environment(self, safe=True):
+        with self._lock:
+            total_ok = True
+            total_message_parts = []
+            for name in self.configs:
+                ok, message = self.kill_service(name)
+                if not ok:
+                    total_ok = False
+                    total_message_parts.append(message)
+            if safe and not total_ok:
+                raise YtError("Failed to clear environment. Message: {0}"\
+                              .format("\n\n".join(total_message_parts)))
+
+    def check_liveness(self, callback_func):
+        with self._lock:
+            for pid, info in self._all_processes.iteritems():
+                proc, args = info
+                proc.poll()
+                if proc.returncode is not None:
+                    if callback_func is None:
+                        self.clear_environment(safe=False)
+                        py.test.exit("Process run by command '{0}' is dead! Tests terminated."\
+                                     .format(" ".join(args)))
+                    else:
+                        callback_func()
+                    break
+
     def _append_pid(self, pid):
         self.pids_file.write(str(pid) + "\n")
         self.pids_file.flush()
 
     def _run(self, args, name, number=1, timeout=0.1):
-        if self.supress_yt_output:
-            stdout = open("/dev/null", "w")
-            stderr = open("/dev/null", "w")
-        else:
-            stdout = sys.stdout
-            stderr = sys.stderr
-        p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
-                             stdout=stdout, stderr=stderr)
-        self._process_to_kill[name].append(p)
-        self._all_processes[p.pid] = (p, args)
-        self._append_pid(p.pid)
+        with self._lock:
+            if self.supress_yt_output:
+                stdout = open("/dev/null", "w")
+                stderr = open("/dev/null", "w")
+            else:
+                stdout = sys.stdout
+                stderr = sys.stderr
+            p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=os.setsid, cwd=self.path_to_run,
+                                 stdout=stdout, stderr=stderr)
+            self._process_to_kill[name].append(p)
+            self._all_processes[p.pid] = (p, args)
+            self._append_pid(p.pid)
 
-        time.sleep(timeout)
-        if p.poll():
-            raise YtError("Process %s-%d unexpectedly terminated with error code %d. "
-                          "If the problem is reproducible please report to yt@yandex-team.ru mailing list",
-                          name, number, p.returncode)
+            time.sleep(timeout)
+            if p.poll():
+                raise YtError("Process %s-%d unexpectedly terminated with error code %d. "
+                              "If the problem is reproducible please report to yt@yandex-team.ru mailing list",
+                              name, number, p.returncode)
 
     def _run_ytserver(self, service_name, name):
         logger.info("Starting %s", name)
