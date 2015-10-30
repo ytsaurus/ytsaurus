@@ -32,24 +32,6 @@ var opts = optimist
     .alias("n", "number-of-workers")
     .describe("n", "Specify number of worker processes")
 
-    .alias("m", "memory-limit")
-    .describe("m", "Specify memory limit (in MB) for data buffer size for each request")
-
-    .alias("t", "thread-limit")
-    .describe("t", "Specify thread limit for concurrent off-loop processing")
-
-    .alias("s", "spare-threads")
-    .describe("s", "Specify a number of threads reserved for non-heavy tasks")
-
-    .alias("l", "log")
-    .describe("l", "Specify log file")
-
-    .alias("u", "user")
-    .describe("u", "Specify a user to setuid() to")
-
-    .alias("g", "group")
-    .describe("g", "Specify a group to setgid() to")
-
     .alias("v", "version")
     .boolean("v")
     .describe("v", "Show version and exit")
@@ -57,14 +39,6 @@ var opts = optimist
     .alias("h", "help")
     .boolean("h")
     .describe("h", "Show help message and exit")
-
-    .string("user_interface")
-    .describe("user_interface", "Path to the UI")
-    .default("user_interface", "/usr/share/yt")
-
-    .boolean("read_only")
-    .describe("read_only", "Enable read-only mode")
-    .default("read_only", false)
 
     .boolean("agent")
     .describe("agent", "Enable V8 profiler agent")
@@ -133,26 +107,28 @@ config = {
     ssl_reject_unauthorized : false,
     monitoring_port   : null,
     neighbours        : [ "::1" ],
-    number_of_workers : 4,
     memory_limit      : 32 * 1024 * 1024,
+    rss_limit         : 512 * 1024 * 1024,
+    number_of_workers : 4,
     thread_limit      : 32,
-    concurrency_limit : undefined,
     spare_threads     : 4,
-    user_interface    : opts.argv.user_interface,
-    read_only         : opts.argv.read_only,
+    concurrency_limit : null,
+    show_ports        : false,
     agent             : opts.argv.agent,
+
     proxy             : {
-        logging : { rules : [], writers : {} },
-        tracing : { },
+        logging: { rules: [], writers: {} },
+        tracing: { },
     },
-    services : {
-        oauth : {
+
+    services: {
+        oauth: {
             host: "oauth.yandex-team.ru",
             port: 80,
             nodelay: true,
             timeout: 3000
         },
-        blackbox : {
+        blackbox: {
             host: "blackbox.yandex-team.ru",
             port: 80,
             nodelay: true,
@@ -160,17 +136,19 @@ config = {
             retries: 5
         },
     },
-    api : {
+
+    api: {
         rate_check_cache_size: 5000,
         rate_check_cache_age: 60 * 1000,
     },
-    authentication : {
+
+    authentication: {
         enable: true,
         cache_max_size: 5000,
         cache_max_token_age: 60 * 1000,
         cache_max_exist_age: 86400 * 1000,
         create_users_on_demand: true,
-        default_oauth_application_key: "kant",
+        default_oauth_application_key: "",
         guest_login: "guest",
         guest_realm: "guest",
         cypress: {
@@ -182,18 +160,9 @@ config = {
             grant: "yt:api",
         },
         oauth: [
-            {
-                key: "kant",
-                client_id: "7dc2b061bd884693b520730cfb61b011",
-                client_secret: "c494ca8a946a40f9bbdb36615b14551f"
-            },
-            {
-                key: "ui",
-                client_id: "d3aa642b20bf42e6a85cb8b62ddb25ed",
-                client_secret: "93008f89679c46b6a79fad9ebd776879"
-            },
         ],
     },
+
     coordination: {
         enable: true,
         announce: true,
@@ -208,44 +177,29 @@ config = {
         afd_phi_threshold: 4,
         death_age: 300000,
     },
+
     min_python_wrapper_version: {
         enable: true,
         major: 0,
         minor: 5,
         patch: 0,
     },
+
     banned_python_wrapper_versions: [
         ["0.5.0", "0.5.100"],
         ["0.6.0", "0.6.9"],
         ["0.6.14", "0.6.15"]
     ],
+
     redirect: [],
     static: [],
 };
-
-/*
-var konfig = {
-    blackbox: {
-
-        cache_max_size: 5000,
-        cache_max_age: 60 * 1000,
-    },
-    local_tokens: {
-    }
-};
-*/
 
 config = merge(config, (opts.argv.c && JSON.parse(fs.readFileSync(opts.argv.c, "utf8"))) || {});
 config = merge(config, {
     port              : opts.argv.p && parseInt(opts.argv.p),
     address           : opts.argv.a,
     number_of_workers : opts.argv.n && parseInt(opts.argv.n),
-    memory_limit      : opts.argv.m && parseInt(opts.argv.m) * 1024 * 1024,
-    thread_limit      : opts.argv.t && parseInt(opts.argv.t),
-    spare_threads     : opts.argv.s && parseInt(opts.argv.s),
-    logging           : opts.argv.l && { filename : opts.argv.l, timestamp : false, raw : true },
-    user              : opts.argv.u,
-    group             : opts.argv.g
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -307,7 +261,7 @@ function runProxy(logger, profiler) {
     process.env.YT_PROXY_MASTER = process.pid.toString();
 
     var master = new (require(__dirname + "/../lib/master.js").that)(
-        logger, profiler, config.number_of_workers, {
+        logger, profiler, config, {
             exec : __dirname + "/../lib/worker.js",
             args : []
     });

@@ -73,6 +73,8 @@ public:
 
     virtual TChunkId GetChunkId() const override;
 
+    virtual NErasure::ECodec GetErasureCodecId() const override;
+
 private:
     TMultiChunkWriterConfigPtr Config_;
     TMultiChunkWriterOptionsPtr Options_;
@@ -194,6 +196,11 @@ TChunkId TConfirmingWriter::GetChunkId() const
     return ChunkId_;
 }
 
+NErasure::ECodec TConfirmingWriter::GetErasureCodecId() const
+{
+    return Options_->ErasureCodec;
+}
+
 void TConfirmingWriter::OpenSession()
 {
     TFinallyGuard finally([&] () {
@@ -260,6 +267,7 @@ IChunkWriterPtr TConfirmingWriter::CreateUnderlyingWriter() const
     return CreateErasureWriter(
         Config_,
         ChunkId_,
+        Options_->ErasureCodec,
         erasureCodec,
         writers);
 }
