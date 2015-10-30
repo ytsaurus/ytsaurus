@@ -359,12 +359,14 @@ void TLocation::ValidateLockFile()
         THROW_ERROR_EXCEPTION("Empty lock file found");
     }
 
+    TError error;
     try {
-        THROW_ERROR ConvertTo<TError>(TYsonString(errorData));
+        error = ConvertTo<TError>(TYsonString(errorData));
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error parsing lock file contents")
             << ex;
     }
+    THROW_ERROR error;
 }
 
 void TLocation::ValidateWritable()
