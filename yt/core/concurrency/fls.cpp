@@ -3,6 +3,10 @@
 #include "scheduler.h"
 #include "atomic_flag_spinlock.h"
 
+#ifdef _unix_
+    #include <pthread.h>
+#endif
+
 namespace NYT {
 namespace NConcurrency {
 namespace NDetail {
