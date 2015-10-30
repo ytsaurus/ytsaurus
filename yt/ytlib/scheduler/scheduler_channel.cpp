@@ -108,10 +108,9 @@ private:
     void OnChannelFailed(IChannelPtr channel)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        if (CachedChannel_ != channel) {
-            return;
+        if (CachedChannel_ == channel) {
+            CachedChannel_.Reset();
         }
-        CachedChannel_.Reset();
     }
 
 };
