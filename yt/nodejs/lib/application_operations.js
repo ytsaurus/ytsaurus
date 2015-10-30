@@ -20,7 +20,7 @@ var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id",
     OPERATIONS_CYPRESS_PATH = "//sys/operations",
     OPERATIONS_ORCHID_PATH = "//sys/scheduler/orchid/scheduler/operations",
     SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
-    RESULT_LIMIT = 200;
+    RESULT_LIMIT = 10;
 
 var INTERMEDIATE_STATES = [
     "pending",
@@ -87,8 +87,8 @@ function YtApplicationOperations(driver)
             filtered_user = parameters.user,
             start_time_begin = Date.parse(parameters.from_time),
             start_time_end = Date.parse(parameters.to_time),
-            state_filter = parameters.state,
-            type_filter = parameters.type,
+            state_filter = parameters.state == "all" ? null : parameters.state,
+            type_filter = parameters.type == "all" ? null : parameters.type,
             jobs_filter = parameters.has_failed_jobs;
 
         start_time_end = isNaN(start_time_begin) ? new Date() : start_time_end;
@@ -100,9 +100,6 @@ function YtApplicationOperations(driver)
             start_time_begin = month_ago;
             incomplete = true;
         }
-
-        var date_filter = "start_time > {} and start_time < {}".format(
-                escape(start_time_begin.toISOString()), escape(start_time_end.toISOString()));
 
         var runtime_data = driver.executeSimple(
             "get", {
@@ -116,9 +113,12 @@ function YtApplicationOperations(driver)
                 attributes: OPERATION_ATTRIBUTES
             });
 
-        var text_filter = "is_substr({}, filter_factors)".format(escape(text_filter));
-
-        var strict_filter = [text_filter, date_filter];
+        var strict_filter = [
+            "is_substr({}, filter_factors)".format(escape(text_filter)),
+            "start_time > {} and start_time < {}".format(
+                escape(start_time_begin.toISOString()),
+                escape(start_time_end.toISOString()))
+        ];
 
         var filter_condition = strict_filter.slice();
 
@@ -126,11 +126,11 @@ function YtApplicationOperations(driver)
             filter_condition.push("authenticated_user = {}".format(escape(filtered_user)));
         }
 
-        if (state_filter && state_filter !== "all") {
+        if (state_filter) {
             filter_condition.push("state = {}".format(escape(state_filter)));
         }
 
-        if (type_filter && type_filter !== "all") {
+        if (type_filter) {
             filter_condition.push("operation_type = {}".format(escape(type_filter)));
         }
 
@@ -214,7 +214,7 @@ function YtApplicationOperations(driver)
                     state_counts.all += count;
                     state_counts[state] += count;
 
-                    if (state_filter !== "all" && state !== state_filter) {
+                    if (state_filter && state !== state_filter) {
                         return false;
                     }
 
@@ -222,7 +222,7 @@ function YtApplicationOperations(driver)
                     type_counts.all += count;
                     type_counts[type] += count;
 
-                    if (type_filter !== "all" && type !== type_filter) {
+                    if (type_filter && type !== type_filter) {
                         return false;
                     }
 
