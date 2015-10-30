@@ -9,8 +9,15 @@ class TAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMaybe<TNode> GetTableFormat(const TAuth& auth, const TRichYPath& path);
-TMaybe<TNode> GetTableFormats(const TAuth& auth, const yvector<TRichYPath>& paths);
+TMaybe<TNode> GetTableFormat(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TRichYPath& path);
+
+TMaybe<TNode> GetTableFormats(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const yvector<TRichYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 

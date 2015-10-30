@@ -41,24 +41,13 @@ void CommitTransaction(
 
 Stroka Get(
     const TAuth& auth,
+    const TTransactionId& transactionId,
     const TYPath& path);
 
 bool Exists(
     const TAuth& auth,
+    const TTransactionId& transactionid,
     const TYPath& path);
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationId StartOperation(
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const Stroka& operationName,
-    const Stroka& ysonSpec,
-    bool wait);
-
-void WaitForOperation(const TAuth& auth, const TOperationId& operationId);
-
-void AbortOperation(const TAuth& auth, const TOperationId& operationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

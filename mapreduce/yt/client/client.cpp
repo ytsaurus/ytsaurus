@@ -326,12 +326,12 @@ public:
 
     virtual void AbortOperation(const TOperationId& operationId)
     {
-        NYT::AbortOperation(Auth_, operationId);
+        NYT::AbortOperation(Auth_, TransactionId_, operationId);
     }
 
     virtual void WaitForOperation(const TOperationId& operationId)
     {
-        NYT::WaitForOperation(Auth_, operationId);
+        NYT::WaitForOperation(Auth_, TransactionId_, operationId);
     }
 
 protected:

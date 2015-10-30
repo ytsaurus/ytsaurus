@@ -50,6 +50,16 @@ TOperationId ExecuteErase(
     const TEraseOperationSpec& spec,
     const TOperationOptions& options);
 
+void WaitForOperation(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TOperationId& operationId);
+
+void AbortOperation(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TOperationId& operationId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
