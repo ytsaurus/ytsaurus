@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "balancing_channel.h"
 #include "roaming_channel.h"
+#include "caching_channel_factory.h"
 #include "config.h"
 #include "client.h"
 #include "private.h"
@@ -408,7 +409,7 @@ public:
         const IAttributeDictionary& endpointAttributes,
         TDiscoverRequestHook discoverRequestHook)
         : Config_(config)
-        , ChannelFactory_(channelFactory)
+        , ChannelFactory_(CreateCachingChannelFactory(channelFactory))
         , DiscoverRequestHook_(discoverRequestHook)
         , EndpointDescription_(Format("%v[%v]",
             endpointDescription,
