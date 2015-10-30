@@ -19,12 +19,13 @@
 #include <mapreduce/yt/io/node_table_writer.h>
 #include <mapreduce/yt/io/proto_table_reader.h>
 #include <mapreduce/yt/io/proto_table_writer.h>
+#include <mapreduce/yt/io/file_reader.h>
 
 #include <util/string/printf.h>
-
 #include <util/system/execpath.h>
 #include <util/folder/path.h>
 #include <util/stream/file.h>
+#include <util/stream/buffer.h>
 
 #include <library/digest/md5/md5.h>
 
@@ -114,7 +115,7 @@ private:
         Stroka cypressPath(YT_WRAPPER_FILE_CACHE);
         cypressPath += buf;
 
-        if (Exists(Auth_, cypressPath)) {
+        if (Exists(Auth_, TTransactionId(), cypressPath)) {
             return cypressPath;
         }
 
@@ -172,6 +173,155 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void DumpOperationStderrs(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const Stroka& operationPath)
+{
+    const size_t RESULT_LIMIT = 16 << 20;
+    const size_t BLOCK_SIZE = 64 << 10;
+    const i64 STDERR_LIMIT = 1 << 20;
+    const size_t STDERR_COUNT_LIMIT = 5;
+
+    auto jobsPath = operationPath + "/jobs";
+    if (!Exists(auth, transactionId, jobsPath)) {
+        return;
+    }
+
+    THttpHeader header("GET", "list");
+    header.AddPath(jobsPath);
+    header.SetParameters(AttributeFilterToJsonString(
+        TAttributeFilter().AddAttribute("error").AddAttribute("address")));
+    auto jobList = NodeFromYsonString(RetryRequest(auth, header)).AsList();
+
+    TBuffer buffer;
+    TBufferOutput output(buffer);
+    buffer.Reserve(RESULT_LIMIT);
+
+    size_t count = 0;
+    for (auto& job : jobList) {
+        auto jobPath = jobsPath + "/" + job.AsString();
+        auto& attributes = job.Attributes();
+        output << Endl;
+        output << "Host: " << attributes["address"].AsString() << Endl;
+        output << "Error: " << NodeToYsonString(attributes["error"]) << Endl;
+
+        auto stderrPath = jobPath + "/stderr";
+        if (!Exists(auth, transactionId, stderrPath)) {
+            continue;
+        }
+
+        output << "Stderr: " << Endl;
+        if (buffer.Size() >= RESULT_LIMIT) {
+            break;
+        }
+
+        TRichYPath path(stderrPath);
+        i64 stderrSize = NodeFromYsonString(
+            Get(auth, transactionId, stderrPath + "/@uncompressed_data_size")).AsInt64();
+        if (stderrSize > STDERR_LIMIT) {
+            path.AddRange(
+                TReadRange().LowerLimit(
+                    TReadLimit().Offset(stderrSize - STDERR_LIMIT)));
+        }
+        IFileReaderPtr reader = new TFileReader(path, auth, transactionId);
+
+        auto pos = buffer.Size();
+        auto left = RESULT_LIMIT - pos;
+        while (left) {
+            auto blockSize = Min(left, BLOCK_SIZE);
+            buffer.Resize(pos + blockSize);
+            auto bytes = reader->Load(buffer.Data() + pos, blockSize);
+            left -= bytes;
+            if (bytes != blockSize) {
+                buffer.Resize(pos + bytes);
+                break;
+            }
+            pos += bytes;
+        }
+
+        if (left == 0 || ++count == STDERR_COUNT_LIMIT) {
+            break;
+        }
+    }
+
+    Cerr.Write(buffer.Data(), buffer.Size());
+    Cerr << Endl;
+}
+
+TOperationId StartOperation(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const Stroka& operationName,
+    const Stroka& ysonSpec,
+    bool wait)
+{
+    THttpHeader header("POST", operationName);
+    header.AddTransactionId(transactionId);
+    header.AddMutationId();
+
+    TOperationId operationId = ParseGuid(RetryRequest(auth, header, ysonSpec));
+    LOG_INFO("Operation %s started", ~GetGuidAsString(operationId));
+
+    if (wait) {
+        WaitForOperation(auth, transactionId, operationId);
+    }
+    return operationId;
+}
+
+void WaitForOperation(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TOperationId& operationId)
+{
+    const TDuration checkOperationStateInterval = TDuration::Seconds(1);
+
+    Stroka opIdStr = GetGuidAsString(operationId);
+    Stroka opPath = Sprintf("//sys/operations/%s", ~opIdStr);
+    Stroka statePath = opPath + "/@state";
+
+    while (true) {
+       if (!Exists(auth, transactionId, opPath)) {
+            LOG_FATAL("Operation %s does not exist", ~opIdStr);
+        }
+
+        Stroka state = NodeFromYsonString(
+            Get(auth, transactionId, statePath)).AsString();
+
+        if (state == "completed") {
+            LOG_INFO("Operation %s completed", ~opIdStr);
+            break;
+
+        } else if (state == "aborted") {
+            LOG_FATAL("Operation %s aborted", ~opIdStr);
+
+        } else if (state == "failed") {
+            LOG_ERROR("Operation %s failed", ~opIdStr);
+            Stroka errorPath = opPath + "/@result/error";
+            Stroka error = Get(auth, transactionId, errorPath);
+            Cerr << error << Endl;
+            DumpOperationStderrs(auth, transactionId, opPath);
+            LOG_FATAL("");
+        }
+
+        Sleep(checkOperationStateInterval);
+    }
+}
+
+void AbortOperation(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TOperationId& operationId)
+{
+    THttpHeader header("POST", "abort_op");
+    header.AddTransactionId(transactionId);
+    header.AddOperationId(operationId);
+    header.AddMutationId();
+    RetryRequest(auth, header);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -281,7 +431,7 @@ TOperationId ExecuteMap(
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, spec.Inputs_);
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
     Stroka command = Sprintf("./cppbinary --yt-map \"%s\" %" PRISZT " %d",
@@ -328,7 +478,7 @@ TOperationId ExecuteReduce(
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, spec.Inputs_);
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
     TKeyColumns sortBy(spec.SortBy_);
@@ -392,7 +542,7 @@ TOperationId ExecuteMapReduce(
     if (spec.InputDesc_.Format == TMultiFormatDesc::F_YAMR &&
         options.UseTableFormats_)
     {
-        format = GetTableFormats(auth, spec.Inputs_);
+        format = GetTableFormats(auth, transactionId, spec.Inputs_);
     }
 
     TKeyColumns sortBy(spec.SortBy_);

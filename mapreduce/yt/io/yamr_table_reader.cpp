@@ -21,15 +21,17 @@ const i32 CONTROL_ATTR_ROW_INDEX = -4;
 
 TMaybe<TNode> GetTableFormat(
     const TAuth& auth,
+    const TTransactionId& transactionId,
     const TRichYPath& path)
 {
     auto formatPath = path.Path_ + "/@_format";
-    if (!Exists(auth, formatPath)) {
+    if (!Exists(auth, transactionId, formatPath)) {
         return TMaybe<TNode>();
     }
-    TMaybe<TNode> format = NodeFromYsonString(Get(auth, formatPath));
+    TMaybe<TNode> format = NodeFromYsonString(Get(auth, transactionId, formatPath));
     if (format.Get()->AsString() != "yamred_dsv") {
-        return TMaybe<TNode>();
+        ythrow yexception() <<
+            "'yamred_dsv format expected, got " << format.Get()->AsString();
     }
     auto& formatAttrs = format.Get()->Attributes();
     if (!formatAttrs.HasKey("key_column_names")) {
@@ -43,13 +45,14 @@ TMaybe<TNode> GetTableFormat(
 
 TMaybe<TNode> GetTableFormats(
     const TAuth& auth,
+    const TTransactionId& transactionId,
     const yvector<TRichYPath>& inputs)
 {
     TMaybe<TNode> result;
 
     bool start = true;
     for (auto& table : inputs) {
-        TMaybe<TNode> format = GetTableFormat(auth, AddPathPrefix(table));
+        TMaybe<TNode> format = GetTableFormat(auth, transactionId, AddPathPrefix(table));
 
         if (start) {
             result = format;

@@ -104,7 +104,7 @@ void TClientReader::CreateRequest(bool initial)
             header.SetDataStreamFormat(Format_);
 
             if (Format_ == DSF_YAMR_LENVAL) {
-                auto format = GetTableFormat(Auth_, Path_);
+                auto format = GetTableFormat(Auth_, TransactionId_, Path_);
                 if (format) {
                     header.SetFormat(NodeToJsonString(format.GetRef()));
                 }

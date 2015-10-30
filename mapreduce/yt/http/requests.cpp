@@ -114,81 +114,26 @@ void CommitTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Stroka Get(const TAuth& auth, const TYPath& path)
+Stroka Get(
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TYPath& path)
 {
     THttpHeader header("GET", "get");
+    header.AddTransactionId(transactionId);
     header.AddPath(path);
     return RetryRequest(auth, header);
 }
 
-bool Exists(const TAuth& auth, const TYPath& path)
-{
-    THttpHeader header("GET", "exists");
-    header.AddPath(path);
-    return ParseBool(RetryRequest(auth, header));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TOperationId StartOperation(
+bool Exists(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const Stroka& operationName,
-    const Stroka& ysonSpec,
-    bool wait)
+    const TYPath& path)
 {
-    THttpHeader header("POST", operationName);
+    THttpHeader header("GET", "exists");
     header.AddTransactionId(transactionId);
-    header.AddMutationId();
-
-    TOperationId operationId = ParseGuid(RetryRequest(auth, header, ysonSpec));
-    LOG_INFO("Operation %s started", ~GetGuidAsString(operationId));
-
-    if (wait) {
-        WaitForOperation(auth, operationId);
-    }
-    return operationId;
-}
-
-void WaitForOperation(const TAuth& auth, const TOperationId& operationId)
-{
-    const TDuration checkOperationStateInterval = TDuration::Seconds(1);
-
-    Stroka opIdStr = GetGuidAsString(operationId);
-    Stroka opPath = Sprintf("//sys/operations/%s", ~opIdStr);
-    Stroka statePath = opPath + "/@state";
-
-    while (true) {
-       if (!Exists(auth, opPath)) {
-            LOG_FATAL("Operation %s does not exist", ~opIdStr);
-        }
-
-        Stroka state = NodeFromYsonString(Get(auth, statePath)).AsString();
-        if (state == "completed") {
-            LOG_INFO("Operation %s completed", ~opIdStr);
-            break;
-
-        } else if (state == "aborted") {
-            LOG_FATAL("Operation %s aborted", ~opIdStr);
-
-        } else if (state == "failed") {
-            Stroka errorPath = opPath + "/@result/error";
-            Stroka jsonError = Get(auth, errorPath);
-            TError error;
-            error.ParseFrom(jsonError);
-            LOG_FATAL("Operation %s failed", ~opIdStr);
-        }
-
-        Sleep(checkOperationStateInterval);
-    }
-}
-
-void AbortOperation(const TAuth& auth, const TOperationId& operationId)
-{
-    THttpHeader header("POST", "abort_op");
-    header.AddOperationId(operationId);
-    header.AddMutationId();
-    RetryRequest(auth, header);
+    header.AddPath(path);
+    return ParseBool(RetryRequest(auth, header));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
