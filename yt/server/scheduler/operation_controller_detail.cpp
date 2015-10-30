@@ -1009,44 +1009,58 @@ void TOperationControllerBase::Prepare()
     LockInputTables();
     LockUserFiles(&Files, {});
 
-    FetchInputTables();
-    FetchUserFiles(&Files);
-
     BeginUploadOutputTables();
     GetOutputTablesUploadParams();
+}
 
-    PickIntermediateDataCell();
-    InitChunkListPool();
+void TOperationControllerBase::Materialize()
+{
+    VERIFY_INVOKER_AFFINITY(CancelableInvoker);
 
-    CreateLivePreviewTables();
+    try {
+        FetchInputTables();
+        FetchUserFiles(&Files);
 
-    PrepareLivePreviewTablesForUpdate();
+        PickIntermediateDataCell();
+        InitChunkListPool();
 
-    CollectTotals();
+        CreateLivePreviewTables();
 
-    CustomPrepare();
+        PrepareLivePreviewTablesForUpdate();
 
-    if (InputChunkMap.empty()) {
-        // Possible reasons:
-        // - All input chunks are unavailable && Strategy == Skip
-        // - Merge decided to passthrough all input chunks
-        // - Anything else?
-        LOG_INFO("No jobs needed");
-        OnOperationCompleted();
+        CollectTotals();
+
+        CustomPrepare();
+
+        if (InputChunkMap.empty()) {
+            // Possible reasons:
+            // - All input chunks are unavailable && Strategy == Skip
+            // - Merge decided to passthrough all input chunks
+            // - Anything else?
+            LOG_INFO("No jobs needed");
+            OnOperationCompleted();
+            return;
+        }
+
+        SuspendUnavailableInputStripes();
+
+        AddAllTaskPendingHints();
+
+        // Input chunk scraper initialization should be the last step to avoid races,
+        // because input chunk scraper works in control thread.
+        InitInputChunkScraper();
+
+        CheckTimeLimitExecutor->Start();
+
+        SetState(EControllerState::Running);
+    } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Materialization failed");
+        auto wrappedError = TError("Materialization failed") << ex;
+        OnOperationFailed(wrappedError);
         return;
     }
 
-    SuspendUnavailableInputStripes();
-
-    AddAllTaskPendingHints();
-
-    // Input chunk scraper initialization should be the last step to avoid races,
-    // because input chunk scraper works in control thread.
-    InitInputChunkScraper();
-
-    CheckTimeLimitExecutor->Start();
-
-    SetState(EControllerState::Running);
+    LOG_INFO("Materialization finished");
 }
 
 void TOperationControllerBase::SaveSnapshot(TOutputStream* output)

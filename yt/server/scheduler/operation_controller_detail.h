@@ -89,6 +89,7 @@ public:
     virtual void Initialize() override;
     virtual void Essentiate() override;
     virtual void Prepare() override;
+    virtual void Materialize() override;
     virtual void SaveSnapshot(TOutputStream* output) override;
     virtual void Revive() override;
     virtual void Commit() override;
@@ -606,7 +607,6 @@ protected:
 
 
     // Preparation.
-    void DoPrepare();
     void GetInputTablesBasicAttributes();
     void GetOutputTablesBasicAttributes();
     void GetFilesBasicAttributes(std::vector<TUserFile>* files);

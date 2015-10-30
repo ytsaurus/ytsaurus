@@ -35,7 +35,13 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(EOperationState, State);
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Queued);
+
+    // By default, all new operations are not activated.
+    // When operation passes admission control and scheduler decides
+    // that it's ready to start jobs, it is marked as active.
+    DEFINE_BYVAL_RW_PROPERTY(bool, Activated);
+
+    DEFINE_BYVAL_RW_PROPERTY(bool, Prepared);
 
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionPtr, UserTransaction);
@@ -137,7 +143,6 @@ public:
 private:
     TPromise<void> StartedPromise;
     TPromise<void> FinishedPromise;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperation)

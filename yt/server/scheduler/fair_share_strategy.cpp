@@ -1919,10 +1919,9 @@ private:
         operationElement->SetPool(pool.Get());
 
         if (CanAddOperationToPool(pool.Get())) {
-            ActivateOperation(operation);
+            ActivateOperation(operation->GetId());
         } else {
             OperationQueue.push_back(operation);
-            operation->SetQueued(true);
         }
     }
 
@@ -1934,16 +1933,17 @@ private:
         }
     }
 
-    // TODO(acid): This interface can also use operationId.
-    void ActivateOperation(TOperationPtr operation)
+    void ActivateOperation(const TOperationId& operationId)
     {
-        auto operationElement = GetOperationElement(operation->GetId());
+        auto operationElement = GetOperationElement(operationId);
         auto pool = operationElement->GetPool();
         pool->EnableChild(operationElement);
         IncreaseRunningOperationCount(pool, 1);
 
+        Host->ActivateOperation(operationId);
+
         LOG_INFO("Operation added to pool (OperationId: %v, Pool: %v)",
-            operation->GetId(),
+            operationId,
             pool->GetId());
     }
 
@@ -1982,12 +1982,7 @@ private:
             while (it != OperationQueue.end() && RunningOperationCount[RootPoolName] < Config->MaxRunningOperations) {
                 auto operation = *it;
                 if (CanAddOperationToPool(GetOperationElement(operation->GetId())->GetPool())) {
-                    ActivateOperation(operation);
-                    if (operation->GetState() == EOperationState::Pending) {
-                        operation->SetState(EOperationState::Running);
-                    }
-                    operation->SetQueued(false);
-
+                    ActivateOperation(operation->GetId());
                     auto toRemove = it++;
                     OperationQueue.erase(toRemove);
                 } else {

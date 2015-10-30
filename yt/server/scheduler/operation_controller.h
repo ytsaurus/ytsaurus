@@ -124,10 +124,16 @@ struct IOperationController
     virtual void Essentiate() = 0;
 
     /*!
-     *  \note Invoker affinity: Control invoker
+     *  \note Invoker affinity: Controller invoker
      */
-    //! Performs a possibly lengthy initial preparation.
+    //! Performs a lightweight initial preparation.
     virtual void Prepare() = 0;
+
+    /*!
+     *  \note Invoker affinity: Controller invoker
+     */
+    //! Performs a possibly lengthy materialization.
+    virtual void Materialize() = 0;
 
     //! Called by a scheduler in response to IOperationHost::OnOperationCompleted.
     /*!

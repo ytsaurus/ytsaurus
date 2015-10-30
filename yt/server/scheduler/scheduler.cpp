@@ -729,6 +729,38 @@ public:
         }
     }
 
+    virtual void ActivateOperation(const TOperationId& operationId) override
+    {
+        auto operation = FindOperation(operationId);
+        YCHECK(operation);
+
+        operation->SetActivated(true);
+        if (operation->GetPrepared()) {
+            MaterializeOperation(operation);
+        }
+    }
+
+    void MaterializeOperation(TOperationPtr operation)
+    {
+        if (operation->GetCleanStart()) {
+            operation->SetState(EOperationState::Materializing);
+            auto controller = operation->GetController();
+            BIND(&IOperationController::Materialize, controller)
+                .AsyncVia(controller->GetCancelableInvoker())
+                .Run()
+                .Subscribe(BIND([operation] (const TError& error) {
+                    if (error.IsOK()) {
+                        if (operation->GetState() == EOperationState::Materializing) {
+                            operation->SetState(EOperationState::Running);
+                        }
+                    }
+                })
+                .Via(controller->GetCancelableControlInvoker()));
+        } else {
+            operation->SetState(EOperationState::Running);
+        }
+    }
+
 
     // IOperationHost implementation
     virtual NApi::IClientPtr GetMasterClient() override
@@ -1213,21 +1245,20 @@ private:
             operation->UpdateControllerTimeStatistics("/prepare", prepareDuration);
 
             THROW_ERROR_EXCEPTION_IF_FAILED(result);
+
+            if (operation->GetState() != EOperationState::Preparing) {
+                throw TFiberCanceledException();
+            }
+            operation->SetState(EOperationState::Pending);
+            operation->SetPrepared(true);
+            if (operation->GetActivated()) {
+                MaterializeOperation(operation);
+            }
         } catch (const std::exception& ex) {
             auto wrappedError = TError("Operation has failed to prepare")
                 << ex;
             OnOperationFailed(operation, wrappedError);
             return;
-        }
-
-        if (operation->GetState() != EOperationState::Preparing) {
-            throw TFiberCanceledException();
-        }
-
-        if (operation->GetQueued()) {
-            operation->SetState(EOperationState::Pending);
-        } else {
-            operation->SetState(EOperationState::Running);
         }
 
         LOG_INFO("Operation has been prepared and is now running (OperationId: %v)",
@@ -1338,8 +1369,14 @@ private:
                 THROW_ERROR_EXCEPTION_IF_FAILED(error);
             }
 
-            if (operation->GetState() != EOperationState::Reviving)
+            if (operation->GetState() != EOperationState::Reviving) {
                 throw TFiberCanceledException();
+            }
+            operation->SetState(EOperationState::Pending);
+            operation->SetPrepared(true);
+            if (operation->GetActivated()) {
+                MaterializeOperation(operation);
+            }
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Operation has failed to revive (OperationId: %v)",
                 operation->GetId());
@@ -1350,12 +1387,6 @@ private:
 
         // Discard the snapshot, if any.
         operation->Snapshot().Reset();
-
-        if (operation->GetQueued()) {
-            operation->SetState(EOperationState::Pending);
-        } else {
-            operation->SetState(EOperationState::Running);
-        }
 
         LOG_INFO("Operation has been revived and is now running (OperationId: %v)",
             operation->GetId());
