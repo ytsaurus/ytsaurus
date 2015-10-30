@@ -15,6 +15,10 @@ namespace NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESortOrder,
+    (Ascending)
+)
+
 struct TColumnSchema
 {
     TColumnSchema();
@@ -23,7 +27,8 @@ struct TColumnSchema
         EValueType type,
         const TNullable<Stroka>& lock = Null,
         const TNullable<Stroka>& expression = Null,
-        const TNullable<Stroka>& aggregate = Null);
+        const TNullable<Stroka>& aggregate = Null,
+        const TNullable<ESortOrder>& sortOrder = Null);
 
     TColumnSchema(const TColumnSchema&) = default;
     TColumnSchema(TColumnSchema&&) = default;
@@ -36,6 +41,7 @@ struct TColumnSchema
     TNullable<Stroka> Lock;
     TNullable<Stroka> Expression;
     TNullable<Stroka> Aggregate;
+    TNullable<ESortOrder> SortOrder;
 };
 
 void Serialize(const TColumnSchema& schema, NYson::IYsonConsumer* consumer);
@@ -50,6 +56,7 @@ class TTableSchema
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TColumnSchema>, Columns);
+    DEFINE_BYVAL_RW_PROPERTY(bool, Strict);
 
 public:
     TColumnSchema* FindColumn(const TStringBuf& name);
@@ -65,6 +72,9 @@ public:
     TTableSchema TrimNonkeyColumns(const TKeyColumns& keyColumns) const;
 
     bool HasComputedColumns() const;
+
+    TKeyColumns GetKeyColumns() const;
+    static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
