@@ -435,7 +435,14 @@ public:
 
     virtual TFuture<IChannelPtr> GetChannel(const Stroka& serviceName) override
     {
-        return GetSubprovider(serviceName)->GetChannel();
+        if (Config_->Addresses.size() == 1) {
+            // Disable discovery and balancing when just one address is given.
+            // This is vital for jobs since node's redirector is incapable of handling
+            // Discover requests properly.
+            return MakeFuture(ChannelFactory_->CreateChannel(Config_->Addresses[0]));
+        } else {
+            return GetSubprovider(serviceName)->GetChannel();
+        }
     }
 
     virtual TFuture<void> Terminate(const TError& error)
