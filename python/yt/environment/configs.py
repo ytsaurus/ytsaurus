@@ -73,8 +73,8 @@ def get_master_config():
     };
 
     hydra_manager = {
-        leader_lease_check_period = 100;
-        leader_lease_timeout = 200;
+        leader_lease_check_period = 1000;
+        leader_lease_timeout = 2000;
         disable_leader_lease_grace_delay = true;
         response_keeper = {
             expiration_time = 25000;
