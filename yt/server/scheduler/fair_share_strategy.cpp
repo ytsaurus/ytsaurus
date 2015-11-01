@@ -2018,7 +2018,10 @@ private:
     {
         auto defaultParentPool = FindPool(Config->DefaultParentPool);
         if (!defaultParentPool) {
-            LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+            // NB: root element is not a pool, so we should supress warning in this special case.
+            if (Config->DefaultParentPool != RootPoolName) {
+                LOG_WARNING("Default parent pool %Qv is not registered", Config->DefaultParentPool);
+            }
             SetPoolParent(pool, RootElement);
         } else {
             SetPoolParent(pool, defaultParentPool);
