@@ -300,36 +300,10 @@ public:
         RecordCount_ = 0;
         Open_ = true;
 
-        // Data file.
-        i64 currentFilePosition;
-        {
-            auto tempFileName = FileName_ + NFS::TempFileSuffix;
-            TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
-
-            TChangelogHeader header(
-                SerializedMeta_.Size(),
-                TChangelogHeader::NotTruncatedRecordCount);
-            WritePod(tempFile, header);
-
-            WritePadded(tempFile, SerializedMeta_);
-
-            currentFilePosition = tempFile.GetPosition();
-            YCHECK(currentFilePosition == header.HeaderSize);
-
-            tempFile.FlushData();
-            tempFile.Close();
-
-            NFS::Replace(tempFileName, FileName_);
-
-            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr | Seq | CloseOnExec);
-            DataFile_->Flock(LOCK_EX | LOCK_NB);
-            DataFile_->Seek(0, sEnd);
-        }
-
-        // Index file.
+        CreateDataFile();
         CreateIndexFile();
 
-        CurrentFilePosition_ = currentFilePosition;
+        CurrentFilePosition_ = DataFile_->GetPosition();
         CurrentBlockSize_ = 0;
 
         LOG_DEBUG("Changelog created");
@@ -533,6 +507,31 @@ private:
         TSharedMutableRef Blob;
     };
 
+
+    //! Creates an empty data file.
+    void CreateDataFile()
+    {
+        auto tempFileName = FileName_ + NFS::TempFileSuffix;
+        TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
+
+        TChangelogHeader header(
+            SerializedMeta_.Size(),
+            TChangelogHeader::NotTruncatedRecordCount);
+        WritePod(tempFile, header);
+
+        WritePadded(tempFile, SerializedMeta_);
+
+        YCHECK(tempFile.GetPosition() == header.HeaderSize);
+
+        tempFile.FlushData();
+        tempFile.Close();
+
+        NFS::Replace(tempFileName, FileName_);
+
+        DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr | Seq | CloseOnExec);
+        DataFile_->Flock(LOCK_EX | LOCK_NB);
+        DataFile_->Seek(0, sEnd);
+    }
 
     //! Creates an empty index file.
     void CreateIndexFile()
