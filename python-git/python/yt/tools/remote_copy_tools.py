@@ -167,6 +167,11 @@ def check_permission(client, permission, path):
      permission = client.check_permission(user_name, permission, path)
      return permission["action"] == "allow"
 
+def copy_codec_attributes(source_client, destination_client, source_table, destination_table):
+    for attribute in ["compression_codec", "erasure_codec"]:
+        value = source_client.get_attribute(source_table, attribute)
+        destination_client.set_attribute(destination_table, attribute, value)
+
 def copy_user_attributes(source_client, destination_client, source_table, destination_table):
     source_attributes = source_client.get(source_table + "/@")
 
@@ -209,7 +214,7 @@ def copy_yt_to_yt(source_client, destination_client, src, dst, network_name, cop
             network_name=network_name,
             spec=copy_spec_template)
 
-        run_erasure_merge(source_client, destination_client, src, dst, spec=postprocess_spec_template)
+        copy_codec_attributes(source_client, destination_client, src, dst)
         copy_user_attributes(source_client, destination_client, src, dst)
 
 def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fastbone, copy_spec_template=None, postprocess_spec_template=None):
