@@ -585,9 +585,12 @@ class Application(object):
         headers = {}
         for key, value in headers_.iteritems():
             headers[key] = value
-        # Passing Host header causes infinite redirect on locke
-        if "Host" in headers:
-            del headers["Host"]
+
+        # Some headers should not be passed.
+        # NB: Passing Host header causes infinite redirect on locke
+        for name in ["Host", "Content-Length"]:
+            if name in headers:
+                del headers[name]
 
         token = self._get_token(headers.get("Authorization", ""))
         if "X-Forwarded-For" in headers:
@@ -1255,7 +1258,7 @@ def main():
     parser.add_argument("--execute-task", action="store_true", default=False)
     parser.add_argument("--config", required=True)
     args = parser.parse_args()
-        
+
     if args.execute_task:
         # NB: we do not want see configuration messages for each task.
         logger.LOGGER.setLevel(logging.WARNING)
