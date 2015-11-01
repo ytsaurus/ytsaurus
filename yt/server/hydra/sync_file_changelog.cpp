@@ -238,7 +238,7 @@ public:
 
         LOG_DEBUG("Opening changelog");
 
-        DataFile_.reset(new TFileWrapper(FileName_, RdWr|Seq));
+        DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
         DataFile_->Flock(LOCK_EX | LOCK_NB);
 
         // Read and check changelog header.
@@ -304,7 +304,7 @@ public:
         i64 currentFilePosition;
         {
             auto tempFileName = FileName_ + NFS::TempFileSuffix;
-            TFileWrapper tempFile(tempFileName, WrOnly|CreateAlways);
+            TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
 
             TChangelogHeader header(
                 SerializedMeta_.Size(),
@@ -321,7 +321,7 @@ public:
 
             NFS::Replace(tempFileName, FileName_);
 
-            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr);
+            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr | Seq | CloseOnExec);
             DataFile_->Flock(LOCK_EX | LOCK_NB);
             DataFile_->Seek(0, sEnd);
         }
@@ -648,7 +648,7 @@ private:
             LOG_ERROR_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
             Index_.resize(correctPrefixSize);
 
-            IndexFile_.reset(new TFile(IndexFileName_, RdWr|Seq|CloseOnExec|OpenAlways));
+            IndexFile_.reset(new TFile(IndexFileName_, RdWr | Seq | OpenAlways | CloseOnExec));
             IndexFile_->Flock(LOCK_EX | LOCK_NB);
             IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
             IndexFile_->Seek(0, sEnd);
