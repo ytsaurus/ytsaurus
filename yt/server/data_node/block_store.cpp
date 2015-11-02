@@ -123,6 +123,8 @@ public:
             auto chunkRegistry = Bootstrap_->GetChunkRegistry();
             // NB: At the moment, range read requests are only possible for the whole chunks.
             auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
+
+            // Hold the read guard.
             auto readGuard = AcquireReadGuard(chunk);
             auto asyncBlocks = chunk->ReadBlockRange(
                 firstBlockIndex,
@@ -130,7 +132,7 @@ public:
                 priority,
                 populateCache,
                 blockCache);
-            // Hold the read guard.
+            // Release the read guard upon future completion.
             return asyncBlocks.Apply(BIND(&TImpl::OnBlocksRead, Passed(std::move(readGuard))));
         } catch (const std::exception& ex) {
             return MakeFuture<std::vector<TSharedRef>>(TError(ex));
@@ -285,7 +287,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
         firstBlockIndex,
         blockCount,
         priority,
-        blockCache,
+        std::move(blockCache),
         populateCache);
 }
 
@@ -300,7 +302,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
         chunkId,
         blockIndexes,
         priority,
-        blockCache,
+        std::move(blockCache),
         populateCache);
 }
 
