@@ -97,7 +97,7 @@ def collect_pivot_keys_mapper(tablet):
     yield {"pivot_key":tablet["pivot_key"]}
     tablet_id = tablet["tablet_id"]
     cell_id = tablet["cell_id"]
-    node = sp.check_output(["yt", "get", "#" + cell_id + "/@peers/0/address", "--format <format=text>yson"])
+    node = yson.loads(sp.check_output(["yt", "get", "#" + cell_id + "/@peers/0/address", "--format <format=text>yson"]))
     partitions_path = "//sys/nodes/%s/orchid/tablet_cells/%s/tablets/%s/partitions" % (node, cell_id, tablet_id)
     partitions = sp.check_output(["yt", "get", partitions_path, "--format <format=text>yson"])
     if partitions != None:
