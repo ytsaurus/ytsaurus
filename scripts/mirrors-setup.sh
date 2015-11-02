@@ -63,16 +63,18 @@ configure_github_mirror()
     (cd $root && git config --local remote.github.url "git://github.com/${name//-//}")
     (cd $root && git config --local remote.github.mirror true)
     (cd $root && git config --local remote.github.tagopt --no-tags)
-    (cd $root && git config --local --add remote.github.fetch "+HEAD:refs/upstream/trunk")
+    (cd $root && git config --local --unset-all remote.github.fetch) || true
+    (cd $root && git config --local --add remote.github.fetch "+HEAD:refs/upstream/HEAD")
     (cd $root && git config --local --add remote.github.fetch "+refs/heads/*:refs/upstream/heads/*")
     (cd $root && git config --local --add remote.github.fetch "+refs/tags/*:refs/upstream/tags/*")
 
     (cd $root && git config --remove-section remote.origin) || true
     (cd $root && git config --local remote.origin.url "git@github.yandex-team.ru:yt/$xname.git")
     (cd $root && git config --local remote.origin.mirror false)
-    (cd $root && git config --local --add remote.origin.push "+refs/upstream/*:refs/upstream/*")
-    (cd $root && git config --local --add remote.origin.push "+refs/upstream/trunk:refs/heads/trunk")
+    (cd $root && git config --local --unset-all remote.origin.push) || true
+    (cd $root && git config --local --add remote.origin.push "+refs/upstream/HEAD:refs/heads/upstream/HEAD")
     (cd $root && git config --local --add remote.origin.push "+refs/upstream/heads/*:refs/heads/upstream/*")
+    (cd $root && git config --local --add remote.origin.push "+refs/upstream/tags/*:refs/tags/upstream/*")
 }
 
 ################################################################################
