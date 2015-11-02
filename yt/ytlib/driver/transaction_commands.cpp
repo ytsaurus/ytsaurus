@@ -19,63 +19,55 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartTransactionCommand::DoExecute()
+void TStartTransactionCommand::Execute(ICommandContextPtr context)
 {
-    TTransactionStartOptions options;
-    SetMutatingOptions(&options);
-    options.Timeout = Request_->Timeout;
-    options.ParentId = Request_->TransactionId;
-    options.Ping = true;
-    options.AutoAbort = false;
-    options.PingAncestors = Request_->PingAncestors;
-    if (Request_->Attributes) {
-        options.Attributes = ConvertToAttributes(Request_->Attributes);
-    }
-    SetPrerequisites(&options);
+    Options.Ping = true;
+    Options.AutoAbort = false;
 
-    auto transactionManager = Context_->GetClient()->GetTransactionManager();
+    if (Attributes) {
+        Options.Attributes = ConvertToAttributes(Attributes);
+    }
+
+    auto transactionManager = context->GetClient()->GetTransactionManager();
     auto transaction = WaitFor(transactionManager->Start(
         ETransactionType::Master,
-        options)).ValueOrThrow();
+        Options)).ValueOrThrow();
     transaction->Detach();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(transaction->GetId()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPingTransactionCommand::DoExecute()
+void TPingTransactionCommand::Execute(ICommandContextPtr context)
 {
     // Specially for evvers@ :)
-    if (!Request_->TransactionId)
+    if (!Options.TransactionId)
         return;
 
-    auto transaction = AttachTransaction(true);
+    auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
     WaitFor(transaction->Ping())
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCommitTransactionCommand::DoExecute()
+void TCommitTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = AttachTransaction(true);
-    TTransactionCommitOptions options;
-    SetMutatingOptions(&options);
-    WaitFor(transaction->Commit(options))
+    auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
+
+    WaitFor(transaction->Commit(Options))
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortTransactionCommand::DoExecute()
+void TAbortTransactionCommand::Execute(ICommandContextPtr context)
 {
-    auto transaction = AttachTransaction(true);
-    TTransactionAbortOptions options;
-    SetMutatingOptions(&options);
-    options.Force = Request_->Force;
-    WaitFor(transaction->Abort(options))
+    auto transaction = AttachTransaction(true, context->GetClient()->GetTransactionManager());
+
+    WaitFor(transaction->Abort(Options))
         .ThrowOnError();
 }
 

@@ -87,7 +87,8 @@ public:
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
-        RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
+        RegisterCommand<command>( \
+            TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
 
         REGISTER(TStartTransactionCommand,     "start_tx",                Null,       Structured, true,  false);
         REGISTER(TPingTransactionCommand,      "ping_tx",                 Null,       Null,       true,  false);
@@ -174,13 +175,11 @@ public:
             entry.Descriptor,
             request);
 
-        auto command = entry.Factory.Run();
-
         auto invoker = entry.Descriptor.IsHeavy
             ? TDispatcher::Get()->GetHeavyInvoker()
             : TDispatcher::Get()->GetLightInvoker();
 
-        return BIND(&TDriver::DoExecute, command, context)
+        return BIND(&TDriver::DoExecute, entry.Execute, context)
             .AsyncVia(invoker)
             .Run();
     }
@@ -212,8 +211,7 @@ public:
 private:
     class TCommandContext;
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
-
-    typedef TCallback< ICommandPtr() > TCommandFactory;
+    typedef TCallback<void(ICommandContextPtr)> TExecuteCallback;
 
     TDriverConfigPtr Config;
 
@@ -222,23 +220,34 @@ private:
     struct TCommandEntry
     {
         TCommandDescriptor Descriptor;
-        TCommandFactory Factory;
+        TExecuteCallback Execute;
     };
 
     yhash_map<Stroka, TCommandEntry> Commands;
+
+    void RegisterCommand(TExecuteCallback executeCallback, const TCommandDescriptor& descriptor)
+    {
+        TCommandEntry entry;
+        entry.Descriptor = descriptor;
+        entry.Execute = std::move(executeCallback);
+        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
+    }
 
     template <class TCommand>
     void RegisterCommand(const TCommandDescriptor& descriptor)
     {
         TCommandEntry entry;
         entry.Descriptor = descriptor;
-        entry.Factory = BIND([] () -> ICommandPtr {
-            return New<TCommand>();
+        entry.Execute = BIND([] (ICommandContextPtr context) {
+            TCommand command;
+            auto parameters = context->Request().Parameters;
+            Deserialize(command, parameters);
+            command.Execute(context);
         });
         YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }
 
-    static void DoExecute(ICommandPtr command, TCommandContextPtr context)
+    static void DoExecute(TExecuteCallback executeCallback, TCommandContextPtr context)
     {
         const auto& request = context->Request();
 
@@ -248,7 +257,13 @@ private:
                 request.Id,
                 request.CommandName,
                 request.AuthenticatedUser);
-            result = command->Execute(context);
+
+            try {
+                executeCallback.Run(context);
+                result = TError();
+            } catch (const std::exception& ex) {
+                result = TError(ex);
+            }
         }
 
         if (result.IsOK()) {
@@ -279,11 +294,6 @@ private:
             : Driver_(driver)
             , Descriptor_(descriptor)
             , Request_(request)
-            , SyncInputStream_(request.InputStream ? CreateSyncAdapter(request.InputStream) : nullptr)
-            , SyncOutputStream_(request.OutputStream ? CreateSyncAdapter(request.OutputStream) : nullptr)
-            , BufferedOutputStream_(SyncOutputStream_
-                ? std::make_unique<TBufferedOutput>(SyncOutputStream_.get())
-                : nullptr)
         {
             TClientOptions options;
             options.User = Request_.AuthenticatedUser;
@@ -293,9 +303,6 @@ private:
         TFuture<void> Terminate()
         {
             LOG_DEBUG("Terminating client");
-            if (BufferedOutputStream_) {
-                BufferedOutputStream_->Flush();
-            }
             return Client_->Terminate();
         }
 
@@ -314,22 +321,6 @@ private:
             return Request_;
         }
 
-        virtual TYsonProducer CreateInputProducer() override
-        {
-            return CreateProducerForFormat(
-                GetInputFormat(),
-                Descriptor_.InputType,
-                SyncInputStream_.get());
-        }
-
-        virtual std::unique_ptr<IYsonConsumer> CreateOutputConsumer() override
-        {
-            return CreateConsumerForFormat(
-                GetOutputFormat(),
-                Descriptor_.OutputType,
-                BufferedOutputStream_.get());
-        }
-
         virtual const TFormat& GetInputFormat() override
         {
             if (!InputFormat_) {
@@ -346,6 +337,33 @@ private:
             return *OutputFormat_;
         }
 
+        virtual NYTree::TYsonString ConsumeInputValue() override
+        {
+            YCHECK(Request_.InputStream);
+            auto syncInputStream = CreateSyncAdapter(Request_.InputStream);
+
+            auto producer = CreateProducerForFormat(
+                GetInputFormat(),
+                Descriptor_.InputType,
+                syncInputStream.get());
+
+            return ConvertToYsonString(producer);
+        }
+
+        virtual void ProduceOutputValue(const NYTree::TYsonString& yson) override
+        {
+            YCHECK(Request_.OutputStream);
+            auto syncOutputStream = CreateSyncAdapter(Request_.OutputStream);
+
+            TBufferedOutput bufferedOutputStream(syncOutputStream.get());
+
+            auto consumer = CreateConsumerForFormat(
+                GetOutputFormat(),
+                Descriptor_.OutputType,
+                &bufferedOutputStream);
+            Consume(yson, consumer.get());
+        }
+
     private:
         const TDriverPtr Driver_;
         const TCommandDescriptor Descriptor_;
@@ -353,10 +371,6 @@ private:
 
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;
-
-        std::unique_ptr<TInputStream> SyncInputStream_;
-        std::unique_ptr<TOutputStream> SyncOutputStream_;
-        std::unique_ptr<TOutputStream> BufferedOutputStream_;
 
         IClientPtr Client_;
 

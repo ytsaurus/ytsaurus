@@ -52,6 +52,7 @@ public:
 
     public:
         TParameter& Describe(const char* description);
+        TParameter& Optional();
         TParameter& Default(const T& defaultValue = T());
         TParameter& DefaultNew();
         TParameter& CheckThat(TValidator validator);

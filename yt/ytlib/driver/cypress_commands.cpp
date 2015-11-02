@@ -20,267 +20,197 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetCommand::DoExecute()
+void TGetCommand::Execute(ICommandContextPtr context)
 {
-    TGetNodeOptions options;
-    options.MaxSize = Request_->MaxSize;
-    options.IgnoreOpaque = Request_->IgnoreOpaque;
-    options.Options = IAttributeDictionary::FromMap(Request_->GetOptions());
-    options.AttributeFilter = TAttributeFilter(
-        EAttributeFilterMode::MatchingOnly,
-        Request_->Attributes);
-    SetTransactionalOptions(&options);
-    SetReadOnlyOptions(&options);
-    SetSuppressableAccessTrackingOptions(&options);
+    Options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Attributes);
+    Options.Options = IAttributeDictionary::FromMap(GetOptions());
 
-    auto asyncResult = Context_->GetClient()->GetNode(
-        Request_->Path.GetPath(),
-        options);
+    auto asyncResult = context->GetClient()->GetNode(
+        Path.GetPath(),
+        Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    Reply(result);
+    context->ProduceOutputValue(result);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSetCommand::DoExecute()
+void TSetCommand::Execute(ICommandContextPtr context)
 {
-    TSetNodeOptions options;
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
-    SetPrerequisites(&options);
-    auto producer = Context_->CreateInputProducer();
-    auto value = ConvertToYsonString(producer);
+    auto value = context->ConsumeInputValue();
 
-    auto asyncResult = Context_->GetClient()->SetNode(
-        Request_->Path.GetPath(),
+    auto asyncResult = context->GetClient()->SetNode(
+        Path.GetPath(),
         value,
-        options);
+        Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveCommand::DoExecute()
+void TRemoveCommand::Execute(ICommandContextPtr context)
 {
-    TRemoveNodeOptions options;
-    options.Recursive = Request_->Recursive;
-    options.Force = Request_->Force;
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
-    SetPrerequisites(&options);
-
-    auto asyncResult = Context_->GetClient()->RemoveNode(
-        Request_->Path.GetPath(),
-        options);
+    auto asyncResult = context->GetClient()->RemoveNode(
+        Path.GetPath(),
+        Options);
     WaitFor(asyncResult)
         .ThrowOnError();
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TListCommand::DoExecute()
+void TListCommand::Execute(ICommandContextPtr context)
 {
-    TListNodeOptions options;
-    options.MaxSize = Request_->MaxSize;
-    options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Request_->Attributes);
-    SetTransactionalOptions(&options);
-    SetReadOnlyOptions(&options);
-    SetSuppressableAccessTrackingOptions(&options);
-    
-    auto asyncResult = Context_->GetClient()->ListNode(
-        Request_->Path.GetPath(),
-        options);
+    Options.AttributeFilter = TAttributeFilter(EAttributeFilterMode::MatchingOnly, Attributes);
+
+    auto asyncResult = context->GetClient()->ListNode(
+        Path.GetPath(),
+        Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    Reply(result);
+    context->ProduceOutputValue(result);
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TCreateCommand::DoExecute()
+void TCreateCommand::Execute(ICommandContextPtr context)
 {
-    auto attributes = Request_->Attributes
-        ? ConvertToAttributes(Request_->Attributes)
+    Options.Attributes = Attributes
+        ? ConvertToAttributes(Attributes)
         : CreateEphemeralAttributes();
 
-    if (IsVersionedType(Request_->Type)) {
-        if (!Request_->Path) {
+    if (IsVersionedType(Type)) {
+        if (!Path) {
             THROW_ERROR_EXCEPTION("Object type is versioned, Cypress path required");
         }
 
         TCreateNodeOptions options;
-        options.Recursive = Request_->Recursive;
-        options.IgnoreExisting = Request_->IgnoreExisting;
-        options.Attributes = std::move(attributes);
-        SetTransactionalOptions(&options);
-        SetMutatingOptions(&options);
+        static_cast<TCreateObjectOptions&>(options) = Options;
+        options.Recursive = Recursive;
+        options.IgnoreExisting = IgnoreExisting;
 
-        auto asyncNodeId = Context_->GetClient()->CreateNode(
-            Request_->Path->GetPath(),
-            Request_->Type,
+        auto asyncNodeId = context->GetClient()->CreateNode(
+            Path->GetPath(),
+            Type,
             options);
         auto nodeId = WaitFor(asyncNodeId)
             .ValueOrThrow();
 
-        Reply(BuildYsonStringFluently()
+        context->ProduceOutputValue(BuildYsonStringFluently()
             .Value(nodeId));
     } else {
-        if (Request_->Path) {
+        if (Path) {
             THROW_ERROR_EXCEPTION("Object type is nonversioned, Cypress path is not required");
         }
 
-        TCreateObjectOptions options;
-        options.Attributes = std::move(attributes);
-        SetTransactionalOptions(&options);
-        SetMutatingOptions(&options);
-
-        auto asyncObjectId = Context_->GetClient()->CreateObject(
-            Request_->Type,
-            options);
+        auto asyncObjectId = context->GetClient()->CreateObject(
+            Type,
+            Options);
         auto objectId = WaitFor(asyncObjectId)
             .ValueOrThrow();
 
-        Reply(BuildYsonStringFluently()
+        context->ProduceOutputValue(BuildYsonStringFluently()
             .Value(objectId));
     }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TLockCommand::DoExecute()
+void TLockCommand::Execute(ICommandContextPtr context)
 {
-    TLockNodeOptions options;
-    options.Waitable = Request_->Waitable;
-    options.ChildKey = Request_->ChildKey;
-    options.AttributeKey = Request_->AttributeKey;
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
-    SetPrerequisites(&options);
-
-    auto asyncLockId = Context_->GetClient()->LockNode(
-        Request_->Path.GetPath(),
-        Request_->Mode,
-        options);
+    auto asyncLockId = context->GetClient()->LockNode(
+        Path.GetPath(),
+        Mode,
+        Options);
     auto lockId = WaitFor(asyncLockId)
         .ValueOrThrow();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(lockId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCopyCommand::DoExecute()
+void TCopyCommand::Execute(ICommandContextPtr context)
 {
-    TCopyNodeOptions options;
-    options.Recursive = Request_->Recursive;
-    options.Force = Request_->Force;
-    options.PreserveAccount = Request_->PreserveAccount;
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
-    SetPrerequisites(&options);
-
-    auto asyncNodeId = Context_->GetClient()->CopyNode(
-        Request_->SourcePath.GetPath(),
-        Request_->DestinationPath.GetPath(),
-        options);
+    auto asyncNodeId = context->GetClient()->CopyNode(
+        SourcePath.GetPath(),
+        DestinationPath.GetPath(),
+        Options);
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(nodeId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMoveCommand::DoExecute()
+void TMoveCommand::Execute(ICommandContextPtr context)
 {
-    TMoveNodeOptions options;
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
-    SetPrerequisites(&options);
-    options.Recursive = Request_->Recursive;
-    options.Force = Request_->Force;
-    options.PreserveAccount = Request_->PreserveAccount;
-
-    auto asyncNodeId = Context_->GetClient()->MoveNode(
-        Request_->SourcePath.GetPath(),
-        Request_->DestinationPath.GetPath(),
-        options);
+    auto asyncNodeId = context->GetClient()->MoveNode(
+        SourcePath.GetPath(),
+        DestinationPath.GetPath(),
+        Options);
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(nodeId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TExistsCommand::DoExecute()
+void TExistsCommand::Execute(ICommandContextPtr context)
 {
-    TNodeExistsOptions options;
-    SetTransactionalOptions(&options);
-    SetReadOnlyOptions(&options);
-
-    auto asyncResult = Context_->GetClient()->NodeExists(
-        Request_->Path.GetPath(),
-        options);
+    auto asyncResult = context->GetClient()->NodeExists(
+        Path.GetPath(),
+        Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(result));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLinkCommand::DoExecute()
+void TLinkCommand::Execute(ICommandContextPtr context)
 {
-    TLinkNodeOptions options;
-    options.Recursive = Request_->Recursive;
-    options.IgnoreExisting = Request_->IgnoreExisting;
-    auto attributes = Request_->Attributes
-        ? ConvertToAttributes(Request_->Attributes)
+    Options.Attributes = Attributes
+        ? ConvertToAttributes(Attributes)
         : CreateEphemeralAttributes();
-    options.Attributes = std::move(attributes);
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
 
-    auto asyncNodeId = Context_->GetClient()->LinkNode(
-        Request_->TargetPath.GetPath(),
-        Request_->LinkPath.GetPath(),
-        options);
+    auto asyncNodeId = context->GetClient()->LinkNode(
+        TargetPath.GetPath(),
+        LinkPath.GetPath(),
+        Options);
     auto nodeId = WaitFor(asyncNodeId)
         .ValueOrThrow();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(nodeId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TConcatenateCommand::DoExecute()
+void TConcatenateCommand::Execute(ICommandContextPtr context)
 {
-    TConcatenateNodesOptions options;
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
-
     std::vector<TYPath> sourcePaths;
-    for (const auto& path : Request_->SourcePaths) {
+    for (const auto& path : SourcePaths) {
         sourcePaths.push_back(path.GetPath());
     }
 
-    options.Append = Request_->DestinationPath.GetAppend();
-    auto destinationPath = Request_->DestinationPath.GetPath();
+    Options.Append = DestinationPath.GetAppend();
+    auto destinationPath = DestinationPath.GetPath();
 
-    auto asyncResult = Context_->GetClient()->ConcatenateNodes(
+    auto asyncResult = context->GetClient()->ConcatenateNodes(
         sourcePaths,
-        Request_->DestinationPath.GetPath(),
-        options);
+        DestinationPath.GetPath(),
+        Options);
 
     WaitFor(asyncResult)
         .ThrowOnError();
