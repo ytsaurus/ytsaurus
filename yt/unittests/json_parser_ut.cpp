@@ -62,6 +62,71 @@ TEST(TJsonParserTest, Map)
     ParseJson(&stream, &Mock);
 }
 
+TEST(TJsonParserTest, Integer1)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnInt64Scalar(1ll << 62));
+
+    Stroka input = "4611686018427387904";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, Integer2)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnInt64Scalar(std::numeric_limits<i64>::max()));
+
+    Stroka input = "9223372036854775807";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, UnsignedInteger)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnUint64Scalar((1ull << 63) + (1ull << 62)));
+
+    Stroka input = "13835058055282163712";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, UnsignedInteger2)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnUint64Scalar((1ull << 63)));
+
+    Stroka input = "9223372036854775808";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, UnsignedInteger3)
+{
+    StrictMock<NYTree::TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnUint64Scalar(std::numeric_limits<ui64>::max()));
+
+    Stroka input = "18446744073709551615";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
 TEST(TJsonParserTest, Entity)
 {
     StrictMock<NYTree::TMockYsonConsumer> Mock;
