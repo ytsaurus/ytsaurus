@@ -458,10 +458,7 @@ public:
 
     TTableSchema GetTableSchema(TTableNode* table)
     {
-        auto objectManager = Bootstrap_->GetObjectManager();
-        auto tableProxy = objectManager->GetProxy(table);
-        // COMPAT(babenko): schema must be mandatory
-        return tableProxy->Attributes().Get<TTableSchema>("schema", TTableSchema());
+        return table->TableSchema();
     }
 
     TTabletStatistics GetTabletStatistics(const TTablet* tablet)
@@ -517,9 +514,10 @@ public:
             THROW_ERROR_EXCEPTION("External tables cannot be dynamic");
         }
 
+        // TODO(max42): remove redundant actions below.
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex); // may throw
         auto schema = GetTableSchema(table); // may throw
-        ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns()); // may throw
+        ValidateTableSchemaAndKeyColumns(schema, table->TableSchema().GetKeyColumns()); // may throw
 
         TTabletCell* hintedCell;
         if (!cellId) {
@@ -615,7 +613,7 @@ public:
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             ToProto(req.mutable_table_id(), table->GetId());
             ToProto(req.mutable_schema(), schema);
-            ToProto(req.mutable_key_columns()->mutable_names(), table->KeyColumns());
+            ToProto(req.mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns()); // max42: What do we do here?
             ToProto(req.mutable_pivot_key(), pivotKey);
             ToProto(req.mutable_next_pivot_key(), nextPivotKey);
             req.set_mount_config(serializedMountConfig.Data());
@@ -787,8 +785,9 @@ public:
 
         // Validate pivot keys against table schema.
         auto schema = GetTableSchema(table);
-        int keyColumnCount = table->KeyColumns().size();
-        ValidateTableSchemaAndKeyColumns(schema, table->KeyColumns());
+        // TODO(max42): no need to handle key columns and schema separately.
+        int keyColumnCount = table->TableSchema().GetKeyColumns().size();
+        ValidateTableSchemaAndKeyColumns(schema, table->TableSchema().GetKeyColumns());
         for (const auto& pivotKey : pivotKeys) {
             ValidatePivotKey(pivotKey, schema, keyColumnCount);
         }
