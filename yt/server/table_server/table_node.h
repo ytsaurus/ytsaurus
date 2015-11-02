@@ -8,6 +8,7 @@
 #include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <ytlib/table_client/public.h>
+#include <ytlib/table_client/schema.h>
 
 #include <ytlib/transaction_client/public.h>
 
@@ -29,7 +30,7 @@ class TTableNode
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Sorted);
-    DEFINE_BYREF_RW_PROPERTY(NTableClient::TKeyColumns, KeyColumns);
+    DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchema, TableSchema);
 
     // For dynamic tables only.
     typedef std::vector<NTabletServer::TTablet*> TTabletList;

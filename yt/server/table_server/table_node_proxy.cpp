@@ -85,6 +85,8 @@ private:
         descriptors->push_back("sorted");
         descriptors->push_back(TAttributeDescriptor("key_columns")
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor("schema")
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor("sorted_by")
             .SetPresent(table->GetSorted()));
         descriptors->push_back("dynamic");
@@ -97,8 +99,6 @@ private:
             .SetPresent(isDynamic)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("channels")
-            .SetCustom(true));
-        descriptors->push_back(TAttributeDescriptor("schema")
             .SetCustom(true));
         descriptors->push_back("atomicity");
     }
@@ -130,13 +130,19 @@ private:
 
         if (key == "key_columns") {
             BuildYsonFluently(consumer)
-                .Value(table->KeyColumns());
+                .Value(table->TableSchema().GetKeyColumns());
+            return true;
+        }
+
+        if (key == "schema") {
+            BuildYsonFluently(consumer)
+                .Value(table->TableSchema());
             return true;
         }
 
         if (key == "sorted_by" && table->GetSorted()) {
             BuildYsonFluently(consumer)
-                .Value(table->KeyColumns());
+                .Value(table->TableSchema().GetKeyColumns());
             return true;
         }
 
@@ -191,10 +197,10 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
+    virtual bool SetBuiltinAttribute(const Stroka& key, const TYsonString& value) override
     {
-        if (key == "key_columns") {
-            auto keyColumns = ConvertTo<TKeyColumns>(value);
+        if (key == "schema") {
+            auto newSchema = ConvertTo<TTableSchema>(value);
 
             ValidateNoTransaction();
 
@@ -202,20 +208,20 @@ private:
 
             if (table->IsDynamic()) {
                 if (table->HasMountedTablets()) {
-                    THROW_ERROR_EXCEPTION("Cannot change key columns of a dynamic table with mounted tablets");
-                }
-            } else {
-                if (!table->IsEmpty()) {
-                    THROW_ERROR_EXCEPTION("Cannot change key columns of a non-empty static table");
+                    THROW_ERROR_EXCEPTION("Cannot change schema of a dynamic table with mounted tablets");
                 }
             }
 
-            ValidateKeyColumnsUpdate(table->KeyColumns(), keyColumns);
-
-            table->KeyColumns() = keyColumns;
-            if (!table->IsDynamic() && !keyColumns.empty()) {
+            ValidateTableSchemaUpdate(table->TableSchema(), newSchema);
+            auto oldKeyColumns = table->TableSchema().GetKeyColumns();
+            table->TableSchema() = newSchema;
+            // TODO(max42): put key columns validation into ValidateTableSchemaUpdate.
+            auto newKeyColumns = newSchema.GetKeyColumns();
+            if (!newKeyColumns.empty()) {
+                ValidateKeyColumnsUpdate(oldKeyColumns, newKeyColumns); 
                 table->SetSorted(true);
             }
+            
             return true;
         }
 
@@ -241,8 +247,6 @@ private:
         const TNullable<TYsonString>& oldValue,
         const TNullable<TYsonString>& newValue) override
     {
-        auto* table = GetThisTypedImpl();
-
         if (key == "channels") {
             if (!newValue) {
                 ThrowCannotRemoveAttribute(key);
@@ -250,25 +254,6 @@ private:
 
             ConvertTo<TChannels>(*newValue);
 
-            return;
-        }
-
-        if (key == "schema") {
-            if (!newValue) {
-                ThrowCannotRemoveAttribute(key);
-            }
-
-            auto newSchema = ConvertTo<TTableSchema>(*newValue);
-
-            if (table->IsDynamic()) {
-                auto tabletManager = Bootstrap_->GetTabletManager();
-                auto schema = tabletManager->GetTableSchema(table);
-                ValidateTableSchemaUpdate(schema, newSchema);
-            }
-
-            if (table->HasMountedTablets()) {
-                THROW_ERROR_EXCEPTION("Table has mounted tablets");
-            }
             return;
         }
 
@@ -443,7 +428,8 @@ private:
         auto* table = GetThisTypedImpl();
 
         ToProto(response->mutable_table_id(), table->GetId());
-        ToProto(response->mutable_key_columns()->mutable_names(), table->KeyColumns());
+        // TODO(max42): key columns and schema should not be handled separately.
+        ToProto(response->mutable_key_columns()->mutable_names(), table->TableSchema().GetKeyColumns());
         response->set_sorted(table->GetSorted());
         response->set_dynamic(table->IsDynamic());
 
