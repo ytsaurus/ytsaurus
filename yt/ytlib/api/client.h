@@ -87,7 +87,7 @@ struct TMountTableOptions
     : public TTimeoutOptions
     , public TTabletRangeOptions
 {
-    NTabletClient::TTabletCellId CellId;
+    NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
     //! A lower estimate for the table's uncompressed size.
     //! Used for balancing tablets across tablet cells.
     //! Default is 1 Tb.
@@ -142,6 +142,7 @@ struct TCheckPermissionResult
     TNullable<Stroka> SubjectName;
 };
 
+// TODO(lukyan): Use TTransactionalOptions as base class
 struct TTransactionStartOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
@@ -149,6 +150,7 @@ struct TTransactionStartOptions
     TNullable<TDuration> Timeout;
     NTransactionClient::TTransactionId ParentId;
     bool AutoAbort = true;
+    // XXX(lukyan): What about this defaults?
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
@@ -159,11 +161,13 @@ struct TTransactionStartOptions
 struct TTransactionCommitOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
+    , public TTransactionalOptions
 { };
 
 struct TTransactionAbortOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
+    , public TTransactionalOptions
 {
     bool Force = false;
 };
@@ -240,13 +244,18 @@ struct TListNodeOptions
     TNullable<i64> MaxSize;
 };
 
-struct TCreateNodeOptions
+struct TCreateObjectOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+};
+
+struct TCreateNodeOptions
+    : public TCreateObjectOptions
+{
     bool Recursive = false;
     bool IgnoreExisting = false;
 };
@@ -310,15 +319,6 @@ struct TNodeExistsOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
 { };
-
-struct TCreateObjectOptions
-    : public TTimeoutOptions
-    , public TTransactionalOptions
-    , public TMutatingOptions
-    , public TPrerequisiteOptions
-{
-    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
-};
 
 struct TFileReaderOptions
     : public TTransactionalOptions

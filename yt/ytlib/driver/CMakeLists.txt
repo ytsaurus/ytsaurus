@@ -1,7 +1,6 @@
 #:yt-updatable
 set( BASE ${CMAKE_SOURCE_DIR}/yt/ytlib/driver )
 set( SRCS
-  ${BASE}/command.cpp
   ${BASE}/cypress_commands.cpp
   ${BASE}/dispatcher.cpp
   ${BASE}/driver.cpp

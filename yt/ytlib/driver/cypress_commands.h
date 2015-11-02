@@ -11,338 +11,251 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGetRequest
-    : public TTransactionalRequest
-    , public TReadOnlyRequest
-    , public TSuppressableAccessTrackingRequest
+class TGetCommand
+    : public TTypedCommand<NApi::TGetNodeOptions>
 {
+private:
     NYPath::TRichYPath Path;
     std::vector<Stroka> Attributes;
-    TNullable<i64> MaxSize;
-    bool IgnoreOpaque;
 
-    TGetRequest()
+public:
+    TGetCommand()
     {
         RegisterParameter("path", Path);
         RegisterParameter("attributes", Attributes)
-            .Default();
-        RegisterParameter("max_size", MaxSize)
-            .Default();
-        RegisterParameter("ignore_opaque", IgnoreOpaque)
-            .Default(false);
+            .Optional();
+        RegisterParameter("max_size", Options.MaxSize)
+            .Optional();
+        RegisterParameter("ignore_opaque", Options.IgnoreOpaque)
+            .Optional();
     }
-};
 
-class TGetCommand
-    : public TTypedCommand<TGetRequest>
-{
-private:
-    virtual void DoExecute() override;
+    void Execute(ICommandContextPtr context);
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSetRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
-{
-    NYPath::TRichYPath Path;
-
-    TSetRequest()
-    {
-        RegisterParameter("path", Path);
-    }
 };
 
 class TSetCommand
-    : public TTypedCommand<TSetRequest>
+    : public TTypedCommand<NApi::TSetNodeOptions>
 {
 private:
-    virtual void DoExecute() override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TRemoveRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
-{
     NYPath::TRichYPath Path;
-    bool Recursive;
-    bool Force;
 
-    TRemoveRequest()
+public:
+    TSetCommand()
     {
         RegisterParameter("path", Path);
-        // TODO(ignat): fix all places that use true default value
-        // and change default value to false
-        RegisterParameter("recursive", Recursive)
-            .Default(true);
-        RegisterParameter("force", Force)
-            .Default(false);
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
 class TRemoveCommand
-    : public TTypedCommand<TRemoveRequest>
+    : public TTypedCommand<NApi::TRemoveNodeOptions>
 {
 private:
-    virtual void DoExecute() override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TListRequest
-    : public TTransactionalRequest
-    , public TReadOnlyRequest
-    , public TSuppressableAccessTrackingRequest
-{
     NYPath::TRichYPath Path;
-    std::vector<Stroka> Attributes;
-    TNullable<i64> MaxSize;
 
-    TListRequest()
+public:
+    TRemoveCommand()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("attributes", Attributes)
-            .Default();
-        RegisterParameter("max_size", MaxSize)
-            .Default();
+        RegisterParameter("recursive", Options.Recursive)
+            .Optional();
+        RegisterParameter("force", Options.Force)
+            .Optional();
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
 class TListCommand
-    : public TTypedCommand<TListRequest>
+    : public TTypedCommand<NApi::TListNodeOptions>
 {
 private:
-    virtual void DoExecute() override;
+    NYPath::TRichYPath Path;
+    std::vector<Stroka> Attributes;
+
+public:
+    TListCommand()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("attributes", Attributes)
+            .Optional();
+    }
+
+    void Execute(ICommandContextPtr context);
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCreateRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
+class TCreateCommand
+    : public TTypedCommand<NApi::TCreateObjectOptions>
 {
+private:
     TNullable<NYPath::TRichYPath> Path;
     NObjectClient::EObjectType Type;
     NYTree::INodePtr Attributes;
     bool Recursive;
     bool IgnoreExisting;
 
-    TCreateRequest()
+public:
+    TCreateCommand()
     {
         RegisterParameter("path", Path)
-            .Default();
+            .Optional();
         RegisterParameter("type", Type);
         RegisterParameter("attributes", Attributes)
-            .Default(nullptr);
+            .Optional();
         RegisterParameter("recursive", Recursive)
             .Default(false);
         RegisterParameter("ignore_existing", IgnoreExisting)
             .Default(false);
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
-class TCreateCommand
-    : public TTypedCommand<TCreateRequest>
+class TLockCommand
+    : public TTypedCommand<NApi::TLockNodeOptions>
 {
 private:
-    virtual void DoExecute() override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TLockRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
-{
     NYPath::TRichYPath Path;
     NCypressClient::ELockMode Mode;
-    bool Waitable;
 
-    TNullable<Stroka> ChildKey;
-    TNullable<Stroka> AttributeKey;
-
-    TLockRequest()
+public:
+    TLockCommand()
     {
         RegisterParameter("path", Path);
         RegisterParameter("mode", Mode)
             .Default(NCypressClient::ELockMode::Exclusive);
-        RegisterParameter("waitable", Waitable)
-            .Default(false);
-        RegisterParameter("child_key", ChildKey)
-            .Default();
-        RegisterParameter("attribute_key", AttributeKey)
-            .Default();
+        RegisterParameter("waitable", Options.Waitable)
+            .Optional();
+        RegisterParameter("child_key", Options.ChildKey)
+            .Optional();
+        RegisterParameter("attribute_key", Options.AttributeKey)
+            .Optional();
 
         RegisterValidator([&] () {
             if (Mode != NCypressClient::ELockMode::Shared) {
-                if (ChildKey) {
+                if (Options.ChildKey) {
                     THROW_ERROR_EXCEPTION("\"child_key\" can only be specified for shared locks");
                 }
-                if (AttributeKey) {
+                if (Options.AttributeKey) {
                     THROW_ERROR_EXCEPTION("\"attribute_key\" can only be specified for shared locks");
                 }
             }
-            if (ChildKey && AttributeKey) {
+            if (Options.ChildKey && Options.AttributeKey) {
                 THROW_ERROR_EXCEPTION("Cannot specify both \"child_key\" and \"attribute_key\"");
             }
         });
     }
-};
 
-class TLockCommand
-    : public TTypedCommand<TLockRequest>
-{
-private:
-    virtual void DoExecute() override;
+    void Execute(ICommandContextPtr context);
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCopyRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
-{
-    NYPath::TRichYPath SourcePath;
-    NYPath::TRichYPath DestinationPath;
-    bool Recursive;
-    bool Force;
-    bool PreserveAccount;
-
-    TCopyRequest()
-    {
-        RegisterParameter("source_path", SourcePath);
-        RegisterParameter("destination_path", DestinationPath);
-        RegisterParameter("recursive", Recursive)
-            .Default(false);
-        RegisterParameter("force", Force)
-            .Default(false);
-        RegisterParameter("preserve_account", PreserveAccount)
-            .Default(false);
-    }
 };
 
 class TCopyCommand
-    : public TTypedCommand<TCopyRequest>
+    : public TTypedCommand<NApi::TCopyNodeOptions>
 {
 private:
-    virtual void DoExecute() override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TMoveRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
-{
     NYPath::TRichYPath SourcePath;
     NYPath::TRichYPath DestinationPath;
-    bool Recursive;
-    bool Force;
-    bool PreserveAccount;
 
-    TMoveRequest()
+public:
+    TCopyCommand()
     {
         RegisterParameter("source_path", SourcePath);
         RegisterParameter("destination_path", DestinationPath);
-        RegisterParameter("recursive", Recursive)
-            .Default(false);
-        RegisterParameter("force", Force)
-            .Default(false);
-        RegisterParameter("preserve_account", PreserveAccount)
-            .Default(true);
+        RegisterParameter("recursive", Options.Recursive)
+            .Optional();
+        RegisterParameter("force", Options.Force)
+            .Optional();
+        RegisterParameter("preserve_account", Options.PreserveAccount)
+            .Optional();
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
 class TMoveCommand
-    : public TTypedCommand<TMoveRequest>
+    : public TTypedCommand<NApi::TMoveNodeOptions>
 {
 private:
-    virtual void DoExecute() override;
+    NYPath::TRichYPath SourcePath;
+    NYPath::TRichYPath DestinationPath;
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TExistsRequest
-    : public TTransactionalRequest
-    , public TReadOnlyRequest
-{
-    NYPath::TRichYPath Path;
-
-    TExistsRequest()
+public:
+    TMoveCommand()
     {
-        RegisterParameter("path", Path);
+        RegisterParameter("source_path", SourcePath);
+        RegisterParameter("destination_path", DestinationPath);
+        RegisterParameter("recursive", Options.Recursive)
+            .Optional();
+        RegisterParameter("force", Options.Force)
+            .Optional();
+        RegisterParameter("preserve_account", Options.PreserveAccount)
+            .Optional();
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
 class TExistsCommand
-    : public TTypedCommand<TExistsRequest>
+    : public TTypedCommand<NApi::TNodeExistsOptions>
 {
 private:
-    virtual void DoExecute() override;
+    NYPath::TRichYPath Path;
+
+public:
+    TExistsCommand()
+    {
+        RegisterParameter("path", Path);
+    }
+
+    void Execute(ICommandContextPtr context);
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TLinkRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
+class TLinkCommand
+    : public TTypedCommand<NApi::TLinkNodeOptions>
 {
+private:
     NYPath::TRichYPath LinkPath;
     NYPath::TRichYPath TargetPath;
     NYTree::INodePtr Attributes;
-    bool Recursive;
-    bool IgnoreExisting;
 
-    TLinkRequest()
+public:
+    TLinkCommand()
     {
         RegisterParameter("link_path", LinkPath);
         RegisterParameter("target_path", TargetPath);
         RegisterParameter("attributes", Attributes)
-            .Default(nullptr);
-        RegisterParameter("recursive", Recursive)
-            .Default(false);
-        RegisterParameter("ignore_existing", IgnoreExisting)
-            .Default(false);
+            .Optional();
+        RegisterParameter("recursive", Options.Recursive)
+            .Optional();
+        RegisterParameter("ignore_existing", Options.IgnoreExisting)
+            .Optional();
     }
-};
 
-class TLinkCommand
-    : public TTypedCommand<TLinkRequest>
-{
-private:
-    virtual void DoExecute() override;
+    void Execute(ICommandContextPtr context);
 
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TConcatenateRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
+class TConcatenateCommand
+    : public TTypedCommand<NApi::TConcatenateNodesOptions>
 {
+private:
     std::vector<NYPath::TRichYPath> SourcePaths;
     NYPath::TRichYPath DestinationPath;
 
-    TConcatenateRequest()
+public:
+    TConcatenateCommand()
     {
         RegisterParameter("source_paths", SourcePaths);
         RegisterParameter("destination_path", DestinationPath);
@@ -350,20 +263,15 @@ struct TConcatenateRequest
 
     virtual void OnLoaded() override
     {
-        TTransactionalRequest::OnLoaded();
+        TCommandBase::OnLoaded();
 
         for (auto& path : SourcePaths) {
             path = path.Normalize();
         }
         DestinationPath = DestinationPath.Normalize();
     }
-};
 
-class TConcatenateCommand
-    : public TTypedCommand<TConcatenateRequest>
-{
-private:
-    virtual void DoExecute() override;
+    void Execute(ICommandContextPtr context);
 
 };
 

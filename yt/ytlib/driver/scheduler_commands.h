@@ -11,79 +11,55 @@ namespace NDriver {
 
 //////////////////////////////////////////////////////////////////////////////
 
-struct TDumpJobContextRequest
-    : public TRequest
+class TDumpJobContextCommand
+    : public TTypedCommand<NApi::TDumpJobContextOptions>
 {
+private:
     NJobTrackerClient::TJobId JobId;
     NYPath::TYPath Path;
 
-    TDumpJobContextRequest()
+public:
+    TDumpJobContextCommand()
     {
         RegisterParameter("job_id", JobId);
         RegisterParameter("path", Path);
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
-class TDumpJobContextCommand
-    : public TTypedCommand<TDumpJobContextRequest>
+class TStraceJobCommand
+    : public TTypedCommand<NApi::TStraceJobOptions>
 {
-protected:
-    typedef TDumpJobContextCommand TThis;
-
 private:
-    virtual void DoExecute() override;
-
-};
-
-//////////////////////////////////////////////////////////////////////////////
-
-struct TStraceJobRequest
-    : public TRequest
-{
     NJobTrackerClient::TJobId JobId;
 
-    TStraceJobRequest()
+public:
+    TStraceJobCommand()
     {
         RegisterParameter("job_id", JobId);
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
-//////////////////////////////////////////////////////////////////////////////
-
-class TStraceJobCommand
-    : public TTypedCommand<TStraceJobRequest>
+class TStartOperationCommandBase
+    : public TTypedCommand<NApi::TStartOperationOptions>
 {
-protected:
-    typedef TStraceJobCommand TThis;
-
 private:
-    virtual void DoExecute() override;
-
-};
-
-//////////////////////////////////////////////////////////////////////////////
-
-struct TStartOperationRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-{
     NYTree::INodePtr Spec;
 
-    TStartOperationRequest()
+    virtual NScheduler::EOperationType GetOperationType() const = 0;
+
+public:
+    TStartOperationCommandBase()
     {
         RegisterParameter("spec", Spec);
     }
-};
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TStartOperationCommandBase
-    : public TTypedCommand<TStartOperationRequest>
-{
-protected:
-    virtual void DoExecute() override;
-
-    virtual NScheduler::EOperationType GetOperationType() const = 0;
+    void Execute(ICommandContextPtr context);
 
 };
 
@@ -151,46 +127,41 @@ private:
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSimpleOperationRequest
-    : public TRequest
+class TSimpleOperationCommandBase
+    : public TCommandBase
 {
+protected:
     NScheduler::TOperationId OperationId;
 
-    TSimpleOperationRequest()
+public:
+    TSimpleOperationCommandBase()
     {
         RegisterParameter("operation_id", OperationId);
     }
-};
 
-////////////////////////////////////////////////////////////////////////////////
+};
 
 class TAbortOperationCommand
-    : public TTypedCommandBase<TSimpleOperationRequest>
+    : public TSimpleOperationCommandBase
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TSuspendOperationCommand
-    : public TTypedCommandBase<TSimpleOperationRequest>
+    : public TSimpleOperationCommandBase
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
 class TResumeOperationCommand
-    : public TTypedCommandBase<TSimpleOperationRequest>
+    : public TSimpleOperationCommandBase
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
 };
 

@@ -13,52 +13,43 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadJournalRequest
-    : public TTransactionalRequest
+class TReadJournalCommand
+    : public TTypedCommand<NApi::TJournalReaderOptions>
 {
+private:
     NYPath::TRichYPath Path;
-
-    TReadJournalRequest()
-    {
-        RegisterParameter("path", Path);
-    }
 
     virtual void OnLoaded() override
     {
-        TTransactionalRequest::OnLoaded();
+        TCommandBase::OnLoaded();
 
         Path = Path.Normalize();
     }
-};
 
-class TReadJournalCommand
-    : public TTypedCommand<TReadJournalRequest>
-{
-private:
-    virtual void DoExecute() override;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TWriteJournalRequest
-    : public TTransactionalRequest
-    , public TPrerequisiteRequest
-{
-    NYPath::TRichYPath Path;
-    NYTree::INodePtr JournalWriter;
-
-    TWriteJournalRequest()
+public:
+    TReadJournalCommand()
     {
         RegisterParameter("path", Path);
     }
+
+    void Execute(ICommandContextPtr context);
+
 };
 
 class TWriteJournalCommand
-    : public TTypedCommand<TWriteJournalRequest>
+    : public TTypedCommand<NApi::TJournalWriterOptions>
 {
 private:
-    virtual void DoExecute() override;
+    NYPath::TRichYPath Path;
+    NYTree::INodePtr JournalWriter;
+
+public:
+    TWriteJournalCommand()
+    {
+        RegisterParameter("path", Path);
+    }
+
+    void Execute(ICommandContextPtr context);
 
 };
 
