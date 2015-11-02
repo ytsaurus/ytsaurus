@@ -281,6 +281,9 @@ private:
             , Request_(request)
             , SyncInputStream_(request.InputStream ? CreateSyncAdapter(request.InputStream) : nullptr)
             , SyncOutputStream_(request.OutputStream ? CreateSyncAdapter(request.OutputStream) : nullptr)
+            , BufferedOutputStream_(SyncOutputStream_
+                ? std::make_unique<TBufferedOutput>(SyncOutputStream_.get())
+                : nullptr)
         {
             TClientOptions options;
             options.User = Request_.AuthenticatedUser;
@@ -290,6 +293,9 @@ private:
         TFuture<void> Terminate()
         {
             LOG_DEBUG("Terminating client");
+            if (BufferedOutputStream_) {
+                BufferedOutputStream_->Flush();
+            }
             return Client_->Terminate();
         }
 
@@ -321,7 +327,7 @@ private:
             return CreateConsumerForFormat(
                 GetOutputFormat(),
                 Descriptor_.OutputType,
-                SyncOutputStream_.get());
+                BufferedOutputStream_.get());
         }
 
         virtual const TFormat& GetInputFormat() override
@@ -350,6 +356,7 @@ private:
 
         std::unique_ptr<TInputStream> SyncInputStream_;
         std::unique_ptr<TOutputStream> SyncOutputStream_;
+        std::unique_ptr<TOutputStream> BufferedOutputStream_;
 
         IClientPtr Client_;
 

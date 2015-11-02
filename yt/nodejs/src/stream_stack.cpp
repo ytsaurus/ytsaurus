@@ -97,8 +97,6 @@ void AddCompressionToStack(TGrowingOutputStreamStack& stack, ECompression compre
         default:
             YUNREACHABLE();
     }
-
-    stack.Add<TBufferedOutput>()->SetPropagateMode(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
