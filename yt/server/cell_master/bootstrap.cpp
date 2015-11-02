@@ -337,17 +337,17 @@ void TBootstrap::DoInitialize()
         cellConfig->ValidateAllPeersPresent();
     }
 
-    auto localAdddress = BuildServiceAddress(
+    auto localAddress = BuildServiceAddress(
         TAddressResolver::Get()->GetLocalHostName(),
         Config_->RpcPort);
 
     TCellConfigPtr localCellConfig;
     TPeerId localPeerId;
 
-    auto primaryId = ComputePeerId(Config_->PrimaryMaster, localAdddress);
+    auto primaryId = ComputePeerId(Config_->PrimaryMaster, localAddress);
     if (primaryId == InvalidPeerId) {
         for (auto cellConfig : Config_->SecondaryMasters) {
-            auto secondaryId = ComputePeerId(cellConfig, localAdddress);
+            auto secondaryId = ComputePeerId(cellConfig, localAddress);
             if (secondaryId != InvalidPeerId) {
                 SecondaryMaster_ = true;
                 localCellConfig = cellConfig;
@@ -363,7 +363,7 @@ void TBootstrap::DoInitialize()
 
     if (!PrimaryMaster_ && !SecondaryMaster_) {
         THROW_ERROR_EXCEPTION("Local address %v is not recognized as a valid master address",
-            localAdddress);
+            localAddress);
     }
 
     Multicell_ = !Config_->SecondaryMasters.empty();
