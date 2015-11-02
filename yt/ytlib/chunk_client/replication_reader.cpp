@@ -738,7 +738,7 @@ private:
     }
 
     TFuture<void> ProcessResponse(
-        const Stroka& adddress,
+        const Stroka& address,
         TDataNodeServiceProxy::TReqGetBlockSetPtr req,
         TDataNodeServiceProxy::TRspGetBlockSetPtr rsp)
     {
@@ -749,7 +749,7 @@ private:
 
         if (rsp->throttling()) {
             LOG_DEBUG("Peer is throttling (Address: %v)",
-                adddress);
+                address);
         }
 
         i64 bytesReceived = 0;
@@ -764,7 +764,7 @@ private:
 
             // Only keep source address if P2P is on.
             auto sourceDescriptor = reader->LocalDescriptor_
-                ? TNullable<TNodeDescriptor>(GetPeerDescriptor(adddress))
+                ? TNullable<TNodeDescriptor>(GetPeerDescriptor(address))
                 : TNullable<TNodeDescriptor>(Null);
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
@@ -785,12 +785,12 @@ private:
                         PeerBlocksMap_[*suggestedAddress].insert(blockIndex);
                         LOG_DEBUG("Peer descriptor received (Block: %v, SuggestorAddress: %v, SuggestedAddress: %v)",
                             blockIndex,
-                            adddress,
+                            address,
                             *suggestedAddress);
                     } else {
                         LOG_WARNING("Peer suggestion ignored, required network is missing (Block: %v, SuggestorAddress: %v, SuggestedAddress: %v)",
                             blockIndex,
-                            adddress,
+                            address,
                             suggestedDescriptor.GetDefaultAddress());
                     }
                 }
@@ -801,14 +801,14 @@ private:
             }
         }
 
-        if (IsSeed(adddress) && !rsp->has_complete_chunk()) {
+        if (IsSeed(address) && !rsp->has_complete_chunk()) {
             LOG_DEBUG("Seed does not contain the chunk (Address: %v)",
-                adddress);
-            BanPeer(adddress);
+                address);
+            BanPeer(address);
         }
 
         LOG_DEBUG("Finished processing block response (Address: %v, BlocksReceived: [%v], BytesReceived: %v, PeersSuggested: %v)",
-            adddress,
+            address,
             JoinToString(receivedBlockIndexes),
             bytesReceived,
             rsp->peer_descriptors_size());

@@ -42,7 +42,7 @@ bool operator != (const TNodeDescriptor& lhs, const TNodeDescriptor& rhs);
 
 Stroka ToString(const TNodeDescriptor& descriptor);
 
-// Accessors for some well-known adddresses.
+// Accessors for some well-known addresses.
 const Stroka& GetDefaultAddress(const TAddressMap& addresses);
 const Stroka& GetInterconnectAddress(const TAddressMap& addresses);
 
