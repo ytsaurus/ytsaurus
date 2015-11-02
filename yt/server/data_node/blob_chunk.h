@@ -57,15 +57,14 @@ private:
     {
         struct TBlockEntry
         {
+            int LocalIndex = -1;
             int BlockIndex = -1;
-            TSharedRef Data;
-            TCachedBlockCookie Cookie;
             bool Cached = false;
+            TCachedBlockCookie Cookie;
         };
 
         std::vector<TBlockEntry> Entries;
-        std::vector<TFuture<void>> CacheResults;
-        TPromise<std::vector<TSharedRef>> Promise = NewPromise<std::vector<TSharedRef>>();
+        std::vector<TSharedRef> Blocks;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -84,9 +83,9 @@ private:
     void SetMetaLoadError(const TError& error);
     void DoReadMeta(TChunkReadGuard readGuard);
 
-    void DoReadBlockSet(
+    TFuture<std::vector<TSharedRef>> DoReadBlockSet(
         TReadBlockSetSessionPtr session,
-        TPendingReadSizeGuard pendingReadSizeGuard);
+        bool populateCache);
 
 };
 
