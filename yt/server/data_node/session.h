@@ -37,10 +37,10 @@ struct ISession
     //! Returns the session type.
     virtual ESessionType GetType() const = 0;
 
-    //! Returns workload descriptor provided by the client during handshake.
+    //! Returns the workload descriptor provided by the client during handshake.
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const = 0;
 
-    //! Returns target chunk location.
+    //! Returns the target chunk location.
     virtual TStoreLocationPtr GetStoreLocation() const = 0;
 
     //! Returns the chunk info.

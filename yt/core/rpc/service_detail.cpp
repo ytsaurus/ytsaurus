@@ -178,17 +178,15 @@ private:
     {
         Profiler.Increment(PerformanceCounters_->RequestCounter, +1);
 
-        if (RequestHeader_->has_request_start_time() && RequestHeader_->has_retry_start_time()) {
+        if (RequestHeader_->has_retry_start_time()) {
             // Decode timing information.
-            auto requestStart = TInstant(RequestHeader_->request_start_time());
             auto retryStart = TInstant(RequestHeader_->retry_start_time());
             auto now = CpuInstantToInstant(GetCpuInstant());
 
             // Make sanity adjustments to account for possible clock skew.
             retryStart = std::min(retryStart, now);
-            requestStart = std::min(requestStart, retryStart);
 
-            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
+            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, (now - retryStart).MicroSeconds());
         }
 
         if (!RuntimeInfo_->Descriptor.OneWay) {
