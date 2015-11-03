@@ -291,6 +291,33 @@ YtCoordinator.prototype._initialize = function()
     .done();
 };
 
+YtCoordinator.prototype._refreshNetworkLoad = function()
+{
+    if (!/^linux/.test(process.platform)) {
+        return Q.resolve(null);
+    }
+    return Q.promisify(fs.readFile)("/proc/net/dev")
+    .then(function(data) {
+        var lines = data.toString().split("\n");
+        var bytes = 0;
+        for (var i = 0; i < lines.length; ++i) {
+            var match = lines[i].match(/^\s*eth\d+:\s*(\d+)/);
+            if (match && match[1]) {
+                bytes += parseFloat(match[1]);
+            }
+        }
+        return bytes;
+    })
+    .catch(function(err) {
+        var error = YtError.ensureWrapped(err);
+        self.logger.error(
+            "An error occured while reading network load information",
+            // TODO(sandello): Embed.
+            { error: error.toJson() });
+        return null;
+    });
+};
+
 YtCoordinator.prototype._refresh = function()
 {
     var self = this;
@@ -308,26 +335,7 @@ YtCoordinator.prototype._refresh = function()
 
         var now = new Date();
 
-        sync = Q.promisify(fs.readFile)("/proc/net/dev")
-        .then(function(data) {
-            var lines = data.toString().split("\n");
-            var bytes = 0;
-            for (var i = 0; i < lines.length; ++i) {
-                var match = lines[i].match(/^\s*eth\d+:\s*(\d+)/);
-                if (match && match[1]) {
-                    bytes += parseFloat(match[1]);
-                }
-            }
-            return bytes;
-        })
-        .catch(function(err) {
-            var error = YtError.ensureWrapped(err);
-            self.logger.error(
-                "An error occured while reading network load information",
-                // TODO(sandello): Embed.
-                { error: error.toJson() });
-            return null;
-        })
+        sync = self._refreshNetworkLoad()
         .then(function(network_bytes) {
             var network_traffic;
             if (self.network_bytes !== null) {
@@ -355,7 +363,7 @@ YtCoordinator.prototype._refresh = function()
 
         return self.driver.executeSimple("list", {
             path: "//sys/proxies",
-            attributes: [ "role", "banned", "ban_message", "liveness" ]
+            attributes: ["role", "banned", "ban_message", "liveness"]
         });
     })
     .then(function(entries) {
