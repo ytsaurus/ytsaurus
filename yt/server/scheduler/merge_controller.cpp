@@ -84,10 +84,10 @@ protected:
     TSimpleOperationSpecBasePtr Spec;
     TSimpleOperationOptionsPtr Options;
 
-    //! The total number of chunks for processing.
+    //! The total number of chunks for processing (teleports excluded).
     int TotalChunkCount;
 
-    //! The total data size for processing.
+    //! The total data size for processing (teleports excluded).
     i64 TotalDataSize;
 
     //! For each input table, the corresponding entry holds the stripe
@@ -450,7 +450,7 @@ protected:
         InitJobIOConfig();
         InitJobSpecTemplate();
 
-        LOG_INFO("Inputs processed (DataSize: %v, ChunkCount: %v, JobCount: %v)",
+        LOG_INFO("Inputs processed (JobDataSize: %v, JobChunkCount: %v, JobCount: %v)",
             TotalDataSize,
             TotalChunkCount,
             Tasks.size());
