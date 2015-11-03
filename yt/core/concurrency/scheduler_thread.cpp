@@ -78,7 +78,7 @@ void TSchedulerThread::Start()
         ThreadName);
 
     Thread.Start();
-    ThreadId = TThreadId(Thread.SystemId());
+    ThreadId = TThreadId(Thread.Id());
 
     OnStart();
 
