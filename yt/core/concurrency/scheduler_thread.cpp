@@ -101,7 +101,7 @@ void TSchedulerThread::Shutdown()
     OnShutdown();
 
     // Prevent deadlock.
-    if (GetCurrentThreadId() != ThreadId) {
+    if (TThread::CurrentThreadId() != ThreadId) {
         Thread.Join();
     }
 }
@@ -117,7 +117,7 @@ void TSchedulerThread::ThreadMain()
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     TCurrentSchedulerGuard guard(this);
-    SetCurrentThreadName(ThreadName.c_str());
+    TThread::CurrentThreadSetName(ThreadName.c_str());
 
     // Hold this strongly.
     auto this_ = MakeStrong(this);

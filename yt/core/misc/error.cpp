@@ -222,7 +222,7 @@ void TError::CaptureOriginAttributes()
     Attributes().Set("host", TAddressResolver::Get()->GetLocalHostName());
     Attributes().Set("datetime", TInstant::Now());
     Attributes().Set("pid", ::getpid());
-    Attributes().Set("tid", NConcurrency::GetCurrentThreadId());
+    Attributes().Set("tid", TThread::CurrentThreadId());
     Attributes().Set("fid", NConcurrency::GetCurrentFiberId());
     auto traceContext = NTracing::GetCurrentTraceContext();
     if (traceContext.IsEnabled()) {
