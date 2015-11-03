@@ -578,9 +578,7 @@ inline bool operator==(const TNode& lhs, const TNode& rhs)
         case TNode::LIST:
             return *lhs.List_ == *rhs.List_;
         case TNode::MAP:
-            // TODO: compare maps
-            return false;
-            //return *lhs.Map_ == *rhs.Map_;
+            return *lhs.Map_ == *rhs.Map_;
         case TNode::ENTITY:
             return true;
         default:
@@ -591,6 +589,17 @@ inline bool operator==(const TNode& lhs, const TNode& rhs)
 inline bool operator!=(const TNode& lhs, const TNode& rhs)
 {
     return !(lhs == rhs);
+}
+
+inline bool GetBool(const TNode& node)
+{
+    if (node.IsBool()) {
+        return node.AsBool();
+    } else if (node.IsString()) {
+        return node.AsString() == "true";
+    } else {
+        ythrow yexception() << "GetBool(): not a boolean or string type";
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
