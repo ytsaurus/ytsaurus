@@ -145,9 +145,9 @@ public:
 
     void ResetSessionHints();
     
-    void AddSessionHint(NChunkClient::EWriteSessionType sessionType);
+    void AddSessionHint(NChunkClient::ESessionType sessionType);
 
-    int GetSessionCount(NChunkClient::EWriteSessionType sessionType) const;
+    int GetSessionCount(NChunkClient::ESessionType sessionType) const;
     int GetTotalSessionCount() const;
 
     int GetTotalTabletSlots() const;

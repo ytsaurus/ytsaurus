@@ -113,7 +113,7 @@ public:
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         IBlockCachePtr blockCache,
         bool populateCache)
     {
@@ -127,7 +127,7 @@ public:
             auto asyncBlocks = chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
-                priority,
+                workloadDescriptor,
                 populateCache,
                 blockCache);
             // Hold the read guard.
@@ -140,7 +140,7 @@ public:
     TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         IBlockCachePtr blockCache,
         bool populateCache)
     {
@@ -168,7 +168,7 @@ public:
             auto readGuard = AcquireReadGuard(chunk);
             auto asyncBlocks = chunk->ReadBlockSet(
                 blockIndexes,
-                priority,
+                workloadDescriptor,
                 populateCache,
                 blockCache);
             // Hold the read guard.
@@ -244,7 +244,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
-    i64 priority,
+    const TWorkloadDescriptor& workloadDescriptor,
     IBlockCachePtr blockCache,
     bool populateCache)
 {
@@ -252,7 +252,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
         chunkId,
         firstBlockIndex,
         blockCount,
-        priority,
+        workloadDescriptor,
         blockCache,
         populateCache);
 }
@@ -260,14 +260,14 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
 TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
     const TChunkId& chunkId,
     const std::vector<int>& blockIndexes,
-    i64 priority,
+    const TWorkloadDescriptor& workloadDescriptor,
     IBlockCachePtr blockCache,
     bool populateCache)
 {
     return Impl_->ReadBlockSet(
         chunkId,
         blockIndexes,
-        priority,
+        workloadDescriptor,
         blockCache,
         populateCache);
 }

@@ -33,6 +33,11 @@ DEFINE_ENUM(EIODirection,
     (Write)
 );
 
+DEFINE_ENUM(EIOCategory,
+    (Batch)
+    (Realtime)
+);
+
 class TLocation
     : public TRefCounted
 {
@@ -105,10 +110,15 @@ public:
     double GetLoadFactor() const;
 
     //! Returns the number of bytes pending for disk IO.
-    i64 GetPendingIOSize(EIODirection direction);
+    i64 GetPendingIOSize(
+        EIODirection direction,
+        const TWorkloadDescriptor& workloadDescriptor);
 
     //! Acquires a lock for the given number of bytes to be read or written.
-    TPendingIOGuard IncreasePendingIOSize(EIODirection direction, i64 delta);
+    TPendingIOGuard IncreasePendingIOSize(
+        EIODirection direction,
+        const TWorkloadDescriptor& workloadDescriptor,
+        i64 delta);
 
     //! Changes the number of currently active sessions by a given delta.
     void UpdateSessionCount(int delta);
@@ -168,11 +178,17 @@ private:
     const TDiskHealthCheckerPtr HealthChecker_;
 
     NProfiling::TProfiler Profiler_;
-    TEnumIndexedVector<NProfiling::TSimpleCounter, EIODirection> PendingIOSizeCounters_;
+    //! Indexed by |(ioDirection, ioCategory)|.
+    std::vector<NProfiling::TSimpleCounter> PendingIOSizeCounters_;
 
 
-    void DecreasePendingIOSize(EIODirection direction, i64 delta);
-    void UpdatePendingIOSize(EIODirection direction, i64 delta);
+    static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
+    NProfiling::TSimpleCounter& GetPendingIOSizeCounter(
+        EIODirection direction,
+        EIOCategory category);
+
+    void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
+    void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
 
     void ValidateMinimumSpace();
     void ValidateLockFile();
@@ -262,6 +278,7 @@ private:
     virtual void DoAdditionalScan() override;
 
     virtual void DoStart() override;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation);
@@ -309,9 +326,14 @@ public:
 private:
     friend class TLocation;
 
-    TPendingIOGuard(EIODirection direction, i64 size, TLocationPtr owner);
+    TPendingIOGuard(
+        EIODirection direction,
+        EIOCategory category,
+        i64 size,
+        TLocationPtr owner);
 
     EIODirection Direction_;
+    EIOCategory Category_;
     i64 Size_ = 0;
     TLocationPtr Owner_;
 

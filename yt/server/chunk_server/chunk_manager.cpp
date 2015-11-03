@@ -401,7 +401,7 @@ public:
             replicationFactorOverride,
             forbiddenNodes,
             preferredHostName,
-            EWriteSessionType::User);
+            ESessionType::User);
     }
 
     TChunk* CreateChunk(EObjectType type)

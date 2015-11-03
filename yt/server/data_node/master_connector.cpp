@@ -302,9 +302,9 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     result.set_full(full);
 
     auto sessionManager = Bootstrap_->GetSessionManager();
-    result.set_total_user_session_count(sessionManager->GetSessionCount(EWriteSessionType::User));
-    result.set_total_replication_session_count(sessionManager->GetSessionCount(EWriteSessionType::Replication));
-    result.set_total_repair_session_count(sessionManager->GetSessionCount(EWriteSessionType::Repair));
+    result.set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
+    result.set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
+    result.set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
 
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     result.set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());

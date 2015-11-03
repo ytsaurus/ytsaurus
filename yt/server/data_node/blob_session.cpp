@@ -182,7 +182,10 @@ TFuture<void> TBlobSession::DoPutBlocks(
         if (slot.State == ESlotState::Empty)
             break;
 
-        slot.PendingIOGuard = Location_->IncreasePendingIOSize(EIODirection::Write, slot.Block.Size());
+        slot.PendingIOGuard = Location_->IncreasePendingIOSize(
+            EIODirection::Write,
+            Options_.WorkloadDescriptor,
+            slot.Block.Size());
 
         BIND(
             &TBlobSession::DoWriteBlock,
@@ -198,7 +201,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         ++WindowIndex_;
     }
 
-    auto throttler = Bootstrap_->GetInThrottler(Options_.SessionType);
+    auto throttler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
     return throttler->Throttle(requestSize);
 }
 
@@ -221,7 +224,7 @@ TFuture<void> TBlobSession::DoSendBlocks(
         requestSize += block.Size();
     }
 
-    auto throttler = Bootstrap_->GetOutThrottler(Options_.SessionType);
+    auto throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
         return req->Invoke().As<void>();
     }));

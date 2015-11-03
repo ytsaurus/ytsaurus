@@ -58,9 +58,21 @@ const TChunkId& TSessionBase::GetChunkId() const
     return ChunkId_;
 }
 
-EWriteSessionType TSessionBase::GetType() const
+ESessionType TSessionBase::GetType() const
 {
-    return Options_.SessionType;
+    switch (Options_.WorkloadDescriptor.Category) {
+        case EWorkloadCategory::SystemRepair:
+            return ESessionType::Repair;
+        case EWorkloadCategory::SystemReplication:
+            return ESessionType::Replication;
+        default:
+            return ESessionType::User;
+    }
+}
+
+const TWorkloadDescriptor& TSessionBase::GetWorkloadDescriptor() const
+{
+    return Options_.WorkloadDescriptor;
 }
 
 TStoreLocationPtr TSessionBase::GetStoreLocation() const

@@ -344,8 +344,9 @@ protected:
     //! Set of addresses corresponding to PeerQueue_.
     yhash_set<Stroka> PeerQueueSet_;
 
-    //! The instant this session has started.
-    TInstant StartTime_;
+    //! The workload descriptor from the config with instant field updated
+    //! properly.
+    TWorkloadDescriptor WorkloadDescriptor_;
 
     NLogging::TLogger Logger = ChunkClientLogger;
 
@@ -354,7 +355,7 @@ protected:
         : Reader_(reader)
         , NodeDirectory_(reader->NodeDirectory_)
         , NetworkName_(reader->NetworkName_)
-        , StartTime_(TInstant::Now())
+        , WorkloadDescriptor_(reader->Config_->WorkloadDescriptor.SetCurrentInstant())
     {
         Logger.AddTag("Session: %p, ChunkId: %v",
             this,
@@ -784,11 +785,10 @@ private:
                 proxy.SetDefaultTimeout(reader->Config_->BlockRpcTimeout);
 
                 auto req = proxy.GetBlockSet();
-                req->SetStartTime(StartTime_);
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 ToProto(req->mutable_block_indexes(), unfetchedBlockIndexes);
                 req->set_populate_cache(reader->Config_->PopulateCache);
-                req->set_session_type(static_cast<int>(reader->Options_->SessionType));
+                ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
                 if (reader->LocalDescriptor_) {
                     auto expirationTime = TInstant::Now() + reader->Config_->PeerExpirationTimeout;
                     ToProto(req->mutable_peer_descriptor(), reader->LocalDescriptor_.Get());
@@ -1054,11 +1054,10 @@ private:
                 proxy.SetDefaultTimeout(reader->Config_->BlockRpcTimeout);
 
                 auto req = proxy.GetBlockRange();
-                req->SetStartTime(StartTime_);
                 ToProto(req->mutable_chunk_id(), reader->ChunkId_);
                 req->set_first_block_index(FirstBlockIndex_);
                 req->set_block_count(BlockCount_);
-                req->set_session_type(static_cast<int>(reader->Options_->SessionType));
+                ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
 
                 req->Invoke().Subscribe(
                     BIND(
@@ -1264,7 +1263,6 @@ private:
         proxy.SetDefaultTimeout(reader->Config_->MetaRpcTimeout);
 
         auto req = proxy.GetChunkMeta();
-        req->SetStartTime(StartTime_);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
         if (PartitionTag_) {
@@ -1273,6 +1271,7 @@ private:
         if (ExtensionTags_) {
             ToProto(req->mutable_extension_tags(), *ExtensionTags_);
         }
+        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
 
         req->Invoke().Subscribe(
             BIND(&TGetMetaSession::OnGetChunkMeta, MakeStrong(this), address)

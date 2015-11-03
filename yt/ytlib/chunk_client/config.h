@@ -13,6 +13,9 @@
 
 #include <core/ytree/yson_serializable.h>
 
+#include <ytlib/misc/config.h>
+#include <ytlib/misc/workload.h>
+
 #include <ytlib/node_tracker_client/public.h>
 
 namespace NYT {
@@ -21,7 +24,7 @@ namespace NChunkClient {
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationReaderConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual TWorkloadConfig
 {
 public:
     //! Timeout for a block request.
@@ -94,23 +97,14 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
 
 class TRemoteReaderOptions
     : public virtual NYTree::TYsonSerializable
-{
-public:
-    EReadSessionType SessionType;
-
-    TRemoteReaderOptions()
-    {
-        RegisterParameter("session_type", SessionType)
-            .Default(EReadSessionType::User);
-    }
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteReaderOptions)
 
 ///////////////////////////////////////////////////////////////////////////////
 
 class TSequentialReaderConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual TWorkloadConfig
 {
 public:
     //! Prefetch window size (in bytes).
@@ -141,7 +135,7 @@ DEFINE_REFCOUNTED_TYPE(TSequentialReaderConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TReplicationWriterConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual TWorkloadConfig
 {
 public:
     //! Maximum window size (in bytes).
@@ -212,14 +206,11 @@ class TRemoteWriterOptions
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    EWriteSessionType SessionType;
     bool AllowAllocatingNewTargetNodes;
 
     TRemoteWriterOptions()
     {
-        RegisterParameter("session_type", SessionType)
-            .Default(EWriteSessionType::User);
-        RegisterParameter("allow_allocate_new_target_nodes", AllowAllocatingNewTargetNodes)
+        RegisterParameter("allow_allocating_new_target_nodes", AllowAllocatingNewTargetNodes)
             .Default(true);
     }
 };
@@ -247,7 +238,7 @@ DEFINE_REFCOUNTED_TYPE(TErasureWriterConfig)
 ///////////////////////////////////////////////////////////////////////////////
 
 class TEncodingWriterConfig
-    : public virtual NYTree::TYsonSerializable
+    : public virtual TWorkloadConfig
 {
 public:
     i64 EncodeWindowSize;
@@ -376,7 +367,6 @@ class TMultiChunkReaderConfig
 {
 public:
     i64 MaxBufferSize;
-
 
     TMultiChunkReaderConfig()
     {

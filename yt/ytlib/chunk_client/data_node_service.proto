@@ -2,6 +2,7 @@ package NYT.NChunkClient.NProto;
 
 import "yt/core/misc/guid.proto";
 import "yt/core/misc/error.proto";
+import "yt/ytlib/misc/workload.proto";
 import "yt/ytlib/node_tracker_client/node.proto";
 import "yt/ytlib/chunk_client/chunk_meta.proto";
 import "yt/ytlib/chunk_client/chunk_info.proto";
@@ -13,7 +14,7 @@ import "yt/ytlib/chunk_client/chunk_slice.proto";
 message TReqStartChunk
 {
     required NYT.NProto.TGuid chunk_id = 1;
-    required int32 session_type = 2;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 2;
     optional bool sync_on_close = 3 [default = true];
     optional bool optimize_for_latency = 4 [default = false];
 }
@@ -91,7 +92,7 @@ message TReqGetBlockSet
     optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 3;
     optional uint64 peer_expiration_time = 4;
     optional bool populate_cache = 5 [default = true];
-    required int32 session_type = 6;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
 }
 
 message TRspGetBlockSet
@@ -106,7 +107,7 @@ message TRspGetBlockSet
     required bool has_complete_chunk = 3;
     required bool throttling = 4;
 
-    // Blocks are returned via attachments and correpond to block_indexes
+    // Blocks are returned via attachments and correspond to block_indexes
     // list in the request. Some blocks may be null.
 }
 
@@ -117,7 +118,7 @@ message TReqGetBlockRange
     required NYT.NProto.TGuid chunk_id = 1;
     required int32 first_block_index = 2;
     required int32 block_count = 3;
-    required int32 session_type = 4;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     optional bool populate_cache = 5 [default = true];
 }
 
@@ -150,6 +151,7 @@ message TReqGetChunkMeta
     // the whole available meta is returned.
     optional bool all_extension_tags = 3 [default = false];
     optional int32 partition_tag = 4;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 }
 
 message TRspGetChunkMeta
@@ -187,6 +189,7 @@ message TReqGetTableSamples
     repeated TSampleRequest sample_requests = 1;
     repeated string key_columns = 2;
     required int32 max_sample_size = 3;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
 }
 
 message TRspGetTableSamples
@@ -221,6 +224,7 @@ message TReqGetChunkSlices
     // If true, chunks are sliced by key,
     // each slice contains the whole key
     required bool slice_by_keys = 4;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 }
 
 message TRspGetChunkSlices

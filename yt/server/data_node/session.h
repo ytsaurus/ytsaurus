@@ -8,6 +8,8 @@
 
 #include <core/actions/signal.h>
 
+#include <ytlib/misc/workload.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
 
 #include <ytlib/chunk_client/chunk_meta.pb.h>
@@ -19,7 +21,7 @@ namespace NDataNode {
 
 struct TSessionOptions
 {
-    EWriteSessionType SessionType;
+    TWorkloadDescriptor WorkloadDescriptor;
     bool SyncOnClose = false;
     bool OptimizeForLatency = false;
 };
@@ -32,8 +34,11 @@ struct ISession
     //! Returns the TChunkId being uploaded.
     virtual const TChunkId& GetChunkId() const = 0;
 
-    //! Returns session type provided by the client during handshake.
-    virtual EWriteSessionType GetType() const = 0;
+    //! Returns the session type.
+    virtual ESessionType GetType() const = 0;
+
+    //! Returns workload descriptor provided by the client during handshake.
+    virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const = 0;
 
     //! Returns target chunk location.
     virtual TStoreLocationPtr GetStoreLocation() const = 0;

@@ -54,7 +54,7 @@ TSessionManager::TSessionManager(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 
     auto* profilingManager = NProfiling::TProfileManager::Get();
-    for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
+    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
         PerTypeSessionCounters_[type] = NProfiling::TSimpleCounter(
             "/session_count",
             {profilingManager->RegisterTag("type", type)});
@@ -176,7 +176,7 @@ void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error
     UnregisterSession(session);
 }
 
-int TSessionManager::GetSessionCount(EWriteSessionType type)
+int TSessionManager::GetSessionCount(ESessionType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

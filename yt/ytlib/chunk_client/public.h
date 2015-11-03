@@ -3,6 +3,8 @@
 #include <core/misc/public.h>
 #include <core/misc/small_vector.h>
 
+#include <ytlib/misc/public.h>
+
 #include <ytlib/object_client/public.h>
 
 namespace NYT {
@@ -28,13 +30,13 @@ class TDataStatistics;
 ///////////////////////////////////////////////////////////////////////////////
 
 typedef NObjectClient::TObjectId TChunkId;
-extern TChunkId NullChunkId;
+extern const TChunkId NullChunkId;
 
 typedef NObjectClient::TObjectId TChunkListId;
-extern TChunkListId NullChunkListId;
+extern const TChunkListId NullChunkListId;
 
 typedef NObjectClient::TObjectId TChunkTreeId;
-extern TChunkTreeId NullChunkTreeId;
+extern const TChunkTreeId NullChunkTreeId;
 
 const int DefaultReplicationFactor = 3;
 const int MinReplicationFactor = 1;
@@ -91,14 +93,10 @@ DEFINE_ENUM(EErrorCode,
     ((ChunkUnavailable)         (716))
 );
 
-//! Values must be contiguous.
-DEFINE_ENUM(EWriteSessionType,
-    ((User)                     (0))
-    ((Replication)              (1))
-    ((Repair)                   (2))
-);
+////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EReadSessionType,
+//! Values must be contiguous.
+DEFINE_ENUM(ESessionType,
     ((User)                     (0))
     ((Replication)              (1))
     ((Repair)                   (2))
