@@ -236,12 +236,12 @@ public:
 
     virtual IFileReaderPtr CreateFileReader(const TRichYPath& path) override
     {
-        return new TFileReader(path, Auth_, TransactionId_);
+        return new TFileReader(AddPathPrefix(path), Auth_, TransactionId_);
     }
 
     virtual IFileWriterPtr CreateFileWriter(const TRichYPath& path) override
     {
-        return new TFileWriter(path, Auth_, TransactionId_);
+        return new TFileWriter(AddPathPrefix(path), Auth_, TransactionId_);
     }
 
     // operations
@@ -341,7 +341,12 @@ protected:
 private:
     THolder<TClientReader> CreateClientReader(const TRichYPath& path, EDataStreamFormat format)
     {
-        return MakeHolder<TClientReader>(path, Auth_, TransactionId_, format);
+        return MakeHolder<TClientReader>(AddPathPrefix(path), Auth_, TransactionId_, format);
+    }
+
+    THolder<TClientWriter> CreateClientWriter(const TRichYPath& path, EDataStreamFormat format)
+    {
+        return MakeHolder<TClientWriter>(AddPathPrefix(path), Auth_, TransactionId_, format);
     }
 
     virtual TIntrusivePtr<INodeReaderImpl> CreateNodeReader(const TRichYPath& path) override
@@ -351,32 +356,27 @@ private:
 
     virtual TIntrusivePtr<IYaMRReaderImpl> CreateYaMRReader(const TRichYPath& path) override
     {
-        return new TYaMRTableReader(
-            MakeHolder<TClientReader>(path, Auth_, TransactionId_, DSF_YAMR_LENVAL));
+        return new TYaMRTableReader(CreateClientReader(path, DSF_YAMR_LENVAL));
     }
 
     virtual TIntrusivePtr<IProtoReaderImpl> CreateProtoReader(const TRichYPath& path) override
     {
-        return new TProtoTableReader(
-            MakeHolder<TClientReader>(path, Auth_, TransactionId_, DSF_YSON_BINARY)); // later: DSF_PROTO
+        return new TProtoTableReader(CreateClientReader(path, DSF_YSON_BINARY)); // later: DSF_PROTO
     }
 
     virtual TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(const TRichYPath& path) override
     {
-        return new TNodeTableWriter(
-            MakeHolder<TClientWriter>(path, Auth_, TransactionId_, DSF_YSON_BINARY));
+        return new TNodeTableWriter(CreateClientWriter(path, DSF_YSON_BINARY));
     }
 
     virtual TIntrusivePtr<IYaMRWriterImpl> CreateYaMRWriter(const TRichYPath& path) override
     {
-        return new TYaMRTableWriter(
-            MakeHolder<TClientWriter>(path, Auth_, TransactionId_, DSF_YAMR_LENVAL));
+        return new TYaMRTableWriter(CreateClientWriter(path, DSF_YAMR_LENVAL));
     }
 
     virtual TIntrusivePtr<IProtoWriterImpl> CreateProtoWriter(const TRichYPath& path) override
     {
-        return new TProtoTableWriter(
-            MakeHolder<TClientWriter>(path, Auth_, TransactionId_, DSF_YSON_BINARY));
+        return new TProtoTableWriter(CreateClientWriter(path, DSF_YSON_BINARY));
     }
 
 };

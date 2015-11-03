@@ -19,15 +19,7 @@ namespace NYT {
 
 bool ParseBool(const Stroka& response)
 {
-    auto node = NodeFromYsonString(response);
-    if (node.IsBool()) {
-        return node.AsBool();
-    } else if (node.IsString()) {
-        return node.AsString() == "true";
-    } else {
-        LOG_FATAL("Cannot parse yson boolean for response '%s'", ~response);
-    }
-    return false;
+    return GetBool(NodeFromYsonString(response));
 }
 
 TGUID ParseGuid(const Stroka& response)
