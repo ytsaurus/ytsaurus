@@ -6,7 +6,7 @@ import os
 import pytest
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-TESTS_SANDBOX = os.path.join(TESTS_LOCATION, "sandbox")
+TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", os.path.join(TESTS_LOCATION, "sandbox"))
 
 def _read_pids_file(environment):
     if not os.path.exists(environment.pids_filename):
@@ -23,7 +23,7 @@ class TestLocalMode(object):
         cls.old_yt_local_root_path = os.environ.get("YT_LOCAL_ROOT_PATH", None)
         cls.old_yt_local_use_proxy_from_source = \
                 os.environ.get("YT_LOCAL_USE_PROXY_FROM_SOURCE", None)
-        os.environ["YT_LOCAL_ROOT_PATH"] = TESTS_SANDBOX
+        os.environ["YT_LOCAL_ROOT_PATH"] = os.path.join(TESTS_SANDBOX, "TestLocalMode")
         os.environ["YT_LOCAL_USE_PROXY_FROM_SOURCE"] = '1'
 
     @classmethod
