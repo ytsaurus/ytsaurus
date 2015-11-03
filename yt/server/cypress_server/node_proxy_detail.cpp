@@ -869,7 +869,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
 
     ToProto(response->mutable_object_id(), clonedTrunkImpl->GetId());
 
-    context->SetRequestInfo("NodeId: %v", clonedTrunkImpl->GetId());
+    context->SetResponseInfo("NodeId: %v", clonedTrunkImpl->GetId());
 
     context->Reply();
 }
