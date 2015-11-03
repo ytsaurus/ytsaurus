@@ -555,7 +555,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     auto req = proxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
-    req->set_session_type(static_cast<int>(Options_->SessionType));
+    ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
     req->set_sync_on_close(Config_->SyncOnClose);
 
     auto rspOrError = WaitFor(req->Invoke());
@@ -602,10 +602,10 @@ void TReplicationWriter::DoOpen()
             StartSessions(AllocateTargets());
         }
 
-        LOG_INFO("Writer opened (Addresses: [%v], PopulateCache: %v, SessionType: %v, Network: %v)",
+        LOG_INFO("Writer opened (Addresses: [%v], PopulateCache: %v, Workload: %v, Network: %v)",
             JoinToString(Nodes_),
             Config_->PopulateCache,
-            Options_->SessionType,
+            Config_->WorkloadDescriptor,
             NetworkName_);
 
         IsOpen_ = true;

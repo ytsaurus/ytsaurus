@@ -102,6 +102,8 @@ private:
     const IChunkReaderPtr ChunkReader_;
     const IBlockCachePtr BlockCache_;
 
+    const IInvokerPtr CompressionInvoker_;
+
     struct TWindowSlot
     {
         TPromise<TSharedRef> Block = NewPromise<TSharedRef>();
@@ -117,7 +119,7 @@ private:
 
     TPromise<void> FetchingComplete_ = NewPromise<void>();
 
-    NCompression::ICodec* Codec_;
+    NCompression::ICodec* const Codec_;
 
     NLogging::TLogger Logger;
 

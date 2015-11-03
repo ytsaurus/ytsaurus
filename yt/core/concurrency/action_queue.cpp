@@ -542,6 +542,42 @@ IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoke
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TFixedPriorityInvoker
+    : public TInvokerWrapper
+{
+public:
+    TFixedPriorityInvoker(
+        IPrioritizedInvokerPtr underlyingInvoker,
+        i64 priority)
+        : TInvokerWrapper(underlyingInvoker)
+        , UnderlyingInvoker_(std::move(underlyingInvoker))
+        , Priority_(priority)
+    { }
+
+    using TInvokerWrapper::Invoke;
+
+    virtual void Invoke(const TClosure& callback) override
+    {
+        return UnderlyingInvoker_->Invoke(callback, Priority_);
+    }
+
+private:
+    const IPrioritizedInvokerPtr UnderlyingInvoker_;
+    const i64 Priority_;
+
+};
+
+IInvokerPtr CreateFixedPriorityInvoker(
+    IPrioritizedInvokerPtr underlyingInvoker,
+    i64 priority)
+{
+    return New<TFixedPriorityInvoker>(
+        std::move(underlyingInvoker),
+        priority);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TBoundedConcurrencyInvoker
     : public TInvokerWrapper
 {

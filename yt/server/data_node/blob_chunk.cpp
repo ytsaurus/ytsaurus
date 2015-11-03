@@ -64,17 +64,17 @@ bool TBlobChunkBase::IsActive() const
 }
 
 TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
-    i64 priority,
+    const TWorkloadDescriptor& workloadDescriptor,
     const TNullable<std::vector<int>>& extensionTags)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetMeta(priority).Apply(BIND([=] () {
+    return GetMeta(workloadDescriptor).Apply(BIND([=] () {
         return FilterMeta(CachedMeta_, extensionTags);
     }));
 }
 
-TFuture<void> TBlobChunkBase::GetMeta(i64 priority)
+TFuture<void> TBlobChunkBase::GetMeta(const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -105,6 +105,7 @@ TFuture<void> TBlobChunkBase::GetMeta(i64 priority)
         MakeStrong(this),
         Passed(std::move(readGuard)));
 
+    auto priority = workloadDescriptor.GetPriority();
     Location_
         ->GetMetaReadInvoker()
         ->Invoke(callback, priority);
@@ -179,13 +180,13 @@ void TBlobChunkBase::DoReadMeta(TChunkReadGuard /*readGuard*/)
 
 TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
     const std::vector<int>& blockIndexes,
-    i64 priority,
+    const TWorkloadDescriptor& workloadDescriptor,
     bool populateCache,
     IBlockCachePtr blockCache)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetMeta(priority).Apply(BIND([=, this_ = MakeStrong(this)] () mutable -> TFuture<std::vector<TSharedRef>> {
+    return GetMeta(workloadDescriptor).Apply(BIND([=, this_ = MakeStrong(this)] () mutable -> TFuture<std::vector<TSharedRef>> {
         i64 totalDataSize = 0;
         int blockCount = 0;
         auto config = Bootstrap_->GetConfig()->DataNode;
@@ -227,7 +228,10 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
             }
         }
 
-        auto pendingIOGuard = Location_->IncreasePendingIOSize(EIODirection::Read, pendingDataSize);
+        auto pendingIOGuard = Location_->IncreasePendingIOSize(
+            EIODirection::Read,
+            workloadDescriptor,
+            pendingDataSize);
 
         auto callback = BIND(
             &TBlobChunkBase::DoReadBlockSet,
@@ -235,6 +239,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
             session,
             Passed(std::move(pendingIOGuard)));
 
+        auto priority = workloadDescriptor.GetPriority();
         Location_
             ->GetDataReadInvoker()
             ->Invoke(callback, priority);
@@ -351,7 +356,7 @@ void TBlobChunkBase::DoReadBlockSet(
 TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockRange(
     int firstBlockIndex,
     int blockCount,
-    i64 priority,
+    const TWorkloadDescriptor& workloadDescriptor,
     bool populateCache,
     IBlockCachePtr blockCache)
 {
@@ -366,7 +371,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockRange(
 
     return ReadBlockSet(
         blockIndexes,
-        priority,
+        workloadDescriptor,
         populateCache,
         blockCache);
 }

@@ -1,14 +1,16 @@
 #include "stdafx.h"
 #include "public.h"
 
+#include <ytlib/misc/workload.h>
+
 namespace NYT {
 namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkId NullChunkId = NObjectClient::NullObjectId;
-TChunkListId NullChunkListId = NObjectClient::NullObjectId;
-TChunkTreeId NullChunkTreeId = NObjectClient::NullObjectId;
+const TChunkId NullChunkId = NObjectClient::NullObjectId;
+const TChunkListId NullChunkListId = NObjectClient::NullObjectId;
+const TChunkTreeId NullChunkTreeId = NObjectClient::NullObjectId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

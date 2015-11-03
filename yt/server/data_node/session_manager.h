@@ -38,7 +38,7 @@ public:
     ISessionPtr GetSession(const TChunkId& chunkId);
 
     //! Returns the number of currently active sessions of a given type.
-    int GetSessionCount(EWriteSessionType type);
+    int GetSessionCount(ESessionType type);
 
     //! Returns the list of all registered sessions.
     std::vector<ISessionPtr> GetSessions();
@@ -48,7 +48,7 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
 
     yhash_map<TChunkId, ISessionPtr> SessionMap_;
-    TEnumIndexedVector<NProfiling::TSimpleCounter, EWriteSessionType> PerTypeSessionCounters_;
+    TEnumIndexedVector<NProfiling::TSimpleCounter, ESessionType> PerTypeSessionCounters_;
 
 
     ISessionPtr CreateSession(const TChunkId& chunkId, const TSessionOptions& options);

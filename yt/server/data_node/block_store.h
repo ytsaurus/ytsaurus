@@ -88,7 +88,7 @@ public:
         const TChunkId& chunkId,
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
         bool populateCache);
 
@@ -102,7 +102,7 @@ public:
     TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const TChunkId& chunkId,
         const std::vector<int>& blockIndexes,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         NChunkClient::IBlockCachePtr blockCache,
         bool populateCache);
 

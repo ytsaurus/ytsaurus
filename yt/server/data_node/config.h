@@ -449,6 +449,12 @@ public:
             // Disable target allocation from master.
             ReplicationWriter->UploadReplicationFactor = 1;
             RepairWriter->UploadReplicationFactor = 1;
+
+            // Use proper workload descriptors.
+            RepairReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
+            RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
+            SealReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
+            ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
         });
     }
 

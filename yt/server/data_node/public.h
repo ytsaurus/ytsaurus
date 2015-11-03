@@ -13,7 +13,7 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkClient::TChunkId;
-using NChunkClient::EWriteSessionType;
+using NChunkClient::ESessionType;
 
 using NChunkServer::TBlockId;
 

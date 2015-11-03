@@ -70,8 +70,21 @@ TLocation::TLocation(
     tagIds.push_back(profilingManager->RegisterTag("location_id", Id_));
     tagIds.push_back(profilingManager->RegisterTag("location_type", Type_));
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
-    PendingIOSizeCounters_[EIODirection::Read] = NProfiling::TSimpleCounter("/pending_read_size");
-    PendingIOSizeCounters_[EIODirection::Write] = NProfiling::TSimpleCounter("/pending_write_size");
+
+    PendingIOSizeCounters_.resize(
+        TEnumTraits<EIODirection>::GetDomainSize() *
+        TEnumTraits<EIOCategory>::GetDomainSize());
+    for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
+        for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+            auto& counter = GetPendingIOSizeCounter(direction, category);
+            counter = NProfiling::TSimpleCounter(
+                "/pending_data_size",
+                {
+                    profilingManager->RegisterTag("direction", direction),
+                    profilingManager->RegisterTag("category", category)
+                });
+        }
+    }
 }
 
 ELocationType TLocation::GetType() const
@@ -225,36 +238,79 @@ double TLocation::GetLoadFactor() const
     return used >= quota ? 1.0 : (double) used / quota;
 }
 
-i64 TLocation::GetPendingIOSize(EIODirection direction)
+i64 TLocation::GetPendingIOSize(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return PendingIOSizeCounters_[direction].Current.load();
+    auto category = ToIOCategory(workloadDescriptor);
+    return GetPendingIOSizeCounter(direction, category).Current.load();
 }
 
-TPendingIOGuard TLocation::IncreasePendingIOSize(EIODirection direction, i64 delta)
+TPendingIOGuard TLocation::IncreasePendingIOSize(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor,
+    i64 delta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     YASSERT(delta >= 0);
-    UpdatePendingIOSize(direction, delta);
-    return TPendingIOGuard(direction, delta, this);
+    auto category = ToIOCategory(workloadDescriptor);
+    UpdatePendingIOSize(direction, category, delta);
+    return TPendingIOGuard(direction, category, delta, this);
 }
 
-void TLocation::DecreasePendingIOSize(EIODirection direction, i64 delta)
+EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescriptor)
+{
+    switch (workloadDescriptor.Category) {
+        case EWorkloadCategory::Idle:
+        case EWorkloadCategory::SystemReplication:
+        case EWorkloadCategory::SystemRepair:
+        case EWorkloadCategory::UserBatch:
+            return EIOCategory::Batch;
+
+        case EWorkloadCategory::UserRealtime:
+        case EWorkloadCategory::SystemRealtime:
+            return EIOCategory::Realtime;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
+    EIODirection direction,
+    EIOCategory category)
+{
+    int index =
+        static_cast<int>(direction) +
+        TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
+    return PendingIOSizeCounters_[index];
+}
+
+void TLocation::DecreasePendingIOSize(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    UpdatePendingIOSize(direction, -delta);
+    UpdatePendingIOSize(direction, category, -delta);
 }
 
-void TLocation::UpdatePendingIOSize(EIODirection direction, i64 delta)
+void TLocation::UpdatePendingIOSize(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    i64 result = Profiler_.Increment(PendingIOSizeCounters_[direction], delta);
-    LOG_TRACE("Pending IO size updated (Direction: %v, PendingSize: %v, Delta: %v)",
+    auto& counter = GetPendingIOSizeCounter(direction, category);
+    i64 result = Profiler_.Increment(counter, delta);
+    LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
         direction,
+        category,
         result,
         delta);
 }
@@ -1020,9 +1076,11 @@ std::vector<Stroka> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) c
 
 TPendingIOGuard::TPendingIOGuard(
     EIODirection direction,
+    EIOCategory category,
     i64 size,
     TLocationPtr owner)
     : Direction_(direction)
+    , Category_(category)
     , Size_(size)
     , Owner_(owner)
 { }
@@ -1041,7 +1099,7 @@ TPendingIOGuard::~TPendingIOGuard()
 void TPendingIOGuard::Release()
 {
     if (Owner_) {
-        Owner_->DecreasePendingIOSize(Direction_, Size_);
+        Owner_->DecreasePendingIOSize(Direction_, Category_, Size_);
         Owner_.Reset();
     }
 }
@@ -1060,6 +1118,7 @@ void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs)
 {
     using std::swap;
     swap(lhs.Direction_, rhs.Direction_);
+    swap(lhs.Category_, rhs.Category_);
     swap(lhs.Size_, rhs.Size_);
     swap(lhs.Owner_, rhs.Owner_);
 }
