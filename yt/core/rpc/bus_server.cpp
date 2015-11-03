@@ -89,7 +89,6 @@ private:
         auto realmId = header->has_realm_id() ? FromProto<TRealmId>(header->realm_id()) : NullRealmId;
         bool isOneWay = header->one_way();
         auto timeout = header->has_timeout() ? MakeNullable(TDuration(header->timeout())) : Null;
-        auto requestStartTime = header->has_request_start_time() ? MakeNullable(header->request_start_time()) : Null;
         auto retryStartTime = header->has_retry_start_time() ? MakeNullable(header->retry_start_time()) : Null;
         bool isRetry = header->retry();
 
@@ -101,7 +100,7 @@ private:
         }
 
         LOG_DEBUG("Request received (Method: %v:%v, RealmId: %v, RequestId: %v, User: %v, OneWay: %v, "
-            "Timeout: %v, Endpoint: %v, RequestStartTime: %v, RetryStartTime: %v, Retry: %v)",
+            "Timeout: %v, Endpoint: %v, RetryStartTime: %v, Retry: %v)",
             serviceName,
             methodName,
             realmId,
@@ -110,7 +109,6 @@ private:
             isOneWay,
             timeout,
             replyBus->GetEndpointDescription(),
-            requestStartTime,
             retryStartTime,
             isRetry);
 

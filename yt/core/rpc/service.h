@@ -37,9 +37,6 @@ struct IServiceContext
      */
     virtual TRequestId GetRequestId() const = 0;
 
-    //! Returns the instant when the request was first issued by the client, if known.
-    virtual TNullable<TInstant> GetRequestStartTime() const = 0;
-
     //! Returns the instant when the current retry of request was issued by the client, if known.
     virtual TNullable<TInstant> GetRetryStartTime() const = 0;
 

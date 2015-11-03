@@ -223,13 +223,6 @@ TRequestId TServiceContextBase::GetRequestId() const
     return RequestId_;
 }
 
-TNullable<TInstant> TServiceContextBase::GetRequestStartTime() const
-{
-    return RequestHeader_->has_request_start_time()
-        ? MakeNullable(TInstant(RequestHeader_->request_start_time()))
-        : Null;
-}
-
 TNullable<TInstant> TServiceContextBase::GetRetryStartTime() const
 {
     return RequestHeader_->has_retry_start_time()
@@ -319,11 +312,6 @@ TSharedRefArray TServiceContextWrapper::GetRequestMessage() const
 TRequestId TServiceContextWrapper::GetRequestId() const
 {
     return UnderlyingContext_->GetRequestId();
-}
-
-TNullable<TInstant> TServiceContextWrapper::GetRequestStartTime() const
-{
-    return UnderlyingContext_->GetRequestStartTime();
 }
 
 TNullable<TInstant> TServiceContextWrapper::GetRetryStartTime() const

@@ -35,16 +35,10 @@ public:
 
     virtual TSharedRefArray Serialize() override
     {
-        auto now = TInstant::Now();
+        Header_->set_retry(!FirstTimeSerialization_);
+        Header_->set_retry_start_time(TInstant::Now().MicroSeconds());
 
-        // This is a redirected request so request_start_time is already set.
-        if (FirstTimeSerialization_) {
-            FirstTimeSerialization_ = false;
-        } else {
-            Header_->set_retry(true);
-        }
-
-        Header_->set_retry_start_time(now.MicroSeconds());
+        FirstTimeSerialization_ = false;
 
         YASSERT(Message_.Size() >= 2);
         auto body = Message_[1];
@@ -95,16 +89,6 @@ public:
     virtual const Stroka& GetMethod() const override
     {
         return Header_->method();
-    }
-
-    virtual TInstant GetStartTime() const override
-    {
-        YUNREACHABLE();
-    }
-
-    virtual void SetStartTime(TInstant /*value*/) override
-    {
-        YUNREACHABLE();
     }
 
     virtual const Stroka& GetUser() const override

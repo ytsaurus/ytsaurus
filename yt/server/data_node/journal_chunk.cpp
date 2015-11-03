@@ -149,9 +149,10 @@ TFuture<std::vector<TSharedRef>> TJournalChunk::ReadBlockRange(
         blockCount,
         promise);
 
+    auto priority = workloadDescriptor.GetPriority();
     Location_
         ->GetDataReadInvoker()
-        ->Invoke(callback, workloadDescriptor.GetPriority());
+        ->Invoke(callback, priority);
 
     return promise;
 }

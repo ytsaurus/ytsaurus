@@ -43,17 +43,10 @@ TClientRequest::TClientRequest(
 
 TSharedRefArray TClientRequest::Serialize()
 {
-    auto now = TInstant::Now();
+    Header_.set_retry(!FirstTimeSerialization_);
+    Header_.set_retry_start_time(TInstant::Now().MicroSeconds());
 
-    if (FirstTimeSerialization_) {
-        Header_.set_request_start_time(now.MicroSeconds());
-        FirstTimeSerialization_ = false;
-    } else {
-        // request_start_time is already set, see above.
-        Header_.set_retry(true);
-    }
-
-    Header_.set_retry_start_time(now.MicroSeconds());
+    FirstTimeSerialization_ = false;
 
     if (Timeout_) {
         Header_.set_timeout(Timeout_->MicroSeconds());
@@ -111,16 +104,6 @@ const Stroka& TClientRequest::GetService() const
 const Stroka& TClientRequest::GetMethod() const
 {
     return Header_.method();
-}
-
-TInstant TClientRequest::GetStartTime() const
-{
-    return TInstant(Header_.request_start_time());
-}
-
-void TClientRequest::SetStartTime(TInstant value)
-{
-    Header_.set_request_start_time(value.MicroSeconds());
 }
 
 const Stroka& TClientRequest::GetUser() const
