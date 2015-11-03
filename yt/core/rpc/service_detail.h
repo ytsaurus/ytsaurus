@@ -146,7 +146,7 @@ protected:
     NLogging::TLogger Logger;
     THandlerInvocationOptions Options_;
 
-    typename TObjectPool<TTypedRequest>::TValuePtr Request_;
+    typename TObjectPool<TTypedRequest>::TObjectPtr Request_;
 
 };
 
@@ -215,7 +215,7 @@ private:
         this->UnderlyingContext_->Reply(TError());
     }
 
-    typename TObjectPool<TTypedResponse>::TValuePtr Response_;
+    typename TObjectPool<TTypedResponse>::TObjectPtr Response_;
 
 };
 

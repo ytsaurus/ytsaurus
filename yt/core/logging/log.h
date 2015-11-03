@@ -91,8 +91,8 @@ private:
 #define LOG_ERROR_UNLESS(condition, ...)    if (!condition) LOG_ERROR(__VA_ARGS__)
 
 #define LOG_FATAL(...)                      LOG_EVENT(Logger, ::NYT::NLogging::ELogLevel::Fatal, __VA_ARGS__)
-#define LOG_FATAL_IF(condition, ...)        if (UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
-#define LOG_FATAL_UNLESS(condition, ...)    if (!LIKELY(condition)) LOG_FATAL(__VA_ARGS__)
+#define LOG_FATAL_IF(condition, ...)        if (Y_UNLIKELY(condition)) LOG_FATAL(__VA_ARGS__)
+#define LOG_FATAL_UNLESS(condition, ...)    if (!Y_LIKELY(condition)) LOG_FATAL(__VA_ARGS__)
 
 #define LOG_EVENT(logger, level, ...) \
     do { \

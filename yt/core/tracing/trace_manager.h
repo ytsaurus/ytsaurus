@@ -42,7 +42,7 @@ public:
 private:
     TTraceManager();
 
-    DECLARE_SINGLETON_FRIEND(TTraceManager);
+    DECLARE_SINGLETON_FRIEND();
 
     class TImpl;
     std::unique_ptr<TImpl> Impl_;

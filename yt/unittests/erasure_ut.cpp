@@ -9,9 +9,10 @@
 #include <ytlib/chunk_client/erasure_reader.h>
 #include <ytlib/chunk_client/config.h>
 
-#include <util/random/randcpp.h>
 #include <util/system/fs.h>
 #include <util/stream/file.h>
+
+#include <random>
 
 namespace NYT {
 namespace NErasure {
@@ -25,15 +26,13 @@ using ::ToString;
 
 TEST(TErasureCodingTest, RandomText)
 {
-    TRand rand;
-
     std::map<ECodec, int> guaranteedRecoveryCount;
     guaranteedRecoveryCount[ECodec::ReedSolomon_6_3] = 3;
     guaranteedRecoveryCount[ECodec::Lrc_12_2_2] = 3;
 
     std::vector<char> data;
     for (int i = 0; i < 16 * 64; ++i) {
-        data.push_back(static_cast<char>('a' + (std::abs(rand.random()) % 26)));
+        data.push_back(static_cast<char>('a' + (std::abs(std::rand()) % 26)));
     }
 
     for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
@@ -351,8 +350,6 @@ TEST_F(TErasureMixture, RepairTest2)
 
 TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
 {
-    TRand rand;
-
     auto codecId = ECodec::Lrc_12_2_2;
     auto codec = GetCodec(codecId);
 
@@ -361,7 +358,7 @@ TEST_F(TErasureMixture, RepairTestWithSeveralWindows)
     for (int i = 0; i < 20; ++i) {
         auto data = NYT::TBlob(NYT::TDefaultBlobTag(), 100);
         for (int i = 0; i < 100; ++i) {
-            data[i] = static_cast<char>('a' + (std::abs(rand.random()) % 26));
+            data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
         }
         dataRefs.push_back(TSharedRef::FromBlob(std::move(data)));
     }

@@ -22,17 +22,17 @@ namespace NYT {
  * Both the pool and the references are thread-safe.
  *
  */
-template <class T>
+template <class TObject>
 class TObjectPool
 {
 public:
-    typedef std::shared_ptr<T> TValuePtr;
+    using TObjectPtr = std::shared_ptr<TObject>;
 
     //! Either creates a fresh instance or returns a pooled one.
-    TValuePtr Allocate();
+    TObjectPtr Allocate();
 
     //! Calls #TPooledObjectTraits::Clean and returns the instance back into the pool.
-    void Reclaim(T* obj);
+    void Reclaim(TObject* obj);
 
 private:
     struct THeader
@@ -42,22 +42,22 @@ private:
 
     static_assert(sizeof(THeader) % 8 == 0, "THeader must be padded to ensure proper alignment.");
 
-    TLockFreeQueue<T*> PooledObjects_;
+    TLockFreeQueue<TObject*> PooledObjects_;
     std::atomic<int> PoolSize_;
 
     TObjectPool();
 
-    T* AllocateInstance();
-    void FreeInstance(T* obj);
+    TObject* AllocateInstance();
+    void FreeInstance(TObject* obj);
 
-    THeader* GetHeader(T* obj);
+    THeader* GetHeader(TObject* obj);
     bool IsExpired(const THeader* header);
 
-    DECLARE_SINGLETON_FRIEND(TObjectPool<T>);
+    DECLARE_SINGLETON_FRIEND();
 };
 
-template <class T>
-TObjectPool<T>& ObjectPool();
+template <class TObject>
+TObjectPool<TObject>& ObjectPool();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,15 +72,15 @@ TObjectPool<T>& ObjectPool();
  * time a pooled instance is allowed to live (plus a random duration not
  * in the range from 0 to |GetMaxLifetimeSplay|).
  */
-template <class T, class = void>
+template <class TObject, class = void>
 struct TPooledObjectTraits
 { };
 
 //! Basic version of traits. Others may consider inheriting from it.
 struct TPooledObjectTraitsBase
 {
-    template <class T>
-    static void Clean(T*)
+    template <class TObject>
+    static void Clean(TObject*)
     { }
 
     static int GetMaxPoolSize()
