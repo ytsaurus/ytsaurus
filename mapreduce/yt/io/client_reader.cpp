@@ -55,7 +55,7 @@ TClientReader::TClientReader(
     const TAuth& auth,
     const TTransactionId& transactionId,
     EDataStreamFormat format)
-    : Path_(AddPathPrefix(path))
+    : Path_(path)
     , Auth_(auth)
     , TransactionId_(transactionId)
     , Format_(format)

@@ -18,7 +18,7 @@ TBlockWriter::TBlockWriter(
     : Auth_(auth)
     , Command_(command)
     , Format_(format)
-    , Path_(AddPathPrefix(path))
+    , Path_(path)
     , BufferSize_(bufferSize)
     , WriteTransaction_(auth, parentId)
     , Buffer_(BufferSize_ * 2)

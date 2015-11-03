@@ -14,7 +14,7 @@ TFileReader::TFileReader(
     const TRichYPath& path,
     const TAuth& auth,
     const TTransactionId& transactionId)
-    : Path_(AddPathPrefix(path))
+    : Path_(path)
     , Auth_(auth)
     , TransactionId_(transactionId)
 {
