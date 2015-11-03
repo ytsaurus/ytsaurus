@@ -14,7 +14,7 @@ from datetime import datetime
 from socket import error as SocketError
 from requests import HTTPError, ConnectionError, Timeout
 
-STATFACE_PUSH_URL = "https://stat.yandex-team.ru/_api/report/data"
+STATFACE_PUSH_URL = "https://upload.stat.yandex-team.ru/_api/report/data"
 
 PUSH_RETRIES_COUNT = 5
 PUSH_REQUEST_TIMEOUT = 20000
@@ -37,10 +37,6 @@ def get_account_statistics(account):
     if "chunk_count" in resource_usage:
         result["chunk_count"] = resource_usage["chunk_count"]
         result["chunk_count_limit"] = resource_limits["chunk_count"]
-
-    if resource_limits["disk_space"] > 0:
-        result["disk_space_usage"] = \
-                float(resource_usage["disk_space"]) / resource_limits["disk_space"] * 100
 
     return result
 
