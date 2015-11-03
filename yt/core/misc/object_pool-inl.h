@@ -19,7 +19,7 @@ TObjectPool<T>::TObjectPool()
 { }
 
 template <class T>
-typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
+auto TObjectPool<T>::Allocate() -> TObjectPtr
 {
     T* obj = nullptr;
     while (PooledObjects_.Dequeue(&obj)) {
@@ -36,8 +36,8 @@ typename TObjectPool<T>::TValuePtr TObjectPool<T>::Allocate()
     if (!obj) {
         obj = AllocateInstance();
     }
-    
-    return TValuePtr(obj, [] (T* obj) {
+
+    return TObjectPtr(obj, [] (T* obj) {
         ObjectPool<T>().Reclaim(obj);
     });
 }

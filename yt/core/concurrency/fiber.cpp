@@ -191,7 +191,7 @@ bool TFiber::IsTerminated() const
 uintptr_t& TFiber::FsdAt(int index)
 {
     // THREAD_AFFINITY(OwnerThread);
-    if (UNLIKELY(index >= Fsd_.size())) {
+    if (Y_UNLIKELY(index >= Fsd_.size())) {
         FsdResize();
     }
     return Fsd_[index];

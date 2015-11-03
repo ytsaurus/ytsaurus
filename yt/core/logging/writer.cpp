@@ -183,7 +183,7 @@ TFileLogWriter::~TFileLogWriter() = default;
 
 TOutputStream* TFileLogWriter::GetOutputStream() const noexcept
 {
-    if (LIKELY(!Disabled_.load(std::memory_order_acquire))) {
+    if (Y_LIKELY(!Disabled_.load(std::memory_order_acquire))) {
         return FileOutput_.get();
     } else {
         return nullptr;

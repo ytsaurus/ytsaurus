@@ -24,7 +24,8 @@ public:
 private:
     TIODispatcher();
 
-    DECLARE_SINGLETON_FRIEND(TIODispatcher);
+    DECLARE_SINGLETON_FRIEND();
+
     friend class NDetail::TAsyncReaderImpl;
     friend class NDetail::TAsyncWriterImpl;
 

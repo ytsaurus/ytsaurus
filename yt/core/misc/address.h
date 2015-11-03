@@ -91,10 +91,6 @@ Stroka ToString(const TNetworkAddress& address, bool withPort = true);
 //! Performs asynchronous host name resolution.
 class TAddressResolver
 {
-private:
-    DECLARE_SINGLETON_FRIEND(TAddressResolver);
-    TAddressResolver();
-
 public:
     ~TAddressResolver();
 
@@ -124,6 +120,10 @@ public:
     void Configure(TAddressResolverConfigPtr config);
 
 private:
+    TAddressResolver();
+
+    DECLARE_SINGLETON_FRIEND();
+
     class TImpl;
     TIntrusivePtr<TImpl> Impl_;
 };

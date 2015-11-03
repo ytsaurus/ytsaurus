@@ -38,7 +38,7 @@ void AssertTrapImpl(
 #else
     #define YASSERT(expr) \
         do { \
-            if (UNLIKELY(!(expr))) { \
+            if (Y_UNLIKELY(!(expr))) { \
                 ASSERT_TRAP("YASSERT", #expr); \
             } \
         } while (false)
@@ -47,7 +47,7 @@ void AssertTrapImpl(
 //! Same as |YASSERT| but evaluates and checks the expression in both release and debug mode.
 #define YCHECK(expr) \
     do { \
-        if (UNLIKELY(!(expr))) { \
+        if (Y_UNLIKELY(!(expr))) { \
             ASSERT_TRAP("YCHECK", #expr); \
         } \
     } while (false)

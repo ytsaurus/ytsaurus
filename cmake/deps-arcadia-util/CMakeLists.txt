@@ -202,7 +202,6 @@ set( RANDOM_SRCS
   ${RANDOM_BASE}/mersenne.cpp
   ${RANDOM_BASE}/mersenne32.cpp
   ${RANDOM_BASE}/mersenne64.cpp
-  ${RANDOM_BASE}/randcpp.cpp
   ${RANDOM_BASE}/random.cpp
   ${RANDOM_BASE}/fast.cpp
 )

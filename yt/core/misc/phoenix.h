@@ -154,9 +154,9 @@ private:
     const TEntry& GetEntry(const std::type_info& typeInfo);
 
     template <class T>
-    static void* DoInstantiate();;
+    static void* DoInstantiate();
 
-    DECLARE_SINGLETON_FRIEND(TRegistry);
+    DECLARE_SINGLETON_FRIEND();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

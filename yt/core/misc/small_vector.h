@@ -28,7 +28,7 @@
 #include <util/system/defaults.h>
 
 #define YT_LLVM_ATTRIBUTE_UNUSED_RESULT
-#define YT_LLVM_UNLIKELY UNLIKELY
+#define YT_LLVM_UNLIKELY Y_UNLIKELY
 
 namespace NYT {
 

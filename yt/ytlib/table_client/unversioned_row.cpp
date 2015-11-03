@@ -281,7 +281,7 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
         }
     }
 
-    if (UNLIKELY(lhs.Type != rhs.Type)) {
+    if (Y_UNLIKELY(lhs.Type != rhs.Type)) {
         return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
     }
 
