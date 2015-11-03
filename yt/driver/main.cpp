@@ -111,7 +111,7 @@ public:
     EExitCode Main(int argc, const char* argv[])
     {
         NYT::InstallCrashSignalHandler();
-        NYT::NConcurrency::SetCurrentThreadName("Driver");
+        TThread::CurrentThreadSetName("Driver");
 
         // Set handler for SIGPIPE.
         SetupSignalHandler();

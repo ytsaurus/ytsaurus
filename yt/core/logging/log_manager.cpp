@@ -315,7 +315,7 @@ public:
             Profiler.Increment(EnqueuedEventCounter_);
             PushLogEvent(std::move(event));
 
-            if (LoggingThread_->GetId() != GetCurrentThreadId()) {
+            if (LoggingThread_->GetId() != ::TThread::CurrentThreadId()) {
                 // Waiting for output of all previous messages.
                 // Waiting no more than 1 second to prevent hanging.
                 auto now = TInstant::Now();

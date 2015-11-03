@@ -18,7 +18,6 @@ set( SRCS
   ${BASE}/scheduler.cpp
   ${BASE}/scheduler_thread.cpp
   ${BASE}/single_queue_scheduler_thread.cpp
-  ${BASE}/thread.cpp
   ${BASE}/throughput_throttler.cpp
 )
 set( HDRS
@@ -53,7 +52,6 @@ set( HDRS
   ${BASE}/scheduler.h
   ${BASE}/scheduler_thread.h
   ${BASE}/single_queue_scheduler_thread.h
-  ${BASE}/thread.h
   ${BASE}/thread_affinity.h
   ${BASE}/throughput_throttler.h
 )
