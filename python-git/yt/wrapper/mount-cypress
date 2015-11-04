@@ -164,7 +164,7 @@ class Cypress(fuse.Operations):
     def __init__(self, client):
         super(fuse.Operations, self).__init__()
         self._client = client
-    
+
     @staticmethod
     def _to_ypath(path):
         """Convert an absolute file path to YPath."""
@@ -229,10 +229,11 @@ class Cypress(fuse.Operations):
         # "attributes" are used to speed up subsequent "getattr" queries
         # about the node's children in case of "ls" command.
         # See help(CachedYtClient.get) for why "force_request" is used.
-        node = self._client.get(
-            ypath, attributes=self._system_attributes,
-            spec={"force_request": True}
-        )
+        #node = self._client.get(
+            #ypath, attributes=self._system_attributes,
+            #spec={"force_request": True}
+        #)
+        node = self._client.get(ypath)
         return (child.decode("utf-8") for child in node.iterkeys())
 
     @handle_yt_errors
@@ -279,8 +280,9 @@ class Cypress(fuse.Operations):
 
 def mount_cypress(proxy, mountpoint):
     """Mount a Cypress."""
-    cypress = Cypress(CachedYtClient(proxy=proxy))
-    fuse.FUSE(cypress, mountpoint, foreground=True)
+    #cypress = Cypress(CachedYtClient(proxy=proxy))
+    cypress = Cypress(yt.wrapper.client.Yt(proxy=proxy))
+    fuse.FUSE(cypress, mountpoint, foreground=True, debug="-d")
     return 0
 
 
