@@ -24,7 +24,7 @@ public:
 
     virtual TRequestId GetRequestId() const override;
     
-    virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
     
@@ -143,7 +143,7 @@ public:
 
     virtual NRpc::TRequestId GetRequestId() const override;
     
-    virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
 

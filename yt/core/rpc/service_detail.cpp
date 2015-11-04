@@ -178,9 +178,9 @@ private:
     {
         Profiler.Increment(PerformanceCounters_->RequestCounter, +1);
 
-        if (RequestHeader_->has_retry_start_time()) {
+        if (RequestHeader_->has_start_time()) {
             // Decode timing information.
-            auto retryStart = TInstant(RequestHeader_->retry_start_time());
+            auto retryStart = TInstant(RequestHeader_->start_time());
             auto now = CpuInstantToInstant(GetCpuInstant());
 
             // Make sanity adjustments to account for possible clock skew.

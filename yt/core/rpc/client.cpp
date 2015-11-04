@@ -44,7 +44,7 @@ TClientRequest::TClientRequest(
 TSharedRefArray TClientRequest::Serialize()
 {
     Header_.set_retry(!FirstTimeSerialization_);
-    Header_.set_retry_start_time(TInstant::Now().MicroSeconds());
+    Header_.set_start_time(TInstant::Now().MicroSeconds());
 
     FirstTimeSerialization_ = false;
 
