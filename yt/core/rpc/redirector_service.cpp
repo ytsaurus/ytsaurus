@@ -36,7 +36,7 @@ public:
     virtual TSharedRefArray Serialize() override
     {
         Header_->set_retry(!FirstTimeSerialization_);
-        Header_->set_retry_start_time(TInstant::Now().MicroSeconds());
+        Header_->set_start_time(TInstant::Now().MicroSeconds());
 
         FirstTimeSerialization_ = false;
 
