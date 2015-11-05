@@ -36,7 +36,7 @@ public:
     virtual TSharedRefArray Serialize() override
     {
         if (!FirstTimeSerialization_) {
-            Header_.set_retry(true);
+            Header_->set_retry(true);
         }
         FirstTimeSerialization_ = false;
 
