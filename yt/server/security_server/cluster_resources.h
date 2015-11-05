@@ -42,7 +42,7 @@ struct TClusterResources
 };
 
 void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
-void Deserialize(TClusterResources& value, NYTree::INodePtr node);
+void Deserialize(TClusterResources& resources, NYTree::INodePtr node);
 
 const TClusterResources& ZeroClusterResources();
 
