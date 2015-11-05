@@ -290,6 +290,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)")
         assert sorted(expected) == sorted(actual)
 
+    @pytest.mark.xfail(run = False, reason = "In progress")
     def test_types(self):
         create("table", "//tmp/t")
 
