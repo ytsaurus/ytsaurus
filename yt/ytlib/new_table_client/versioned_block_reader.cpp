@@ -378,7 +378,7 @@ void TSimpleVersionedBlockReader::ReadDouble(TUnversionedValue* value, const cha
 
 void TSimpleVersionedBlockReader::ReadBoolean(TUnversionedValue* value, const char* ptr)
 {
-    value->Data.Boolean = (*ptr) == 1;
+    value->Data.Boolean = static_cast<bool>(*reinterpret_cast<const ui64*>(ptr));
 }
 
 void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const char* ptr)
