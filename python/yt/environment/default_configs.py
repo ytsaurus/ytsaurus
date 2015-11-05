@@ -353,6 +353,8 @@ def get_proxy_config():
         "heartbeat_interval" : 500
     },
 
+    "show_ports" : true,
+
     "proxy" : {
         "driver" : { },
         "logging" : { },
