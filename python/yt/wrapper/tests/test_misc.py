@@ -58,8 +58,10 @@ class TestMutations(object):
         mutation_id = yt.common.generate_uuid()
         def run_command():
             yt.config.MUTATION_ID = mutation_id
-            result = command()
-            yt.config.MUTATION_ID = None
+            try:
+                result = command()
+            finally:
+                yt.config.MUTATION_ID = None
             return result
 
         result = run_command()
