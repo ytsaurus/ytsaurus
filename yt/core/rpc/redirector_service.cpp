@@ -35,10 +35,12 @@ public:
 
     virtual TSharedRefArray Serialize() override
     {
-        Header_->set_retry(!FirstTimeSerialization_);
-        Header_->set_start_time(TInstant::Now().MicroSeconds());
-
+        if (!FirstTimeSerialization_) {
+            Header_.set_retry(true);
+        }
         FirstTimeSerialization_ = false;
+
+        Header_->set_start_time(TInstant::Now().MicroSeconds());
 
         YASSERT(Message_.Size() >= 2);
         auto body = Message_[1];
