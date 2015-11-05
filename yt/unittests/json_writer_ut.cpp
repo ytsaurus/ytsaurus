@@ -258,6 +258,17 @@ TEST(TJsonWriterTest, Int64WithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
+TEST(TJsonWriterTest, Uint64)
+{
+    TStringStream outputStream;
+    auto consumer = CreateJsonConsumer(&outputStream);
+
+    consumer->OnUint64Scalar(42);
+
+    Stroka output = "42";
+    EXPECT_EQ(output, outputStream.Str());
+}
+
 TEST(TJsonWriterTest, EntityWithAttributes)
 {
     TStringStream outputStream;
