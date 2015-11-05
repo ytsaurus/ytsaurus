@@ -495,14 +495,14 @@ private:
                 auto replicasIt = tabletCellReplicas.insert(MakePair(tabletInfo->CellId, std::vector<Stroka>()));
                 if (replicasIt.second) {
                     replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+
+                    if (replicasIt.first->second.empty()) {
+                        THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
+                            tabletInfo->TabletId);
+                    }
                 }
 
-                auto addresses = replicasIt.first->second;
-                if (addresses.empty()) {
-                    THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
-                        tabletInfo->TabletId);
-                }
-
+                const auto& addresses = replicasIt.first->second;
                 const auto& address = addresses[RandomNumber(addresses.size())];
                 subsources.emplace_back(std::move(subsource), address);
             }
