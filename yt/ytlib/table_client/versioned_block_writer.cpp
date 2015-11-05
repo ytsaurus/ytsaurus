@@ -161,7 +161,8 @@ void TSimpleVersionedBlockWriter::WriteValue(
             break;
 
         case EValueType::Boolean:
-            WritePod(stream, value.Data.Boolean);
+            // NB(psushin): all values in simple versioned block must be 64-bits.
+            WritePod(stream, static_cast<ui64>(value.Data.Boolean));
             nullFlags.Append(false);
             break;
 
