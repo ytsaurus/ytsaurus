@@ -456,6 +456,8 @@ private:
         auto cellDirectory = Connection_->GetCellDirectory();
 
         std::vector<std::pair<TDataSource, Stroka>> subsources;
+        yhash_map<NTabletClient::TTabletCellId, std::vector<Stroka>> tabletCellReplicas;
+
         for (const auto& range : ranges) {
             auto lowerBound = range.first;
             auto upperBound = range.second;
@@ -490,7 +492,12 @@ private:
                 subsource.Range.first = rowBuffer->Capture(std::max(lowerBound, pivotKey.Get()));
                 subsource.Range.second = rowBuffer->Capture(std::min(upperBound, nextPivotKey.Get()));
 
-                auto addresses = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+                auto replicasIt = tabletCellReplicas.insert(MakePair(tabletInfo->CellId, std::vector<Stroka>()));
+                if (replicasIt.second) {
+                    replicasIt.first->second = cellDirectory->GetAddressesOrThrow(tabletInfo->CellId);
+                }
+
+                auto addresses = replicasIt.first->second;
                 if (addresses.empty()) {
                     THROW_ERROR_EXCEPTION("No alive replicas for tablet %v",
                         tabletInfo->TabletId);
