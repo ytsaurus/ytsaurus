@@ -38,12 +38,6 @@ static int OnInteger(void *ctx, long long value)
     return 1;
 }
 
-static int OnUnsignedInteger(void *ctx, unsigned long long value)
-{
-    static_cast<TJsonCallbacks*>(ctx)->OnUint64Scalar(value);
-    return 1;
-}
-
 static int OnDouble(void *ctx, double value)
 {
     static_cast<TJsonCallbacks*>(ctx)->OnDoubleScalar(value);
@@ -90,7 +84,6 @@ static yajl_callbacks YajlCallbacks = {
     OnNull,
     OnBoolean,
     OnInteger,
-    OnUnsignedInteger,
     OnDouble,
     nullptr,
     OnString,
@@ -218,9 +211,6 @@ void TJsonParser::TImpl::ConsumeNode(INodePtr node)
     switch (node->GetType()) {
         case ENodeType::Int64:
             Consumer_->OnInt64Scalar(node->AsInt64()->GetValue());
-            break;
-        case ENodeType::Uint64:
-            Consumer_->OnUint64Scalar(node->AsUint64()->GetValue());
             break;
         case ENodeType::Double:
             Consumer_->OnDoubleScalar(node->AsDouble()->GetValue());

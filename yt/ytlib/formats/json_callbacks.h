@@ -27,7 +27,6 @@ public:
 
     void OnStringScalar(const TStringBuf& value);
     void OnInt64Scalar(i64 value);
-    void OnUint64Scalar(ui64 value);
     void OnDoubleScalar(double value);
     void OnBooleanScalar(bool value);
     void OnEntity();
