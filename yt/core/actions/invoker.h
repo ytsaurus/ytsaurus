@@ -44,6 +44,9 @@ struct IPrioritizedInvoker
      *  callbacks enqueued via IPrioritizedInvoker::Invoke are subject to reordering.
      */
     virtual void Invoke(const TClosure& callback, i64 priority) = 0;
+
+    //! Returns bound invoker for a given priority.
+    IInvokerPtr BindPriority(i64 boundPriority);
 };
 
 DEFINE_REFCOUNTED_TYPE(IPrioritizedInvoker)

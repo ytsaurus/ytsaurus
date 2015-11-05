@@ -373,6 +373,8 @@ def get_proxy_config():
         "enable" : false
     },
 
+    "show_ports" : true,
+
     "proxy" : {
         "driver" : { },
         "logging" : { },

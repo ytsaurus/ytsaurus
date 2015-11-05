@@ -91,7 +91,7 @@
 
 namespace std {
 
-#ifdef __GNUC__
+#if defined(__GNUC__)
 
 #if !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9
 // As of now, GCC does not support make_unique.
@@ -102,6 +102,9 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
     return std::unique_ptr<TResult>(new TResult(std::forward<TArgs>(args)...));
 }
 #endif
+
+// std::aligned_union is not available in early versions of libstdc++.
+#if defined(__GLIBCXX__) && __GLIBCXX__ < 20150422
 
 // As of now, GCC does not have std::aligned_union.
 template <typename... _Types>
@@ -140,6 +143,8 @@ template <size_t _Len, typename... _Types>
 
 template <size_t _Len, typename... _Types>
   const size_t aligned_union<_Len, _Types...>::alignment_value;
+
+#endif
 
 #endif
 

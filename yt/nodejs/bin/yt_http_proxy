@@ -9,7 +9,6 @@ var http = require("http");
 // NPM modules.
 var optimist = require("optimist");
 var uid_number = require("uid-number");
-var bunyan = require("bunyan");
 
 var Q = require("bluebird");
 
@@ -108,7 +107,7 @@ config = {
     monitoring_port   : null,
     neighbours        : [ "::1" ],
     memory_limit      : 32 * 1024 * 1024,
-    rss_limit         : 512 * 1024 * 1024,
+    rss_limit         : 256 * 1024 * 1024,
     number_of_workers : 4,
     thread_limit      : 32,
     spare_threads     : 4,
@@ -236,6 +235,7 @@ function provideLoggerStream() {
 }
 
 function provideLogger(stream) {
+    var bunyan = require(__dirname + "/../lib/bunyan.js");
     return bunyan.createLogger({
         name: "yt",
         streams: [stream],
