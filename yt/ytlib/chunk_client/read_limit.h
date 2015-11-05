@@ -30,6 +30,8 @@ public:
     TReadLimit& operator= (const NProto::TReadLimit& protoLimit);
     TReadLimit& operator= (NProto::TReadLimit&& protoLimit);
 
+    TReadLimit GetSuccessor() const;
+
     const NProto::TReadLimit& AsProto() const;
 
     const NTableClient::TOwningKey& GetKey() const;
@@ -88,6 +90,7 @@ class TReadRange
 {
 public:
     TReadRange();
+    TReadRange(const TReadLimit& exact);
     TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit);
 
     explicit TReadRange(const NProto::TReadRange& range);

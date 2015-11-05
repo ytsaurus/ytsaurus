@@ -52,6 +52,27 @@ TReadLimit& TReadLimit::operator= (NProto::TReadLimit&& protoLimit)
     return *this;
 }
 
+TReadLimit TReadLimit::GetSuccessor() const
+{
+    TReadLimit result;
+    if (HasKey()) {
+        auto key = GetKey();
+        TUnversionedOwningRowBuilder builder;
+        for (const auto* value = key.Begin(); value != key.End(); ++value) {
+            builder.AddValue(*value);
+        }
+        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max, key.GetCount()));
+        result.SetKey(builder.FinishRow());
+    }
+    if (HasRowIndex()) {
+        result.SetRowIndex(GetRowIndex() + 1);
+    }
+    if (HasChunkIndex()) {
+        result.SetChunkIndex(GetChunkIndex() + 1);
+    }
+    return result;
+}
+
 const NProto::TReadLimit& TReadLimit::AsProto() const
 {
     return ReadLimit_;
@@ -312,6 +333,11 @@ TReadRange::TReadRange()
     , UpperLimit_(TReadLimit())
 { }
 
+TReadRange::TReadRange(const TReadLimit& exact)
+    : LowerLimit_(exact)
+    , UpperLimit_(exact.GetSuccessor())
+{ }
+
 TReadRange::TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit)
     : LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
@@ -391,6 +417,13 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
 {
     readRange = TReadRange();
     auto attributes = ConvertToAttributes(node);
+    if (attributes->Contains("exact")) {
+        if (attributes->Contains("lower_limit") || attributes->Contains("upper_limit")) {
+            THROW_ERROR_EXCEPTION("\"lower_limit\" and \"upper_limit\" attributes cannot be specified if \"exact\" attribute specified");
+        }
+        readRange.LowerLimit() = attributes->Get<TReadLimit>("exact");
+        readRange.UpperLimit() = readRange.LowerLimit().GetSuccessor();
+    }
     if (attributes->Contains("lower_limit")) {
         readRange.LowerLimit() = attributes->Get<TReadLimit>("lower_limit");
     }
