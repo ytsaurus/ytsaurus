@@ -361,6 +361,15 @@ public:
         // NB: Save it for logging.
         auto id = transaction->GetId();
 
+        auto nestedTransactions = transaction->NestedTransactions();
+        for (auto* nestedTransaction : nestedTransactions) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+                nestedTransaction->GetId(),
+                transaction->GetId());
+            AbortTransaction(nestedTransaction, true);
+        }
+        YCHECK(transaction->NestedTransactions().empty());
+
         if (IsLeader()) {
             CloseLease(transaction);
         }
