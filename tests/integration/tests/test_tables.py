@@ -159,6 +159,8 @@ class TestTables(YTEnvSetup):
         # multiple ranges
         assert read_table("//tmp/table[:,:]") == [{"a": 0}, {"b" : 1}, {"c" : 2}, {"d" : 3}] * 2
         assert read_table("//tmp/table[#1:#2,#3:#4]") == [{"b": 1}, {"d": 3}]
+        assert read_table("//tmp/table[#0]") == [{"a": 0}]
+        assert read_table("//tmp/table[#1]") == [{"b": 1}]
 
         # reading key selectors from unsorted table
         with pytest.raises(YtError): read_table("//tmp/table[:a]")
@@ -180,6 +182,8 @@ class TestTables(YTEnvSetup):
         assert read_table("<upper_limit={chunk_index=1}>//tmp/table") == [{"a": 0}]
         assert read_table("<lower_limit={chunk_index=2}>//tmp/table") == [{"c": 2}, {"d" : 3}, {"e" : 4}, {"f" : 5}, {"g" : 6}, {"h" : 7}]
         assert read_table("<lower_limit={chunk_index=1};upper_limit={chunk_index=2}>//tmp/table") == [{"b": 1}]
+        assert read_table("<ranges=[{exact={chunk_index=1}}]>//tmp/table") == [{"b": 1}]
+
         rows = read_table("//tmp/table", unordered=True)
         d = dict()
         for r in rows:
@@ -214,6 +218,9 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[:(a, 11)]") == [v1, v2]
         assert read_table("//tmp/table[:]") == [v1, v2, v3, v4, v5]
         assert read_table("//tmp/table[a : b , b : c]") == [v1, v2, v3, v4]
+        assert read_table("//tmp/table[a]") == [v1, v2]
+        assert read_table("//tmp/table[(a,10)]") == [v2]
+        assert read_table("//tmp/table[a,c]") == [v1, v2, v5]
 
         # combination of row and key selectors
         assert read_table('//tmp/table{i}[aa: (b, 10)]') == [{'i' : 5}]
