@@ -55,8 +55,7 @@ struct TSerializableClusterAttributes
     : public TClusterResources
     , public TYsonSerializableLite
 {
-    TSerializableClusterAttributes(const TClusterResources& other = ZeroClusterResources())
-        : TClusterResources(other)
+    TSerializableClusterAttributes()
     {
         RegisterParameter("disk_space", DiskSpace)
             .GreaterThanOrEqual(0);
@@ -69,17 +68,18 @@ struct TSerializableClusterAttributes
 
 void Serialize(const TClusterResources& resources, IYsonConsumer* consumer)
 {
-    TSerializableClusterAttributes wrapper(resources);
+    TSerializableClusterAttributes wrapper;
+    static_cast<TClusterResources&>(wrapper) = resources;
     Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
 }
 
-void Deserialize(TClusterResources& value, INodePtr node)
+void Deserialize(TClusterResources& resources, INodePtr node)
 {
     TSerializableClusterAttributes wrapper;
     Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
     // TODO(babenko): we shouldn't be concerned with manual validation here
     wrapper.Validate();
-    value = static_cast<TClusterResources&>(wrapper);
+    resources = static_cast<TClusterResources&>(wrapper);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

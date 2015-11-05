@@ -64,8 +64,7 @@ struct TSerializableWorkloadDescriptor
     : public TWorkloadDescriptor
     , public TYsonSerializableLite
 {
-    TSerializableWorkloadDescriptor(const TWorkloadDescriptor& other = TWorkloadDescriptor())
-        : TWorkloadDescriptor(other)
+    TSerializableWorkloadDescriptor()
     {
         RegisterParameter("category", Category);
         RegisterParameter("band", Band)
@@ -73,17 +72,18 @@ struct TSerializableWorkloadDescriptor
     }
 };
 
-void Serialize(const TWorkloadDescriptor& resources, IYsonConsumer* consumer)
+void Serialize(const TWorkloadDescriptor& descriptor, IYsonConsumer* consumer)
 {
-    TSerializableWorkloadDescriptor wrapper(resources);
+    TSerializableWorkloadDescriptor wrapper;
+    static_cast<TWorkloadDescriptor&>(wrapper) = descriptor;
     Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
 }
 
-void Deserialize(TWorkloadDescriptor& value, INodePtr node)
+void Deserialize(TWorkloadDescriptor& descriptor, INodePtr node)
 {
     TSerializableWorkloadDescriptor wrapper;
     Deserialize(static_cast<TYsonSerializableLite&>(wrapper), node);
-    value = static_cast<TWorkloadDescriptor&>(wrapper);
+    descriptor = static_cast<TWorkloadDescriptor&>(wrapper);
 }
 
 void ToProto(NYT::NProto::TWorkloadDescriptor* protoDescriptor, const TWorkloadDescriptor& descriptor)
