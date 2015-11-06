@@ -225,7 +225,7 @@ private:
 } // namespace NChunkServer
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataList)
+DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataList);
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"

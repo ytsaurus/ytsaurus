@@ -84,10 +84,10 @@ protected:
     TSimpleOperationSpecBasePtr Spec;
     TSimpleOperationOptionsPtr Options;
 
-    //! The total number of chunks for processing.
+    //! The total number of chunks for processing (teleports excluded).
     int TotalChunkCount;
 
-    //! The total data size for processing.
+    //! The total data size for processing (teleports excluded).
     i64 TotalDataSize;
 
     //! For each input table, the corresponding entry holds the stripe
@@ -444,7 +444,7 @@ protected:
         InitJobIOConfig();
         InitJobSpecTemplate();
 
-        LOG_INFO("Inputs processed (DataSize: %v, ChunkCount: %v, JobCount: %v)",
+        LOG_INFO("Inputs processed (JobDataSize: %v, JobChunkCount: %v, JobCount: %v)",
             TotalDataSize,
             TotalChunkCount,
             Tasks.size());
@@ -1125,6 +1125,11 @@ protected:
         }
     }
 
+    virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const
+    {
+        return !chunkSpec->lower_limit().has_row_index() && 
+            !chunkSpec->upper_limit().has_row_index();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeControllerBase::TManiacTask);
@@ -1199,7 +1204,7 @@ private:
         }
 
         int openedSlicesCount = 0;
-        TRefCountedChunkSpecPtr currentChunkSpec = nullptr;
+        TRefCountedChunkSpecPtr currentChunkSpec;
         int startTeleportIndex = -1;
         for (int i = 0; i < static_cast<int>(Endpoints.size()); ++i) {
             auto& endpoint = Endpoints[i];
@@ -1212,7 +1217,9 @@ private:
 
             if (currentChunkSpec) {
                 if (chunkSlice->GetChunkSpec() == currentChunkSpec) {
-                    if (endpoint.Type == EEndpointType::Right && CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0) {
+                    if (endpoint.Type == EEndpointType::Right && 
+                        CompareRows(maxKey, endpoint.MaxBoundaryKey, KeyColumns.size()) == 0) 
+                    {
                         // The last slice of a full chunk.
                         currentChunkSpec = nullptr;
                         auto completeChunk = chunkSlice->GetChunkSpec();
@@ -1237,7 +1244,10 @@ private:
             }
 
             // No current Teleport candidate.
-            if (endpoint.Type == EEndpointType::Left && CompareRows(minKey, endpoint.MinBoundaryKey, KeyColumns.size()) == 0) {
+            if (endpoint.Type == EEndpointType::Left && 
+                CompareRows(minKey, endpoint.MinBoundaryKey, KeyColumns.size()) == 0 &&
+                IsTeleportCandidate(chunkSlice->GetChunkSpec()))
+            {
                 // The first slice of a full chunk.
                 currentChunkSpec = chunkSlice->GetChunkSpec();
                 startTeleportIndex = i;
@@ -1527,9 +1537,11 @@ private:
         return false;
     }
 
-    bool IsTeleportInputTable(int tableIndex) const
-    {
-        return InputTables[tableIndex].Path.Attributes().Get<bool>("teleport", false);
+    virtual bool IsTeleportCandidate(TRefCountedChunkSpecPtr chunkSpec) const override
+    {   
+        auto tableIndex = chunkSpec->table_index();
+        return TSortedMergeControllerBase::IsTeleportCandidate(chunkSpec) && 
+            InputTables[tableIndex].Path.Attributes().Get<bool>("teleport", false);;
     }
 
     virtual void SortEndpoints() override
@@ -1619,7 +1631,7 @@ private:
             YCHECK(TryGetBoundaryKeys(chunkSpec->chunk_meta(), &minKey, &maxKey));
             if (endpoint.Type == EEndpointType::Left &&
                 CompareRows(minKey, endpoint.GetKey(), prefixLength) == 0 &&
-                IsTeleportInputTable(chunkSpec->table_index()) &&
+                IsTeleportCandidate(chunkSpec) &&
                 openedSlicesCount == 1)
             {
                 currentChunkSpec = endpoint.ChunkSlice->GetChunkSpec();

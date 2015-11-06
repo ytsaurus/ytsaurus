@@ -637,13 +637,13 @@ TTabletSnapshotPtr TTablet::RebuildSnapshot()
                 switch (preloadState) {
                     case EStorePreloadState::Scheduled:
                     case EStorePreloadState::Running:
-                        ++Snapshot_->StorePreloadPendingCount;
+                        ++Snapshot_->PreloadPendingStoreCount;
                         break;
                     case EStorePreloadState::Complete:
-                        ++Snapshot_->StorePreloadCompletedCount;
+                        ++Snapshot_->PreloadCompletedStoreCount;
                         break;
                     case EStorePreloadState::Failed:
-                        ++Snapshot_->StorePreloadFailedCount;
+                        ++Snapshot_->PreloadFailedStoreCount;
                         break;
                     default:
                         break;

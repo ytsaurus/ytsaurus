@@ -31,14 +31,16 @@ TEncodingWriter::TEncodingWriter(
     , Options_(options)
     , ChunkWriter_(chunkWriter)
     , BlockCache_(blockCache)
-    , CompressionRatio_(config->DefaultCompressionRatio)
-    , CompressionInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetCompressionPoolInvoker()))
+    , Logger(logger)
+    , CompressionRatio_(Config_->DefaultCompressionRatio)
+    , CompressionInvoker_(CreateSerializedInvoker(CreateFixedPriorityInvoker(
+        TDispatcher::Get()->GetCompressionPoolInvoker(),
+        Config_->WorkloadDescriptor.GetPriority())))
     , Semaphore_(Config_->EncodeWindowSize)
     , Codec_(NCompression::GetCodec(options->CompressionCodec))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)))
-    , Logger(logger)
 { }
 
 void TEncodingWriter::WriteBlock(TSharedRef block)

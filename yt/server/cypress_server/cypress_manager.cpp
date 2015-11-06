@@ -1401,7 +1401,8 @@ private:
                         request.Mode,
                         GetNodePath(trunkNode, transaction),
                         existingState.Mode,
-                        existingTransaction->GetId());
+                        existingTransaction->GetId())
+                        << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
                 }
 
                 // For Shared locks we check child and attribute keys.
@@ -1411,24 +1412,22 @@ private:
                     {
                         return TError(
                             NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                            "Cannot take %Qlv lock for child %Qv of node %v since %Qlv lock is taken by concurrent transaction %v",
-                            request.Mode,
-                            request.ChildKey.Get(),
+                            "Cannot take lock for child %Qv of node %v since this child is locked by concurrent transaction %v",
+                            *request.ChildKey,
                             GetNodePath(trunkNode, transaction),
-                            existingState.Mode,
-                            existingTransaction->GetId());
+                            existingTransaction->GetId())
+                            << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
                     }
                     if (request.AttributeKey &&
                         existingState.AttributeKeys.find(request.AttributeKey.Get()) != existingState.AttributeKeys.end())
                     {
                         return TError(
                             NCypressClient::EErrorCode::ConcurrentTransactionLockConflict,
-                            "Cannot take %Qlv lock for attribute %Qv of node %v since %Qlv lock is taken by concurrent transaction %v",
-                            request.Mode,
-                            request.AttributeKey.Get(),
+                            "Cannot take lock for attribute %Qv of node %v since this attribute is locked by concurrent transaction %v",
+                            *request.AttributeKey,
                             GetNodePath(trunkNode, transaction),
-                            existingState.Mode,
-                            existingTransaction->GetId());
+                            existingTransaction->GetId())
+                            << TErrorAttribute("winner_transaction", existingTransaction->GetDescription());
                     }
                 }
             }

@@ -28,8 +28,6 @@ TTcpDispatcherStatistics& operator += (
     lhs.PendingInBytes += rhs.PendingInBytes;
     lhs.PendingOutPackets += rhs.PendingOutPackets;
     lhs.PendingOutBytes += rhs.PendingOutBytes;
-    lhs.ClientConnections += rhs.ClientConnections;
-    lhs.ServerConnections += rhs.ServerConnections;
     return lhs;
 }
 
@@ -49,6 +47,8 @@ TTcpProfilingData::TTcpProfilingData()
     , OutPacketCounter("/out_packets")
     , PendingOutPacketCounter("/pending_out_packets")
     , PendingOutByteCounter("/pending_out_bytes")
+    , ClientConnectionCounter("/client_connections")
+    , ServerConnectionCounter("/server_connections")
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -146,4 +146,5 @@ DECLARE_PODTYPE(NYT::NHydra::TChangelogHeader);
 DECLARE_PODTYPE(NYT::NHydra::TChangelogRecordHeader);
 DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexHeader);
 DECLARE_PODTYPE(NYT::NHydra::TChangelogIndexRecord);
-DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader)
+DECLARE_PODTYPE(NYT::NHydra::TSnapshotHeader);
+

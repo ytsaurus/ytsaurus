@@ -77,6 +77,11 @@ TChunkId TMemoryWriter::GetChunkId() const
     return NullChunkId;
 }
 
+NErasure::ECodec TMemoryWriter::GetErasureCodecId() const
+{
+    return NErasure::ECodec::None;
+}
+
 std::vector<TSharedRef>& TMemoryWriter::GetBlocks()
 {
     YCHECK(Open_);

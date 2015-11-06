@@ -29,6 +29,7 @@ public:
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
     //! Returns #NullChunkId.
     virtual TChunkId GetChunkId() const override;
+    virtual NErasure::ECodec GetErasureCodecId() const override;
 
     //! Can only be called after the writer is closed.
     std::vector<TSharedRef>& GetBlocks();

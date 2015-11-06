@@ -8,9 +8,8 @@
 #include "chunk_spec.h"
 #include "config.h"
 #include "dispatcher.h"
-#include "erasure_reader.h"
+#include "helpers.h"
 #include "private.h"
-#include "replication_reader.h"
 
 #include <ytlib/api/client.h>
 #include <ytlib/api/connection.h>
@@ -203,64 +202,22 @@ void TMultiChunkReaderBase::DoOpenChunk(int chunkIndex)
 IChunkReaderPtr TMultiChunkReaderBase::CreateRemoteReader(const TChunk& chunk)
 {
     const auto& chunkSpec = chunk.Spec;
+    auto config = PatchConfig(Config_, chunk.MemoryEstimate);
+
     auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkSpec.replicas());
+    auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
 
-    LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
-
-    if (IsErasureChunkId(chunkId)) {
-        std::sort(
-            replicas.begin(),
-            replicas.end(),
-            [] (TChunkReplica lhs, TChunkReplica rhs) {
-                return lhs.GetIndex() < rhs.GetIndex();
-            });
-
-        auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
-        auto* erasureCodec = GetCodec(erasureCodecId);
-        auto dataPartCount = erasureCodec->GetDataPartCount();
-
-        std::vector<IChunkReaderPtr> readers;
-        readers.reserve(dataPartCount);
-
-        auto it = replicas.begin();
-        while (it != replicas.end() && it->GetIndex() < dataPartCount) {
-            auto jt = it;
-            while (jt != replicas.end() && it->GetIndex() == jt->GetIndex()) {
-                ++jt;
-            }
-
-            TChunkReplicaList partReplicas(it, jt);
-            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
-            auto reader = CreateReplicationReader(
-                PatchConfig(Config_, chunk.MemoryEstimate),
-                Options_,
-                Client_,
-                NodeDirectory_,
-                Null,
-                partId,
-                partReplicas,
-                BlockCache_,
-                Throttler_);
-            readers.push_back(reader);
-
-            it = jt;
-        }
-
-        YCHECK(readers.size() == dataPartCount);
-        return CreateNonRepairingErasureReader(readers);
-    } else {
-        return CreateReplicationReader(
-            PatchConfig(Config_, chunk.MemoryEstimate),
-            Options_,
-            Client_,
-            NodeDirectory_,
-            Null,
-            chunkId,
-            replicas,
-            BlockCache_,
-            Throttler_);
-    }
+    return NChunkClient::CreateRemoteReader(
+        chunkId,
+        std::move(replicas),
+        erasureCodecId,
+        config, 
+        Options_, 
+        Client_, 
+        NodeDirectory_, 
+        BlockCache_, 
+        Throttler_);
 }
 
 void TMultiChunkReaderBase::OnReaderFinished()

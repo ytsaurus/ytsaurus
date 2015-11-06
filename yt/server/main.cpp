@@ -153,7 +153,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 {
     srand(time(nullptr));
 
-    NYT::NConcurrency::SetCurrentThreadName("Bootstrap");
+    TThread::CurrentThreadSetName("Bootstrap");
 
     TArgsParser parser;
 
@@ -293,7 +293,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isExecutor) {
-        NConcurrency::SetCurrentThreadName("ExecutorMain");
+        TThread::CurrentThreadSetName("ExecutorMain");
 
         const int permissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
         for (auto fd : parser.PreparePipes.getValue()) {
@@ -345,7 +345,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
 
     // Start an appropriate server.
     if (isNode) {
-        NConcurrency::SetCurrentThreadName("NodeMain");
+        TThread::CurrentThreadSetName("NodeMain");
 
         if (printConfigTemplate) {
             auto config = New<NCellNode::TCellNodeConfig>();
@@ -362,7 +362,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isMaster || isMasterSnapshotDump || isMasterSnapshotValidate) {
-        NConcurrency::SetCurrentThreadName("MasterMain");
+        TThread::CurrentThreadSetName("MasterMain");
 
         if (printConfigTemplate) {
             auto config = New<NCellMaster::TCellMasterConfig>();
@@ -388,7 +388,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isScheduler) {
-        NConcurrency::SetCurrentThreadName("SchedulerMain");
+        TThread::CurrentThreadSetName("SchedulerMain");
 
         if (printConfigTemplate) {
             auto config = New<NCellScheduler::TCellSchedulerConfig>();
@@ -405,7 +405,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     }
 
     if (isJobProxy) {
-        NConcurrency::SetCurrentThreadName("JobProxyMain");
+        TThread::CurrentThreadSetName("JobProxyMain");
 
         if (printConfigTemplate) {
             auto config = New<NJobProxy::TJobProxyConfig>();

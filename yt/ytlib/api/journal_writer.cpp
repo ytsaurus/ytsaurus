@@ -604,7 +604,7 @@ private:
                 for (auto node : CurrentSession_->Nodes) {
                     auto req = node->LightProxy.StartChunk();
                     ToProto(req->mutable_chunk_id(), CurrentSession_->ChunkId);
-                    req->set_session_type(static_cast<int>(EWriteSessionType::User));
+                    ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
                     req->set_optimize_for_latency(true);
                     auto asyncRsp = req->Invoke().Apply(
                         BIND(&TImpl::OnChunkStarted, MakeStrong(this), node)
@@ -614,7 +614,7 @@ private:
                 auto result = WaitFor(Combine(asyncResults));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
-                LOG_WARNING(ex, "Error starting sessions for %v at nodes",
+                LOG_WARNING(ex, "Error starting chunk sessions (ChunkId: %v)",
                     CurrentSession_->ChunkId);
                 CurrentSession_.Reset();
                 return false;

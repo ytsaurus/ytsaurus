@@ -6,6 +6,7 @@
 #include <core/misc/error.h>
 
 #include <core/actions/future.h>
+#include <core/erasure/public.h>
 
 namespace NYT {
 namespace NChunkClient {
@@ -61,6 +62,9 @@ struct IChunkWriter
      *  Can only be called when the writer is successfully open.
      */
     virtual TChunkId GetChunkId() const = 0;
+
+    //! Returns the erasure codec of the chunk being written.
+    virtual NErasure::ECodec GetErasureCodecId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkWriter)

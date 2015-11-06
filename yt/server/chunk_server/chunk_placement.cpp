@@ -119,7 +119,7 @@ void TChunkPlacement::OnNodeRegistered(TNode* node)
 
     InsertToLoadRankList(node);
 
-    if (node->GetSessionCount(EWriteSessionType::Replication) < Config_->MaxReplicationWriteSessions) {
+    if (node->GetSessionCount(ESessionType::Replication) < Config_->MaxReplicationWriteSessions) {
         InsertToFillFactorMap(node);
     }
 }
@@ -161,7 +161,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     TNullable<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNullable<Stroka>& preferredHostName,
-    EWriteSessionType sessionType)
+    ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
         chunk,
@@ -293,7 +293,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
     int desiredCount,
     int minCount,
     TNullable<int> replicationFactorOverride,
-    EWriteSessionType sessionType)
+    ESessionType sessionType)
 {
     auto targetNodes = GetWriteTargets(
         chunk,
@@ -404,7 +404,7 @@ TNode* TChunkPlacement::AllocateBalancingTarget(
     auto* target = GetBalancingTarget(chunk, maxFillFactor);
 
     if (target) {
-        AddSessionHint(target, EWriteSessionType::Replication);
+        AddSessionHint(target, ESessionType::Replication);
     }
 
     return target;
@@ -479,7 +479,7 @@ bool TChunkPlacement::IsValidBalancingTarget(
         return false;
     }
 
-    if (node->GetSessionCount(EWriteSessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
         // Do not write anything to a node with too many write sessions.
         return false;
     }
@@ -555,13 +555,13 @@ bool TChunkPlacement::IsAcceptedChunkType(TNode* node, EObjectType type)
     return false;
 }
 
-void TChunkPlacement::AddSessionHint(TNode* node, EWriteSessionType sessionType)
+void TChunkPlacement::AddSessionHint(TNode* node, ESessionType sessionType)
 {
     node->AddSessionHint(sessionType);
 
     AdvanceInLoadRankList(node);
 
-    if (node->GetSessionCount(EWriteSessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
+    if (node->GetSessionCount(ESessionType::Replication) >= Config_->MaxReplicationWriteSessions) {
         RemoveFromFillFactorMap(node);
     }
 }

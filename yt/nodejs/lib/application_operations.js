@@ -20,6 +20,7 @@ var OPERATIONS_ARCHIVE_PATH = "//sys/operations_archive/ordered_by_id",
     OPERATIONS_CYPRESS_PATH = "//sys/operations",
     OPERATIONS_ORCHID_PATH = "//sys/scheduler/orchid/scheduler/operations",
     SCHEDULING_INFO_PATH = "//sys/scheduler/orchid/scheduler";
+    RESULT_LIMIT = 10;
 
 var INTERMEDIATE_STATES = [
     "pending",
@@ -82,27 +83,23 @@ function escape(string) {
 function YtApplicationOperations(driver)
 {
     this.list = function(parameters) {
-        var text_filter = (parameters.filter || "").toString().toLowerCase();
-        var user_filter = parameters.user_filter,
-            current_user = parameters.current_user,
-            selected_user = parameters.user,
-            start_time_begin = Date.parse(parameters.start_time_begin);
+        var text_filter = (parameters.filter || "").toString().toLowerCase(),
+            filtered_user = parameters.user,
+            start_time_begin = Date.parse(parameters.from_time),
+            start_time_end = Date.parse(parameters.to_time),
+            state_filter = parameters.state == "all" ? null : parameters.state,
+            type_filter = parameters.type == "all" ? null : parameters.type,
+            jobs_filter = parameters.has_failed_jobs;
 
-        var filtered_user = user_filter === "personal" ? current_user : user_filter === "other" && selected_user;
-
-        var state_filter = parameters.state;
-        var type_filter = parameters.type;
-        var jobs_filter = parameters.has_failed_jobs;
-
-
+        start_time_end = isNaN(start_time_begin) ? new Date() : start_time_end;
         var month_ago = new Date();
-        month_ago.setDate(month_ago.getDate() - MAX_TIME_SPAN);
+        month_ago.setDate(start_time_end.getDate() - MAX_TIME_SPAN);
+        var incomplete = false;
 
         if (isNaN(start_time_begin) || start_time_begin < month_ago) {
             start_time_begin = month_ago;
+            incomplete = true;
         }
-
-        var date_filter = "start_time > {}".format(escape(start_time_begin.toISOString()));
 
         var runtime_data = driver.executeSimple(
             "get", {
@@ -116,9 +113,12 @@ function YtApplicationOperations(driver)
                 attributes: OPERATION_ATTRIBUTES
             });
 
-        var text_filter = "is_substr({}, filter_factors)".format(escape(text_filter));
-
-        var strict_filter = [text_filter, date_filter];
+        var strict_filter = [
+            "is_substr({}, filter_factors)".format(escape(text_filter)),
+            "start_time > {} and start_time < {}".format(
+                escape(start_time_begin.toISOString()),
+                escape(start_time_end.toISOString()))
+        ];
 
         var filter_condition = strict_filter.slice();
 
@@ -126,11 +126,11 @@ function YtApplicationOperations(driver)
             filter_condition.push("authenticated_user = {}".format(escape(filtered_user)));
         }
 
-        if (state_filter && state_filter !== "all") {
+        if (state_filter) {
             filter_condition.push("state = {}".format(escape(state_filter)));
         }
 
-        if (type_filter && type_filter !== "all") {
+        if (type_filter) {
             filter_condition.push("operation_type = {}".format(escape(type_filter)));
         }
 
@@ -150,7 +150,7 @@ function YtApplicationOperations(driver)
             {
                 query: "* {} where {}".format(source, filter_condition.join(" and ")) +
                     " order by finish_time desc" +
-                    " limit 100"
+                    " limit {}".format(RESULT_LIMIT + 1)
             });
 
         function getFilterFactors(item) {
@@ -193,29 +193,18 @@ function YtApplicationOperations(driver)
                 }, { });
             }
 
-            var user_counts = makeCounts(["all", "personal", "other"]),
-                state_counts = makeCounts(["all", "running", "completed", "failed", "aborted"]),
+            var state_counts = makeCounts(["all", "running", "completed", "failed", "aborted"]),
                 type_counts = makeCounts(["all", "join_reduce", "map", "map_reduce", "merge", "reduce", "remote_copy", "sort"]);
 
-            var all_users = { };
+            var users = { };
 
             return {
                 filter: function(user, state, type, count) {
                     // USER
-                    if (!all_users.hasOwnProperty(user)) {
-                        all_users[user] = 0;
+                    if (!users.hasOwnProperty(user)) {
+                        users[user] = 0;
                     }
-                    all_users[user] += count; 
-
-                    user_counts.all += count;
-
-                    if (user === current_user) {
-                        user_counts.personal += count;
-                    }
-
-                    if (!selected_user || user === selected_user) {
-                        user_counts.other += count;
-                    }
+                    users[user] += count; 
 
                     if (filtered_user && user !== filtered_user) {
                         return false;
@@ -225,7 +214,7 @@ function YtApplicationOperations(driver)
                     state_counts.all += count;
                     state_counts[state] += count;
 
-                    if (state_filter !== "all" && state !== state_filter) {
+                    if (state_filter && state !== state_filter) {
                         return false;
                     }
 
@@ -233,17 +222,16 @@ function YtApplicationOperations(driver)
                     type_counts.all += count;
                     type_counts[type] += count;
 
-                    if (type_filter !== "all" && type !== type_filter) {
+                    if (type_filter && type !== type_filter) {
                         return false;
                     }
 
                     return true;
                 },
                 result: {
-                    user: user_counts,
                     state: state_counts,
                     type: type_counts,
-                    all_users: all_users
+                    users: users
                 }
             }
         }
@@ -312,17 +300,16 @@ function YtApplicationOperations(driver)
             });
 
             return {
-                operations: merged_data,
-                user_counts: preparer.result.user,
+                operations: incomplete ? {$attributes: {incomplete: true}, $value: merged_data} : merged_data,
+                users: preparer.result.users,
                 state_counts: preparer.result.state,
                 type_counts: preparer.result.type,
-                failed_jobs_count: failed_jobs_count,
-                users: preparer.result.all_users
+                failed_jobs_count: failed_jobs_count
             };
         }
  
         return Q.settle([cypress_data, runtime_data, archive_data, archive_counts])
-        .spread(function (cypress_data, runtime_data, archive_data, archive_counts) {
+        .spread(function (cypress_data, runtime_data, archive_data, archive_counts) {            
             if (cypress_data.isRejected()) {
                 return Q.reject(new YtError(
                     "Failed to get operations from Cypress",
@@ -339,6 +326,11 @@ function YtApplicationOperations(driver)
             } else {
                 archive_data = archive_data.value();
                 archive_counts = archive_counts.value();
+            }
+
+            if (archive_data.length > RESULT_LIMIT) {
+                incomplete = true;
+                archive_data.pop();
             }
 
             archive_data = archive_data.map(function (operation) {
@@ -392,7 +384,7 @@ function YtApplicationOperations(driver)
         .spread(function (cypress_data, archive_data) {
             if (cypress_data.isFulfilled()) {
                 return cypress_data.value();
-            } else if (cypress_data.error().checkFor(500)) {                
+            } else if (cypress_data.error().checkFor(500)) {
                 if (archive_data.isFulfilled()) {
                     if (archive_data.value().length) {
                         return archive_data.value()[0];

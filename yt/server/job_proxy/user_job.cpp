@@ -60,6 +60,8 @@
 
 #include <util/system/execpath.h>
 
+#include <util/stream/null.h>
+
 namespace NYT {
 namespace NJobProxy {
 
@@ -579,6 +581,9 @@ private:
 
         InputActions_.push_back(BIND([=] () {
             try {
+                WaitFor(reader->Open())
+                    .ThrowOnError();
+
                 PipeReaderToWriter(
                     reader,
                     writer,

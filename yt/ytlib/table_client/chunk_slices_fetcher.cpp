@@ -32,6 +32,7 @@ using namespace NNodeTrackerClient;
 using namespace NRpc;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -85,7 +86,9 @@ void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
     auto req = proxy.GetChunkSlices();
     req->set_slice_data_size(ChunkSliceSize_);
     req->set_slice_by_keys(SliceByKeys_);
-    NYT::ToProto(req->mutable_key_columns(), KeyColumns_);
+    ToProto(req->mutable_key_columns(), KeyColumns_);
+    // TODO(babenko): make configurable
+    ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
 
     std::vector<int> requestedChunkIndexes;
     int keyColumnCount = KeyColumns_.size();
@@ -99,8 +102,9 @@ void TChunkSlicesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector<int>
         TOwningKey minKey, maxKey;
         YCHECK(TryGetBoundaryKeys(chunk->chunk_meta(), &minKey, &maxKey));
 
-        if (chunkDataSize < ChunkSliceSize_
-                || (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount) == 0)) {
+        if (chunkDataSize < ChunkSliceSize_ ||
+            (SliceByKeys_ && CompareRows(minKey, maxKey, keyColumnCount) == 0))
+        {
             auto slice = CreateChunkSlice(
                 chunk,
                 GetKeyPrefix(minKey.Get(), keyColumnCount),

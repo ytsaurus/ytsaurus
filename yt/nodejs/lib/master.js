@@ -20,16 +20,16 @@ var TIMEOUT_INITIAL   = 5000;
 var TIMEOUT_HEARTBEAT = 30000;
 var TIMEOUT_COOLDOWN  = 60000;
 
-var MEMORY_PRESSURE_LIMIT = 128 * 1024 * 1024;
 var MEMORY_PRESSURE_HIT_COOLDOWN = 60000;
 var MEMORY_PRESSURE_HIT_TIMESTAMP = 0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterHandle(logger, profiler, worker)
+function YtClusterHandle(logger, profiler, rss_limit, worker)
 {
     this.logger     = logger;
     this.profiler   = profiler;
+    this.rss_limit  = rss_limit;
     this.worker     = worker;
     this.state      = "unknown";
     this.young      = true;
@@ -142,7 +142,7 @@ YtClusterHandle.prototype.handleMessage = function(message)
 
 YtClusterHandle.prototype.handleLog = function(level, message, payload)
 {
-    if (process.memoryUsage().rss < MEMORY_PRESSURE_LIMIT) {
+    if (process.memoryUsage().rss < this.rss_limit) {
         this.logger[level](message, payload);
     } else {
         var time_now = +(new Date());
@@ -222,7 +222,7 @@ YtClusterHandle.prototype.certifyDeath = function()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function YtClusterMaster(bunyan_logger, profiler, number_of_workers, cluster_options)
+function YtClusterMaster(bunyan_logger, profiler, config, cluster_options)
 {
     __DBG("New");
 
@@ -253,13 +253,15 @@ function YtClusterMaster(bunyan_logger, profiler, number_of_workers, cluster_opt
 
     this.profiler = profiler;
 
-    __DBG("Expected number of workers is " + number_of_workers);
-
-    this.workers_expected = number_of_workers;
+    this.workers_expected = config.number_of_workers;
     this.workers_handles = {};
+
+    __DBG("Expected number of workers is " + this.workers_expected);
 
     this.timeout_for_respawn = null;
     this.timeout_for_shutdown = null;
+
+    this.rss_limit = config.rss_limit;
 
     var self = this;
 
@@ -325,7 +327,7 @@ YtClusterMaster.prototype.spawnNewWorker = function()
 {
     var worker = cluster.fork();
     var handle = this.workers_handles[worker.id] =
-        new YtClusterHandle(this.logger, this.profiler, worker);
+        new YtClusterHandle(this.logger, this.profiler, this.rss_limit, worker);
 
     worker.on("message", handle.handleMessage.bind(handle));
     this.logger.info("Spawned young worker");

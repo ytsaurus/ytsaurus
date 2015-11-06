@@ -17,7 +17,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_thread.cpp
   ${CMAKE_CURRENT_LIST_DIR}/single_queue_scheduler_thread.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/thread.cpp
   ${CMAKE_CURRENT_LIST_DIR}/throughput_throttler.cpp
 )
 set( HDRS
@@ -52,7 +51,6 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/scheduler.h
   ${CMAKE_CURRENT_LIST_DIR}/scheduler_thread.h
   ${CMAKE_CURRENT_LIST_DIR}/single_queue_scheduler_thread.h
-  ${CMAKE_CURRENT_LIST_DIR}/thread.h
   ${CMAKE_CURRENT_LIST_DIR}/thread_affinity.h
   ${CMAKE_CURRENT_LIST_DIR}/throughput_throttler.h
 )

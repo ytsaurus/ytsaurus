@@ -11,6 +11,8 @@
 
 #include <core/misc/fs.h>
 
+#include <core/profiling/profile_manager.h>
+
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_replica.h>
@@ -37,6 +39,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
+static const auto& Profiler = DataNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +52,13 @@ TSessionManager::TSessionManager(
     YCHECK(config);
     YCHECK(bootstrap);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+
+    auto* profilingManager = NProfiling::TProfileManager::Get();
+    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
+        PerTypeSessionCounters_[type] = NProfiling::TSimpleCounter(
+            "/session_count",
+            {profilingManager->RegisterTag("type", type)});
+    }
 }
 
 ISessionPtr TSessionManager::FindSession(const TChunkId& chunkId)
@@ -166,40 +176,23 @@ void TSessionManager::OnSessionFinished(ISession* session, const TError& /*error
     UnregisterSession(session);
 }
 
-int TSessionManager::GetSessionCount(EWriteSessionType type)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return PerTypeSessionCount_[type];
-}
-
-i64 TSessionManager::GetPendingWriteSize() 
+int TSessionManager::GetSessionCount(ESessionType type)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return static_cast<i64>(PendingWriteSize_);
+    return PerTypeSessionCounters_[type].Current.load();
 }
 
 void TSessionManager::RegisterSession(ISessionPtr session)
 {
-    ++PerTypeSessionCount_[session->GetType()];
+    Profiler.Increment(PerTypeSessionCounters_[session->GetType()], +1);
     YCHECK(SessionMap_.insert(std::make_pair(session->GetChunkId(), session)).second);
 }
 
 void TSessionManager::UnregisterSession(ISessionPtr session)
 {
-    --PerTypeSessionCount_[session->GetType()];
+    Profiler.Increment(PerTypeSessionCounters_[session->GetType()], -1);
     YCHECK(SessionMap_.erase(session->GetChunkId()) == 1);
-}
-
-void TSessionManager::UpdatePendingWriteSize(i64 delta)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    i64 result = (PendingWriteSize_ += delta);
-    LOG_TRACE("Pending write size updated (PendingWriteSize: %v, Delta: %v"")",
-        result,
-        delta);
 }
 
 std::vector<ISessionPtr> TSessionManager::GetSessions()

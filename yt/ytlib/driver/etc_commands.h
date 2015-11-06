@@ -11,96 +11,80 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUpdateMembershipRequest
-    : public TMutatingRequest
+template <class TOptions>
+class TUpdateMembershipCommand
+    : public TTypedCommand<TOptions>
 {
+protected:
     Stroka Group;
     Stroka Member;
 
-    TUpdateMembershipRequest()
+    TUpdateMembershipCommand()
     {
-        RegisterParameter("group", Group);
-        RegisterParameter("member", Member);
+        this->RegisterParameter("group", Group);
+        this->RegisterParameter("member", Member);
     }
+
 };
 
 class TAddMemberCommand
-    : public TTypedCommand<TUpdateMembershipRequest>
+    : public TUpdateMembershipCommand<NApi::TAddMemberOptions>
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
 };
 
 class TRemoveMemberCommand
-    : public TTypedCommand<TUpdateMembershipRequest>
+    : public TUpdateMembershipCommand<NApi::TRemoveMemberOptions>
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TParseYPathRequest
-    : public TRequest
-{
-    Stroka Path;
-
-    TParseYPathRequest()
-    {
-        RegisterParameter("path", Path);
-    }
 };
 
 class TParseYPathCommand
-    : public TTypedCommand<TParseYPathRequest>
+    : public TCommandBase
 {
 private:
-    virtual void DoExecute() override;
+    Stroka Path;
 
-};
+public:
+    TParseYPathCommand()
+    {
+        RegisterParameter("path", Path);
+    }
 
-////////////////////////////////////////////////////////////////////////////////
+    void Execute(ICommandContextPtr context);
 
-struct TGetVersionRequest
-    : public TRequest
-{
-    TGetVersionRequest()
-    { }
 };
 
 class TGetVersionCommand
-    : public TTypedCommand<TGetVersionRequest>
+    : public TCommandBase
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCheckPermissionRequest
-    : public TTransactionalRequest
-    , public TReadOnlyRequest
+class TCheckPermissionCommand
+    : public TTypedCommand<NApi::TCheckPermissionOptions>
 {
+private:
     Stroka User;
     NYPath::TRichYPath Path;
     NYTree::EPermission Permission;
 
-    TCheckPermissionRequest()
+public:
+    TCheckPermissionCommand()
     {
         RegisterParameter("user", User);
         RegisterParameter("permission", Permission);
         RegisterParameter("path", Path);
-    }
-};
 
-class TCheckPermissionCommand
-    : public TTypedCommand<TCheckPermissionRequest>
-{
-private:
-    virtual void DoExecute() override;
+    }
+
+    void Execute(ICommandContextPtr context);
 
 };
 

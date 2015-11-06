@@ -51,14 +51,14 @@ public:
         YCHECK(Client_);
     }
 
-    virtual Stroka GetEndpointTextDescription() const override
+    virtual const Stroka& GetEndpointDescription() const override
     {
-        return Client_->GetEndpointTextDescription();
+        return Client_->GetEndpointDescription();
     }
 
-    virtual TYsonString GetEndpointYsonDescription() const override
+    virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return Client_->GetEndpointYsonDescription();
+        return Client_->GetEndpointAttributes();
     }
 
     virtual IClientRequestControlPtr Send(
@@ -540,7 +540,7 @@ private:
                 request->GetMethod(),
                 timeout,
                 level,
-                bus->GetEndpointTextDescription());
+                bus->GetEndpointDescription());
         }
 
         void OnAcknowledgement(const TRequestId& requestId, const TError& error)
@@ -604,7 +604,7 @@ private:
                 << TErrorAttribute("request_id", request->GetRequestId())
                 << TErrorAttribute("service", request->GetService())
                 << TErrorAttribute("method", request->GetMethod())
-                << TErrorAttribute("endpoint", Bus_->GetEndpointYsonDescription());
+                << Bus_->GetEndpointAttributes();
 
             auto timeout = requestControl->GetTimeout();
             if (timeout) {

@@ -51,6 +51,9 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , CompressionInvoker_(CreateFixedPriorityInvoker(
+            NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker(),
+            Config_->WorkloadDescriptor.GetPriority()))
         , PreloadSemaphore_(Config_->MaxConcurrentPreloads)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
@@ -88,6 +91,8 @@ public:
 private:
     const TInMemoryManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
+
+    const IInvokerPtr CompressionInvoker_;
 
     TAsyncSemaphore PreloadSemaphore_;
 
@@ -246,7 +251,7 @@ private:
                     for (const auto& compressedBlock : compressedBlocks) {
                         asyncUncompressedBlocks.push_back(
                             BIND([=] () { return codec->Decompress(compressedBlock); })
-                                .AsyncVia(NChunkClient::TDispatcher::Get()->GetCompressionPoolInvoker())
+                                .AsyncVia(CompressionInvoker_)
                                 .Run());
                     }
 

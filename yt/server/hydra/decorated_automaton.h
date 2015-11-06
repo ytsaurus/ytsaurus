@@ -32,6 +32,9 @@ namespace NHydra {
 struct TEpochContext
     : public TRefCounted
 {
+    IChangelogStorePtr ChangelogStore;
+    TVersion ReachableVersion;
+
     IInvokerPtr EpochSystemAutomatonInvoker;
     IInvokerPtr EpochUserAutomatonInvoker;
     IInvokerPtr EpochControlInvoker;
@@ -123,10 +126,11 @@ public:
         ISnapshotStorePtr snapshotStore,
         const TDistributedHydraManagerOptions& options);
 
-    void OnStartLeading();
+    void Initialize();
+    void OnStartLeading(TEpochContextPtr epochContext);
     void OnLeaderRecoveryComplete();
     void OnStopLeading();
-    void OnStartFollowing();
+    void OnStartFollowing(TEpochContextPtr epochContext);
     void OnFollowerRecoveryComplete();
     void OnStopFollowing();
 
@@ -139,7 +143,6 @@ public:
     TVersion GetLoggedVersion() const;
     void SetLoggedVersion(TVersion version);
 
-    void SetChangelogStore(IChangelogStorePtr changelogStore);
     void SetChangelog(IChangelogPtr changelog);
 
     i64 GetLoggedDataSize() const;
@@ -150,7 +153,6 @@ public:
 
     TVersion GetCommittedVersion() const;
 
-    void Clear();
     void LoadSnapshot(TVersion version, NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
@@ -169,9 +171,9 @@ public:
 
     TFuture<TRemoteSnapshotParams> BuildSnapshot();
 
-    TFuture<void> RotateChangelog(TEpochContextPtr epochContext);
+    TFuture<void> RotateChangelog();
 
-    void CommitMutations(TEpochContextPtr epochContext, TVersion version, bool mayYield);
+    void CommitMutations(TVersion version, bool mayYield);
 
     bool HasReadyMutations() const;
 
@@ -199,8 +201,7 @@ private:
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
 
-    TEpochId Epoch_;
-    IChangelogStorePtr ChangelogStore_;
+    TEpochContextPtr EpochContext_;
     IChangelogPtr Changelog_;
 
     // AutomatonVersion_ <= CommittedVersion_ <= LoggedVersion_
@@ -238,11 +239,12 @@ private:
     void AcquireSystemLock();
     void ReleaseSystemLock();
 
-    void Reset();
+    void StartEpoch(TEpochContextPtr epochContext);
+    void StopEpoch();
 
     void DoRotateChangelog();
 
-    void ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield);
+    void ApplyPendingMutations(bool mayYield);
 
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();

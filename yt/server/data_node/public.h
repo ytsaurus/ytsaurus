@@ -13,7 +13,7 @@ namespace NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NChunkClient::TChunkId;
-using NChunkClient::EWriteSessionType;
+using NChunkClient::ESessionType;
 
 using NChunkServer::TBlockId;
 
@@ -24,7 +24,7 @@ using NNodeTrackerClient::TNodeId;
 struct TChunkDescriptor;
 struct TSessionOptions;
 
-class TPendingReadSizeGuard;
+class TPendingIOGuard;
 class TChunkReadGuard;
 
 struct TArtifactKey;

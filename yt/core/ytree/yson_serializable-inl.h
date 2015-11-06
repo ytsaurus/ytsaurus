@@ -38,8 +38,7 @@ struct TLoadHelper
         try {
             Deserialize(parameter, node);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error reading parameter %v",
-                path)
+            THROW_ERROR_EXCEPTION("Error reading parameter %v", path)
                 << ex;
         }
     }
@@ -347,6 +346,13 @@ template <class T>
 TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Describe(const char* description)
 {
     Description = description;
+    return *this;
+}
+
+template <class T>
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Optional()
+{
+    DefaultValue = Parameter;
     return *this;
 }
 

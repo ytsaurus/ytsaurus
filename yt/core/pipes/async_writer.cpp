@@ -12,6 +12,8 @@
 
 #include <contrib/libev/ev++.h>
 
+#include <errno.h>
+
 namespace NYT {
 namespace NPipes {
 namespace NDetail {

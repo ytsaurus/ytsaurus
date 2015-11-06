@@ -13,7 +13,7 @@ set( SRCS
   ${BASE}/mb_lwtrace.cpp
   ${BASE}/message_counter.cpp
   ${BASE}/message.cpp
-  ${BASE}/message_status_counter.cpp
+  #${BASE}/message_status_counter.cpp
   ${BASE}/message_status.cpp
   ${BASE}/messqueue.cpp
   ${BASE}/netaddr.cpp
@@ -31,12 +31,13 @@ set( SRCS
   ${BASE}/session.cpp
   ${BASE}/session_impl.cpp
   ${BASE}/session_job_count.cpp
-  ${BASE}/session_ptr.cpp
+  #${BASE}/session_ptr.cpp
   ${BASE}/socket_addr.cpp
-  ${BASE}/status.cpp
+  ${BASE}/shutdown_state.cpp
+  #${BASE}/status.cpp
   ${BASE}/storage.cpp
   ${BASE}/synchandler.cpp
-  ${BASE}/text_utils.cpp
+  #${BASE}/text_utils.cpp
   ${BASE}/use_after_free_checker.cpp
   ${BASE}/use_count_checker.cpp
 
@@ -62,5 +63,6 @@ target_link_libraries( ytext-arcadia-library-messagebus
   ytext-arcadia-util
   ytext-arcadia-library-blockcodecs
   ytext-arcadia-library-lwtrace
+  ytext-arcadia-library-getopt
 )
 

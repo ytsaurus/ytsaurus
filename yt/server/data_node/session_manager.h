@@ -4,9 +4,9 @@
 
 #include <core/concurrency/thread_affinity.h>
 
-#include <server/cell_node/public.h>
+#include <core/profiling/profiler.h>
 
-#include <atomic>
+#include <server/cell_node/public.h>
 
 namespace NYT {
 namespace NDataNode {
@@ -38,30 +38,17 @@ public:
     ISessionPtr GetSession(const TChunkId& chunkId);
 
     //! Returns the number of currently active sessions of a given type.
-    int GetSessionCount(EWriteSessionType type);
+    int GetSessionCount(ESessionType type);
 
     //! Returns the list of all registered sessions.
     std::vector<ISessionPtr> GetSessions();
 
-    //! Updates (increments or decrements) pending write size.
-    /*!
-     *  Thread affinity: any
-     */
-    void UpdatePendingWriteSize(i64 delta);
-
-    //! Returns the number of bytes pending for write.
-    /*!
-     *  Thread affinity: any
-     */
-    i64 GetPendingWriteSize();
-
 private:
-    TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    const TDataNodeConfigPtr Config_;
+    NCellNode::TBootstrap* const Bootstrap_;
 
     yhash_map<TChunkId, ISessionPtr> SessionMap_;
-    TEnumIndexedVector<int, EWriteSessionType> PerTypeSessionCount_;
-    std::atomic<i64> PendingWriteSize_ = {0};
+    TEnumIndexedVector<NProfiling::TSimpleCounter, ESessionType> PerTypeSessionCounters_;
 
 
     ISessionPtr CreateSession(const TChunkId& chunkId, const TSessionOptions& options);

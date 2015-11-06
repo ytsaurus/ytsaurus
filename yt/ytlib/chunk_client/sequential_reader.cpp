@@ -9,10 +9,14 @@
 
 #include <core/misc/string.h>
 
+#include <core/concurrency/action_queue.h>
+
 #include <core/compression/codec.h>
 
 namespace NYT {
 namespace NChunkClient {
+
+using namespace NConcurrency;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +32,9 @@ TSequentialReader::TSequentialReader(
     , BlockInfos_(std::move(blockInfos))
     , ChunkReader_(std::move(chunkReader))
     , BlockCache_(std::move(blockCache))
+    , CompressionInvoker_(CreateFixedPriorityInvoker(
+        TDispatcher::Get()->GetCompressionPoolInvoker(),
+        Config_->WorkloadDescriptor.GetPriority()))
     , AsyncSemaphore_(Config_->WindowSize)
     , Codec_(NCompression::GetCodec(codecId))
     , Logger(ChunkClientLogger)
@@ -94,7 +101,7 @@ void TSequentialReader::OnGotBlocks(
     LOG_DEBUG("Got block group (Blocks: [%v])",
         JoinToString(blockIndexes));
 
-    TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND(
+    CompressionInvoker_->Invoke(BIND(
         &TSequentialReader::DecompressBlocks,
         MakeWeak(this),
         windowIndexes,

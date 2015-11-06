@@ -34,9 +34,9 @@ struct TTabletStatistics
     int ChunkCount = 0;
     int PartitionCount = 0;
     int StoreCount = 0;
-    int StorePreloadPendingCount = 0;
-    int StorePreloadCompletedCount = 0;
-    int StorePreloadFailedCount = 0;
+    int PreloadPendingStoreCount = 0;
+    int PreloadCompletedStoreCount = 0;
+    int PreloadFailedStoreCount = 0;
 
     void Persist(NCellMaster::TPersistenceContext& context);
 };

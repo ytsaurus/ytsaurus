@@ -16,14 +16,14 @@ TChannelWrapper::TChannelWrapper(IChannelPtr underlyingChannel)
     YASSERT(UnderlyingChannel_);
 }
 
-Stroka TChannelWrapper::GetEndpointTextDescription() const
+const Stroka& TChannelWrapper::GetEndpointDescription() const
 {
-    return UnderlyingChannel_->GetEndpointTextDescription();
+    return UnderlyingChannel_->GetEndpointDescription();
 }
 
-NYson::TYsonString TChannelWrapper::GetEndpointYsonDescription() const
+const NYTree::IAttributeDictionary& TChannelWrapper::GetEndpointAttributes() const
 {
-    return UnderlyingChannel_->GetEndpointYsonDescription();
+    return UnderlyingChannel_->GetEndpointAttributes();
 }
 
 IClientRequestControlPtr TChannelWrapper::Send(

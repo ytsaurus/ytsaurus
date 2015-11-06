@@ -93,6 +93,9 @@ private:
         descriptors->push_back(TAttributeDescriptor("tablets")
             .SetPresent(isDynamic)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor("tablet_statistics")
+            .SetPresent(isDynamic)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("channels")
             .SetCustom(true));
         descriptors->push_back(TAttributeDescriptor("schema")
@@ -166,6 +169,16 @@ private:
                             })
                         .EndMap();
                 });
+            return true;
+        }
+
+        if (key == "tablet_statistics" && table->IsDynamic()) {
+            TTabletStatistics tabletStatistics;
+            for (const auto& tablet : table->Tablets()) {
+                tabletStatistics += tabletManager->GetTabletStatistics(tablet);
+            }
+            BuildYsonFluently(consumer)
+                .Value(tabletStatistics);
             return true;
         }
 

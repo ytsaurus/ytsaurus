@@ -7,80 +7,57 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStartTransactionRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-    , public TPrerequisiteRequest
+class TStartTransactionCommand
+    : public TTypedCommand<NApi::TTransactionStartOptions>
 {
-    TNullable<TDuration> Timeout;
+private:
     NYTree::INodePtr Attributes;
 
-    TStartTransactionRequest()
+public:
+    TStartTransactionCommand()
     {
-        RegisterParameter("timeout", Timeout)
-            .Default();
+        RegisterParameter("timeout", Options.Timeout)
+            .Optional();
         RegisterParameter("attributes", Attributes)
             .Default(nullptr);
+        RegisterParameter("transaction_id", Options.ParentId)
+            .Optional();
+        RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
+            .Default(false);
+
     }
-};
 
-class TStartTransactionCommand
-    : public TTypedCommand<TStartTransactionRequest>
-{
-private:
-    virtual void DoExecute() override;
+    void Execute(ICommandContextPtr context);
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPingTransactionRequest
-    : public TTransactionalRequest
-{ };
 
 class TPingTransactionCommand
-    : public TTypedCommand<TPingTransactionRequest>
+    : public TTypedCommand<NApi::TTransactionalOptions>
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCommitTransactionRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-{ };
 
 class TCommitTransactionCommand
-    : public TTypedCommand<TCommitTransactionRequest>
+    : public TTypedCommand<NApi::TTransactionCommitOptions>
 {
-private:
-    virtual void DoExecute() override;
+public:
+    void Execute(ICommandContextPtr context);
 
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TAbortTransactionRequest
-    : public TTransactionalRequest
-    , public TMutatingRequest
-{
-    bool Force;
-
-    TAbortTransactionRequest()
-    {
-        RegisterParameter("force", Force)
-            .Default(false);
-    }
 };
 
 class TAbortTransactionCommand
-    : public TTypedCommand<TAbortTransactionRequest>
+    : public TTypedCommand<NApi::TTransactionAbortOptions>
 {
-private:
-    virtual void DoExecute() override;
+public:
+    TAbortTransactionCommand()
+    {
+        RegisterParameter("force", Options.Force)
+            .Optional();
+    }
+
+    void Execute(ICommandContextPtr context);
 
 };
 

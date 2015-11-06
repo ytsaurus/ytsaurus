@@ -686,7 +686,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    std::vector<TGuid> keysToRemove;
+    std::vector<TObjectId> keysToRemove;
 
     SchemaMap_.LoadValues(context);
     for (const auto& pair : SchemaMap_) {

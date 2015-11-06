@@ -9,57 +9,47 @@ namespace NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReadFileRequest
-    : public TTransactionalRequest
-    , public TSuppressableAccessTrackingRequest
-{
-    NYPath::TRichYPath Path;
-    TNullable<i64> Offset;
-    TNullable<i64> Length;
-    NYTree::INodePtr FileReader;
-
-    TReadFileRequest()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("offset", Offset)
-            .Default();
-        RegisterParameter("length", Length)
-            .Default();
-        RegisterParameter("file_reader", FileReader)
-            .Default(nullptr);
-    }
-};
-
 class TReadFileCommand
-    : public TTypedCommand<TReadFileRequest>
+    : public TTypedCommand<NApi::TFileReaderOptions>
 {
 private:
-    virtual void DoExecute() override;
+    NYPath::TRichYPath Path;
+    NYTree::INodePtr FileReader;
+
+public:
+    TReadFileCommand()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("offset", Options.Offset)
+            .Optional();
+        RegisterParameter("length", Options.Length)
+            .Optional();
+        RegisterParameter("file_reader", FileReader)
+            .Default(nullptr);
+
+    }
+
+    void Execute(ICommandContextPtr context);
 
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-struct TWriteFileRequest
-    : public TTransactionalRequest
-    , public TPrerequisiteRequest
+class TWriteFileCommand
+    : public TTypedCommand<NApi::TFileWriterOptions>
 {
+private:
     NYPath::TRichYPath Path;
     NYTree::INodePtr FileWriter;
 
-    TWriteFileRequest()
+public:
+    TWriteFileCommand()
     {
         RegisterParameter("path", Path);
         RegisterParameter("file_writer", FileWriter)
             .Default(nullptr);
-    }
-};
 
-class TWriteFileCommand
-    : public TTypedCommand<TWriteFileRequest>
-{
-private:
-    virtual void DoExecute() override;
+    }
+
+    void Execute(ICommandContextPtr context);
 
 };
 

@@ -37,20 +37,14 @@ struct IServiceContext
      */
     virtual TRequestId GetRequestId() const = 0;
 
-    //! Returns the instant when the request was first issued by the client, if known.
-    virtual TNullable<TInstant> GetRequestStartTime() const = 0;
-
     //! Returns the instant when the current retry of request was issued by the client, if known.
-    virtual TNullable<TInstant> GetRetryStartTime() const = 0;
+    virtual TNullable<TInstant> GetStartTime() const = 0;
 
     //! Returns the client-specified request timeout, if any.
     virtual TNullable<TDuration> GetTimeout() const = 0;
 
     //! Returns |true| if this is a duplicate copy of a previously sent (and possibly served) request.
     virtual bool IsRetry() const = 0;
-
-    //! Returns request priority for reordering purposes.
-    virtual i64 GetPriority() const = 0;
 
     //! Returns request service name.
     virtual const Stroka& GetService() const = 0;

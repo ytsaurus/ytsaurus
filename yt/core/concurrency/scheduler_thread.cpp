@@ -78,7 +78,7 @@ void TSchedulerThread::Start()
         ThreadName);
 
     Thread.Start();
-    ThreadId = TThreadId(Thread.SystemId());
+    ThreadId = TThreadId(Thread.Id());
 
     OnStart();
 
@@ -105,7 +105,7 @@ void TSchedulerThread::Shutdown()
     OnShutdown();
 
     // Prevent deadlock.
-    if (GetCurrentThreadId() != ThreadId) {
+    if (TThread::CurrentThreadId() != ThreadId) {
         Thread.Join();
     }
 }
@@ -121,7 +121,7 @@ void TSchedulerThread::ThreadMain()
     VERIFY_THREAD_AFFINITY(HomeThread);
 
     TCurrentSchedulerGuard guard(this);
-    SetCurrentThreadName(ThreadName.c_str());
+    TThread::CurrentThreadSetName(ThreadName.c_str());
 
     // Hold this strongly.
     auto this_ = MakeStrong(this);

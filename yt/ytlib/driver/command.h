@@ -4,20 +4,10 @@
 #include "public.h"
 #include "driver.h"
 
-#include <core/misc/error.h>
 #include <core/misc/mpl.h>
-
-#include <core/ytree/yson_serializable.h>
+#include <core/misc/error.h>
 #include <core/ytree/convert.h>
-
-#include <core/yson/consumer.h>
-#include <core/yson/parser.h>
-#include <core/yson/writer.h>
-
-#include <core/rpc/channel.h>
-#include <core/rpc/helpers.h>
-
-#include <ytlib/chunk_client/public.h>
+#include <core/ytree/yson_serializable.h>
 
 #include <ytlib/transaction_client/transaction_manager.h>
 
@@ -25,103 +15,10 @@
 
 #include <ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/api/connection.h>
 #include <ytlib/api/client.h>
 
 namespace NYT {
 namespace NDriver {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TRequest
-    : public virtual NYTree::TYsonSerializable
-{
-    TRequest()
-    {
-        SetKeepOptions(true);
-    }
-};
-
-typedef TIntrusivePtr<TRequest> TRequestPtr;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTransactionalRequest
-    : public virtual TRequest
-{
-    NObjectClient::TTransactionId TransactionId;
-    bool PingAncestors;
-
-    TTransactionalRequest()
-    {
-        RegisterParameter("transaction_id", TransactionId)
-            .Default(NObjectClient::NullTransactionId);
-        RegisterParameter("ping_ancestor_transactions", PingAncestors)
-            .Default(false);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TMutatingRequest
-    : public virtual TRequest
-{
-    NRpc::TMutationId MutationId;
-    bool Retry;
-
-    TMutatingRequest()
-    {
-        RegisterParameter("mutation_id", MutationId)
-            .Default(NRpc::NullMutationId);
-        RegisterParameter("retry", Retry)
-            .Default(false);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TReadOnlyRequest
-    : public virtual TRequest
-{
-    NApi::EMasterChannelKind ReadFrom;
-
-    TReadOnlyRequest()
-    {
-        RegisterParameter("read_from", ReadFrom)
-            .Default(NApi::EMasterChannelKind::LeaderOrFollower);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TSuppressableAccessTrackingRequest
-    : public virtual TRequest
-{
-    bool SuppressAccessTracking;
-    bool SuppressModificationTracking;
-
-    TSuppressableAccessTrackingRequest()
-    {
-        RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
-            .Default(false);
-        RegisterParameter("suppress_modification_tracking", SuppressModificationTracking)
-            .Default(false);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPrerequisiteRequest
-    : public virtual TRequest
-{
-    std::vector<NObjectClient::TTransactionId> PrerequisiteTransactionIds;
-
-    TPrerequisiteRequest()
-    {
-        RegisterParameter("prerequisite_transaction_ids", PrerequisiteTransactionIds)
-            .Default();
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,102 +33,60 @@ struct ICommandContext
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
 
-    virtual NYson::TYsonProducer CreateInputProducer() = 0;
-    virtual std::unique_ptr<NYson::IYsonConsumer> CreateOutputConsumer() = 0;
+    virtual void ProduceOutputValue(const NYson::TYsonString& yson) = 0;
+    virtual NYson::TYsonString ConsumeInputValue() = 0;
 
-    virtual void Reply(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICommandContext)
 
-///////////////////////////////////////////////////////////////////////////////
-
-struct ICommand
-    : public TRefCounted
-{
-    virtual void Execute(ICommandContextPtr context) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ICommand)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCommandBase
-    : public ICommand
+    : public NYTree::TYsonSerializableLite
 {
 protected:
-    ICommandContextPtr Context_ = nullptr;
-    bool Replied_ = false;
+    TCommandBase()
+    {
+        SetKeepOptions(true);
+    }
 
-
-    virtual void Prepare();
-
-    void Reply(const TError& error);
-    void Reply(const NYson::TYsonString& yson);
-    void Reply();
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TRequest>
+template <class TOptions>
 class TTypedCommandBase
-    : public virtual TCommandBase
+    : public TCommandBase
 {
-public:
-    virtual void Execute(ICommandContextPtr context)
-    {
-        Context_ = context;
-        try {
-            ParseRequest();
-
-            Prepare();
-
-            DoExecute();
-
-            // Assume empty successful reply by default.
-            if (!Replied_) {
-                Reply();
-            }
-        } catch (const std::exception& ex) {
-            Reply(ex);
-        }
-    }
-
 protected:
-    TIntrusivePtr<TRequest> Request_;
+    TOptions Options;
 
-    virtual void DoExecute() = 0;
-
-private:
-    void ParseRequest()
-    {
-        Request_ = New<TRequest>();
-        try {
-            auto parameters = Context_->Request().Parameters;
-            Request_ = NYTree::ConvertTo<TIntrusivePtr<TRequest>>(parameters);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing command arguments") << ex;
-        }
-    }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TRequest, class = void>
+template <class TOptions, class = void>
 class TTransactionalCommandBase
 { };
 
-template <class TRequest>
+template <class TOptions>
 class TTransactionalCommandBase<
-    TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TTransactionalRequest&>>::TType
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTransactionalOptions&>>::TType
 >
-    : public virtual TTypedCommandBase<TRequest>
+    : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    NTransactionClient::TTransactionPtr AttachTransaction(bool required)
+    TTransactionalCommandBase()
     {
-        const auto& transactionId = this->Request_->TransactionId;
+        this->RegisterParameter("transaction_id", this->Options.TransactionId)
+            .Optional();
+        this->RegisterParameter("ping_ancestor_transactions", this->Options.PingAncestors)
+            .Optional();
+    }
+
+    NTransactionClient::TTransactionPtr AttachTransaction(
+        bool required,
+        NTransactionClient::TTransactionManagerPtr transactionManager)
+    {
+        const auto& transactionId = this->Options.TransactionId;
         if (!transactionId) {
             if (required) {
                 THROW_ERROR_EXCEPTION("Transaction is required");
@@ -239,130 +94,112 @@ protected:
             return nullptr;
         }
 
-        auto transactionManager = this->Context_->GetClient()->GetTransactionManager();
-
         NTransactionClient::TTransactionAttachOptions options;
         options.Ping = !required;
-        options.PingAncestors = this->Request_->PingAncestors;
+        options.PingAncestors = this->Options.PingAncestors;
         return transactionManager->Attach(transactionId, options);
     }
 
-    void SetTransactionalOptions(NApi::TTransactionalOptions* options)
-    {
-        options->TransactionId = this->Request_->TransactionId;
-        options->PingAncestors = this->Request_->PingAncestors;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequest, class = void>
+template <class TOptions, class = void>
 class TMutatingCommandBase
 { };
 
-template <class TRequest>
+template <class TOptions>
 class TMutatingCommandBase <
-    TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TMutatingRequest&>>::TType
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TMutatingOptions&>>::TType
 >
-    : public virtual TTypedCommandBase<TRequest>
+    : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    void SetMutatingOptions(NApi::TMutatingOptions* options)
+    TMutatingCommandBase()
     {
-        options->MutationId = this->CurrentMutationId_;
-        ++(this->CurrentMutationId_).Parts32[0];
-
-        options->Retry = this->Request_->Retry;
+        this->RegisterParameter("mutation_id", this->Options.MutationId)
+            .Optional();
+        this->RegisterParameter("retry", this->Options.Retry)
+            .Optional();
     }
 
-private:
-    NRpc::TMutationId CurrentMutationId_;
-
-    virtual void Prepare() override
-    {
-        TTypedCommandBase<TRequest>::Prepare();
-
-        this->CurrentMutationId_ = this->Request_->MutationId
-            ? this->Request_->MutationId
-            : NRpc::GenerateMutationId();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequest, class = void>
+template <class TOptions, class = void>
 class TReadOnlyCommandBase
 { };
 
-template <class TRequest>
+template <class TOptions>
 class TReadOnlyCommandBase <
-    TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TReadOnlyRequest&>>::TType
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TReadOnlyOptions&>>::TType
 >
-    : public virtual TTypedCommandBase<TRequest>
+    : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    void SetReadOnlyOptions(NApi::TReadOnlyOptions* options)
+    TReadOnlyCommandBase()
     {
-        options->ReadFrom = this->Request_->ReadFrom;
+        this->RegisterParameter("read_from", this->Options.ReadFrom)
+            .Optional();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequest, class = void>
+template <class TOptions, class = void>
 class TSuppressableAccessTrackingCommmandBase
 { };
 
-template <class TRequest>
+template <class TOptions>
 class TSuppressableAccessTrackingCommmandBase <
-    TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TSuppressableAccessTrackingRequest&>>::TType
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSuppressableAccessTrackingOptions&>>::TType
 >
-    : public virtual TTypedCommandBase<TRequest>
+    : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    void SetSuppressableAccessTrackingOptions(NApi::TSuppressableAccessTrackingOptions* options)
+    TSuppressableAccessTrackingCommmandBase()
     {
-        options->SuppressAccessTracking = this->Request_->SuppressAccessTracking;
-        options->SuppressModificationTracking = this->Request_->SuppressModificationTracking;
+        this->RegisterParameter("suppress_access_tracking", this->Options.SuppressAccessTracking)
+            .Optional();
+        this->RegisterParameter("suppress_modification_tracking", this->Options.SuppressModificationTracking)
+            .Optional();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequest, class = void>
+template <class TOptions, class = void>
 class TPrerequisiteCommandBase
 { };
 
-template <class TRequest>
+template <class TOptions>
 class TPrerequisiteCommandBase <
-    TRequest,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TRequest&, TPrerequisiteRequest&>>::TType
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TPrerequisiteOptions&>>::TType
 >
-    : public virtual TTypedCommandBase<TRequest>
+    : public virtual TTypedCommandBase<TOptions>
 {
 protected:
-    void SetPrerequisites(NApi::TPrerequisiteOptions* options)
+    TPrerequisiteCommandBase()
     {
-        options->PrerequisiteTransactionIds = this->Request_->PrerequisiteTransactionIds;
+        this->RegisterParameter("prerequisite_transaction_ids", this->Options.PrerequisiteTransactionIds)
+            .Optional();
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TRequest>
+template <class TOptions>
 class TTypedCommand
-    : public virtual TTypedCommandBase<TRequest>
-    , public TTransactionalCommandBase<TRequest>
-    , public TMutatingCommandBase<TRequest>
-    , public TReadOnlyCommandBase<TRequest>
-    , public TSuppressableAccessTrackingCommmandBase<TRequest>
-    , public TPrerequisiteCommandBase<TRequest>
+    : public virtual TTypedCommandBase<TOptions>
+    , public TTransactionalCommandBase<TOptions>
+    , public TMutatingCommandBase<TOptions>
+    , public TReadOnlyCommandBase<TOptions>
+    , public TSuppressableAccessTrackingCommmandBase<TOptions>
+    , public TPrerequisiteCommandBase<TOptions>
 { };
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDriver
 } // namespace NYT

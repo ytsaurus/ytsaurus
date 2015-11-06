@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <queue>
 
+#include <util/system/compiler.h>
 #include <util/system/atomic.h>
 #include <util/system/defaults.h>
 #include <util/system/spinlock.h>
@@ -91,7 +92,7 @@
 
 namespace std {
 
-#ifdef __GNUC__
+#if defined(__GNUC__)
 
 #if !defined(__clang__) && __GNUC__ == 4 && __GNUC_MINOR__ < 9
 // As of now, GCC does not support make_unique.
@@ -103,6 +104,7 @@ std::unique_ptr<TResult> make_unique(TArgs&& ...args)
 }
 #endif
 
+// std::aligned_union is not available in early versions of libstdc++.
 #if defined(__GLIBCXX__) && __GLIBCXX__ < 20150422
 
 // As of now, GCC does not have std::aligned_union.
