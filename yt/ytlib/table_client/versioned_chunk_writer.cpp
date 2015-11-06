@@ -23,6 +23,8 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NTransactionClient;
+using namespace NObjectClient;
+using namespace NApi;
 using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,7 +358,8 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterOptionsPtr options,
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
-    NApi::IClientPtr client,
+    IClientPtr client,
+    TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     IThroughputThrottlerPtr throttler,
@@ -381,6 +384,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
         config,
         options,
         client,
+        cellTag,
         transactionId,
         parentChunkListId,
         createChunkWriter,

@@ -31,6 +31,7 @@ public:
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         NApi::IClientPtr client,
+        NObjectClient::TCellTag cellTag,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         NConcurrency::IThroughputThrottlerPtr throttler,
@@ -82,6 +83,7 @@ private:
     const TMultiChunkWriterConfigPtr Config_;
     const TMultiChunkWriterOptionsPtr Options_;
     const NApi::IClientPtr Client_;
+    const NObjectClient::TCellTag CellTag_;
     const NTransactionClient::TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
@@ -123,6 +125,7 @@ public:
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         NApi::IClientPtr client,
+        NObjectClient::TCellTag cellTag,
         const NTransactionClient::TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISpecificChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
@@ -132,6 +135,7 @@ public:
             config,
             options,
             client,
+            cellTag,
             transactionId,
             parentChunkListId,
             throttler,

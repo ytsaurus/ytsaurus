@@ -4,6 +4,8 @@
 #include "job.h"
 #include "user_job_io_detail.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/table_client/name_table.h>
 #include <ytlib/table_client/partitioner.h>
 #include <ytlib/table_client/schemaless_chunk_writer.h>
@@ -18,6 +20,7 @@ namespace NJobProxy {
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NChunkClient;
+using namespace NObjectClient;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 
@@ -27,7 +30,7 @@ class TPartitionMapJobIO
     : public TUserJobIOBase
 {
 public:
-    TPartitionMapJobIO(IJobHost* host)
+    explicit TPartitionMapJobIO(IJobHost* host)
         : TUserJobIOBase(host)
     { }
 
@@ -52,6 +55,7 @@ public:
             nameTable,
             keyColumns,
             Host_->GetClient(),
+            CellTagFromId(chunkListId),
             transactionId,
             chunkListId,
             std::move(partitioner));

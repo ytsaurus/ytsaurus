@@ -610,6 +610,7 @@ public:
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
         IClientPtr client,
+        TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
@@ -621,6 +622,7 @@ public:
             config,
             options,
             client,
+            cellTag,
             transactionId,
             parentChunkListId,
             createChunkWriter,
@@ -655,6 +657,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const TKeyColumns& keyColumns,
     TOwningKey lastKey,
     IClientPtr client,
+    TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     bool reorderValues,
@@ -682,6 +685,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
         config,
         options,
         client,
+        cellTag,
         transactionId,
         parentChunkListId,
         createChunkWriter,
@@ -709,6 +713,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     IClientPtr client,
+    TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     std::unique_ptr<IPartitioner> partitioner,
@@ -740,6 +745,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         config,
         options,
         client,
+        cellTag,
         transactionId,
         parentChunkListId,
         createChunkWriter,
@@ -764,7 +770,7 @@ class TSchemalessTableWriter
 public:
     TSchemalessTableWriter(
         TTableWriterConfigPtr config,
-        TRemoteWriterOptionsPtr options,
+        TTableWriterOptionsPtr options,
         const TRichYPath& richPath,
         TNameTablePtr nameTable,
         const TKeyColumns& keyColumns,
@@ -815,7 +821,7 @@ private:
 
 TSchemalessTableWriter::TSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    TRemoteWriterOptionsPtr options,
+    TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
@@ -825,7 +831,7 @@ TSchemalessTableWriter::TSchemalessTableWriter(
     IBlockCachePtr blockCache)
     : Logger(TableClientLogger)
     , Config_(config)
-    , Options_(New<TTableWriterOptions>())
+    , Options_(options)
     , RichPath_(richPath)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
@@ -1071,6 +1077,7 @@ void TSchemalessTableWriter::DoOpen()
         KeyColumns_,
         LastKey_,
         Client_,
+        CellTag_,
         UploadTransaction_->GetId(),
         ChunkListId_,
         true,
@@ -1134,7 +1141,7 @@ bool TSchemalessTableWriter::IsSorted() const
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    TRemoteWriterOptionsPtr options,
+    TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,

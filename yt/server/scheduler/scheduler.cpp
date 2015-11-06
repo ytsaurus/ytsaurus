@@ -162,7 +162,7 @@ public:
         auto nameTable = New<TNameTable>();
         EventLogWriter_ = CreateSchemalessBufferedTableWriter(
             Config_->EventLog,
-            New<TRemoteWriterOptions>(),
+            New<TTableWriterOptions>(),
             Bootstrap_->GetMasterClient(),
             nameTable,
             Config_->EventLog->Path);

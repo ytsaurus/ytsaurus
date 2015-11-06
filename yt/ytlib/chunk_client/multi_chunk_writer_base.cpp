@@ -47,6 +47,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     IClientPtr client,
+    TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     IThroughputThrottlerPtr throttler,
@@ -55,6 +56,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , Config_(NYTree::CloneYsonSerializable(config))
     , Options_(options)
     , Client_(client)
+    , CellTag_(cellTag)
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
@@ -62,7 +64,6 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , NodeDirectory_(New<TNodeDirectory>())
 {
     YCHECK(Config_);
-    YCHECK(ParentChunkListId_);
 
     Config_->UploadReplicationFactor = std::min(
         Options_->ReplicationFactor,
@@ -169,7 +170,7 @@ void TNontemplateMultiChunkWriterBase::InitSession()
     CurrentSession_.UnderlyingWriter = CreateConfirmingWriter(
         Config_,
         Options_,
-        CellTagFromId(ParentChunkListId_),
+        CellTag_,
         TransactionId_,
         ParentChunkListId_,
         NodeDirectory_,
