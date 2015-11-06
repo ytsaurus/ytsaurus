@@ -52,6 +52,7 @@ public:
     TConfirmingWriter(
         TMultiChunkWriterConfigPtr config,
         TMultiChunkWriterOptionsPtr options,
+        TCellTag cellTag,
         const TTransactionId& transactionId,
         const TChunkListId& parentChunkListId,
         TNodeDirectoryPtr nodeDirectory,
@@ -75,16 +76,15 @@ public:
     virtual TChunkId GetChunkId() const override;
 
 private:
-    TMultiChunkWriterConfigPtr Config_;
-    TMultiChunkWriterOptionsPtr Options_;
-
-    const NTransactionClient::TTransactionId TransactionId_;
+    const TMultiChunkWriterConfigPtr Config_;
+    const TMultiChunkWriterOptionsPtr Options_;
+    const TCellTag CellTag_;
+    const TTransactionId TransactionId_;
     const TChunkListId ParentChunkListId_;
-
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    NApi::IClientPtr Client_;
-    IBlockCachePtr BlockCache_;
-    NConcurrency::IThroughputThrottlerPtr Throttler_;
+    const TNodeDirectoryPtr NodeDirectory_;
+    const IClientPtr Client_;
+    const IBlockCachePtr BlockCache_;
+    const IThroughputThrottlerPtr Throttler_;
 
     IChunkWriterPtr UnderlyingWriter_;
 
@@ -109,14 +109,16 @@ private:
 TConfirmingWriter::TConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    const NTransactionClient::TTransactionId& transactionId,
+    TCellTag cellTag,
+    const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
-    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NApi::IClientPtr client,
+    TNodeDirectoryPtr nodeDirectory,
+    IClientPtr client,
     IBlockCachePtr blockCache,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler)
     : Config_(config)
     , Options_(options)
+    , CellTag_(cellTag)
     , TransactionId_(transactionId)
     , ParentChunkListId_(parentChunkListId)
     , NodeDirectory_(nodeDirectory)
@@ -227,7 +229,7 @@ TChunkId TConfirmingWriter::CreateChunk() const
     try {
         return NChunkClient::CreateChunk(
             Client_,
-            CellTagFromId(ParentChunkListId_),
+            CellTag_,
             Options_,
             TransactionId_,
             ParentChunkListId_,
@@ -301,8 +303,7 @@ void TConfirmingWriter::DoClose()
         ChunkMeta_.extensions(),
         masterMetaTags);
 
-    auto cellTag = CellTagFromId(ChunkId_);
-    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CellTag_);
     TObjectServiceProxy objectProxy(channel);
     
     auto req = TChunkYPathProxy::Confirm(FromObjectId(ChunkId_));
@@ -334,16 +335,18 @@ void TConfirmingWriter::DoClose()
 IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
-    const NTransactionClient::TTransactionId& transactionId,
+    TCellTag cellTag,
+    const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
-    NApi::IClientPtr client,
+    IClientPtr client,
     IBlockCachePtr blockCache,
-    NConcurrency::IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler)
 {
     return New<TConfirmingWriter>(
         config,
         options,
+        cellTag,
         transactionId,
         parentChunkListId,
         nodeDirectory,

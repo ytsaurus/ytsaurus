@@ -18,6 +18,8 @@
 
 #include <ytlib/chunk_client/chunk_spec.pb.h>
 
+#include <ytlib/object_client/helpers.h>
+
 #include <core/concurrency/scheduler.h>
 
 #include <core/misc/address.h>
@@ -31,9 +33,10 @@ namespace NChunkClient {
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NErasure;
-using namespace NNodeTrackerClient;
 using namespace NApi;
+using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -56,9 +59,10 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     , ParentChunkListId_(parentChunkListId)
     , Throttler_(throttler)
     , BlockCache_(blockCache)
-    , NodeDirectory_(New<NNodeTrackerClient::TNodeDirectory>())
+    , NodeDirectory_(New<TNodeDirectory>())
 {
     YCHECK(Config_);
+    YCHECK(ParentChunkListId_);
 
     Config_->UploadReplicationFactor = std::min(
         Options_->ReplicationFactor,
@@ -165,6 +169,7 @@ void TNontemplateMultiChunkWriterBase::InitSession()
     CurrentSession_.UnderlyingWriter = CreateConfirmingWriter(
         Config_,
         Options_,
+        CellTagFromId(ParentChunkListId_),
         TransactionId_,
         ParentChunkListId_,
         NodeDirectory_,

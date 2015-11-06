@@ -21,6 +21,7 @@ namespace NChunkClient {
 IChunkWriterPtr CreateConfirmingWriter(
     TMultiChunkWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
+    NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
