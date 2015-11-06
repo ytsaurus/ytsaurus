@@ -281,7 +281,7 @@ private:
             auto cellTag = pair.first;
             auto& entry = pair.second;
             entry.Index = index++;
-            ValidateSecondaryCellTag(cellTag);
+            ValidateCellTag(cellTag);
         }
 
         if (RegisteredAtPrimaryMaster_) {
@@ -440,11 +440,24 @@ private:
 
     void ValidateSecondaryCellTag(TCellTag cellTag)
     {
-        for (auto cellConfig : Bootstrap_->GetConfig()->SecondaryMasters) {
+        auto config = Bootstrap_->GetConfig();
+        for (auto cellConfig : config->SecondaryMasters) {
             if (CellTagFromId(cellConfig->CellId) == cellTag)
                 return;
         }
         LOG_FATAL("Unknown secondary master cell tag %v", cellTag);
+    }
+
+    void ValidateCellTag(TCellTag cellTag)
+    {
+        auto config = Bootstrap_->GetConfig();
+        if (CellTagFromId(config->PrimaryMaster->CellId) == cellTag)
+            return;
+        for (auto cellConfig : config->SecondaryMasters) {
+            if (CellTagFromId(cellConfig->CellId) == cellTag)
+                return;
+        }
+        LOG_FATAL("Unknown master cell tag %v", cellTag);
     }
 
 
