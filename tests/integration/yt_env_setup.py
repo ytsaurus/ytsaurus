@@ -11,12 +11,7 @@ import sys
 import logging
 import uuid
 import shutil
-import time
 from time import sleep
-<<<<<<< HEAD
-=======
-from functools import wraps
->>>>>>> origin/prestable/0.17.4
 from threading import Thread
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
@@ -65,11 +60,7 @@ class Checker(Thread):
         self._active = True
         while self._active:
             self._check_function()
-<<<<<<< HEAD
-            time.sleep(1.0)
-=======
             sleep(1.0)
->>>>>>> origin/prestable/0.17.4
 
     def stop(self):
         self._active = False
