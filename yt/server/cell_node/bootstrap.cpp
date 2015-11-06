@@ -167,7 +167,7 @@ void TBootstrap::DoRun()
 
     auto localAddresses = GetLocalAddresses();
 
-    LOG_INFO("Starting node (LocalAddresses: [%v], MasterAddresses: [%v])",
+    LOG_INFO("Starting node (LocalAddresses: [%v], PrimaryMasterAddresses: [%v])",
         JoinToString(GetValues(localAddresses)),
         JoinToString(Config->ClusterConnection->PrimaryMaster->Addresses));
 
