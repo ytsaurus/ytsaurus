@@ -31,6 +31,7 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/schema.cpp
   ${CMAKE_CURRENT_LIST_DIR}/sequential_reader.cpp
   ${CMAKE_CURRENT_LIST_DIR}/throttler_manager.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_teleporter.cpp
 )
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/block_cache.h
@@ -80,6 +81,7 @@ set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/sequential_reader.h
   ${CMAKE_CURRENT_LIST_DIR}/throttler_manager.h
   ${CMAKE_CURRENT_LIST_DIR}/writer_base.h
+  ${CMAKE_CURRENT_LIST_DIR}/chunk_teleporter.h
 )
 
 list(APPEND YT_SOURCE_FILES

@@ -490,5 +490,24 @@ DEFINE_REFCOUNTED_TYPE(TChunkScraperConfig)
 
 ///////////////////////////////////////////////////////////////////////////////
 
+class TChunkTeleporterConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    //! Maximum number of chunks to export/import per request.
+    int MaxTeleportChunksPerRequest;
+
+    TChunkTeleporterConfig()
+    {
+        RegisterParameter("max_teleport_chunks_per_request", MaxTeleportChunksPerRequest)
+            .GreaterThan(0)
+            .Default(10000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NChunkClient
 } // namespace NYT

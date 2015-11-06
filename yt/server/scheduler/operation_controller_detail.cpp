@@ -5,7 +5,6 @@
 #include "chunk_pool.h"
 #include "helpers.h"
 #include "master_connector.h"
-#include "chunk_teleporter.h"
 
 #include <ytlib/transaction_client/helpers.h>
 
@@ -15,6 +14,7 @@
 #include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/chunk_scraper.h>
+#include <ytlib/chunk_client/chunk_teleporter.h>
 #include <ytlib/chunk_client/chunk_slice.h>
 #include <ytlib/chunk_client/data_statistics.h>
 #include <ytlib/chunk_client/helpers.h>

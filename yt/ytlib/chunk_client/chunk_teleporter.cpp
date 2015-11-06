@@ -1,29 +1,26 @@
 #include "stdafx.h"
 #include "chunk_teleporter.h"
 #include "config.h"
+#include "chunk_service_proxy.h"
 
 #include <ytlib/api/client.h>
 
 #include <ytlib/object_client/helpers.h>
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-
 #include <core/concurrency/scheduler.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NChunkClient {
 
 using namespace NApi;
-using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
-using namespace NChunkClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////
 
 TChunkTeleporter::TChunkTeleporter(
-    TSchedulerConfigPtr config,
+    TChunkTeleporterConfigPtr config,
     IClientPtr client,
     IInvokerPtr invoker,
     const TTransactionId& transactionId,
@@ -143,6 +140,6 @@ void TChunkTeleporter::Import()
 
 ////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NChunkClient
 } // namespace NYT
 

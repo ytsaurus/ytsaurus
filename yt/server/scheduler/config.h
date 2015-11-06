@@ -281,6 +281,7 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 class TSchedulerConfig
     : public TFairShareStrategyConfig
     , public NChunkClient::TChunkScraperConfig
+    , public NChunkClient::TChunkTeleporterConfig
 {
 public:
     //! Number of threads for running controllers invokers.
@@ -373,9 +374,6 @@ public:
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
     int SafeOnlineNodeCount;
-
-    //! Maximum number of chunks to export/import per request.
-    int MaxTeleportChunksPerRequest;
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
@@ -520,9 +518,6 @@ public:
             .GreaterThanOrEqual(0)
             .Default(1);
 
-        RegisterParameter("max_teleport_chunks_per_request", MaxTeleportChunksPerRequest)
-            .GreaterThan(0)
-            .Default(10000);
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .GreaterThan(0)
             .Default(10000);
