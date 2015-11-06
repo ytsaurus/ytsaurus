@@ -68,19 +68,6 @@ def get_master_config():
         default_transaction_timeout = 300000;
     };
 
-<<<<<<< HEAD:python/yt/environment/default_configs.py
-=======
-    hydra_manager = {
-        leader_lease_check_period = 1000;
-        leader_lease_timeout = 2000;
-        disable_leader_lease_grace_delay = true;
-        response_keeper = {
-            expiration_time = 25000;
-            warmup_time = 30000;
-        };
-    };
-
->>>>>>> origin/prestable/0.17.4:python/yt/environment/configs.py
     chunk_manager = {
         chunk_refresh_delay = 300;
         chunk_refresh_period = 10;

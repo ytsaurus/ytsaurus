@@ -287,7 +287,7 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
             for config in configs[cell_index]:
                 config["hydra_manager"] = {
                     "leader_lease_check_period": 1000,
-                    "leader_lease_timeout": 3000,
+                    "leader_lease_timeout": 2000,
                     "disable_leader_lease_grace_delay": True,
                     "response_keeper": {
                         "expiration_time": 25000,
@@ -341,7 +341,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
                 config["hydra_manager"] = {
                     "leader_lease_check_period": 1000,
-                    "leader_lease_timeout": 3000,
+                    "leader_lease_timeout": 2000,
                     "disable_leader_lease_grace_delay": True,
                     "response_keeper": {
                         "expiration_time": 25000,
