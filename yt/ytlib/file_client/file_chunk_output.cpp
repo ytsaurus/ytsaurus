@@ -46,9 +46,9 @@ using namespace NApi;
 
 TFileChunkOutput::TFileChunkOutput(
     TFileWriterConfigPtr config,
-    NChunkClient::TMultiChunkWriterOptionsPtr options,
+    TMultiChunkWriterOptionsPtr options,
     NApi::IClientPtr client,
-    const NObjectClient::TTransactionId& transactionId,
+    const TTransactionId& transactionId,
     i64 sizeLimit)
     : Config(config)
     , Options(options)
@@ -57,8 +57,8 @@ TFileChunkOutput::TFileChunkOutput(
     , SizeLimit(sizeLimit)
     , Logger(FileClientLogger)
 {
-    YCHECK(config);
-    YCHECK(client);
+    YCHECK(Config);
+    YCHECK(Client);
 
     LOG_INFO("File chunk output opened (TransactionId: %v, Account: %v, ReplicationFactor: %v, UploadReplicationFactor: %v)",
         TransactionId,
@@ -70,6 +70,7 @@ TFileChunkOutput::TFileChunkOutput(
     ChunkWriter = CreateConfirmingWriter(
         Config,
         Options,
+        Client->GetConnection()->GetPrimaryMasterCellTag(),
         TransactionId,
         NullChunkListId,
         nodeDirectory,
