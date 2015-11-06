@@ -100,8 +100,12 @@ using namespace NTabletClient::NProto;
 using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NScheduler;
 using namespace NHive;
+
+using NChunkClient::TReadLimit;
+using NChunkClient::TReadRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1177,6 +1181,11 @@ private:
         return ObjectProxies_[options.ReadFrom].get();
     }
 
+    TObjectServiceProxy* GetReadProxy()
+    {
+        return ObjectProxies_[EMasterChannelKind::LeaderOrFollower].get();
+    }
+    
     TObjectServiceProxy* GetWriteProxy()
     {
         return ObjectProxies_[EMasterChannelKind::Leader].get();
@@ -1745,14 +1754,14 @@ private:
         const TYPath& dstPath,
         TConcatenateNodesOptions options)
     {
-        const auto& objectProxy = ObjectProxies_[EMasterChannelKind::Leader];
-
         try {
-            // Get source objects ids.
-            std::vector<NObjectClient::TObjectId> srcIds;
-            NObjectClient::TObjectId dstId;
+            // Get objects ids.
+            std::vector<TObjectId> srcIds;
+            TObjectId dstId;
             {
-                auto batchReq = objectProxy->ExecuteBatch();
+                auto* proxy = GetReadProxy();
+
+                auto batchReq = proxy->ExecuteBatch();
                 auto requestAttributes = [&] (const Stroka& key, const TYPath& path) {
                     auto req = TObjectYPathProxy::GetBasicAttributes(path);
                     SetTransactionId(req, options, true);
@@ -1809,10 +1818,14 @@ private:
                 }
             }
 
+            auto dstIdPath = FromObjectId(dstId);
+
             // Get source chunk ids.
             std::vector<TChunkId> chunkIds;
             {
-                auto batchReq = objectProxy->ExecuteBatch();
+                auto* proxy = GetReadProxy();
+
+                auto batchReq = proxy->ExecuteBatch();
                 for (const auto& srcId : srcIds) {
                     auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(srcId));
                     SetTransactionId(req, options, true);
@@ -1837,54 +1850,72 @@ private:
                 }
             }
 
-            // Start outer transaction.
-            ITransactionPtr transaction;
+            // Begin upload.
+            TTransactionId uploadTransactionId;
             {
-                TTransactionStartOptions startOptions;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set(
-                    "title",
-                    Format("Concatenating [%v] to %v",
-                        JoinToString(srcPaths),
-                        dstPath));
-                startOptions.Attributes = std::move(attributes);
-                startOptions.ParentId = options.TransactionId;
-                auto startTxFuture = StartTransaction(
-                    NTransactionClient::ETransactionType::Master,
-                    startOptions);
-                transaction = WaitFor(startTxFuture)
-                    .ValueOrThrow();
+                auto* proxy = GetWriteProxy();
+
+                auto req = TChunkOwnerYPathProxy::BeginUpload(dstIdPath);
+                req->set_update_mode(static_cast<int>(options.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
+                req->set_lock_mode(static_cast<int>(options.Append ? ELockMode::Shared : ELockMode::Exclusive));
+                req->set_upload_transaction_title(Format("Concatenating [%v] to %v",
+                    JoinToString(srcPaths),
+                    dstPath));
+                req->set_upload_transaction_timeout(TransactionManager_->GetConfig()->DefaultTransactionTimeout.MicroSeconds());
+                GenerateMutationId(req, options);
+                SetTransactionId(req, options, true);
+
+                auto rspOrError = WaitFor(proxy->Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error starting upload to %v", dstPath);
+                const auto& rsp = rspOrError.Value();
+
+                uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
             }
 
-            // XXX(babenko)
-            // Prepare for update.
-            //TChunkListId outputChunkListId;
-            //{
-            //    auto req = TTableYPathProxy::PrepareForUpdate(dstPath);
-            //    NCypressClient::SetTransactionId(req, transaction->GetId());
-            //    GenerateMutationId(req, options);
-            //    req->set_update_mode(static_cast<int>(options.Append ? EUpdateMode::Append : EUpdateMode::Overwrite));
-            //    auto rspOrError = WaitFor(objectProxy->Execute(req));
-            //    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to prepare %v for update", dstPath);
-            //    const auto& rsp = rspOrError.Value();
-            //    outputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            //}
-            //
-            //// Attach chunk ids to chunk list.
-            //{
-            //    auto req = TChunkListYPathProxy::Attach(FromObjectId(outputChunkListId));
-            //    NCypressClient::SetTransactionId(req, transaction->GetId());
-            //    GenerateMutationId(req, options);
-            //    for (const auto& chunkId : chunkIds) {
-            //        ToProto(req->add_children_ids(), chunkId);
-            //    }
-            //
-            //    auto rspOrError = WaitFor(objectProxy->Execute(req));
-            //    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to attach chunks");
-            //}
+            // Get upload params.
+            TChunkListId chunkListId;
+            {
+                auto* proxy = GetReadProxy();
 
-            WaitFor(transaction->Commit())
-                .ThrowOnError();
+                auto req = TChunkOwnerYPathProxy::GetUploadParams(dstIdPath);
+                NCypressClient::SetTransactionId(req, uploadTransactionId);
+
+                auto rspOrError = WaitFor(proxy->Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting upload parameters for %v", dstPath);
+                const auto& rsp = rspOrError.Value();
+
+                chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+            }
+            
+            // Attach chunks to chunk list.
+            TDataStatistics dataStatistics;
+            {
+                auto* proxy = GetWriteProxy();
+                
+                auto req = TChunkListYPathProxy::Attach(FromObjectId(chunkListId));
+                ToProto(req->mutable_children_ids(), chunkIds);
+                req->set_request_statistics(true);
+                GenerateMutationId(req, options);
+            
+                auto rspOrError = WaitFor(proxy->Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error attaching chunks to %v", dstPath);
+                const auto& rsp = rspOrError.Value();
+
+                dataStatistics = rsp->statistics();
+            }
+
+            // End upload.
+            {
+                auto* proxy = GetWriteProxy();
+
+                auto req = TChunkOwnerYPathProxy::EndUpload(dstIdPath);
+                *req->mutable_statistics() = dataStatistics;
+                NCypressClient::SetTransactionId(req, uploadTransactionId);
+                GenerateMutationId(req, options);
+                
+                auto rspOrError = WaitFor(proxy->Execute(req));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error finishing upload to %v", dstPath);
+            }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to concatenate [%v] to %v",
                 JoinToString(srcPaths),
