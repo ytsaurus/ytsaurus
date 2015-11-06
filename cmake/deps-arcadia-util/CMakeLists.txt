@@ -1,3 +1,12 @@
+set( CHARSET_BASE ${CMAKE_SOURCE_DIR}/util/charset )
+set( CHARSET_SRCS
+  ${CHARSET_BASE}/stroka.cpp
+  #${CHARSET_BASE}/iconv.cpp (uses iconv)
+  #${CHARSET_BASE}/generated/cp_data.cpp (uses iconv)
+  #${CHARSET_BASE}/generated/encrec_data.cpp (uses iconv)
+  #${CHARSET_BASE}/generated/unidata.cpp (uses iconv)
+)
+
 set( STRING_BASE ${CMAKE_SOURCE_DIR}/util/string )
 set( STRING_SRCS
   ${STRING_BASE}/ascii.cpp
@@ -9,7 +18,7 @@ set( STRING_SRCS
  #${STRING_BASE}/encodexml.cpp (uses charset/)
   ${STRING_BASE}/escape.cpp
  #${STRING_BASE}/htmlentity.cpp (uses charset/)
-  ${STRING_BASE}/http.cpp
+  ${STRING_BASE}/hex.cpp
   ${STRING_BASE}/kmp.cpp
  #${STRING_BASE}/pcdata.cpp (uses charset/)
   ${STRING_BASE}/printf.cpp
@@ -37,13 +46,13 @@ set( GENERIC_SRCS
   ${GENERIC_BASE}/stroka_stdio.cpp
   ${GENERIC_BASE}/yexception.cpp
   ${GENERIC_BASE}/ymath.cpp
+  ${GENERIC_BASE}/hash.cpp
+  ${GENERIC_BASE}/hash_primes.cpp
 )
 
 set( DIGEST_BASE ${CMAKE_SOURCE_DIR}/util/digest )
 set( DIGEST_SRCS
   ${DIGEST_BASE}/city.cpp
-  ${DIGEST_BASE}/crc.cpp
-  ${DIGEST_BASE}/md5.cpp
   ${DIGEST_BASE}/murmur.cpp
 )
 
@@ -75,7 +84,6 @@ set( SYSTEM_SRCS
   ${SYSTEM_BASE}/mktemp.cpp
   ${SYSTEM_BASE}/mlock.cpp
   ${SYSTEM_BASE}/mutex.cpp
-  ${SYSTEM_BASE}/oldfile.cpp
   ${SYSTEM_BASE}/pipe.cpp
   ${SYSTEM_BASE}/progname.cpp
   ${SYSTEM_BASE}/protect.cpp
@@ -92,6 +100,8 @@ set( SYSTEM_SRCS
   ${SYSTEM_BASE}/user.cpp
   ${SYSTEM_BASE}/yassert.cpp
   ${SYSTEM_BASE}/yield.cpp
+  ${SYSTEM_BASE}/src_location.cpp
+  ${SYSTEM_BASE}/src_root.cpp
 )
 
 if (WIN32)
@@ -114,38 +124,24 @@ set( STREAM_BASE ${CMAKE_SOURCE_DIR}/util/stream )
 set( STREAM_SRCS
   ${STREAM_BASE}/buffer.cpp
   ${STREAM_BASE}/buffered.cpp
- #${STREAM_BASE}/bzip2.cpp (uses contrib/libbz2)
-  ${STREAM_BASE}/chunk.cpp
+ #${STREAM_BASE}/bzip2.cpp (uses contrib/libbz2)p
   ${STREAM_BASE}/debug.cpp
-  ${STREAM_BASE}/factory.cpp
   ${STREAM_BASE}/file.cpp
   ${STREAM_BASE}/format.cpp
-  ${STREAM_BASE}/helpers.cpp
-  ${STREAM_BASE}/http.cpp
   ${STREAM_BASE}/input.cpp
-  ${STREAM_BASE}/lz.cpp
+  ${STREAM_BASE}/length.cpp
  #${STREAM_BASE}/lzma.cpp (uses contrib/lzmasdk)
-  ${STREAM_BASE}/lzop.cpp
   ${STREAM_BASE}/mem.cpp
   ${STREAM_BASE}/multi.cpp
   ${STREAM_BASE}/null.cpp
   ${STREAM_BASE}/output.cpp
   ${STREAM_BASE}/pipe.cpp
   ${STREAM_BASE}/printf.cpp
-  ${STREAM_BASE}/stack_file.cpp
   ${STREAM_BASE}/str.cpp
   ${STREAM_BASE}/tee.cpp
   ${STREAM_BASE}/zerocopy.cpp
   ${STREAM_BASE}/zlib.cpp
-)
-
-set( CONFIG_BASE ${CMAKE_SOURCE_DIR}/util/config )
-set( CONFIG_SRCS
-  ${CONFIG_BASE}/last_getopt.cpp
-  ${CONFIG_BASE}/opt2.cpp
-  ${CONFIG_BASE}/opt.cpp
-  ${CONFIG_BASE}/posix_getopt.cpp
-  ${CONFIG_BASE}/ygetopt.cpp
+  ${STREAM_BASE}/tempbuf.cpp
 )
 
 set( NETWORK_BASE ${CMAKE_SOURCE_DIR}/util/network )
@@ -168,6 +164,7 @@ set( FOLDER_SRCS
   ${FOLDER_BASE}/iterator.cpp
   ${FOLDER_BASE}/path.cpp
   ${FOLDER_BASE}/tempdir.cpp
+  ${FOLDER_BASE}/pathsplit.cpp
 )
 
 if(WIN32)
@@ -199,22 +196,15 @@ set( THREAD_SRCS
   ${THREAD_BASE}/tasks.cpp
 )
 
-set( GREEN_BASE ${CMAKE_SOURCE_DIR}/util/green )
-set( GREEN_SRCS
-  ${GREEN_BASE}/impl.cpp
-  ${GREEN_BASE}/listen.cpp
-  ${GREEN_BASE}/poller.cpp
-  ${GREEN_BASE}/sockpool.cpp
-  ${GREEN_BASE}/stack.cpp
-)
-
 set( RANDOM_BASE ${CMAKE_SOURCE_DIR}/util/random )
 set( RANDOM_SRCS
   ${RANDOM_BASE}/entropy.cpp
   ${RANDOM_BASE}/mersenne.cpp
+  ${RANDOM_BASE}/mersenne32.cpp
+  ${RANDOM_BASE}/mersenne64.cpp
   ${RANDOM_BASE}/randcpp.cpp
   ${RANDOM_BASE}/random.cpp
-  ${RANDOM_BASE}/rc4.cpp
+  ${RANDOM_BASE}/fast.cpp
 )
 
 set( DRAFT_BASE ${CMAKE_SOURCE_DIR}/util/draft )
@@ -241,28 +231,22 @@ set( DRAFT_SRCS
 set( ROOT_BASE ${CMAKE_SOURCE_DIR}/util )
 set( ROOT_SRCS
   ${ROOT_BASE}/ffb.cpp
-  ${ROOT_BASE}/fileptr.cpp
-  ${ROOT_BASE}/httpcodes.cpp
-  ${ROOT_BASE}/httpdate.cpp
-  ${ROOT_BASE}/mbitmap.cpp
-  ${ROOT_BASE}/str_hash.cpp
   ${ROOT_BASE}/ysafeptr.cpp
   ${ROOT_BASE}/ysaveload.cpp
 )
 
 add_library( ytext-arcadia-util STATIC
+  ${CHARSET_SRCS}
   ${STRING_SRCS}
   ${GENERIC_SRCS}
   ${DIGEST_SRCS}
   ${SYSTEM_SRCS}
   ${MEMORY_SRCS}
   ${STREAM_SRCS}
-  ${CONFIG_SRCS}
   ${NETWORK_SRCS}
   ${FOLDER_SRCS}
   ${DATETIME_SRCS}
   ${THREAD_SRCS}
-  ${GREEN_SRCS}
   ${RANDOM_SRCS}
   ${DRAFT_SRCS}
   ${ROOT_SRCS}

@@ -625,13 +625,20 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     Logger.AddTag("CellId: %v", CellManager_->GetCellId());
 
     BuildingSnapshot_.clear();
-    Reset();
+    AutomatonVersion_ = TVersion();
+    StopEpoch();
 }
 
-void TDecoratedAutomaton::OnStartLeading()
+void TDecoratedAutomaton::Initialize()
+{
+    AutomatonInvoker_->Invoke(BIND(&IAutomaton::Clear, Automaton_));
+}
+
+void TDecoratedAutomaton::OnStartLeading(TEpochContextPtr epochContext)
 {
     YCHECK(State_ == EPeerState::Stopped);
     State_ = EPeerState::LeaderRecovery;
+    StartEpoch(epochContext);
 }
 
 void TDecoratedAutomaton::OnLeaderRecoveryComplete()
@@ -645,13 +652,14 @@ void TDecoratedAutomaton::OnStopLeading()
 {
     YCHECK(State_ == EPeerState::Leading || State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Stopped;
-    Reset();
+    StopEpoch();
 }
 
-void TDecoratedAutomaton::OnStartFollowing()
+void TDecoratedAutomaton::OnStartFollowing(TEpochContextPtr epochContext)
 {
     YCHECK(State_ == EPeerState::Stopped);
     State_ = EPeerState::FollowerRecovery;
+    StartEpoch(epochContext);
 }
 
 void TDecoratedAutomaton::OnFollowerRecoveryComplete()
@@ -665,7 +673,7 @@ void TDecoratedAutomaton::OnStopFollowing()
 {
     YCHECK(State_ == EPeerState::Following || State_ == EPeerState::FollowerRecovery);
     State_ = EPeerState::Stopped;
-    Reset();
+    StopEpoch();
 }
 
 IInvokerPtr TDecoratedAutomaton::CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker)
@@ -687,16 +695,6 @@ IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return SystemInvoker_;
-}
-
-void TDecoratedAutomaton::Clear()
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    Automaton_->Clear();
-    Reset();
-    AutomatonVersion_ = TVersion();
-    CommittedVersion_ = TVersion();
 }
 
 TFuture<void> TDecoratedAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -851,7 +849,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
     return SnapshotParamsPromise_;
 }
 
-TFuture<void> TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext)
+TFuture<void> TDecoratedAutomaton::RotateChangelog()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -861,7 +859,7 @@ TFuture<void> TDecoratedAutomaton::RotateChangelog(TEpochContextPtr epochContext
         loggedVersion);
 
     return BIND(&TDecoratedAutomaton::DoRotateChangelog, MakeStrong(this))
-        .AsyncVia(epochContext->EpochUserAutomatonInvoker)
+        .AsyncVia(EpochContext_->EpochUserAutomatonInvoker)
         .Run();
 }
 
@@ -876,7 +874,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
     meta.set_prev_record_count(Changelog_->GetRecordCount());
 
     auto loggedVersion = GetLoggedVersion();
-    auto asyncNewChangelog = ChangelogStore_->CreateChangelog(
+    auto asyncNewChangelog = EpochContext_->ChangelogStore->CreateChangelog(
         loggedVersion.SegmentId + 1,
         meta);
     Changelog_ = WaitFor(asyncNewChangelog)
@@ -886,11 +884,11 @@ void TDecoratedAutomaton::DoRotateChangelog()
     LOG_INFO("Changelog rotated");
 }
 
-void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersion version, bool mayYield)
+void TDecoratedAutomaton::CommitMutations(TVersion version, bool mayYield)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (version < CommittedVersion_)
+    if (version <= CommittedVersion_)
         return;
 
     CommittedVersion_ = version;
@@ -898,7 +896,7 @@ void TDecoratedAutomaton::CommitMutations(TEpochContextPtr epochContext, TVersio
     LOG_DEBUG("Committed version promoted to %v",
         version);
 
-    ApplyPendingMutations(std::move(epochContext), mayYield);
+    ApplyPendingMutations(mayYield);
 }
 
 bool TDecoratedAutomaton::HasReadyMutations() const
@@ -913,7 +911,7 @@ bool TDecoratedAutomaton::HasReadyMutations() const
     return pendingMutation.Version < CommittedVersion_;
 }
 
-void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, bool mayYield)
+void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
 {
     NProfiling::TScopedTimer timer;
     PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
@@ -941,8 +939,8 @@ void TDecoratedAutomaton::ApplyPendingMutations(TEpochContextPtr epochContext, b
             MaybeStartSnapshotBuilder();
 
             if (mayYield && timer.GetElapsed() > Config_->MaxCommitBatchDuration) {
-                epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), epochContext, true));
+                EpochContext_->EpochUserAutomatonInvoker->Invoke(
+                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), true));
                 break;
             }
         }
@@ -993,13 +991,6 @@ TVersion TDecoratedAutomaton::GetLoggedVersion() const
     return LoggedVersion_;
 }
 
-void TDecoratedAutomaton::SetChangelogStore(IChangelogStorePtr changelogStore)
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    ChangelogStore_ = changelogStore;
-}
-
 void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1009,7 +1000,7 @@ void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)
 
 void TDecoratedAutomaton::SetLoggedVersion(TVersion version)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     LoggedVersion_ = version;
 }
@@ -1092,11 +1083,18 @@ void TDecoratedAutomaton::ReleaseSystemLock()
         result);
 }
 
-void TDecoratedAutomaton::Reset()
+void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
+{
+    YCHECK(!EpochContext_);
+    EpochContext_ = epochContext;
+    LoggedVersion_ = epochContext->ReachableVersion;
+}
+
+void TDecoratedAutomaton::StopEpoch()
 {
     PendingMutations_.clear();
     Changelog_.Reset();
-    CommittedVersion_ = AutomatonVersion_.load();
+    EpochContext_.Reset();
     SnapshotVersion_ = TVersion();
     CommittedVersion_ = TVersion();
     if (SnapshotParamsPromise_) {

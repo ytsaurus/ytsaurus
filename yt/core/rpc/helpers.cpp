@@ -115,7 +115,7 @@ IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const Stro
 {
     YCHECK(underlyingChannel);
 
-    return New<TAuthenticatedChannel>(underlyingChannel, user);
+    return New<TAuthenticatedChannel>(std::move(underlyingChannel), user);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,7 +127,7 @@ public:
     TAuthenticatedChannelFactory(
         IChannelFactoryPtr underlyingFactory,
         const Stroka& user)
-        : UnderlyingFactory_(underlyingFactory)
+        : UnderlyingFactory_(std::move(underlyingFactory))
         , User_(user)
     { }
 
@@ -149,7 +149,7 @@ IChannelFactoryPtr CreateAuthenticatedChannelFactory(
 {
     YCHECK(underlyingFactory);
 
-    return New<TAuthenticatedChannelFactory>(underlyingFactory, user);
+    return New<TAuthenticatedChannelFactory>(std::move(underlyingFactory), user);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,7 +186,7 @@ IChannelPtr CreateRealmChannel(IChannelPtr underlyingChannel, const TRealmId& re
 {
     YCHECK(underlyingChannel);
 
-    return New<TRealmChannel>(underlyingChannel, realmId);
+    return New<TRealmChannel>(std::move(underlyingChannel), realmId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +220,83 @@ IChannelFactoryPtr CreateRealmChannelFactory(
 {
     YCHECK(underlyingFactory);
 
-    return New<TRealmChannelFactory>(underlyingFactory, realmId);
+    return New<TRealmChannelFactory>(std::move(underlyingFactory), realmId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFailureDetectingChannel
+    : public TChannelWrapper
+{
+public:
+    TFailureDetectingChannel(IChannelPtr underlyingChannel, TCallback<void(IChannelPtr)> onFailure)
+        : TChannelWrapper(std::move(underlyingChannel))
+        , OnFailure_(std::move(onFailure))
+    { }
+
+    virtual IClientRequestControlPtr Send(
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
+        TNullable<TDuration> timeout,
+        bool requestAck) override
+    {
+        return UnderlyingChannel_->Send(
+            request,
+            New<TResponseHandler>(this, std::move(responseHandler), OnFailure_),
+            timeout,
+            requestAck);
+    }
+
+private:
+    const TCallback<void(IChannelPtr)> OnFailure_;
+
+    class TResponseHandler
+        : public IClientResponseHandler
+    {
+    public:
+        TResponseHandler(
+            IChannelPtr channel,
+            IClientResponseHandlerPtr underlyingHandler,
+            TCallback<void(IChannelPtr)> onFailure)
+            : Channel_(std::move(channel))
+            , UnderlyingHandler_(std::move(underlyingHandler))
+            , OnFailure_(std::move(onFailure))
+        { }
+
+        virtual void HandleAcknowledgement() override
+        {
+            UnderlyingHandler_->HandleAcknowledgement();
+        }
+
+        virtual void HandleResponse(TSharedRefArray message) override
+        {
+            UnderlyingHandler_->HandleResponse(std::move(message));
+        }
+
+        virtual void HandleError(const TError& error) override
+        {
+            if (IsChannelFailureError(error)) {
+                OnFailure_.Run(Channel_);
+            }
+            UnderlyingHandler_->HandleError(error);
+        }
+
+    private:
+        const IChannelPtr Channel_;
+        const IClientResponseHandlerPtr UnderlyingHandler_;
+        const TCallback<void(IChannelPtr)> OnFailure_;
+
+    };
+
+};
+
+IChannelPtr CreateFailureDetectingChannel(
+    IChannelPtr underlyingChannel,
+    TCallback<void(IChannelPtr)> onFailure)
+{
+    return New<TFailureDetectingChannel>(
+        std::move(underlyingChannel),
+        std::move(onFailure));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

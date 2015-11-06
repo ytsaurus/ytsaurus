@@ -23,8 +23,6 @@ using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NTableClient::NProto;
 
-using NChunkClient::TReadLimit;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TPartitionChunkReader::TPartitionChunkReader(
@@ -37,8 +35,6 @@ TPartitionChunkReader::TPartitionChunkReader(
     int partitionTag)
     : TChunkReaderBase(
         config,
-        TReadLimit(),
-        TReadLimit(),
         underlyingReader,
         GetProtoExtension<TMiscExt>(masterMeta.extensions()),
         blockCache)

@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "session_detail.h"
+#include "location.h"
 
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/throughput_throttler.h>
@@ -49,6 +50,7 @@ private:
         TSharedRef Block;
         TPromise<void> WrittenPromise = NewPromise<void>();
         NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+        TPendingIOGuard PendingIOGuard;
     };
 
     // Thread affinity: WriterThread
@@ -100,7 +102,7 @@ private:
     IChunkPtr OnWriterClosed(const TError& error);
 
     void DoWriteBlock(const TSharedRef& block, int blockIndex);
-    void OnBlockWritten(int blockIndex, i64 blockSize, const TError& error);
+    void OnBlockWritten(int blockIndex, const TError& error);
 
     void OnBlockFlushed(int blockIndex, const TError& error);
 

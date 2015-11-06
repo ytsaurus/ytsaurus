@@ -64,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TEnvironmentManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlotManagerConfig
-    : public NYTree::TYsonSerializable
+    : public NCGroup::TCGroupConfig
 {
 public:
     //! Root path for slot directories.
@@ -78,16 +78,11 @@ public:
     //! uids in range [StartUid, StartUid + SlotCount - 1].
     int StartUid;
 
-    //! When set to |true| slot spawns job proxies into separate
-    //! freezer cgroup. It uses this to kill all job proxies descendant
-    //! This option requires node server process to have permission
-    //! to create freezer subcgroups
-    bool EnableCGroups;
-
-    std::vector<Stroka> SupportedCGroups;
-
     //! Thread pool for job startup initialization.
     int PoolSize;
+
+    //! CPU share in cpu cgroup dedicated for slots.
+    double CGroupCpuShare;
 
     TSlotManagerConfig()
     {
@@ -97,13 +92,15 @@ public:
             .Default(false);
         RegisterParameter("start_uid", StartUid)
             .Default(10000);
-        RegisterParameter("enable_cgroups", EnableCGroups)
-            .Default(true);
-        RegisterParameter("supported_cgroups", SupportedCGroups)
-            .Default();
         RegisterParameter("pool_size", PoolSize)
             .GreaterThanOrEqual(1)
             .Default(3);
+
+        // NB: Default value is minimum possible share in cgroup.
+        // http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
+        RegisterParameter("cgroup_cpu_share", CGroupCpuShare)
+            .GreaterThanOrEqual(0.0)
+            .Default(2.0 / 1024.0);
     }
 };
 

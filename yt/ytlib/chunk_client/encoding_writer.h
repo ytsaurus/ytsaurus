@@ -47,6 +47,8 @@ private:
     const IChunkWriterPtr ChunkWriter_;
     const IBlockCachePtr BlockCache_;
 
+    NLogging::TLogger Logger;
+
     std::atomic<i64> UncompressedSize_ = {0};
     std::atomic<i64> CompressedSize_ = {0};
 
@@ -66,8 +68,6 @@ private:
     TCallback<void(const TErrorOr<TSharedRef>&)> WritePendingBlockCallback_;
 
     bool CloseRequested_ = false;
-
-    NLogging::TLogger Logger;
 
     void WritePendingBlock(const TErrorOr<TSharedRef>& blockOrError);
 

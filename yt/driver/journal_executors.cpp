@@ -64,7 +64,7 @@ void TWriteJournalExecutor::BuildParameters(IYsonConsumer* consumer)
 
 TInputStream* TWriteJournalExecutor::GetInputStream()
 {
-    return UseStdIn ? &StdInStream() : &Stream;
+    return UseStdIn ? &Cin : &Stream;
 }
 
 Stroka TWriteJournalExecutor::GetCommandName() const

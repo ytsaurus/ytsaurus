@@ -195,6 +195,11 @@ def exists(path, **kwargs):
     res = execute_command("exists", kwargs)
     return yson.loads(res)
 
+def concatenate(source_paths, destination_path, **kwargs):
+    kwargs["source_paths"] = source_paths
+    kwargs["destination_path"] = destination_path
+    return execute_command("concatenate", kwargs)
+
 def ls(path, **kwargs):
     kwargs["path"] = path
     return yson.loads(execute_command("list", kwargs))

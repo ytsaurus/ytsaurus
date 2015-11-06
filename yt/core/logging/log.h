@@ -6,9 +6,10 @@
 #include <core/misc/format.h>
 
 #include <core/concurrency/scheduler.h>
-#include <core/concurrency/thread.h>
 
 #include <core/tracing/trace_context.h>
+
+#include <util/system/thread.h>
 
 namespace NYT {
 namespace NLogging {

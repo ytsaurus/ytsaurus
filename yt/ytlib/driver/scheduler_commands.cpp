@@ -17,21 +17,21 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDumpJobContextCommand::DoExecute()
+void TDumpJobContextCommand::Execute(ICommandContextPtr context)
 {
-    WaitFor(Context_->GetClient()->DumpJobContext(Request_->JobId, Request_->Path))
+    WaitFor(context->GetClient()->DumpJobContext(JobId, Path))
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStraceJobCommand::DoExecute()
+void TStraceJobCommand::Execute(ICommandContextPtr context)
 {
-    auto asyncResult = Context_->GetClient()->StraceJob(Request_->JobId);
+    auto asyncResult = context->GetClient()->StraceJob(JobId, Options);
     auto result = WaitFor(asyncResult)
         .ValueOrThrow();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
             .Item("traces").Value(result)
         .EndMap());
@@ -39,22 +39,21 @@ void TStraceJobCommand::DoExecute()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStartOperationCommandBase::DoExecute()
+void TStartOperationCommandBase::Execute(ICommandContextPtr context)
 {
-    TStartOperationOptions options;
-    SetTransactionalOptions(&options);
-    SetMutatingOptions(&options);
-    auto asyncOperationId = Context_->GetClient()->StartOperation(
+    auto asyncOperationId = context->GetClient()->StartOperation(
         GetOperationType(),
-        ConvertToYsonString(Request_->Spec),
-        options);
+        ConvertToYsonString(Spec),
+        Options);
 
     auto operationId = WaitFor(asyncOperationId)
         .ValueOrThrow();
 
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .Value(operationId));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,25 +113,25 @@ EOperationType TRemoteCopyCommand::GetOperationType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAbortOperationCommand::DoExecute()
+void TAbortOperationCommand::Execute(ICommandContextPtr context)
 {
-    WaitFor(Context_->GetClient()->AbortOperation(Request_->OperationId))
+    WaitFor(context->GetClient()->AbortOperation(OperationId))
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSuspendOperationCommand::DoExecute()
+void TSuspendOperationCommand::Execute(ICommandContextPtr context)
 {
-    WaitFor(Context_->GetClient()->SuspendOperation(Request_->OperationId))
+    WaitFor(context->GetClient()->SuspendOperation(OperationId))
         .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TResumeOperationCommand::DoExecute()
+void TResumeOperationCommand::Execute(ICommandContextPtr context)
 {
-    WaitFor(Context_->GetClient()->ResumeOperation(Request_->OperationId))
+    WaitFor(context->GetClient()->ResumeOperation(OperationId))
         .ThrowOnError();
 }
 

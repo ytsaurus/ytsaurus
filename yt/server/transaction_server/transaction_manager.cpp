@@ -89,6 +89,8 @@ private:
         descriptors->push_back("state");
         descriptors->push_back(TAttributeDescriptor("timeout")
             .SetPresent(transaction->GetTimeout().HasValue()));
+        descriptors->push_back(TAttributeDescriptor("title")
+        	.SetPresent(transaction->GetTitle().HasValue()));
         descriptors->push_back("accounting_enabled");
         descriptors->push_back("parent_id");
         descriptors->push_back("start_time");
@@ -117,6 +119,12 @@ private:
         if (key == "timeout" && transaction->GetTimeout()) {
             BuildYsonFluently(consumer)
                 .Value(*transaction->GetTimeout());
+            return true;
+        }
+
+        if (key == "title" && transaction->GetTitle()) {
+            BuildYsonFluently(consumer)
+                .Value(*transaction->GetTitle());
             return true;
         }
 
@@ -443,6 +451,7 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         TNullable<TDuration> timeout,
+        const TNullable<Stroka>& title,
         const TTransactionId& hintId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -479,6 +488,8 @@ public:
             }
         }
 
+        transaction->SetTitle(title);
+
         // NB: This is not quite correct for replicated transactions but we don't care.
         const auto* mutationContext = GetCurrentMutationContext();
         transaction->SetStartTime(mutationContext->GetTimestamp());
@@ -488,10 +499,11 @@ public:
 
         TransactionStarted_.Fire(transaction);
 
-        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v)",
+        LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, Timeout: %v, Title: %v)",
             transactionId,
             GetObjectId(parent),
-            transaction->GetTimeout());
+            transaction->GetTimeout(),
+            title);
 
         return transaction;
     }
@@ -514,6 +526,15 @@ public:
 
         // NB: Save it for logging.
         auto transactionId = transaction->GetId();
+
+        auto nestedTransactions = transaction->NestedTransactions();
+        for (auto* nestedTransaction : nestedTransactions) {
+            LOG_WARNING_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+                nestedTransaction->GetId(),
+                transaction->GetId());
+            AbortTransaction(nestedTransaction, true);
+        }
+        YCHECK(transaction->NestedTransactions().empty());
 
         if (IsLeader()) {
             CloseLease(transaction);
@@ -1046,12 +1067,16 @@ TNonversionedObjectBase* TTransactionManager::TTransactionTypeHandler::CreateObj
     const TObjectId& hintId,
     TTransaction* parent,
     TAccount* /*account*/,
-    IAttributeDictionary* /*attributes*/,
+    IAttributeDictionary* attributes,
     const TObjectCreationExtensions& extensions)
 {
     const auto& requestExt = extensions.GetExtension(TTransactionCreationExt::transaction_creation_ext);
     auto timeout = TDuration::MilliSeconds(requestExt.timeout());
-    return Owner_->StartTransaction(parent, timeout, hintId);
+
+    auto title = attributes->Find<Stroka>("title");
+    attributes->Remove("title");
+
+    return Owner_->StartTransaction(parent, timeout, title, hintId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1070,9 +1095,10 @@ void TTransactionManager::Initialize()
 TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
     TNullable<TDuration> timeout,
+    const TNullable<Stroka>& title,
     const TTransactionId& hintId)
 {
-    return Impl_->StartTransaction(parent, timeout, hintId);
+    return Impl_->StartTransaction(parent, timeout, title, hintId);
 }
 
 void TTransactionManager::CommitTransaction(

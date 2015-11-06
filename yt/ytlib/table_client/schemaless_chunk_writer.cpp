@@ -60,10 +60,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TBase>
 class TSchemalessChunkWriter
     : public TBase
@@ -238,6 +234,8 @@ private:
 
     i64 BlockReserveSize_;
 
+    i64 FlushedRowCount_ = 0;
+
 
     void WriteRow(TUnversionedRow row);
 
@@ -335,6 +333,8 @@ void TPartitionChunkWriter::FlushBlock(int partitionIndex)
     auto& blockWriter = BlockWriters_[partitionIndex];
     auto block = blockWriter->FlushBlock();
     block.Meta.set_partition_index(partitionIndex);
+    FlushedRowCount_ += block.Meta.row_count();
+    block.Meta.set_chunk_row_count(FlushedRowCount_);
 
     RegisterBlock(block);
 }

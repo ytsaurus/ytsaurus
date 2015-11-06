@@ -10,6 +10,8 @@
 
 #include <core/rpc/config.h>
 
+#include <ytlib/misc/workload.h>
+
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
@@ -313,6 +315,7 @@ class TInMemoryManagerConfig
 public:
     int MaxConcurrentPreloads;
     TDuration InterceptedDataRetentionTime;
+    TWorkloadDescriptor WorkloadDescriptor;
 
     TInMemoryManagerConfig()
     {
@@ -321,6 +324,8 @@ public:
             .Default(1);
         RegisterParameter("intercepted_data_retention_time", InterceptedDataRetentionTime)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("workload_descriptor", WorkloadDescriptor)
+            .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     }
 };
 
@@ -522,6 +527,11 @@ public:
 
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterInitializer([&] () {
+            // Override default workload descriptors.
+            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+        });
     }
 };
 

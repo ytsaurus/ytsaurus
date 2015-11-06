@@ -11,7 +11,6 @@ import time
 class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "chunk_scratch_period" : 500,
             "cluster_directory_update_period": 500
         }
     }

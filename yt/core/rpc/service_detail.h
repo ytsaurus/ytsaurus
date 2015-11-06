@@ -365,7 +365,7 @@ protected:
 
         //! Invoker used for executing the handler.
         //! If |nullptr| then the default one is used.
-        IPrioritizedInvokerPtr Invoker;
+        IInvokerPtr Invoker;
 
         //! Service method name.
         Stroka Method;
@@ -388,9 +388,6 @@ protected:
         //! Maximum number of requests executing concurrently.
         int MaxConcurrency = 1000;
 
-        //! Should requests be reordered based on start time?
-        bool EnableReorder = false;
-
         //! System requests are completely transparent to derived classes;
         //! in particular, |BeforeInvoke| is not called.
         bool System = false;
@@ -404,15 +401,9 @@ protected:
         bool Cancelable = false;
 
 
-        TMethodDescriptor& SetInvoker(IPrioritizedInvokerPtr value)
-        {
-            Invoker = value;
-            return *this;
-        }
-
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
-            Invoker = NConcurrency::CreateFakePrioritizedInvoker(value);
+            Invoker = value;
             return *this;
         }
 
@@ -449,12 +440,6 @@ protected:
         TMethodDescriptor& SetMaxConcurrency(int value)
         {
             MaxConcurrency = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetEnableReorder(bool value)
-        {
-            EnableReorder = value;
             return *this;
         }
 
@@ -541,12 +526,6 @@ protected:
      *  regarding service activity.
      */
     TServiceBase(
-        IPrioritizedInvokerPtr defaultInvoker,
-        const TServiceId& serviceId,
-        const NLogging::TLogger& logger,
-        int protocolVersion = TProxyBase::DefaultProtocolVersion);
-
-    TServiceBase(
         IInvokerPtr defaultInvoker,
         const TServiceId& serviceId,
         const NLogging::TLogger& logger,
@@ -566,7 +545,7 @@ protected:
     TRuntimeMethodInfoPtr GetMethodInfo(const Stroka& method);
 
     //! Returns the default invoker passed during construction.
-    IPrioritizedInvokerPtr GetDefaultInvoker();
+    IInvokerPtr GetDefaultInvoker();
 
     //! Called right before each method handler invocation.
     virtual void BeforeInvoke();
@@ -591,9 +570,9 @@ protected:
     NLogging::TLogger Logger;
 
 private:
-    IPrioritizedInvokerPtr DefaultInvoker_;
-    TServiceId ServiceId_;
-    int ProtocolVersion_;
+    const IInvokerPtr DefaultInvoker_;
+    const TServiceId ServiceId_;
+    const int ProtocolVersion_;
 
     NProfiling::TTagId ServiceTagId_;
 
@@ -604,11 +583,6 @@ private:
     yhash_map<TRequestId, TServiceContext*> IdToContext_;
     yhash_map<NBus::IBusPtr, yhash_set<TServiceContext*>> ReplyBusToContexts_;
 
-    void Initialize(
-        IPrioritizedInvokerPtr defaultInvoker,
-        const TServiceId& serviceId,
-        const NLogging::TLogger& logger,
-        int protocolVersion);
 
     virtual TServiceId GetServiceId() const override;
 

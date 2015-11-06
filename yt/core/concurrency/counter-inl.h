@@ -3,8 +3,6 @@
 #endif
 #undef COUNTER_INL_H_
 
-#include "thread.h"
-
 namespace NYT {
 namespace NConcurrency {
 

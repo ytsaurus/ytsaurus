@@ -18,9 +18,6 @@ struct TTcpDispatcherStatistics
 
     int PendingOutPackets = 0;
     i64 PendingOutBytes = 0;
-
-    int ClientConnections = 0;
-    int ServerConnections = 0;
 };
 
 TTcpDispatcherStatistics operator + (
@@ -52,13 +49,16 @@ struct TTcpProfilingData
     NProfiling::TSimpleCounter OutPacketCounter;
     NProfiling::TAggregateCounter PendingOutPacketCounter;
     NProfiling::TAggregateCounter PendingOutByteCounter;
+
+    NProfiling::TSimpleCounter ClientConnectionCounter;
+    NProfiling::TSimpleCounter ServerConnectionCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETcpInterfaceType,
-    (Local)  // UNIX domain sockets
-    (Remote) // regular TCP sockets
+    (Local)  // UNIX domain socket or local TCP socket
+    (Remote) // remote TCP socket
 );
 
 ////////////////////////////////////////////////////////////////////////////////

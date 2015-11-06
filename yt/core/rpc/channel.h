@@ -40,12 +40,12 @@ struct IChannel
     : public virtual TRefCounted
 {
     //! Returns a textual representation of the channel's endpoint.
-    //! Typically used for logging
-    virtual Stroka GetEndpointTextDescription() const = 0;
+    //! Typically used for logging.
+    virtual const Stroka& GetEndpointDescription() const = 0;
 
-    //! Returns a YSON representation of the channel's endpoint.
-    //! Typically used for constructing error attributes.
-    virtual NYson::TYsonString GetEndpointYsonDescription() const = 0;
+    //! Returns the channel's endpoint attributes.
+    //! Typically used for constructing errors.
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
 
     //! Sends a request via the channel.
     /*!

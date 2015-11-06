@@ -1029,7 +1029,7 @@ void TOperationControllerBase::Prepare()
         // - All input chunks are unavailable && Strategy == Skip
         // - Merge decided to passthrough all input chunks
         // - Anything else?
-        LOG_INFO("Empty input");
+        LOG_INFO("No jobs needed");
         OnOperationCompleted();
         return;
     }

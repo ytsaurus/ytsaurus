@@ -22,15 +22,17 @@
 
 #include <ytlib/orchid/orchid_service.h>
 
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_server.h>
-#include <ytlib/monitoring/http_integration.h>
-
 #include <core/ytree/ephemeral_node_factory.h>
 #include <core/ytree/virtual.h>
 #include <core/ytree/ypath_client.h>
 
 #include <core/profiling/profile_manager.h>
+
+#include <ytlib/misc/workload.h>
+
+#include <ytlib/monitoring/monitoring_manager.h>
+#include <ytlib/monitoring/http_server.h>
+#include <ytlib/monitoring/http_integration.h>
 
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/object_service_proxy.h>
@@ -645,54 +647,31 @@ IThroughputThrottlerPtr TBootstrap::GetRepairOutThrottler() const
     return RepairOutThrottler;
 }
 
-IThroughputThrottlerPtr TBootstrap::GetInThrottler(EWriteSessionType sessionType) const
+IThroughputThrottlerPtr TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
-    switch (sessionType) {
-        case EWriteSessionType::User:
-            return GetUnlimitedThrottler();
-
-        case EWriteSessionType::Repair:
+    switch (descriptor.Category) {
+        case EWorkloadCategory::SystemRepair:
             return RepairInThrottler;
 
-        case EWriteSessionType::Replication:
+        case EWorkloadCategory::SystemReplication:
             return ReplicationInThrottler;
 
         default:
-            YUNREACHABLE();
+            return GetUnlimitedThrottler();
     }
 }
 
-IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EWriteSessionType sessionType) const
+IThroughputThrottlerPtr TBootstrap::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
 {
-    switch (sessionType) {
-        case EWriteSessionType::User:
-            return GetUnlimitedThrottler();
-
-        case EWriteSessionType::Replication:
-            return ReplicationOutThrottler;
-
-        case EWriteSessionType::Repair:
+    switch (descriptor.Category) {
+        case EWorkloadCategory::SystemRepair:
             return RepairOutThrottler;
 
-        default:
-            YUNREACHABLE();
-    }
-}
-
-IThroughputThrottlerPtr TBootstrap::GetOutThrottler(EReadSessionType sessionType) const
-{
-    switch (sessionType) {
-        case EReadSessionType::User:
-            return GetUnlimitedThrottler();
-
-        case EReadSessionType::Replication:
+        case EWorkloadCategory::SystemReplication:
             return ReplicationOutThrottler;
 
-        case EReadSessionType::Repair:
-            return RepairOutThrottler;
-
         default:
-            YUNREACHABLE();
+            return GetUnlimitedThrottler();
     }
 }
 

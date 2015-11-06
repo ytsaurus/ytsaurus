@@ -25,10 +25,6 @@ using namespace NCellNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 ReadPriority = 0;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TLocalChunkReader
     : public IChunkReader
 {
@@ -62,7 +58,7 @@ public:
             Chunk_->GetId(),
             firstBlockIndex,
             blockCount,
-            ReadPriority,
+            Config_->WorkloadDescriptor,
             BlockCache_,
             Config_->PopulateCache);
         return asyncResult.Apply(BIND([=] (const TErrorOr<std::vector<TSharedRef>>& blocksOrError) {
@@ -77,7 +73,7 @@ public:
         const TNullable<int>& partitionTag,
         const TNullable<std::vector<int>>& extensionTags) override
     {
-        auto asyncResult = Chunk_->ReadMeta(0, extensionTags);
+        auto asyncResult = Chunk_->ReadMeta(Config_->WorkloadDescriptor, extensionTags);
         return asyncResult.Apply(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 ThrowError(metaOrError);
@@ -137,7 +133,7 @@ private:
             auto asyncResult = blockStore->ReadBlockSet(
                 Chunk_->GetId(),
                 blockIndexes,
-                ReadPriority,
+                Config_->WorkloadDescriptor,
                 BlockCache_,
                 Config_->PopulateCache);
             asyncResult.Subscribe(

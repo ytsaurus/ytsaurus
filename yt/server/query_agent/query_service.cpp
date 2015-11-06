@@ -57,8 +57,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetCancelable(true)
-            .SetEnableReorder(true));
+            .SetCancelable(true));
     }
 
 private:

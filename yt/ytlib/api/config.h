@@ -118,7 +118,7 @@ DEFINE_REFCOUNTED_TYPE(TJournalReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalWriterConfig
-    : public NYTree::TYsonSerializable
+    : public virtual TWorkloadConfig
 {
 public:
     TDuration MaxBatchDelay;

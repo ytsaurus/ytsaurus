@@ -126,7 +126,7 @@ private:
 } // namespace NChunkClient
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndex)
+DECLARE_PODTYPE(NYT::NChunkClient::TChunkIdWithIndex);
 
 //! A hasher for TChunkIdWithIndex.
 template <>

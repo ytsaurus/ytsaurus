@@ -11,6 +11,8 @@
 
 #include <core/ytree/public.h>
 
+#include <ytlib/misc/public.h>
+
 #include <ytlib/monitoring/http_server.h>
 
 #include <ytlib/chunk_client/public.h>
@@ -81,9 +83,8 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetRepairInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetRepairOutThrottler() const;
 
-    NConcurrency::IThroughputThrottlerPtr GetInThrottler(NChunkClient::EWriteSessionType sessionType) const;
-    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EWriteSessionType sessionType) const;
-    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(NChunkClient::EReadSessionType sessionType) const;
+    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
+    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
     const NObjectClient::TCellId& GetCellId() const;
 

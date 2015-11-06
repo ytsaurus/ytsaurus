@@ -105,7 +105,6 @@ void TChunkWriterBase::FillCommonMeta(TChunkMeta* meta) const
 
 void TChunkWriterBase::RegisterBlock(TBlock& block)
 {
-    block.Meta.set_chunk_row_count(RowCount_);
     block.Meta.set_block_index(BlockMetaExt_.blocks_size());
 
     BlockMetaExtSize_ += block.Meta.ByteSize();
@@ -212,6 +211,8 @@ void TSequentialChunkWriterBase::EmitSample(const TUnversionedValue* begin, cons
 void TSequentialChunkWriterBase::FinishBlock()
 {
     auto block = BlockWriter_->FlushBlock();
+    block.Meta.set_chunk_row_count(RowCount_);
+
     RegisterBlock(block);
 }
 

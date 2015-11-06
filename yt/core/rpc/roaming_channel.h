@@ -11,13 +11,21 @@ namespace NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Enables on-demand channel construction with dynamically discovered endpoint.
 struct IRoamingChannelProvider
     : public virtual TRefCounted
 {
-    virtual Stroka GetEndpointTextDescription() const = 0;
-    virtual NYson::TYsonString GetEndpointYsonDescription() const = 0;
-    virtual TFuture<IChannelPtr> DiscoverChannel(IClientRequestPtr request) = 0;
+    //! Cf. IChannel::GetEndpointDescription.
+    virtual const Stroka& GetEndpointDescription() const = 0;
+
+    //! Cf. IChannel::GetEndpointAttributes.
+    virtual const NYTree::IAttributeDictionary& GetEndpointAttributes() const = 0;
+
+    //! Returns the actual channel to be used for sending to service with
+    //! a given #serviceName.
+    virtual TFuture<IChannelPtr> GetChannel(const Stroka& serviceName) = 0;
+
+    //! Terminates the cached channels, if any.
+    virtual TFuture<void> Terminate(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRoamingChannelProvider)
@@ -26,14 +34,11 @@ DEFINE_REFCOUNTED_TYPE(IRoamingChannelProvider)
 
 //! Creates a channel with a dynamically discovered endpoint.
 /*!
- *  Upon the first request to the roaming channel,
- *  the provider is called to discover the actual endpoint.
- *  This endpoint is cached and reused until some request fails with RPC error code.
- *  In the latter case the endpoint is rediscovered.
+ *  The IRoamingChannelProvider::GetChannel is invoked to discover the actual endpoint.
+ *  The channels are not reused between requests so it's provider's
+ *  responsibility to provide the appropriate caching.
  */
-IChannelPtr CreateRoamingChannel(
-    IRoamingChannelProviderPtr provider,
-    TCallback<bool(const TError&)> isChannelFailureError = BIND(&IsChannelFailureError));
+IChannelPtr CreateRoamingChannel(IRoamingChannelProviderPtr provider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

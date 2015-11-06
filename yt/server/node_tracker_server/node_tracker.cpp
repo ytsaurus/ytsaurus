@@ -517,7 +517,9 @@ public:
         for (const auto& pair : NodeMap_) {
             const auto* node = pair.second;
             const auto& statistics = node->Statistics();
-            result.AvailableSpace += statistics.total_available_space();
+            if (!node->GetDecommissioned()) {
+                result.AvailableSpace += statistics.total_available_space();
+            }
             result.UsedSpace += statistics.total_used_space();
             result.ChunkCount += statistics.total_stored_chunk_count();
             result.FullNodeCount += statistics.full() ? 1 : 0;

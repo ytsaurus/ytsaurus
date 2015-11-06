@@ -105,6 +105,10 @@ private:
     //! Can we generate timestamps?
     volatile bool Active_ = false;
 
+    //! Are we backing off because no committed timestamps are available?
+    //! Used to avoid repeating same logging message.
+    bool BackingOff_ = false;
+
     //! First unused timestamp.
     TTimestamp CurrentTimestamp_ = NullTimestamp;
 
@@ -156,7 +160,8 @@ private:
 
         if (CurrentTimestamp_ + count >= CommittedTimestamp_) {
             // Backoff and retry.
-            LOG_WARNING("Not enough spare timestamps, backing off");
+            LOG_WARNING_UNLESS(BackingOff_, "Not enough spare timestamps; backing off");
+            BackingOff_ = true;
             TDelayedExecutor::Submit(
                 BIND(&TImpl::DoGenerateTimestamps, MakeStrong(this), context)
                     .Via(TimestampInvoker_),
@@ -164,6 +169,11 @@ private:
             return;
         }
 
+        if (BackingOff_) {
+            LOG_INFO("Spare timestamps are available again");
+        	BackingOff_ = false;
+		}
+        
         // Make sure there's no overflow in the counter part.
         YCHECK(((CurrentTimestamp_ + count) >> TimestampCounterWidth) == (CurrentTimestamp_ >> TimestampCounterWidth));
 

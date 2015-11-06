@@ -134,12 +134,8 @@ public:
         auto wrappedHandler = BIND(&TServiceContext::DoRun, MakeStrong(this), handler);
 
         const auto& descriptor = RuntimeInfo_->Descriptor;
-        auto invoker = descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
-        if (descriptor.EnableReorder) {
-            invoker->Invoke(std::move(wrappedHandler), GetPriority());
-        } else {
-            invoker->Invoke(std::move(wrappedHandler));
-        }
+        const auto& invoker = descriptor.Invoker ? descriptor.Invoker : Service_->DefaultInvoker_;
+        invoker->Invoke(std::move(wrappedHandler));
     }
 
     virtual void SubscribeCanceled(const TClosure& callback) override
@@ -182,17 +178,15 @@ private:
     {
         Profiler.Increment(PerformanceCounters_->RequestCounter, +1);
 
-        if (RequestHeader_->has_request_start_time() && RequestHeader_->has_retry_start_time()) {
+        if (RequestHeader_->has_start_time()) {
             // Decode timing information.
-            auto requestStart = TInstant(RequestHeader_->request_start_time());
-            auto retryStart = TInstant(RequestHeader_->retry_start_time());
+            auto retryStart = TInstant(RequestHeader_->start_time());
             auto now = CpuInstantToInstant(GetCpuInstant());
 
             // Make sanity adjustments to account for possible clock skew.
             retryStart = std::min(retryStart, now);
-            requestStart = std::min(requestStart, retryStart);
 
-            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, (now - requestStart).MicroSeconds());
+            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, (now - retryStart).MicroSeconds());
         }
 
         if (!RuntimeInfo_->Descriptor.OneWay) {
@@ -436,43 +430,16 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TServiceBase(
-    IPrioritizedInvokerPtr defaultInvoker,
-    const TServiceId& serviceId,
-    const NLogging::TLogger& logger,
-    int protocolVersion)
-{
-    Initialize(
-        defaultInvoker,
-        serviceId,
-        logger,
-        protocolVersion);
-}
-
-TServiceBase::TServiceBase(
     IInvokerPtr defaultInvoker,
     const TServiceId& serviceId,
     const NLogging::TLogger& logger,
     int protocolVersion)
-{
-    Initialize(
-        CreateFakePrioritizedInvoker(defaultInvoker),
-        serviceId,
-        logger,
-        protocolVersion);
-}
-
-void TServiceBase::Initialize(
-    IPrioritizedInvokerPtr defaultInvoker,
-    const TServiceId& serviceId,
-    const NLogging::TLogger& logger,
-    int protocolVersion)
+    : Logger(logger)
+    , DefaultInvoker_(defaultInvoker)
+    , ServiceId_(serviceId)
+    , ProtocolVersion_(protocolVersion)
 {
     YCHECK(defaultInvoker);
-
-    DefaultInvoker_ = defaultInvoker;
-    ServiceId_ = serviceId;
-    Logger = logger;
-    ProtocolVersion_ = protocolVersion;
 
     ServiceTagId_ = NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName);
 
@@ -867,7 +834,7 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::GetMethodInfo(const Stroka& me
     return runtimeInfo;
 }
 
-IPrioritizedInvokerPtr TServiceBase::GetDefaultInvoker()
+IInvokerPtr TServiceBase::GetDefaultInvoker()
 {
     return DefaultInvoker_;
 }

@@ -4,6 +4,8 @@
 
 #include <core/misc/string.h>
 
+#include <ytlib/misc/workload.h>
+
 #include <ytlib/chunk_client/private.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/data_node_service_proxy.h>
@@ -196,6 +198,8 @@ private:
             auto req = proxy.GetChunkMeta();
             ToProto(req->mutable_chunk_id(), ChunkId_);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
+            // TODO(babenko): make configurable
+            ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemRealtime));
             asyncResults.push_back(req->Invoke().Apply(
                 BIND(&TComputeQuorumRowCountSession::OnResponse, MakeStrong(this), descriptor)));
         }

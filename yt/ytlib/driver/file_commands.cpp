@@ -18,31 +18,26 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadFileCommand::DoExecute()
+void TReadFileCommand::Execute(ICommandContextPtr context)
 {
     // COMPAT(babenko): remove Request_->FileReader
     auto config = UpdateYsonSerializable(
-        Context_->GetConfig()->FileReader,
-        Request_->FileReader);
+        context->GetConfig()->FileReader,
+        FileReader);
     config = UpdateYsonSerializable(
         config,
-        Request_->GetOptions());
+        GetOptions());
 
-    TFileReaderOptions options;
-    options.Offset = Request_->Offset;
-    options.Length = Request_->Length;
-    options.Config = std::move(config);
-    SetTransactionalOptions(&options);
-    SetSuppressableAccessTrackingOptions(&options);
+    Options.Config = std::move(config);
 
-    auto reader = Context_->GetClient()->CreateFileReader(
-        Request_->Path.GetPath(),
-        options);
+    auto reader = context->GetClient()->CreateFileReader(
+        Path.GetPath(),
+        Options);
 
     WaitFor(reader->Open())
         .ThrowOnError();
 
-    auto output = Context_->Request().OutputStream;
+    auto output = context->Request().OutputStream;
 
     while (true) {
         auto block = WaitFor(reader->Read())
@@ -58,34 +53,30 @@ void TReadFileCommand::DoExecute()
 
 //////////////////////////////////////////////////////////////////////////////////
 
-void TWriteFileCommand::DoExecute()
+void TWriteFileCommand::Execute(ICommandContextPtr context)
 {
     // COMPAT(sandello): remove Request_->FileReader ??
     auto config = UpdateYsonSerializable(
-        Context_->GetConfig()->FileWriter,
-        Request_->FileWriter);
+        context->GetConfig()->FileWriter,
+        FileWriter);
     config = UpdateYsonSerializable(
         config,
-        Request_->GetOptions());
+        GetOptions());
 
-    TFileWriterOptions options;
-    options.Append = Request_->Path.GetAppend();
-    options.Config = std::move(config);
-    SetTransactionalOptions(&options);
-    SetPrerequisites(&options);
+    Options.Config = std::move(config);
 
-    auto writer = Context_->GetClient()->CreateFileWriter(
-        Request_->Path.GetPath(),
-        options);
+    auto writer = context->GetClient()->CreateFileWriter(
+        Path.GetPath(),
+        Options);
 
     WaitFor(writer->Open())
         .ThrowOnError();
 
     struct TWriteBufferTag { };
 
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize, false);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(context->GetConfig()->WriteBufferSize, false);
 
-    auto input = Context_->Request().InputStream;
+    auto input = context->Request().InputStream;
 
     while (true) {
         auto bytesRead = WaitFor(input->Read(buffer))

@@ -1,11 +1,13 @@
 #include "common.h"
 #include "stream_stack.h"
 
+#include <core/utilex/lzop.h>
+
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 #include <util/stream/zlib.h>
-#include <util/stream/lz.h>
-#include <util/stream/lzop.h>
+
+#include <library/streams/lz/lz.h>
 
 namespace NYT {
 namespace NNodeJS {
@@ -95,8 +97,6 @@ void AddCompressionToStack(TGrowingOutputStreamStack& stack, ECompression compre
         default:
             YUNREACHABLE();
     }
-
-    stack.Add<TBufferedOutput>()->SetPropagateMode(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

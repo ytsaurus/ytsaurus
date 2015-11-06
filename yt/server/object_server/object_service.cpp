@@ -225,10 +225,11 @@ private:
                     requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
-                auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v",
+                auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
                     Context->GetRequestId(),
                     mutating,
-                    path);
+                    path,
+                    UserName);
                 auto responseInfo = Format("RequestId: %v",
                     Context->GetRequestId());
 

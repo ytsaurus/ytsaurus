@@ -15,6 +15,7 @@ set( DIRS
   tools
   tracing
   codegen
+  utilex
 )
 
 foreach( _d_ ${DIRS} )
@@ -44,10 +45,11 @@ add_library(ytcore STATIC
 
 target_link_libraries ( ytcore
   ytext-arcadia-util
+  ytext-arcadia-library-streams-lz
   ytext-ev
   ytext-jerasure
   ytext-json
-  ytext-httpserver
+  ytext-arcadia-library-http
   ytext-yajl
   ytext-re2
   protobuf

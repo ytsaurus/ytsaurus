@@ -40,9 +40,6 @@ struct IClientRequest
     virtual const Stroka& GetService() const = 0;
     virtual const Stroka& GetMethod() const = 0;
 
-    virtual TInstant GetStartTime() const = 0;
-    virtual void SetStartTime(TInstant value) = 0;
-
     virtual const Stroka& GetUser() const = 0;
     virtual void SetUser(const Stroka& user) = 0;
 
@@ -112,9 +109,6 @@ public:
     virtual TRealmId GetRealmId() const override;
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;
-
-    virtual TInstant GetStartTime() const override;
-    virtual void SetStartTime(TInstant value) override;
 
     virtual const Stroka& GetUser() const override;
     virtual void SetUser(const Stroka& user) override;
