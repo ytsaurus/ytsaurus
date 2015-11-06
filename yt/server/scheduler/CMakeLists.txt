@@ -2,7 +2,6 @@
 set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_list_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pool.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_teleporter.cpp
   ${CMAKE_CURRENT_LIST_DIR}/event_log.cpp
   ${CMAKE_CURRENT_LIST_DIR}/exec_node.cpp
   ${CMAKE_CURRENT_LIST_DIR}/fair_share_strategy.cpp
@@ -31,7 +30,6 @@ set( SRCS
 set( HDRS
   ${CMAKE_CURRENT_LIST_DIR}/chunk_list_pool.h
   ${CMAKE_CURRENT_LIST_DIR}/chunk_pool.h
-  ${CMAKE_CURRENT_LIST_DIR}/chunk_teleporter.h
   ${CMAKE_CURRENT_LIST_DIR}/config.h
   ${CMAKE_CURRENT_LIST_DIR}/event_log.h
   ${CMAKE_CURRENT_LIST_DIR}/exec_node.h

@@ -19,7 +19,6 @@ DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
 DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
 
 DECLARE_REFCOUNTED_CLASS(TChunkListPool)
-DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 
 struct IChunkPoolInput;
 struct IChunkPoolOutput;

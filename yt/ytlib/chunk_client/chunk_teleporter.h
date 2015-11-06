@@ -15,7 +15,7 @@
 #include <ytlib/chunk_client/chunk_service.pb.h>
 
 namespace NYT {
-namespace NScheduler {
+namespace NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +24,7 @@ class TChunkTeleporter
 {
 public:
     TChunkTeleporter(
-        TSchedulerConfigPtr config,
+        TChunkTeleporterConfigPtr config,
         NApi::IClientPtr client,
         IInvokerPtr invoker,
         const NTransactionClient::TTransactionId& transactionId,
@@ -37,7 +37,7 @@ public:
     TFuture<void> Run();
 
 private:
-    const TSchedulerConfigPtr Config_;
+    const TChunkTeleporterConfigPtr Config_;
     const NApi::IClientPtr Client_;
     const IInvokerPtr Invoker_;
     const NTransactionClient::TTransactionId TransactionId_;
@@ -70,5 +70,5 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NScheduler
+} // namespace NChunkClient
 } // namespace NYT
