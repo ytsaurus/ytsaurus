@@ -56,6 +56,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     const TTableSchema& schema,
     const TKeyColumns& keyColumns,
     NApi::IClientPtr client,
+    NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),

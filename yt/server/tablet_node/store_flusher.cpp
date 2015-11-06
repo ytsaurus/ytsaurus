@@ -327,8 +327,9 @@ private:
                 schema,
                 keyColumns,
                 Bootstrap_->GetMasterClient(),
+                Bootstrap_->GetMasterClient()->GetConnection()->GetPrimaryMasterCellTag(),
                 transaction->GetId(),
-                NullChunkId,
+                NullChunkListId,
                 GetUnlimitedThrottler(),
                 blockCache);
 

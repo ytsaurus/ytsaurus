@@ -268,6 +268,7 @@ private:
             Config_,
             writerOptions,
             Client_,
+            CellTag_,
             UploadTransaction_->GetId(),
             chunkListId);
 

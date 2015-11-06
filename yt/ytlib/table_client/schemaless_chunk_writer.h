@@ -68,6 +68,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     const TKeyColumns& keyColumns,
     NTableClient::TOwningKey lastKey,
     NApi::IClientPtr client,
+    NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId = NChunkClient::NullChunkListId,
     bool reorderValues = false,
@@ -80,6 +81,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,
     NApi::IClientPtr client,
+    NObjectClient::TCellTag cellTag,
     const NTransactionClient::TTransactionId& transactionId,
     const NChunkClient::TChunkListId& parentChunkListId,
     std::unique_ptr<IPartitioner> partitioner,
@@ -90,7 +92,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
 
 ISchemalessWriterPtr CreateSchemalessTableWriter(
     TTableWriterConfigPtr config,
-    NChunkClient::TRemoteWriterOptionsPtr options,
+    TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
     TNameTablePtr nameTable,
     const TKeyColumns& keyColumns,

@@ -21,6 +21,7 @@ using namespace NChunkClient::NProto;
 using namespace NProto;
 using namespace NRpc;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 using namespace NApi;
 using namespace NConcurrency;
 
@@ -208,6 +209,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TFileWriterConfigPtr config,
     TMultiChunkWriterOptionsPtr options,
     IClientPtr client,
+    TCellTag cellTag,
     const TTransactionId& transactionId,
     const TChunkListId& parentChunkListId,
     IThroughputThrottlerPtr throttler,
@@ -228,7 +230,8 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     return New<TFileMultiChunkWriter>(
         config, 
         options, 
-        client, 
+        client,
+        cellTag,
         transactionId, 
         parentChunkListId, 
         createChunkWriter,

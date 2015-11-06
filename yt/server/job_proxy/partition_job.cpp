@@ -6,6 +6,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/chunk_client/chunk_spec.h>
 
 #include <ytlib/table_client/name_table.h>
@@ -21,6 +23,7 @@ using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
 using namespace NTransactionClient;
 using namespace NTableClient;
+using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -80,6 +83,7 @@ public:
                 nameTable,
                 keyColumns,
                 host->GetClient(),
+                CellTagFromId(chunkListId),
                 transactionId,
                 chunkListId,
                 GetPartitioner());

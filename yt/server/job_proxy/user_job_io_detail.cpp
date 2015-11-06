@@ -5,6 +5,8 @@
 #include "config.h"
 #include "job.h"
 
+#include <ytlib/object_client/helpers.h>
+
 #include <ytlib/chunk_client/schema.h>
 #include <ytlib/chunk_client/schema.pb.h>
 
@@ -14,6 +16,7 @@
 #include <ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <core/concurrency/scheduler.h>
+
 #include <core/misc/finally.h>
 
 namespace NYT {
@@ -29,6 +32,7 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 using namespace NTransactionClient;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,6 +164,7 @@ ISchemalessMultiChunkWriterPtr TUserJobIOBase::CreateTableWriter(
         keyColumns,
         TOwningKey(),
         Host_->GetClient(),
+        CellTagFromId(chunkListId),
         transactionId,
         chunkListId,
         true);
