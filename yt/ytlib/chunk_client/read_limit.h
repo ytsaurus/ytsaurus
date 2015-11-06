@@ -90,8 +90,8 @@ class TReadRange
 {
 public:
     TReadRange();
-    TReadRange(const TReadLimit& exact);
     TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit);
+    explicit TReadRange(const TReadLimit& exact);
 
     explicit TReadRange(const NProto::TReadRange& range);
     explicit TReadRange(NProto::TReadRange&& range);
