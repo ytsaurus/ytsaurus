@@ -57,12 +57,7 @@ TReadLimit TReadLimit::GetSuccessor() const
     TReadLimit result;
     if (HasKey()) {
         auto key = GetKey();
-        TUnversionedOwningRowBuilder builder;
-        for (const auto* value = key.Begin(); value != key.End(); ++value) {
-            builder.AddValue(*value);
-        }
-        builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max, key.GetCount()));
-        result.SetKey(builder.FinishRow());
+        result.SetKey(GetKeyPrefixSuccessor(key.Get(), key.GetCount()));
     }
     if (HasRowIndex()) {
         result.SetRowIndex(GetRowIndex() + 1);
@@ -419,7 +414,7 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
     auto attributes = ConvertToAttributes(node);
     if (attributes->Contains("exact")) {
         if (attributes->Contains("lower_limit") || attributes->Contains("upper_limit")) {
-            THROW_ERROR_EXCEPTION("\"lower_limit\" and \"upper_limit\" attributes cannot be specified if \"exact\" attribute specified");
+            THROW_ERROR_EXCEPTION("\"lower_limit\" and \"upper_limit\" attributes cannot be specified if \"exact\" attribute is specified");
         }
         readRange.LowerLimit() = attributes->Get<TReadLimit>("exact");
         readRange.UpperLimit() = readRange.LowerLimit().GetSuccessor();
