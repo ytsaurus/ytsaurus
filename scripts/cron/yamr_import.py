@@ -207,6 +207,8 @@ def set_processed(table, yt_client):
 
 def make_link(table, yt_client):
     link_table = get_dash_date_table(table)
+    if not yt_client.exists(link_table) and yt_client.exists(link_table + "&"):
+        yt_client.remove(link_table)
     if not yt_client.exists(link_table):
         yt_client.link(table, link_table)
 
