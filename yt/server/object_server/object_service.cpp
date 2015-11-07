@@ -256,7 +256,6 @@ private:
                     securityManager->ChargeUser(user, 1, syncTime, TDuration());
                 }
 
-
                 // Optimize for the (typical) case of synchronous response.
                 if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(batchStartInstant)) {
                     OnResponse(
