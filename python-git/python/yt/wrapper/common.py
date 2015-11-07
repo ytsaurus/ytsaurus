@@ -6,7 +6,7 @@ import yt.yson as yson
 import sys
 import random
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from itertools import ifilter, chain
 
 EMPTY_GENERATOR = (i for i in [])
