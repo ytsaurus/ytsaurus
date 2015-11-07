@@ -3,10 +3,16 @@ set(SRCS
   ${BASE}/benchmark.cc
   ${BASE}/colorprint.cc
   ${BASE}/commandlineflags.cc
+  ${BASE}/console_reporter.cc
+  ${BASE}/csv_reporter.cc
+  ${BASE}/json_reporter.cc
+  ${BASE}/log.cc
+  ${BASE}/reporter.cc
+  ${BASE}/re_posix.cc
   ${BASE}/sleep.cc
+  ${BASE}/string_util.cc
   ${BASE}/sysinfo.cc
   ${BASE}/walltime.cc
-  ${BASE}/re_posix.cc
 )
 
 check_include_files(regex HAVE_STD_REGEX)
@@ -54,4 +60,5 @@ include_directories(${BASE}/../include)
 include_directories(${BASE}/../src)
 
 add_library(yt-contrib-benchmark STATIC ${SRCS})
+target_link_libraries(yt-contrib-benchmark ${CMAKE_THREAD_LIBS_INIT})
 
