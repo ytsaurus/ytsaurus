@@ -72,7 +72,7 @@ class ConfigsProvider(object):
     def get_driver_configs(self):
         pass
 
-    # XXX(ignat): is it properly work fo 0.18 with multiple cells?
+    # XXX(ignat): will it work properly for 0.18 with multiple cells?
     def get_ui_config(self, proxy_address):
         return default_configs.get_ui_config()\
             .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
