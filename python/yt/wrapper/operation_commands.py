@@ -19,6 +19,8 @@ from datetime import datetime
 from time import sleep, time
 from cStringIO import StringIO
 
+import __builtin__
+
 OPERATIONS_PATH = "//sys/operations"
 
 class OperationState(object):
@@ -259,7 +261,7 @@ def get_stderrs(operation, only_failed_jobs, client=None):
         if has_stderr:
             try:
                 job_with_stderr["stderr"] = read_file(stderr_path, client=client).read()
-            except tuple(list(get_retriable_errors()) + [YtResponseError]):
+            except tuple(__builtin__.list(get_retriable_errors()) + [YtResponseError]):
                 if ignore_errors:
                     continue
                 else:
