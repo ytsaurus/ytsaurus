@@ -190,6 +190,8 @@ public:
         RegisterParameter("path", Path);
         RegisterParameter("update", Update)
             .Default(false);
+        RegisterParameter("aggregate", Aggregate)
+            .Default(false);
         RegisterParameter("atomicity", Options.Atomicity)
             .Optional();
         RegisterParameter("durability", Options.Durability)
