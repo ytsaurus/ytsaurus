@@ -84,7 +84,7 @@ class CompletionFinder(OldCompletionFinder):
         return completions
 
 def complete_ypath(prefix, parsed_args, **kwargs):
-    if prefix == "":
+    if prefix in ["", "/"]:
         return ["//"]
     try:
         path = yt.TablePath(prefix)
@@ -92,12 +92,9 @@ def complete_ypath(prefix, parsed_args, **kwargs):
         content = yt.list(path, max_size=10**5, attributes=["type"])
         suggestions = []
         for item in content:
+            full_path = path + "/" + str(item)
             if item.attributes["type"] == "map_node":
-                full_path = path + "/" + str(item)
-                if full_path == prefix:
-                    suggestions += [full_path + "/"]
-                else:
-                    suggestions += [full_path, full_path + "/"]
+                suggestions += [full_path + "/"]
             else:
                 suggestions += [full_path]
         return suggestions
