@@ -29,20 +29,20 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletHydraManageConfig
+class TTabletHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
 {
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
-    TTabletHydraManageConfig()
+    TTabletHydraManagerConfig()
     {
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletHydraManageConfig)
+DEFINE_REFCOUNTED_TYPE(TTabletHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -446,7 +446,7 @@ public:
     NHydra::TRemoteChangelogStoreConfigPtr Changelogs;
 
     //! Generic configuration for all Hydra instances.
-    TTabletHydraManageConfigPtr HydraManager;
+    TTabletHydraManagerConfigPtr HydraManager;
 
     //! Generic configuration for all Hive instances.
     NHive::THiveManagerConfigPtr HiveManager;
