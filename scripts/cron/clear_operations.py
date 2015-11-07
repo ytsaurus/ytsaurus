@@ -2,7 +2,7 @@
 
 import prepare_operation_tablets
 
-from yt.wrapper.http import session_
+from yt.wrapper.http import get_session
 import yt.packages.requests.adapters as requests_adapters
 
 from yt.wrapper.common import run_with_retries
@@ -133,7 +133,7 @@ def clean_operations(soft_limit, hard_limit, grace_timeout, archive_timeout,
     #
 
     # XXX(ignat): Hack to increase requests connection pool size.
-    session_.mount("http://", requests_adapters.HTTPAdapter(pool_connections=thread_count, pool_maxsize=thread_count))
+    get_session().mount("http://", requests_adapters.HTTPAdapter(pool_connections=thread_count, pool_maxsize=thread_count))
 
     if archive:
         yt.config.VERSION = "v3"
