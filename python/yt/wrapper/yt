@@ -3,6 +3,7 @@
 import yt.wrapper.yson as yson
 from yt.wrapper.common import parse_bool, bool_to_string, chunk_iter_stream, update, get_value, MB
 from yt.wrapper.cli_helpers import write_silently, run_main
+import yt.wrapper.completers as completers
 import yt.wrapper as yt
 import yt.json as json
 
@@ -13,7 +14,6 @@ import fnmatch
 import shlex
 from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
 
-import completers
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
