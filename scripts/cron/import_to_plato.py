@@ -11,7 +11,7 @@ def main():
     importer.process_log("day", "reqregscdata/{}/www", None, period=180, link=False)
     importer.process_log("day", "reqregscdata/{}/xml", None, period=180, link=False)
     importer.process_log("day", "reqregscdata/{}/www/fraud", "reqregscdata/{}/www_fraud", period=180, link=False)
-    importer.process_log("hour", "fast_logs/user_sessions/{}", None, 48)
+    importer.process_log("hour", "fast_logs/user_sessions/{}", None, 48, ydf_attribute="UserSessions.ReadRecord")
 
 if __name__ == "__main__":
     main()
