@@ -276,7 +276,7 @@ private:
 
     void ValidatePeer(bool mutating)
     {
-        Owner->ValidatePeer(mutating ? EPeerKind::LeaderOrFollower : EPeerKind::Follower);
+        Owner->ValidatePeer(mutating ? EPeerKind::Leader : EPeerKind::LeaderOrFollower);
     }
 
     bool IsBarrierNeeded(bool mutating)
