@@ -49,6 +49,8 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TObjectService)
+
 class TObjectService
     : public NCellMaster::TMasterHydraServiceBase
 {
@@ -72,6 +74,8 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TObjectService)
+
 IServicePtr CreateObjectService(TBootstrap* bootstrap)
 {
     return New<TObjectService>(bootstrap);
@@ -84,9 +88,9 @@ class TObjectService::TExecuteSession
 {
 public:
     TExecuteSession(
-        TBootstrap* boostrap,
+        TObjectServicePtr owner,
         TCtxExecutePtr context)
-        : Bootstrap(boostrap)
+        : Owner(std::move(owner))
         , Context(std::move(context))
         , RequestCount(Context->Request().part_counts_size())
     { }
@@ -104,7 +108,7 @@ public:
         RequestHeaders.resize(RequestCount);
         UserName = Context->GetUser();
 
-        auto hydraManager = Bootstrap->GetHydraFacade()->GetHydraManager();
+        auto hydraManager = Owner->Bootstrap_->GetHydraFacade()->GetHydraManager();
         auto sync = hydraManager->SyncWithLeader();
         if (sync.IsSet()) {
             OnSync(sync.Get());
@@ -115,10 +119,11 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap;
+    const TObjectServicePtr Owner;
     const TCtxExecutePtr Context;
 
-    int RequestCount;
+    const int RequestCount;
+
     TFuture<void> LastMutationCommitted = VoidFuture;
     std::atomic<bool> Replied = {false};
     std::atomic<int> ResponseCount = {0};
@@ -139,7 +144,7 @@ private:
         }
 
         auto* user = GetAuthenticatedUser();
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Owner->Bootstrap_->GetSecurityManager();
         securityManager->ValidateUserAccess(user, RequestCount);
 
         Continue();
@@ -148,10 +153,10 @@ private:
     void Continue()
     {
         try {
-            auto objectManager = Bootstrap->GetObjectManager();
+            auto objectManager = Owner->Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
 
-            auto hydraFacade = Bootstrap->GetHydraFacade();
+            auto hydraFacade = Owner->Bootstrap_->GetHydraFacade();
             auto hydraManager = hydraFacade->GetHydraManager();
 
             auto startTime = TInstant::Now();
@@ -159,7 +164,7 @@ private:
             auto& request = Context->Request();
             const auto& attachments = request.Attachments();
 
-            auto securityManager = Bootstrap->GetSecurityManager();
+            auto securityManager = Owner->Bootstrap_->GetSecurityManager();
             auto* user = GetAuthenticatedUser();
             TAuthenticatedUserGuard userGuard(securityManager, user);
 
@@ -205,6 +210,8 @@ private:
                 const auto& ypathExt = requestHeader.GetExtension(TYPathHeaderExt::ypath_header_ext);
                 const auto& path = ypathExt.path();
                 bool mutating = ypathExt.mutating();
+
+                ValidatePeer(mutating);
 
                 if (IsBarrierNeeded(mutating) && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
@@ -267,12 +274,17 @@ private:
         }
     }
 
+    void ValidatePeer(bool mutating)
+    {
+        Owner->ValidatePeer(mutating ? EPeerKind::LeaderOrFollower : EPeerKind::Follower);
+    }
+
     bool IsBarrierNeeded(bool mutating)
     {
         if (mutating) {
             // Always place a barrier before each write request when doing leader forwarding
             // since the forwarded requests may be served out of order.
-            auto hydraFacade = Bootstrap->GetHydraFacade();
+            auto hydraFacade = Owner->Bootstrap_->GetHydraFacade();
             auto hydraManager = hydraFacade->GetHydraManager();
             return hydraManager->IsFollower();
         } else {
@@ -355,7 +367,7 @@ private:
 
     TUser* GetAuthenticatedUser()
     {
-        auto securityManager = Bootstrap->GetSecurityManager();
+        auto securityManager = Owner->Bootstrap_->GetSecurityManager();
         return securityManager->GetUserByNameOrThrow(UserName);
     }
 
@@ -368,12 +380,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     UNUSED(request);
     UNUSED(response);
 
-    ValidatePeer(EPeerKind::LeaderOrFollower);
-
-    auto session = New<TExecuteSession>(
-        Bootstrap_,
-        std::move(context));
-    session->Run();
+    New<TExecuteSession>(this, std::move(context))->Run();
 }
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, GCCollect)
