@@ -145,7 +145,8 @@ public:
     {
         ValidateCreatedNodeType(type);
 
-        GetNewNodeAccount()->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+        auto* account = GetNewNodeAccount();
+        account->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto handler = cypressManager->FindHandler(type);
@@ -214,8 +215,16 @@ public:
     {
         ValidateCreatedNodeType(sourceNode->GetType());
 
-        GetClonedNodeAccount(sourceNode)->ValidateResourceUsageIncrease(sourceNode->GetResourceUsage());
-
+        auto* clonedAccount = GetClonedNodeAccount(sourceNode);
+        // Resource limit check must be suppressed when moving nodes
+        // without altering the account.
+        if (mode != ENodeCloneMode::Move || clonedAccount != sourceNode->GetAccount()) {
+            // NB: Ignore disk space increase since in multicell mode the primary cell
+            // might not be aware of the actual resource usage.
+            // This should be safe since chunk lists are shared anyway. 
+            clonedAccount->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+        }
+        
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
 
@@ -595,14 +604,14 @@ TCypressNodeBase* TCypressManager::CloneNode(
 
     // Validate account access _before_ creating the actual copy.
     auto securityManager = Bootstrap_->GetSecurityManager();
-    auto* account = factory->GetClonedNodeAccount(sourceNode);
-    securityManager->ValidatePermission(account, EPermission::Use);
+    auto* clonedAccount = factory->GetClonedNodeAccount(sourceNode);
+    securityManager->ValidatePermission(clonedAccount, EPermission::Use);
 
     auto handler = GetHandler(sourceNode);
     auto* clonedNode = handler->Clone(sourceNode, factory, mode);
 
     // Set account.
-    securityManager->SetAccount(clonedNode, account);
+    securityManager->SetAccount(clonedNode, clonedAccount);
 
     // Set owner.
     auto* user = securityManager->GetAuthenticatedUser();
