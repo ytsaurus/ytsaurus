@@ -1312,7 +1312,7 @@ def _run_operation(binary, source_table, destination_table,
                 source_table = [TablePath(temp_table)]
 
     if op_name == "join_reduce":
-        join_by = _prepare_join_by(join_by, client)
+        join_by = _prepare_join_by(join_by)
         reduce_by = join_by
 
 
