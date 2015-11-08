@@ -33,6 +33,8 @@ IInvokerPtr TMasterHydraServiceBase::GetGuardedAutomatonInvoker(EAutomatonThread
 
 void TMasterHydraServiceBase::BeforeInvoke()
 {
+    THydraServiceBase::BeforeInvoke();
+
     auto worldInitializer = Bootstrap_->GetWorldInitializer();
     if (!worldInitializer->CheckInitialized()) {
         THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");
