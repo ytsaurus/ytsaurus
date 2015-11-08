@@ -85,12 +85,9 @@ private:
     void SetMetaLoadSuccess(const NChunkClient::NProto::TChunkMeta& meta);
     void SetMetaLoadError(const TError& error);
     void DoReadMeta(TChunkReadGuard readGuard);
-
-    TFuture<std::vector<TSharedRef>> DoReadBlockSet(
+    void DoReadBlockSet(
         TReadBlockSetSessionPtr session,
-        const TWorkloadDescriptor& workloadDescriptor,
-        bool populateCache);
-
+        const TWorkloadDescriptor& workloadDescriptor);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
