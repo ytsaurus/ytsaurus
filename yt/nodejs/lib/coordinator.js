@@ -210,7 +210,7 @@ function YtCoordinator(config, logger, driver, fqdn, port)
     this.logger = logger;
     this.driver = driver;
 
-    if (fqdn.indexOf(":") > -1) {
+    if (fqdn.indexOf(":")) {
         this.name = fqdn;
     } else {
         this.name = fqdn + ":" + port;
