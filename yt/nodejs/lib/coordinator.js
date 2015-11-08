@@ -210,11 +210,7 @@ function YtCoordinator(config, logger, driver, fqdn, port)
     this.logger = logger;
     this.driver = driver;
 
-    if (fqdn.indexOf(":")) {
-        this.name = fqdn;
-    } else {
-        this.name = fqdn + ":" + port;
-    }
+    this.name = fqdn + ":" + port;
     this.host = new YtCoordinatedHost(this.config, this.name);
 
     this.hosts = {};
