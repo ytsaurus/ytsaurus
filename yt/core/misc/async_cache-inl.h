@@ -542,7 +542,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie()
 template <class TKey, class TValue, class THash>
 TAsyncSlruCacheBase<TKey, TValue, THash>::TInsertCookie::TInsertCookie(const TKey& key)
     : Key_(key)
-      , Active_(false)
+    , Active_(false)
 { }
 
 template <class TKey, class TValue, class THash>

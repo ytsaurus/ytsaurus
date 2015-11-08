@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
+cmake_minimum_required(VERSION 2.8.10 FATAL_ERROR)
 if(POLICY CMP0037)
-    cmake_policy(SET CMP0037 OLD) # Enable reserved "package" target
+  cmake_policy(SET CMP0037 OLD) # Enable reserved "package" target
 endif()
 if(POLICY CMP0042)
-    cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
+  cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
 endif()
 
 project(YT)
@@ -41,13 +41,13 @@ include(CheckCXXSourceCompiles)
 include(CheckIncludeFiles)
 include(CheckFunctionExists)
 
+include(DetectCPU)
 include(DumpCMakeVariables)
 
 include(LocalFunctions)
 include(LocalConfiguration)
 
 include(Version)
-include(PCH)
 
 ################################################################################
 # Create CompilationDatabase (build/compile_commands.json).
@@ -82,6 +82,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
   set(HAVE_CXXABI_H 1)
 endif()
 
+include(PCH)
 include(PCFromUcontext)
 
 # Write down configuration.
@@ -173,7 +174,7 @@ add_subdirectory(library/lfalloc)
 
 add_subdirectory(yt)
 
-if (YT_BUILD_ENABLE_PERL)
+if(YT_BUILD_ENABLE_PERL)
   add_subdirectory(perl)
 endif()
 
