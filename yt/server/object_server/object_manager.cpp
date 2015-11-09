@@ -1161,6 +1161,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
 
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetTimeout(timeout);
     batchReq->SetUser(user->GetName());
     batchReq->AddRequestMessage(requestMessage);
 
