@@ -43,10 +43,10 @@ TSchemalessWriterForYamredDsv::TSchemalessWriterForYamredDsv(
 void TSchemalessWriterForYamredDsv::UpdateEscapedColumnNames()
 {
     // Storing escaped column names in order to not re-escape them each time we write a column name.
-    EscapedColumnNames_.reserve(nameTable->GetSize());
-    for (int columnIndex = EscapedColumnNames_.size(); columnIndex < nameTable->GetSize(); columnIndex++) {
+    EscapedColumnNames_.reserve(NameTable_->GetSize());
+    for (int columnIndex = EscapedColumnNames_.size(); columnIndex < NameTable_->GetSize(); columnIndex++) {
         EscapedColumnNames_.emplace_back(
-                Escape(nameTable->GetName(columnIndex), Table_.KeyStops, Table_.Escapes, Config_->EscapingSymbol));
+                Escape(NameTable_->GetName(columnIndex), Table_.KeyStops, Table_.Escapes, Config_->EscapingSymbol));
     }
 }
 

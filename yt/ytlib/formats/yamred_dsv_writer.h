@@ -44,6 +44,8 @@ private:
     void WriteYamrValue(); 
     ui32 CalculateTotalValueLength();
     ui32 CalculateLength(const TStringBuf& string, bool inKey);
+
+    void UpdateEscapedColumnNames();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchemalessWriterForYamredDsv)
