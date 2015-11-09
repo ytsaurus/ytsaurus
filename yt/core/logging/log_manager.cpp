@@ -330,7 +330,7 @@ public:
 
             // Last-minute information.
             TRawFormatter<1024> formatter;
-            formatter.AppendString("*** Fatal error encountered in ");
+            formatter.AppendString("\n*** Fatal error encountered in ");
             formatter.AppendString(event.Function);
             formatter.AppendString(" (");
             formatter.AppendString(event.FileName);
