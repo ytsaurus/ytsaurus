@@ -106,7 +106,7 @@ Value* TCGIRBuilder::GetClosure()
         getInt32(Mapping_.size()),
         "closure");
 
-    for (auto & value : Mapping_) {
+    for (auto& value : Mapping_) {
         Value* valueInParent = value.first;
         int indexInClosure = value.second.second;
         auto name = value.second.first->getName();
