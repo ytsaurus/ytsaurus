@@ -287,7 +287,7 @@ public:
 
         if (GetAutomatonState() != EPeerState::Leading) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not a leader");
         }
 
@@ -302,13 +302,13 @@ public:
 
         if (!epochContext || !IsActiveLeader()) {
             return MakeFuture<int>(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active leader"));
         }
 
         if (!epochContext->Checkpointer->CanBuildSnapshot()) {
             return MakeFuture<int>(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot build a snapshot at the moment"));
         }
 
@@ -344,7 +344,7 @@ public:
         auto epochContext = AutomatonEpochContext_;
         if (!epochContext || !IsActiveLeader() && !IsActiveFollower()) {
             return MakeFuture(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active peer"));
         }
 
@@ -370,14 +370,14 @@ public:
 
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
-                NHydra::EErrorCode::ReadOnly,
+                NRpc::EErrorCode::Unavailable,
                 "Read-only mode is active"));
         }
 
         auto epochContext = AutomatonEpochContext_;
         if (epochContext->Restarting) {
             return MakeFuture<TMutationResponse>(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Peer is restarting"));
         }
 
@@ -386,13 +386,13 @@ public:
             case EPeerState::Leading:
                 if (!LeaderRecovered_) {
                     return MakeFuture<TMutationResponse>(TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Leader has not yet recovered"));
                 }
 
                 if (!LeaderLease_->IsValid()) {
                     auto error = TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Leader lease is no longer valid");
                     Restart(epochContext, error);
                     return MakeFuture<TMutationResponse>(error);
@@ -403,13 +403,13 @@ public:
             case EPeerState::Following:
                 if (!FollowerRecovered_) {
                     return MakeFuture<TMutationResponse>(TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Follower has not yet recovered"));
                 }
 
                 if (!request.AllowLeaderForwarding) {
                     return MakeFuture<TMutationResponse>(TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Leader mutation forwarding is not allowed"));
                 }
 
@@ -417,7 +417,7 @@ public:
 
             default:
                 return MakeFuture<TMutationResponse>(TError(
-                    NHydra::EErrorCode::InvalidState,
+                    NRpc::EErrorCode::Unavailable,
                     "Peer is in %Qlv state",
                     state));
         }
@@ -542,7 +542,7 @@ private:
 
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot accept mutations in %Qlv state",
                 ControlState_);
         }
@@ -610,7 +610,7 @@ private:
 
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot handle follower ping in %Qlv state",
                 ControlState_);
         }
@@ -652,7 +652,7 @@ private:
 
         if (ControlState_ != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot build snapshot in %Qlv state",
                 ControlState_);
         }
@@ -717,7 +717,7 @@ private:
 
         if (ControlState_ != EPeerState::Following && ControlState_  != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot rotate changelog while in %Qlv state",
                 ControlState_);
         }
@@ -741,7 +741,7 @@ private:
                     auto followerCommitter = epochContext->FollowerCommitter;
                     if (followerCommitter->IsLoggingSuspended()) {
                         THROW_ERROR_EXCEPTION(
-                            NHydra::EErrorCode::InvalidState,
+                            NRpc::EErrorCode::Unavailable,
                             "Changelog is already being rotated");
                     }
 
@@ -766,7 +766,7 @@ private:
                 if (!followerRecovery) {
                     // NB: No restart.
                     THROW_ERROR_EXCEPTION(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Initial ping is not received yet");
                 }
 
@@ -799,7 +799,7 @@ private:
 
         if (!IsActiveLeader()) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active leader");
         }
 
