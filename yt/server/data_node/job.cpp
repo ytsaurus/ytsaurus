@@ -65,10 +65,6 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const i64 ReadPriority = 0;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkJobBase
     : public IJob
 {
@@ -376,7 +372,9 @@ private:
 
     virtual void DoRun() override
     {
-        auto asyncMeta = Chunk_->ReadMeta(0);
+        LOG_INFO("Fetching chunk meta");
+
+        auto asyncMeta = Chunk_->ReadMeta(Config_->ReplicationWriter->WorkloadDescriptor);
         auto meta = WaitFor(asyncMeta)
             .ValueOrThrow();
 
@@ -388,7 +386,6 @@ private:
         auto targets = FromProto<TChunkReplica, TChunkReplicaList>(ReplicateChunkJobSpecExt_.targets());
 
         auto options = New<TRemoteWriterOptions>();
-        options->SessionType = EWriteSessionType::Replication;
         options->AllowAllocatingNewTargetNodes = false;
 
         auto writer = CreateReplicationWriter(
@@ -415,7 +412,7 @@ private:
                 ChunkId_,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,
-                ReadPriority,
+                Config_->ReplicationWriter->WorkloadDescriptor,
                 blockCache,
                 false);
             auto readBlocks = WaitFor(asyncReadBlocks)
@@ -533,7 +530,6 @@ private:
 
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto options = New<TRemoteReaderOptions>();
-            options->SessionType = EReadSessionType::Repair;
             auto reader = CreateReplicationReader(
                 Config_->RepairReader,
                 options,
@@ -552,7 +548,6 @@ private:
             int partIndex = erasedIndexes[index];
             auto partId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
             auto options = New<TRemoteWriterOptions>();
-            options->SessionType = EWriteSessionType::Repair;
             options->AllowAllocatingNewTargetNodes = false;
             auto writer = CreateReplicationWriter(
                 Config_->RepairWriter,
@@ -659,7 +654,6 @@ private:
             auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(SealJobSpecExt_.replicas());
 
             auto options = New<TRemoteReaderOptions>();
-            options->SessionType = EReadSessionType::Replication;
             auto reader = CreateReplicationReader(
                 Config_->SealReader,
                 options,

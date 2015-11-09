@@ -441,7 +441,8 @@ private:
     Stroka ReadString()
     {
         size_t length = ReadInt64();
-        Stroka value(length);
+        Stroka value;
+        value.resize(length);
         ReadRaw(const_cast<char*>(value.data()), length);
         return value;
     }

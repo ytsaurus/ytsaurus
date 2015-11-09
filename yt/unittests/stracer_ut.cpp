@@ -3,7 +3,7 @@
 
 #include <server/job_proxy/stracer.h>
 
-#include <core/concurrency/thread.h>
+#include <util/system/thread.h>
 
 namespace NYT {
 namespace NJobProxy {
@@ -28,7 +28,7 @@ TEST(TStracer, Basic)
     ASSERT_TRUE(pid >= 0);
 
     if (pid == 0) {
-        NConcurrency::SetCurrentThreadName("SomeCoolProcess");
+        TThread::CurrentThreadSetName("SomeCoolProcess");
         while (true) {
             write(42, "hello\n", 6);
         }

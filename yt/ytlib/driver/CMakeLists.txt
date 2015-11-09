@@ -1,6 +1,5 @@
 #:yt-updatable
 set( SRCS
-  ${CMAKE_CURRENT_LIST_DIR}/command.cpp
   ${CMAKE_CURRENT_LIST_DIR}/cypress_commands.cpp
   ${CMAKE_CURRENT_LIST_DIR}/dispatcher.cpp
   ${CMAKE_CURRENT_LIST_DIR}/driver.cpp

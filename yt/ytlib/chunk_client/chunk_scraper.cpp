@@ -5,9 +5,12 @@
 #include "private.h"
 
 #include <ytlib/api/client.h>
+
 #include <ytlib/chunk_client/chunk_service_proxy.h>
 #include <ytlib/chunk_client/throttler_manager.h>
+
 #include <ytlib/node_tracker_client/node_directory.h>
+
 #include <ytlib/object_client/helpers.h>
 #include <ytlib/object_client/public.h>
 
@@ -20,6 +23,8 @@ namespace NChunkClient {
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NObjectClient;
+
+using NYT::FromProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -37,21 +42,18 @@ public:
         std::vector<TChunkId> chunkIds,
         TChunkLocatedHandler onChunkLocated,
         const NLogging::TLogger& logger)
-        : Config_(config)
-        , Invoker_(invoker)
-        , Throttler_(throttler)
-        , Proxy_(masterChannel)
-        , NodeDirectory_(nodeDirectory)
-        , CellTag_(cellTag)
-        , ChunkIds_(std::move(chunkIds))
-        , OnChunkLocated_(onChunkLocated)
-        , Logger(logger)
-        , Started_(false)
-        , NextChunkIndex_(0)
-        , PeriodicExecutor_(New<TPeriodicExecutor>(
-            invoker,
-            BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
-            Config_->ChunkScratchPeriod))
+    : Config_(config)
+    , Throttler_(throttler)
+    , NodeDirectory_(nodeDirectory)
+    , CellTag_(cellTag)
+    , ChunkIds_(std::move(chunkIds))
+    , OnChunkLocated_(onChunkLocated)
+    , Logger(logger)
+    , Proxy_(masterChannel)
+    , PeriodicExecutor_(New<TPeriodicExecutor>(
+        invoker,
+        BIND(&TScraperTask::LocateChunks, MakeWeak(this)),
+        TDuration::Zero()))
     {
         Logger.AddTag("ScraperTask: %p", this);
         Logger.AddTag("CellTag: %v", CellTag_);
@@ -63,13 +65,12 @@ public:
         if (Started_ || ChunkIds_.empty()) {
             return;
         }
+
         Started_ = true;
         NextChunkIndex_ = 0;
 
-        LOG_DEBUG("Starting scraper task (ChunkCount: %v, ChunkScratchPeriod: %v, MaxChunksPerScratch: %v)",
-            ChunkIds_.size(),
-            Config_->ChunkScratchPeriod,
-            Config_->MaxChunksPerScratch);
+        LOG_DEBUG("Starting scraper task (ChunkCount: %v)",
+            ChunkIds_.size());
 
         PeriodicExecutor_->Start();
     }
@@ -80,11 +81,29 @@ public:
         if (!Started_) {
             return;
         }
-        LOG_DEBUG("Stopping scraper task (ChunkCount: %v)", ChunkIds_.size());
+        LOG_DEBUG("Stopping scraper task (ChunkCount: %v)",
+        	ChunkIds_.size());
 
         Started_ = false;
         PeriodicExecutor_->Stop();
     }
+
+private:
+    const TChunkScraperConfigPtr Config_;
+    const NConcurrency::IThroughputThrottlerPtr Throttler_;
+    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
+    const TCellTag CellTag_;
+    const std::vector<TChunkId> ChunkIds_;
+    const TChunkLocatedHandler OnChunkLocated_;
+
+    NLogging::TLogger Logger;
+    TChunkServiceProxy Proxy_;
+
+    bool Started_ = false;
+    int NextChunkIndex_ = 0;
+
+    const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+
 
     void LocateChunks()
     {
@@ -92,9 +111,10 @@ public:
             return;
         }
 
-        if (NextChunkIndex_ >=  ChunkIds_.size()) {
+        if (NextChunkIndex_ >= ChunkIds_.size()) {
             NextChunkIndex_ = 0;
         }
+
         auto startIndex = NextChunkIndex_;
         auto req = Proxy_.LocateChunks();
 
@@ -127,27 +147,12 @@ public:
         NodeDirectory_->MergeFrom(rsp->node_directory());
 
         for (const auto& chunkInfo : rsp->chunks()) {
-            auto chunkId = NYT::FromProto<TChunkId>(chunkInfo.chunk_id());
-            auto replicas = NYT::FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
+            auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+            auto replicas = FromProto<TChunkReplica, TChunkReplicaList>(chunkInfo.replicas());
             OnChunkLocated_.Run(std::move(chunkId), std::move(replicas));
         }
     }
-private:
 
-    const TChunkScraperConfigPtr Config_;
-    const IInvokerPtr Invoker_;
-    const NConcurrency::IThroughputThrottlerPtr Throttler_;
-
-    TChunkServiceProxy Proxy_;
-    NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    TCellTag CellTag_;
-    std::vector<TChunkId> ChunkIds_;
-    TChunkLocatedHandler OnChunkLocated_;
-    NLogging::TLogger Logger;
-
-    bool Started_ = false;
-    size_t NextChunkIndex_;
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TScraperTask)
@@ -212,9 +217,10 @@ void TChunkScraper::Reset(const yhash_set<TChunkId>& chunkIds)
     DoStart();
 }
 
-//! Separate chunks by cellTags.
-static yhash_map<TCellTag, std::vector<TChunkId>> SeparateChunks(const yhash_set<TChunkId>& chunkIds)
+//! Create scraper tasks for each cell.
+void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
 {
+	// Group chunks by cell tags.
     yhash_map<TCellTag, int> cellTags;
     for (const auto& chunkId : chunkIds) {
         auto cellTag = CellTagFromId(chunkId);
@@ -230,14 +236,6 @@ static yhash_map<TCellTag, std::vector<TChunkId>> SeparateChunks(const yhash_set
         auto cellTag = CellTagFromId(chunkId);
         chunksByCells[cellTag].push_back(chunkId);
     }
-
-    return chunksByCells;
-}
-
-//! Create scraper tasks for each cell.
-void TChunkScraper::CreateTasks(const yhash_set<TChunkId>& chunkIds)
-{
-    auto chunksByCells = SeparateChunks(chunkIds);
 
     for (const auto& cellChunks : chunksByCells) {
         auto cellTag = cellChunks.first;

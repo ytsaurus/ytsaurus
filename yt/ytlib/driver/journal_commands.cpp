@@ -30,7 +30,7 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReadJournalCommand::DoExecute()
+void TReadJournalCommand::Execute(ICommandContextPtr context)
 {
     auto checkLimit = [] (const TReadLimit& limit) {
         if (limit.HasKey()) {
@@ -44,51 +44,48 @@ void TReadJournalCommand::DoExecute()
         }
     };
 
-    const auto& path = Request_->Path;
-
-    if (path.GetRanges().size() > 1) {
+    if (Path.GetRanges().size() > 1) {
         THROW_ERROR_EXCEPTION("Reading multiple ranges is not supported in journals");
     }
 
-    TJournalReaderOptions options;
-    if (path.GetRanges().size() == 1) {
-        auto range = path.GetRanges()[0];
+    Options.Config = UpdateYsonSerializable(
+        context->GetConfig()->JournalReader,
+        GetOptions());
+
+    if (Path.GetRanges().size() == 1) {
+        auto range = Path.GetRanges()[0];
 
         checkLimit(range.LowerLimit());
         checkLimit(range.UpperLimit());
 
-        options.FirstRowIndex = range.LowerLimit().HasRowIndex()
+        Options.FirstRowIndex = range.LowerLimit().HasRowIndex()
             ? range.LowerLimit().GetRowIndex()
             : 0;
 
         if (range.UpperLimit().HasRowIndex()) {
-            options.RowCount = range.UpperLimit().GetRowIndex() - *options.FirstRowIndex;
+            Options.RowCount = range.UpperLimit().GetRowIndex() - *Options.FirstRowIndex;
         }
     }
-    options.Config = UpdateYsonSerializable(
-        Context_->GetConfig()->JournalReader,
-        Request_->GetOptions());
-    SetTransactionalOptions(&options);
 
-    auto reader = Context_->GetClient()->CreateJournalReader(
-        Request_->Path.GetPath(),
-        options);
+    auto reader = context->GetClient()->CreateJournalReader(
+        Path.GetPath(),
+        Options);
 
     {
-        auto error = WaitFor(reader->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(reader->Open())
+            .ThrowOnError();
     }
 
-    auto output = Context_->Request().OutputStream;
+    auto output = context->Request().OutputStream;
 
     // TODO(babenko): provide custom allocation tag
     TBlobOutput buffer;
     auto flushBuffer = [&] () {
-        auto result = WaitFor(output->Write(buffer.Flush()));
-        THROW_ERROR_EXCEPTION_IF_FAILED(result);
+        WaitFor(output->Write(buffer.Flush()))
+            .ThrowOnError();
     };
 
-    auto format = Context_->GetOutputFormat();
+    auto format = context->GetOutputFormat();
     auto consumer = CreateConsumerForFormat(format, EDataType::Tabular, &buffer);
 
     while (true) {
@@ -105,7 +102,7 @@ void TReadJournalCommand::DoExecute()
                 .EndMap();
         }
 
-        if (buffer.Size() > Context_->GetConfig()->ReadBufferSize) {
+        if (buffer.Size() > context->GetConfig()->ReadBufferSize) {
             flushBuffer();
         }
     }
@@ -147,8 +144,8 @@ private:
         std::vector<TSharedRef> rows;
         rows.push_back(TSharedRef::FromString(Stroka(value)));
 
-        auto error = WaitFor(Writer_->Write(rows));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(Writer_->Write(rows))
+            .ThrowOnError();
 
         State_ = EJournalConsumerState::InsideMap;
     }
@@ -241,50 +238,47 @@ private:
 
 };
 
-void TWriteJournalCommand::DoExecute()
+void TWriteJournalCommand::Execute(ICommandContextPtr context)
 {
-    TJournalWriterOptions options;
-    options.Config = UpdateYsonSerializable(
-        Context_->GetConfig()->JournalWriter,
-        Request_->GetOptions());
-    SetTransactionalOptions(&options);
-    SetPrerequisites(&options);
+    Options.Config = UpdateYsonSerializable(
+        context->GetConfig()->JournalWriter,
+        JournalWriter);
 
-    auto writer = Context_->GetClient()->CreateJournalWriter(
-        Request_->Path.GetPath(),
-        options);
+    auto writer = context->GetClient()->CreateJournalWriter(
+        Path.GetPath(),
+        Options);
 
     {
-        auto error = WaitFor(writer->Open());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(writer->Open())
+            .ThrowOnError();
     }
 
     TJournalConsumer consumer(writer);
 
-    auto format = Context_->GetInputFormat();
+    auto format = context->GetInputFormat();
     auto parser = CreateParserForFormat(format, EDataType::Tabular, &consumer);
 
     struct TWriteBufferTag { };
 
-    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(Context_->GetConfig()->WriteBufferSize, false);
+    auto buffer = TSharedMutableRef::Allocate<TWriteBufferTag>(context->GetConfig()->WriteBufferSize, false);
 
-    auto input = Context_->Request().InputStream;
+    auto input = context->Request().InputStream;
 
     while (true) {
-        auto bytesRead = WaitFor(input->Read(buffer));
-        THROW_ERROR_EXCEPTION_IF_FAILED(bytesRead);
+        auto bytesRead = WaitFor(input->Read(buffer))
+            .ValueOrThrow();
 
-        if (bytesRead.Value() == 0)
+        if (bytesRead == 0)
             break;
 
-        parser->Read(TStringBuf(buffer.Begin(), bytesRead.Value()));
+        parser->Read(TStringBuf(buffer.Begin(), bytesRead));
     }
 
     parser->Finish();
 
     {
-        auto error = WaitFor(writer->Close());
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        WaitFor(writer->Close())
+            .ThrowOnError();
     }
 }
 

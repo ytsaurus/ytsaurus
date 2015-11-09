@@ -24,8 +24,7 @@ TFuture<ISchemafulReaderPtr> CreateSchemafulChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     const TTableSchema& schema,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const NChunkClient::TReadLimit& startLimit = NChunkClient::TReadLimit(),
-    const NChunkClient::TReadLimit& endLimit = NChunkClient::TReadLimit(),
+    std::vector<NChunkClient::TReadRange> readRanges = std::vector<NChunkClient::TReadRange>(1),
     TTimestamp timestamp = NullTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,8 +4,12 @@
 #include "channel.h"
 #include "client.h"
 
+#include <core/concurrency/rw_spinlock.h>
+
 namespace NYT {
 namespace NRpc {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,39 +23,45 @@ public:
 
     virtual IChannelPtr CreateChannel(const Stroka& address) override
     {
-        TGuard<TSpinLock> firstAttemptGuard(SpinLock);
+        {
+            TReaderGuard guard(SpinLock_);
+            auto it = ChannelMap_.find(address);
+            if (it != ChannelMap_.end()) {
+                return it->second;
+            }
+        }
 
-        auto it = ChannelMap.find(address);
-        if (it == ChannelMap.end()) {
-            firstAttemptGuard.Release();
+        auto channel = UnderlyingFactory_->CreateChannel(address);
 
-            auto channel = UnderlyingFactory_->CreateChannel(address);
-
-            TGuard<TSpinLock> secondAttemptGuard(SpinLock);
-            it = ChannelMap.find(address);
-            if (it == ChannelMap.end()) {
-                it = ChannelMap.insert(std::make_pair(address, channel)).first;
+        {
+            TWriterGuard guard(SpinLock_);
+            auto it = ChannelMap_.find(address);
+            if (it == ChannelMap_.end()) {
+                YCHECK(ChannelMap_.insert(std::make_pair(address, channel)).second);
+                return channel;
             } else {
                 channel->Terminate(TError(
                     NRpc::EErrorCode::TransportError,
                     "Channel terminated"));
+                // XXX(babenko): stop wrapping with TChannelWrapper after merging into master
+                return New<TChannelWrapper>(it->second);
             }
         }
-
-        return New<TChannelWrapper>(it->second);
     }
 
 private:
-    IChannelFactoryPtr UnderlyingFactory_;
+    const IChannelFactoryPtr UnderlyingFactory_;
 
-    TSpinLock SpinLock;
-    yhash_map<Stroka, IChannelPtr> ChannelMap;
+    TReaderWriterSpinLock SpinLock_;
+    yhash_map<Stroka, IChannelPtr> ChannelMap_;
 
 };
 
 IChannelFactoryPtr CreateCachingChannelFactory(IChannelFactoryPtr underlyingFactory)
 {
-    return New<TCachingChannelFactory>(underlyingFactory);
+    YCHECK(underlyingFactory);
+
+    return New<TCachingChannelFactory>(std::move(underlyingFactory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -721,13 +721,13 @@ class TestTablets(YTEnvSetup):
             assert len(tablet_data["partitions"]) == 1
             assert len(tablet_data["partitions"][0]["stores"]) >= 1
             assert all(s["preload_state"] == state for _, s in tablet_data["partitions"][0]["stores"].iteritems())
-            actual_preload_completed = get("//tmp/t/@tablets/0/statistics/store_preload_completed_count")
+            actual_preload_completed = get("//tmp/t/@tablets/0/statistics/preload_completed_store_count")
             if state == "complete":
                 assert actual_preload_completed >= 1
             else:
                 assert actual_preload_completed == 0
-            assert get("//tmp/t/@tablets/0/statistics/store_preload_pending_count") == 0
-            assert get("//tmp/t/@tablets/0/statistics/store_preload_failed_count") == 0
+            assert get("//tmp/t/@tablets/0/statistics/preload_pending_store_count") == 0
+            assert get("//tmp/t/@tablets/0/statistics/preload_failed_store_count") == 0
 
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)

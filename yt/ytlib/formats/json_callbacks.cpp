@@ -38,6 +38,14 @@ void TJsonCallbacks::OnInt64Scalar(i64 value)
     OnItemFinished();
 }
 
+void TJsonCallbacks::OnUint64Scalar(ui64 value)
+{
+    AccountMemory(sizeof(value));
+    OnItemStarted();
+    TreeBuilder_->OnUint64Scalar(value);
+    OnItemFinished();
+}
+
 void TJsonCallbacks::OnDoubleScalar(double value)
 {
     AccountMemory(sizeof(value));

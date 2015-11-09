@@ -49,17 +49,6 @@ struct TSerializableColumnSchema
 {
     TSerializableColumnSchema()
     {
-        RegisterAll();
-    }
-
-    explicit TSerializableColumnSchema(const TColumnSchema& other)
-        : TColumnSchema(other)
-    {
-        RegisterAll();
-    }
-
-    void RegisterAll()
-    {
         RegisterParameter("name", Name)
             .NonEmpty();
         RegisterParameter("type", Type);
@@ -95,7 +84,8 @@ struct TSerializableColumnSchema
 
 void Serialize(const TColumnSchema& schema, IYsonConsumer* consumer)
 {
-    TSerializableColumnSchema wrapper(schema);
+    TSerializableColumnSchema wrapper;
+    static_cast<TColumnSchema&>(wrapper) = schema;
     Serialize(static_cast<const TYsonSerializableLite&>(wrapper), consumer);
 }
 

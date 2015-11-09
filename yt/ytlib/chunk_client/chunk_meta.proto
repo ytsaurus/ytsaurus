@@ -64,6 +64,9 @@ message TMiscExt
 
     // Does this chunk belong to Eden (dynamic tables only)?
     optional bool eden = 14 [default = false];
+
+    // EErasureCodec
+    optional int32 erasure_codec = 15;
 }
 
 message TPartInfo

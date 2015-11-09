@@ -24,6 +24,8 @@ using namespace NHydra::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = HydraLogger;
+static const auto LockBackoffTime = TDuration::MilliSeconds(100);
+static const int MaxLockRetries = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -238,8 +240,8 @@ public:
 
         LOG_DEBUG("Opening changelog");
 
-        DataFile_.reset(new TFileWrapper(FileName_, RdWr|Seq));
-        DataFile_->Flock(LOCK_EX | LOCK_NB);
+        DataFile_.reset(new TFileWrapper(FileName_, RdWr | Seq | CloseOnExec));
+        LockDataFile();
 
         // Read and check changelog header.
         TChangelogHeader header;
@@ -300,36 +302,10 @@ public:
         RecordCount_ = 0;
         Open_ = true;
 
-        // Data file.
-        i64 currentFilePosition;
-        {
-            auto tempFileName = FileName_ + NFS::TempFileSuffix;
-            TFileWrapper tempFile(tempFileName, WrOnly|CreateAlways);
-
-            TChangelogHeader header(
-                SerializedMeta_.Size(),
-                TChangelogHeader::NotTruncatedRecordCount);
-            WritePod(tempFile, header);
-
-            WritePadded(tempFile, SerializedMeta_);
-
-            currentFilePosition = tempFile.GetPosition();
-            YCHECK(currentFilePosition == header.HeaderSize);
-
-            tempFile.FlushData();
-            tempFile.Close();
-
-            NFS::Replace(tempFileName, FileName_);
-
-            DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr);
-            DataFile_->Flock(LOCK_EX | LOCK_NB);
-            DataFile_->Seek(0, sEnd);
-        }
-
-        // Index file.
+        CreateDataFile();
         CreateIndexFile();
 
-        CurrentFilePosition_ = currentFilePosition;
+        CurrentFilePosition_ = DataFile_->GetPosition();
         CurrentBlockSize_ = 0;
 
         LOG_DEBUG("Changelog created");
@@ -534,6 +510,51 @@ private:
     };
 
 
+
+    //! Flocks the data file, retrying if needed.
+    void LockDataFile()
+    {
+        int index = 0;
+        while (true) {
+            try {
+                LOG_DEBUG("Locking data file");
+                DataFile_->Flock(LOCK_EX | LOCK_NB);
+                LOG_DEBUG("Data file locked successfullly");
+                break;
+            } catch (const std::exception& ex) {
+                if (++index >= MaxLockRetries) {
+                    throw;
+                }
+                LOG_WARNING(ex, "Error locking data file; backing off and retrying");
+                Sleep(LockBackoffTime);
+            }
+        }
+    }
+
+    //! Creates an empty data file.
+    void CreateDataFile()
+    {
+        auto tempFileName = FileName_ + NFS::TempFileSuffix;
+        TFileWrapper tempFile(tempFileName, WrOnly | CloseOnExec | CreateAlways);
+
+        TChangelogHeader header(
+            SerializedMeta_.Size(),
+            TChangelogHeader::NotTruncatedRecordCount);
+        WritePod(tempFile, header);
+
+        WritePadded(tempFile, SerializedMeta_);
+
+        YCHECK(tempFile.GetPosition() == header.HeaderSize);
+
+        tempFile.FlushData();
+        tempFile.Close();
+
+        NFS::Replace(tempFileName, FileName_);
+
+        DataFile_ = std::make_unique<TFileWrapper>(FileName_, RdWr | Seq | CloseOnExec);
+        DataFile_->Seek(0, sEnd);
+    }
+
     //! Creates an empty index file.
     void CreateIndexFile()
     {
@@ -549,7 +570,6 @@ private:
         NFS::Replace(tempFileName, IndexFileName_);
 
         IndexFile_ = std::make_unique<TFile>(IndexFileName_, RdWr);
-        IndexFile_->Flock(LOCK_EX | LOCK_NB);
         IndexFile_->Seek(0, sEnd);
     }
 
@@ -648,8 +668,7 @@ private:
             LOG_ERROR_IF(correctPrefixSize < Index_.size(), "Changelog index contains invalid records, truncated");
             Index_.resize(correctPrefixSize);
 
-            IndexFile_.reset(new TFile(IndexFileName_, RdWr|Seq|CloseOnExec|OpenAlways));
-            IndexFile_->Flock(LOCK_EX | LOCK_NB);
+            IndexFile_.reset(new TFile(IndexFileName_, RdWr | Seq | OpenAlways | CloseOnExec));
             IndexFile_->Resize(sizeof(TChangelogIndexHeader) + Index_.size() * sizeof(TChangelogIndexRecord));
             IndexFile_->Seek(0, sEnd);
         }

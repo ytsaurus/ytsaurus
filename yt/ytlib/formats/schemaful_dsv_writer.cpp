@@ -195,7 +195,7 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
     YCHECK(Config_->Columns);
     const auto& columns = Config_->Columns.Get();
     for (int columnIndex = 0; columnIndex < static_cast<int>(columns.size()); ++columnIndex) {
-        ColumnIdMapping_.push_back(NameTable_->GetId(columns[columnIndex]));
+        ColumnIdMapping_.push_back(NameTable_->GetIdOrRegisterName(columns[columnIndex]));
     }
     IdToIndexInRowMapping_.resize(nameTable->GetSize());
 }
@@ -203,7 +203,7 @@ TSchemalessWriterForSchemafulDsv::TSchemalessWriterForSchemafulDsv(
 void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow>& rows)
 {
     for (auto row : rows) {
-        IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);        
+        IdToIndexInRowMapping_.assign(IdToIndexInRowMapping_.size(), -1);
         for (auto item = row.Begin(); item != row.End(); ++item) {
             IdToIndexInRowMapping_[item->Id] = item - row.Begin();
         }

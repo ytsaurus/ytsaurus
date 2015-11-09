@@ -18,7 +18,7 @@ struct TBlockHeader
 } // namespace
 } // namespace NYT
 
-DECLARE_PODTYPE(NYT::TBlockHeader)
+DECLARE_PODTYPE(NYT::TBlockHeader);
 
 namespace NYT {
 

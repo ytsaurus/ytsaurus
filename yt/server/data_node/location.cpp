@@ -16,8 +16,6 @@
 
 #include <ytlib/chunk_client/format.h>
 
-#include <ytlib/election/public.h>
-
 #include <ytlib/object_client/helpers.h>
 
 #include <server/hydra/changelog.h>
@@ -32,7 +30,6 @@ namespace NDataNode {
 using namespace NChunkClient;
 using namespace NCellNode;
 using namespace NConcurrency;
-using namespace NElection;
 using namespace NObjectClient;
 using namespace NHydra;
 using namespace NYTree;
@@ -74,6 +71,21 @@ TLocation::TLocation(
     tagIds.push_back(profilingManager->RegisterTag("location_id", Id_));
     tagIds.push_back(profilingManager->RegisterTag("location_type", Type_));
     Profiler_ = NProfiling::TProfiler(DataNodeProfiler.GetPathPrefix(), tagIds);
+
+    PendingIOSizeCounters_.resize(
+        TEnumTraits<EIODirection>::GetDomainSize() *
+        TEnumTraits<EIOCategory>::GetDomainSize());
+    for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
+        for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+            auto& counter = GetPendingIOSizeCounter(direction, category);
+            counter = NProfiling::TSimpleCounter(
+                "/pending_data_size",
+                {
+                    profilingManager->RegisterTag("direction", direction),
+                    profilingManager->RegisterTag("category", category)
+                });
+        }
+    }
 }
 
 ELocationType TLocation::GetType() const
@@ -118,17 +130,25 @@ IInvokerPtr TLocation::GetWritePoolInvoker()
 
 std::vector<TChunkDescriptor> TLocation::Scan()
 {
-    std::vector<TChunkDescriptor> result;
-
     try {
-        result = DoScan();
-        Enabled_.store(true);
+        ValidateLockFile();
+        ValidateMinimumSpace();
+        ValidateWritable();
     } catch (const std::exception& ex) {
-        auto error = TError("Location scan failed") << ex;
-        LOG_ERROR(error);
+        LOG_ERROR(ex, "Location disabled");
         MarkAsDisabled(ex);
+        return std::vector<TChunkDescriptor>();
     }
 
+    std::vector<TChunkDescriptor> result;
+    try {
+        result = DoScan();
+    } catch (const std::exception& ex) {
+        Disable(TError("Location scan failed") << ex);
+        YUNREACHABLE(); // Disable() exits the process.
+    }
+
+    Enabled_.store(true);
     return result;
 }
 
@@ -140,9 +160,7 @@ void TLocation::Start()
     try {
         DoStart();
     } catch (const std::exception& ex) {
-        auto error = TError("Location startup failed") << ex;
-        LOG_ERROR(error);
-        MarkAsDisabled(ex);
+        Disable(TError("Location start failed") << ex);
     }
 }
 
@@ -169,6 +187,7 @@ void TLocation::Disable(const TError& reason)
         TFileOutput fileOutput(file);
         fileOutput << errorData;
     } catch (const std::exception& ex) {
+        LOG_ERROR(ex, "Error creating location lock file");
         // Exit anyway.
     }
 
@@ -218,6 +237,83 @@ double TLocation::GetLoadFactor() const
     i64 used = GetUsedSpace();
     i64 quota = GetQuota();
     return used >= quota ? 1.0 : (double) used / quota;
+}
+
+i64 TLocation::GetPendingIOSize(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto category = ToIOCategory(workloadDescriptor);
+    return GetPendingIOSizeCounter(direction, category).Current.load();
+}
+
+TPendingIOGuard TLocation::IncreasePendingIOSize(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YASSERT(delta >= 0);
+    auto category = ToIOCategory(workloadDescriptor);
+    UpdatePendingIOSize(direction, category, delta);
+    return TPendingIOGuard(direction, category, delta, this);
+}
+
+EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescriptor)
+{
+    switch (workloadDescriptor.Category) {
+        case EWorkloadCategory::Idle:
+        case EWorkloadCategory::SystemReplication:
+        case EWorkloadCategory::SystemRepair:
+        case EWorkloadCategory::UserBatch:
+            return EIOCategory::Batch;
+
+        case EWorkloadCategory::UserRealtime:
+        case EWorkloadCategory::SystemRealtime:
+            return EIOCategory::Realtime;
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+NProfiling::TSimpleCounter& TLocation::GetPendingIOSizeCounter(
+    EIODirection direction,
+    EIOCategory category)
+{
+    int index =
+        static_cast<int>(direction) +
+        TEnumTraits<EIODirection>::GetDomainSize() * static_cast<int>(category);
+    return PendingIOSizeCounters_[index];
+}
+
+void TLocation::DecreasePendingIOSize(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    UpdatePendingIOSize(direction, category, -delta);
+}
+
+void TLocation::UpdatePendingIOSize(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto& counter = GetPendingIOSizeCounter(direction, category);
+    i64 result = Profiler_.Increment(counter, delta);
+    LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
+        direction,
+        category,
+        result,
+        delta);
 }
 
 void TLocation::UpdateSessionCount(int delta)
@@ -288,7 +384,7 @@ Stroka TLocation::GetRelativeChunkPath(const TChunkId& chunkId)
     return NFS::CombinePaths(Format("%02x", hashByte), ToString(chunkId));
 }
 
-void TLocation::CheckMinimumSpace()
+void TLocation::ValidateMinimumSpace()
 {
     LOG_INFO("Checking minimum space");
 
@@ -303,7 +399,7 @@ void TLocation::CheckMinimumSpace()
     }
 }
 
-void TLocation::CheckLockFile()
+void TLocation::ValidateLockFile()
 {
     LOG_INFO("Checking lock file");
 
@@ -312,24 +408,39 @@ void TLocation::CheckLockFile()
         return;
     }
 
-    TError error;
-    {
-        TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
-        TBufferedFileInput fileInput(file);
-        auto errorData = fileInput.ReadAll();
-        if (!errorData.Empty()) {
-            try {
-                error = ConvertTo<TError>(TYsonString(errorData));
-            } catch (const std::exception& ex) {
-                error = TError("Error parsing lock file contents")
-                    << ex;
-            }
-        } else {
-            error = TError("Empty lock file detected");
-        }
+    TFile file(lockFilePath, OpenExisting | RdOnly | Seq | CloseOnExec);
+    TBufferedFileInput fileInput(file);
+
+    auto errorData = fileInput.ReadAll();
+    if (errorData.Empty()) {
+        THROW_ERROR_EXCEPTION("Empty lock file found");
     }
 
+    TError error;
+    try {
+        error = ConvertTo<TError>(TYsonString(errorData));
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing lock file contents")
+            << ex;
+    }
     THROW_ERROR error;
+}
+
+void TLocation::ValidateWritable()
+{
+    NFS::ForcePath(GetPath(), ChunkFilesPermissions);
+    NFS::CleanTempFiles(GetPath());
+
+    // Force subdirectories.
+    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
+        auto hashDirectory = Format("%02x", hashByte);
+        NFS::ForcePath(NFS::CombinePaths(GetPath(), hashDirectory), ChunkFilesPermissions);
+    }
+
+    // Run first health check before to sort out read-only drives.
+    HealthChecker_->RunCheck()
+        .Get()
+        .ThrowOnError();
 }
 
 void TLocation::OnHealthCheckFailed(const TError& error)
@@ -338,9 +449,9 @@ void TLocation::OnHealthCheckFailed(const TError& error)
     YUNREACHABLE(); // Disable() exits the process.
 }
 
-void TLocation::MarkAsDisabled(const std::exception& ex)
+void TLocation::MarkAsDisabled(const TError& error)
 {
-    auto alert = TError("Location at %v is disabled", GetPath()) << ex;
+    auto alert = TError("Location at %v is disabled", GetPath()) << error;
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
 
@@ -377,20 +488,7 @@ void TLocation::DoAdditionalScan()
 
 std::vector<TChunkDescriptor> TLocation::DoScan()
 {
-    CheckMinimumSpace();
-
-    CheckLockFile();
-
     LOG_INFO("Scanning storage location");
-
-    NFS::ForcePath(GetPath(), ChunkFilesPermissions);
-    NFS::CleanTempFiles(GetPath());
-
-    // Force subdirectories.
-    for (int hashByte = 0; hashByte <= 0xff; ++hashByte) {
-        auto hashDirectory = Format("%02x", hashByte);
-        NFS::ForcePath(NFS::CombinePaths(GetPath(), hashDirectory), ChunkFilesPermissions);
-    }
 
     yhash_set<TChunkId> chunkIds;
     {
@@ -426,11 +524,6 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
     LOG_INFO("Done, %v chunks found", descriptors.size());
 
     DoAdditionalScan();
-
-    // Run first health check before initialization is complete to sort out read-only drives.
-    HealthChecker_->RunCheck()
-        .Get()
-        .ThrowOnError();
 
     return descriptors;
 }
@@ -978,6 +1071,57 @@ std::vector<Stroka> TCacheLocation::GetChunkPartNames(const TChunkId& chunkId) c
         default:
             YUNREACHABLE();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TPendingIOGuard::TPendingIOGuard(
+    EIODirection direction,
+    EIOCategory category,
+    i64 size,
+    TLocationPtr owner)
+    : Direction_(direction)
+    , Category_(category)
+    , Size_(size)
+    , Owner_(owner)
+{ }
+
+TPendingIOGuard& TPendingIOGuard::operator=(TPendingIOGuard&& other)
+{
+    swap(*this, other);
+    return *this;
+}
+
+TPendingIOGuard::~TPendingIOGuard()
+{
+    Release();
+}
+
+void TPendingIOGuard::Release()
+{
+    if (Owner_) {
+        Owner_->DecreasePendingIOSize(Direction_, Category_, Size_);
+        Owner_.Reset();
+    }
+}
+
+TPendingIOGuard::operator bool() const
+{
+    return Owner_.operator bool();
+}
+
+i64 TPendingIOGuard::GetSize() const
+{
+    return Size_;
+}
+
+void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs)
+{
+    using std::swap;
+    swap(lhs.Direction_, rhs.Direction_);
+    swap(lhs.Category_, rhs.Category_);
+    swap(lhs.Size_, rhs.Size_);
+    swap(lhs.Owner_, rhs.Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

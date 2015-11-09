@@ -78,7 +78,7 @@ protected:
         MemoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 2 * 1024 * 1024;
+        config->BlockSize = 2 * 1024;
 
         ChunkWriter = CreateSchemalessChunkWriter(
             config,
@@ -379,6 +379,143 @@ TEST_F(TSchemalessChunksTest, MultiPartSampledRead)
             }
         }
         YCHECK(expectedIt == expected.end());
+    }
+}
+
+TEST_F(TSchemalessChunksTest, ReadMultipleIndexRanges)
+{
+    WriteManyRows();
+
+    TColumnFilter columnFilter;
+
+    std::vector<TReadRange> readRanges;
+    std::vector<TUnversionedRow> expected;
+
+    for (int index = 0; index < 10; ++index) {
+        int startIndex = 100000 + 1000 * index;
+        int endIndex = 100000 + 1000 * index + 100;
+
+        std::vector<TUnversionedRow> expectedInRange = CreateManyRows(startIndex, endIndex);
+        expected.insert(expected.end(), expectedInRange.begin(), expectedInRange.end());
+
+        TReadLimit lower;
+        TReadLimit upper;
+        lower.SetRowIndex(startIndex);
+        upper.SetRowIndex(endIndex);
+        readRanges.emplace_back(std::move(lower), std::move(upper));
+    }
+
+    {
+        TReadLimit lower;
+        TReadLimit upper;
+        lower.SetRowIndex(HugeRowCount);
+        upper.SetRowIndex(HugeRowCount + 100);
+        readRanges.emplace_back(std::move(lower), std::move(upper));
+    }
+
+    auto chunkReader = CreateSchemalessChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        NameTable,
+        GetNullBlockCache(),
+        TKeyColumns(),
+        MasterMeta,
+        std::move(readRanges),
+        columnFilter);
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    auto it = expected.begin();
+
+    std::vector<TUnversionedRow> actual;
+    actual.reserve(997);
+
+    while (chunkReader->Read(&actual)) {
+        if (actual.empty()) {
+            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+            continue;
+        }
+        EXPECT_TRUE(actual.size() <= std::distance(it, expected.end()));
+        std::vector<TUnversionedRow> ex(it, it + actual.size());
+        CheckResult(ex, actual);
+        it += actual.size();
+    }
+}
+
+TEST_F(TSchemalessChunksTest, ReadMultipleKeyRanges)
+{
+    WriteManyRows();
+
+    TColumnFilter columnFilter;
+
+    std::vector<TReadRange> readRanges;
+    std::vector<TUnversionedRow> expected;
+
+    for (int index = 0; index < 10; ++index) {
+        int startIndex = 100000 + 1000 * index;
+        int endIndex = 100000 + 1000 * index + 100;
+
+        std::vector<TUnversionedRow> expectedInRange = CreateManyRows(startIndex, endIndex);
+        expected.insert(expected.end(), expectedInRange.begin(), expectedInRange.end());
+
+        TReadLimit lower;
+        TReadLimit upper;
+        TUnversionedOwningRowBuilder builder;
+
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedInt64Value(startIndex, 1));
+        lower.SetKey(builder.FinishRow());
+
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedInt64Value(endIndex, 1));
+        upper.SetKey(builder.FinishRow());
+
+        readRanges.emplace_back(std::move(lower), std::move(upper));
+    }
+
+    {
+        TReadLimit lower;
+        TReadLimit upper;
+        TUnversionedOwningRowBuilder builder;
+
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedInt64Value(HugeRowCount, 1));
+        lower.SetKey(builder.FinishRow());
+
+        builder.AddValue(MakeUnversionedStringValue(A, 0));
+        builder.AddValue(MakeUnversionedInt64Value(HugeRowCount + 100, 1));
+        upper.SetKey(builder.FinishRow());
+
+
+        readRanges.emplace_back(std::move(lower), std::move(upper));
+    }
+
+    auto chunkReader = CreateSchemalessChunkReader(
+        New<TChunkReaderConfig>(),
+        MemoryReader,
+        NameTable,
+        GetNullBlockCache(),
+        TKeyColumns(),
+        MasterMeta,
+        std::move(readRanges),
+        columnFilter);
+
+    EXPECT_TRUE(chunkReader->Open().Get().IsOK());
+
+    auto it = expected.begin();
+
+    std::vector<TUnversionedRow> actual;
+    actual.reserve(997);
+
+    while (chunkReader->Read(&actual)) {
+        if (actual.empty()) {
+            EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
+            continue;
+        }
+        EXPECT_TRUE(actual.size() <= std::distance(it, expected.end()));
+        std::vector<TUnversionedRow> ex(it, it + actual.size());
+        CheckResult(ex, actual);
+        it += actual.size();
     }
 }
 

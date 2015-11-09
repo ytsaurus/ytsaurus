@@ -10,6 +10,7 @@
 #include <core/ypath/tokenizer.h>
 
 #include <core/rpc/response_keeper.h>
+#include <core/rpc/message.h>
 
 #include <core/erasure/public.h>
 
@@ -686,7 +687,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    std::vector<TGuid> keysToRemove;
+    std::vector<TObjectId> keysToRemove;
 
     SchemaMap_.LoadValues(context);
     for (const auto& pair : SchemaMap_) {
@@ -1136,8 +1137,19 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
     TSharedRefArray requestMessage,
     TNullable<TDuration> timeout)
 {
-    LOG_DEBUG("Forwarding request to leader (CellTag: %v)",
-        cellTag);
+    NRpc::NProto::TRequestHeader header;
+    YCHECK(ParseRequestHeader(requestMessage, &header));
+
+    auto requestId = header.has_request_id() ? FromProto<TRequestId>(header.request_id()) : NullRequestId;
+    const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+
+    LOG_DEBUG("Forwarding request to leader (RequestId: %v, Invocation: %v:%v %v, CellTag: %v, Timeout: %v)",
+        requestId,
+        header.service(),
+        header.method(),
+        ypathExt.path(),
+        cellTag,
+        timeout);
 
     auto securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -1149,13 +1161,15 @@ TFuture<TSharedRefArray> TObjectManager::ForwardToLeader(
 
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetTimeout(timeout);
     batchReq->SetUser(user->GetName());
     batchReq->AddRequestMessage(requestMessage);
 
-    return batchReq->Invoke().Apply(BIND([] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+    return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         THROW_ERROR_EXCEPTION_IF_FAILED(batchRspOrError, "Request forwarding failed");
 
-        LOG_DEBUG("Request forwarding succeeded");
+        LOG_DEBUG("Request forwarding succeeded (RequestId: %v)",
+            requestId);
 
         const auto& batchRsp = batchRspOrError.Value();
         return batchRsp->GetResponseMessage(0);

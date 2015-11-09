@@ -328,7 +328,8 @@ YtCommand.prototype._getName = function() {
         throw new YtError("Malformed command name " + JSON.stringify(name));
     }
 
-    this.req.tags.api_command = version + "_" + name;
+    this.req.tags.api_version = version;
+    this.req.tags.api_command = name;
 
     this.command = name;
     this.driver = driver;

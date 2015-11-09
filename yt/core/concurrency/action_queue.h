@@ -96,20 +96,26 @@ DEFINE_REFCOUNTED_TYPE(TThreadPool)
 
 //! Creates an invoker that executes all callbacks in the
 //! context of #underlyingInvoker (possibly in different threads)
-//! but in a serialized fashion (i.e. all queued actions are executed
-//! in the proper order and no two actions are executed in parallel).
+//! but in a serialized fashion (i.e. all queued callbacks are executed
+//! in the proper order and no two callbacks are executed in parallel).
 IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates a wrapper around IInvoker that supports action reordering.
-//! Actions with the highest priority are executed first.
+//! Creates a wrapper around IInvoker that supports callback reordering.
+//! Callbacks with the highest priority are executed first.
 IPrioritizedInvokerPtr CreatePrioritizedInvoker(IInvokerPtr underlyingInvoker);
 
 //! Creates a wrapper around IInvoker that implements IPrioritizedInvoker but
 //! does not perform any actual reordering. Priorities passed to #IPrioritizedInvoker::Invoke
 //! are ignored.
 IPrioritizedInvokerPtr CreateFakePrioritizedInvoker(IInvokerPtr underlyingInvoker);
+
+//! Creates a wrapper around IPrioritizedInvoker turning it into a regular IInvoker.
+//! All callbacks are propagated with a given fixed #priority.
+IInvokerPtr CreateFixedPriorityInvoker(
+    IPrioritizedInvokerPtr underlyingInvoker,
+    i64 priority);
 
 ////////////////////////////////////////////////////////////////////////////////
 

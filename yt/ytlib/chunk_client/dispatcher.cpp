@@ -17,18 +17,18 @@ class TDispatcher::TImpl
 {
 public:
     TImpl()
-        : CompressionPoolSize_(4)
-        , ErasurePoolSize_(4)
-        , ReaderThread_(TActionQueue::CreateFactory("ChunkReader"))
+        : ReaderThread_(TActionQueue::CreateFactory("ChunkReader"))
         , WriterThread_(TActionQueue::CreateFactory("ChunkWriter"))
         , CompressionPool_(BIND(
-            NYT::New<TThreadPool, const int&, const Stroka&>,
+            New<TThreadPool, const int&, const Stroka&>,
             ConstRef(CompressionPoolSize_),
             "Compression"))
         , ErasurePool_(BIND(
-            NYT::New<TThreadPool, const int&, const Stroka&>,
+            New<TThreadPool, const int&, const Stroka&>,
             ConstRef(ErasurePoolSize_),
             "Erasure"))
+        , CompressionPoolInvoker_(BIND(&TImpl::CreateCompressionPoolInvoker, Unretained(this)))
+        , ErasurePoolInvoker_(BIND(&TImpl::CreateErasurePoolInvoker, Unretained(this)))
     { }
 
     void Configure(TDispatcherConfigPtr config)
@@ -79,24 +79,38 @@ public:
         return WriterThread_->GetInvoker();
     }
 
-    IInvokerPtr GetCompressionPoolInvoker()
+    IPrioritizedInvokerPtr GetCompressionPoolInvoker()
     {
-        return CompressionPool_->GetInvoker();
+        return CompressionPoolInvoker_.Get();
     }
 
-    IInvokerPtr GetErasurePoolInvoker()
+    IPrioritizedInvokerPtr GetErasurePoolInvoker()
     {
-        return ErasurePool_->GetInvoker();
+        return ErasurePoolInvoker_.Get();
     }
 
 private:
-    int CompressionPoolSize_;
-    int ErasurePoolSize_;
+    int CompressionPoolSize_ = 4;
+    int ErasurePoolSize_ = 4;
 
     TLazyIntrusivePtr<NConcurrency::TActionQueue> ReaderThread_;
     TLazyIntrusivePtr<NConcurrency::TActionQueue> WriterThread_;
     TLazyIntrusivePtr<NConcurrency::TThreadPool> CompressionPool_;
     TLazyIntrusivePtr<NConcurrency::TThreadPool> ErasurePool_;
+    TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
+    TLazyIntrusivePtr<IPrioritizedInvoker> ErasurePoolInvoker_;
+
+
+    IPrioritizedInvokerPtr CreateCompressionPoolInvoker()
+    {
+        return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());
+    }
+
+    IPrioritizedInvokerPtr CreateErasurePoolInvoker()
+    {
+        return CreatePrioritizedInvoker(ErasurePool_->GetInvoker());
+    }
+
 };
 
 TDispatcher::TDispatcher()
@@ -138,12 +152,12 @@ IInvokerPtr TDispatcher::GetWriterInvoker()
     return Impl_->GetWriterInvoker();
 }
 
-IInvokerPtr TDispatcher::GetCompressionPoolInvoker()
+IPrioritizedInvokerPtr TDispatcher::GetCompressionPoolInvoker()
 {
     return Impl_->GetCompressionPoolInvoker();
 }
 
-IInvokerPtr TDispatcher::GetErasurePoolInvoker()
+IPrioritizedInvokerPtr TDispatcher::GetErasurePoolInvoker()
 {
     return Impl_->GetErasurePoolInvoker();
 }

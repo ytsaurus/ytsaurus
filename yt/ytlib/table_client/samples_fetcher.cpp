@@ -29,6 +29,7 @@ using namespace NNodeTrackerClient;
 using namespace NRpc;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -108,8 +109,10 @@ void TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, std::vector<int> chunkInde
     proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
     auto req = proxy.GetTableSamples();
-    NYT::ToProto(req->mutable_key_columns(), KeyColumns_);
+    ToProto(req->mutable_key_columns(), KeyColumns_);
     req->set_max_sample_size(MaxSampleSize_);
+    // TODO(babenko): make configurable
+    ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
 
     i64 currentSize = SizeBetweenSamples_;
     i64 currentSampleCount = 0;

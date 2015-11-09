@@ -167,6 +167,7 @@ public:
     virtual TChunkReplicaList GetWrittenChunkReplicas() const override;
 
     virtual TChunkId GetChunkId() const override;
+    virtual NErasure::ECodec GetErasureCodecId() const override;
 
 private:
     friend class TGroup;
@@ -558,7 +559,7 @@ void TReplicationWriter::StartChunk(TChunkReplica target)
 
     auto req = proxy.StartChunk();
     ToProto(req->mutable_chunk_id(), ChunkId_);
-    req->set_session_type(static_cast<int>(Options_->SessionType));
+    ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
     req->set_sync_on_close(Config_->SyncOnClose);
 
     auto rspOrError = WaitFor(req->Invoke());
@@ -605,10 +606,10 @@ void TReplicationWriter::DoOpen()
             StartSessions(AllocateTargets());
         }
 
-        LOG_INFO("Writer opened (Addresses: [%v], PopulateCache: %v, SessionType: %v, Network: %v)",
+        LOG_INFO("Writer opened (Addresses: [%v], PopulateCache: %v, Workload: %v, Network: %v)",
             JoinToString(Nodes_),
             Config_->PopulateCache,
-            Options_->SessionType,
+            Config_->WorkloadDescriptor,
             NetworkName_);
 
         IsOpen_ = true;
@@ -1036,6 +1037,13 @@ TChunkId TReplicationWriter::GetChunkId() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return ChunkId_;
+}
+
+NErasure::ECodec TReplicationWriter::GetErasureCodecId() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return NErasure::ECodec::None;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

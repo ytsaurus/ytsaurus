@@ -37,7 +37,6 @@ class TestSchedulerOther(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "chunk_scratch_period" : 500,
             "operation_time_limit_check_period" : 100,
         }
     }

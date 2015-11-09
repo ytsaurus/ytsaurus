@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, linux_only
+from yt_env_setup import YTEnvSetup, linux_only, skip_if_multicell
 from yt_commands import *
 
 from yt.yson import to_yson_type
@@ -680,7 +680,85 @@ class TestTables(YTEnvSetup):
         write_table("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
         assert '{"x"=1u;};\n{"x"=4u;};\n{"x"=9u;};\n' == read_table("//tmp/t", output_format=format)
 
+    @skip_if_multicell
+    def test_concatenate(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"key": "x"})
+        assert read_table("//tmp/t1") == [{"key": "x"}]
+
+        create("table", "//tmp/t2")
+        write_table("//tmp/t2", {"key": "y"})
+        assert read_table("//tmp/t2") == [{"key": "y"}]
+
+        create("table", "//tmp/union")
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
+
+        concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
+
+    @skip_if_multicell
+    def test_concatenate_sorted(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"key": "x"})
+        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+        assert read_table("//tmp/t1") == [{"key": "x"}]
+        assert get("//tmp/t1/@sorted", "true")
+
+        create("table", "//tmp/t2")
+        write_table("//tmp/t2", {"key": "y"})
+        sort(in_="//tmp/t2", out="//tmp/t2", sort_by="key")
+        assert read_table("//tmp/t2") == [{"key": "y"}]
+        assert get("//tmp/t2/@sorted", "true")
+
+        create("table", "//tmp/union")
+        sort(in_="//tmp/union", out="//tmp/union", sort_by="key")
+        assert get("//tmp/union/@sorted", "true")
+
+        concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
+        assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
+        assert get("//tmp/union/@sorted", "false")
+
 ##################################################################
 
-class TestTablesMulticell(TestTables):
-    NUM_SECONDARY_MASTER_CELLS = 2
+#class TestTablesMulticell(TestTables):
+#    NUM_SECONDARY_MASTER_CELLS = 2
+#
+#    def test_concatenate(self):
+#        create("table", "//tmp/t1")
+#        write_table("//tmp/t1", {"key": "x"})
+#        assert read_table("//tmp/t1") == [{"key": "x"}]
+#
+#        create("table", "//tmp/t2")
+#        write_table("//tmp/t2", {"key": "y"})
+#        assert read_table("//tmp/t2") == [{"key": "y"}]
+#
+#        create("table", "//tmp/union")
+#
+#        concatenate(["//tmp/t1", "//tmp/t2"], "//tmp/union")
+#        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}]
+#
+#        concatenate(["//tmp/t1", "//tmp/t2"], "<append=true>//tmp/union")
+#        assert read_table("//tmp/union") == [{"key": "x"}, {"key": "y"}] * 2
+#
+#    def test_concatenate_sorted(self):
+#        create("table", "//tmp/t1")
+#        write_table("//tmp/t1", {"key": "x"})
+#        sort(in_="//tmp/t1", out="//tmp/t1", sort_by="key")
+#        assert read_table("//tmp/t1") == [{"key": "x"}]
+#        assert get("//tmp/t1/@sorted", "true")
+#
+#        create("table", "//tmp/t2")
+#        write_table("//tmp/t2", {"key": "y"})
+#        sort(in_="//tmp/t2", out="//tmp/t2", sort_by="key")
+#        assert read_table("//tmp/t2") == [{"key": "y"}]
+#        assert get("//tmp/t2/@sorted", "true")
+#
+#        create("table", "//tmp/union")
+#        sort(in_="//tmp/union", out="//tmp/union", sort_by="key")
+#        assert get("//tmp/union/@sorted", "true")
+#
+#        concatenate(["//tmp/t2", "//tmp/t1"], "<append=true>//tmp/union")
+#        assert read_table("//tmp/union") == [{"key": "y"}, {"key": "x"}]
+#        assert get("//tmp/union/@sorted", "false")

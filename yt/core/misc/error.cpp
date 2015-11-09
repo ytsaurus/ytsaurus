@@ -222,7 +222,7 @@ void TError::CaptureOriginAttributes()
     Attributes().Set("host", TAddressResolver::Get()->GetLocalHostName());
     Attributes().Set("datetime", TInstant::Now());
     Attributes().Set("pid", ::getpid());
-    Attributes().Set("tid", NConcurrency::GetCurrentThreadId());
+    Attributes().Set("tid", TThread::CurrentThreadId());
     Attributes().Set("fid", NConcurrency::GetCurrentFiberId());
     auto traceContext = NTracing::GetCurrentTraceContext();
     if (traceContext.IsEnabled()) {
@@ -448,10 +448,10 @@ TError operator << (TError error, const std::vector<TError>& innerErrors)
     return error;
 }
 
-TError operator << (TError error, std::unique_ptr<NYTree::IAttributeDictionary> attributes)
+TError operator << (TError error, const NYTree::IAttributeDictionary& attributes)
 {
-    for (const auto& key : attributes->List()) {
-        error.Attributes().SetYson(key, attributes->GetYson(key));
+    for (const auto& key : attributes.List()) {
+        error.Attributes().SetYson(key, attributes.GetYson(key));
     }
     return error;
 }

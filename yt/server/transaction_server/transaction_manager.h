@@ -47,6 +47,7 @@ public:
     TTransaction* StartTransaction(
         TTransaction* parent,
         TNullable<TDuration> timeout,
+        const TNullable<Stroka>& title,
         const TTransactionId& hintId = NullTransactionId);
     void CommitTransaction(TTransaction* transaction, TTimestamp commitTimestamp);
     void AbortTransaction(TTransaction* transaction, bool force);

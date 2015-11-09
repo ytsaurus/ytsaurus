@@ -56,7 +56,7 @@ void LogEventImpl(
     event.Message = message;
     event.FileName = fileName;
     event.Line = line;
-    event.ThreadId = NConcurrency::GetCurrentThreadId();
+    event.ThreadId = TThread::CurrentThreadId();
     event.FiberId = NConcurrency::GetCurrentFiberId();
     event.TraceId = NTracing::GetCurrentTraceContext().GetTraceId();
     event.Function = function;

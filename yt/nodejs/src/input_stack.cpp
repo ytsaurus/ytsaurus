@@ -1,8 +1,10 @@
 #include "input_stack.h"
 
+#include <core/utilex/lzop.h>
+
 #include <util/stream/zlib.h>
-#include <util/stream/lz.h>
-#include <util/stream/lzop.h>
+
+#include <library/streams/lz/lz.h>
 
 namespace NYT {
 namespace NNodeJS {

@@ -64,6 +64,71 @@ TEST(TJsonParserTest, Map)
     ParseJson(&stream, &Mock);
 }
 
+TEST(TJsonParserTest, Integer1)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnInt64Scalar(1ll << 62));
+
+    Stroka input = "4611686018427387904";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, Integer2)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnInt64Scalar(std::numeric_limits<i64>::max()));
+
+    Stroka input = "9223372036854775807";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, UnsignedInteger)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnUint64Scalar((1ull << 63) + (1ull << 62)));
+
+    Stroka input = "13835058055282163712";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, UnsignedInteger2)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnUint64Scalar((1ull << 63)));
+
+    Stroka input = "9223372036854775808";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
+TEST(TJsonParserTest, UnsignedInteger3)
+{
+    StrictMock<TMockYsonConsumer> Mock;
+    //InSequence dummy; // order in map is not specified
+
+    EXPECT_CALL(Mock, OnUint64Scalar(std::numeric_limits<ui64>::max()));
+
+    Stroka input = "18446744073709551615";
+
+    TStringInput stream(input);
+    ParseJson(&stream, &Mock);
+}
+
 TEST(TJsonParserTest, Entity)
 {
     StrictMock<TMockYsonConsumer> Mock;
@@ -322,7 +387,7 @@ TEST(TJsonParserTest, EmptyListFragment)
 
     Stroka empty;
     TStringInput stream(empty);
-    ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
+    ParseJson(&stream, &Mock, nullptr, EYsonType::ListFragment);
 }
 
 TEST(TJsonParserTest, ListFragment)
@@ -344,7 +409,7 @@ TEST(TJsonParserTest, ListFragment)
     Stroka input = "{\"hello\":\"world\"}\n{\"foo\":\"bar\"}\n";
 
     TStringInput stream(input);
-    ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
+    ParseJson(&stream, &Mock, nullptr, EYsonType::ListFragment);
 }
 
 TEST(TJsonParserTest, SpecialKeys)
@@ -363,7 +428,7 @@ TEST(TJsonParserTest, SpecialKeys)
     Stroka input = "{\"$$$value\":\"10\",\"$$attributes\":\"20\"}\n";
 
     TStringInput stream(input);
-    ParseJson(&stream, &Mock, nullptr, NYson::EYsonType::ListFragment);
+    ParseJson(&stream, &Mock, nullptr, EYsonType::ListFragment);
 }
 
 TEST(TJsonParserTest, AttributesWithoutValue)
@@ -510,7 +575,7 @@ TEST(TJsonParserTest, MemoryLimit4)
 
     // Not throw, because of total memory occupied by all rows is greater than MemoryLimit,
     // but memory occuied by individual row is much lower than MemoryLimit.
-    ParseJson(&stream, &Mock, config, NYson::EYsonType::ListFragment);
+    ParseJson(&stream, &Mock, config, EYsonType::ListFragment);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

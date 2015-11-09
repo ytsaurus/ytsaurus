@@ -3,6 +3,8 @@
 
 #include <core/misc/string.h>
 
+#include <core/ytree/fluent.h>
+
 #include <server/cell_master/bootstrap.h>
 #include <server/cell_master/serialize.h>
 
@@ -11,6 +13,8 @@
 namespace NYT {
 namespace NTransactionServer {
 
+using namespace NYTree;
+using namespace NYson;
 using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +45,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetPersistentState());
     Save(context, Timeout_);
     Save(context, AccountingEnabled_);
+    Save(context, Title_);
     Save(context, NestedTransactions_);
     Save(context, Parent_);
     Save(context, StartTime_);
@@ -66,6 +71,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, Timeout_);
     Load(context, AccountingEnabled_);
+    Load(context, Title_);
     Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);
@@ -96,6 +102,23 @@ void TTransaction::ThrowInvalidState() const
     THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
         Id_,
         State_);
+}
+
+TYsonString TTransaction::GetDescription() const
+{
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .Item("id").Value(Id_)
+            .Item("start_time").Value(StartTime_)
+            .DoIf(Title_.HasValue(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("title").Value(*Title_);
+            })
+            .DoIf(Parent_ != nullptr, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("parent").Value(Parent_->GetDescription());
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

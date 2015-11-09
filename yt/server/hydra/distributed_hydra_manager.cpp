@@ -145,7 +145,7 @@ public:
         ElectionManager_ = New<TElectionManager>(
             Config_,
             CellManager_,
-            controlInvoker,
+            ControlInvoker_,
             New<TElectionCallbacks>(this));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
@@ -169,8 +169,7 @@ public:
         if (ControlState_ != EPeerState::None)
             return;
 
-        DecoratedAutomaton_->GetSystemInvoker()->Invoke(
-            BIND(&TDecoratedAutomaton::Clear, DecoratedAutomaton_));
+        DecoratedAutomaton_->Initialize();
 
         RpcServer_->RegisterService(this);
         RpcServer_->RegisterService(ElectionManager_->GetRpcService());
@@ -623,7 +622,7 @@ private:
         switch (ControlState_) {
             case EPeerState::Following:
                 epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, epochContext, committedVersion, true));
+                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion, true));
                 break;
 
             case EPeerState::FollowerRecovery:
@@ -751,7 +750,7 @@ private:
 
                     followerCommitter->SuspendLogging();
 
-                    WaitFor(DecoratedAutomaton_->RotateChangelog(epochContext))
+                    WaitFor(DecoratedAutomaton_->RotateChangelog())
                         .ThrowOnError();
 
                     followerCommitter->ResumeLogging();
@@ -930,8 +929,6 @@ private:
 
         LOG_INFO("Reachable version is %v", *ReachableVersion_);
 
-        DecoratedAutomaton_->SetChangelogStore(ChangelogStore_);
-        DecoratedAutomaton_->SetLoggedVersion(*ReachableVersion_);
         ElectionManager_->Start();
     }
 
@@ -1041,12 +1038,17 @@ private:
         result.Subscribe(BIND(
             &TDistributedHydraManager::OnChangelogRotated,
             MakeWeak(this),
-            epochContext));
+            MakeWeak(epochContext)));
     }
 
-    void OnChangelogRotated(TEpochContextPtr epochContext, const TError& error)
+    void OnChangelogRotated(TWeakPtr<TEpochContext> epochContext_, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        auto epochContext = epochContext_.Lock();
+        if (!epochContext) {
+            return;
+        }
 
         if (!error.IsOK()) {
             auto wrappedError = TError("Distributed changelog rotation failed")
@@ -1106,7 +1108,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_ = epochContext;
-        DecoratedAutomaton_->OnStartLeading();
+        DecoratedAutomaton_->OnStartLeading(epochContext);
         StartLeading_.Fire();
 
         SwitchTo(epochContext->EpochControlInvoker);
@@ -1226,7 +1228,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         AutomatonEpochContext_ = epochContext;
-        DecoratedAutomaton_->OnStartFollowing();
+        DecoratedAutomaton_->OnStartFollowing(epochContext);
         StartFollowing_.Fire();
     }
 
@@ -1333,6 +1335,8 @@ private:
         auto electionEpochContext = ElectionManager_->GetEpochContext();
 
         auto epochContext = New<TEpochContext>();
+        epochContext->ChangelogStore = ChangelogStore_;
+        epochContext->ReachableVersion = *ReachableVersion_;
         epochContext->LeaderId = electionEpochContext->LeaderId;
         epochContext->EpochId = electionEpochContext->EpochId;
         epochContext->CancelableContext = electionEpochContext->CancelableContext;
@@ -1484,13 +1488,14 @@ private:
         }
 
         const auto& rsp = rspOrError.Value();
-
-        YCHECK(!epochContext->LeaderSyncVersion);
-        epochContext->LeaderSyncVersion = TVersion::FromRevision(rsp->committed_revision());
+        auto committedVersion = TVersion::FromRevision(rsp->committed_revision());
 
         LOG_DEBUG("Received synchronization response from leader (CommittedVersion: %v)",
-            epochContext->LeaderSyncVersion);
+            committedVersion);
 
+		YCHECK(!epochContext->LeaderSyncVersion);
+        epochContext->LeaderSyncVersion = committedVersion;
+        DecoratedAutomaton_->CommitMutations(committedVersion, true);
         CheckForPendingLeaderSync(epochContext);
     }
 
@@ -1520,7 +1525,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        DecoratedAutomaton_->CommitMutations(epochContext, committedVersion, true);
+        DecoratedAutomaton_->CommitMutations(committedVersion, true);
         CheckForPendingLeaderSync(std::move(epochContext));
     }
 

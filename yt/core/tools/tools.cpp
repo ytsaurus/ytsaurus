@@ -102,7 +102,7 @@ TYsonString ExecuteTool(const Stroka& toolName, const TYsonString& serializedArg
 
         const auto& toolDescription = it->second;
 
-        NConcurrency::SetCurrentThreadName(~toolDescription.Name);
+        TThread::CurrentThreadSetName(~toolDescription.Name);
 
         auto result = (toolDescription.Tool)(serializedArgument);
         return result;

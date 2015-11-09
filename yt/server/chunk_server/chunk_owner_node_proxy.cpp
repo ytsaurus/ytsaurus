@@ -796,17 +796,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     auto* uploadTransaction = transactionManager->StartTransaction(
         Transaction,
         uploadTransactionTimeout,
+        uploadTransactionTitle,
         uploadTransactionIdHint);
 
     auto* node = GetThisTypedImpl<TChunkOwnerBase>();
     uploadTransaction->SetAccountingEnabled(node->GetAccountingEnabled());
-
-    auto attributes = CreateEphemeralAttributes();
-    if (uploadTransactionTitle) {
-        attributes->Set("title", *uploadTransactionTitle);
-    }
-
-    objectManager->FillAttributes(uploadTransaction, *attributes);
 
     auto* lockedNode = static_cast<TChunkOwnerBase*>(cypressManager->LockNode(
         TrunkNode,

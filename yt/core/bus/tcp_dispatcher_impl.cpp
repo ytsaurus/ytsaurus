@@ -155,7 +155,6 @@ TTcpDispatcherStatistics TTcpDispatcher::TImpl::GetStatistics(ETcpInterfaceType 
     return result;
 }
 
-
 TTcpProfilingData* TTcpDispatcher::TImpl::GetProfilingData(ETcpInterfaceType interfaceType)
 {
     return &ProfilingData_[interfaceType];

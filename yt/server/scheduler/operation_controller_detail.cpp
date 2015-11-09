@@ -1029,7 +1029,7 @@ void TOperationControllerBase::Prepare()
         // - All input chunks are unavailable && Strategy == Skip
         // - Merge decided to passthrough all input chunks
         // - Anything else?
-        LOG_INFO("Empty input");
+        LOG_INFO("No jobs needed");
         OnOperationCompleted();
         return;
     }
@@ -2810,12 +2810,11 @@ void TOperationControllerBase::LockInputTables()
 
 void TOperationControllerBase::BeginUploadOutputTables()
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
     LOG_INFO("Locking output tables");
 
     {
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : OutputTables) {
@@ -2854,6 +2853,8 @@ void TOperationControllerBase::BeginUploadOutputTables()
     LOG_INFO("Getting output tables attributes");
 
     {
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : OutputTables) {
@@ -3025,13 +3026,13 @@ void TOperationControllerBase::LockUserFiles(
     std::vector<TUserFile>* files,
     const std::vector<Stroka>& attributeKeys)
 {
-    auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
-    TObjectServiceProxy proxy(channel);
-
     LOG_INFO("Locking user files");
 
     {
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
+
         for (const auto& file : *files) {
             auto objectIdPath = FromObjectId(file.ObjectId);
 
@@ -3051,7 +3052,10 @@ void TOperationControllerBase::LockUserFiles(
     LOG_INFO("Getting user files attributes");
 
     {
+        auto channel = AuthenticatedOutputMasterClient->GetMasterChannelOrThrow(EMasterChannelKind::LeaderOrFollower);
+        TObjectServiceProxy proxy(channel);
         auto batchReq = proxy.ExecuteBatch();
+
         for (const auto& file : *files) {
             auto objectIdPath = FromObjectId(file.ObjectId);
             {

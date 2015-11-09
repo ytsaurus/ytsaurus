@@ -31,7 +31,8 @@ public:
     ~TSessionBase();
 
     virtual const TChunkId& GetChunkId() const override;
-    virtual EWriteSessionType GetType() const override;
+    virtual ESessionType GetType() const override;
+    virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
     TStoreLocationPtr GetStoreLocation() const override;
 
     virtual TFuture<void> Start() override;

@@ -45,7 +45,7 @@ void ToProto(NProto::TClusterResources* protoResources, const TClusterResources&
 void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources);
 
 void Serialize(const TClusterResources& resources, NYson::IYsonConsumer* consumer);
-void Deserialize(TClusterResources& value, NYTree::INodePtr node);
+void Deserialize(TClusterResources& resources, NYTree::INodePtr node);
 
 TClusterResources& operator += (TClusterResources& lhs, const TClusterResources& rhs);
 TClusterResources  operator +  (const TClusterResources& lhs, const TClusterResources& rhs);

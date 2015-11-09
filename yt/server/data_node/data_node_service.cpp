@@ -16,7 +16,6 @@
 #include <core/misc/serialize.h>
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/string.h>
-#include <core/misc/lazy_ptr.h>
 #include <core/misc/random.h>
 #include <core/misc/nullable.h>
 
@@ -27,7 +26,7 @@
 #include <core/concurrency/periodic_executor.h>
 #include <core/concurrency/action_queue.h>
 
-#include <core/profiling/profile_manager.h>
+#include <ytlib/misc/workload.h>
 
 #include <ytlib/table_client/name_table.h>
 #include <ytlib/table_client/private.h>
@@ -63,12 +62,6 @@ using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = DataNodeProfiler;
-
-static const auto ProfilingPeriod = TDuration::MilliSeconds(100);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDataNodeService
     : public TServiceBase
 {
@@ -81,7 +74,6 @@ public:
             TDataNodeServiceProxy::GetServiceName(),
             DataNodeLogger)
         , Config_(config)
-        , WorkerThread_(New<TActionQueue>("DataNodeWorker"))
         , Bootstrap_(bootstrap)
     {
         YCHECK(Config_);
@@ -101,15 +93,12 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
             .SetCancelable(true)
-            .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
             .SetCancelable(true)
-            .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
             .SetCancelable(true)
-            .SetEnableReorder(true)
             .SetMaxQueueSize(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
             .SetOneWay(true));
@@ -121,26 +110,13 @@ public:
             .SetCancelable(true)
             .SetResponseCodec(NCompression::ECodec::Lz4)
             .SetResponseHeavy(true));
-
-        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
-            SessionTypeToTag_[type] = NProfiling::TProfileManager::Get()->RegisterTag("type", type);
-        }
-
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
-            BIND(&TDataNodeService::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
     }
 
 private:
     const TDataNodeConfigPtr Config_;
-    const TActionQueuePtr WorkerThread_;
     TBootstrap* const Bootstrap_;
 
-    TPeriodicExecutorPtr ProfilingExecutor_;
-
-    TEnumIndexedVector<NProfiling::TTagId, EWriteSessionType> SessionTypeToTag_;
+    const TActionQueuePtr WorkerThread_ = New<TActionQueue>("DataNodeWorker");
 
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
@@ -150,13 +126,13 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
 
         TSessionOptions options;
-        options.SessionType = EWriteSessionType(request->session_type());
+        options.WorkloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
         options.SyncOnClose = request->sync_on_close();
         options.OptimizeForLatency = request->sync_on_close();
 
-        context->SetRequestInfo("ChunkId: %v, SessionType: %v, SyncOnClose: %v, OptimizeForLatency: %v",
+        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, OptimizeForLatency: %v",
             chunkId,
-            options.SessionType,
+            options.WorkloadDescriptor,
             options.SyncOnClose,
             options.OptimizeForLatency);
 
@@ -233,13 +209,6 @@ private:
     {
         UNUSED(response);
 
-        if (IsInThrottling()) {
-            context->Reply(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Write throttling is active"));
-            return;
-        }
-
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         int firstBlockIndex = request->first_block_index();
         int blockCount = static_cast<int>(request->Attachments().size());
@@ -258,6 +227,11 @@ private:
 
         auto sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSession(chunkId);
+
+        auto location = session->GetStoreLocation();
+        if (IsDiskWriteThrottling(location, session->GetWorkloadDescriptor())) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Disk write throttling is active");
+        }
 
         // Put blocks.
         auto result = session->PutBlocks(
@@ -334,24 +308,28 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = NYT::FromProto<int>(request->block_indexes());
         bool populateCache = request->populate_cache();
-        auto sessionType = EReadSessionType(request->session_type());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("BlockIds: %v:[%v], PopulateCache: %v, SessionType: %v",
+        context->SetRequestInfo("BlockIds: %v:[%v], PopulateCache: %v, Workload: %v",
             chunkId,
             JoinToString(blockIndexes),
             populateCache,
-            sessionType);
+            workloadDescriptor);
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto blockStore = Bootstrap_->GetBlockStore();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
-        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
-        response->set_throttling(IsOutThrottling());
+        bool hasCompleteChunk = HasCompleteChunk(chunkId);
+        auto netOutThrottling = IsNetOutThrottling();
+        bool diskReadThrottling = IsDiskReadThrottling(chunkId, workloadDescriptor);
+        bool throttling = netOutThrottling || diskReadThrottling;
 
-        if (IsOutThrottling()) {
+        response->set_has_complete_chunk(hasCompleteChunk);
+        response->set_throttling(throttling);
+
+        if (throttling) {
             // Cannot send the actual data to the client due to throttling.
             // Let's try to suggest some other peers.
             for (int blockIndex : request->block_indexes()) {
@@ -373,7 +351,7 @@ private:
             auto asyncBlocks = blockStore->ReadBlockSet(
                 chunkId,
                 blockIndexes,
-                context->GetPriority(),
+                workloadDescriptor,
                 blockCache,
                 populateCache);
             response->Attachments() = WaitFor(asyncBlocks)
@@ -400,48 +378,54 @@ private:
             }
         }
 
-        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
-            response->has_complete_chunk(),
-            response->throttling(),
+        context->SetResponseInfo(
+            "HasCompleteChunk: %v, NetOutThrottling: %v, DiskReadThrottling: %v, "
+            "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
+            hasCompleteChunk,
+            netOutThrottling,
+            diskReadThrottling,
             blocksWithData,
             response->peer_descriptors_size(),
             blocksSize);
 
         // Throttle response.
-        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
+        auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         context->ReplyFrom(throttler->Throttle(blocksSize));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto sessionType = EReadSessionType(request->session_type());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         bool populateCache = request->populate_cache();
 
-        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, SessionType: %v",
+        context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, Workload: %v",
             chunkId,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             populateCache,
-            sessionType);
+            workloadDescriptor);
 
         ValidateConnected();
 
-        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
-        response->set_has_complete_chunk(chunkRegistry->FindChunk(chunkId).operator bool());
+        bool hasCompleteChunk = HasCompleteChunk(chunkId);
+        auto netOutThrottling = IsNetOutThrottling();
+        bool diskReadThrottling = IsDiskReadThrottling(chunkId, workloadDescriptor);
+        bool throttling = netOutThrottling || diskReadThrottling;
 
-        response->set_throttling(IsOutThrottling());
+        response->set_has_complete_chunk(hasCompleteChunk);
+        response->set_throttling(netOutThrottling);
 
-        if (!IsOutThrottling()) {
+        if (!throttling) {
             auto blockStore = Bootstrap_->GetBlockStore();
             auto blockCache = Bootstrap_->GetBlockCache();
             auto asyncBlocks = blockStore->ReadBlockRange(
                 chunkId,
                 firstBlockIndex,
                 blockCount,
-                context->GetPriority(),
+                workloadDescriptor,
                 blockCache,
                 populateCache);
             response->Attachments() = WaitFor(asyncBlocks)
@@ -451,14 +435,17 @@ private:
         int blocksWithData = response->Attachments().size();
         i64 blocksSize = GetByteSize(response->Attachments());
 
-        context->SetResponseInfo("HasCompleteChunk: %v, Throttling: %v, BlocksWithData: %v, BlocksSize: %v",
-            response->has_complete_chunk(),
-            response->throttling(),
+        context->SetResponseInfo(
+            "HasCompleteChunk: %v, NetOutThrottling: %v, DiskReadThrottling: %v, "
+            "BlocksWithData: %v, BlocksSize: %v",
+            hasCompleteChunk,
+            netOutThrottling,
+            diskReadThrottling,
             blocksWithData,
             blocksSize);
 
         // Throttle response.
-        auto throttler = Bootstrap_->GetOutThrottler(sessionType);
+        auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
         context->ReplyFrom(throttler->Throttle(blocksSize));
     }
 
@@ -471,18 +458,20 @@ private:
         auto extensionTags = request->all_extension_tags()
             ? Null
             : MakeNullable(FromProto<int>(request->extension_tags()));
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v",
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v",
             chunkId,
             extensionTags ? "[" + JoinToString(*extensionTags) + "]" : "<Null>",
-            partitionTag);
+            partitionTag,
+            workloadDescriptor);
 
         ValidateConnected();
 
         auto chunkRegistry = Bootstrap_->GetChunkRegistry();
         auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
-        auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority(), extensionTags);
+        auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor, extensionTags);
         asyncChunkMeta.Subscribe(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 context->Reply(metaOrError);
@@ -500,16 +489,21 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
     {
-        context->SetRequestInfo("KeyColumnCount: %v, ChunkCount: %v, MinSliceSize: %v, SliceByKeys: %v",
-            request->key_columns_size(),
+        auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        context->SetRequestInfo(
+            "KeyColumns: [%v], ChunkCount: %v, "
+            "SliceDataSize: %v, SliceByKeys: %v, Workload: %v",
+            JoinToString(keyColumns),
             request->chunk_specs_size(),
             request->slice_data_size(),
-            request->slice_by_keys());
+            request->slice_by_keys(),
+            workloadDescriptor);
 
         ValidateConnected();
 
         std::vector<TFuture<void>> asyncResults;
-        auto keyColumns = NYT::FromProto<Stroka>(request->key_columns());
         for (const auto& chunkSpec : request->chunk_specs()) {
             auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
             auto* slices = response->add_slices();
@@ -525,7 +519,7 @@ private:
                 continue;
             }
 
-            auto asyncResult = chunk->ReadMeta(context->GetPriority());
+            auto asyncResult = chunk->ReadMeta(workloadDescriptor);
             asyncResults.push_back(asyncResult.Apply(
                 BIND(
                     &TDataNodeService::MakeChunkSlices,
@@ -593,10 +587,12 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
     {
         auto keyColumns = FromProto<Stroka>(request->key_columns());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        context->SetRequestInfo("KeyColumns: [%v], ChunkCount: %v",
+        context->SetRequestInfo("KeyColumns: [%v], ChunkCount: %v, Workload: %v",
             JoinToString(keyColumns),
-            request->sample_requests_size());
+            request->sample_requests_size(),
+            workloadDescriptor);
 
         ValidateConnected();
 
@@ -618,7 +614,7 @@ private:
                 continue;
             }
 
-            auto asyncChunkMeta = chunk->ReadMeta(context->GetPriority());
+            auto asyncChunkMeta = chunk->ReadMeta(workloadDescriptor);
             asyncResults.push_back(asyncChunkMeta.Apply(
                 BIND(
                     &TDataNodeService::ProcessSample,
@@ -917,57 +913,40 @@ private:
         }
     }
 
-    i64 GetPendingOutSize() const
+
+    bool IsNetOutThrottling()
     {
         return
-            NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes +
-            Bootstrap_->GetBlockStore()->GetPendingReadSize();
+            NBus::TTcpDispatcher::Get()->GetStatistics(NBus::ETcpInterfaceType::Remote).PendingOutBytes >
+            Config_->NetOutThrottlingLimit;
     }
 
-    i64 GetPendingInSize() const
+    bool HasCompleteChunk(const TChunkId& chunkId)
     {
-        return Bootstrap_->GetSessionManager()->GetPendingWriteSize();
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        return chunkRegistry->FindChunk(chunkId).operator bool();
     }
 
-    bool IsOutThrottling() const
+    bool IsDiskReadThrottling(
+        const TChunkId& chunkId,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
-        i64 pendingSize = GetPendingOutSize();
-        if (pendingSize > Config_->BusOutThrottlingLimit) {
-            LOG_DEBUG("Outcoming throttling is active: %v > %v",
-                pendingSize,
-                Config_->BusOutThrottlingLimit);
-            return true;
-        } else {
+        auto chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->FindChunk(chunkId);
+        if (!chunk) {
             return false;
         }
+        auto location = chunk->GetLocation();
+        auto size = location->GetPendingIOSize(EIODirection::Read, workloadDescriptor);
+        return size > Config_->DiskReadThrottlingLimit;
     }
 
-    bool IsInThrottling() const
+    bool IsDiskWriteThrottling(
+        TLocationPtr location,
+        const TWorkloadDescriptor& workloadDescriptor)
     {
-        i64 pendingSize = GetPendingInSize();
-        if (pendingSize > Config_->BusInThrottlingLimit) {
-            LOG_DEBUG("Incoming throttling is active: %v > %v",
-                pendingSize,
-                Config_->BusInThrottlingLimit);
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-
-    void OnProfiling()
-    {
-        Profiler.Enqueue("/pending_out_size", GetPendingOutSize());
-        Profiler.Enqueue("/pending_in_size", GetPendingInSize());
-
-        auto sessionManager = Bootstrap_->GetSessionManager();
-        for (auto type : TEnumTraits<EWriteSessionType>::GetDomainValues()) {
-            Profiler.Enqueue(
-                "/session_count",
-                sessionManager->GetSessionCount(type),
-                {SessionTypeToTag_[type]});
-        }
+        auto size = location->GetPendingIOSize(EIODirection::Write, workloadDescriptor);
+        return size > Config_->DiskWriteThrottlingLimit;
     }
 };
 
