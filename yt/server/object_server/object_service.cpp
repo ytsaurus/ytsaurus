@@ -211,8 +211,6 @@ private:
                 const auto& path = ypathExt.path();
                 bool mutating = ypathExt.mutating();
 
-                ValidatePeer(mutating);
-
                 if (IsBarrierNeeded(mutating) && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
                         BIND(&TExecuteSession::OnLastMutationCommitted, MakeStrong(this))
@@ -272,11 +270,6 @@ private:
         } catch (const std::exception& ex) {
             Reply(ex);
         }
-    }
-
-    void ValidatePeer(bool mutating)
-    {
-        Owner->ValidatePeer(mutating ? EPeerKind::Leader : EPeerKind::LeaderOrFollower);
     }
 
     bool IsBarrierNeeded(bool mutating)
@@ -379,6 +372,8 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
     UNUSED(request);
     UNUSED(response);
+
+    ValidatePeer(EPeerKind::LeaderOrFollower);
 
     New<TExecuteSession>(this, std::move(context))->Run();
 }
