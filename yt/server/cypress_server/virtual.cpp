@@ -467,6 +467,12 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetOwningNodeAttributes(const TAt
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 {
+    // XXX(babenko): remove this after updating multicell cluster
+    if (NHydra::HasMutationContext()) {
+        context->Reply();
+        return;
+    }
+
     auto attributeFilter = request->has_attribute_filter()
         ? FromProto<TAttributeFilter>(request->attribute_filter())
         : TAttributeFilter::None;
