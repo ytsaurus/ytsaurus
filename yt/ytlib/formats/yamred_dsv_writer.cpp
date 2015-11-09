@@ -37,9 +37,14 @@ TSchemalessWriterForYamredDsv::TSchemalessWriterForYamredDsv(
         SubkeyColumnIds_.push_back(nameTable->GetIdOrRegisterName(columnName));
     }
     
+    UpdateEscapedColumnNames();
+}
+
+void TSchemalessWriterForYamredDsv::UpdateEscapedColumnNames()
+{
     // Storing escaped column names in order to not re-escape them each time we write a column name.
     EscapedColumnNames_.reserve(nameTable->GetSize());
-    for (int columnIndex = 0; columnIndex < nameTable->GetSize(); columnIndex++) {
+    for (int columnIndex = EscapedColumnNames_.size(); columnIndex < nameTable->GetSize(); columnIndex++) {
         EscapedColumnNames_.emplace_back(
                 Escape(nameTable->GetName(columnIndex), Table_.KeyStops, Table_.Escapes, Config_->EscapingSymbol));
     }
@@ -49,6 +54,7 @@ void TSchemalessWriterForYamredDsv::DoWrite(const std::vector<NTableClient::TUnv
 {
     auto* stream = GetOutputStream();
     
+    UpdateEscapedColumnNames();
     RowValues_.resize(NameTable_->GetSize());
     // Invariant: at the beginning of each loop iteration RowValues contains
     // empty TNullable<TStringBuf> in each element.
