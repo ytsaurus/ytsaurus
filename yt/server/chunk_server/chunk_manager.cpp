@@ -1067,11 +1067,6 @@ private:
             if (!IsObjectAlive(chunk))
                 continue;
 
-            if (chunk->IsStaged()) {
-                LOG_WARNING("Updating properties for staged chunk %v", chunkId);
-                continue;
-            }
-
             bool changed = false;
             if (update.has_replication_factor() && chunk->GetReplicationFactor() != update.replication_factor()) {
                 YCHECK(!chunk->IsErasure());
