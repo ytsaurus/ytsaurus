@@ -54,6 +54,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # clang mimics GCC interface.
   set(_is_gcc TRUE)
   set(_is_clang TRUE)
+
+  # COMPAT(sandello): We are not using this variable here, though external lists
+  # may require this flag to tune compiler diagnostics.
+  set(CMAKE_COMPILER_IS_GNUCXX TRUE)
+  set(CMAKE_COMPILER_IS_CLANG TRUE)
 endif()
 
 ################################################################################
@@ -110,7 +115,7 @@ if(_is_gcc)
     set(ARCH_FLAGS "${ARCH_FLAGS} -mno-avx -mpclmul")
   endif()
 
-  if(NOT CMAKE_COMPILER_IS_CLANG)
+  if(NOT _is_clang)
     # These are configuration-specific compilation flags.
     # http://gcc.gnu.org/onlinedocs/gcc/Option-Summary.html
     # Note that inlined version of memcmp is not used due to performance regressions in GCC.
@@ -250,6 +255,3 @@ set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
 set(CMAKE_INSTALL_RPATH "")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
-
-# Export handy variables.
-set(CMAKE_COMPILER_IS_CLANG ${_is_clang})
