@@ -72,7 +72,7 @@ class ConfigsProvider(object):
     def get_driver_configs(self):
         pass
 
-    # XXX(ignat): is it properly work fo 0.18 with multiple cells?
+    # XXX(ignat): will it work properly for 0.18 with multiple cells?
     def get_ui_config(self, proxy_address):
         return default_configs.get_ui_config()\
             .replace("%%proxy_address%%", "'{0}'".format(proxy_address))\
@@ -94,7 +94,7 @@ def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging):
                                                     enable_debug_logging)
     proxy_config["port"] = ports[0]
     proxy_config["log_port"] = ports[1]
-    proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
+    proxy_config["fqdn"] = "localhost"
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
     return proxy_config
@@ -287,7 +287,7 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
             for config in configs[cell_index]:
                 config["hydra_manager"] = {
                     "leader_lease_check_period": 1000,
-                    "leader_lease_timeout": 3000,
+                    "leader_lease_timeout": 2000,
                     "disable_leader_lease_grace_delay": True,
                     "response_keeper": {
                         "expiration_time": 25000,
@@ -341,7 +341,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
                 config["hydra_manager"] = {
                     "leader_lease_check_period": 1000,
-                    "leader_lease_timeout": 3000,
+                    "leader_lease_timeout": 2000,
                     "disable_leader_lease_grace_delay": True,
                     "response_keeper": {
                         "expiration_time": 25000,
