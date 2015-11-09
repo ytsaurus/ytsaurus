@@ -87,6 +87,7 @@ private:
         attributes->push_back("available");
         attributes->push_back("master_meta_size");
         attributes->push_back("sealed");
+        attributes->push_back(TAttributeInfo("parent_ids", true, true));
         attributes->push_back(TAttributeInfo("owning_nodes", true, true));
         attributes->push_back(TAttributeInfo("disk_space", chunk->IsConfirmed()));
         attributes->push_back(TAttributeInfo("chunk_type", chunk->IsConfirmed()));
@@ -260,6 +261,15 @@ private:
         if (key == "sealed") {
             BuildYsonFluently(consumer)
                 .Value(chunk->IsSealed());
+            return true;
+        }
+
+        if (key == "parent_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(chunk->Parents(), [] (TFluentList fluent, const TChunkList* parent) {
+                    fluent
+                        .Item().Value(parent->GetId());
+                });
             return true;
         }
 
