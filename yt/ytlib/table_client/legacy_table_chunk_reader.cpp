@@ -292,7 +292,7 @@ private:
         while (true) {
             auto currentBlock = blockHeap.front();
             auto nextBlockIndex = currentBlock.ChannelBlockIndex + 1;
-            const auto &protoChannel = ChannelsExt_.items(currentBlock.ChannelIndex);
+            const auto& protoChannel = ChannelsExt_.items(currentBlock.ChannelIndex);
             auto lastRow = currentBlock.LastRow;
 
             std::pop_heap(blockHeap.begin(), blockHeap.end());
@@ -301,14 +301,14 @@ private:
             YCHECK(nextBlockIndex <= protoChannel.blocks_size());
 
             if (currentBlock.LastRow >= chunkReader->EndRowIndex_) {
-                for (auto &block : blockHeap) {
+                for (const auto& block : blockHeap) {
                     YASSERT(block.LastRow >= chunkReader->EndRowIndex_);
                 }
                 break;
             }
 
             while (nextBlockIndex < protoChannel.blocks_size()) {
-                const auto &protoBlock = protoChannel.blocks(nextBlockIndex);
+                const auto& protoBlock = protoChannel.blocks(nextBlockIndex);
 
                 lastRow += protoBlock.row_count();
                 blockHeap.push_back(TBlockInfo(
@@ -606,7 +606,7 @@ bool TLegacyTableChunkReader::FetchNextRow()
 bool TLegacyTableChunkReader::ContinueFetchNextRow()
 {
     auto block = SequentialReader_->GetCurrentBlock();
-    auto &channel = ChannelReaders_[UnfetchedChannelIndex_];
+    auto& channel = ChannelReaders_[UnfetchedChannelIndex_];
     channel->SetBlock(block);
 
     return DoFetchNextRow();

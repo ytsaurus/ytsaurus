@@ -683,7 +683,7 @@ protected:
         auto rowBuffer = New<TRowBuffer>();
         TUnversionedRowBuilder rowBuilder;
         std::vector<TRow> rows;
-        for (const auto & tuple : literalTuples) {
+        for (const auto& tuple : literalTuples) {
             if (tuple.size() != argTypes.size()) {
                 THROW_ERROR_EXCEPTION("IN operator arguments size mismatch")
                     << TErrorAttribute("source", source);
