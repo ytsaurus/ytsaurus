@@ -1,7 +1,5 @@
 #pragma once
 
-#include "thread.h"
-
 #include <core/misc/preprocessor.h>
 
 #include <core/actions/invoker_util.h>
@@ -41,7 +39,7 @@ public:
         : BoundId_(InvalidThreadId)
     { }
 
-    void Check(TThreadId threadId = GetCurrentThreadId())
+    void Check(TThreadId threadId = TThread::CurrentThreadId())
     {
         YCHECK(threadId != InvalidThreadId);
         auto expectedId = InvalidThreadId;

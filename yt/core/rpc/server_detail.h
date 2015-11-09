@@ -24,12 +24,9 @@ public:
 
     virtual TRequestId GetRequestId() const override;
     
-    virtual TNullable<TInstant> GetRequestStartTime() const override;
-    virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
-    
-    virtual i64 GetPriority() const override;
     
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;
@@ -146,12 +143,9 @@ public:
 
     virtual NRpc::TRequestId GetRequestId() const override;
     
-    virtual TNullable<TInstant> GetRequestStartTime() const override;
-    virtual TNullable<TInstant> GetRetryStartTime() const override;
+    virtual TNullable<TInstant> GetStartTime() const override;
     virtual TNullable<TDuration> GetTimeout() const override;
     virtual bool IsRetry() const override;
-
-    virtual i64 GetPriority() const override;
 
     virtual const Stroka& GetService() const override;
     virtual const Stroka& GetMethod() const override;

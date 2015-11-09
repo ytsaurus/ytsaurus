@@ -48,7 +48,71 @@ using namespace NRpc;
 using namespace NApi;
 
 using NChunkClient::TReadLimit;
+using NChunkClient::TReadRange;
 using NChunkClient::TChannel;
+using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+void ValidateReadRanges(const std::vector<TReadRange>& readRanges)
+{
+    YCHECK(!readRanges.empty());
+
+    bool hasRowIndex = false;
+    bool hasKey = false;
+
+    for (const auto& range : readRanges) {
+        if (range.LowerLimit().HasRowIndex() || range.UpperLimit().HasRowIndex()) {
+            hasRowIndex = true;
+        }
+        if (range.LowerLimit().HasKey() || range.UpperLimit().HasKey()) {
+            hasKey = true;
+        }
+        if (hasRowIndex && hasKey && readRanges.size() > 1) {
+            THROW_ERROR_EXCEPTION("Both key ranges and index ranges are not supported when reading multiple ranges");
+        }
+    }
+
+    if (hasRowIndex) {
+        for (int index = 0; index < readRanges.size(); ++index) {
+            if ((index > 0 && !readRanges[index].LowerLimit().HasRowIndex()) ||
+                ((index < readRanges.size() - 1 && !readRanges[index].UpperLimit().HasRowIndex())))
+            {
+                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
+            }
+        }
+
+        for (int index = 1; index < readRanges.size(); ++index) {
+            const auto& prev = readRanges[index - 1].UpperLimit();
+            const auto& next = readRanges[index].LowerLimit();
+            if (prev.GetRowIndex() > next.GetRowIndex()) {
+                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
+            }
+        }
+    }
+
+    if (hasKey) {
+        for (int index = 0; index < readRanges.size(); ++index) {
+            if ((index > 0 && !readRanges[index].LowerLimit().HasKey()) ||
+                ((index < readRanges.size() - 1 && !readRanges[index].UpperLimit().HasKey())))
+            {
+                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
+            }
+        }
+
+        for (int index = 1; index < readRanges.size(); ++index) {
+            const auto& prev = readRanges[index - 1].UpperLimit();
+            const auto& next = readRanges[index].LowerLimit();
+            if (CompareRows(prev.GetKey(), next.GetKey()) > 0) {
+                THROW_ERROR_EXCEPTION("Overlapping ranges are not supported");
+            }
+        }
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,8 +128,7 @@ public:
         IBlockCachePtr blockCache,
         const TKeyColumns& keyColumns,
         const TChunkMeta& masterMeta,
-        const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit,
+        std::vector<TReadRange> readRanges,
         const TColumnFilter& columnFilter,
         i64 tableRowIndex,
         i32 rangeIndex,
@@ -91,6 +154,8 @@ private:
     const TColumnFilter ColumnFilter_;
     TKeyColumns KeyColumns_;
 
+    std::vector<TReadRange> ReadRanges_;
+
     const i64 TableRowIndex_;
     const i32 RangeIndex_;
 
@@ -102,27 +167,34 @@ private:
 
     std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
 
-    int CurrentBlockIndex_ = -1;
+    int CurrentBlockIndex_ = 0;
     i64 CurrentRowIndex_ = -1;
+    int CurrentRangeIndex_ = 0;
     i64 RowCount_ = 0;
+
+    bool RangeEnded_ = false;
 
     TChunkMeta ChunkMeta_;
     TBlockMetaExt BlockMetaExt_;
 
     std::unique_ptr<IRowSampler> RowSampler_;
+    std::vector<int> BlockIndexes_;
 
     virtual std::vector<TSequentialReader::TBlockInfo> GetBlockSequence() override;
 
     virtual void InitFirstBlock() override;
     virtual void InitNextBlock() override;
 
-    std::vector<TSequentialReader::TBlockInfo> CreateBlockSequence(int beginIndex, int endIndex);
+    TSequentialReader::TBlockInfo CreateBlockInfo(int index);
+    void CreateBlockSequence(int beginIndex, int endIndex);
     void DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag = Null);
 
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequencePartition();
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequenceSorted();
-    std::vector<TSequentialReader::TBlockInfo> GetBlockSequenceUnsorted();
+    void SkipToCurrrentRange();
+    bool InitNextRange();
 
+    void InitializeBlockSequencePartition();
+    void InitializeBlockSequenceSorted();
+    void InitializeBlockSequenceUnsorted();
 };
 
 DECLARE_REFCOUNTED_CLASS(TSchemalessChunkReader)
@@ -137,16 +209,13 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     IBlockCachePtr blockCache,
     const TKeyColumns& keyColumns,
     const TChunkMeta& masterMeta,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
+    std::vector<TReadRange> readRanges,
     const TColumnFilter& columnFilter,
     i64 tableRowIndex,
     i32 rangeIndex,
     TNullable<int> partitionTag)
     : TChunkReaderBase(
         config,
-        lowerLimit,
-        upperLimit,
         underlyingReader,
         GetProtoExtension<TMiscExt>(masterMeta.extensions()),
         blockCache)
@@ -155,6 +224,7 @@ TSchemalessChunkReader::TSchemalessChunkReader(
     , ChunkNameTable_(New<TNameTable>())
     , ColumnFilter_(columnFilter)
     , KeyColumns_(keyColumns)
+    , ReadRanges_(std::move(readRanges))
     , TableRowIndex_(tableRowIndex)
     , RangeIndex_(rangeIndex)
     , PartitionTag_(partitionTag)
@@ -167,25 +237,49 @@ TSchemalessChunkReader::TSchemalessChunkReader(
             Config_->SamplingSeed.Get(std::random_device()()));
     }
 
-    LOG_DEBUG("Schemaful chunk reader created (LowerLimit: {%v}, UpperLimit: {%v})",
-        LowerLimit_,
-        UpperLimit_);
+    if (ReadRanges_.size() == 1) {
+        LOG_DEBUG("Reading single range (Range: %v)", ReadRanges_[0]);
+    } else {
+        LOG_DEBUG("Reading multiple ranges (RangeCount: %v)", ReadRanges_.size());
+    }
 }
 
 std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequence()
 {
     YCHECK(ChunkMeta_.version() == static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
+    YCHECK(BlockIndexes_.empty());
 
     if (PartitionTag_) {
-        return GetBlockSequencePartition();
+        InitializeBlockSequencePartition();
+    } else {
+        if (KeyColumns_.empty() &&
+            ReadRanges_.size() == 1 &&
+            !ReadRanges_[0].LowerLimit().HasKey() &&
+            !ReadRanges_[0].UpperLimit().HasKey())
+        {
+            InitializeBlockSequenceUnsorted();
+        } else {
+            InitializeBlockSequenceSorted();
+        }
     }
 
-    bool readSorted = LowerLimit_.HasKey() || UpperLimit_.HasKey() || !KeyColumns_.empty();
-    if (readSorted) {
-        return GetBlockSequenceSorted();
-    } else {
-        return GetBlockSequenceUnsorted();
+    LOG_DEBUG("Reading %v blocks", BlockIndexes_.size());
+
+    std::vector<TSequentialReader::TBlockInfo> blocks;
+    for (int index : BlockIndexes_) {
+        blocks.push_back(CreateBlockInfo(index));
     }
+    return blocks;
+}
+
+TSequentialReader::TBlockInfo TSchemalessChunkReader::CreateBlockInfo(int blockIndex)
+{
+    YCHECK(blockIndex < BlockMetaExt_.blocks_size());
+    auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+    TSequentialReader::TBlockInfo blockInfo;
+    blockInfo.Index = blockMeta.block_index();
+    blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
+    return blockInfo;
 }
 
 void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, TNullable<int> partitionTag)
@@ -219,7 +313,7 @@ void TSchemalessChunkReader::DownloadChunkMeta(std::vector<int> extensionTags, T
     }
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequenceSorted()
+void TSchemalessChunkReader::InitializeBlockSequenceSorted()
 {
     if (!Misc_.sorted()) {
         THROW_ERROR_EXCEPTION("Requested sorted read for unsorted chunk");
@@ -240,59 +334,54 @@ std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSeque
         KeyColumns_ = chunkKeyColumns;
     }
 
-    int beginIndex = std::max(ApplyLowerRowLimit(BlockMetaExt_), ApplyLowerKeyLimit(BlockMetaExt_));
-    int endIndex = std::min(ApplyUpperRowLimit(BlockMetaExt_), ApplyUpperKeyLimit(BlockMetaExt_));
+    int lastIndex = -1;
+    std::vector<TSequentialReader::TBlockInfo> blocks;
+    for (const auto& readRange : ReadRanges_) {
+        int beginIndex = std::max(
+            ApplyLowerRowLimit(BlockMetaExt_, readRange.LowerLimit()),
+            ApplyLowerKeyLimit(BlockMetaExt_, readRange.LowerLimit()));
+        int endIndex = std::min(
+            ApplyUpperRowLimit(BlockMetaExt_, readRange.UpperLimit()),
+            ApplyUpperKeyLimit(BlockMetaExt_, readRange.UpperLimit()));
 
-    return CreateBlockSequence(beginIndex, endIndex);
+        if (beginIndex == lastIndex) {
+            ++beginIndex;
+        }
+        YCHECK(beginIndex > lastIndex);
+
+        for (int index = beginIndex; index < endIndex; ++index) {
+            BlockIndexes_.push_back(index);
+            lastIndex = index;
+        }
+    }
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequencePartition()
+void TSchemalessChunkReader::InitializeBlockSequencePartition()
 {
-    YCHECK(LowerLimit_.IsTrivial());
-    YCHECK(UpperLimit_.IsTrivial());
+    YCHECK(ReadRanges_.size() == 1);
+    YCHECK(ReadRanges_[0].LowerLimit().IsTrivial());
+    YCHECK(ReadRanges_[0].UpperLimit().IsTrivial());
 
     DownloadChunkMeta(std::vector<int>(), PartitionTag_);
-    return CreateBlockSequence(0, BlockMetaExt_.blocks_size());
+    CreateBlockSequence(0, BlockMetaExt_.blocks_size());
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::GetBlockSequenceUnsorted()
+void TSchemalessChunkReader::InitializeBlockSequenceUnsorted()
 {
+    YCHECK(ReadRanges_.size() == 1);
+
     DownloadChunkMeta(std::vector<int>());
 
-    return CreateBlockSequence(
-        ApplyLowerRowLimit(BlockMetaExt_),
-        ApplyUpperRowLimit(BlockMetaExt_));
+    CreateBlockSequence(
+        ApplyLowerRowLimit(BlockMetaExt_, ReadRanges_[0].LowerLimit()),
+        ApplyUpperRowLimit(BlockMetaExt_, ReadRanges_[0].UpperLimit()));
 }
 
-std::vector<TSequentialReader::TBlockInfo> TSchemalessChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
+void TSchemalessChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
 {
-    std::vector<TSequentialReader::TBlockInfo> blocks;
-
-    // NB: Happens while reading with partition tag.
-    if (BlockMetaExt_.blocks_size() == 0) {
-        CurrentRowIndex_ = 0;
-        return blocks;
+    for (int index = beginIndex; index < endIndex; ++index) {
+        BlockIndexes_.push_back(index);
     }
-
-    if (beginIndex >= BlockMetaExt_.blocks_size()) {
-        // Take the last block meta.
-        auto& blockMeta = *(--BlockMetaExt_.blocks().end());
-        CurrentRowIndex_ = blockMeta.chunk_row_count();
-        return blocks;
-    }
-
-    CurrentBlockIndex_ = beginIndex;
-    auto& blockMeta = BlockMetaExt_.blocks(CurrentBlockIndex_);
-
-    CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
-    for (int index = CurrentBlockIndex_; index < endIndex; ++index) {
-        auto& blockMeta = BlockMetaExt_.blocks(index);
-        TSequentialReader::TBlockInfo blockInfo;
-        blockInfo.Index = blockMeta.block_index();
-        blockInfo.UncompressedDataSize = blockMeta.uncompressed_size();
-        blocks.push_back(blockInfo);
-    }
-    return blocks;
 }
 
 TDataStatistics TSchemalessChunkReader::GetDataStatistics() const
@@ -304,37 +393,69 @@ TDataStatistics TSchemalessChunkReader::GetDataStatistics() const
 
 void TSchemalessChunkReader::InitFirstBlock()
 {
-    CheckBlockUpperLimits(BlockMetaExt_.blocks(CurrentBlockIndex_));
+    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+    const auto& blockMeta = BlockMetaExt_.blocks(blockIndex);
+
+    CheckBlockUpperLimits(blockMeta, ReadRanges_[CurrentRangeIndex_].UpperLimit());
 
     BlockReader_.reset(new THorizontalSchemalessBlockReader(
         SequentialReader_->GetCurrentBlock(),
-        BlockMetaExt_.blocks(CurrentBlockIndex_),
+        blockMeta,
         IdMapping_,
         KeyColumns_.size()));
 
-    if (LowerLimit_.HasRowIndex() && CurrentRowIndex_ < LowerLimit_.GetRowIndex()) {
-        YCHECK(BlockReader_->SkipToRowIndex(LowerLimit_.GetRowIndex() - CurrentRowIndex_));
-        CurrentRowIndex_ = LowerLimit_.GetRowIndex();
-    }
+    CurrentRowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
-    if (LowerLimit_.HasKey()) {
-        auto blockRowIndex = BlockReader_->GetRowIndex();
-        YCHECK(BlockReader_->SkipToKey(LowerLimit_.GetKey()));
-        CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
-    }
+    SkipToCurrrentRange();
 }
 
 void TSchemalessChunkReader::InitNextBlock()
 {
     ++CurrentBlockIndex_;
+    InitFirstBlock();
+}
 
-    CheckBlockUpperLimits(BlockMetaExt_.blocks(CurrentBlockIndex_));
+void TSchemalessChunkReader::SkipToCurrrentRange()
+{
+    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+    CheckBlockUpperLimits(BlockMetaExt_.blocks(blockIndex), ReadRanges_[CurrentRangeIndex_].UpperLimit());
 
-    BlockReader_.reset(new THorizontalSchemalessBlockReader(
-        SequentialReader_->GetCurrentBlock(),
-        BlockMetaExt_.blocks(CurrentBlockIndex_),
-        IdMapping_,
-        KeyColumns_.size()));
+    const auto& lowerLimit = ReadRanges_[CurrentRangeIndex_].LowerLimit();
+
+    if (lowerLimit.HasRowIndex() && CurrentRowIndex_ < lowerLimit.GetRowIndex()) {
+        YCHECK(BlockReader_->SkipToRowIndex(lowerLimit.GetRowIndex() - CurrentRowIndex_));
+        CurrentRowIndex_ = lowerLimit.GetRowIndex();
+    }
+
+    if (lowerLimit.HasKey()) {
+        auto blockRowIndex = BlockReader_->GetRowIndex();
+        YCHECK(BlockReader_->SkipToKey(lowerLimit.GetKey()));
+        CurrentRowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
+    }
+}
+
+bool TSchemalessChunkReader::InitNextRange()
+{
+    RangeEnded_ = false;
+    ++CurrentRangeIndex_;
+
+    if (CurrentRangeIndex_ == ReadRanges_.size()) {
+        LOG_DEBUG("Upper limit %v reached", ToString(ReadRanges_.back()));
+        return false;
+    }
+
+    const auto& lowerLimit = ReadRanges_[CurrentRangeIndex_].LowerLimit();
+    const auto& blockMeta = BlockMetaExt_.blocks(BlockIndexes_[CurrentBlockIndex_]);
+
+    if ((lowerLimit.HasRowIndex() && blockMeta.chunk_row_count() <= lowerLimit.GetRowIndex()) ||
+        (lowerLimit.HasKey() && CompareRows(FromProto<TOwningKey>(blockMeta.last_key()), lowerLimit.GetKey()) < 0))
+    {
+        BlockReader_.reset();
+        return OnBlockEnded();
+    } else {
+        SkipToCurrrentRange();
+        return true;
+    }
 }
 
 bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
@@ -354,6 +475,10 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
         return false;
     }
 
+    if (RangeEnded_) {
+        return InitNextRange();
+    }
+
     if (BlockEnded_) {
         BlockReader_.reset();
         return OnBlockEnded();
@@ -361,14 +486,11 @@ bool TSchemalessChunkReader::Read(std::vector<TUnversionedRow>* rows)
 
     i64 dataWeight = 0;
     while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead) {
-        if (CheckRowLimit_ && CurrentRowIndex_ >= UpperLimit_.GetRowIndex()) {
-            LOG_DEBUG("Upper limit row index reached %v", CurrentRowIndex_);
-            return !rows->empty();
-        }
-
-        if (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), UpperLimit_.GetKey()) >= 0) {
-            LOG_DEBUG("Upper limit key reached %v", BlockReader_->GetKey());
-            return !rows->empty();
+        if ((CheckRowLimit_ && CurrentRowIndex_ >= ReadRanges_[CurrentRangeIndex_].UpperLimit().GetRowIndex()) ||
+            (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), ReadRanges_[CurrentRangeIndex_].UpperLimit().GetKey()) >= 0))
+        {
+            RangeEnded_ = true;
+            return true;
         }
 
         ++CurrentRowIndex_;
@@ -438,8 +560,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 blockCache,
                 keyColumns,
                 masterMeta,
-                lowerLimit,
-                upperLimit,
+                std::vector<TReadRange>{{lowerLimit, upperLimit}},
                 columnFilter,
                 tableRowIndex,
                 rangeIndex,
@@ -461,6 +582,45 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
 
         default:
             YUNREACHABLE();
+    }
+}
+
+ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
+    TChunkReaderConfigPtr config,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    NChunkClient::IBlockCachePtr blockCache,
+    const TKeyColumns& keyColumns,
+    const NChunkClient::NProto::TChunkMeta& masterMeta,
+    std::vector<TReadRange> readRanges,
+    const TColumnFilter& columnFilter,
+    i64 tableRowIndex,
+    i32 rangeIndex,
+    TNullable<int> partitionTag)
+{
+    ValidateReadRanges(readRanges);
+
+    auto type = EChunkType(masterMeta.type());
+    YCHECK(type == EChunkType::Table);
+
+    auto formatVersion = ETableChunkFormat(masterMeta.version());
+
+    switch (formatVersion) {
+        case ETableChunkFormat::SchemalessHorizontal:
+            return New<TSchemalessChunkReader>(
+                config,
+                underlyingReader,
+                nameTable,
+                blockCache,
+                keyColumns,
+                masterMeta,
+                std::move(readRanges),
+                columnFilter,
+                tableRowIndex,
+                rangeIndex,
+                partitionTag);
+        default:
+            THROW_ERROR_EXCEPTION("Multiple read ranges are not supported for chunk format %Qlv", formatVersion);
     }
 }
 

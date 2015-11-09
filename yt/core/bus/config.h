@@ -74,7 +74,7 @@ public:
 
         RegisterValidator([&] () {
             if (!Address && !UnixDomainName) {
-                THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_name\" cannot be both empty");
+                THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_name\" cannot be both missing");
             }
         });
     }

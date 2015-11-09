@@ -88,7 +88,7 @@ struct TMountTableOptions
     : public TTimeoutOptions
     , public TTabletRangeOptions
 {
-    NTabletClient::TTabletCellId CellId;
+    NTabletClient::TTabletCellId CellId = NTabletClient::NullTabletCellId;
     //! A lower estimate for the table's uncompressed size.
     //! Used for balancing tablets across tablet cells.
     //! Default is 1 Tb.
@@ -143,6 +143,7 @@ struct TCheckPermissionResult
     TNullable<Stroka> SubjectName;
 };
 
+// TODO(lukyan): Use TTransactionalOptions as base class
 struct TTransactionStartOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
@@ -151,6 +152,7 @@ struct TTransactionStartOptions
     NTransactionClient::TTransactionId ParentId;
     bool AutoAbort = true;
     TNullable<TDuration> PingPeriod;
+    // XXX(lukyan): What about these defaults?
     bool Ping = true;
     bool PingAncestors = true;
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
@@ -161,11 +163,13 @@ struct TTransactionStartOptions
 struct TTransactionCommitOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
+    , public TTransactionalOptions
 { };
 
 struct TTransactionAbortOptions
     : public TMutatingOptions
     , public TPrerequisiteOptions
+    , public TTransactionalOptions
 {
     bool Force = false;
 };
@@ -242,13 +246,18 @@ struct TListNodeOptions
     TNullable<i64> MaxSize;
 };
 
-struct TCreateNodeOptions
+struct TCreateObjectOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
     , public TPrerequisiteOptions
 {
     std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+};
+
+struct TCreateNodeOptions
+    : public TCreateObjectOptions
+{
     bool Recursive = false;
     bool IgnoreExisting = false;
 };
@@ -298,21 +307,20 @@ struct TLinkNodeOptions
     bool IgnoreExisting = false;
 };
 
+struct TConcatenateNodesOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMutatingOptions
+{
+    bool Append = false;
+};
+
 struct TNodeExistsOptions
     : public TTimeoutOptions
     , public TReadOnlyOptions
     , public TTransactionalOptions
     , public TPrerequisiteOptions
 { };
-
-struct TCreateObjectOptions
-    : public TTimeoutOptions
-    , public TTransactionalOptions
-    , public TMutatingOptions
-    , public TPrerequisiteOptions
-{
-    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
-};
 
 struct TFileReaderOptions
     : public TTransactionalOptions
@@ -464,6 +472,11 @@ struct IClientBase
         const NYPath::TYPath& srcPath,
         const NYPath::TYPath& dstPath,
         const TLinkNodeOptions& options = TLinkNodeOptions()) = 0;
+    
+    virtual TFuture<void> ConcatenateNodes(
+        const std::vector<NYPath::TYPath>& srcPaths,
+        const NYPath::TYPath& dstPath,
+        TConcatenateNodesOptions options = TConcatenateNodesOptions()) = 0;
 
     virtual TFuture<bool> NodeExists(
         const NYPath::TYPath& path,

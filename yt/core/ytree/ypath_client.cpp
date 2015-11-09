@@ -85,16 +85,6 @@ const Stroka& TYPathRequest::GetService() const
     return Header_.service();
 }
 
-TInstant TYPathRequest::GetStartTime() const
-{
-    YUNREACHABLE();
-}
-
-void TYPathRequest::SetStartTime(TInstant /*value*/)
-{
-    YUNREACHABLE();
-}
-
 void TYPathRequest::SetUser(const Stroka& /*user*/)
 {
     YUNREACHABLE();

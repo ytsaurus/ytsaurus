@@ -100,6 +100,7 @@ if (typeof(config.high_watermark) === "undefined") {
 yt.configureSingletons(config.proxy);
 
 yt.YtRegistry.set("fqdn", config.fqdn || require("os").hostname());
+yt.YtRegistry.set("port", config.port);
 yt.YtRegistry.set("config", config);
 yt.YtRegistry.set("logger", logger);
 yt.YtRegistry.set("profiler", profiler);
@@ -111,7 +112,8 @@ yt.YtRegistry.set("coordinator", new yt.YtCoordinator(
     config.coordination,
     new yt.utils.TaggedLogger(logger, { wid: cluster.worker.id }),
     yt.YtRegistry.get("driver"),
-    yt.YtRegistry.get("fqdn")));
+    yt.YtRegistry.get("fqdn"),
+    yt.YtRegistry.get("port")));
 yt.YtRegistry.set("eio_watcher", new yt.YtEioWatcher(logger, profiler, config));
 
 // Hoist variable declaration.
@@ -243,19 +245,6 @@ application = connect()
     .use("/hosts", yt.YtApplicationHosts())
     .use("/auth", yt.YtApplicationAuth())
     .use("/upravlyator", yt.YtApplicationUpravlyator())
-    // TODO(sandello): Can we remove this?
-    .use("/_check_availability_time", function(req, rsp, next) {
-        fs.readFile("/var/lock/yt_check_availability_time", function(err, data) {
-            if (err) {
-                var body = "0";
-                rsp.writeHead(200, { "Content-Length" : body.length, "Content-Type" : "text/plain" });
-                rsp.end(body);
-            } else {
-                rsp.writeHead(200, { "Content-Length" : data.length, "Content-Type" : "text/plain" });
-                rsp.end(data);
-            }
-        });
-    })
     // TODO(sandello): This would be deprecated with nodejs 0.10.
     // Begin of asynchronous middleware.
     .use(function(req, rsp, next) {

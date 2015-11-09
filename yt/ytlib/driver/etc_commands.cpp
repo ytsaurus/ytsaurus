@@ -22,64 +22,53 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAddMemberCommand::DoExecute()
+void TAddMemberCommand::Execute(ICommandContextPtr context)
 {
-    TAddMemberOptions options;
-    SetMutatingOptions(&options);
-
-    auto result = WaitFor(Context_->GetClient()->AddMember(
-        Request_->Group,
-        Request_->Member,
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    WaitFor(context->GetClient()->AddMember(
+        Group,
+        Member,
+        Options))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TRemoveMemberCommand::DoExecute()
+void TRemoveMemberCommand::Execute(ICommandContextPtr context)
 {
-    TRemoveMemberOptions options;
-    SetMutatingOptions(&options);
-
-    auto result = WaitFor(Context_->GetClient()->RemoveMember(
-        Request_->Group,
-        Request_->Member,
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(result);
+    WaitFor(context->GetClient()->RemoveMember(
+        Group,
+        Member,
+        Options))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TParseYPathCommand::DoExecute()
+void TParseYPathCommand::Execute(ICommandContextPtr context)
 {
-    auto richPath = TRichYPath::Parse(Request_->Path);
-    Reply(ConvertToYsonString(richPath));
+    auto richPath = TRichYPath::Parse(Path);
+    context->ProduceOutputValue(ConvertToYsonString(richPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGetVersionCommand::DoExecute()
+void TGetVersionCommand::Execute(ICommandContextPtr context)
 {
-    Reply(ConvertToYsonString(GetVersion()));
+    context->ProduceOutputValue(ConvertToYsonString(GetVersion()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCheckPermissionCommand::DoExecute()
+void TCheckPermissionCommand::Execute(ICommandContextPtr context)
 {
-    TCheckPermissionOptions options;
-    SetTransactionalOptions(&options);
-    SetReadOnlyOptions(&options);
+    auto result = WaitFor(context->GetClient()->CheckPermission(
+        User,
+        Path.GetPath(),
+        Permission,
+        Options))
+        .ValueOrThrow();
 
-    auto resultOrError = WaitFor(Context_->GetClient()->CheckPermission(
-        Request_->User,
-        Request_->Path.GetPath(),
-        Request_->Permission,
-        options));
-    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError);
-
-    const auto& result = resultOrError.Value();
-    Reply(BuildYsonStringFluently()
+    context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
             .Item("action").Value(result.Action)
             .DoIf(result.ObjectId.operator bool(), [&] (TFluentMap fluent) {

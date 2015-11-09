@@ -57,14 +57,15 @@ protected:
             TColumnSchema("k2", EValueType::Int64),
             TColumnSchema("k3", EValueType::Double),
             TColumnSchema("v1", EValueType::Int64),
-            TColumnSchema("v2", EValueType::Int64)
+            TColumnSchema("v2", EValueType::Boolean),
+            TColumnSchema("v3", EValueType::Int64)
         };
 
         KeyColumns = {"k1", "k2", "k3"};
 
         TSimpleVersionedBlockWriter blockWriter(Schema, KeyColumns);
 
-        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 3, 3, 1);
+        auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 3, 1);
         row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
         row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
         row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -73,7 +74,10 @@ protected:
         row.BeginValues()[0] = MakeVersionedInt64Value(8, 11, 3);
         row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 3);
         // v2
-        row.BeginValues()[2] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
+        row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 4);
+        row.BeginValues()[3] = MakeVersionedBooleanValue(false, 3, 4);
+        // v3
+        row.BeginValues()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
 
         row.BeginWriteTimestamps()[2] = 3;
         row.BeginWriteTimestamps()[1] = 5;
@@ -95,7 +99,7 @@ protected:
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 {
     // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 5}, {3, 6}};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 5}, {3, 6}, {4, 7}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,
@@ -106,7 +110,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         schemaIdMapping,
         7);
 
-    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 5, 2, 1, 0);
+    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 5, 3, 1, 0);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -114,6 +118,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
     row.BeginKeys()[4] = MakeUnversionedSentinelValue(EValueType::Null, 4);
     row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
     row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 6);
+    row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 7);
     row.BeginWriteTimestamps()[0] = 5;
 
     std::vector<TVersionedRow> rows;
@@ -121,6 +126,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
 
     CheckResult(blockReader, rows);
 }
+
 
 TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 {
@@ -176,7 +182,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
 TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
 {
     // Read only last non-key column.
-    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}};
+    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 3}};
 
     TSimpleVersionedBlockReader blockReader(
         Data,
@@ -193,7 +199,7 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
 
     // v2
-    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 4);
+    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 3);
 
     row.BeginWriteTimestamps()[2] = 3;
     row.BeginWriteTimestamps()[1] = 5;

@@ -1,6 +1,11 @@
+#include "stdafx.h"
+
 #include "helpers.h"
 #include "config.h"
 #include "chunk_service_proxy.h"
+#include "private.h"
+#include "erasure_reader.h"
+#include "replication_reader.h"
 
 #include <ytlib/api/client.h>
 
@@ -9,8 +14,13 @@
 #include <ytlib/object_client/helpers.h>
 
 #include <ytlib/chunk_client/chunk_ypath_proxy.h>
+#include <ytlib/chunk_client/chunk_replica.h>
 
 #include <ytlib/node_tracker_client/node_directory.h>
+
+#include <ytlib/node_tracker_client/node_directory.h>
+
+#include <core/erasure/codec.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -20,12 +30,17 @@ namespace NChunkClient {
 using namespace NApi;
 using namespace NRpc;
 using namespace NConcurrency;
-using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NErasure;
 using namespace NNodeTrackerClient;
+using namespace NApi;
+using namespace NChunkClient::NProto;
 
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto& Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,9 +54,10 @@ TChunkId CreateChunk(
 {
     const auto& Logger = logger;
 
-    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v)", 
+    LOG_DEBUG("Creating chunk (ReplicationFactor: %v, TransactionId: %v, ChunkListId: %v)",
         options->ReplicationFactor, 
-        transactionId);
+        transactionId,
+        chunkListId);
 
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
@@ -109,7 +125,7 @@ void ProcessFetchResponse(
                 req->add_chunk_ids()->CopyFrom(foreignChunkSpecs[index]->chunk_id());
             }
 
-            LOG_INFO("Locating foreign chunks (CellTag: %v, ChunkCount: %v)",
+            LOG_DEBUG("Locating foreign chunks (CellTag: %v, ChunkCount: %v)",
                 foreignCellTag,
                 req->chunk_ids_size());
 
@@ -140,6 +156,76 @@ void ProcessFetchResponse(
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         chunkSpecs->push_back(NProto::TChunkSpec());
         chunkSpecs->back().Swap(&chunkSpec);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChunkReaderPtr CreateRemoteReader(
+    const TChunkId& chunkId,
+    const TChunkReplicaList& replicas,
+    NErasure::ECodec erasureCodecId,
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    NApi::IClientPtr client,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    IBlockCachePtr blockCache,
+    NConcurrency::IThroughputThrottlerPtr throttler)
+{
+    LOG_DEBUG("Creating remote reader (ChunkId: %v)", chunkId);
+
+    if (IsErasureChunkId(chunkId)) {
+        auto sortedReplicas = replicas;
+        std::sort(
+            sortedReplicas.begin(),
+            sortedReplicas.end(),
+            [] (TChunkReplica lhs, TChunkReplica rhs) {
+                return lhs.GetIndex() < rhs.GetIndex();
+            });
+
+        auto* erasureCodec = GetCodec(erasureCodecId);
+        auto dataPartCount = erasureCodec->GetDataPartCount();
+
+        std::vector<IChunkReaderPtr> readers;
+        readers.reserve(dataPartCount);
+
+        auto it = sortedReplicas.begin();
+        while (it != sortedReplicas.end() && it->GetIndex() < dataPartCount) {
+            auto jt = it;
+            while (jt != sortedReplicas.end() && it->GetIndex() == jt->GetIndex()) {
+                ++jt;
+            }
+
+            TChunkReplicaList partReplicas(it, jt);
+            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetIndex());
+            auto reader = CreateReplicationReader(
+                config,
+                options,
+                client,
+                nodeDirectory,
+                Null,
+                partId,
+                partReplicas,
+                blockCache,
+                throttler);
+            readers.push_back(reader);
+
+            it = jt;
+        }
+
+        YCHECK(readers.size() == dataPartCount);
+        return CreateNonRepairingErasureReader(readers);
+    } else {
+        return CreateReplicationReader(
+            config,
+            options,
+            client,
+            nodeDirectory,
+            Null,
+            chunkId,
+            replicas,
+            blockCache,
+            throttler);
     }
 }
 

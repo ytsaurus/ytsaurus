@@ -54,6 +54,9 @@ public:
     //! Is |true| iff heartbeat from this node is being processed at the moment.
     DEFINE_BYVAL_RW_PROPERTY(bool, HasOngoingHeartbeat);
 
+    //! Node IO weight, as reported by node to master.
+    DEFINE_BYVAL_RW_PROPERTY(double, IOWeight);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,

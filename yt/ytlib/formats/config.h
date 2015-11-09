@@ -55,6 +55,9 @@ public:
 
     bool BooleanAsString;
 
+    bool Stringify;
+    bool AnnotateWithTypes;
+
     // Size of buffer used read out input stream in parser.
     // NB: in case of parsing long string yajl holds in memory whole string prefix and copy it on every parse call.
     // Therefore parsing long strings works faster with larger buffer.
@@ -71,6 +74,10 @@ public:
         RegisterParameter("string_length_limit", StringLengthLimit)
             .Default();
         RegisterParameter("boolean_as_string", BooleanAsString)
+            .Default(false);
+        RegisterParameter("stringify", Stringify)
+            .Default(false);
+        RegisterParameter("annotate_with_types", AnnotateWithTypes)
             .Default(false);
         RegisterParameter("buffer_size", BufferSize)
             .Default(16 * 1024 * 1024);

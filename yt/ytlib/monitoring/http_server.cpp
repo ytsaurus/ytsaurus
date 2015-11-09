@@ -10,9 +10,8 @@
 
 #include <core/profiling/profiler.h>
 
-#include <util/string/http.h>
-
-#include <library/httpserver/http.h>
+#include <library/http/server/http.h>
+#include <library/http/misc/parsed_request.h>
 
 namespace NYT {
 namespace NHttp {

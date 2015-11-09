@@ -5,6 +5,8 @@
 #include <execinfo.h>
 #endif
 
+#include <memory>
+
 #include <util/stream/output.h>
 
 namespace NYT {

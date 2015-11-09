@@ -10,6 +10,9 @@
 
 #include <core/concurrency/thread_affinity.h>
 
+#include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
+
 #include <core/rpc/public.h>
 
 #include <core/logging/log.h>
@@ -26,6 +29,8 @@
 
 namespace NYT {
 namespace NBus {
+
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,6 +232,13 @@ protected:
 
             auto dispatcherThread = TTcpDispatcher::TImpl::Get()->GetClientThread();
 
+            auto address = ToString(clientAddress, false);
+            auto endpointDescription = address;
+            auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("address").Value(address)
+                .EndMap());
+
             auto connection = New<TTcpConnection>(
                 Config_,
                 dispatcherThread,
@@ -234,8 +246,10 @@ protected:
                 GetInterfaceType(),
                 TConnectionId::Create(),
                 clientSocket,
-                ToString(clientAddress, false),
-                false,
+                endpointDescription,
+                *endpointAttributes,
+                address,
+                Null,
                 0,
                 Handler_);
 
@@ -310,7 +324,9 @@ private:
 
         ServerSocket_ = socket(AF_INET6, type, IPPROTO_TCP);
         if (ServerSocket_ == INVALID_SOCKET) {
-            THROW_ERROR_EXCEPTION("Failed to create a server socket")
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransportError,
+                "Failed to create a server socket")
                 << TError::FromSystem();
         }
 
@@ -323,7 +339,9 @@ private:
         {
             int flag = 0;
             if (setsockopt(ServerSocket_, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &flag, sizeof(flag)) != 0) {
-                THROW_ERROR_EXCEPTION("Failed to configure IPv6 protocol")
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Failed to configure IPv6 protocol")
                     << TError::FromSystem();
             }
         }
@@ -331,7 +349,9 @@ private:
         {
             int flag = 1;
             if (setsockopt(ServerSocket_, SOL_SOCKET, SO_REUSEADDR, (const char*) &flag, sizeof(flag)) != 0) {
-                THROW_ERROR_EXCEPTION("Failed to configure socket address reuse")
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Failed to configure socket address reuse")
                     << TError::FromSystem();
             }
         }
@@ -344,7 +364,9 @@ private:
             serverAddress.sin6_port = htons(Config_->Port.Get());
             if (bind(ServerSocket_, (sockaddr*)&serverAddress, sizeof(serverAddress)) != 0) {
                 CloseServerSocket();
-                THROW_ERROR_EXCEPTION("Failed to bind a server socket to port %v", Config_->Port)
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Failed to bind a server socket to port %v", Config_->Port)
                     << TError::FromSystem();
             }
         }
@@ -405,7 +427,9 @@ private:
 
         ServerSocket_ = socket(AF_UNIX, type, 0);
         if (ServerSocket_ == INVALID_SOCKET) {
-            THROW_ERROR_EXCEPTION("Failed to create a local server socket")
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransportError,
+                "Failed to create a local server socket")
                 << TError::FromSystem();
         }
 
@@ -420,7 +444,9 @@ private:
             }
             if (bind(ServerSocket_, netAddress.GetSockAddr(), netAddress.GetLength()) != 0) {
                 CloseServerSocket();
-                THROW_ERROR_EXCEPTION("Failed to bind a local server socket")
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Failed to bind a local server socket")
                     << TError::FromSystem();
             }
         }

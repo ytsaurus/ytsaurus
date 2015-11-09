@@ -48,7 +48,7 @@ private:
 
         YCHECK(VisitedNodes.insert(id).second);
         Stack.push_back(TStackEntry(id));
-        auto &entry = Stack.back();
+        auto& entry = Stack.back();
 
         switch (nodeProxy->GetType()) {
             case ENodeType::Map: {

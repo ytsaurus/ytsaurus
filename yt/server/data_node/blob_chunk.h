@@ -26,19 +26,19 @@ public:
     virtual bool IsActive() const override;
 
     virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<std::vector<int>>& extensionTags) override;
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         bool populateCache,
         NChunkClient::IBlockCachePtr blockCache) override;
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         bool populateCache,
         NChunkClient::IBlockCachePtr blockCache) override;
 
@@ -59,15 +59,14 @@ private:
     {
         struct TBlockEntry
         {
+            int LocalIndex = -1;
             int BlockIndex = -1;
-            TSharedRef Data;
-            TCachedBlockCookie Cookie;
             bool Cached = false;
+            TCachedBlockCookie Cookie;
         };
 
         std::vector<TBlockEntry> Entries;
-        std::vector<TFuture<void>> CacheResults;
-        TPromise<std::vector<TSharedRef>> Promise = NewPromise<std::vector<TSharedRef>>();
+        std::vector<TSharedRef> Blocks;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -82,14 +81,15 @@ private:
     NChunkClient::NProto::TBlocksExt CachedBlocksExt_;
 
 
-    TFuture<void> GetMeta(i64 priority);
+    TFuture<void> GetMeta(const TWorkloadDescriptor& workloadDescriptor);
     void SetMetaLoadSuccess(const NChunkClient::NProto::TChunkMeta& meta);
     void SetMetaLoadError(const TError& error);
     void DoReadMeta(TChunkReadGuard readGuard);
 
-    void DoReadBlockSet(
+    TFuture<std::vector<TSharedRef>> DoReadBlockSet(
         TReadBlockSetSessionPtr session,
-        TPendingReadSizeGuard pendingReadSizeGuard);
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool populateCache);
 
 };
 

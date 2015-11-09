@@ -78,11 +78,8 @@ void TUserJobIOBase::InitReader(TNameTablePtr nameTable, const TColumnFilter& co
 
 void TUserJobIOBase::CreateReader()
 {
-    LOG_INFO("Opening reader");
-
+    LOG_INFO("Creating reader");
     InitReader(New<TNameTable>(), TColumnFilter());
-    WaitFor(Reader_->Open())
-        .ThrowOnError();
 }
 
 TSchemalessReaderFactory TUserJobIOBase::GetReaderFactory()

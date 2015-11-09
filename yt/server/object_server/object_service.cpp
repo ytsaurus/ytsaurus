@@ -225,10 +225,11 @@ private:
                     requestHeader.method(),
                     NTracing::ServerReceiveAnnotation);
 
-                auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v",
+                auto requestInfo = Format("RequestId: %v, Mutating: %v, RequestPath: %v, User: %v",
                     Context->GetRequestId(),
                     mutating,
-                    path);
+                    path,
+                    UserName);
                 auto responseInfo = Format("RequestId: %v",
                     Context->GetRequestId());
 
@@ -254,7 +255,6 @@ private:
                 if (IsObjectAlive(user)) {
                     securityManager->ChargeUser(user, 1, syncTime, TDuration());
                 }
-
 
                 // Optimize for the (typical) case of synchronous response.
                 if (asyncResponseMessage.IsSet() && !objectManager->AdviceYield(batchStartInstant)) {

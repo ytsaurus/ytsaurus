@@ -34,6 +34,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETransactionState, State);
     DEFINE_BYVAL_RW_PROPERTY(TNullable<TDuration>, Timeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, AccountingEnabled);
+    DEFINE_BYVAL_RW_PROPERTY(TNullable<Stroka>, Title);
     DEFINE_BYREF_RW_PROPERTY(yhash_set<TTransaction*>, NestedTransactions);
     DEFINE_BYVAL_RW_PROPERTY(TTransaction*, Parent);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, StartTime);
@@ -74,6 +75,8 @@ public:
     ETransactionState GetPersistentState() const;
 
     void ThrowInvalidState() const;
+
+    NYson::TYsonString GetDescription() const;
 
 };
 

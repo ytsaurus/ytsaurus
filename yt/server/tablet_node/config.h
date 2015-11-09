@@ -10,6 +10,8 @@
 
 #include <core/rpc/config.h>
 
+#include <ytlib/misc/workload.h>
+
 #include <ytlib/table_client/config.h>
 
 #include <ytlib/chunk_client/config.h>
@@ -27,20 +29,20 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletHydraManageConfig
+class TTabletHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
 {
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
-    TTabletHydraManageConfig()
+    TTabletHydraManagerConfig()
     {
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletHydraManageConfig)
+DEFINE_REFCOUNTED_TYPE(TTabletHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,6 +315,7 @@ class TInMemoryManagerConfig
 public:
     int MaxConcurrentPreloads;
     TDuration InterceptedDataRetentionTime;
+    TWorkloadDescriptor WorkloadDescriptor;
 
     TInMemoryManagerConfig()
     {
@@ -321,6 +324,8 @@ public:
             .Default(1);
         RegisterParameter("intercepted_data_retention_time", InterceptedDataRetentionTime)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("workload_descriptor", WorkloadDescriptor)
+            .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
     }
 };
 
@@ -441,7 +446,7 @@ public:
     NHydra::TRemoteChangelogStoreConfigPtr Changelogs;
 
     //! Generic configuration for all Hydra instances.
-    TTabletHydraManageConfigPtr HydraManager;
+    TTabletHydraManagerConfigPtr HydraManager;
 
     //! Generic configuration for all Hive instances.
     NHive::THiveManagerConfigPtr HiveManager;
@@ -522,6 +527,11 @@ public:
 
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
+
+        RegisterInitializer([&] () {
+            // Override default workload descriptors.
+            ChunkReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+        });
     }
 };
 

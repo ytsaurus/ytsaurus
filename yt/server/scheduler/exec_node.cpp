@@ -26,6 +26,7 @@ TExecNode::TExecNode(
     , ResourceUsage_(ZeroNodeResources())
     , MasterState_(ENodeState::Offline)
     , HasOngoingHeartbeat_(false)
+    , IOWeight_(0)
 { }
 
 bool TExecNode::HasEnoughResources(const TNodeResources& neededResources) const

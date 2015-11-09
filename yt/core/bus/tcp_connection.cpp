@@ -10,6 +10,7 @@
 #include <core/rpc/public.h>
 
 #include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
 
 #include <util/system/error.h>
 
@@ -48,8 +49,10 @@ TTcpConnection::TTcpConnection(
     ETcpInterfaceType interfaceType,
     const TConnectionId& id,
     int socket,
-    const Stroka& address,
-    bool isUnixDomain,
+    const Stroka& endpointDescription,
+    const IAttributeDictionary& endpointAttributes,
+    const TNullable<Stroka>& address,
+    const TNullable<Stroka>& unixDomainName,
     int priority,
     IMessageHandlerPtr handler)
     : Config_(std::move(config))
@@ -58,8 +61,10 @@ TTcpConnection::TTcpConnection(
     , InterfaceType_(interfaceType)
     , Id_(id)
     , Socket_(socket)
+    , EndpointDescription_(endpointDescription)
+    , EndpointAttributes_(endpointAttributes.Clone())
     , Address_(address)
-    , IsUnixDomain_(isUnixDomain)
+    , UnixDomainName_(unixDomainName)
 #ifdef _linux_
     , Priority_(priority)
 #endif
@@ -74,7 +79,7 @@ TTcpConnection::TTcpConnection(
     Logger = BusLogger;
     Logger.AddTag("ConnectionId: %v, Address: %v",
         Id_,
-        Address_);
+        EndpointDescription_);
 
     Profiler = BusProfiler;
     Profiler.TagIds().push_back(ProfilingData_->TagId);
@@ -168,17 +173,13 @@ TTcpDispatcherStatistics& TTcpConnection::Statistics()
 void TTcpConnection::UpdateConnectionCount(int delta)
 {
     switch (ConnectionType_) {
-        case EConnectionType::Client: {
-            int value = (Statistics().ClientConnections += delta);
-            Profiler.Enqueue("/client_connection_count", value);
+        case EConnectionType::Client:
+            Profiler.Increment(ProfilingData_->ClientConnectionCounter, delta);
             break;
-        }
 
-        case EConnectionType::Server: {
-            int value = (Statistics().ServerConnections += delta);
-            Profiler.Enqueue("/server_connection_count", value);
+        case EConnectionType::Server:
+            Profiler.Increment(ProfilingData_->ServerConnectionCounter, delta);
             break;
-        }
 
         default:
             YUNREACHABLE();
@@ -188,11 +189,11 @@ void TTcpConnection::UpdateConnectionCount(int delta)
 void TTcpConnection::UpdatePendingOut(int countDelta, i64 sizeDelta)
 {
     {
-        int value = (Statistics().PendingOutPackets += countDelta);
+        auto value = (Statistics().PendingOutPackets += countDelta);
         Profiler.Update(ProfilingData_->PendingOutPacketCounter, value);
     }
     {
-        size_t value = (Statistics().PendingOutBytes += sizeDelta);
+        auto value = (Statistics().PendingOutBytes += sizeDelta);
         Profiler.Update(ProfilingData_->PendingOutByteCounter, value);
     }
 }
@@ -221,25 +222,24 @@ void TTcpConnection::SyncResolve()
 {
     VERIFY_THREAD_AFFINITY(EventLoop);
 
-    if (IsUnixDomain_) {
-        auto netAddress = GetUnixDomainAddress(Address_);
-        OnAddressResolved(netAddress);
+    if (UnixDomainName_) {
+        auto address = GetUnixDomainAddress(*UnixDomainName_);
+        OnAddressResolved(address);
         return;
     }
 
     TStringBuf hostName;
     try {
-        ParseServiceAddress(Address_, &hostName, &Port_);
+        ParseServiceAddress(*Address_, &hostName, &Port_);
     } catch (const std::exception& ex) {
         SyncClose(TError(ex).SetCode(NRpc::EErrorCode::TransportError));
         return;
     }
 
     if (InterfaceType_ == ETcpInterfaceType::Local) {
-        LOG_DEBUG("Address resolved as local, connecting");
-
-        auto netAddress = GetLocalBusAddress(Port_);
-        OnAddressResolved(netAddress);
+        LOG_DEBUG("Server address is local");
+        auto address = GetLocalBusAddress(Port_);
+        OnAddressResolved(address);
     } else {
         TAddressResolver::Get()->Resolve(Stroka(hostName)).Subscribe(
             BIND(&TTcpConnection::OnAddressResolutionFinished, MakeStrong(this))
@@ -305,8 +305,7 @@ void TTcpConnection::SyncClose(const TError& error)
 
     // Construct a detailed error.
     auto detailedError = error
-        << TErrorAttribute("connection_id", Id_)
-        << TErrorAttribute("address", Address_);
+        << *EndpointAttributes_;
 
     LOG_DEBUG(detailedError, "Connection closed");
 
@@ -365,7 +364,9 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
 
     Socket_ = socket(family, type, protocol);
     if (Socket_ == INVALID_SOCKET) {
-        THROW_ERROR_EXCEPTION("Failed to create client socket")
+        THROW_ERROR_EXCEPTION(
+            NRpc::EErrorCode::TransportError,
+            "Failed to create client socket")
             << TError::FromSystem();
     }
 
@@ -374,7 +375,9 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
     if (family == AF_INET6) {
         int value = 0;
         if (setsockopt(Socket_, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &value, sizeof(value)) != 0) {
-            THROW_ERROR_EXCEPTION("Failed to configure IPv6 protocol")
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransportError,
+                "Failed to configure IPv6 protocol")
                 << TError::FromSystem();
         }
     }
@@ -383,14 +386,18 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         if (Config_->EnableNoDelay) {
             int value = 1;
             if (setsockopt(Socket_, IPPROTO_TCP, TCP_NODELAY, (const char*) &value, sizeof(value)) != 0) {
-                THROW_ERROR_EXCEPTION("Failed to enable socket NODELAY mode")
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Failed to enable socket NODELAY mode")
                     << TError::FromSystem();
             }
         }
 #ifdef _linux_
         {
             if (setsockopt(Socket_, SOL_SOCKET, SO_PRIORITY, (const char*) &Priority_, sizeof(Priority_)) != 0) {
-                THROW_ERROR_EXCEPTION("Failed to set socket priority")
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Failed to set socket priority")
                     << TError::FromSystem();
             }
         }
@@ -398,7 +405,9 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         {
             int value = 1;
             if (setsockopt(Socket_, SOL_SOCKET, SO_KEEPALIVE, (const char*) &value, sizeof(value)) != 0) {
-                THROW_ERROR_EXCEPTION("Failed to enable keep alive")
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Failed to enable keep alive")
                     << TError::FromSystem();
             }
         }
@@ -412,7 +421,9 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         int result = fcntl(Socket_, F_SETFL, O_NONBLOCK);
 #endif
         if (result != 0) {
-            THROW_ERROR_EXCEPTION("Failed to enable nonblocking mode")
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransportError,
+                "Failed to enable nonblocking mode")
                 << TError::FromSystem();
         }
     }
@@ -426,21 +437,24 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& netAddress)
         if (result != 0) {
             int error = LastSystemError();
             if (IsSocketError(error)) {
-                THROW_ERROR_EXCEPTION("Error connecting to %v", Address_)
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::TransportError,
+                    "Error connecting to %v",
+                    EndpointDescription_)
                     << TError::FromSystem(error);
             }
         }
     }
 }
 
-Stroka TTcpConnection::GetEndpointTextDescription() const
+const Stroka& TTcpConnection::GetEndpointDescription() const
 {
-    return Address_;
+    return EndpointDescription_;
 }
 
-TYsonString TTcpConnection::GetEndpointYsonDescription() const
+const IAttributeDictionary& TTcpConnection::GetEndpointAttributes() const
 {
-    return ConvertToYsonString(Address_);
+    return *EndpointAttributes_;
 }
 
 TFuture<void> TTcpConnection::Send(TSharedRefArray message, EDeliveryTrackingLevel level)
@@ -739,8 +753,8 @@ void TTcpConnection::OnSocketWrite()
         if (error != 0) {
             auto wrappedErrror = TError(
                 NRpc::EErrorCode::TransportError,
-                "Failed to connect to %v",
-                Address_)
+                "Error connecting to %v",
+                EndpointDescription_)
                 << TError::FromSystem(error);
             LOG_ERROR(wrappedErrror);
 

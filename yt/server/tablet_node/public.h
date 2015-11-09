@@ -141,7 +141,7 @@ DEFINE_ENUM(EInMemoryMode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTabletHydraManageConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletManagerConfig)

@@ -157,9 +157,9 @@ public:
 
 private:
     // GarbageMemorySize <= AllocatedMemorySize <= TotalMemorySize
-    int TotalMemorySize_ = 0;
-    int AllocatedMemorySize_ = 0;
-    int GarbageMemorySize_ = 0;
+    size_t TotalMemorySize_ = 0;
+    size_t AllocatedMemorySize_ = 0;
+    size_t GarbageMemorySize_ = 0;
 
     TComparer Comparer_;
 

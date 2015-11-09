@@ -11,7 +11,6 @@ import sys
 import logging
 import uuid
 import shutil
-import time
 from time import sleep
 from threading import Thread
 
@@ -61,7 +60,7 @@ class Checker(Thread):
         self._active = True
         while self._active:
             self._check_function()
-            time.sleep(1.0)
+            sleep(1.0)
 
     def stop(self):
         self._active = False

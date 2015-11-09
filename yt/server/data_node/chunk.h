@@ -52,16 +52,12 @@ struct IChunk
 
     //! Returns chunk meta.
     /*!
-     *  \param priority Request priority.
-     *  \param tags The list of extension tags to return. If |nullptr|
-     *  then all extensions are returned.
-     *
      *  \note
      *  The meta is fetched asynchronously and is cached.
      *  Thread affinity: any
      */
     virtual TFuture<TRefCountedChunkMetaPtr> ReadMeta(
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         const TNullable<std::vector<int>>& extensionTags = Null) = 0;
 
     //! Asynchronously reads a set of blocks.
@@ -71,7 +67,7 @@ struct IChunk
      */
     virtual TFuture<std::vector<TSharedRef>> ReadBlockSet(
         const std::vector<int>& blockIndexes,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         bool populateCache,
         NChunkClient::IBlockCachePtr blockCache) = 0;
 
@@ -83,7 +79,7 @@ struct IChunk
     virtual TFuture<std::vector<TSharedRef>> ReadBlockRange(
         int firstBlockIndex,
         int blockCount,
-        i64 priority,
+        const TWorkloadDescriptor& workloadDescriptor,
         bool populateCache,
         NChunkClient::IBlockCachePtr blockCache) = 0;
 

@@ -41,6 +41,8 @@ public:
 
     virtual TChunkId GetChunkId() const override;
 
+    virtual NErasure::ECodec GetErasureCodecId() const override;
+
     //! Returns the chunk meta.
     /*!
      *  The writer must be already closed.

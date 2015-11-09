@@ -36,7 +36,6 @@ set( SRCS
   ${CMAKE_CURRENT_LIST_DIR}/ref_counted.cpp
   ${CMAKE_CURRENT_LIST_DIR}/ref_counted_tracker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/serialize.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/skip_list.cpp
   ${CMAKE_CURRENT_LIST_DIR}/small_vector.cpp
   ${CMAKE_CURRENT_LIST_DIR}/source_location.cpp
   ${CMAKE_CURRENT_LIST_DIR}/stack_trace.cpp

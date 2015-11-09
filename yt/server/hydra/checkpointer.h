@@ -68,12 +68,10 @@ public:
     bool CanRotateChangelogs() const;
 
 private:
-    TDistributedHydraManagerConfigPtr Config_;
-    NElection::TCellManagerPtr CellManager_;
-    TDecoratedAutomatonPtr DecoratedAutomaton_;
-    TLeaderCommitterPtr LeaderCommitter_;
-    ISnapshotStorePtr SnapshotStore_;
-    TEpochContext* EpochContext_;
+    const TDistributedHydraManagerConfigPtr Config_;
+    const NElection::TCellManagerPtr CellManager_;
+    const TDecoratedAutomatonPtr DecoratedAutomaton_;
+    TEpochContext* const EpochContext_;
 
     bool BuildingSnapshot_ = false;
     bool RotatingChangelogs_ = false;

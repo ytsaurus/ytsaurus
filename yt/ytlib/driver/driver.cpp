@@ -10,6 +10,7 @@
 #include "table_commands.h"
 #include "scheduler_commands.h"
 #include "journal_commands.h"
+#include "private.h"
 
 #include <core/concurrency/parallel_awaiter.h>
 #include <core/concurrency/scheduler.h>
@@ -53,6 +54,10 @@ using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = DriverLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDriverRequest::TDriverRequest()
     : ResponseParametersConsumer(GetNullYsonConsumer())
 { }
@@ -84,7 +89,8 @@ public:
 
         // Register all commands.
 #define REGISTER(command, name, inDataType, outDataType, isVolatile, isHeavy) \
-        RegisterCommand<command>(TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
+        RegisterCommand<command>( \
+            TCommandDescriptor(name, EDataType::inDataType, EDataType::outDataType, isVolatile, isHeavy));
 
         REGISTER(TStartTransactionCommand,     "start_tx",                Null,       Structured, true,  false);
         REGISTER(TPingTransactionCommand,      "ping_tx",                 Null,       Null,       true,  false);
@@ -101,6 +107,7 @@ public:
         REGISTER(TMoveCommand,                 "move",                    Null,       Structured, true,  false);
         REGISTER(TLinkCommand,                 "link",                    Null,       Structured, true,  false);
         REGISTER(TExistsCommand,               "exists",                  Null,       Structured, false, false);
+        REGISTER(TConcatenateCommand,          "concatenate",             Null,       Structured, true,  false);
 
         REGISTER(TWriteFileCommand,            "write_file",              Binary,     Null,       true,  true );
         REGISTER(TReadFileCommand,             "read_file",               Null,       Binary,     false, true );
@@ -164,13 +171,11 @@ public:
             entry.Descriptor,
             request);
 
-        auto command = entry.Factory.Run();
-
         auto invoker = entry.Descriptor.IsHeavy
             ? TDispatcher::Get()->GetHeavyInvoker()
             : TDispatcher::Get()->GetLightInvoker();
 
-        return BIND(&TDriver::DoExecute, command, context)
+        return BIND(&TDriver::DoExecute, entry.Execute, context)
             .AsyncVia(invoker)
             .Run();
     }
@@ -202,8 +207,7 @@ public:
 private:
     class TCommandContext;
     typedef TIntrusivePtr<TCommandContext> TCommandContextPtr;
-
-    typedef TCallback< ICommandPtr() > TCommandFactory;
+    typedef TCallback<void(ICommandContextPtr)> TExecuteCallback;
 
     TDriverConfigPtr Config;
 
@@ -212,35 +216,66 @@ private:
     struct TCommandEntry
     {
         TCommandDescriptor Descriptor;
-        TCommandFactory Factory;
+        TExecuteCallback Execute;
     };
 
     yhash_map<Stroka, TCommandEntry> Commands;
+
+    void RegisterCommand(TExecuteCallback executeCallback, const TCommandDescriptor& descriptor)
+    {
+        TCommandEntry entry;
+        entry.Descriptor = descriptor;
+        entry.Execute = std::move(executeCallback);
+        YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
+    }
 
     template <class TCommand>
     void RegisterCommand(const TCommandDescriptor& descriptor)
     {
         TCommandEntry entry;
         entry.Descriptor = descriptor;
-        entry.Factory = BIND([] () -> ICommandPtr {
-            return New<TCommand>();
+        entry.Execute = BIND([] (ICommandContextPtr context) {
+            TCommand command;
+            auto parameters = context->Request().Parameters;
+            Deserialize(command, parameters);
+            command.Execute(context);
         });
         YCHECK(Commands.insert(std::make_pair(descriptor.CommandName, entry)).second);
     }
 
-    static void DoExecute(ICommandPtr command, TCommandContextPtr context)
+    static void DoExecute(TExecuteCallback executeCallback, TCommandContextPtr context)
     {
         const auto& request = context->Request();
 
+        TError result;
         TRACE_CHILD("Driver", request.CommandName) {
-            command->Execute(context);
+            LOG_INFO("Command started (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+                request.Id,
+                request.CommandName,
+                request.AuthenticatedUser);
+
+            try {
+                executeCallback.Run(context);
+            } catch (const std::exception& ex) {
+                result = TError(ex);
+            }
         }
 
-        auto error = context->GetError();
+        if (result.IsOK()) {
+            LOG_INFO("Command completed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+                request.Id,
+                request.CommandName,
+                request.AuthenticatedUser);
+        } else {
+            LOG_INFO(result, "Command failed (RequestId: %" PRIx64 ", Command: %v, User: %v)",
+                request.Id,
+                request.CommandName,
+                request.AuthenticatedUser);
+        }
 
         WaitFor(context->Terminate());
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(error);
+        THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
 
     class TCommandContext
@@ -254,8 +289,6 @@ private:
             : Driver_(driver)
             , Descriptor_(descriptor)
             , Request_(request)
-            , SyncInputStream_(request.InputStream ? CreateSyncAdapter(request.InputStream) : nullptr)
-            , SyncOutputStream_(request.OutputStream ? CreateSyncAdapter(request.OutputStream) : nullptr)
         {
             TClientOptions options;
             options.User = Request_.AuthenticatedUser;
@@ -282,22 +315,6 @@ private:
             return Request_;
         }
 
-        virtual TYsonProducer CreateInputProducer() override
-        {
-            return CreateProducerForFormat(
-                GetInputFormat(),
-                Descriptor_.InputType,
-                SyncInputStream_.get());
-        }
-
-        virtual std::unique_ptr<IYsonConsumer> CreateOutputConsumer() override
-        {
-            return CreateConsumerForFormat(
-                GetOutputFormat(),
-                Descriptor_.OutputType,
-                SyncOutputStream_.get());
-        }
-
         virtual const TFormat& GetInputFormat() override
         {
             if (!InputFormat_) {
@@ -314,16 +331,32 @@ private:
             return *OutputFormat_;
         }
 
-        virtual void Reply(const TError& error) override
+        virtual TYsonString ConsumeInputValue() override
         {
-            YCHECK(!Replied_);
-            Error_ = error;
-            Replied_ = true;
+            YCHECK(Request_.InputStream);
+            auto syncInputStream = CreateSyncAdapter(Request_.InputStream);
+
+            auto producer = CreateProducerForFormat(
+                GetInputFormat(),
+                Descriptor_.InputType,
+                syncInputStream.get());
+
+            return ConvertToYsonString(producer);
         }
 
-        const TError& GetError() const
+        virtual void ProduceOutputValue(const TYsonString& yson) override
         {
-            return Error_;
+            YCHECK(Request_.OutputStream);
+            auto syncOutputStream = CreateSyncAdapter(Request_.OutputStream);
+
+            TBufferedOutput bufferedOutputStream(syncOutputStream.get());
+
+            auto consumer = CreateConsumerForFormat(
+                GetOutputFormat(),
+                Descriptor_.OutputType,
+                &bufferedOutputStream);
+
+            Serialize(yson, consumer.get());
         }
 
     private:
@@ -331,14 +364,8 @@ private:
         const TCommandDescriptor Descriptor_;
         const TDriverRequest Request_;
 
-        bool Replied_ = false;
-        TError Error_;
-
         TNullable<TFormat> InputFormat_;
         TNullable<TFormat> OutputFormat_;
-
-        std::unique_ptr<TInputStream> SyncInputStream_;
-        std::unique_ptr<TOutputStream> SyncOutputStream_;
 
         IClientPtr Client_;
 

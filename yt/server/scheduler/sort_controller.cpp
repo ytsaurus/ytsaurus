@@ -1151,14 +1151,19 @@ protected:
 
         LOG_DEBUG("Examining online nodes");
 
-        std::vector<TAssignedNodePtr> nodeHeap;
         auto nodes = Host->GetExecNodes();
         auto maxResourceLimits = ZeroNodeResources();
+        double maxIOWeight = 0;
         for (auto node : nodes) {
             maxResourceLimits = Max(maxResourceLimits, node->ResourceLimits());
+            maxIOWeight = std::max(maxIOWeight, node->GetIOWeight());
         }
+
+        std::vector<TAssignedNodePtr> nodeHeap;
         for (const auto& node : nodes) {
-            double weight = std::min(1.0, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
+            double weight = 1.0;
+            weight = std::min(weight, GetMinResourceRatio(node->ResourceLimits(), maxResourceLimits));
+            weight = std::min(weight, node->GetIOWeight() > 0 ? node->GetIOWeight() / maxIOWeight : 0);
             if (weight > 0) {
                 auto assignedNode = New<TAssignedNode>(node, weight);
                 nodeHeap.push_back(assignedNode);
@@ -1166,7 +1171,7 @@ protected:
         }
 
         std::vector<TPartitionPtr> partitionsToAssign;
-        for (auto partition : Partitions) {
+        for (const auto& partition : Partitions) {
             // Only take partitions for which no jobs are launched yet.
             if (partition->NodeIdToLocality.empty()) {
                 partitionsToAssign.push_back(partition);
@@ -1200,7 +1205,7 @@ protected:
                 node->Node->GetDefaultAddress());
         }
 
-        for (auto node : nodeHeap) {
+        for (const auto& node : nodeHeap) {
             if (node->AssignedDataSize > 0) {
                 LOG_DEBUG("Node used (Address: %v, Weight: %.4lf, AssignedDataSize: %v, AdjustedDataSize: %v)",
                     node->Node->GetDefaultAddress(),

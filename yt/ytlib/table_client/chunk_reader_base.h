@@ -21,8 +21,6 @@ class TChunkReaderBase
 public:
     TChunkReaderBase(
         NChunkClient::TSequentialReaderConfigPtr config,
-        const NChunkClient::TReadLimit& lowerLimit,
-        const NChunkClient::TReadLimit& upperLimit,
         NChunkClient::IChunkReaderPtr underlyingReader,
         const NChunkClient::NProto::TMiscExt& misc,
         NChunkClient::IBlockCachePtr blockCache);
@@ -37,8 +35,6 @@ public:
 
 protected:
     const NChunkClient::TSequentialReaderConfigPtr Config_;
-    const NChunkClient::TReadLimit LowerLimit_;
-    const NChunkClient::TReadLimit UpperLimit_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
 
@@ -67,17 +63,20 @@ protected:
         const std::vector<TOwningKey>& blockIndexKeys,
         int beginBlockIndex = 0);
 
-    void CheckBlockUpperLimits(const NProto::TBlockMeta& blockMeta, TNullable<int> keyColumnCount = Null);
+    void CheckBlockUpperLimits(
+        const NProto::TBlockMeta& blockMeta,
+        const NChunkClient::TReadLimit& upperLimit,
+        TNullable<int> keyColumnCount = Null);
 
     // These methods return min block index, satisfying the lower limit.
-    int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
-    int ApplyLowerKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
-    int ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const;
+    int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit) const;
+    int ApplyLowerKeyLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit) const;
+    int ApplyLowerKeyLimit(const std::vector<TOwningKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit) const;
 
     // These methods return max block index, satisfying the upper limit.
-    int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta) const;
-    int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta) const;
-    int ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockIndexKeys) const;
+    int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const;
+    int ApplyUpperKeyLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const;
+    int ApplyUpperKeyLimit(const std::vector<TOwningKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit) const;
 
     virtual std::vector<NChunkClient::TSequentialReader::TBlockInfo> GetBlockSequence() = 0;
 

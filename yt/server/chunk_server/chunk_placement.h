@@ -38,14 +38,14 @@ public:
         TNullable<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes,
         const TNullable<Stroka>& preferredHostName,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::ESessionType sessionType);
 
     TNodeList AllocateWriteTargets(
         TChunk* chunk,
         int desiredCount,
         int minCount,
         TNullable<int> replicationFactorOverride,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::ESessionType sessionType);
 
     TNode* GetRemovalTarget(TChunkPtrWithIndex chunkWithIndex);
 
@@ -118,7 +118,7 @@ private:
 
     void AddSessionHint(
         TNode* node,
-        NChunkClient::EWriteSessionType sessionType);
+        NChunkClient::ESessionType sessionType);
 
     int GetMaxReplicasPerRack(
         TChunk* chunk,
