@@ -47,7 +47,7 @@ target_link_libraries ( ytcore
   ytext-arcadia-util
   ytext-arcadia-library-streams-lz
   ytext-ev
-  ytext-jerasure
+  yt-contrib-jerasure
   ytext-json
   ytext-arcadia-library-http
   ytext-yajl

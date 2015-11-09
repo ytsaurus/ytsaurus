@@ -1,6 +1,8 @@
 #include "jerasure.h"
 
-#include <contrib/libs/jerasure/jerasure.h>
+extern "C" {
+#include <yt/contrib/jerasure/jerasure.h>
+}
 
 namespace NYT {
 namespace NErasure {
