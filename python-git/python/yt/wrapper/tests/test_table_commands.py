@@ -151,8 +151,9 @@ class TestTableCommands(object):
 
         table = TEST_DIR + "/table"
         yt.create_table(table)
-        yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-        yt.set(table + "/@key_columns", ["x"])
+        yt.set(table + "/@schema", [
+            {"name": "x", "type": "string", "sort_order": "ascending"},
+            {"name": "y", "type": "string"}])
 
         tablet_id = yt.create("tablet_cell", attributes={"size": 1})
         while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
@@ -184,6 +185,11 @@ class TestTableCommands(object):
         yt.create_table(table)
         yt.run_sort(table, sort_by=["x"])
 
+        yt.set(table + "/@schema", [
+            {"name": "x", "type": "int64", "sort_order": "ascending"},
+            {"name": "y", "type": "int64"},
+            {"name": "z", "type": "int64"}])
+        
         assert [] == select()
 
         yt.write_table(yt.TablePath(table, append=True, sorted_by=["x"]),
@@ -201,8 +207,9 @@ class TestTableCommands(object):
             table = TEST_DIR + "/table2"
             yt.remove(table, force=True)
             yt.create_table(table)
-            yt.set(table + "/@schema", [{"name": name, "type": "string"} for name in ["x", "y"]])
-            yt.set(table + "/@key_columns", ["x"])
+            yt.set(table + "/@schema", [
+                {"name": "x", "type": "string", "sort_order": "ascending"},
+                {"name": "y", "type": "string"}])
 
             tablet_id = yt.create("tablet_cell", attributes={"size": 1})
             while yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) != 'good':
