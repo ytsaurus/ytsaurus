@@ -34,12 +34,12 @@ DEFINE_REFCOUNTED_TYPE(ILogWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStreamLogWriter
+class TStreamLogWriterBase
     : public ILogWriter
 {
 public:
-    explicit TStreamLogWriter(TOutputStream* stream = nullptr);
-    ~TStreamLogWriter();
+    TStreamLogWriterBase();
+    ~TStreamLogWriterBase();
 
     virtual void Write(const TLogEvent& event) override;
     virtual void Flush() override;
@@ -47,53 +47,71 @@ public:
     virtual void CheckSpace(i64 minSpace) override;
 
 protected:
-    TOutputStream* Stream_;
+    virtual TOutputStream* GetOutputStream() const noexcept = 0;
+    virtual void OnException(const std::exception& ex);
 
 private:
-    class TDateFormatter;
+    class TCachingDateFormatter;
 
     std::unique_ptr<TMessageBuffer> Buffer_;
-    std::unique_ptr<TDateFormatter> DateFormatter_;
+    std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStderrLogWriter
-    : public TStreamLogWriter
+class TStreamLogWriter final
+    : public TStreamLogWriterBase
 {
 public:
-    TStderrLogWriter();
+    explicit TStreamLogWriter(TOutputStream* stream)
+        : Stream_(stream)
+    { }
+
+private:
+    virtual TOutputStream* GetOutputStream() const noexcept override;
+
+    TOutputStream* Stream_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdoutLogWriter
-    : public TStreamLogWriter
+class TStderrLogWriter final
+    : public TStreamLogWriterBase
 {
-public:
-    TStdoutLogWriter();
+private:
+    virtual TOutputStream* GetOutputStream() const noexcept override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileLogWriter
-    : public TStreamLogWriter
+class TStdoutLogWriter final
+    : public TStreamLogWriterBase
+{
+private:
+    virtual TOutputStream* GetOutputStream() const noexcept override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFileLogWriter final
+    : public TStreamLogWriterBase
 {
 public:
     explicit TFileLogWriter(const Stroka& fileName);
-    virtual void Write(const TLogEvent& event) override;
-    virtual void Flush() override;
+    ~TFileLogWriter();
+
     virtual void Reload() override;
     virtual void CheckSpace(i64 minSpace) override;
 
-protected:
-    void ReopenFile();
-    void EnsureInitialized(bool writeTrailingNewline = false);
+private:
+    virtual TOutputStream* GetOutputStream() const noexcept override;
+    virtual void OnException(const std::exception& ex) override;
+
+    void Open();
+    void Close();
 
     Stroka FileName_;
-    bool Initialized_;
-
-    std::atomic<bool> Disabled_;
+    std::atomic<bool> Disabled_ = {false};
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TBufferedFileOutput> FileOutput_;
