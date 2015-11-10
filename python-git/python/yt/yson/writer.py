@@ -145,8 +145,12 @@ class Dumper(object):
             assert False
 
     def _dump_map(self, obj):
-        result = ['{', self._format.nextline()]
-        size = len(obj)
+        allow_begin_end = self.yson_type != "map_fragment" or self._level > 0
+
+        result = []
+        if allow_begin_end:
+            result.append('{')
+        result.append(self._format.nextline())
         items = obj.iteritems()
         for index, item in enumerate(items):
             k, v = item
@@ -157,11 +161,13 @@ class Dumper(object):
             def process_item():
                 return [self._format.prefix(self._level + 1),
                     self._dump_string(k), self._format.space(), '=',
-                    self._format.space(), self.dumps(v), ';' if index + 1 < size else '', self._format.nextline()]
+                    self._format.space(), self.dumps(v), ';', self._format.nextline()]
 
             result += process_item()
 
-        result += [self._format.prefix(self._level), '}']
+        result.append(self._format.prefix(self._level))
+        if allow_begin_end:
+            result.append('}')
         return ''.join(result)
 
     def _dump_list(self, obj):
