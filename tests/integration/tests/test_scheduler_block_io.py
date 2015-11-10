@@ -58,7 +58,7 @@ echo '===' >&2
 echo "blkio.throttle.read_iops_device content:" >&2
 CONTENT=`cat $CURRENT_BLKIO_CGROUP/blkio.throttle.read_iops_device`
 echo $CONTENT >&2
-echo $CONTENT | grep ' 5' 1>/dev/null
+echo $CONTENT | grep ' 3' 1>/dev/null
 """
 
     def _get_stderr(self, op_id):
