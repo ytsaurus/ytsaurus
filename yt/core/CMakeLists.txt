@@ -58,7 +58,7 @@ target_link_libraries ( ytcore
 
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
   target_link_libraries ( ytcore
-    -latomic
+    -latomic -ldl
   )
 endif()
 
