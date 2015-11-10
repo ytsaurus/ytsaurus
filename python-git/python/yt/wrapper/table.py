@@ -4,6 +4,7 @@ from etc_commands import parse_ypath
 from config import get_config
 
 from yt.yson import YsonString
+import yt.yson as yson
 
 from contextlib import contextmanager
 
@@ -132,6 +133,10 @@ class TablePath(object):
     def to_yson_type(self):
         """Return YSON representation of path"""
         return self.name
+
+    def to_yson_string(self):
+        # NB: in text format \n can appear only as separator.
+        return "<{0}>{1}".format(yson.dumps(self.name.attributes, yson_type="map_fragment", yson_format="text").replace("\n", ""), str(self.name))
 
     def __eq__(self, other):
         return str(self.name) == str(other.name)
