@@ -32,7 +32,7 @@ describe("YtApplicationVersions - discover versions", function() {
 
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
-                var vesion_data = result[name];
+                var version_data = result[name];
 
                 var request_mock = mock
                     .expects("executeSimple")
@@ -41,8 +41,8 @@ describe("YtApplicationVersions - discover versions", function() {
                         path: "//sys/" + entity + "/" + name + "/orchid/service"
                     }));
 
-                if (!vesion_data.hasOwnProperty("error")) {
-                    request_mock.returns(Q.resolve(vesion_data));
+                if (!version_data.hasOwnProperty("error")) {
+                    request_mock.returns(Q.resolve(version_data));
                 } else {
                     request_mock.returns(Q.reject("Some error from orchid"));
                 }
@@ -64,12 +64,12 @@ describe("YtApplicationVersions - discover versions", function() {
 
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
-                var vesion_data = result[name];
+                var version_data = result[name];
 
-                if (!vesion_data.hasOwnProperty("error")) {
+                if (!version_data.hasOwnProperty("error")) {
                     nock("http://" + name)
                         .get("/version")
-                        .reply(200, vesion_data["version"]);
+                        .reply(200, version_data["version"]);
                 } else {
                     nock("http://" + name)
                         .get("/version")
@@ -80,14 +80,14 @@ describe("YtApplicationVersions - discover versions", function() {
             return result;
         }
 
+        var error_from_orchid = {"error":{"code":-2,"message":"Some error from orchid","attributes":{},"inner_errors":[]}};
+
         var versions = {
             "masters": createMock("masters", {
                 "master1": {
                     "version": "1"
                 },
-                "master2": {
-                    "error": "Some error from orchid"
-                }
+                "master2": error_from_orchid
             }),
             "nodes": createMock("nodes", {
                 "node1": {
@@ -96,9 +96,7 @@ describe("YtApplicationVersions - discover versions", function() {
                 "node2": {
                     "version": "3"
                 },
-                "node3": {
-                    "error": "Some error from orchid"
-                }
+                "node3": error_from_orchid
             }),
             "schedulers": createMock("scheduler/instances", { }),
             "proxies": createMock2("proxies", {

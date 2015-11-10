@@ -1,5 +1,5 @@
 var url = require("url");
-var util = require('util');
+var util = require("util");
 
 var Q = require("bluebird");
 
@@ -34,9 +34,7 @@ function YtApplicationVersions(driver)
 
     function getListAndData(entity, dataLoader)
     {
-        return executeWithTimout(
-            "list",
-            { path: "//sys/" + entity })
+        return executeWithTimout("list", { path: "//sys/" + entity })
         .then(function(names) {
             __DBG("Got " + entity + ": " + names);
             return Q.settle(names.map(function(name) {
@@ -47,7 +45,7 @@ function YtApplicationVersions(driver)
                 for (var i = 0, len = responses.length; i < len; ++i) {
                     result[names[i]] = responses[i].isFulfilled()
                         ? responses[i].value()
-                        : {error: responses[i].error()};
+                        : {error: YtError.ensureWrapped(responses[i].error())};
                 }
                 return result;
             })
