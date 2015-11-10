@@ -273,6 +273,8 @@ def add_read_parser(add_parser):
     add_ypath_argument(parser, "table")
     add_format_help(parser, help="output format")
     add_spec_help(parser, "--table-reader")
+    add_spec_help(parser, "--control-attributes")
+    parser.add_argument("--unordered", action="store_true")
     parser.set_defaults(func=read)
 
 def read_file(**args):

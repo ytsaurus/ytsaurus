@@ -519,7 +519,7 @@ def write_table(table, input_stream, format=None, table_writer=None,
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and is_empty(table, client=client):
         _remove_tables([table], client=client)
 
-def read_table(table, format=None, table_reader=None, response_type=None, raw=None, response_parameters=None, read_transaction=None, client=None):
+def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None, response_type=None, raw=None, response_parameters=None, read_transaction=None, client=None):
     """Read rows from table and parse (optionally).
 
     :param table: string or :py:class:`yt.wrapper.table.TablePath`
@@ -559,6 +559,10 @@ def read_table(table, format=None, table_reader=None, response_type=None, raw=No
     }
     if table_reader is not None:
         params["table_reader"] = table_reader
+    if control_attributes is not None:
+        params["control_attributes"] = control_attributes
+    if unordered is not None:
+        params["unordered"] = unordered
 
     command_name = "read" if get_api_version(client=client) == "v2" else "read_table"
 
