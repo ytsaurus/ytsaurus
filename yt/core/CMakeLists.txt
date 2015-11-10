@@ -46,8 +46,8 @@ add_library(ytcore STATIC
 target_link_libraries ( ytcore
   ytext-arcadia-util
   ytext-arcadia-library-streams-lz
-  ytext-ev
   yt-contrib-jerasure
+  yt-contrib-libev
   ytext-json
   ytext-arcadia-library-http
   ytext-yajl
