@@ -118,7 +118,7 @@ include_directories(
 )
 
 target_link_libraries( protoc
-  protobuf
+  protobuf -ldl
 )
 
 if (MSVC)
