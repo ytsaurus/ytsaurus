@@ -100,7 +100,7 @@ function YtApplicationOperations(driver)
             start_time_begin = month_ago;
             incomplete = true;
         }
-        
+
         var runtime_data = driver.executeSimple(
             "get",
             {
