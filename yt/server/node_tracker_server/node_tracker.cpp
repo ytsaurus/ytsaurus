@@ -523,7 +523,9 @@ public:
             result.UsedSpace += statistics.total_used_space();
             result.ChunkCount += statistics.total_stored_chunk_count();
             result.FullNodeCount += statistics.full() ? 1 : 0;
-            result.OnlineNodeCount++;
+            if (node->GetAggregatedState() == ENodeState::Online) {
+                result.OnlineNodeCount++;
+            }
         }
         return result;
     }
