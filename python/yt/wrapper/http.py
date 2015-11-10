@@ -12,7 +12,6 @@ import random
 import string
 import time
 import types
-import imp
 from datetime import datetime
 from socket import error as SocketError
 
@@ -28,8 +27,8 @@ requests = None
 def lazy_import_requests():
     global requests
     if requests is None:
-        fp, pathname, description = imp.find_module("yt/packages/requests")
-        requests = imp.load_module("yt/packages/requests", fp, pathname, description)
+        import yt.packages.requests
+        requests = yt.packages.requests
 
 session_ = None
 def get_session():
