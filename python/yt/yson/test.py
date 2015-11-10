@@ -149,7 +149,7 @@ class TestParser(unittest.TestCase, YsonParserTestBase):
 
 class YsonWriterTestBase(object):
     def test_slash(self):
-        self.assertEqual(self.writer.dumps({"key": "1\\"}, yson_format="text"), '{"key"="1\\\\";}')
+        self.assertEqual('{"key"="1\\\\";}', self.writer.dumps({"key": "1\\"}, yson_format="text"))
 
     def test_boolean(self):
         dumps = self.writer.dumps
@@ -228,6 +228,10 @@ class CommonTestBase(object):
         self.assertFalse(lst == loads(dumps(f)))
         self.assertFalse(num == loads(dumps(s)))
         self.assertFalse(loads(dumps(d)) == s)
+
+    def test_map_fragment(self):
+        dumps = CommonTestBase.writer.dumps
+        self.assertEqual('"a"="b";"c"="d";', dumps({"a": "b", "c": "d"}, yson_format="text", yson_type="map_fragment"))
 
 class TestCommon(unittest.TestCase, CommonTestBase):
     CommonTestBase.writer = writer

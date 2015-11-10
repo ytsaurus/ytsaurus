@@ -130,13 +130,47 @@ def _get_read_from_yt_command(yt_client, src, format, fastbone):
             "create_transaction_and_take_snapshot_lock": False
         }
     }
-    command = """PATH=".:$PATH" PYTHONPATH=. """\
-              """yt2 read '{0}[#'"${{start}}"':#'"${{end}}"']' --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
+    command = """TABLE_PATH="$(YT_PROXY={2} python merge_limits.py '{0}' ${{start}} ${{end}})"\n"""\
+              """PATH=".:$PATH" PYTHONPATH=. """\
+              """yt2 read ${{TABLE_PATH}} --format '{1}' --proxy {2} --config '{3}' --tx {4}"""\
               .format(src, format, yt_client.config["proxy"]["url"], yson.dumps(config, boolean_as_string=False), yt_client.TRANSACTION)
 
     return command
 
 def _prepare_read_from_yt_command(yt_client, src, format, tmp_dir, fastbone, pack=False):
+    merge_limits_script = """
+import yt.yson
+import yt.wrapper
+
+import sys
+
+def set_row_index(attributes, limit_name, value, func):
+    if "ranges" in attributes:
+        if not attributes["ranges"]:
+            attributes["ranges"].append({})
+        obj = attributes["ranges"][0]
+    else:
+        obj = attributes
+
+    if limit_name not in obj:
+        obj[limit_name] = {}
+    if "row_index" not in obj[limit_name]:
+        obj[limit_name]["row_index"] = value
+    else:
+        obj[limit_name]["row_index"] = func(obj[limit_name]["row_index"], value)
+
+
+if __name__ == "__main__":
+    path, start_index, end_index = sys.argv[1:]
+    start_index = int(start_index)
+    end_index = int(end_index)
+    parsed_path = yt.wrapper.table.TablePath(path)
+    assert len(parsed_path.attributes.get("ranges", [])) <= 1
+    set_row_index(parsed_path.attributes, "lower_limit", start_index, max)
+    set_row_index(parsed_path.attributes, "upper_limit", end_index, min)
+    print parsed_path.to_yson_string()
+"""
+
     files = []
     prepare_command = \
         "set +x\n"\
@@ -151,9 +185,8 @@ set -e
 tar xvf yt.tar >/dev/null
 set +e"""
 
-        if format == "yson":
-            files.append(_pack_module("yt_yson_bindings", tmp_dir))
-            prepare_command += """
+        files.append(_pack_module("yt_yson_bindings", tmp_dir))
+        prepare_command += """
 set -e
 tar xvf yt_yson_bindings.tar >/dev/null
 set +e"""
@@ -161,6 +194,7 @@ set +e"""
 
     read_command = _get_read_from_yt_command(yt_client, src, format, fastbone)
     files.append(_pack_string("read_from_yt.sh", _get_read_ranges_command(prepare_command, read_command), tmp_dir))
+    files.append(_pack_string("merge_limits.py", merge_limits_script, tmp_dir))
 
     return files
 
@@ -226,20 +260,21 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
     try:
         with source_client.Transaction(), destination_client.Transaction():
             # NB: for reliable access to table under snapshot lock we should use id.
-            src = "#" + source_client.get(src + "/@id")
+            src = yt.TablePath(src, client=source_client)
+            src.name = yson.to_yson_type("#" + source_client.get(src.name + "/@id"), attributes=src.attributes)
             source_client.lock(src, mode="snapshot")
-            files = _prepare_read_from_yt_command(source_client, src, "json", tmp_dir, fastbone, pack=True)
+            files = _prepare_read_from_yt_command(source_client, src.to_yson_string(), "json", tmp_dir, fastbone, pack=True)
 
             sorted_by = None
             dst_table = dst
-            if source_client.exists(src + "/@sorted_by"):
-                sorted_by = source_client.get(src + "/@sorted_by")
+            if source_client.exists(src.name + "/@sorted_by"):
+                sorted_by = source_client.get(src.name + "/@sorted_by")
                 dst_table = yt.TablePath(dst, client=source_client)
                 dst_table.attributes["sorted_by"] = sorted_by
-            row_count = source_client.get(src + "/@row_count")
+            row_count = source_client.get(src.name + "/@row_count")
 
-            ranges = _split_rows_yt(source_client, src, 1024 * yt.common.MB)
-            temp_table = destination_client.create_temp_table(prefix=os.path.basename(src))
+            ranges = _split_rows_yt(source_client, src.name, 1024 * yt.common.MB)
+            temp_table = destination_client.create_temp_table(prefix=os.path.basename(src.name))
             destination_client.write_table(temp_table, (json.dumps({"start": start, "end": end}) for start, end in ranges), format=yt.JsonFormat())
 
             spec = deepcopy(get_value(copy_spec_template, {}))
@@ -257,13 +292,13 @@ def copy_yt_to_yt_through_proxy(source_client, destination_client, src, dst, fas
                 output_format=yt.JsonFormat())
 
             result_row_count = destination_client.records_count(dst)
-            if row_count != result_row_count:
+            if not src.has_delimiters() and row_count != result_row_count:
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)
                 raise IncorrectRowCount(error)
 
-            run_erasure_merge(source_client, destination_client, src, dst, spec=postprocess_spec_template)
-            copy_user_attributes(source_client, destination_client, src, dst)
+            run_erasure_merge(source_client, destination_client, src.name, dst, spec=postprocess_spec_template)
+            copy_user_attributes(source_client, destination_client, src.name, dst)
 
     finally:
         shutil.rmtree(tmp_dir)
@@ -383,21 +418,21 @@ while True:
     try:
         with yt_client.Transaction():
             # NB: for reliable access to table under snapshot lock we should use id.
-            src = "#" + yt_client.get(src + "/@id")
-
+            src = yt.TablePath(src, client=yt_client)
+            src.name = yson.to_yson_type("#" + yt_client.get(src.name + "/@id"), attributes=src.attributes)
             yt_client.lock(src, mode="snapshot")
 
-            is_sorted = yt_client.exists(src + "/@sorted_by")
+            is_sorted = yt_client.exists(src.name + "/@sorted_by")
 
-            row_count = yt_client.get(src + "/@row_count")
+            row_count = yt_client.get(src.name + "/@row_count")
 
-            ranges = _split_rows_yt(yt_client, src, 1024 * yt.common.MB)
+            ranges = _split_rows_yt(yt_client, src.name, 1024 * yt.common.MB)
 
             temp_yamr_table = "tmp/yt/" + generate_uuid()
             yamr_client.write(temp_yamr_table,
                               "".join(["\t".join(map(str, range)) + "\n" for range in ranges]))
 
-            files = _prepare_read_from_yt_command(yt_client, src, "<has_subkey=true;lenval=true>yamr", tmp_dir, fastbone, pack=True)
+            files = _prepare_read_from_yt_command(yt_client, src.to_yson_string(), "<has_subkey=true;lenval=true>yamr", tmp_dir, fastbone, pack=True)
             files.append(lenval_to_nums_file)
 
             command = "python lenval_to_nums.py | bash read_from_yt.sh"
@@ -411,7 +446,7 @@ while True:
                                      .format(job_count, parallel_job_count))
 
             result_row_count = yamr_client.records_count(dst)
-            if row_count != result_row_count:
+            if not src.has_delimiters() and row_count != result_row_count:
                 yamr_client.drop(dst)
                 error = "Incorrect record count (expected: %d, actual: %d)" % (row_count, result_row_count)
                 logger.error(error)

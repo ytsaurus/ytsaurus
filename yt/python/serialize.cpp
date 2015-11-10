@@ -15,6 +15,7 @@ namespace {
 
 using NYson::TToken;
 using NYson::ETokenType;
+using NYson::EYsonType;
 using NYson::IYsonConsumer;
 using NYTree::INodePtr;
 using NYTree::ENodeType;
@@ -49,7 +50,7 @@ namespace NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
+void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, bool ignoreInnerAttributes, EYsonType ysonType, int depth)
 {
     auto items = Py::Object(PyDict_CheckExact(*map) ? PyDict_Items(*map) : PyMapping_Items(*map), true);
     auto iterator = Py::Object(PyObject_GetIter(*items), true);
@@ -58,7 +59,7 @@ void SerializeMapFragment(const Py::Object& map, IYsonConsumer* consumer, bool i
          char* keyStr = PyString_AsString(ConvertToString(key).ptr());
          auto value = Py::Object(PyTuple_GET_ITEM(item, 1), false);
          consumer->OnKeyedItem(TStringBuf(keyStr));
-         Serialize(value, consumer, ignoreInnerAttributes, depth + 1);
+         Serialize(value, consumer, ignoreInnerAttributes, ysonType, depth + 1);
          Py::_XDECREF(item);
     }
 }
@@ -123,7 +124,7 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer)
     consumeAsLong();
 }
 
-void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerAttributes, int depth)
+void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerAttributes, EYsonType ysonType, int depth)
 {
     static Py::Callable YsonEntityClass = GetYsonType("YsonEntity");
 
@@ -132,7 +133,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         auto attributes = Py::Mapping(PyObject_GetAttrString(*obj, attributesStr), true);
         if (attributes.length() > 0) {
             consumer->OnBeginAttributes();
-            SerializeMapFragment(attributes, consumer, ignoreInnerAttributes, depth);
+            SerializeMapFragment(attributes, consumer, ignoreInnerAttributes, ysonType, depth);
             consumer->OnEndAttributes();
         }
     }
@@ -143,9 +144,14 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         Py::String encoded = Py::String(PyUnicode_AsUTF8String(obj.ptr()), true);
         consumer->OnStringScalar(ConvertToStringBuf(ConvertToString(encoded)));
     } else if (obj.isMapping()) {
-        consumer->OnBeginMap();
-        SerializeMapFragment(obj, consumer, ignoreInnerAttributes, depth);
-        consumer->OnEndMap();
+        bool allowBeginEnd =  depth > 0 || ysonType != NYson::EYsonType::MapFragment;
+        if (allowBeginEnd) {
+            consumer->OnBeginMap();
+        }
+        SerializeMapFragment(obj, consumer, ignoreInnerAttributes, ysonType, depth);
+        if (allowBeginEnd) {
+            consumer->OnEndMap();
+        }
     // Fast check for simple integers
     } else if (PyInt_CheckExact(obj.ptr())) {
         consumer->OnInt64Scalar(PyLong_AsLongLong(obj.ptr()));
@@ -158,7 +164,7 @@ void Serialize(const Py::Object& obj, IYsonConsumer* consumer, bool ignoreInnerA
         consumer->OnBeginList();
         for (auto it = objList.begin(); it != objList.end(); ++it) {
             consumer->OnListItem();
-            Serialize(*it, consumer, ignoreInnerAttributes, depth + 1);
+            Serialize(*it, consumer, ignoreInnerAttributes, ysonType, depth + 1);
         }
         consumer->OnEndList();
     } else if (obj.isFloat()) {

@@ -401,9 +401,9 @@ private:
         ValidateArgumentsEmpty(args, kwargs);
 
         NYson::TYsonWriter writer(outputStream, ysonFormat, ysonType, false, booleanAsString, indent);
-        if (ysonType == NYson::EYsonType::Node) {
+        if (ysonType == NYson::EYsonType::Node || ysonType == NYson::EYsonType::MapFragment) {
             try {
-                Serialize(obj, &writer, ignoreInnerAttributes);
+                Serialize(obj, &writer, ignoreInnerAttributes, ysonType);
             } CATCH;
         } else if (ysonType == NYson::EYsonType::ListFragment) {
             auto iterator = Py::Object(PyObject_GetIter(obj.ptr()), true);
