@@ -22,6 +22,7 @@ void Serialize(
     const Py::Object& obj,
     NYson::IYsonConsumer* consumer,
     bool ignoreInnerAttributes = false,
+    NYson::EYsonType ysonType = NYson::EYsonType::Node,
     int depth = 0);
 
 void Deserialize(Py::Object& obj, NYTree::INodePtr node);
