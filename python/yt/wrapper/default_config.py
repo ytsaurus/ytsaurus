@@ -87,7 +87,9 @@ default_config = {
         # Turn it off at your own risk.
         "check_python_version": False,
         # Path to python binary that would be used in jobs.
-        "python_binary": "python"
+        "python_binary": "python",
+        # Enable wrapping of stdin and stdout streams to avoid their unintentional usage.
+        "safe_stream_mode": True,
     },
 
     "yamr_mode": {
