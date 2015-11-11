@@ -22,6 +22,7 @@ class TCachedVersionedChunkMeta
     : public TIntrinsicRefCounted
 {
 public:
+    DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
     DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TOwningKey>, BlockIndexKeys);

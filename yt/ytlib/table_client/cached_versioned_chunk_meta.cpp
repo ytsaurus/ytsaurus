@@ -42,9 +42,10 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
     const TTableSchema& readerSchema,
     const TKeyColumns& keyColumns)
 {
-    try {
-        KeyColumns_ = keyColumns;
+    ChunkId_ = chunkReader->GetChunkId();
+    KeyColumns_ = keyColumns;
 
+    try {
         ValidateTableSchemaAndKeyColumns(readerSchema, keyColumns);
 
         auto asyncChunkMeta = chunkReader->GetMeta();
@@ -71,7 +72,7 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
         return this;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error caching meta of chunk %v",
-            chunkReader->GetChunkId())
+            ChunkId_)
             << ex;
     }
 }
