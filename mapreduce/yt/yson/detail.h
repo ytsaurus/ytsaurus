@@ -296,7 +296,7 @@ private:
 
             // We have overrun the maximum size of a Varint (10 bytes).  The data
             // must be corrupt.
-            return nullptr;
+            return false;
 
         done:
             TBaseStream::Advance(ptr - BeginByte());
