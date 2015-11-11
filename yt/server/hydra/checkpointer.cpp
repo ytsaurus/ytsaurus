@@ -354,7 +354,10 @@ bool TCheckpointer::CanBuildSnapshot() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return !BuildingSnapshot_ && !RotatingChangelogs_;
+    return
+        !BuildingSnapshot_ &&
+        !RotatingChangelogs_ &&
+        DecoratedAutomaton_->GetLoggedVersion().RecordId > 0;
 }
 
 bool TCheckpointer::CanRotateChangelogs() const
