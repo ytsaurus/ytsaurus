@@ -19,6 +19,7 @@ SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
 TOOLS_ROOTDIR = os.path.abspath('tools')
 
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
+unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
 def skip_if_multicell(func):
     def wrapped_func(self, *args, **kwargs):
