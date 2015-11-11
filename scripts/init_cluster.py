@@ -67,6 +67,12 @@ if __name__ == "__main__":
             {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "create", "administer", "use"]}
         ])
 
+    yt.set("//sys/schemas/rack/@acl",
+        [
+            {"action": "allow", "subjects": ["everyone"], "permissions": ["read"]},
+            {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "create", "administer"]}
+        ])
+
     for schema in ["chunk", "erasure_chunk", "chunk_list"]:
         yt.set("//sys/schemas/{0}/@acl".format(schema),
             [
