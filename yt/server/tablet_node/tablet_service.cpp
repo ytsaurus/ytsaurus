@@ -63,7 +63,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
             .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
-            .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetQueryPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
             .SetInvoker(Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write)));
