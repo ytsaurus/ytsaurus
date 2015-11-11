@@ -1,4 +1,5 @@
 var url = require("url");
+var util = require('util');
 
 var Q = require("bluebird");
 
@@ -13,12 +14,19 @@ var __DBG = require("./debug").that("V", "Versions");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+var TIMEOUT = 1000;
+
 function YtApplicationVersions(driver)
 {
+    function executeWithTimout(commandName, parameters)
+    {
+        parameters.timeout = TIMEOUT;
+        return driver.executeSimple(commandName, parameters);
+    }
+    
     function getDataFromOrchid(entity, name)
     {
-        return driver
-        .executeSimple("get", { path: "//sys/" + entity + "/" + name + "/orchid/service"})
+        return executeWithTimout("get", { path: "//sys/" + entity + "/" + name + "/orchid/service"})
         .then(function(result) {
             return utils.pick(result, ["start_time", "version"]);
         });
@@ -26,7 +34,7 @@ function YtApplicationVersions(driver)
 
     function getListAndData(entity, dataLoader)
     {
-        return driver.executeSimple(
+        return executeWithTimout(
             "list",
             { path: "//sys/" + entity })
         .then(function(names) {
@@ -37,7 +45,9 @@ function YtApplicationVersions(driver)
             .then(function(responses) {
                 var result = {};
                 for (var i = 0, len = responses.length; i < len; ++i) {
-                    result[names[i]] = responses[i].isFulfilled() ? responses[i].value() : null;
+                    result[names[i]] = responses[i].isFulfilled()
+                        ? responses[i].value()
+                        : {error: responses[i].error()};
                 }
                 return result;
             })
@@ -55,10 +65,12 @@ function YtApplicationVersions(driver)
             "nodes": getListAndData("nodes", getDataFromOrchid),
             "schedulers": getListAndData("scheduler/instances", getDataFromOrchid),
             "proxies": getListAndData("proxies", function(entity, name) {
-                return new YtHttpRequest(name)
+                var parsed_url = url.parse("http://" + name);
+                return new YtHttpRequest(parsed_url.hostname, parsed_url.port)
                 .withPath(url.format({
                     pathname: "/version"
                 }))
+                .setTimeout(TIMEOUT)
                 .setNoResolve(true)
                 .fire()
                 .then(function (data) {

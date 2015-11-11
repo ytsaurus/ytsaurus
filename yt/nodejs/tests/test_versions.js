@@ -41,7 +41,7 @@ describe("YtApplicationVersions - discover versions", function() {
                         path: "//sys/" + entity + "/" + name + "/orchid/service"
                     }));
 
-                if (vesion_data != null) {
+                if (!vesion_data.hasOwnProperty("error")) {
                     request_mock.returns(Q.resolve(vesion_data));
                 } else {
                     request_mock.returns(Q.reject("Some error from orchid"));
@@ -66,7 +66,7 @@ describe("YtApplicationVersions - discover versions", function() {
                 var name = names[i];
                 var vesion_data = result[name];
 
-                if (vesion_data != null) {
+                if (!vesion_data.hasOwnProperty("error")) {
                     nock("http://" + name)
                         .get("/version")
                         .reply(200, vesion_data["version"]);
@@ -85,7 +85,9 @@ describe("YtApplicationVersions - discover versions", function() {
                 "master1": {
                     "version": "1"
                 },
-                "master2": null
+                "master2": {
+                    "error": "Some error from orchid"
+                }
             }),
             "nodes": createMock("nodes", {
                 "node1": {
@@ -94,14 +96,16 @@ describe("YtApplicationVersions - discover versions", function() {
                 "node2": {
                     "version": "3"
                 },
-                "node3": null
+                "node3": {
+                    "error": "Some error from orchid"
+                }
             }),
             "schedulers": createMock("scheduler/instances", { }),
             "proxies": createMock2("proxies", {
                 "proxy1": {
                     "version": "1"
                 },
-                "proxy2": null
+                "proxy2": {"error":{"code":-2,"message":"Request to \'proxy2:80/version\' has responded with 503","attributes":{},"inner_errors":[]}}
             })
         };
 
