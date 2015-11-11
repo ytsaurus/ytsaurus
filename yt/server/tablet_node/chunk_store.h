@@ -111,24 +111,30 @@ private:
 
     NChunkClient::NProto::TChunkMeta ChunkMeta_;
 
-    NConcurrency::TReaderWriterSpinLock ChunkLock_;
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
+
     bool ChunkInitialized_ = false;
     NDataNode::IChunkPtr Chunk_;
 
-    NConcurrency::TReaderWriterSpinLock ChunkReaderLock_;
     NChunkClient::IChunkReaderPtr ChunkReader_;
 
-    NConcurrency::TReaderWriterSpinLock CachedVersionedChunkMetaLock_;
     NTableClient::TCachedVersionedChunkMetaPtr CachedVersionedChunkMeta_;
 
-    NConcurrency::TReaderWriterSpinLock BackingStoreLock_;
     IStorePtr BackingStore_;
 
-    NConcurrency::TReaderWriterSpinLock PreloadedBlockCacheLock_;
     TPreloadedBlockCachePtr PreloadedBlockCache_;
 
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
+    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+        const TSharedRange<TKey>& keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter);
+    NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
+        TOwningKey lowerKey,
+        TOwningKey upperKey,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter);
 
     NDataNode::IChunkPtr PrepareChunk();
     NChunkClient::IChunkReaderPtr PrepareChunkReader(
