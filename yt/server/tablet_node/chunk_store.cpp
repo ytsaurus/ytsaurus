@@ -160,12 +160,22 @@ public:
         if (!owner)
             return;
 
-        YCHECK(Blocks_.empty());
-        YCHECK(DataSize_ == 0);
+        {
+            TWriterGuard guard(SpinLock_);
 
-        Blocks_ = std::move(chunkData->Blocks);
-        DataSize_ = GetByteSize(Blocks_);
+            YCHECK(!Preloaded_);
+
+            Blocks_ = std::move(chunkData->Blocks);
+            DataSize_ = GetByteSize(Blocks_);
+            Preloaded_ = true;
+        }
+
         owner->SetMemoryUsage(DataSize_);
+    }
+
+    bool IsPreloaded() const
+    {
+        return Preloaded_.load();
     }
 
 private:
@@ -177,6 +187,8 @@ private:
     TReaderWriterSpinLock SpinLock_;
     std::vector<TSharedRef> Blocks_;
     i64 DataSize_ = 0;
+
+    std::atomic<bool> Preloaded_ = {false};
 
 };
 
@@ -223,7 +235,7 @@ IStorePtr TChunkStore::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(BackingStoreLock_);
+    TReaderGuard guard(SpinLock_);
     return BackingStore_;
 }
 
@@ -231,77 +243,79 @@ void TChunkStore::SetBackingStore(IStorePtr store)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(BackingStoreLock_);
+    TWriterGuard guard(SpinLock_);
     BackingStore_ = store;
 }
 
 bool TChunkStore::HasBackingStore() const
 {
-    TReaderGuard guard(BackingStoreLock_);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
     return BackingStore_.operator bool();
 }
 
 EInMemoryMode TChunkStore::GetInMemoryMode() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
     return InMemoryMode_;
 }
 
 void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SpinLock_);
+
     if (InMemoryMode_ == mode)
         return;
 
-    {
-        TWriterGuard guard(PreloadedBlockCacheLock_);
+    PreloadedBlockCache_.Reset();
 
-        PreloadedBlockCache_.Reset();
+    if (PreloadFuture_) {
+        PreloadFuture_.Cancel();
+        PreloadFuture_.Reset();
+    }
 
-        if (PreloadFuture_) {
-            PreloadFuture_.Cancel();
-            PreloadFuture_.Reset();
+    if (mode == EInMemoryMode::None) {
+        PreloadState_ = EStorePreloadState::Disabled;
+    } else {
+        switch (mode) {
+            case EInMemoryMode::Compressed:
+                PreloadedBlockCache_ = New<TPreloadedBlockCache>(
+                    this,
+                    StoreId_,
+                    EBlockType::CompressedData,
+                    Bootstrap_->GetBlockCache());
+                break;
+            case EInMemoryMode::Uncompressed:
+                PreloadedBlockCache_ = New<TPreloadedBlockCache>(
+                    this,
+                    StoreId_,
+                    EBlockType::UncompressedData,
+                    Bootstrap_->GetBlockCache());
+                break;
+            default:
+                YUNREACHABLE();
         }
-
-        if (mode == EInMemoryMode::None) {
-            PreloadState_ = EStorePreloadState::Disabled;
-        } else {
-            switch (mode) {
-                case EInMemoryMode::Compressed:
-                    PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-                        this,
-                        StoreId_,
-                        EBlockType::CompressedData,
-                        Bootstrap_->GetBlockCache());
-                    break;
-                case EInMemoryMode::Uncompressed:
-                    PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-                        this,
-                        StoreId_,
-                        EBlockType::UncompressedData,
-                        Bootstrap_->GetBlockCache());
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
-            switch (PreloadState_) {
-                case EStorePreloadState::Disabled:
-                case EStorePreloadState::Failed:
-                case EStorePreloadState::Running:
-                case EStorePreloadState::Complete:
-                    PreloadState_ = EStorePreloadState::None;
-                    break;
-                case EStorePreloadState::None:
-                case EStorePreloadState::Scheduled:
-                    break;
-                default:
-                    YUNREACHABLE();
-            }
+        switch (PreloadState_) {
+            case EStorePreloadState::Disabled:
+            case EStorePreloadState::Failed:
+            case EStorePreloadState::Running:
+            case EStorePreloadState::Complete:
+                PreloadState_ = EStorePreloadState::None;
+                break;
+            case EStorePreloadState::None:
+            case EStorePreloadState::Scheduled:
+                break;
+            default:
+                YUNREACHABLE();
         }
     }
 
-    {
-        TWriterGuard guard(ChunkReaderLock_);
-        ChunkReader_.Reset();
-    }
+    ChunkReader_.Reset();
 
     InMemoryMode_ = mode;
 }
@@ -310,7 +324,7 @@ IBlockCachePtr TChunkStore::GetPreloadedBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(PreloadedBlockCacheLock_);
+    TReaderGuard guard(SpinLock_);
     return PreloadedBlockCache_;
 }
 
@@ -375,6 +389,16 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         return nullptr;
     }
 
+    // Fast lane: check for in-memory reads.
+    auto reader = CreateCacheBasedReader(
+        lowerKey,
+        upperKey,
+        timestamp,
+        columnFilter);
+    if (reader) {
+        return reader;
+    }
+
     auto backingStore = GetBackingStore();
     if (backingStore) {
         return backingStore->CreateReader(
@@ -407,12 +431,49 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         timestamp);
 }
 
+IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
+    TOwningKey lowerKey,
+    TOwningKey upperKey,
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        return nullptr;
+    }
+
+    if (!CachedVersionedChunkMeta_) {
+        return nullptr;
+    }
+
+    return CreateCacheBasedVersionedChunkReader(
+        PreloadedBlockCache_,
+        CachedVersionedChunkMeta_,
+        std::move(lowerKey),
+        std::move(upperKey),
+        columnFilter,
+        PerformanceCounters_,
+        timestamp);
+}
+
 IVersionedReaderPtr TChunkStore::CreateReader(
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const TColumnFilter& columnFilter)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    // Fast lane: check for in-memory reads.
+    auto reader = CreateCacheBasedReader(
+        keys,
+        timestamp,
+        columnFilter);
+    if (reader) {
+        return reader;
+    }
 
     auto backingStore = GetBackingStore();
     if (backingStore) {
@@ -432,6 +493,32 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         std::move(chunkReader),
         std::move(blockCache),
         std::move(cachedVersionedChunkMeta),
+        keys,
+        columnFilter,
+        PerformanceCounters_,
+        timestamp);
+}
+
+IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
+    const TSharedRange<TKey>& keys,
+    TTimestamp timestamp,
+    const TColumnFilter& columnFilter)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TReaderGuard guard(SpinLock_);
+
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+        return nullptr;
+    }
+
+    if (!CachedVersionedChunkMeta_) {
+        return nullptr;
+    }
+
+    return CreateCacheBasedVersionedChunkReader(
+        PreloadedBlockCache_,
+        CachedVersionedChunkMeta_,
         keys,
         columnFilter,
         PerformanceCounters_,
@@ -509,7 +596,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(ChunkLock_);
+        TReaderGuard guard(SpinLock_);
         if (ChunkInitialized_) {
             return Chunk_;
         }
@@ -519,7 +606,7 @@ IChunkPtr TChunkStore::PrepareChunk()
     auto chunk = chunkRegistry->FindChunk(StoreId_);
 
     {
-        TWriterGuard guard(ChunkLock_);
+        TWriterGuard guard(SpinLock_);
         ChunkInitialized_ = true;
         Chunk_ = chunk;
     }
@@ -536,7 +623,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(ChunkReaderLock_);
+        TReaderGuard guard(SpinLock_);
         if (ChunkReader_) {
             return ChunkReader_;
         }
@@ -565,7 +652,7 @@ IChunkReaderPtr TChunkStore::PrepareChunkReader(IChunkPtr chunk)
     }
 
     {
-        TWriterGuard guard(ChunkReaderLock_);
+        TWriterGuard guard(SpinLock_);
         ChunkReader_ = chunkReader;
     }
 
@@ -581,7 +668,7 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(CachedVersionedChunkMetaLock_);
+        TReaderGuard guard(SpinLock_);
         if (CachedVersionedChunkMeta_) {
             return CachedVersionedChunkMeta_;
         }
@@ -595,7 +682,7 @@ TCachedVersionedChunkMetaPtr TChunkStore::PrepareCachedVersionedChunkMeta(IChunk
     auto cachedMeta = cachedMetaOrError.Value();
 
     {
-        TWriterGuard guard(CachedVersionedChunkMetaLock_);
+        TWriterGuard guard(SpinLock_);
         CachedVersionedChunkMeta_ = cachedMeta;
     }
 
@@ -606,7 +693,7 @@ IBlockCachePtr TChunkStore::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(PreloadedBlockCacheLock_);
+    TReaderGuard guard(SpinLock_);
     return PreloadedBlockCache_
         ? PreloadedBlockCache_
         : Bootstrap_->GetBlockCache();
@@ -638,7 +725,7 @@ void TChunkStore::OnChunkExpired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(ChunkLock_);
+    TWriterGuard guard(SpinLock_);
     ChunkInitialized_ = false;
     Chunk_.Reset();
 }
@@ -647,7 +734,7 @@ void TChunkStore::OnChunkReaderExpired()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(ChunkReaderLock_);
+    TWriterGuard guard(SpinLock_);
     ChunkReader_.Reset();
 }
 

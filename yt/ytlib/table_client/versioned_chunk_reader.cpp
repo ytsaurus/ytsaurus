@@ -561,7 +561,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCachedBasedVersionedChunkReaderPoolTag
+struct TCacheBasedVersionedChunkReaderPoolTag
 { };
 
 class TCacheBasedVersionedChunkReaderBase
@@ -579,7 +579,7 @@ public:
         , PerformanceCounters_(std::move(performanceCounters))
         , Timestamp_(timestamp)
         , SchemaIdMapping_(BuildSchemaIdMapping(columnFilter, ChunkMeta_))
-        , MemoryPool_(TCachedBasedVersionedChunkReaderPoolTag())
+        , MemoryPool_(TCacheBasedVersionedChunkReaderPoolTag())
     { }
 
     virtual TFuture<void> Open() override
@@ -596,6 +596,7 @@ public:
     {
         MemoryPool_.Clear();
         UncompressedBlocks_.clear();
+        LastUncompressedBlockIndex_ = -1;
         rows->clear();
 
         if (Finished_) {
@@ -615,17 +616,10 @@ protected:
 
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
 
-    //! Holds row values for the returned rows.
-    TChunkedMemoryPool MemoryPool_;
-
-    //! Holds uncompressed blocks for the returned rows (for string references).
-    std::vector<TSharedRef> UncompressedBlocks_;
-
 
     //! Returns |false| on EOF.
     virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
 
-    //! Returns -1 if #key is out of chunk's range.
     int GetBlockIndex(TKey key)
     {
         const auto& blockIndexKeys = ChunkMeta_->BlockIndexKeys();
@@ -646,13 +640,33 @@ protected:
 
     TSharedRef CaptureUncompressedBlock(int blockIndex)
     {
+        // NB: requested block indexes are ascending, even in lookups.
+        if (LastUncompressedBlockIndex_ == blockIndex) {
+            return UncompressedBlocks_.back();
+        }
+
         auto uncompressedBlock = GetUncompressedBlock(blockIndex);
         UncompressedBlocks_.push_back(uncompressedBlock);
         return uncompressedBlock;
     }
 
+    template <class TBlockReader>
+    TVersionedRow CaptureRow(TBlockReader* blockReader)
+    {
+        return blockReader->GetRow(&MemoryPool_);
+    }
+
 private:
     bool Finished_ = false;
+
+    //! Holds uncompressed blocks for the returned rows (for string references).
+    //! In compressed mode, also serves as a per-request cache of uncompressed blocks.
+    std::vector<TSharedRef> UncompressedBlocks_;
+    int LastUncompressedBlockIndex_ = -1;
+
+    //! Holds row values for the returned rows.
+    TChunkedMemoryPool MemoryPool_;
+
 
     TSharedRef GetUncompressedBlock(int blockIndex)
     {
@@ -701,13 +715,16 @@ public:
 private:
     const TSharedRange<TKey> Keys_;
 
+    int KeyIndex_ = 0;
+
 
     virtual bool DoRead(std::vector<TVersionedRow>* rows) override
     {
-        for (auto key : Keys_) {
-            rows->push_back(Lookup(key));
+        // NB: Honor the capacity of rows.
+        while (KeyIndex_ < Keys_.Size() && rows->size() < rows->capacity()) {
+            rows->push_back(Lookup(Keys_[KeyIndex_++]));
         }
-        return false;
+        return KeyIndex_ >= Keys_.Size();
     }
 
     TVersionedRow Lookup(TKey key)
@@ -737,9 +754,8 @@ private:
             return TVersionedRow();
         }
 
-        return blockReader.GetRow(&MemoryPool_);
+        return CaptureRow(&blockReader);
     }
-
 };
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
@@ -791,6 +807,7 @@ private:
 
     int BlockIndex_ = -1;
     std::unique_ptr<TBlockReader> BlockReader_;
+    bool UpperBoundCheckNeeded_ = false;
 
 
     virtual bool DoRead(std::vector<TVersionedRow>* rows) override
@@ -809,11 +826,12 @@ private:
             }
         }
 
-        while (BlockReader_->GetKey() < UpperBound_.Get() && rows->size() < rows->capacity()) {
+        while ((!UpperBoundCheckNeeded_ || BlockReader_->GetKey() < UpperBound_.Get()) &&
+               rows->size() < rows->capacity())
+        {
             ++PerformanceCounters_->StaticChunkRowReadCount;
 
-            auto row = BlockReader_->GetRow(&MemoryPool_);
-            rows->push_back(row);
+            rows->push_back(CaptureRow(BlockReader_.get()));
 
             if (!BlockReader_->NextRow()) {
                 // End-of-block.
@@ -839,6 +857,7 @@ private:
             ChunkMeta_->GetKeyColumnCount(),
             SchemaIdMapping_,
             Timestamp_);
+        UpperBoundCheckNeeded_ = (UpperBound_.Get() <= ChunkMeta_->BlockIndexKeys()[BlockIndex_]);
     }
 };
 
