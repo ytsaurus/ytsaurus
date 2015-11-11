@@ -1503,7 +1503,7 @@ private:
         LOG_DEBUG("Received synchronization response from leader (CommittedVersion: %v)",
             committedVersion);
 
-		YCHECK(!epochContext->LeaderSyncVersion);
+        YCHECK(!epochContext->LeaderSyncVersion);
         epochContext->LeaderSyncVersion = committedVersion;
         DecoratedAutomaton_->CommitMutations(committedVersion, true);
         CheckForPendingLeaderSync(epochContext);
