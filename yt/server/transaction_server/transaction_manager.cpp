@@ -529,9 +529,9 @@ public:
 
         auto nestedTransactions = transaction->NestedTransactions();
         for (auto* nestedTransaction : nestedTransactions) {
-            LOG_WARNING_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+            LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
-                transaction->GetId());
+                transactionId);
             AbortTransaction(nestedTransaction, true);
         }
         YCHECK(transaction->NestedTransactions().empty());
@@ -704,12 +704,6 @@ public:
                 }
                 currentTransaction = currentTransaction->GetParent();
             }
-        }
-
-        if (!transaction->NestedTransactions().empty()) {
-            THROW_ERROR_EXCEPTION("Cannot commit transaction %v since it has %v active nested transaction(s)",
-                transaction->GetId(),
-                transaction->NestedTransactions().size());
         }
 
         auto securityManager = Bootstrap_->GetSecurityManager();
