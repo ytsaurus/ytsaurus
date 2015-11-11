@@ -61,7 +61,8 @@ def main():
     __rows = __input_format.load_rows(sys.stdin, raw=raw)
 
     __start, __run, __finish = _py_runner_helpers._extract_operation_methods(__operation)
-    with _py_runner_helpers.WrappedStreams() as streams:
+    wrap_stdin = wrap_stdout = yt.wrapper.config["pickling"]["safe_stream_mode"]
+    with _py_runner_helpers.WrappedStreams(wrap_stdin, wrap_stdout) as streams:
         if __attributes.get("is_aggregator", False):
             __result = __run(__rows)
         else:
