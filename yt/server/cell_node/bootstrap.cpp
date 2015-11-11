@@ -185,14 +185,6 @@ void TBootstrap::DoRun()
     QueryThreadPool = New<TThreadPool>(
         Config->QueryAgent->ThreadPoolSize,
         "Query");
-    BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
-        QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentQueries,
-        "Queries");
-    BoundedConcurrencyQueryPoolInvoker = CreateBoundedConcurrencyInvoker(
-        QueryThreadPool->GetInvoker(),
-        Config->QueryAgent->MaxConcurrentReads,
-        "Reads");
 
     BusServer = CreateTcpBusServer(TTcpBusServerConfig::CreateTcp(Config->RpcPort));
 
@@ -445,16 +437,6 @@ IInvokerPtr TBootstrap::GetControlInvoker() const
 IInvokerPtr TBootstrap::GetQueryPoolInvoker() const
 {
     return QueryThreadPool->GetInvoker();
-}
-
-IInvokerPtr TBootstrap::GetBoundedConcurrencyQueryPoolInvoker() const
-{
-    return BoundedConcurrencyQueryPoolInvoker;
-}
-
-IInvokerPtr TBootstrap::GetBoundedConcurrencyReadPoolInvoker() const
-{
-    return BoundedConcurrencyReadPoolInvoker;
 }
 
 IClientPtr TBootstrap::GetMasterClient() const
