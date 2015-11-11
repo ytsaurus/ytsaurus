@@ -15,7 +15,7 @@ import shutil
 import sys
 import getpass
 from collections import defaultdict
-from ctypes import cdll
+import ctypes
 from threading import RLock
 from itertools import takewhile
 
