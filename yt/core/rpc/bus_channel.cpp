@@ -245,8 +245,7 @@ private:
                 const auto& requestControl = pair.second;
                 LOG_DEBUG(error, "Request failed due to channel termination (RequestId: %v)",
                     requestId);
-                requestControl->GetResponseHandler()->HandleError(error);
-                requestControl->Finalize();
+                requestControl->Terminate(error);
             }
         }
 
@@ -269,6 +268,7 @@ private:
                 responseHandler);
 
             IBusPtr bus;
+            TClientRequestControlPtr existingRequestControl;
             {
                 TGuard<TSpinLock> guard(SpinLock_);
 
@@ -285,8 +285,20 @@ private:
                     return nullptr;
                 }
 
-                YCHECK(ActiveRequestMap_.insert(std::make_pair(requestId, requestControl)).second);
+                // NB: We're OK with duplicate request ids.
+                auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
+                if (!pair.second) {
+                    existingRequestControl = pair.first->second;
+                    pair.first->second = requestControl;
+                }
+
                 bus = Bus_;
+            }
+
+            if (existingRequestControl) {
+                LOG_DEBUG("Request resent (RequestId: %v)",
+                    requestId);
+                existingRequestControl->Terminate(TError("Request resent"));
             }
 
             if (request->IsRequestHeavy()) {
@@ -718,6 +730,12 @@ private:
             Profiler.TimingStop(Timer_, STRINGBUF("total"));
             Request_.Reset();
             ResponseHandler_.Reset();
+        }
+
+        void Terminate(const TError& error)
+        {
+            ResponseHandler_->HandleError(error);
+            Finalize();
         }
 
         virtual void Cancel() override
