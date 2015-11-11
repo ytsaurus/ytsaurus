@@ -195,7 +195,7 @@ public:
         const std::vector<TOwningKey>& boundaries,
         TIntrusivePtr<TRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
-        const TOverlappingReaderKeyComparer& keyComparer,
+        TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency);
 
     TFuture<void> DoOpen();
@@ -270,11 +270,11 @@ TSchemafulOverlappingRangeChunkReaderBase<TRowMerger>::TSchemafulOverlappingRang
     const std::vector<TOwningKey>& boundaries,
     TIntrusivePtr<TRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
-    const TOverlappingReaderKeyComparer& keyComparer,
+    TOverlappingReaderKeyComparer keyComparer,
     int minConcurrency)
     : ReaderFactory_(std::move(readerFactory))
     , RowMerger_(std::move(rowMerger))
-    , KeyComparer_(keyComparer)
+    , KeyComparer_(std::move(keyComparer))
     , SessionComparer_(KeyComparer_)
     , MinConcurrency_(minConcurrency)
 {
@@ -474,14 +474,14 @@ public:
         const std::vector<TOwningKey>& boundaries,
         TSchemafulRowMergerPtr rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
-        const TOverlappingReaderKeyComparer& keyComparer,
+        TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
     {
         auto this_ = New<TSchemafulOverlappingRangeChunkReader>(
             boundaries,
             rowMerger,
             std::move(readerFactory),
-            keyComparer,
+            std::move(keyComparer),
             minConcurrency);
 
         this_->DoOpen();
@@ -504,13 +504,13 @@ private:
         const std::vector<TOwningKey>& boundaries,
         TSchemafulRowMergerPtr rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
-        const TOverlappingReaderKeyComparer& keyComparer,
+        TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
         : TSchemafulOverlappingRangeChunkReaderBase<TSchemafulRowMerger>(
             boundaries,
             rowMerger,
             std::move(readerFactory),
-            keyComparer,
+            std::move(keyComparer),
             minConcurrency)
     { }
 
@@ -523,14 +523,14 @@ ISchemafulReaderPtr CreateSchemafulOverlappingRangeChunkReader(
     const std::vector<TOwningKey>& boundaries,
     TSchemafulRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
-    const TOverlappingReaderKeyComparer& keyComparer,
+    TOverlappingReaderKeyComparer keyComparer,
     int minSimultaneousReaders)
 {
     return TSchemafulOverlappingRangeChunkReader::Create(
         boundaries,
         rowMerger,
         std::move(readerFactory),
-        keyComparer,
+        std::move(keyComparer),
         minSimultaneousReaders);
 }
 
@@ -545,13 +545,13 @@ public:
         const std::vector<TOwningKey>& boundaries,
         TVersionedRowMergerPtr rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
-        const TOverlappingReaderKeyComparer& keyComparer,
+        TOverlappingReaderKeyComparer keyComparer,
         int minConcurrency)
         : TSchemafulOverlappingRangeChunkReaderBase<TVersionedRowMerger>(
             boundaries,
             rowMerger,
             std::move(readerFactory),
-            keyComparer,
+            std::move(keyComparer),
             minConcurrency)
     { }
 
@@ -577,14 +577,14 @@ IVersionedReaderPtr CreateVersionedOverlappingRangeChunkReader(
     const std::vector<TOwningKey>& boundaries,
     TVersionedRowMergerPtr rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
-    const TOverlappingReaderKeyComparer& keyComparer,
+    TOverlappingReaderKeyComparer keyComparer,
     int minSimultaneousReaders)
 {
     return New<TVersionedOverlappingRangeChunkReader>(
         boundaries,
         rowMerger,
         std::move(readerFactory),
-        keyComparer,
+        std::move(keyComparer),
         minSimultaneousReaders);
 }
 
