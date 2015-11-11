@@ -486,7 +486,9 @@ void TLeaderCommitter::OnAutoCheckpointCheck()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod) {
+    if (TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod &&
+        DecoratedAutomaton_->GetLoggedVersion().RecordId > 0)
+    {
         CheckpointNeeded_.Fire();
     }
 }
