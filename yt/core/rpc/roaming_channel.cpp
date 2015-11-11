@@ -13,6 +13,25 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRoamingRequestControlThunk
+    : public TClientRequestControlThunk
+{
+public:
+    TRoamingRequestControlThunk(TClosure onCancel)
+        : OnCancel_(onCancel)
+    { }
+
+    virtual void Cancel() override
+    {
+        OnCancel_.Run();
+        TClientRequestControlThunk::Cancel();
+    }
+
+private:
+    TClosure OnCancel_;
+
+};
+
 class TRoamingChannel
     : public IChannel
 {
@@ -51,7 +70,6 @@ public:
         YASSERT(responseHandler);
 
         auto actualTimeout = timeout ? timeout : DefaultTimeout_;
-
         auto asyncChannel = Provider_->GetChannel(request->GetService());
 
         // NB: Optimize for the typical case of sync channel acquisition.
@@ -70,7 +88,9 @@ public:
             }
         }
 
-        auto requestControlThunk = New<TClientRequestControlThunk>();
+        auto requestControlThunk = New<TRoamingRequestControlThunk>(BIND([=] () mutable {
+            asyncChannel.Cancel();
+        }));
 
         asyncChannel.Subscribe(
             BIND(

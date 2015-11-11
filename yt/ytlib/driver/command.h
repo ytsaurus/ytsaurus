@@ -191,6 +191,29 @@ protected:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TOptions, class = void>
+class TTimeoutCommandBase
+{ };
+
+template <class TOptions>
+class TTimeoutCommandBase <
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TTimeoutOptions&>>::TType
+>
+    : public virtual TTypedCommandBase<TOptions>
+{
+protected:
+    TTimeoutCommandBase()
+    {
+        this->RegisterParameter("timeout", this->Options.Timeout)
+            .Optional();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TOptions>
 class TTypedCommand
     : public virtual TTypedCommandBase<TOptions>
@@ -199,6 +222,7 @@ class TTypedCommand
     , public TReadOnlyCommandBase<TOptions>
     , public TSuppressableAccessTrackingCommmandBase<TOptions>
     , public TPrerequisiteCommandBase<TOptions>
+    , public TTimeoutCommandBase<TOptions>
 { };
 
 } // namespace NDriver
