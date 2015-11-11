@@ -162,7 +162,7 @@ public:
     virtual void Invoke(IServiceContextPtr context) override
     {
         auto hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        if (hydraManager->IsActiveFollower()) {
+        if (hydraManager->IsFollower()) {
             ForwardToLeader(std::move(context));
             return;
         }

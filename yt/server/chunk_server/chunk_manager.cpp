@@ -1148,11 +1148,6 @@ private:
                 continue;
             }
 
-            if (chunk->IsStaged()) {
-                LOG_WARNING("Requested to update properties for staged chunk (ChunkId: %v)", chunkId);
-                continue;
-            }
-
             TChunkProperties properties;
             properties.ReplicationFactor = update.replication_factor();
             properties.Vital = update.vital();

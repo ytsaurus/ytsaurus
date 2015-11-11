@@ -47,7 +47,7 @@ inline void TEventCount::DoNotify(int n)
 #endif
 
     ui64 prev = Value_.fetch_add(AddEpoch, std::memory_order_acq_rel);
-    if (UNLIKELY((prev & WaiterMask) != 0)) {
+    if (Y_UNLIKELY((prev & WaiterMask) != 0)) {
 #ifdef _linux_
         NDetail::futex(
             reinterpret_cast<int*>(&Value_) + 1, // assume little-endian architecture

@@ -287,7 +287,7 @@ public:
 
         if (GetAutomatonState() != EPeerState::Leading) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not a leader");
         }
 
@@ -302,13 +302,13 @@ public:
 
         if (!epochContext || !IsActiveLeader()) {
             return MakeFuture<int>(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active leader"));
         }
 
         if (!epochContext->Checkpointer->CanBuildSnapshot()) {
             return MakeFuture<int>(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot build a snapshot at the moment"));
         }
 
@@ -345,7 +345,7 @@ public:
         auto epochContext = AutomatonEpochContext_;
         if (!epochContext || !IsActiveLeader() && !IsActiveFollower()) {
             return MakeFuture(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active peer"));
         }
 
@@ -371,14 +371,14 @@ public:
 
         if (ReadOnly_) {
             return MakeFuture<TMutationResponse>(TError(
-                NHydra::EErrorCode::ReadOnly,
+                NRpc::EErrorCode::Unavailable,
                 "Read-only mode is active"));
         }
 
         auto epochContext = AutomatonEpochContext_;
         if (epochContext->Restarting) {
             return MakeFuture<TMutationResponse>(TError(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Peer is restarting"));
         }
 
@@ -387,15 +387,15 @@ public:
             case EPeerState::Leading:
                 if (!LeaderRecovered_) {
                     return MakeFuture<TMutationResponse>(TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Leader has not yet recovered"));
                 }
 
                 if (!LeaderLease_->IsValid()) {
                     auto error = TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Leader lease is no longer valid");
-                    Restart(error, epochContext);
+                    Restart(epochContext, error);
                     return MakeFuture<TMutationResponse>(error);
                 }
 
@@ -404,13 +404,13 @@ public:
             case EPeerState::Following:
                 if (!FollowerRecovered_) {
                     return MakeFuture<TMutationResponse>(TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Follower has not yet recovered"));
                 }
 
                 if (!request.AllowLeaderForwarding) {
                     return MakeFuture<TMutationResponse>(TError(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Leader mutation forwarding is not allowed"));
                 }
 
@@ -418,7 +418,7 @@ public:
 
             default:
                 return MakeFuture<TMutationResponse>(TError(
-                    NHydra::EErrorCode::InvalidState,
+                    NRpc::EErrorCode::Unavailable,
                     "Peer is in %Qlv state",
                     state));
         }
@@ -544,7 +544,7 @@ private:
 
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot accept mutations in %Qlv state",
                 ControlState_);
         }
@@ -566,10 +566,10 @@ private:
                         .ThrowOnError();
                     response->set_logged(true);
                 } catch (const std::exception& ex) {
-                    auto wrappedError = TError("Error logging mutations")
+                    auto error = TError("Error logging mutations")
                         << ex;
-                    Restart(wrappedError, epochContext);
-                    THROW_ERROR wrappedError;
+                    Restart(epochContext, error);
+                    THROW_ERROR error;
                 }
                 break;
             }
@@ -582,10 +582,10 @@ private:
                     followerRecovery->SetCommittedVersion(committedVersion);
                     response->set_logged(false);
                 } catch (const std::exception& ex) {
-                    auto wrappedError = TError("Error postponing mutations during recovery")
+                    auto error = TError("Error postponing mutations during recovery")
                         << ex;
-                    Restart(wrappedError, epochContext);
-                    throw;
+                    Restart(epochContext, error);
+                    THROW_ERROR error;
                 }
                 break;
             }
@@ -612,7 +612,7 @@ private:
 
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot handle follower ping in %Qlv state",
                 ControlState_);
         }
@@ -654,7 +654,7 @@ private:
 
         if (ControlState_ != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot build snapshot in %Qlv state",
                 ControlState_);
         }
@@ -670,7 +670,7 @@ private:
                 "Invalid logged version: expected %v, actual %v",
                 version,
                 DecoratedAutomaton_->GetLoggedVersion());
-            Restart(error, epochContext);
+            Restart(epochContext, error);
             context->Reply(error);
             return;
         }
@@ -720,7 +720,7 @@ private:
 
         if (ControlState_ != EPeerState::Following && ControlState_  != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Cannot rotate changelog while in %Qlv state",
                 ControlState_);
         }
@@ -744,7 +744,7 @@ private:
                     auto followerCommitter = epochContext->FollowerCommitter;
                     if (followerCommitter->IsLoggingSuspended()) {
                         THROW_ERROR_EXCEPTION(
-                            NHydra::EErrorCode::InvalidState,
+                            NRpc::EErrorCode::Unavailable,
                             "Changelog is already being rotated");
                     }
 
@@ -755,10 +755,10 @@ private:
 
                     followerCommitter->ResumeLogging();
                 } catch (const std::exception& ex) {
-                    auto wrappedError = TError("Error rotating changelog")
+                    auto error = TError("Error rotating changelog")
                         << ex;
-                    Restart(wrappedError, epochContext);
-                    throw;
+                    Restart(epochContext, error);
+                    THROW_ERROR error;
                 }
 
                 break;
@@ -769,17 +769,17 @@ private:
                 if (!followerRecovery) {
                     // NB: No restart.
                     THROW_ERROR_EXCEPTION(
-                        NHydra::EErrorCode::InvalidState,
+                        NRpc::EErrorCode::Unavailable,
                         "Initial ping is not received yet");
                 }
 
                 try {
                     followerRecovery->PostponeChangelogRotation(version);
                 } catch (const std::exception& ex) {
-                    auto wrappedError = TError("Error postponing changelog rotation during recovery")
+                    auto error = TError("Error postponing changelog rotation during recovery")
                         << ex;
-                    Restart(wrappedError, epochContext);
-                    THROW_ERROR wrappedError;
+                    Restart(epochContext, error);
+                    THROW_ERROR error;
                 }
 
                 break;
@@ -802,7 +802,7 @@ private:
 
         if (!IsActiveLeader()) {
             THROW_ERROR_EXCEPTION(
-                NHydra::EErrorCode::InvalidState,
+                NRpc::EErrorCode::Unavailable,
                 "Not an active leader");
         }
 
@@ -865,13 +865,14 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
-    void Restart(const TError& error, TEpochContextPtr epochContext)
+    void Restart(TEpochContextPtr epochContext, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
         
         bool expected = false;
-        if (!epochContext->Restarting.compare_exchange_strong(expected, true))
+        if (!epochContext->Restarting.compare_exchange_strong(expected, true)) {
             return;
+        }
 
         LOG_ERROR(error, "Restarting Hydra instance");
 
@@ -1001,7 +1002,7 @@ private:
             << error;
 
         DecoratedAutomaton_->CancelPendingLeaderMutations(wrappedError);
-        Restart(wrappedError, epochContext);
+        Restart(epochContext, wrappedError);
     }
 
     void OnLeaderLeaseLost(TWeakPtr<TEpochContext> epochContext_, const TError& error)
@@ -1014,7 +1015,7 @@ private:
 
         auto wrappedError = TError("Leader lease is lost")
             << error;
-        Restart(wrappedError, epochContext);
+        Restart(epochContext, wrappedError);
     }
 
 
@@ -1053,7 +1054,7 @@ private:
         if (!error.IsOK()) {
             auto wrappedError = TError("Distributed changelog rotation failed")
                 << error;
-            Restart(wrappedError, epochContext);
+            Restart(epochContext, wrappedError);
             return;
         }
 
@@ -1180,7 +1181,7 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Leader recovery failed, backing off");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
-            Restart(TError(ex), epochContext);
+            Restart(epochContext, ex);
         }
     }
 
@@ -1272,7 +1273,7 @@ private:
         } catch (const std::exception& ex) {
             LOG_ERROR(ex, "Follower recovery failed, backing off");
             WaitFor(TDelayedExecutor::MakeDelayed(Config_->RestartBackoffTime));
-            Restart(TError(ex), epochContext);
+            Restart(epochContext, ex);
         }
     }
 

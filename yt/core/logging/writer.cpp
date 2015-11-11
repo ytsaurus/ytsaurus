@@ -36,10 +36,10 @@ TLogEvent GetBannerEvent()
 
 } // namespace
 
-class TStreamLogWriter::TDateFormatter
+class TStreamLogWriterBase::TCachingDateFormatter
 {
 public:
-    TDateFormatter()
+    TCachingDateFormatter()
     {
         Update(TInstant::Now());
     }
@@ -49,94 +49,153 @@ public:
         if (dateTime.MicroSeconds() >= Deadline_) {
             Update(dateTime);
         }
-        out->AppendString(Buffer_.GetData());
+        out->AppendString(Cached_.GetData());
     }
 
 private:
     void Update(TInstant dateTime)
     {
-        Buffer_.Reset();
-        FormatDateTime(&Buffer_, dateTime);
-        Buffer_.AppendChar('\0');
+        Cached_.Reset();
+        FormatDateTime(&Cached_, dateTime);
+        Cached_.AppendChar('\0');
         Deadline_ = dateTime.MicroSeconds() + 1000 - (dateTime.MicroSeconds() % 1000);
     }
 
-    TMessageBuffer Buffer_;
+    TMessageBuffer Cached_;
     ui64 Deadline_;
 };
 
-TStreamLogWriter::TStreamLogWriter(TOutputStream* stream)
-    : Stream_(stream)
-    , Buffer_(new TMessageBuffer())
-    , DateFormatter_(new TDateFormatter())
+TStreamLogWriterBase::TStreamLogWriterBase()
+    : Buffer_(new TMessageBuffer())
+    , CachingDateFormatter_(new TCachingDateFormatter())
 { }
 
-TStreamLogWriter::~TStreamLogWriter() = default;
+TStreamLogWriterBase::~TStreamLogWriterBase() = default;
 
-void TStreamLogWriter::Write(const TLogEvent& event)
+void TStreamLogWriterBase::Write(const TLogEvent& event)
 {
-    if (!Stream_) {
+    auto* stream = GetOutputStream();
+    if (!stream) {
         return;
     }
 
     auto* buffer = Buffer_.get();
     buffer->Reset();
 
-    DateFormatter_->Format(buffer, event.DateTime);
+    CachingDateFormatter_->Format(buffer, event.DateTime);
     buffer->AppendChar('\t');
+
     FormatLevel(buffer, event.Level);
     buffer->AppendChar('\t');
+
     buffer->AppendString(event.Category);
     buffer->AppendChar('\t');
+
     FormatMessage(buffer, event.Message);
     buffer->AppendChar('\t');
+
     if (event.ThreadId != NConcurrency::InvalidThreadId) {
         buffer->AppendNumber(event.ThreadId, 16);
     }
     buffer->AppendChar('\t');
+
     if (event.FiberId != NConcurrency::InvalidFiberId) {
         buffer->AppendNumber(event.FiberId, 16);
     }
     buffer->AppendChar('\t');
+
     if (event.TraceId != NTracing::InvalidTraceId) {
         buffer->AppendNumber(event.TraceId, 16);
     }
     buffer->AppendChar('\n');
 
-    Stream_->Write(buffer->GetData(), buffer->GetBytesWritten());
+    try {
+        stream->Write(buffer->GetData(), buffer->GetBytesWritten());
+    } catch (const std::exception& ex) {
+        OnException(ex);
+    }
 }
 
-void TStreamLogWriter::Flush()
+void TStreamLogWriterBase::Flush()
 {
-    Stream_->Flush();
+    auto* stream = GetOutputStream();
+    if (!stream) {
+        return;
+    }
+
+    try {
+        stream->Flush();
+    } catch (const std::exception& ex) {
+        OnException(ex);
+    }
 }
 
-void TStreamLogWriter::Reload()
+void TStreamLogWriterBase::Reload()
 { }
 
-void TStreamLogWriter::CheckSpace(i64 minSpace)
+void TStreamLogWriterBase::CheckSpace(i64 minSpace)
 { }
+
+void TStreamLogWriterBase::OnException(const std::exception& ex)
+{
+    // Fail with drama by default.
+    TRawFormatter<1024> formatter;
+    formatter.AppendString("\n*** Unhandled exception in log writer: ");
+    formatter.AppendString(ex.what());
+    formatter.AppendString("\n*** Aborting ***\n");
+
+    auto unused = ::write(2, formatter.GetData(), formatter.GetBytesWritten());
+    (void)unused;
+
+    std::terminate();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStderrLogWriter::TStderrLogWriter()
-    : TStreamLogWriter(&Cerr)
-{ }
+TOutputStream* TStreamLogWriter::GetOutputStream() const noexcept
+{
+    return Stream_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStdoutLogWriter::TStdoutLogWriter()
-    : TStreamLogWriter(&Cout)
-{ }
+TOutputStream* TStderrLogWriter::GetOutputStream() const noexcept
+{
+    return &Cerr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOutputStream* TStdoutLogWriter::GetOutputStream() const noexcept
+{
+    return &Cout;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFileLogWriter::TFileLogWriter(const Stroka& fileName)
     : FileName_(fileName)
-    , Initialized_(false)
 {
-    Disabled_.store(false);
-    EnsureInitialized();
+    Open();
+}
+
+TFileLogWriter::~TFileLogWriter() = default;
+
+TOutputStream* TFileLogWriter::GetOutputStream() const noexcept
+{
+    if (Y_LIKELY(!Disabled_.load(std::memory_order_acquire))) {
+        return FileOutput_.get();
+    } else {
+        return nullptr;
+    }
+}
+
+void TFileLogWriter::OnException(const std::exception& ex)
+{
+    Disabled_ = true;
+    LOG_ERROR(ex, "Disabled log file (FileName: %v)", FileName_);
+
+    Close();
 }
 
 void TFileLogWriter::CheckSpace(i64 minSpace)
@@ -145,100 +204,84 @@ void TFileLogWriter::CheckSpace(i64 minSpace)
         auto directoryName = NFS::GetDirectoryName(FileName_);
         auto statistics = NFS::GetDiskSpaceStatistics(directoryName);
         if (statistics.AvailableSpace < minSpace) {
-            if (!Disabled_.load()) {
-                LOG_ERROR("Logging disabled: not enough space (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
+            if (!Disabled_.load(std::memory_order_acquire)) {
+                Disabled_ = true;
+                LOG_ERROR("Log file disabled: not enough space available (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
                     directoryName,
                     statistics.AvailableSpace,
                     minSpace);
+
+                Close();
             }
-            Disabled_.store(true);
         } else {
-            if (Disabled_.load()) {
-                ReopenFile();
-                LOG_INFO("Logging enabled: space check passed");
+            if (Disabled_.load(std::memory_order_acquire)) {
+                Reload(); // Reinitialize all descriptors.
+
+                LOG_INFO("Log file enabled: space check passed (FileName: %v)", FileName_);
+                Disabled_ = false;
             }
-            Disabled_.store(false);
         }
     } catch (const std::exception& ex) {
-        Disabled_.store(true);
-        LOG_ERROR(ex, "Logging disabled: space check failed (FileName: %v)", FileName_);
+        Disabled_ = true;
+        LOG_ERROR(ex, "Log file disabled: space check failed (FileName: %v)", FileName_);
+
+        Close();
     }
 }
 
-void TFileLogWriter::ReopenFile()
+void TFileLogWriter::Open()
 {
-    NFS::ForcePath(NFS::GetDirectoryName(FileName_));
-    File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
-    FileOutput_.reset(new TBufferedFileOutput(*File_, BufferSize));
-    FileOutput_->SetFinishPropagateMode(true);
+    try {
+        NFS::ForcePath(NFS::GetDirectoryName(FileName_));
+        File_.reset(new TFile(FileName_, OpenAlways|ForAppend|WrOnly|Seq|CloseOnExec));
+        FileOutput_.reset(new TBufferedFileOutput(*File_, BufferSize));
+        FileOutput_->SetFinishPropagateMode(true);
+
+        // Emit a delimiter for ease of navigation.
+        if (File_->GetLength() > 0) {
+            *FileOutput_ << Endl;
+        }
+
+        Write(GetBannerEvent());
+    } catch (const std::exception& ex) {
+        Disabled_ = true;
+        LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);
+
+        Close();
+    } catch (...) {
+        YUNREACHABLE();
+    }
 }
 
-void TFileLogWriter::EnsureInitialized(bool writeTrailingNewline)
+void TFileLogWriter::Close()
 {
-    if (Initialized_) {
-        return;
-    }
-
-    // No matter what, let's pretend we're initialized to avoid subsequent attempts.
-    Initialized_ = true;
-
-    if (Disabled_.load()) {
-        return;
+    try {
+        if (FileOutput_) {
+            FileOutput_->Flush();
+            FileOutput_->Finish();
+        }
+        if (File_) {
+            File_->Close();
+        }
+    } catch (const std::exception& ex) {
+        Disabled_ = true;
+        LOG_ERROR(ex, "Failed to close log file %v", FileName_);
+    } catch (...) {
+        YUNREACHABLE();
     }
 
     try {
-        ReopenFile();
-    } catch (const std::exception& ex) {
-        LOG_ERROR(ex, "Error opening log file %v", FileName_);
-        return;
-    }
-
-    Stream_ = FileOutput_.get();
-
-    if (writeTrailingNewline) {
-        *FileOutput_ << Endl;
-    }
-    Write(GetBannerEvent());
-}
-
-void TFileLogWriter::Write(const TLogEvent& event)
-{
-    if (Stream_ && !Disabled_.load()) {
-        try {
-            TStreamLogWriter::Write(event);
-        } catch (const std::exception& ex) {
-            Disabled_.store(true);
-            LOG_ERROR(ex, "Failed to write into log file %v", FileName_);
-        }
-    }
-}
-
-void TFileLogWriter::Flush()
-{
-    if (Stream_ && !Disabled_.load()) {
-        try {
-            FileOutput_->Flush();
-        } catch (const std::exception& ex) {
-            Disabled_.store(true);
-            LOG_ERROR(ex, "Failed to flush log file %v", FileName_);
-        }
+        FileOutput_.reset();
+        File_.reset();
+    } catch (...) {
+        YUNREACHABLE();
     }
 }
 
 void TFileLogWriter::Reload()
 {
-    Flush();
-
-    if (File_) {
-        try {
-            File_->Close();
-        } catch (const std::exception& ex) {
-            LOG_ERROR(ex, "Failed to close log file %v", FileName_);
-        }
-    }
-
-    Initialized_ = false;
-    EnsureInitialized(true);
+    Close();
+    Open();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

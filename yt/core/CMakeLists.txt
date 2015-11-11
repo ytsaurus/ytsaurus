@@ -46,8 +46,8 @@ add_library(ytcore STATIC
 target_link_libraries ( ytcore
   ytext-arcadia-util
   ytext-arcadia-library-streams-lz
-  ytext-ev
-  ytext-jerasure
+  yt-contrib-jerasure
+  yt-contrib-libev
   ytext-json
   ytext-arcadia-library-http
   ytext-yajl
@@ -58,7 +58,7 @@ target_link_libraries ( ytcore
 
 if (CMAKE_COMPILER_IS_CLANG AND NOT APPLE)
   target_link_libraries ( ytcore
-    -latomic
+    -latomic -ldl
   )
 endif()
 

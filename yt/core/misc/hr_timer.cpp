@@ -29,7 +29,7 @@ void GetHRInstant(THRInstant* instant)
 #elif defined(_darwin_)
     // See http://lists.mysql.com/commits/70966
     static mach_timebase_info_data_t info = { 0, 0 };
-    if (UNLIKELY(info.denom == 0)) {
+    if (Y_UNLIKELY(info.denom == 0)) {
         YCHECK(mach_timebase_info(&info) == 0);
     }
     ui64 time;
@@ -40,7 +40,7 @@ void GetHRInstant(THRInstant* instant)
     instant->Nanoseconds = time % NumberOfNsInS;
 #elif defined(_win_)
     static LARGE_INTEGER frequency = { 0 };
-    if (UNLIKELY(frequency.QuadPart == 0)) {
+    if (Y_UNLIKELY(frequency.QuadPart == 0)) {
         YCHECK(QueryPerformanceFrequency(&frequency));
 
     }
@@ -72,7 +72,7 @@ THRDuration GetHRDuration(const THRInstant& begin, const THRInstant& end)
 THRDuration GetHRResolution()
 {
     static THRDuration result = 0;
-    if (LIKELY(result)) {
+    if (Y_LIKELY(result)) {
         return result;
     }
 

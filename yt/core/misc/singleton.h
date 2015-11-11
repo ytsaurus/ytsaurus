@@ -16,7 +16,7 @@ TIntrusivePtr<T> RefCountedSingleton()
 
     auto* relaxedInstance = holder.load(std::memory_order_relaxed);
 
-    if (LIKELY(relaxedInstance)) {
+    if (Y_LIKELY(relaxedInstance)) {
         return relaxedInstance;
     }
 

@@ -1096,6 +1096,7 @@ void TDecoratedAutomaton::StopEpoch()
     Changelog_.Reset();
     EpochContext_.Reset();
     SnapshotVersion_ = TVersion();
+    LoggedVersion_ = TVersion();
     CommittedVersion_ = TVersion();
     if (SnapshotParamsPromise_) {
         SnapshotParamsPromise_.ToFuture().Cancel();

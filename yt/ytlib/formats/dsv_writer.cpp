@@ -118,9 +118,15 @@ void TSchemalessWriterForDsv::WriteValue(const TUnversionedValue& value)
             output->Write(::ToString(value.Data.Uint64));
             break;
 
-        case EValueType::Double:
-            output->Write(::ToString(value.Data.Double));
+        case EValueType::Double: {
+            auto str = ::ToString(value.Data.Double);
+            output->Write(str);
+            if (str.find('.') == Stroka::npos && str.find('e') == Stroka::npos) {
+                output->Write(".");
+            }
+
             break;
+        }
 
         case EValueType::Boolean:
             output->Write(FormatBool(value.Data.Boolean));

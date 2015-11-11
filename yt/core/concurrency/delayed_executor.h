@@ -50,7 +50,7 @@ private:
 
     static TImpl* GetImpl();
 
-    DECLARE_SINGLETON_FRIEND(TDelayedExecutor);
+    DECLARE_SINGLETON_FRIEND();
 };
 
 extern const TDelayedExecutorCookie NullDelayedExecutorCookie;

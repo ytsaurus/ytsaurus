@@ -231,7 +231,7 @@ void TYsonWriter::OnDoubleScalar(double value)
     } else {
         auto str = ::ToString(value);
         Stream_->Write(str);
-        if (str.find('.') == Stroka::npos) {
+        if (str.find('.') == Stroka::npos && str.find('e') == Stroka::npos) {
             Stream_->Write(".");
         }
     }

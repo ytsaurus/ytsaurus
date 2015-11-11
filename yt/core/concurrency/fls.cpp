@@ -57,7 +57,7 @@ static uintptr_t& TsdAt(int index)
 #define TLS_SET_ TlsSetValue
 #endif
     uintptr_t* tsd = static_cast<uintptr_t*>(TLS_GET_(FlsTsdKey));
-    if (LIKELY(tsd)) {
+    if (Y_LIKELY(tsd)) {
         return tsd[index];
     }
 

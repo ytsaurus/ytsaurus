@@ -40,6 +40,10 @@ class TestAccounts(YTEnvSetup):
     def _set_account_chunk_count_limit(self, account, value):
         set("//sys/accounts/{0}/@resource_limits/chunk_count".format(account), value)
 
+    def _set_account_zero_limits(self, account):
+        set("//sys/accounts/{0}/@resource_limits".format(account),
+            {"disk_space": 0, "chunk_count": 0, "node_count": 0})
+    
     def _is_account_disk_space_limit_violated(self, account):
         return get("//sys/accounts/{0}/@violated_resource_limits/disk_space".format(account))
 
@@ -560,6 +564,77 @@ class TestAccounts(YTEnvSetup):
         assert space == self._get_account_disk_space("a2")
         assert space == self._get_account_committed_disk_space("a2")
 
+    def test_move_preserve_account_success(self):
+        # setup
+        create_account("a")
+        self._set_account_disk_space_limit("a", 100000)
+        create("map_node", "//tmp/x")
+        set("//tmp/x/@account", "a")
+        create("table", "//tmp/x/t")
+        write_table("//tmp/x/t", {"a" : "b"})
+        
+        # make "a" overcommitted
+        self._set_account_zero_limits("a")
+
+        # move must succeed
+        move("//tmp/x", "//tmp/y", preserve_account=True)
+        
+    def test_move_dont_preserve_account_success(self):
+        # setup
+        create_account("a")
+        self._set_account_disk_space_limit("a", 100000)
+        create("map_node", "//tmp/x")
+        set("//tmp/x/@account", "a")
+        create("table", "//tmp/x/t")
+        write_table("//tmp/x/t", {"a" : "b"})
+        create("map_node", "//tmp/for_y")
+        set("//tmp/for_y/@account", "a")
+        
+        # make "a" overcommitted
+        self._set_account_zero_limits("a")
+        
+        # move must succeed
+        move("//tmp/x", "//tmp/for_y/y", preserve_account=False)
+
+    def test_move_dont_preserve_account_fail(self):
+        # setup
+        create("map_node", "//tmp/x")
+        create_account("a")
+        create("map_node", "//tmp/for_y")
+        set("//tmp/for_y/@account", "a")
+        
+        # make "a" overcommitted
+        self._set_account_zero_limits("a")
+        
+        # move must fail
+        with pytest.raises(YtError): move("//tmp/x", "//tmp/for_y/y", preserve_account=False)
+
+    def test_copy_preserve_account_fail(self):
+        # setup
+        create_account("a")
+        create("map_node", "//tmp/x")
+        set("//tmp/x/@account", "a")
+        
+        # make "a" overcommitted
+        self._set_account_zero_limits("a")
+        
+        # copy must fail
+        with pytest.raises(YtError): copy("//tmp/x", "//tmp/y", preserve_account=True)
+        
+    def test_copy_dont_preserve_account_fail(self):
+        # setup
+        create_account("a")
+        create("map_node", "//tmp/x")
+        create("map_node", "//tmp/for_y")
+        set("//tmp/x/@account", "a")
+        set("//tmp/for_y/@account", "a")
+        
+        # make "a" overcommitted
+        self._set_account_zero_limits("a")
+        
+        # copy must fail
+        with pytest.raises(YtError): copy("//tmp/x", "//tmp/for_y/y", preserve_account=False)
+        
     def test_rename_success(self):
         create_account("a1")
         set("//sys/accounts/a1/@name", "a2")

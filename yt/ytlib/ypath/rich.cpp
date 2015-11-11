@@ -326,16 +326,20 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
         bool finished = false;
         while (!finished) {
             TReadLimit lowerLimit, upperLimit;
-            ParseRowLimit(tokenizer, {RangeToken}, &lowerLimit);
-            tokenizer.ParseNext();
+            ParseRowLimit(tokenizer, {RangeToken, RangeSeparatorToken, EndRowSelectorToken}, &lowerLimit);
+            if (tokenizer.GetCurrentType() == RangeToken) {
+                tokenizer.ParseNext();
 
-            ParseRowLimit(tokenizer, {RangeSeparatorToken, EndRowSelectorToken}, &upperLimit);
+                ParseRowLimit(tokenizer, {RangeSeparatorToken, EndRowSelectorToken}, &upperLimit);
+                ranges.push_back(TReadRange(lowerLimit, upperLimit));
+            } else {
+                // The case of exact limit.
+                ranges.push_back(TReadRange(lowerLimit));
+            }
             if (tokenizer.CurrentToken().GetType() == EndRowSelectorToken) {
                 finished = true;
             }
             tokenizer.ParseNext();
-
-            ranges.push_back(TReadRange(lowerLimit, upperLimit));
         }
 
         attributes->Set("ranges", ConvertToYsonString(ranges));

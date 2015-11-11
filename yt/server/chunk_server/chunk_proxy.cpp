@@ -105,6 +105,8 @@ private:
         descriptors->push_back(TAttributeDescriptor("erasure_codec")
             .SetPresent(chunk->IsErasure()));
         descriptors->push_back("master_meta_size");
+        descriptors->push_back(TAttributeDescriptor("parent_ids")
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("owning_nodes")
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor("exports")
@@ -326,6 +328,15 @@ private:
         if (key == "sealed") {
             BuildYsonFluently(consumer)
                 .Value(chunk->IsSealed());
+            return true;
+        }
+
+        if (key == "parent_ids") {
+            BuildYsonFluently(consumer)
+                .DoListFor(chunk->Parents(), [] (TFluentList fluent, const TChunkList* parent) {
+                    fluent
+                        .Item().Value(parent->GetId());
+                });
             return true;
         }
 
