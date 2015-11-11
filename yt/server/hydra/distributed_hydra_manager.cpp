@@ -1517,7 +1517,7 @@ private:
             return;
 
         auto neededCommittedVersion = *epochContext->LeaderSyncVersion;
-        auto actualCommittedVersion = DecoratedAutomaton_->GetCommittedVersion();
+        auto actualCommittedVersion = DecoratedAutomaton_->GetAutomatonVersion();
         if (neededCommittedVersion > actualCommittedVersion)
             return;
 
