@@ -123,7 +123,7 @@ protected:
 
             TWireProtocolWriter writer;
             writer.WriteMessage(req);
-            writer.WriteUnversionedRowset(keys);
+            writer.WriteSchemafulRowset(keys);
 
             request = MergeRefs(writer.Flush());
         }
@@ -142,7 +142,8 @@ protected:
 
         {
             TWireProtocolReader reader(response);
-            auto row = reader.ReadUnversionedRow();
+            auto schemaData = TWireProtocolReader::GetSchemaData(Tablet_->Schema(), TColumnFilter());
+            auto row = reader.ReadSchemafulRow(schemaData);
             return TUnversionedOwningRow(row);
         }
     }

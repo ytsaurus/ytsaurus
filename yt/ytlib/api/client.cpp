@@ -45,6 +45,7 @@
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 
 #include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/schemaful_writer.h>
 
 #include <yt/ytlib/tablet_client/table_mount_cache.h>
@@ -1152,11 +1153,13 @@ private:
             TClient* owner,
             TTabletInfoPtr tabletInfo,
             const TLookupRowsOptions& options,
-            const TNameTableToSchemaIdMapping& idMapping)
+            const TNameTableToSchemaIdMapping& idMapping,
+            const TTableSchema& schema)
             : Config_(owner->Connection_->GetConfig())
             , TabletId_(tabletInfo->TabletId)
             , Options_(options)
             , IdMapping_(idMapping)
+            , Schema_(schema)
         { }
 
         void AddKey(int index, NTableClient::TKey key)
@@ -1182,7 +1185,7 @@ private:
                 TWireProtocolWriter writer;
                 writer.WriteCommand(EWireProtocolCommand::LookupRows);
                 writer.WriteMessage(req);
-                writer.WriteUnversionedRowset(batch->Keys, &IdMapping_);
+                writer.WriteSchemafulRowset(batch->Keys, &IdMapping_);
 
                 batch->RequestData = NCompression::CompressWithEnvelope(
                     writer.Flush(),
@@ -1198,11 +1201,12 @@ private:
             std::vector<TUnversionedRow>* resultRows,
             std::vector<std::unique_ptr<TWireProtocolReader>>* readers)
         {
+            auto schemaData = TWireProtocolReader::GetSchemaData(Schema_, Options_.ColumnFilter);
             for (const auto& batch : Batches_) {
                 auto data = NCompression::DecompressWithEnvelope(batch->Response->Attachments());
                 auto reader = std::make_unique<TWireProtocolReader>(data);
                 for (int index = 0; index < batch->Keys.size(); ++index) {
-                    auto row = reader->ReadUnversionedRow();
+                    auto row = reader->ReadSchemafulRow(schemaData);
                     (*resultRows)[batch->Indexes[index]] = row;
                 }
                 readers->push_back(std::move(reader));
@@ -1214,6 +1218,7 @@ private:
         TTabletId TabletId_;
         TLookupRowsOptions Options_;
         TNameTableToSchemaIdMapping IdMapping_;
+        const TTableSchema& Schema_;
 
         struct TBatch
         {
@@ -1318,7 +1323,7 @@ private:
             if (it == tabletToSession.end()) {
                 it = tabletToSession.insert(std::make_pair(
                     tabletInfo,
-                    New<TTabletLookupSession>(this, tabletInfo, options, idMapping))).first;
+                    New<TTabletLookupSession>(this, tabletInfo, options, idMapping, tableInfo->Schema))).first;
             }
             const auto& session = it->second;
             session->AddKey(index, key);

@@ -2,20 +2,21 @@
 
 #include "blob.h"
 #include "ref.h"
+#include "small_vector.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TChunkType>
-TChunkType GetChunkMask(int bitIndex, bool value) 
+TChunkType GetChunkMask(int bitIndex, bool value)
 {
     return static_cast<TChunkType>(value) << (bitIndex % (sizeof(TChunkType) * 8));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkType>
+template <class TChunkType, int DefaultChunkCount = 1>
 class TAppendOnlyBitmap
 {
 public:
@@ -45,6 +46,11 @@ public:
         return TSharedRef::FromBlob(std::move(blob));
     }
 
+    const TChunkType* Data() const
+    {
+        return Data_.data();
+    }
+
     int Size() const
     {
         return Data_.size() * sizeof(TChunkType);
@@ -52,7 +58,7 @@ public:
 
 private:
     int BitSize_;
-    std::vector<TChunkType> Data_;
+    SmallVector<TChunkType, DefaultChunkCount> Data_;
 
 };
 
