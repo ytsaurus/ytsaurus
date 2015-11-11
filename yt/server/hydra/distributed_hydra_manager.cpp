@@ -982,7 +982,7 @@ private:
         if (checkpointer->CanBuildSnapshot()) {
             BuildSnapshotAndWatch(epochContext);
         } else if (checkpointer->CanRotateChangelogs()) {
-            LOG_WARNING("Snapshot is still being built, just rotating changlogs");
+            LOG_WARNING("Cannot build a snapshot, just rotating changlogs");
             RotateChangelogAndWatch(epochContext);
         } else {
             return;
