@@ -84,7 +84,7 @@ template <class T>
 FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookie()
 {
     static auto cookie = NullRefCountedTypeCookie;
-    if (UNLIKELY(cookie == NullRefCountedTypeCookie)) {
+    if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
         cookie = GetRefCountedTypeCookie(
             GetRefCountedTypeKey<T>(),
             NYT::TSourceLocation());
@@ -96,7 +96,7 @@ template <class T, class TTag, int Counter>
 FORCED_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const TSourceLocation& location)
 {
     static auto cookie = NullRefCountedTypeCookie;
-    if (UNLIKELY(cookie == NullRefCountedTypeCookie)) {
+    if (Y_UNLIKELY(cookie == NullRefCountedTypeCookie)) {
         cookie = GetRefCountedTypeCookie(
             GetRefCountedTypeKey<T>(),
             location);

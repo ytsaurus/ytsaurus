@@ -37,9 +37,7 @@ DEFINE_ENUM(EErrorCode,
     ((NoSuchChangelog)            (601))
     ((InvalidEpoch)               (602))
     ((InvalidVersion)             (603))
-    ((InvalidState)               (604))
     ((MaybeCommitted)             (605))
-    ((ReadOnly)                   (608))
     ((OutOfOrderMutations)        (609))
 );
 

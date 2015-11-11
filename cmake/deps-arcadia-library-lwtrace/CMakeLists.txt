@@ -2,6 +2,7 @@ set( BASE ${CMAKE_SOURCE_DIR}/library/lwtrace )
 set( SRCS
   ${BASE}/check.cpp
   ${BASE}/kill_action.cpp
+  ${BASE}/sleep_action.cpp
   ${BASE}/start.cpp
   ${BASE}/stderr_writer.cpp
   ${BASE}/trace.cpp

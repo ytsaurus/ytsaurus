@@ -284,8 +284,15 @@ public:
     {
         ValidateCreatedNodeType(sourceNode->GetType());
 
-        auto account = GetClonedNodeAccount(sourceNode);
-        account->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+        auto* clonedAccount = GetClonedNodeAccount(sourceNode);
+        // Resource limit check must be suppressed when moving nodes
+        // without altering the account.
+        if (mode != ENodeCloneMode::Move || clonedAccount != sourceNode->GetAccount()) {
+            // NB: Ignore disk space increase since in multicell mode the primary cell
+            // might not be aware of the actual resource usage.
+            // This should be safe since chunk lists are shared anyway.
+            clonedAccount->ValidateResourceUsageIncrease(TClusterResources(0, 1, 0));
+        }
 
         auto cypressManager = Bootstrap_->GetCypressManager();
         auto* clonedTrunkNode = cypressManager->CloneNode(sourceNode, this, mode);
@@ -684,8 +691,8 @@ public:
 
         // Validate account access _before_ creating the actual copy.
         auto securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = factory->GetClonedNodeAccount(sourceNode);
-        securityManager->ValidatePermission(account, EPermission::Use);
+        auto* clonedAccount = factory->GetClonedNodeAccount(sourceNode);
+        securityManager->ValidatePermission(clonedAccount, EPermission::Use);
 
         return DoCloneNode(
             sourceNode,
@@ -912,7 +919,7 @@ public:
         TTransaction* transaction)
     {
         std::vector<TTransaction*> transactions;
-        
+
         auto addLock = [&] (const TLock* lock) {
             // Get the top-most transaction.
             auto* transaction = lock->GetTransaction();

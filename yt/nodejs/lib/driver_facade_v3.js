@@ -90,19 +90,21 @@ YtDriverFacadeV3.prototype.execute = function(name, user,
     if (typeof(this.custom_commands[name]) !== "undefined") {
         return this.custom_commands[name].execute(parameters.Get())
         .then(
-        function(result) {
+        function(response) {
             // TODO(sandello): Serialize to user-requested format.
-            output_stream.write(JSON.stringify(result));
+            var result = new YtError();
+            output_stream.write(JSON.stringify(response));
             if (typeof(result_interceptor) === "function") {
                 result_interceptor(result);
             }
-            return [new YtError(), 0, 0];
+            return [result, 0, 0];
         },
-        function(error) {
+        function(err) {
+            var result = YtError.ensureWrapped(err);
             if (typeof(result_interceptor) === "function") {
-                result_interceptor(error);
+                result_interceptor(result);
             }
-            return [error, 0, 0];
+            return [result, 0, 0];
         });
     }
 

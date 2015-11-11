@@ -664,7 +664,7 @@ void TDriverWrap::ExecuteWork(uv_work_t* workRequest)
     THREAD_AFFINITY_IS_UV();
     TExecuteRequest* request = container_of(workRequest, TExecuteRequest, Request);
 
-    if (LIKELY(!request->Wrap->Echo)) {
+    if (Y_LIKELY(!request->Wrap->Echo)) {
         NTracing::TTraceContextGuard guard(request->TraceContext);
 
         // Execute() method is guaranteed to be exception-safe,
@@ -695,7 +695,7 @@ void TDriverWrap::ExecuteAfter(uv_work_t* workRequest)
         container_of(workRequest, TExecuteRequest, Request));
 
     try {
-        if (LIKELY(request->OutputStack.HasAnyData())) {
+        if (Y_LIKELY(request->OutputStack.HasAnyData())) {
             request->Finish();
         } else {
             // In this case we have to prematurely destroy the stream to avoid

@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 2.6.4 FATAL_ERROR)
+cmake_minimum_required(VERSION 2.8.10 FATAL_ERROR)
 if(POLICY CMP0037)
-    cmake_policy(SET CMP0037 OLD) # Enable reserved "package" target
+  cmake_policy(SET CMP0037 OLD) # Enable reserved "package" target
 endif()
 if(POLICY CMP0042)
-    cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
+  cmake_policy(SET CMP0042 NEW) # Set MACOSX_RPATH=YES by default
 endif()
 
 project(YT)
@@ -40,13 +40,13 @@ include(CheckCXXSourceCompiles)
 include(CheckIncludeFiles)
 include(CheckFunctionExists)
 
+include(DetectCPU)
 include(DumpCMakeVariables)
 
 include(LocalFunctions)
 include(LocalConfiguration)
 
 include(Version)
-include(PCH)
 
 ################################################################################
 # Create CompilationDatabase (build/compile_commands.json).
@@ -81,6 +81,7 @@ if(CMAKE_COMPILER_IS_GNUCXX)
   set(HAVE_CXXABI_H 1)
 endif()
 
+include(PCH)
 include(PCFromUcontext)
 
 # Write down configuration.
@@ -156,9 +157,9 @@ add_subdirectory(cmake/deps-arcadia-library-messagebus)
 add_subdirectory(cmake/deps-arcadia-library-http)
 add_subdirectory(cmake/deps-arcadia-library-streams-lz)
 add_subdirectory(cmake/deps-arcadia-library-getopt)
-add_subdirectory(cmake/deps-ev)
 add_subdirectory(cmake/deps-z-lz-lzo)
-add_subdirectory(cmake/deps-jerasure)
+add_subdirectory(cmake/deps-yt-contrib-jerasure)
+add_subdirectory(cmake/deps-yt-contrib-libev)
 add_subdirectory(cmake/deps-yajl)
 add_subdirectory(cmake/deps-contrib-benchmark)
 add_subdirectory(cmake/deps-re2)
@@ -169,7 +170,7 @@ add_subdirectory(yt)
 
 add_subdirectory(python)
 
-if (YT_BUILD_ENABLE_PERL)
+if(YT_BUILD_ENABLE_PERL)
   add_subdirectory(perl)
 endif()
 
@@ -288,14 +289,12 @@ set_target_properties(ytext-arcadia-library-messagebus PROPERTIES FOLDER "Contri
 set_target_properties(ytext-arcadia-library-http PROPERTIES FOLDER "Contrib")
 set_target_properties(protobuf PROPERTIES FOLDER "Contrib")
 set_target_properties(protoc PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-ev PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-fastlz PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lz4 PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-minilzo PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-quicklz PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-snappy PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-zlib PROPERTIES FOLDER "Contrib")
-set_target_properties(ytext-jerasure PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc-impl PROPERTIES FOLDER "Contrib")
 set_target_properties(ytext-lfalloc-fake PROPERTIES FOLDER "Contrib")

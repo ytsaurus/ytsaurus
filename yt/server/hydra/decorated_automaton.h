@@ -209,6 +209,7 @@ private:
     std::atomic<TVersion> AutomatonVersion_;
     std::atomic<TVersion> CommittedVersion_;
 
+    //! AutomatonVersion_ <= SnapshotVersion_
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic_flag BuildingSnapshot_;

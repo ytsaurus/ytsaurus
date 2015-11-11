@@ -122,7 +122,7 @@ private:
 
     void EnsureCapacity(size_t more)
     {
-        if (LIKELY(Current_ + more < EndPreallocated_))
+        if (Y_LIKELY(Current_ + more < EndPreallocated_))
             return;
 
         FlushPreallocated();
