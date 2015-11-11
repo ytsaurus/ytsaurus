@@ -49,8 +49,6 @@ public:
     TCellNodeConfigPtr GetConfig() const;
     IInvokerPtr GetControlInvoker() const;
     IInvokerPtr GetQueryPoolInvoker() const;
-    IInvokerPtr GetBoundedConcurrencyQueryPoolInvoker() const;
-    IInvokerPtr GetBoundedConcurrencyReadPoolInvoker() const;
     NApi::IClientPtr GetMasterClient() const;
     NRpc::IServerPtr GetRpcServer() const;
     NRpc::IChannelFactoryPtr GetTabletChannelFactory() const;
