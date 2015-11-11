@@ -407,11 +407,7 @@ public:
             "MAP",
             "ENTITY"
         };
-        if (type < sizeof(typeNames)) {
-            return typeNames[type];
-        }
-        ythrow yexception()
-            << Sprintf("incorrect TNode::EType = %d", static_cast<int>(type));
+        return typeNames[type];
     }
 
 private:
