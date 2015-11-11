@@ -8,11 +8,16 @@
 #include "versioned_block_reader.h"
 #include "versioned_reader.h"
 #include "unversioned_row.h"
+#include "private.h"
 
+#include <ytlib/chunk_client/block_id.h>
+#include <ytlib/chunk_client/block_cache.h>
 #include <ytlib/chunk_client/chunk_reader.h>
 #include <ytlib/chunk_client/chunk_meta_extensions.h>
 #include <ytlib/chunk_client/dispatcher.h>
 #include <ytlib/chunk_client/sequential_reader.h>
+
+#include <core/compression/codec.h>
 
 namespace NYT {
 namespace NTableClient {
@@ -23,6 +28,55 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient::NProto;
 
 using NChunkClient::TReadLimit;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TableClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+std::vector<TColumnIdMapping> BuildSchemaIdMapping(
+    const TColumnFilter& columnFilter,
+    const TCachedVersionedChunkMetaPtr& chunkMeta)
+{
+    if (columnFilter.All) {
+        return chunkMeta->SchemaIdMapping();
+    }
+
+    std::vector<TColumnIdMapping> schemaIdMapping;
+    schemaIdMapping.reserve(chunkMeta->SchemaIdMapping().size());
+    int keyColumnCount = static_cast<int>(chunkMeta->KeyColumns().size());
+    for (auto index : columnFilter.Indexes) {
+        if (index < keyColumnCount) {
+            continue;
+        }
+
+        for (const auto& mapping : chunkMeta->SchemaIdMapping()) {
+            if (mapping.ReaderSchemaIndex == index) {
+                schemaIdMapping.push_back(mapping);
+                break;
+            }
+        }
+    }
+
+    return schemaIdMapping;
+}
+
+template <template <class TBlockReader> class TImpl, class... Ts>
+IVersionedReaderPtr CreateReaderForFormat(ETableChunkFormat format, Ts&&... args)
+{
+    switch (format) {
+        case ETableChunkFormat::VersionedSimple:
+            return New<TImpl<TSimpleVersionedBlockReader>>(std::forward<Ts>(args)...);
+
+        default:
+            YUNREACHABLE();
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,10 +97,10 @@ public:
         TTimestamp timestamp);
 
 protected:
+    const TCachedVersionedChunkMetaPtr ChunkMeta_;
     const TTimestamp Timestamp_;
 
-    TCachedVersionedChunkMetaPtr CachedChunkMeta_;
-    std::vector<TColumnIdMapping> SchemaIdMapping_;
+    const std::vector<TColumnIdMapping> SchemaIdMapping_;
 
     std::unique_ptr<TSimpleVersionedBlockReader> BlockReader_;
 
@@ -70,35 +124,17 @@ TVersionedChunkReaderBase::TVersionedChunkReaderBase(
         std::move(underlyingReader),
         chunkMeta->Misc(),
         std::move(blockCache))
+    , ChunkMeta_(std::move(chunkMeta))
     , Timestamp_(timestamp)
-    , CachedChunkMeta_(std::move(chunkMeta))
+    , SchemaIdMapping_(BuildSchemaIdMapping(columnFilter, ChunkMeta_))
     , MemoryPool_(TVersionedChunkReaderPoolTag())
     , PerformanceCounters_(std::move(performanceCounters))
 {
-    YCHECK(CachedChunkMeta_->Misc().sorted());
-    YCHECK(EChunkType(CachedChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
-    YCHECK(ETableChunkFormat(CachedChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedSimple);
+    YCHECK(ChunkMeta_->Misc().sorted());
+    YCHECK(EChunkType(ChunkMeta_->ChunkMeta().type()) == EChunkType::Table);
+    YCHECK(ETableChunkFormat(ChunkMeta_->ChunkMeta().version()) == ETableChunkFormat::VersionedSimple);
     YCHECK(Timestamp_ != AllCommittedTimestamp || columnFilter.All);
     YCHECK(PerformanceCounters_);
-
-    if (columnFilter.All) {
-        SchemaIdMapping_ = CachedChunkMeta_->SchemaIdMapping();
-    } else {
-        SchemaIdMapping_.reserve(CachedChunkMeta_->SchemaIdMapping().size());
-        int keyColumnCount = static_cast<int>(CachedChunkMeta_->KeyColumns().size());
-        for (auto index : columnFilter.Indexes) {
-            if (index < keyColumnCount) {
-                continue;
-            }
-
-            for (const auto& mapping : CachedChunkMeta_->SchemaIdMapping()) {
-                if (mapping.ReaderSchemaIndex == index) {
-                    SchemaIdMapping_.push_back(mapping);
-                    break;
-                }
-            }
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -214,8 +250,8 @@ bool TVersionedRangeChunkReader::Read(std::vector<TVersionedRow>* rows)
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockSequence()
 {
-    const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
-    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
+    const auto& blockMetaExt = ChunkMeta_->BlockMeta();
+    const auto& blockIndexKeys = ChunkMeta_->BlockIndexKeys();
 
     CurrentBlockIndex_ = std::max(
         ApplyLowerRowLimit(blockMetaExt, LowerLimit_),
@@ -246,16 +282,16 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedRangeChunkReader::GetBlockS
 void TVersionedRangeChunkReader::InitFirstBlock()
 {
     CheckBlockUpperLimits(
-        CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
         UpperLimit_,
-        CachedChunkMeta_->GetKeyColumnCount());
+        ChunkMeta_->GetKeyColumnCount());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
-        CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-        CachedChunkMeta_->ChunkSchema(),
-        CachedChunkMeta_->GetChunkKeyColumnCount(),
-        CachedChunkMeta_->GetKeyColumnCount(),
+        ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        ChunkMeta_->ChunkSchema(),
+        ChunkMeta_->GetChunkKeyColumnCount(),
+        ChunkMeta_->GetKeyColumnCount(),
         SchemaIdMapping_,
         Timestamp_));
 
@@ -276,21 +312,19 @@ void TVersionedRangeChunkReader::InitNextBlock()
     ++CurrentBlockIndex_;
 
     CheckBlockUpperLimits(
-        CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
         UpperLimit_,
-        CachedChunkMeta_->GetKeyColumnCount());
+        ChunkMeta_->GetKeyColumnCount());
 
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
-        CachedChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
-        CachedChunkMeta_->ChunkSchema(),
-        CachedChunkMeta_->GetChunkKeyColumnCount(),
-        CachedChunkMeta_->GetKeyColumnCount(),
+        ChunkMeta_->BlockMeta().blocks(CurrentBlockIndex_),
+        ChunkMeta_->ChunkSchema(),
+        ChunkMeta_->GetChunkKeyColumnCount(),
+        ChunkMeta_->GetKeyColumnCount(),
         SchemaIdMapping_,
         Timestamp_));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
@@ -303,6 +337,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp)
 {
+    // TODO(babenko): consider using CraeteReaderForFormat
     auto formatVersion = ETableChunkFormat(chunkMeta->ChunkMeta().version());
     switch (formatVersion) {
         case ETableChunkFormat::VersionedSimple:
@@ -376,8 +411,8 @@ TVersionedLookupChunkReader::TVersionedLookupChunkReader(
 
 std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlockSequence()
 {
-    const auto& blockMetaExt = CachedChunkMeta_->BlockMeta();
-    const auto& blockIndexKeys = CachedChunkMeta_->BlockIndexKeys();
+    const auto& blockMetaExt = ChunkMeta_->BlockMeta();
+    const auto& blockIndexKeys = ChunkMeta_->BlockIndexKeys();
 
     std::vector<TSequentialReader::TBlockInfo> blocks;
     if (Keys_.Empty()) {
@@ -387,8 +422,8 @@ std::vector<TSequentialReader::TBlockInfo> TVersionedLookupChunkReader::GetBlock
     for (int keyIndex = 0; keyIndex < Keys_.Size(); ++keyIndex) {
         auto& key = Keys_[keyIndex];
 #if 0
-        //FIXME use bloom filter here.
-        if (!CachedChunkMeta_->KeyFilter().Contains(key)) {
+        //FIXME(savrus): use bloom filter here.
+        if (!ChunkMeta_->KeyFilter().Contains(key)) {
             KeyFilterTest_[keyIndex] = false;
             continue;
         }
@@ -430,10 +465,10 @@ void TVersionedLookupChunkReader::InitNextBlock()
     int chunkBlockIndex = BlockIndexes_ [CurrentBlockIndex_];
     BlockReader_.reset(new TSimpleVersionedBlockReader(
         SequentialReader_->GetCurrentBlock(),
-        CachedChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
-        CachedChunkMeta_->ChunkSchema(),
-        CachedChunkMeta_->GetChunkKeyColumnCount(),
-        CachedChunkMeta_->GetKeyColumnCount(),
+        ChunkMeta_->BlockMeta().blocks(chunkBlockIndex),
+        ChunkMeta_->ChunkSchema(),
+        ChunkMeta_->GetChunkKeyColumnCount(),
+        ChunkMeta_->GetKeyColumnCount(),
         SchemaIdMapping_,
         Timestamp_));
 }
@@ -503,8 +538,6 @@ bool TVersionedLookupChunkReader::Read(std::vector<TVersionedRow>* rows)
     return true;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
@@ -521,6 +554,309 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         std::move(chunkReader),
         std::move(blockCache),
         keys,
+        columnFilter,
+        std::move(performanceCounters),
+        timestamp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCachedBasedVersionedChunkReaderPoolTag
+{ };
+
+class TCacheBasedVersionedChunkReaderBase
+    : public IVersionedReader
+{
+public:
+    TCacheBasedVersionedChunkReaderBase(
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        IBlockCachePtr blockCache,
+        const TColumnFilter& columnFilter,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        TTimestamp timestamp)
+        : ChunkMeta_(std::move(chunkMeta))
+        , BlockCache_(std::move(blockCache))
+        , PerformanceCounters_(std::move(performanceCounters))
+        , Timestamp_(timestamp)
+        , SchemaIdMapping_(BuildSchemaIdMapping(columnFilter, ChunkMeta_))
+        , MemoryPool_(TCachedBasedVersionedChunkReaderPoolTag())
+    { }
+
+    virtual TFuture<void> Open() override
+    {
+        return VoidFuture;
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        YUNREACHABLE();
+    }
+
+    virtual bool Read(std::vector<TVersionedRow>* rows) override
+    {
+        MemoryPool_.Clear();
+        UncompressedBlocks_.clear();
+        rows->clear();
+
+        if (Finished_) {
+            return false;
+        }
+
+        Finished_ = !DoRead(rows);
+
+        return true;
+    }
+
+protected:
+    const TCachedVersionedChunkMetaPtr ChunkMeta_;
+    const IBlockCachePtr BlockCache_;
+    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
+    const TTimestamp Timestamp_;
+
+    const std::vector<TColumnIdMapping> SchemaIdMapping_;
+
+    //! Holds row values for the returned rows.
+    TChunkedMemoryPool MemoryPool_;
+
+    //! Holds uncompressed blocks for the returned rows (for string references).
+    std::vector<TSharedRef> UncompressedBlocks_;
+
+
+    //! Returns |false| on EOF.
+    virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
+
+    //! Returns -1 if #key is out of chunk's range.
+    int GetBlockIndex(TKey key)
+    {
+        const auto& blockIndexKeys = ChunkMeta_->BlockIndexKeys();
+
+        typedef decltype(blockIndexKeys.end()) TIter;
+        auto rbegin = std::reverse_iterator<TIter>(blockIndexKeys.end());
+        auto rend = std::reverse_iterator<TIter>(blockIndexKeys.begin());
+        auto it = std::upper_bound(
+            rbegin,
+            rend,
+            key,
+            [] (TKey pivot, const TOwningKey& indexKey) {
+                return pivot > indexKey.Get();
+            });
+
+        return it == rend ? 0 : std::distance(it, rend);
+    }
+
+    TSharedRef CaptureUncompressedBlock(int blockIndex)
+    {
+        auto uncompressedBlock = GetUncompressedBlock(blockIndex);
+        UncompressedBlocks_.push_back(uncompressedBlock);
+        return uncompressedBlock;
+    }
+
+private:
+    bool Finished_ = false;
+
+    TSharedRef GetUncompressedBlock(int blockIndex)
+    {
+        TBlockId blockId(ChunkMeta_->GetChunkId(), blockIndex);
+
+        auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
+        if (uncompressedBlock) {
+            return uncompressedBlock;
+        }
+
+        auto compressedBlock = BlockCache_->Find(blockId, EBlockType::CompressedData);
+        if (compressedBlock) {
+            auto codecId = NCompression::ECodec(ChunkMeta_->Misc().compression_codec());
+            auto* codec = NCompression::GetCodec(codecId);
+            return codec->Decompress(compressedBlock);
+        }
+
+        LOG_FATAL("Cached block is missing (BlockId: %v)", blockId);
+        YUNREACHABLE();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TBlockReader>
+class TCacheBasedVersionedLookupChunkReader
+    : public TCacheBasedVersionedChunkReaderBase
+{
+public:
+    TCacheBasedVersionedLookupChunkReader(
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        IBlockCachePtr blockCache,
+        const TSharedRange<TKey>& keys,
+        const TColumnFilter& columnFilter,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        TTimestamp timestamp)
+        : TCacheBasedVersionedChunkReaderBase(
+            std::move(chunkMeta),
+            std::move(blockCache),
+            columnFilter,
+            std::move(performanceCounters),
+            timestamp)
+        , Keys_(keys)
+    { }
+
+private:
+    const TSharedRange<TKey> Keys_;
+
+
+    virtual bool DoRead(std::vector<TVersionedRow>* rows) override
+    {
+        for (auto key : Keys_) {
+            rows->push_back(Lookup(key));
+        }
+        return false;
+    }
+
+    TVersionedRow Lookup(TKey key)
+    {
+        //FIXME(savrus): use bloom filter here.
+
+        ++PerformanceCounters_->StaticChunkRowLookupCount;
+
+        if (key < ChunkMeta_->MinKey().Get() || key > ChunkMeta_->MaxKey().Get()) {
+            return TVersionedRow();
+        }
+
+        int blockIndex = GetBlockIndex(key);
+        auto uncompressedBlock = CaptureUncompressedBlock(blockIndex);
+
+        TBlockReader blockReader(
+            std::move(uncompressedBlock),
+            ChunkMeta_->BlockMeta().blocks(blockIndex),
+            ChunkMeta_->ChunkSchema(),
+            ChunkMeta_->GetChunkKeyColumnCount(),
+            ChunkMeta_->GetKeyColumnCount(),
+            SchemaIdMapping_,
+            Timestamp_);
+
+        if (!blockReader.SkipToKey(key) || blockReader.GetKey() != key) {
+            ++PerformanceCounters_->StaticChunkRowLookupFalsePositiveCount;
+            return TVersionedRow();
+        }
+
+        return blockReader.GetRow(&MemoryPool_);
+    }
+
+};
+
+IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    IBlockCachePtr blockCache,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TSharedRange<TKey>& keys,
+    const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    TTimestamp timestamp)
+{
+    return CreateReaderForFormat<TCacheBasedVersionedLookupChunkReader>(
+        ETableChunkFormat(chunkMeta->ChunkMeta().version()),
+        std::move(chunkMeta),
+        std::move(blockCache),
+        keys,
+        columnFilter,
+        std::move(performanceCounters),
+        timestamp);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TBlockReader>
+class TCacheBasedVersionedRangeChunkReader
+    : public TCacheBasedVersionedChunkReaderBase
+{
+public:
+    TCacheBasedVersionedRangeChunkReader(
+        TCachedVersionedChunkMetaPtr chunkMeta,
+        IBlockCachePtr blockCache,
+        TOwningKey lowerBound,
+        TOwningKey upperBound,
+        const TColumnFilter& columnFilter,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        TTimestamp timestamp)
+        : TCacheBasedVersionedChunkReaderBase(
+            std::move(chunkMeta),
+            std::move(blockCache),
+            columnFilter,
+            std::move(performanceCounters),
+            timestamp)
+        , LowerBound_(std::move(lowerBound))
+        , UpperBound_(std::move(upperBound))
+    { }
+
+private:
+    const TOwningKey LowerBound_;
+    const TOwningKey UpperBound_;
+
+    int BlockIndex_ = -1;
+    std::unique_ptr<TBlockReader> BlockReader_;
+
+
+    virtual bool DoRead(std::vector<TVersionedRow>* rows) override
+    {
+        if (BlockIndex_ < 0) {
+            // First read, not initialized yet.
+            if (LowerBound_ > ChunkMeta_->MaxKey().Get()) {
+                return false;
+            }
+
+            BlockIndex_ = GetBlockIndex(LowerBound_.Get());
+            CreateBlockReader();
+
+            if (!BlockReader_->SkipToKey(LowerBound_.Get())) {
+                return false;
+            }
+        }
+
+        while (BlockReader_->GetKey() < UpperBound_.Get() && rows->size() < rows->capacity()) {
+            ++PerformanceCounters_->StaticChunkRowReadCount;
+
+            auto row = BlockReader_->GetRow(&MemoryPool_);
+            rows->push_back(row);
+
+            if (!BlockReader_->NextRow()) {
+                // End-of-block.
+                if (++BlockIndex_ >= ChunkMeta_->BlockMeta().blocks_size()) {
+                    // End-of-chunk.
+                    return false;
+                }
+                CreateBlockReader();
+            }
+        }
+
+        return true;
+    }
+
+    void CreateBlockReader()
+    {
+        auto uncompressedBlock = CaptureUncompressedBlock(BlockIndex_);
+        BlockReader_ = std::make_unique<TBlockReader>(
+            std::move(uncompressedBlock),
+            ChunkMeta_->BlockMeta().blocks(BlockIndex_),
+            ChunkMeta_->ChunkSchema(),
+            ChunkMeta_->GetChunkKeyColumnCount(),
+            ChunkMeta_->GetKeyColumnCount(),
+            SchemaIdMapping_,
+            Timestamp_);
+    }
+};
+
+IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    IBlockCachePtr blockCache,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    TOwningKey lowerBound,
+    TOwningKey upperBound,
+    const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    TTimestamp timestamp)
+{
+    return CreateReaderForFormat<TCacheBasedVersionedRangeChunkReader>(
+        ETableChunkFormat(chunkMeta->ChunkMeta().version()),
+        std::move(chunkMeta),
+        std::move(blockCache),
+        std::move(lowerBound),
+        std::move(upperBound),
         columnFilter,
         std::move(performanceCounters),
         timestamp);

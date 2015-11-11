@@ -26,6 +26,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates a versioned chunk reader for a given range of rows.
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
@@ -40,9 +41,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 //! Creates a versioned chunk reader for a given set of keys.
 /*!
  *  Number of rows readable via this reader is equal to the number of passed keys.
- *  NB! Some rows may be null, if coresponding key is absent.
- *
- * \param keys A sorted vector of keys to be read. Caller must ensure key liveness during the reader lifetime.
+ *  If some key is missing, a null row is returned for it.
 */
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
@@ -50,6 +49,31 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     NChunkClient::IBlockCachePtr blockCache,
     TCachedVersionedChunkMetaPtr chunkMeta,
     const TSharedRange<TKey>& keys,
+    const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    TTimestamp timestamp = SyncLastCommittedTimestamp);
+
+//! Same as CreateVersionedChunkReader but only suitable for in-memory tables
+//! since it relies on block cache to retrieve chunk blocks.
+/*!
+ *  For each block #blockCache must be able for provide either a compressed
+ *  or uncompressed version.
+ *
+ *  The implementation is (kind of) highly optimized :)
+ */
+IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    NChunkClient::IBlockCachePtr blockCache,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    const TSharedRange<TKey>& keys,
+    const TColumnFilter& columnFilter,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    TTimestamp timestamp = SyncLastCommittedTimestamp);
+
+IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
+    NChunkClient::IBlockCachePtr blockCache,
+    TCachedVersionedChunkMetaPtr chunkMeta,
+    TOwningKey lowerBound,
+    TOwningKey upperBound,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
