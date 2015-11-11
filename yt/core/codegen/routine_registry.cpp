@@ -7,10 +7,26 @@ namespace NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// MangleSymbol adds underscore for Darwin platform.
 Stroka MangleSymbol(const Stroka& name)
 {
 #ifdef _darwin_
     return "_" + name;
+#else
+    return name;
+#endif
+}
+
+// DemangleSymbol strips the prefixed underscore on Darwin,
+// returns empty string in case of non-prefixed name.
+Stroka DemangleSymbol(const Stroka& name)
+{
+#ifdef _darwin_
+    if (name.empty() || name[0] != '_') {
+        return Stroka();
+    } else {
+        return name.substr(1);
+    }
 #else
     return name;
 #endif

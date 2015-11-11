@@ -90,7 +90,7 @@ using NScheduler::NProto::TUserJobSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
+#ifdef _unix_
 
 static const int JobStatisticsFD = 5;
 static const char* CGroupPrefix = "user_jobs/yt-job-";
@@ -748,6 +748,7 @@ private:
 
     void PrepareCGroups()
     {
+#ifdef _linux_
         if (!Config_->EnableCGroups) {
             return;
         }
@@ -779,6 +780,7 @@ private:
         } catch (const std::exception& ex) {
             LOG_FATAL(ex, "Failed to create required cgroups");
         }
+#endif
     }
 
     void AddCustomStatistics(const INodePtr& sample)

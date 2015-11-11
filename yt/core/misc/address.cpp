@@ -128,7 +128,7 @@ const sockaddr* TNetworkAddress::GetSockAddr() const
 socklen_t TNetworkAddress::GetGenericLength(const sockaddr& sockAddr)
 {
     switch (sockAddr.sa_family) {
-#ifdef _linux_
+#ifdef _unix_
         case AF_UNIX:
             return sizeof (sockaddr_un);
 #endif
@@ -207,7 +207,7 @@ Stroka ToString(const TNetworkAddress& address, bool withPort)
     int port = 0;
     bool ipv6 = false;
     switch (sockAddr->sa_family) {
-#ifdef _linux_
+#ifdef _unix_
         case AF_UNIX: {
             const auto* typedAddr = reinterpret_cast<const sockaddr_un*>(sockAddr);
             return typedAddr->sun_path[0] == 0

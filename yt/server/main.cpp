@@ -43,7 +43,7 @@
 
 #include <contrib/tclap/tclap/CmdLine.h>
 
-#ifdef _linux_
+#ifdef _unix_
     #include <sys/resource.h>
 #endif
 
@@ -85,10 +85,12 @@ public:
         , Scheduler("", "scheduler", "start scheduler")
         , JobProxy("", "job-proxy", "start job proxy")
         , JobId("", "job-id", "job id (for job proxy mode)", false, "", "ID")
-#ifdef _linux_
+#ifdef _unix_
         , Tool("", "tool", "tool id", false, "", "ID")
         , Spec("", "spec", "tool spec", false, "", "SPEC")
+#ifdef _linux_
         , CGroups("", "cgroup", "run in cgroup", false, "")
+#endif
         , Executor("", "executor", "start a user job")
         , PreparePipes("", "prepare-pipe", "prepare pipe descriptor  (for executor mode)", false, "FD")
         , EnableCoreDump("", "enable-core-dump", "enable core dump (for executor mode)")
@@ -107,10 +109,12 @@ public:
         CmdLine.add(Scheduler);
         CmdLine.add(JobProxy);
         CmdLine.add(JobId);
-#ifdef _linux_
+#ifdef _unix_
         CmdLine.add(Tool);
         CmdLine.add(Spec);
+#ifdef _linux_
         CmdLine.add(CGroups);
+#endif
         CmdLine.add(Executor);
         CmdLine.add(PreparePipes);
         CmdLine.add(EnableCoreDump);
@@ -133,10 +137,12 @@ public:
     TCLAP::SwitchArg JobProxy;
     TCLAP::ValueArg<Stroka> JobId;
 
-#ifdef _linux_
+#ifdef _unix_
     TCLAP::ValueArg<Stroka> Tool;
     TCLAP::ValueArg<Stroka> Spec;
+#ifdef _linux_
     TCLAP::MultiArg<Stroka> CGroups;
+#endif
     TCLAP::SwitchArg Executor;
     TCLAP::MultiArg<int> PreparePipes;
     TCLAP::SwitchArg EnableCoreDump;
@@ -167,7 +173,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
     bool isScheduler = parser.Scheduler.getValue();
     bool isJobProxy = parser.JobProxy.getValue();
 
-#ifdef _linux_
+#ifdef _unix_
     Stroka toolName = parser.Tool.getValue();
     bool isExecutor = parser.Executor.getValue();
 #endif
@@ -198,7 +204,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         ++modeCount;
     }
 
-#ifdef _linux_
+#ifdef _unix_
     if (!toolName.Empty()) {
         ++modeCount;
     }
@@ -221,7 +227,7 @@ EExitCode GuardedMain(int argc, const char* argv[])
         CreateStderrFile("stderr");
     }
 
-#ifdef _linux_
+#ifdef _unix_
     if (!toolName.Empty()) {
         NYson::TYsonString spec(parser.Spec.getValue());
         auto result = ExecuteTool(toolName, spec);
@@ -291,7 +297,9 @@ EExitCode GuardedMain(int argc, const char* argv[])
             LOG_WARNING("CGroups are explicitely disabled in config; ignoring --cgroup parameter");
         }
     }
+#endif
 
+#ifdef _unix_
     if (isExecutor) {
         TThread::CurrentThreadSetName("ExecutorMain");
 
@@ -317,7 +325,11 @@ EExitCode GuardedMain(int argc, const char* argv[])
             // Set unprivileged uid and gid for user process.
             YCHECK(setuid(0) == 0);
 
+#ifdef _linux_
             YCHECK(setresgid(uid, uid, uid) == 0);
+#else
+            YCHECK(setgid(uid) == 0);
+#endif
             YCHECK(setuid(uid) == 0);
         }
 
@@ -441,15 +453,25 @@ EExitCode Main(int argc, const char* argv[])
 
     signal(SIGPIPE, SIG_IGN);
 
-#ifndef _darwin_
-    uid_t ruid, euid, suid;
+    uid_t ruid, euid;
+#ifdef _linux_
+    uid_t suid;
     YCHECK(getresuid(&ruid, &euid, &suid) == 0);
+#else
+    ruid = getuid();
+    euid = geteuid();
+#endif
     if (euid == 0) {
         // if effective uid == 0 (e. g. set-uid-root), make
         // saved = effective, effective = real
+#ifdef _linux_
         YCHECK(setresuid(ruid, ruid, euid) == 0);
+#else
+        YCHECK(setuid(euid) == 0);
+        YCHECK(seteuid(ruid) == 0);
+        YCHECK(setruid(ruid) == 0);
+#endif
     }
-#endif /* ! _darwin_ */
 #endif /* _unix_ */
 
     EExitCode exitCode;

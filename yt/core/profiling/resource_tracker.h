@@ -11,7 +11,7 @@ namespace NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if !defined(_win_) && !defined(_darwin_)
+#ifdef _linux_
     #define RESOURCE_TRACKER_ENABLED
 #endif
 
