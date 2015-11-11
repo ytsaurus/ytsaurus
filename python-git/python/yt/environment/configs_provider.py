@@ -442,6 +442,7 @@ class ConfigsProvider_18(ConfigsProvider):
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
         proxy_config = _generate_common_proxy_config(proxy_dir, proxy_port, self.enable_debug_logging)
+        proxy_config["proxy"]["fqdn"] = "localhost"
         proxy_config["proxy"]["driver"] = driver_config
 
         return proxy_config
