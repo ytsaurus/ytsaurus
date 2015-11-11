@@ -132,7 +132,6 @@ protected:
             TWireProtocolReader reader(request);
             TWireProtocolWriter writer;
             LookupRows(
-                GetSyncInvoker(),
                 Tablet_->RebuildSnapshot(),
                 timestamp,
                 &reader,

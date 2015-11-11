@@ -1342,7 +1342,6 @@ private:
         switch (command) {
             case EWireProtocolCommand::LookupRows:
                 LookupRows(
-                    Bootstrap_->GetBoundedConcurrencyReadPoolInvoker(),
                     std::move(tabletSnapshot),
                     timestamp,
                     reader,

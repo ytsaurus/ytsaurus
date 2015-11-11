@@ -41,7 +41,6 @@ class TLookupSession
 public:
     TLookupSession()
         : MemoryPool_(TLookupPoolTag())
-        , RunCallback_(BIND(&TLookupSession::DoRun, this))
     { }
 
     void Prepare(
@@ -71,19 +70,13 @@ public:
         LookupKeys_ = reader->ReadUnversionedRowset();
     }
 
-    TFutureHolder<void> Run(
-        IInvokerPtr invoker,
-        TWireProtocolWriter* writer)
+    TFutureHolder<void> Run(TWireProtocolWriter* writer)
     {
-        if (invoker) {
-            return RunCallback_.AsyncVia(invoker).Run(writer);
-        } else {
-            try {
-                RunCallback_.Run(writer);
-                return VoidFuture;
-            } catch (const std::exception& ex) {
-                return MakeFuture(TError(ex));
-            }
+        try {
+            DoRun(writer);
+            return VoidFuture;
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex));
         }
     }
 
@@ -143,8 +136,6 @@ private:
     int KeyColumnCount_;
     int SchemaColumnCount_;
     TColumnFilter ColumnFilter_;
-
-    TCallback<void(TWireProtocolWriter* writer)> RunCallback_;
 
 
     void CreateReadSessions(
@@ -259,7 +250,6 @@ namespace NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 void LookupRows(
-    IInvokerPtr poolInvoker,
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     TWireProtocolReader* reader,
@@ -273,7 +263,7 @@ void LookupRows(
         session->GetLookupKeys().Size(),
         session.get());
 
-    auto resultHolder = session->Run(std::move(poolInvoker), writer);
+    auto resultHolder = session->Run(writer);
     return WaitFor(resultHolder.Get())
         .ThrowOnError();
 }
