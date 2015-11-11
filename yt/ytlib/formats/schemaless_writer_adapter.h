@@ -46,7 +46,7 @@ protected:
 
     TOutputStream* GetOutputStream();
 
-    void TryFlushBuffer();
+    void TryFlushBuffer(bool force);
 
     virtual void DoWrite(const std::vector<NTableClient::TUnversionedRow> &rows) = 0;
 
@@ -59,7 +59,7 @@ private:
     TError Error_;
     NTableClient::TNameTablePtr NameTable_;
 
-    void DoFlushBuffer(bool force);
+    void DoFlushBuffer();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
