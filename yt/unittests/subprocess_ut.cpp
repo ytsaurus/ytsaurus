@@ -14,11 +14,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
+#ifdef _unix_
 
 TEST(TSubprocessTest, Basic)
 {
-    TSubprocess subprocess("/bin/true");
+    TSubprocess subprocess("/bin/sh");
+
+    subprocess.AddArgument("-c");
+    subprocess.AddArgument("true");
 
     auto result = subprocess.Execute();
     EXPECT_TRUE(result.Status.IsOK());

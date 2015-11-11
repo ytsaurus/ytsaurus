@@ -12,10 +12,13 @@
 #include <array>
 
 // For GetAvaibaleSpace().
-#if defined(_linux_)
-    #include <sys/vfs.h>
+#ifdef _unix_
     #include <sys/stat.h>
     #include <fcntl.h>
+#endif
+
+#if defined(_linux_)
+    #include <sys/vfs.h>
 #elif defined(_freebsd_) || defined(_darwin_)
     #include <sys/param.h>
     #include <sys/mount.h>
@@ -411,7 +414,7 @@ Stroka GetHomePath()
 
 void FlushDirectory(const Stroka& path)
 {
-#ifdef _linux_
+#ifdef _unix_
     int fd = ::open(~path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if (fd < 0) {
         THROW_ERROR_EXCEPTION("Failed to open directory %v", path)

@@ -23,12 +23,12 @@ include_directories(
   ${PYTHON_INCLUDE_DIR}
 )
 
-add_library( yt-driver-python SHARED
+add_library( yt-driver-python MODULE
   ${CMAKE_CURRENT_LIST_DIR}/driver.cpp
   ${SRCS}
 )
 
-add_library( yt-yson-python SHARED
+add_library( yt-yson-python MODULE
   ${CMAKE_CURRENT_LIST_DIR}/yson.cpp
   ${SRCS}
 )
@@ -49,7 +49,9 @@ target_link_libraries( yt-yson-python
 
 set( PYTHON_LINK_FLAGS "-static-libstdc++" )
 
-if (NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
+if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/linker.map.darwin" )
+else()
   set( PYTHON_LINK_FLAGS "${PYTHON_LINK_FLAGS} -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/linker.map" )
 endif()
 
@@ -65,12 +67,12 @@ set_target_properties( yt-yson-python
 
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${CMAKE_BINARY_DIR}/lib/libyt-driver-python.so
-  ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/driver_lib.so
+  ${CMAKE_BINARY_DIR}/lib/libyt-driver-python${CMAKE_SHARED_MODULE_SUFFIX}
+  ${CMAKE_SOURCE_DIR}/python/yt_driver_bindings/driver_lib${CMAKE_SHARED_MODULE_SUFFIX}
 )
 
 exec_program(
   ${CMAKE_COMMAND} ARGS -E create_symlink
-  ${CMAKE_BINARY_DIR}/lib/libyt-yson-python.so
-  ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/yson_lib.so
+  ${CMAKE_BINARY_DIR}/lib/libyt-yson-python${CMAKE_SHARED_MODULE_SUFFIX}
+  ${CMAKE_SOURCE_DIR}/python/yt_yson_bindings/yson_lib${CMAKE_SHARED_MODULE_SUFFIX}
 )

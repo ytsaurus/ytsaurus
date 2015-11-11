@@ -212,7 +212,7 @@ void DumpSignalInfo(int signal, siginfo_t* si)
     formatter.AppendNumber((uintptr_t)pthread_self(), 16);
     formatter.AppendString(") ");
     // Only linux has the PID of the signal sender in si_pid.
-#ifdef _linux_
+#ifdef _unix_
     formatter.AppendString("from PID ");
     formatter.AppendNumber(si->si_pid);
     formatter.AppendString(" ");

@@ -228,10 +228,19 @@ public:
         auto requestId = FromProto<TRequestId>(header->request_id());
         auto requestControlThunk = New<TClientRequestControlThunk>();
 
+        IClientRequestControlPtr existingRequestControl;
         {
             TGuard<TSpinLock> guard(SpinLock_);
             // NB: We're OK with duplicate request ids.
-            ActiveRequestMap_.insert(std::make_pair(requestId, requestControlThunk));
+            auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControlThunk));
+            if (!pair.second) {
+                existingRequestControl = pair.first->second;
+                pair.first->second = requestControlThunk;
+            }
+        }
+
+        if (existingRequestControl) {
+            existingRequestControl->Cancel();
         }
 
         auto requestControl = DoRedirectServiceRequest(

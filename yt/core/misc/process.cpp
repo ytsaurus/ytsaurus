@@ -10,7 +10,7 @@
 
 #include <util/system/execpath.h>
 
-#ifndef _win_
+#ifdef _unix_
   #include <unistd.h>
   #include <errno.h>
   #include <sys/wait.h>
@@ -35,7 +35,7 @@ static const pid_t InvalidProcessId = -1;
 
 namespace {
 
-#ifdef _linux_
+#ifdef _unix_
 
 bool TryKill(int pid, int signal)
 {
@@ -51,7 +51,9 @@ bool TryWaitid(idtype_t idtype, id_t id, siginfo_t* infop, int options)
             infop->si_pid = 0;
         }
 
-        auto res = ::waitid(idtype, id, infop, options);
+        siginfo_t info;
+        ::memset(&info, 0, sizeof(info));
+        auto res = ::waitid(idtype, id, infop != nullptr ? infop : &info, options);
 
         if (res == 0) {
             // According to man wait.
@@ -221,7 +223,7 @@ Stroka TProcess::GetPath() const
 
 void TProcess::Spawn()
 {
-#ifdef _linux_
+#ifdef _unix_
     YCHECK(ProcessId_ == InvalidProcessId && !Finished_);
 
     // Make sure no spawn action closes Pipe_.WriteFD
@@ -289,7 +291,7 @@ void TProcess::Spawn()
 
 void TProcess::SpawnChild()
 {
-#ifdef _linux_
+#ifdef _unix_
     int pid = vfork();
 
     if (pid < 0) {
@@ -315,7 +317,7 @@ void TProcess::SpawnChild()
 
 void TProcess::ValidateSpawnResult()
 {
-#ifdef _linux_
+#ifdef _unix_
     int data[2];
     int res = ::read(Pipe_.GetReadFD(), &data, sizeof(data));
     Pipe_.CloseReadFD();
@@ -352,7 +354,7 @@ void TProcess::ValidateSpawnResult()
 #endif
 }
 
-#ifdef _linux_
+#ifdef _unix_
 TError ProcessInfoToError(const siginfo_t& processInfo)
 {
     int signalBase = static_cast<int>(EExitStatus::SignalBase);
@@ -378,7 +380,7 @@ TError ProcessInfoToError(const siginfo_t& processInfo)
 
 TError TProcess::Wait()
 {
-#ifdef _linux_
+#ifdef _unix_
     YCHECK(ProcessId_ != InvalidProcessId);
     LOG_DEBUG("Waiting for child process to finish (Pid: %v)", ProcessId_);
 
@@ -407,7 +409,7 @@ TError TProcess::Wait()
 
 void TProcess::Kill(int signal)
 {
-#ifdef _linux_
+#ifdef _unix_
     LOG_DEBUG("Killing child process (Pid: %v)", ProcessId_);
 
     TGuard<TSpinLock> guard(LifecycleChangeLock_);
@@ -490,7 +492,7 @@ char* TProcess::Capture(TStringBuf arg)
 
 void TProcess::Child()
 {
-#ifdef _linux_
+#ifdef _unix_
     for (int actionIndex = 0; actionIndex < SpawnActions_.size(); ++actionIndex) {
         auto& action = SpawnActions_[actionIndex];
         if (!action.Callback()) {

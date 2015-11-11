@@ -84,6 +84,17 @@ public:
             + "-elf"
 #endif
         );
+#ifdef _darwin_
+        // Modules generated with Clang contain macosx10.11.0 OS signature,
+        // whereas LLVM modules contains darwin15.0.0.
+        // So we rebuild triple to match with Clang object files.
+        auto triple = llvm::Triple(hostTriple);
+        unsigned Maj, Min, Rev;
+        triple.getMacOSXVersion(Maj, Min, Rev);
+        auto osName = llvm::Twine(Format("macosx%d.%d.%d", Maj, Min, Rev));
+        auto fixedTriple = llvm::Triple(triple.getArchName(), triple.getVendorName(), osName);
+        hostTriple = llvm::Triple::normalize(fixedTriple.getTriple());
+#endif
 
         // Create module.
         auto module = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
@@ -240,6 +251,8 @@ private:
                 return "DK_InlineAsm";
             case llvm::DK_StackSize:
                 return "DK_StackSize";
+            case llvm::DK_Linker:
+                return "DK_Linker";
             case llvm::DK_DebugMetadataVersion:
                 return "DK_DebugMetadataVersion";
             case llvm::DK_SampleProfile:

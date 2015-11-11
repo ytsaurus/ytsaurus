@@ -64,6 +64,7 @@ void TWriteFileCommand::Execute(ICommandContextPtr context)
         GetOptions());
 
     Options.Config = std::move(config);
+    Options.Append = Path.GetAppend();
 
     auto writer = context->GetClient()->CreateFileWriter(
         Path.GetPath(),

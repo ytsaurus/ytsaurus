@@ -85,12 +85,14 @@ public:
             WorkingDirectory
         });
 
+#ifdef _linux_
         for (const auto& path : Slot.GetCGroupPaths()) {
             Process.AddArguments({
                 "--cgroup",
                 path
             });
         }
+#endif
 
         LOG_INFO("Spawning a job proxy (Path: %v)", ProxyPath);
 

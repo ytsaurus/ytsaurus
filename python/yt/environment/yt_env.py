@@ -238,6 +238,11 @@ class YTEnv(object):
         self.pids_file.flush()
 
     def _run(self, args, name, number=1, timeout=0.1):
+        if sys.platform.startswith('linux'):
+            ctypes.cdll.LoadLibrary("libc.so.6")
+            LIBC = ctypes.CDLL('libc.so.6')
+            PR_SET_PDEATHSIG = 1
+
         with self._lock:
             if self.supress_yt_output:
                 stdout = open("/dev/null", "w")
@@ -248,11 +253,8 @@ class YTEnv(object):
 
             def preexec():
                 os.setsid()
-                PR_SET_PDEATHSIG = 1
-                if self._kill_child_processes:
-                    result = cdll['libc.so.6'].prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
-                    if result != 0:
-                        raise YtError("Prctl failed with error code {}".format(result))
+                if sys.platform.startswith('linux'):
+                    LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
             p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path_to_run,
                                  stdout=stdout, stderr=stderr)
@@ -278,11 +280,12 @@ class YTEnv(object):
                 "ytserver", "--" + service_name,
                 "--config", self.config_paths[name][i]
             ]
-            if service_name == "node":
-                user_name = getpass.getuser()
-                for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
-                    cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/node{2}".format(type_, user_name, i)
-                    command.extend(["--cgroup", cgroup_path])
+            if sys.platform.startswith('linux'):
+                if service_name == "node":
+                    user_name = getpass.getuser()
+                    for type_ in ["cpuacct", "cpu", "blkio", "memory", "freezer"]:
+                        cgroup_path = "/sys/fs/cgroup/{0}/{1}/yt/node{2}".format(type_, user_name, i)
+                        command.extend(["--cgroup", cgroup_path])
             self._run(command, name, i)
 
     def _kill_previously_run_services(self):

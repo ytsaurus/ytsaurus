@@ -494,6 +494,7 @@ TEST_F(TRpcTest, ProtocolVersionMismatch)
 
 #ifdef _linux_
 
+// TTcpBusClient creates abstract unix sockets, supported only on Linux.
 class TRpcUnixDomainTest
     : public TRpcTestBase
 {

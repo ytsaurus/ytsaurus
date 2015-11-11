@@ -112,6 +112,16 @@ class TestFiles(YTEnvSetup):
         assert get("//tmp/f/@uncompressed_data_size") == 18
         assert read_file("//tmp/f") == content + content
 
+    def test_overwrite(self):
+        content = "some_data"
+        create("file", "//tmp/f")
+        write_file("//tmp/f", content)
+        write_file("//tmp/f", content)
+
+        assert len(get("//tmp/f/@chunk_ids")) == 1
+        assert get("//tmp/f/@uncompressed_data_size") == 9
+        assert read_file("//tmp/f") == content
+
     def test_upload_inside_tx(self):
         create("file", "//tmp/f")
 
