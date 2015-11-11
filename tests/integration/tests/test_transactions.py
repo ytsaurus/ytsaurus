@@ -76,34 +76,56 @@ class TestTransactions(YTEnvSetup):
         assert get("//tmp/t1") == 0
 
     def test_nested_tx2(self):
+        set("//tmp/t", 0)
+        set("//tmp/t1", 0)
+        set("//tmp/t2", 0)
+
         tx_outer = start_transaction()
+        set("//tmp/t", 1, tx=tx_outer)
 
         tx1 = start_transaction(tx = tx_outer)
+        set("//tmp/t1", 1, tx=tx1)
+
         tx2 = start_transaction(tx = tx_outer)
+        set("//tmp/t2", 1, tx=tx2)
 
-        # can"t be committed as long there are uncommitted transactions
-        with pytest.raises(YtError): commit_transaction(tx_outer)
+        commit_transaction(tx_outer)
 
-        sleep(1)
+        gc_collect()
 
-        # an attempt to commit tx_outer aborts everything
         assert not exists("//sys/transactions/" + tx_outer)
         assert not exists("//sys/transactions/" + tx1)
         assert not exists("//sys/transactions/" + tx2)
+
+        assert get("//tmp/t") == 1
+        assert get("//tmp/t1") == 0
+        assert get("//tmp/t2") == 0
 
     def test_nested_tx3(self):
+        set("//tmp/t", 0)
+        set("//tmp/t1", 0)
+        set("//tmp/t2", 0)
+
         tx_outer = start_transaction()
+        set("//tmp/t", 1, tx=tx_outer)
 
         tx1 = start_transaction(tx = tx_outer)
-        tx2 = start_transaction(tx = tx_outer)
+        set("//tmp/t1", 1, tx=tx1)
 
-        # can be aborted..
+        tx2 = start_transaction(tx = tx_outer)
+        set("//tmp/t2", 1, tx=tx2)
+
         abort_transaction(tx_outer)
 
-        # and this aborts all nested transactions
+        gc_collect()
+
         assert not exists("//sys/transactions/" + tx_outer)
         assert not exists("//sys/transactions/" + tx1)
         assert not exists("//sys/transactions/" + tx2)
+
+        assert get("//tmp/t") == 0
+        assert get("//tmp/t1") == 0
+        assert get("//tmp/t2") == 0
 
     def test_timeout(self):
         tx = start_transaction(timeout=2000)
