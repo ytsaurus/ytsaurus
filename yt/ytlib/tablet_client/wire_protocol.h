@@ -77,7 +77,14 @@ public:
     void WriteUnversionedRow(
         const TRange<NTableClient::TUnversionedValue>& row,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+    void WriteSchemafulRow(
+        NTableClient::TUnversionedRow row,
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+
     void WriteUnversionedRowset(
+        const TRange<NTableClient::TUnversionedRow>& rowset,
+        const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+    void WriteSchemafulRowset(
         const TRange<NTableClient::TUnversionedRow>& rowset,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
     NTableClient::ISchemafulWriterPtr CreateSchemafulRowsetWriter(
@@ -102,6 +109,7 @@ class TWireProtocolReader
 {
 public:
     using TIterator = const char*;
+    using TSchemaData = std::vector<ui32>;
 
     explicit TWireProtocolReader(const TSharedRef& data);
     ~TWireProtocolReader();
@@ -122,10 +130,19 @@ public:
     void ReadMessage(::google::protobuf::MessageLite* message);
 
     NTableClient::TUnversionedRow ReadUnversionedRow();
+    NTableClient::TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData);
     TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset();
+    TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData);
 
     NTableClient::ISchemafulReaderPtr CreateSchemafulRowsetReader(
         const NTableClient::TTableSchema& schema);
+
+    static TSchemaData GetSchemaData(
+        const NTableClient::TTableSchema& schema,
+        const NTableClient::TColumnFilter& filter);
+    static TSchemaData GetSchemaData(
+        const NTableClient::TTableSchema& schema,
+        int keyColumnCount);
 
 private:
     class TImpl;

@@ -66,7 +66,10 @@ public:
 
         ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
 
-        LookupKeys_ = Reader_->ReadUnversionedRowset();
+        auto schemaData = TWireProtocolReader::GetSchemaData(
+            TabletSnapshot_->Schema,
+            TabletSnapshot_->KeyColumns.size());
+        LookupKeys_ = Reader_->ReadSchemafulRowset(schemaData);
 
         Merger_.Emplace(
             &MemoryPool_,
@@ -213,7 +216,7 @@ private:
             processSessions(EdenSessions_);
 
             auto mergedRow = Merger_->BuildMergedRow();
-            Writer_->WriteUnversionedRow(mergedRow);
+            Writer_->WriteSchemafulRow(mergedRow);
         }
     }
 };
