@@ -75,10 +75,10 @@ void TSchemalessDsvWriter::DoWrite(const std::vector<NVersionedTableClient::TUnv
         }
 
         FinalizeRow(firstValue);
-        TryFlushBuffer();
+        TryFlushBuffer(false);
     }
 
-    TryFlushBuffer();
+    TryFlushBuffer(true);
 }
 
 void TSchemalessDsvWriter::FinalizeRow(bool firstValue)
