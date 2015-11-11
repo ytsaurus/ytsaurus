@@ -291,15 +291,6 @@ private:
                 EObjectType::RackMap);
 
             auto createMasters = [&] (const TYPath& rootPath, NElection::TCellConfigPtr cellConfig) {
-                CreateNode(
-                    rootPath,
-                    transactionId,
-                    EObjectType::MapNode,
-                    BuildYsonStringFluently()
-                        .BeginMap()
-                            .Item("opaque").Value(true)
-                        .EndMap());
-
                 for (const auto& address : cellConfig->Addresses) {
                     auto addressPath = "/" + ToYPathLiteral(*address);
 
@@ -319,10 +310,36 @@ private:
                 }
             };
 
+            CreateNode(
+                "//sys/primary_masters",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
             createMasters("//sys/primary_masters", Config_->PrimaryMaster);
+
+            CreateNode(
+                "//sys/secondary_masters",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap());
+
             for (auto cellConfig : Config_->SecondaryMasters) {
                 auto cellTag = CellTagFromId(cellConfig->CellId);
-                createMasters("//sys/secondary_masters/" + ToYPathLiteral(cellTag), cellConfig);
+                auto cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
+
+                CreateNode(
+                    cellPath,
+                    transactionId,
+                    EObjectType::MapNode);
+
+                createMasters(cellPath, cellConfig);
             }
 
             CreateNode(
