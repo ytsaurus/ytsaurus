@@ -76,12 +76,14 @@ public:
     TPreloadedBlockCache(
         TChunkStorePtr owner,
         const TChunkId& chunkId,
+        int blockCount,
         EBlockType type,
         IBlockCachePtr underlyingCache)
         : Owner_(owner)
         , ChunkId_(chunkId)
         , Type_(type)
         , UnderlyingCache_(std::move(underlyingCache))
+        , Blocks_(blockCount)
     { }
 
     ~TPreloadedBlockCache()
@@ -100,6 +102,7 @@ public:
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
         YASSERT(id.ChunkId == ChunkId_);
+        YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
 
         if (type != Type_) {
             UnderlyingCache_->Put(id, type, data, source);
@@ -113,16 +116,13 @@ public:
         {
             TWriterGuard guard(SpinLock_);
 
-            if (id.BlockIndex >= Blocks_.size()) {
-                Blocks_.resize(id.BlockIndex + 1);
-            }
-
             auto& existingBlock = Blocks_[id.BlockIndex];
             if (existingBlock) {
                 YASSERT(TRef::AreBitwiseEqual(existingBlock, data));
             } else {
                 existingBlock = data;
                 DataSize_ += data.Size();
+                ++PreloadedBlockCount_;
                 owner->SetMemoryUsage(DataSize_);
             }
         }
@@ -133,13 +133,14 @@ public:
         EBlockType type) override
     {
         YASSERT(id.ChunkId == ChunkId_);
+        YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
 
         if (type != Type_) {
             return UnderlyingCache_->Find(id, type);
         }
 
-        TReaderGuard guard(SpinLock_);
-        if (id.BlockIndex < Blocks_.size()) {
+        {
+            TReaderGuard guard(SpinLock_);
             const auto& block = Blocks_[id.BlockIndex];
             if (block) {
                 return block;
@@ -163,19 +164,18 @@ public:
         {
             TWriterGuard guard(SpinLock_);
 
-            YCHECK(!Preloaded_);
-
+            YCHECK(Blocks_.size() == chunkData->Blocks.size());
             Blocks_ = std::move(chunkData->Blocks);
             DataSize_ = GetByteSize(Blocks_);
-            Preloaded_ = true;
+            PreloadedBlockCount_ = Blocks_.size();
         }
 
         owner->SetMemoryUsage(DataSize_);
     }
 
-    bool IsPreloaded() const
+    bool IsPreloadComplete() const
     {
-        return Preloaded_.load();
+        return PreloadedBlockCount_.load() == Blocks_.size();
     }
 
 private:
@@ -187,8 +187,7 @@ private:
     TReaderWriterSpinLock SpinLock_;
     std::vector<TSharedRef> Blocks_;
     i64 DataSize_ = 0;
-
-    std::atomic<bool> Preloaded_ = {false};
+    std::atomic<int> PreloadedBlockCount_ = {0};
 
 };
 
@@ -282,24 +281,20 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
     if (mode == EInMemoryMode::None) {
         PreloadState_ = EStorePreloadState::Disabled;
     } else {
-        switch (mode) {
-            case EInMemoryMode::Compressed:
-                PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-                    this,
-                    StoreId_,
-                    EBlockType::CompressedData,
-                    Bootstrap_->GetBlockCache());
-                break;
-            case EInMemoryMode::Uncompressed:
-                PreloadedBlockCache_ = New<TPreloadedBlockCache>(
-                    this,
-                    StoreId_,
-                    EBlockType::UncompressedData,
-                    Bootstrap_->GetBlockCache());
-                break;
-            default:
-                YUNREACHABLE();
-        }
+        auto blockType =
+               mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
+            /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
+
+        auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta_.extensions());
+        int blockCount = static_cast<int>(blocksExt.blocks_size());
+
+        PreloadedBlockCache_ = New<TPreloadedBlockCache>(
+            this,
+            StoreId_,
+            blockCount,
+            blockType,
+            Bootstrap_->GetBlockCache());
+
         switch (PreloadState_) {
             case EStorePreloadState::Disabled:
             case EStorePreloadState::Failed:
@@ -441,7 +436,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloadComplete()) {
         return nullptr;
     }
 
@@ -508,7 +503,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloadComplete()) {
         return nullptr;
     }
 
