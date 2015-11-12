@@ -158,7 +158,7 @@ private:
             ->CreateClient(clientOptions)->GetQueryExecutor();
 
         return CoordinateAndExecute(
-            fragment,
+            fragment->Query,
             writer,
             refiners,
             isOrdered,

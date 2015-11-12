@@ -296,7 +296,6 @@ private:
         return result;
     }
 
-
     std::vector<std::pair<TDataSource, Stroka>> Split(
         TGuid objectId,
         const std::vector<TRowRange>& ranges,
@@ -511,7 +510,6 @@ private:
         return subsources;
     }
 
-
     TQueryStatistics DoCoordinateAndExecute(
         TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer,
@@ -529,7 +527,7 @@ private:
             });
 
         return CoordinateAndExecute(
-            fragment,
+            fragment->Query,
             writer,
             refiners,
             isOrdered,
@@ -559,15 +557,13 @@ private:
             FunctionRegistry_);
     }
 
-    TQueryStatistics DoExecute(
+    std::vector<std::pair<TDataSource, Stroka>> InferRanges(
         TPlanFragmentPtr fragment,
-        ISchemafulWriterPtr writer)
+        TRowBufferPtr rowBuffer,
+        const NLogging::TLogger& Logger)
     {
-        auto Logger = BuildLogger(fragment->Query);
-
         const auto& dataSources = fragment->DataSources;
 
-        auto rowBuffer = New<TRowBuffer>();
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             dataSources,
@@ -581,11 +577,23 @@ private:
 
         std::vector<std::pair<TDataSource, Stroka>> allSplits;
         for (int index = 0; index < dataSources.size(); ++index) {
-            auto id = dataSources[index].Id;
+            const auto& id = dataSources[index].Id;
             const auto& ranges = prunedRanges[index];
             auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
-            allSplits.insert(allSplits.begin(), splits.begin(), splits.end());
+            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
         }
+
+        return allSplits;
+    }
+
+    TQueryStatistics DoExecute(
+        TPlanFragmentPtr fragment,
+        ISchemafulWriterPtr writer)
+    {
+        auto Logger = BuildLogger(fragment->Query);
+
+        auto rowBuffer = New<TRowBuffer>();
+        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
 
         yhash_map<Stroka, TDataSources> groupsByAddress;
         for (const auto& split : allSplits) {
@@ -616,29 +624,8 @@ private:
     {
         auto Logger = BuildLogger(fragment->Query);
 
-        const auto& dataSources = fragment->DataSources;
-
         auto rowBuffer = New<TRowBuffer>();
-        auto prunedRanges = GetPrunedRanges(
-            fragment->Query,
-            dataSources,
-            rowBuffer,
-            Connection_->GetColumnEvaluatorCache(),
-            FunctionRegistry_,
-            fragment->RangeExpansionLimit,
-            fragment->VerboseLogging);
-
-        LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
-
-        std::vector<std::pair<TDataSource, Stroka>> allSplits;
-
-        for (int index = 0; index < dataSources.size(); ++index) {
-            const auto& id = dataSources[index].Id;
-            const auto& ranges = prunedRanges[index];
-
-            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
-            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
-        }
+        auto allSplits = InferRanges(fragment, rowBuffer, Logger);
 
         LOG_DEBUG("Sorting %v splits", allSplits.size());
 

@@ -45,7 +45,7 @@ TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits);
 typedef std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> TEvaluateResult;
 
 TQueryStatistics CoordinateAndExecute(
-    TPlanFragmentPtr fragment,
+    TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& ranges,
     bool isOrdered,
