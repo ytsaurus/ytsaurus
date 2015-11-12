@@ -104,6 +104,8 @@ def add_start_subparser(subparsers):
                         help="set logging level threshold to DEBUG")
     parser.add_argument("--tmpfs-path", help="path to mounted tmpfs. "
                                              "Will be used to store performance critical parts.")
+    parser.add_argument("--ports-range-start", type=int,
+                        help="assign ports from continuous range starting from this port number.")
 
 def add_stop_subparser(subparsers):
     parser = subparsers.add_parser("stop", help="Stop local YT with given id", func=stop)

@@ -1,6 +1,6 @@
 from configs_provider import ConfigsProviderFactory, init_logging
 from helpers import versions_cmp, is_binary_found, makedirp, read_config, write_config, collect_events_from_logs, \
-                    is_dead_or_zombie
+                    is_dead_or_zombie, get_open_port
 
 from yt.common import update, YtError, get_value
 import yt.yson as yson
@@ -17,7 +17,7 @@ import getpass
 from collections import defaultdict
 import ctypes
 from threading import RLock
-from itertools import takewhile
+from itertools import takewhile, count
 
 try:
     import subprocess32 as subprocess
@@ -78,7 +78,8 @@ class YTEnv(object):
         pass
 
     def start(self, path_to_run, pids_filename, proxy_port=None, supress_yt_output=False, enable_debug_logging=True,
-              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None, enable_ui=False):
+              preserve_working_dir=False, kill_child_processes=False, tmpfs_path=None, enable_ui=False,
+              ports_range_start=None):
         self._lock = RLock()
 
         logger.propagate = False
@@ -124,7 +125,8 @@ class YTEnv(object):
                       proxy_port=proxy_port,
                       enable_debug_logging=enable_debug_logging,
                       load_existing_environment=load_existing_environment,
-                      enable_ui=enable_ui)
+                      enable_ui=enable_ui,
+                      ports_range_start=ports_range_start)
 
     def get_proxy_address(self):
         if not self.START_PROXY:
@@ -161,7 +163,7 @@ class YTEnv(object):
 
     def _run_all(self, master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy, enable_ui=False,
                  use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
-                 proxy_port=None, enable_debug_logging=True, load_existing_environment=False):
+                 proxy_port=None, enable_debug_logging=True, load_existing_environment=False, ports_range_start=None):
 
         master_name = "master" + instance_id
         scheduler_name = "scheduler" + instance_id
@@ -173,8 +175,11 @@ class YTEnv(object):
         if secondary_master_cell_count > 0 and versions_cmp(self._ytserver_version, "0.18") < 0:
             raise YtError("Multicell is not supported for ytserver version < 0.18")
 
+        ports = self._get_ports(ports_range_start, master_count, secondary_master_cell_count,
+                                scheduler_count, node_count, has_proxy, proxy_port)
         self._configs_provider = self.CONFIGS_PROVIDER_FACTORY \
-                .create_for_version(self._ytserver_version, enable_debug_logging)
+                .create_for_version(self._ytserver_version, ports, enable_debug_logging)
+
         self._enable_debug_logging = enable_debug_logging
         self._load_existing_environment = load_existing_environment
 
@@ -198,7 +203,7 @@ class YTEnv(object):
             self._prepare_masters(master_count, master_name, secondary_master_cell_count, cell_tag)
             self._prepare_schedulers(scheduler_count, scheduler_name)
             self._prepare_nodes(node_count, node_name)
-            self._prepare_proxy(has_proxy, proxy_name, proxy_port, enable_ui=enable_ui)
+            self._prepare_proxy(has_proxy, proxy_name, enable_ui=enable_ui)
             self._prepare_driver(driver_name, secondary_master_cell_count)
             self._prepare_console_driver(console_driver_name, self.configs[driver_name])
 
@@ -212,6 +217,37 @@ class YTEnv(object):
         except (YtError, KeyboardInterrupt) as err:
             self.clear_environment()
             raise YtError("Failed to start environment", inner_errors=[err])
+
+    def _get_ports(self, ports_range_start, master_count, secondary_master_cell_count,
+                   scheduler_count, node_count, has_proxy, proxy_port):
+        ports = defaultdict(list)
+
+        def random_port_generator():
+            while True:
+                yield get_open_port()
+
+        if ports_range_start and isinstance(ports_range_start, int):
+            generator = count(ports_range_start)
+        else:
+            get_open_port.busy_ports = set()
+            generator = random_port_generator()
+
+        if master_count > 0:
+            for cell_index in xrange(secondary_master_cell_count + 1):
+                cell_ports = [next(generator) for _ in xrange(2 * master_count)]  # rpc_port + monitoring_port
+                ports["master"].append(cell_ports)
+
+            if scheduler_count > 0:
+                ports["scheduler"] = [next(generator) for _ in xrange(2 * scheduler_count)]
+            if node_count > 0:
+                ports["node"] = [next(generator) for _ in xrange(2 * node_count)]
+            if has_proxy:
+                if proxy_port is None:
+                    ports["proxy"] = next(generator)
+                else:
+                    ports["proxy"] = proxy_port
+
+        return ports
 
     def _write_environment_info_to_file(self, has_proxy):
         info = {}
@@ -692,7 +728,7 @@ class YTEnv(object):
         else:
             return self._configs_provider.get_ui_config("localhost:" + str(self.configs[proxy_name]["port"]))
 
-    def _get_proxy_config(self, proxy_name, proxy_dir, proxy_port):
+    def _get_proxy_config(self, proxy_name, proxy_dir):
         if self._load_existing_environment:
             config_path = os.path.join(self.path_to_run, proxy_name, "proxy_config.json")
 
@@ -701,16 +737,16 @@ class YTEnv(object):
 
             return read_config(config_path, format="json")
         else:
-            return self._configs_provider.get_proxy_config(proxy_dir, proxy_port)
+            return self._configs_provider.get_proxy_config(proxy_dir)
 
-    def _prepare_proxy(self, has_proxy, proxy_name, proxy_port, enable_ui):
+    def _prepare_proxy(self, has_proxy, proxy_name, enable_ui):
         if not has_proxy:
             return
 
         proxy_dir = os.path.join(self.path_to_run, proxy_name)
         makedirp(proxy_dir)
 
-        proxy_config = self._get_proxy_config(proxy_name, proxy_dir, proxy_port)
+        proxy_config = self._get_proxy_config(proxy_name, proxy_dir)
 
         self.modify_proxy_config(proxy_config)
         update(proxy_config, self.DELTA_PROXY_CONFIG)
