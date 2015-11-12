@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 #include <yt/ytlib/chunk_client/schema.h>

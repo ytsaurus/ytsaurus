@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "public.h"
 #include "chunk_replica.h"

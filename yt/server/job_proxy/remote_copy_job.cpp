@@ -1,4 +1,4 @@
-﻿#include <yt/core/misc/common.h>
+#include <yt/core/misc/common.h>
 #include "private.h"
 #include "job_detail.h"
 #include "config.h"

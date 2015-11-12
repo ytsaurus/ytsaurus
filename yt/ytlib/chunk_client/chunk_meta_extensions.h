@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <yt/core/misc/protobuf_helpers.h>
 

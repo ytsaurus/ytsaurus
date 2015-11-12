@@ -1,4 +1,4 @@
-﻿#include <yt/core/misc/common.h>
+#include <yt/core/misc/common.h>
 #include "encoding_writer.h"
 #include "config.h"
 #include "private.h"

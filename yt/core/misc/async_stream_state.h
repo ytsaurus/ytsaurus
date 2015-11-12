@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <yt/core/misc/error.h>
 #include <yt/core/actions/future.h>

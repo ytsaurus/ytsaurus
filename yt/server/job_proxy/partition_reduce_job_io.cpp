@@ -1,4 +1,4 @@
-﻿#include <yt/core/misc/common.h>
+#include <yt/core/misc/common.h>
 #include "partition_reduce_job_io.h"
 #include "config.h"
 #include "user_job_io_detail.h"

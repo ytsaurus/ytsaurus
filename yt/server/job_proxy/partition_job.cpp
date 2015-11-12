@@ -1,4 +1,4 @@
-﻿#include <yt/core/misc/common.h>
+#include <yt/core/misc/common.h>
 
 #include "partition_job.h"
 

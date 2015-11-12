@@ -1,4 +1,4 @@
-﻿#include <yt/core/misc/common.h>
+#include <yt/core/misc/common.h>
 #include "scheduler_connector.h"
 #include "private.h"
 #include "job.h"

@@ -1,4 +1,4 @@
-﻿#include <yt/core/misc/common.h>
+#include <yt/core/misc/common.h>
 #include "environment_manager.h"
 #include "environment.h"
 #include "config.h"
