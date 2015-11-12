@@ -121,10 +121,11 @@ def chunk_iter_string(string, chunk_size):
         yield string[lower_index:upper_index]
         index += 1
 
+def total_seconds(td):
+    return float(td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6) / 10 ** 6
+
 def get_backoff(timeout, start_time):
-    def get_total_seconds(timedelta):
-        return timedelta.microseconds * 1e-6 + timedelta.seconds + timedelta.days * (24 * 3600)
-    return max(0.0, (timeout / 1000.0) - get_total_seconds(datetime.now() - start_time))
+    return max(0.0, (timeout / 1000.0) - total_seconds(datetime.now() - start_time))
 
 def generate_uuid():
     def get_int():

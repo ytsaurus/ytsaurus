@@ -1,6 +1,6 @@
 import yt.logger as logger
 from config import get_config, get_option, set_option, get_backend_type
-from common import require, get_backoff, get_value
+from common import require, get_backoff, get_value, total_seconds
 from errors import YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, build_http_response_error, YtRequestRateLimitExceeded
 from command import parse_commands
 
@@ -104,7 +104,7 @@ def _process_request_backoff(current_time, client):
     backoff = get_config(client)["proxy"]["request_backoff_time"]
     if backoff is not None:
         last_request_time = getattr(get_session(), "last_request_time", 0)
-        now_seconds = (current_time - datetime(1970, 1, 1)).total_seconds()
+        now_seconds = total_seconds(current_time - datetime(1970, 1, 1))
         diff = now_seconds - last_request_time
         if diff * 1000.0 < float(backoff):
             time.sleep(float(backoff) / 1000.0 - diff)
