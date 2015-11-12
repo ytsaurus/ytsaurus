@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
 
@@ -366,7 +366,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         self.assertItemsEqual(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
 
-    @only_linux
+    @unix_only
     def test_query_filtering(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

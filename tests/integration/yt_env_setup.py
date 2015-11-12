@@ -3,6 +3,8 @@ import yt_commands
 from yt.environment import YTEnv
 import yt_driver_bindings
 
+import pytest
+
 import gc
 import os
 import sys
@@ -15,6 +17,9 @@ from threading import Thread
 
 SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath('tests.sandbox'))
 TOOLS_ROOTDIR = os.path.abspath('tools')
+
+linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
+unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
 def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)

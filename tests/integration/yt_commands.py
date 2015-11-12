@@ -2,8 +2,6 @@ import yt.yson as yson
 from yt_driver_bindings import Driver, Request
 from yt.common import YtError, flatten, update
 
-import pytest
-
 import sys
 import time
 from datetime import datetime
@@ -12,9 +10,6 @@ from cStringIO import StringIO
 
 
 ###########################################################################
-
-only_linux = pytest.mark.skipif('not sys.platform.startswith("linux")')
-only_unix = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
 driver = None
 
