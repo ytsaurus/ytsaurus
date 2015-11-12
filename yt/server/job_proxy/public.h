@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <yt/ytlib/scheduler/public.h>
 

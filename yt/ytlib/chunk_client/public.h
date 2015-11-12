@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/small_vector.h>

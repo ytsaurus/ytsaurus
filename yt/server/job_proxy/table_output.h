@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <yt/core/yson/public.h>
 #include <yt/ytlib/formats/public.h>
