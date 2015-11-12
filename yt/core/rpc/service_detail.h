@@ -98,9 +98,6 @@ struct THandlerInvocationOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We need this logger here but including the whole private.h looks weird.
-extern const NLogging::TLogger RpcServerLogger;
-
 //! Provides a common base for both one-way and two-way contexts.
 template <class TRequestMessage>
 class TTypedServiceContextBase
@@ -113,7 +110,6 @@ public:
         IServiceContextPtr context,
         const THandlerInvocationOptions& options)
         : TServiceContextWrapper(std::move(context))
-        , Logger(RpcServerLogger)
         , Options_(options)
     { }
 
@@ -143,7 +139,6 @@ public:
     }
 
 protected:
-    NLogging::TLogger Logger;
     THandlerInvocationOptions Options_;
 
     typename TObjectPool<TTypedRequest>::TObjectPtr Request_;
