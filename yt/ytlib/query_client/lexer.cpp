@@ -223,7 +223,7 @@ tr40:
 	goto st12;
 tr41:
 	{te = p+1;{
-            YUNREACHABLE();
+            THROW_ERROR_EXCEPTION("Unexpected symbol \"]\" at position %v", ts - p);
         }}
 	goto st12;
 tr42:
