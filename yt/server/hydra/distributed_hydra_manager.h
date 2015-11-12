@@ -6,7 +6,7 @@
 
 #include <core/actions/public.h>
 
-#include <ytlib/election/public.h>
+#include <server/election/public.h>
 
 namespace NYT {
 namespace NHydra {
@@ -25,6 +25,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     IInvokerPtr automatonInvoker,
     IAutomatonPtr automaton,
     NRpc::IServerPtr rpcServer,
+    NElection::IElectionManagerPtr electionManager,
     NElection::TCellManagerPtr cellManager,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,

@@ -15,9 +15,10 @@
 #include <ytlib/election/config.h>
 #include <ytlib/election/election_service_mock.h>
 
-#include <server/election/election_manager.h>
 #include <server/election/config.h>
-#include <server/election/election_callbacks_mock.h>
+#include <server/election/election_manager.h>
+#include <server/election/distributed_election_manager.h>
+#include <server/election/election_manager_mock.h>
 
 namespace NYT {
 namespace NElection {
@@ -40,13 +41,14 @@ public:
     TElectionTest()
         : ActionQueue(New<TActionQueue>("Main"))
         , CallbacksMock(New<TElectionCallbacksMock>())
-        , RpcServer(CreateLocalServer())
         , ChannelFactory(New<TStaticChannelFactory>())
         , RpcTimeout(TDuration::MilliSeconds(40))
     { }
 
     void Configure(int peerCount, TPeerId selfId)
     {
+        auto selfServer = CreateLocalServer();
+
         PeerMocks.resize(peerCount);
         for (int id = 0; id < peerCount; ++id) {
             if (id != selfId) {
@@ -57,7 +59,7 @@ public:
                 PeerMocks[id] = mock;
                 server->RegisterService(mock);
             } else {
-                auto channel = CreateLocalChannel(RpcServer);
+                auto channel = CreateLocalChannel(selfServer);
                 ChannelFactory->Add(GetPeerAddress(id), channel);
             }
         }
@@ -66,20 +68,23 @@ public:
         for (int id = 0; id < peerCount; ++id) {
             cellConfig->Addresses.push_back(GetPeerAddress(id));
         }
+
         auto cellManager = New<TCellManager>(cellConfig, ChannelFactory, selfId);
 
-        auto electionConfig = New<TElectionManagerConfig>();
+        auto electionConfig = New<TDistributedElectionManagerConfig>();
         electionConfig->ControlRpcTimeout = RpcTimeout;
         electionConfig->VotingRoundPeriod = TDuration::MilliSeconds(10);
         electionConfig->FollowerPingRpcTimeout = TDuration::MilliSeconds(60);
         electionConfig->FollowerGraceTimeout = TDuration::MilliSeconds(30);
         electionConfig->FollowerPingPeriod = TDuration::MilliSeconds(50);
-        ElectionManager = New<TElectionManager>(
+
+        ElectionManager = CreateDistributedElectionManager(
             electionConfig,
             cellManager,
             ActionQueue->GetInvoker(),
-            CallbacksMock);
-        RpcServer->RegisterService(ElectionManager->GetRpcService());
+            CallbacksMock,
+            selfServer);
+        ElectionManager->Initialize();
 
         EXPECT_CALL(*CallbacksMock, FormatPriority(_))
             .WillRepeatedly(Invoke([] (TPeerPriority priority) {
@@ -94,18 +99,17 @@ public:
 
     void RunElections()
     {
-        ElectionManager->Start();
+        ElectionManager->Participate();
         Sleep(1);
-        ElectionManager->Stop();
+        ElectionManager->Abandon();
         Sleep(1);
     }
 
 protected:
     TActionQueuePtr ActionQueue;
     TIntrusivePtr<TElectionCallbacksMock> CallbacksMock;
-    IServerPtr RpcServer;
     TStaticChannelFactoryPtr ChannelFactory;
-    TElectionManagerPtr ElectionManager;
+    IElectionManagerPtr ElectionManager;
     std::vector<TIntrusivePtr<TElectionServiceMock>> PeerMocks;
 
     const TDuration RpcTimeout;
@@ -128,7 +132,7 @@ private:
             }
         }
 
-        RpcServer->UnregisterService(ElectionManager->GetRpcService());
+        ElectionManager->Finalize();
         ElectionManager.Reset();
     }
 
@@ -145,7 +149,7 @@ TEST_F(TElectionTest, SinglePeer)
 
     {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartLeading());
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading());
     }
 
@@ -174,7 +178,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
 
     {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing(_));
         EXPECT_CALL(*CallbacksMock, OnStopFollowing());
     }
 
@@ -221,7 +225,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
 
     {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartLeading());
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading());
     }
 
@@ -261,7 +265,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
 
     {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartLeading());
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading());
     }
 
@@ -304,16 +308,16 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
 
     {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartLeading())
-            .WillOnce(::testing::Invoke([&] {
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
+            .WillOnce(::testing::Invoke([&] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
             }));
         EXPECT_CALL(*CallbacksMock, OnStopLeading())
             .WillOnce(::testing::Invoke([&] {
-                ElectionManager->Start();
+                ElectionManager->Participate();
             }));
-        EXPECT_CALL(*CallbacksMock, OnStartLeading())
-            .WillOnce(::testing::Invoke([&] {
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
+            .WillOnce(::testing::Invoke([&] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
             }));
         EXPECT_CALL(*CallbacksMock, OnStopLeading());
@@ -355,12 +359,12 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
 
     {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartLeading());
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading())
             .WillOnce(::testing::Invoke([&] {
-                ElectionManager->Start();
+                ElectionManager->Participate();
             }));
-        EXPECT_CALL(*CallbacksMock, OnStartLeading());
+        EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading());
     }
 
@@ -434,15 +438,15 @@ TEST_P(TElectionGenericTest, Basic)
 
     if (data.ExpectedLeader >= 0) {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing(_));
         EXPECT_CALL(*CallbacksMock, OnStopFollowing());
     } else {
-        EXPECT_CALL(*CallbacksMock, OnStartFollowing())
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
             .Times(0);
         EXPECT_CALL(*CallbacksMock, OnStopFollowing())
             .Times(0);
     }
-    EXPECT_CALL(*CallbacksMock, OnStartLeading())
+    EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
         .Times(0);
     EXPECT_CALL(*CallbacksMock, OnStopLeading())
         .Times(0);
@@ -521,15 +525,15 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
 
     if (delay < RpcTimeout) {
         InSequence dummy;
-        EXPECT_CALL(*CallbacksMock, OnStartFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing(_));
         EXPECT_CALL(*CallbacksMock, OnStopFollowing());
     } else {
-        EXPECT_CALL(*CallbacksMock, OnStartFollowing())
+        EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
             .Times(0);
         EXPECT_CALL(*CallbacksMock, OnStopFollowing())
             .Times(0);
     }
-    EXPECT_CALL(*CallbacksMock, OnStartLeading())
+    EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
         .Times(0);
     EXPECT_CALL(*CallbacksMock, OnStopLeading())
         .Times(0);

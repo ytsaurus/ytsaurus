@@ -9,7 +9,7 @@ namespace NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TElectionManagerConfig
+class TDistributedElectionManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -20,7 +20,7 @@ public:
     TDuration LeaderPingTimeout;
     TDuration FollowerGraceTimeout;
 
-    TElectionManagerConfig()
+    TDistributedElectionManagerConfig()
     {
         RegisterParameter("voting_round_period", VotingRoundPeriod)
             .Default(TDuration::MilliSeconds(100));
@@ -37,7 +37,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TElectionManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDistributedElectionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

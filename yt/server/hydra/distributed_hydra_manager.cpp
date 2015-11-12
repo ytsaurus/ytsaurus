@@ -63,24 +63,34 @@ public:
             , CancelableControlInvoker_(owner->CancelableControlInvoker_)
         { }
 
-        virtual void OnStartLeading() override
+        virtual void OnStartLeading(NElection::TEpochContextPtr epochContext) override
         {
-            CancelableControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStartLeading, Owner_));
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionStartLeading,
+                Owner_,
+                epochContext));
         }
 
         virtual void OnStopLeading() override
         {
-            CancelableControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStopLeading, Owner_));
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionStopLeading,
+                Owner_));
         }
 
-        virtual void OnStartFollowing() override
+        virtual void OnStartFollowing(NElection::TEpochContextPtr epochContext) override
         {
-            CancelableControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStartFollowing, Owner_));
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionStartFollowing,
+                Owner_,
+                epochContext));
         }
 
         virtual void OnStopFollowing() override
         {
-            CancelableControlInvoker_->Invoke(BIND(&TDistributedHydraManager::OnElectionStopFollowing, Owner_));
+            CancelableControlInvoker_->Invoke(BIND(
+                &TDistributedHydraManager::OnElectionStopFollowing,
+                Owner_));
         }
 
         virtual TPeerPriority GetPriority() override
@@ -110,6 +120,7 @@ public:
         IInvokerPtr automatonInvoker,
         IAutomatonPtr automaton,
         IServerPtr rpcServer,
+        IElectionManagerPtr electionManager,
         TCellManagerPtr cellManager,
         IChangelogStoreFactoryPtr changelogStoreFactory,
         ISnapshotStorePtr snapshotStore,
@@ -120,6 +131,7 @@ public:
             HydraLogger)
         , Config_(config)
         , RpcServer_(rpcServer)
+        , ElectionManager_(electionManager)
         , CellManager_(cellManager)
         , ControlInvoker_(controlInvoker)
         , CancelableControlInvoker_(CancelableContext_->CreateInvoker(ControlInvoker_))
@@ -127,6 +139,7 @@ public:
         , ChangelogStoreFactory_(changelogStoreFactory)
         , SnapshotStore_(snapshotStore)
         , Options_(options)
+        , ElectionCallbacks_(New<TElectionCallbacks>(this))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
@@ -141,12 +154,6 @@ public:
             ControlInvoker_,
             SnapshotStore_,
             Options_);
-
-        ElectionManager_ = New<TElectionManager>(
-            Config_,
-            CellManager_,
-            ControlInvoker_,
-            New<TElectionCallbacks>(this));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
@@ -172,7 +179,6 @@ public:
         DecoratedAutomaton_->Initialize();
 
         RpcServer_->RegisterService(this);
-        RpcServer_->RegisterService(ElectionManager_->GetRpcService());
 
         LOG_INFO("Hydra instance initialized (SelfAddress: %v, SelfId: %v)",
             CellManager_->GetSelfAddress(),
@@ -195,11 +201,10 @@ public:
 
         CancelableContext_->Cancel();
 
-        ElectionManager_->Stop();
+        ElectionManager_->Abandon();
 
         if (ControlState_ != EPeerState::None) {
             RpcServer_->UnregisterService(this);
-            RpcServer_->UnregisterService(ElectionManager_->GetRpcService());
         }
 
         if (ControlEpochContext_) {
@@ -217,6 +222,12 @@ public:
             .Run();
     }
 
+    virtual IElectionCallbacksPtr GetElectionCallbacks() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ElectionCallbacks_;
+    }
 
     virtual EPeerState GetControlState() const override
     {
@@ -330,7 +341,6 @@ public:
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
-                    .Item("elections").Do(ElectionManager_->GetMonitoringProducer())
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
                 .EndMap();
@@ -440,7 +450,8 @@ private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
     const TDistributedHydraManagerConfigPtr Config_;
-    const NRpc::IServerPtr RpcServer_;
+    const IServerPtr RpcServer_;
+    const IElectionManagerPtr ElectionManager_;
     const TCellManagerPtr CellManager_;
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr CancelableControlInvoker_;
@@ -448,6 +459,8 @@ private:
     const IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     const ISnapshotStorePtr SnapshotStore_;
     const TDistributedHydraManagerOptions Options_;
+
+    const IElectionCallbacksPtr ElectionCallbacks_;
 
     std::atomic<bool> ReadOnly_ = {false};
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
@@ -458,8 +471,6 @@ private:
 
     IChangelogStorePtr ChangelogStore_;
     TNullable<TVersion> ReachableVersion_;
-
-    TElectionManagerPtr ElectionManager_;
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
@@ -887,7 +898,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        ElectionManager_->Stop();
+        ElectionManager_->Abandon();
     }
 
     void DoParticipate()
@@ -930,7 +941,7 @@ private:
 
         LOG_INFO("Reachable version is %v", *ReachableVersion_);
 
-        ElectionManager_->Start();
+        ElectionManager_->Participate();
     }
 
     void DoFinalize()
@@ -1062,7 +1073,7 @@ private:
     }
 
 
-    void OnElectionStartLeading()
+    void OnElectionStartLeading(NElection::TEpochContextPtr electionEpochContext)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1071,8 +1082,7 @@ private:
         YCHECK(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::LeaderRecovery;
 
-        StartEpoch();
-        auto epochContext = ControlEpochContext_;
+        auto epochContext = StartEpoch(electionEpochContext);
 
         epochContext->LeaseTracker = New<TLeaseTracker>(
             Config_,
@@ -1207,7 +1217,7 @@ private:
     }
 
 
-    void OnElectionStartFollowing()
+    void OnElectionStartFollowing(NElection::TEpochContextPtr electionEpochContext)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1216,8 +1226,7 @@ private:
         YCHECK(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::FollowerRecovery;
 
-        StartEpoch();
-        auto epochContext = ControlEpochContext_;
+        auto epochContext = StartEpoch(electionEpochContext);
 
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             Config_,
@@ -1329,11 +1338,9 @@ private:
     }
 
 
-    void StartEpoch()
+    TEpochContextPtr StartEpoch(NElection::TEpochContextPtr electionEpochContext)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto electionEpochContext = ElectionManager_->GetEpochContext();
 
         auto epochContext = New<TEpochContext>();
         epochContext->ChangelogStore = ChangelogStore_;
@@ -1349,6 +1356,8 @@ private:
         ControlEpochContext_ = epochContext;
 
         SystemLockGuard_ = TSystemLockGuard::Acquire(DecoratedAutomaton_);
+
+        return ControlEpochContext_;
     }
 
     void StopEpoch()
@@ -1551,6 +1560,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     IInvokerPtr automatonInvoker,
     IAutomatonPtr automaton,
     IServerPtr rpcServer,
+    IElectionManagerPtr electionManager,
     TCellManagerPtr cellManager,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
@@ -1561,6 +1571,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
     YCHECK(automatonInvoker);
     YCHECK(automaton);
     YCHECK(rpcServer);
+    YCHECK(electionManager);
     YCHECK(cellManager);
     YCHECK(changelogStoreFactory);
     YCHECK(snapshotStore);
@@ -1571,6 +1582,7 @@ IHydraManagerPtr CreateDistributedHydraManager(
         automatonInvoker,
         automaton,
         rpcServer,
+        electionManager,
         cellManager,
         changelogStoreFactory,
         snapshotStore,

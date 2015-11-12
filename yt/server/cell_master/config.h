@@ -91,6 +91,8 @@ public:
     NElection::TCellConfigPtr PrimaryMaster;
     std::vector<NElection::TCellConfigPtr> SecondaryMasters;
 
+    NElection::TDistributedElectionManagerConfigPtr ElectionManager;
+
     NHydra::TFileChangelogStoreConfigPtr Changelogs;
     NHydra::TLocalSnapshotStoreConfigPtr Snapshots;
     TMasterHydraManagerConfigPtr HydraManager;

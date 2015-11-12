@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "distributed_election_manager.h"
 #include "election_manager.h"
 #include "config.h"
 #include "private.h"
@@ -10,6 +11,8 @@
 
 #include <core/rpc/service_detail.h>
 
+#include <core/actions/cancelable_context.h>
+
 #include <ytlib/election/cell_manager.h>
 #include <ytlib/election/election_service_proxy.h>
 
@@ -19,27 +22,31 @@ namespace NElection {
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TElectionManager::TImpl
-    : public NRpc::TServiceBase
+DECLARE_REFCOUNTED_CLASS(TDistributedElectionManager)
+
+class TDistributedElectionManager
+    : public TServiceBase
+    , public IElectionManager
 {
 public:
-    TImpl(
-        TElectionManagerConfigPtr config,
+    TDistributedElectionManager(
+        TDistributedElectionManagerConfigPtr config,
         TCellManagerPtr cellManager,
         IInvokerPtr controlInvoker,
-        IElectionCallbacksPtr electionCallbacks);
+        IElectionCallbacksPtr electionCallbacks,
+        IServerPtr rpcServer);
 
-    void Start();
-    void Stop();
+    virtual void Initialize() override;
+    virtual void Finalize() override;
 
-    NRpc::IServicePtr GetRpcService();
+    virtual void Participate() override;
+    virtual void Abandon() override;
 
-    TYsonProducer GetMonitoringProducer();
-
-    TEpochContextPtr GetEpochContext();
+    virtual TYsonProducer GetMonitoringProducer() override;
 
 private:
     class TVotingRound;
@@ -47,10 +54,11 @@ private:
     class TFollowerPinger;
     typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
 
-    const TElectionManagerConfigPtr Config;
+    const TDistributedElectionManagerConfigPtr Config;
     const TCellManagerPtr CellManager;
     const IInvokerPtr ControlInvoker;
     const IElectionCallbacksPtr ElectionCallbacks;
+    const IServerPtr RpcServer_;
 
     EPeerState State = EPeerState::Stopped;
 
@@ -100,13 +108,15 @@ private:
 
 };
 
+DEFINE_REFCOUNTED_TYPE(TDistributedElectionManager)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TElectionManager::TImpl::TFollowerPinger
+class TDistributedElectionManager::TFollowerPinger
     : public TRefCounted
 {
 public:
-    explicit TFollowerPinger(TImplPtr owner)
+    explicit TFollowerPinger(TDistributedElectionManagerPtr owner)
         : Owner(owner)
         , Logger(Owner->Logger)
     { }
@@ -124,7 +134,7 @@ public:
     }
 
 private:
-    const TImplPtr Owner;
+    const TDistributedElectionManagerPtr Owner;
     const NLogging::TLogger Logger;
 
 
@@ -235,11 +245,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TElectionManager::TImpl::TVotingRound
+class TDistributedElectionManager::TVotingRound
     : public TRefCounted
 {
 public:
-    explicit TVotingRound(TImplPtr owner)
+    explicit TVotingRound(TDistributedElectionManagerPtr owner)
         : Owner(owner)
     {
         Logger = Owner->Logger;
@@ -294,7 +304,7 @@ public:
     }
 
 private:
-    const TImplPtr Owner;
+    const TDistributedElectionManagerPtr Owner;
 
     struct TStatus
     {
@@ -397,11 +407,11 @@ private:
         // Become a leader or a follower.
         if (candidateId == Owner->CellManager->GetSelfPeerId()) {
             Owner->ControlEpochInvoker->Invoke(BIND(
-                &TImpl::StartLeading,
+                &TDistributedElectionManager::StartLeading,
                 Owner));
         } else {
             Owner->ControlEpochInvoker->Invoke(BIND(
-                &TImpl::StartFollowing,
+                &TDistributedElectionManager::StartFollowing,
                 Owner,
                 candidateId,
                 candidateStatus.VoteEpochId));
@@ -486,19 +496,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TElectionManager::TImpl::TImpl(
-    TElectionManagerConfigPtr config,
+TDistributedElectionManager::TDistributedElectionManager(
+    TDistributedElectionManagerConfigPtr config,
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
-    IElectionCallbacksPtr electionCallbacks)
+    IElectionCallbacksPtr electionCallbacks,
+    IServerPtr rpcServer)
     : TServiceBase(
         controlInvoker,
-        NRpc::TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellId()),
+        TServiceId(TElectionServiceProxy::GetServiceName(), cellManager->GetCellId()),
         ElectionLogger)
     , Config(config)
     , CellManager(cellManager)
     , ControlInvoker(controlInvoker)
     , ElectionCallbacks(electionCallbacks)
+    , RpcServer_(rpcServer)
 {
     YCHECK(Config);
     YCHECK(CellManager);
@@ -516,26 +528,32 @@ TElectionManager::TImpl::TImpl(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 
     CellManager->SubscribePeerReconfigured(
-        BIND(&TImpl::OnPeerReconfigured, MakeWeak(this))
+        BIND(&TDistributedElectionManager::OnPeerReconfigured, MakeWeak(this))
             .Via(ControlInvoker));
 }
 
-void TElectionManager::TImpl::Start()
+void TDistributedElectionManager::Initialize()
 {
-    ControlInvoker->Invoke(BIND(&TImpl::DoStart, MakeWeak(this)));
+    RpcServer_->RegisterService(this);
 }
 
-void TElectionManager::TImpl::Stop()
+void TDistributedElectionManager::Finalize()
 {
-    ControlInvoker->Invoke(BIND(&TImpl::DoStop, MakeWeak(this)));
+    Abandon();
+    RpcServer_->UnregisterService(this);
 }
 
-NRpc::IServicePtr TElectionManager::TImpl::GetRpcService()
+void TDistributedElectionManager::Participate()
 {
-    return this;
+    ControlInvoker->Invoke(BIND(&TDistributedElectionManager::DoStart, MakeWeak(this)));
 }
 
-TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
+void TDistributedElectionManager::Abandon()
+{
+    ControlInvoker->Invoke(BIND(&TDistributedElectionManager::DoStop, MakeWeak(this)));
+}
+
+TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
 {
     return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
         auto epochContext = EpochContext;
@@ -557,14 +575,7 @@ TYsonProducer TElectionManager::TImpl::GetMonitoringProducer()
     });
 }
 
-TEpochContextPtr TElectionManager::TImpl::GetEpochContext()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return EpochContext;
-}
-
-void TElectionManager::TImpl::Reset()
+void TDistributedElectionManager::Reset()
 {
     // May be called from ControlThread and also from ctor.
 
@@ -582,7 +593,7 @@ void TElectionManager::TImpl::Reset()
     PingTimeoutCookie.Reset();
 }
 
-void TElectionManager::TImpl::OnFollowerPingTimeout()
+void TDistributedElectionManager::OnFollowerPingTimeout()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Following);
@@ -592,7 +603,7 @@ void TElectionManager::TImpl::OnFollowerPingTimeout()
     StopFollowing();
 }
 
-void TElectionManager::TImpl::DoStart()
+void TDistributedElectionManager::DoStart()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -621,7 +632,7 @@ void TElectionManager::TImpl::DoStart()
     }
 }
 
-void TElectionManager::TImpl::DoStop()
+void TDistributedElectionManager::DoStop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -645,7 +656,7 @@ void TElectionManager::TImpl::DoStop()
     Reset();
 }
 
-bool TElectionManager::TImpl::CheckQuorum()
+bool TDistributedElectionManager::CheckQuorum()
 {
     if (static_cast<int>(AliveFollowers.size()) >= CellManager->GetQuorumCount()) {
         return true;
@@ -658,7 +669,7 @@ bool TElectionManager::TImpl::CheckQuorum()
     return false;
 }
 
-void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch)
+void TDistributedElectionManager::StartVoteFor(TPeerId voteId, const TEpochId& voteEpoch)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -673,7 +684,7 @@ void TElectionManager::TImpl::StartVoteFor(TPeerId voteId, const TEpochId& voteE
     StartVotingRound();
 }
 
-void TElectionManager::TImpl::StartVoteForSelf()
+void TDistributedElectionManager::StartVoteForSelf()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -697,7 +708,7 @@ void TElectionManager::TImpl::StartVoteForSelf()
     StartVotingRound();
 }
 
-void TElectionManager::TImpl::StartVotingRound()
+void TDistributedElectionManager::StartVotingRound()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Voting);
@@ -709,7 +720,7 @@ void TElectionManager::TImpl::StartVotingRound()
         Config->VotingRoundPeriod);
 }
 
-void TElectionManager::TImpl::StartFollowing(
+void TDistributedElectionManager::StartFollowing(
     TPeerId leaderId,
     const TEpochId& epochId)
 {
@@ -722,7 +733,7 @@ void TElectionManager::TImpl::StartFollowing(
     InitEpochContext(leaderId, epochId);
 
     PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
+        BIND(&TDistributedElectionManager::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
         Config->LeaderPingTimeout);
 
@@ -730,10 +741,10 @@ void TElectionManager::TImpl::StartFollowing(
         EpochContext->LeaderId,
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStartFollowing();
+    ElectionCallbacks->OnStartFollowing(EpochContext);
 }
 
-void TElectionManager::TImpl::StartLeading()
+void TDistributedElectionManager::StartLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -756,10 +767,10 @@ void TElectionManager::TImpl::StartLeading()
     LOG_INFO("Started leading (EpochId: %v)",
         EpochContext->EpochId);
 
-    ElectionCallbacks->OnStartLeading();
+    ElectionCallbacks->OnStartLeading(EpochContext);
 }
 
-void TElectionManager::TImpl::StopLeading()
+void TDistributedElectionManager::StopLeading()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Leading);
@@ -775,7 +786,7 @@ void TElectionManager::TImpl::StopLeading()
     Reset();
 }
 
-void TElectionManager::TImpl::StopFollowing()
+void TDistributedElectionManager::StopFollowing()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
     YCHECK(State == EPeerState::Following);
@@ -789,7 +800,7 @@ void TElectionManager::TImpl::StopFollowing()
     Reset();
 }
 
-void TElectionManager::TImpl::InitEpochContext(TPeerId leaderId, const TEpochId& epochId)
+void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, const TEpochId& epochId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -798,7 +809,7 @@ void TElectionManager::TImpl::InitEpochContext(TPeerId leaderId, const TEpochId&
     EpochContext->StartTime = TInstant::Now();
 }
 
-void TElectionManager::TImpl::SetState(EPeerState newState)
+void TDistributedElectionManager::SetState(EPeerState newState)
 {
     if (newState == State)
         return;
@@ -810,7 +821,7 @@ void TElectionManager::TImpl::SetState(EPeerState newState)
     State = newState;
 }
 
-void TElectionManager::TImpl::OnPeerReconfigured(TPeerId peerId)
+void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -829,7 +840,7 @@ void TElectionManager::TImpl::OnPeerReconfigured(TPeerId peerId)
     }
 }
 
-DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
+DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
 {
     UNUSED(response);
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -867,14 +878,14 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, PingFollower)
 
     TDelayedExecutor::Cancel(PingTimeoutCookie);
     PingTimeoutCookie = TDelayedExecutor::Submit(
-        BIND(&TImpl::OnFollowerPingTimeout, MakeWeak(this))
+        BIND(&TDistributedElectionManager::OnFollowerPingTimeout, MakeWeak(this))
             .Via(ControlEpochInvoker),
         Config->LeaderPingTimeout);
 
     context->Reply();
 }
 
-DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
+DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
 {
     UNUSED(request);
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -900,44 +911,19 @@ DEFINE_RPC_SERVICE_METHOD(TElectionManager::TImpl, GetStatus)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TElectionManager::TElectionManager(
-    TElectionManagerConfigPtr config,
+IElectionManagerPtr CreateDistributedElectionManager(
+    TDistributedElectionManagerConfigPtr config,
     TCellManagerPtr cellManager,
     IInvokerPtr controlInvoker,
-    IElectionCallbacksPtr electionCallbacks)
-    : Impl(New<TImpl>(
+    IElectionCallbacksPtr electionCallbacks,
+    IServerPtr rpcServer)
+{
+    return New<TDistributedElectionManager>(
         config,
         cellManager,
         controlInvoker,
-        electionCallbacks))
-{ }
-
-TElectionManager::~TElectionManager()
-{ }
-
-void TElectionManager::Start()
-{
-    Impl->Start();
-}
-
-void TElectionManager::Stop()
-{
-    Impl->Stop();
-}
-
-NRpc::IServicePtr TElectionManager::GetRpcService()
-{
-    return Impl->GetRpcService();
-}
-
-TYsonProducer TElectionManager::GetMonitoringProducer()
-{
-    return Impl->GetMonitoringProducer();
-}
-
-TEpochContextPtr TElectionManager::GetEpochContext()
-{
-    return Impl->GetEpochContext();
+        electionCallbacks,
+        rpcServer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

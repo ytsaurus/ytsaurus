@@ -16,6 +16,8 @@ TCellMasterConfig::TCellMasterConfig()
         .Default();
     RegisterParameter("secondary_masters", SecondaryMasters)
         .Default();
+    RegisterParameter("election_manager", ElectionManager)
+        .DefaultNew();
     RegisterParameter("changelogs", Changelogs);
     RegisterParameter("snapshots", Snapshots);
     RegisterParameter("hydra_manager", HydraManager)

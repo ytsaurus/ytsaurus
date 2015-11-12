@@ -11,6 +11,8 @@
 
 #include <ytlib/hydra/version.h>
 
+#include <server/election/public.h>
+
 namespace NYT {
 namespace NHydra {
 
@@ -27,11 +29,15 @@ struct IHydraManager
 
     //! Deactivates the instance. The resulting future is set
     //! when the instance is fully stopped, e.g. the automaton thread
-    //! will not receive any callbacks.
+    //! will not receive any more callbacks.
     /*!
      *  \note Thread affinity: ControlThread
      */
     virtual TFuture<void> Finalize() = 0;
+
+    //! Returns the callbacks used by election system to coordinate
+    //! multiple Hydra instances.
+    virtual NElection::IElectionCallbacksPtr GetElectionCallbacks() = 0;
 
     //! Returns the state as seen in the control thread.
     /*!
@@ -140,7 +146,7 @@ struct IHydraManager
      */
     virtual TFuture<int> BuildSnapshot() = 0;
 
-    //! Produces monitoring info.
+    //! Returns the callback for producing the monitoring info.
     /*!
      *  \note Thread affinity: any
      */

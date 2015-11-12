@@ -6,6 +6,8 @@
 
 #include <core/misc/address.h>
 
+#include <core/actions/cancelable_context.h>
+
 #include <core/rpc/service_detail.h>
 #include <core/rpc/server.h>
 
@@ -23,8 +25,6 @@
 #include <ytlib/hive/private.h>
 #include <ytlib/hive/cell_directory.h>
 #include <ytlib/hive/hive_service_proxy.h>
-
-#include <server/election/election_manager.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/hydra_manager.h>

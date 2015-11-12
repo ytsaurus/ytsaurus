@@ -146,9 +146,12 @@ public:
 DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfig)
 
 class TDistributedHydraManagerConfig
-    : public NElection::TElectionManagerConfig
+    : public NYTree::TYsonSerializable
 {
 public:
+    //! Timeout for various control RPC requests.
+    TDuration ControlRpcTimeout;
+
     //! The maximum time interval mutations are allowed to occupy the automaton thread
     //! before yielding control other callbacks.
     TDuration MaxCommitBatchDuration;
@@ -220,6 +223,9 @@ public:
 
     TDistributedHydraManagerConfig()
     {
+        RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
+            .Default(TDuration::MilliSeconds(1000));
+
         RegisterParameter("max_commit_batch_duration", MaxCommitBatchDuration)
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("leader_lease_check_period", LeaderLeaseCheckPeriod)

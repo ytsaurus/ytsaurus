@@ -13,13 +13,26 @@ class TElectionCallbacksMock
     : public IElectionCallbacks
 {
 public:
-    MOCK_METHOD0(OnStartLeading, void());
+    MOCK_METHOD1(OnStartLeading, void(TEpochContextPtr epochContext));
     MOCK_METHOD0(OnStopLeading, void());
-    MOCK_METHOD0(OnStartFollowing, void());
+    MOCK_METHOD1(OnStartFollowing, void(TEpochContextPtr epochContext));
     MOCK_METHOD0(OnStopFollowing, void());
 
     MOCK_METHOD0(GetPriority, TPeerPriority());
     MOCK_METHOD1(FormatPriority, Stroka(TPeerPriority priority));
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TElectionManagerMock
+    : public IElectionManager
+{
+public:
+    MOCK_METHOD0(Initialize, void());
+    MOCK_METHOD0(Finalize, void());
+
+    MOCK_METHOD0(Participate, void());
+    MOCK_METHOD0(Abandon, void());
 };
 
 ////////////////////////////////////////////////////////////////////////////////
