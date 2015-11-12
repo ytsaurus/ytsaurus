@@ -36,10 +36,16 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     YCHECK(Meta_.row_count() > 0);
     YCHECK(KeyColumnCount_ >= ChunkKeyColumnCount_);
 
-    for (int index = 0; index < KeyColumnCount_; ++index) {
-        KeyBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, index));
+    auto keyDataSize = GetUnversionedRowDataSize(KeyColumnCount_);
+    KeyBuffer_.reserve(keyDataSize);
+    Key_ = TKey(reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data()));
+    Key_.SetCount(KeyColumnCount_);
+
+    for (int index = ChunkKeyColumnCount_; index < KeyColumnCount_; ++index) {
+        auto& value = Key_[index];
+        value.Id = index;
+        value.Type = EValueType::Null;
     }
-    Key_ = KeyBuilder_.GetRow();
 
     KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
