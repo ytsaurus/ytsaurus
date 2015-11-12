@@ -292,7 +292,7 @@ public:
     {
         TRACE_CHILD("QueryClient", "Execute") {
 
-            auto execute = fragment->Ordered
+            auto execute = fragment->Query->IsOrdered()
                 ? &TQueryHelper::DoExecuteOrdered
                 : &TQueryHelper::DoExecute;
 
@@ -567,7 +567,6 @@ private:
                 subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
                 subfragment->VerboseLogging = fragment->VerboseLogging;
                 subfragment->EnableCodeCache = fragment->EnableCodeCache;
-                subfragment->Ordered = fragment->Ordered;
 
                 Stroka address;
                 std::tie(subfragment->DataSources, address) = getSubsources(index);

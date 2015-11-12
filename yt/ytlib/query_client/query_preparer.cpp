@@ -1516,9 +1516,6 @@ TPlanFragmentPtr PreparePlanFragment(
 
     if (ast.Limit) {
         query->Limit = ast.Limit;
-        if (!query->OrderClause) {
-            planFragment->Ordered = true;
-        }
     } else if (query->OrderClause) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
