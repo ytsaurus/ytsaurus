@@ -55,6 +55,7 @@ public:
     void SetRequestCompression(const Stroka& compression);
     void SetResponseCompression(const Stroka& compression);
 
+    Stroka GetCommand() const;
     Stroka GetUrl() const;
     Stroka GetHeader(const Stroka& hostName, const Stroka& requestId) const;
 
@@ -89,7 +90,7 @@ public:
 
     Stroka GetRequestId() const;
 
-    void Connect();
+    void Connect(TDuration socketTimeout = TDuration::Zero());
     THttpOutput* StartRequest(const THttpHeader& request);
     void FinishRequest();
     THttpInput* GetResponseStream();

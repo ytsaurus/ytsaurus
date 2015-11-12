@@ -55,9 +55,8 @@ TTransactionId StartTransaction(
     header.AddTransactionId(parentId);
 
     header.AddMutationId();
-    if (timeout) {
-        header.AddParam("timeout", timeout->MilliSeconds());
-    }
+    header.AddParam("timeout",
+        (timeout ? timeout : TConfig::Get()->TxTimeout)->MilliSeconds());
     if (pingAncestors) {
         header.AddParam("ping_ancestor_transactions", "true");
     }
@@ -173,11 +172,12 @@ Stroka RetryRequest(
                 header.AddParam("retry", "true");
             }
 
-            try {
+            if (header.GetCommand() == "ping_tx") {
+                request.Connect(TDuration::Seconds(5));
+            } else {
                 request.Connect();
-            } catch (yexception&) {
-                throw;
             }
+
             try {
                 TOutputStream* output = request.StartRequest(header);
                 output->Write(body);
@@ -185,11 +185,8 @@ Stroka RetryRequest(
             } catch (yexception&) {
                 // try to read error in response
             }
-            try {
-                response = request.GetResponse();
-            } catch (yexception&) {
-                throw;
-            }
+
+            response = request.GetResponse();
 
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
@@ -238,11 +235,7 @@ void RetryHeavyWriteRequest(
 
             header.AddTransactionId(attemptTx.GetId());
 
-            try {
-                request.Connect();
-            } catch (yexception&) {
-                throw;
-            }
+            request.Connect();
             try {
                 TOutputStream* output = request.StartRequest(header);
                 output->Write(buffer.Data(), buffer.Size());
@@ -250,12 +243,7 @@ void RetryHeavyWriteRequest(
             } catch (yexception&) {
                 // try to read error in response
             }
-            try {
-                request.GetResponse();
-            } catch (yexception&) {
-                throw;
-            }
-
+            request.GetResponse();
             attemptTx.Commit();
 
         } catch (TErrorResponse& e) {
