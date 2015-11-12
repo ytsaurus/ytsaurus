@@ -7,6 +7,7 @@
 
 #include <core/misc/protobuf_helpers.h>
 #include <core/misc/small_vector.h>
+#include <core/misc/nullable.h>
 
 #include <core/concurrency/scheduler.h>
 
@@ -67,6 +68,12 @@ public:
         ValidateColumnFilter(ColumnFilter_, SchemaColumnCount_);
 
         LookupKeys_ = Reader_->ReadUnversionedRowset();
+
+        Merger_.Emplace(
+            &MemoryPool_,
+            SchemaColumnCount_,
+            KeyColumnCount_,
+            ColumnFilter_);
 
         LOG_DEBUG("Performing tablet lookup (TabletId: %v, CellId: %v, KeyCount: %v)",
             TabletSnapshot_->TabletId,
@@ -153,6 +160,8 @@ private:
 
     TColumnFilter ColumnFilter_;
 
+    TNullable<TSchemafulRowMerger> Merger_;
+
 
     void CreateReadSessions(
         TReadSessionList* sessions,
@@ -194,15 +203,9 @@ private:
 
         CreateReadSessions(&PartitionSessions_, partitionSnapshot, keys);
 
-        TSchemafulRowMerger merger(
-            &MemoryPool_,
-            SchemaColumnCount_,
-            KeyColumnCount_,
-            ColumnFilter_);
-
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
-                merger.AddPartialRow(session.FetchRow());
+                Merger_->AddPartialRow(session.FetchRow());
             }
         };
 
@@ -210,7 +213,7 @@ private:
             processSessions(PartitionSessions_);
             processSessions(EdenSessions_);
 
-            auto mergedRow = merger.BuildMergedRow();
+            auto mergedRow = Merger_->BuildMergedRow();
             Writer_->WriteUnversionedRow(mergedRow);
         }
     }
