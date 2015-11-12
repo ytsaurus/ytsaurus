@@ -1,5 +1,6 @@
 #pragma once
 
+#include "port.h"
 #include "assert.h"
 #include "mpl.h"
 #include "port.h"
@@ -37,9 +38,10 @@ class TIntrusivePtr
 public:
     typedef T TUnderlying;
 
-    //! Empty constructor.
-    TIntrusivePtr() // noexcept
-        : T_(nullptr)
+    TIntrusivePtr() noexcept
+    { }
+
+    TIntrusivePtr(std::nullptr_t) noexcept
     { }
 
     //! Constructor from an unqualified reference.
@@ -50,7 +52,7 @@ public:
      * Note that it notoriously hard to make this constructor explicit
      * given the current amount of code written.
      */
-    TIntrusivePtr(T* obj) // noexcept
+    TIntrusivePtr(T* obj) noexcept
         : T_(obj)
     {
         if (T_) {
@@ -59,7 +61,7 @@ public:
     }
 
     //! Constructor from an unqualified reference.
-    TIntrusivePtr(T* obj, bool addReference) // noexcept
+    TIntrusivePtr(T* obj, bool addReference) noexcept
         : T_(obj)
     {
         if (T_ && addReference) {
@@ -68,7 +70,7 @@ public:
     }
 
     //! Copy constructor.
-    explicit TIntrusivePtr(const TIntrusivePtr& other) // noexcept
+    explicit TIntrusivePtr(const TIntrusivePtr& other) noexcept
         : T_(other.Get())
     {
         if (T_) {
@@ -80,7 +82,7 @@ public:
     template <class U>
     TIntrusivePtr(
         const TIntrusivePtr<U>& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) noexcept
         : T_(other.Get())
     {
         if (T_) {
@@ -99,7 +101,7 @@ public:
     template <class U>
     TIntrusivePtr(
         TIntrusivePtr<U>&& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) // noexcept
+        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) noexcept
         : T_(other.Get())
     {
         other.T_ = nullptr;
@@ -114,7 +116,7 @@ public:
     }
 
     //! Copy assignment operator.
-    TIntrusivePtr& operator=(const TIntrusivePtr& other) // noexcept
+    TIntrusivePtr& operator=(const TIntrusivePtr& other) noexcept
     {
         TIntrusivePtr(other).Swap(*this);
         return *this;
@@ -122,7 +124,7 @@ public:
 
     //! Copy assignment operator with an upcast.
     template <class U>
-    TIntrusivePtr& operator=(const TIntrusivePtr<U>& other) // noexcept
+    TIntrusivePtr& operator=(const TIntrusivePtr<U>& other) noexcept
     {
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
@@ -140,7 +142,7 @@ public:
 
     //! Move assignment operator with an upcast.
     template <class U>
-    TIntrusivePtr& operator=(TIntrusivePtr<U>&& other) // noexcept
+    TIntrusivePtr& operator=(TIntrusivePtr<U>&& other) noexcept
     {
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
@@ -162,30 +164,30 @@ public:
     }
 
     //! Returns the pointer.
-    T* Get() const // noexcept
+    T* Get() const noexcept
     {
         return T_;
     }
 
-    T& operator*() const // noexcept
+    T& operator*() const noexcept
     {
         YASSERT(T_);
         return *T_;
     }
 
-    T* operator->() const // noexcept
+    T* operator->() const noexcept
     {
         YASSERT(T_);
         return  T_;
     }
 
-    explicit operator bool() const
+    explicit operator bool() const noexcept
     {
         return T_ != nullptr;
     }
 
     //! Swap the pointer with the other one.
-    void Swap(TIntrusivePtr& r) // noexcept
+    void Swap(TIntrusivePtr& r) noexcept
     {
         DoSwap(T_, r.T_);
     }
@@ -194,7 +196,7 @@ private:
     template <class U>
     friend class TIntrusivePtr;
 
-    T* T_;
+    T* T_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

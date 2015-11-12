@@ -10,19 +10,19 @@ namespace NFormats {
 
 std::unique_ptr<IParser> CreateParserForYamredDsv(
     NYson::IYsonConsumer* consumer,
-    TYamredDsvFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void ParseYamredDsv(
     TInputStream* input,
     NYson::IYsonConsumer* consumer,
-    TYamredDsvFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = nullptr);
 
 void ParseYamredDsv(
     const TStringBuf& data,
     NYson::IYsonConsumer* consumer,
-    TYamredDsvFormatConfigPtr config = NULL);
+    TYamredDsvFormatConfigPtr config = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

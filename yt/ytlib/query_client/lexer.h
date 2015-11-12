@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/ytlib/query_client/parser.hpp>
 
 namespace NYT {

@@ -365,8 +365,8 @@ void TNonOwningCGroup::DoRemove() const
 }
 
 void TNonOwningCGroup::Traverse(
-        const TCallback<void(const TNonOwningCGroup&)> preorderAction,
-        const TCallback<void(const TNonOwningCGroup&)> postorderAction) const
+    const TCallback<void(const TNonOwningCGroup&)>& preorderAction,
+    const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const
 {
     preorderAction.Run(*this);
 

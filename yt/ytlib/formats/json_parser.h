@@ -21,7 +21,7 @@ class TJsonParser
 public:
     TJsonParser(
         NYson::IYsonConsumer* consumer,
-        TJsonFormatConfigPtr config = NULL,
+        TJsonFormatConfigPtr config = nullptr,
         NYson::EYsonType type = NYson::EYsonType::Node);
 
     virtual void Read(const TStringBuf& data);
@@ -39,7 +39,7 @@ private:
 void ParseJson(
     TInputStream* input,
     NYson::IYsonConsumer* consumer,
-    TJsonFormatConfigPtr config = NULL,
+    TJsonFormatConfigPtr config = nullptr,
     NYson::EYsonType type = NYson::EYsonType::Node);
 
 ////////////////////////////////////////////////////////////////////////////////
