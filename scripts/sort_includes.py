@@ -86,7 +86,7 @@ STL_HEADERS = """
 STL_HEADERS = map(lambda h: h[1:-1], STL_HEADERS)
 STL_HEADERS = set(filter(lambda h: h != "", STL_HEADERS))
 
-SOURCE_EXTENSIONS = {".cpp", ".c"}
+SOURCE_EXTENSIONS = {".cpp", ".c", ".xs"}
 HEADER_EXTENSIONS = {".h"}
 
 
