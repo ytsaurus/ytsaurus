@@ -34,7 +34,7 @@ describe("YtApplicationVersions - discover versions", function() {
             mock
                 .expects("executeSimple")
                 .once()
-                .withExactArgs("get", sinon.match({
+                .withExactArgs("list", sinon.match({
                     path: "//sys/" + entity
                 }))
                 .returns(Q.resolve(name_result));
@@ -102,7 +102,7 @@ describe("YtApplicationVersions - discover versions", function() {
                 "1002/master1": {
                     "version": "1"
                 },
-                "1002/master2": null
+                "1002/master2": error_from_orchid
             }),
             "nodes": createMock("nodes", {
                 "node1": {
