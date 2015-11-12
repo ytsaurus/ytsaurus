@@ -80,10 +80,10 @@ void TSchemalessWriterForDsv::DoWrite(const std::vector<NTableClient::TUnversion
         }
 
         FinalizeRow(firstValue);
-        TryFlushBuffer();
+        TryFlushBuffer(false);
     }
 
-    TryFlushBuffer();
+    TryFlushBuffer(true);
 }
 
 void TSchemalessWriterForDsv::FinalizeRow(bool firstValue)

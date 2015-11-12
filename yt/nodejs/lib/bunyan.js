@@ -723,7 +723,7 @@ Logger.prototype._emit = function (rec, noemit) {
         var s = this.streams[i];
         if (s.level <= level) {
             xxx('writing log rec "%s" to "%s" stream (%d <= %d): %j',
-                rec.msg, s.type, s.level, level, rec);
+                rec.message, s.type, s.level, level, rec);
             s.stream.write(s.raw ? rec : str);
         }
     };
@@ -738,12 +738,18 @@ Logger.prototype._emit = function (rec, noemit) {
  */
 function mkLogEmitter(msgLevel) {
     return function (fields, msg) {
+        if (typeof(fields) === "string") {
+            msg = fields;
+            fields = {};
+        }
+
         var rec = objCopy(this.fields);
+        Object.keys(fields).forEach(function(k) {
+            rec[k] = fields[k];
+        });
 
         rec.level = msgLevel;
-        // XXX(sandello): This results in 4x performance improvement.
-        // rec.msg = format.apply(log, msgArgs);
-        rec.msg = msg;
+        rec.message = msg;
 
         if (!rec.time) {
             rec.time = (new Date());
@@ -803,7 +809,7 @@ function safeCycles() {
  * BufferedFileStream buffers data to amortize calls to underlying file stream.
  */
  
-function BufferedFileStream(path, limit) {
+function BufferedFileStream(path) {
     EventEmitter.call(this);
     this.writable = true;
     this.destroyed = false;
@@ -811,16 +817,11 @@ function BufferedFileStream(path, limit) {
     this._underlying = fs.createWriteStream(path, {flags: 'a', encoding: 'utf8'});
     this._chunks = [];
     this._draining = false;
-    this._weight = 0;
-    this._limit = limit;
 
     var self = this;
     self._underlying.on('drain', function() {
-        if (self._chunks.length > 0) {
-            process.nextTick(self._drain.bind(self));
-        } else if (self.destroyed) {
-            self._underlying.destroySoon();
-        }
+        xxx("BFS: underlying stream emitted \"drain\" event");
+        self._drainSoon();
     });
     self._underlying.on('error', function(err) {
         self.writable = false;
@@ -837,12 +838,10 @@ util.inherits(BufferedFileStream, EventEmitter);
 BufferedFileStream.prototype.write = function(chunk) {
     if (!this.writable)
         throw (new Error('BufferedFileStream has been ended already'));
-
+    xxx("BFS: write()");
     this._chunks.push(chunk);
-    this._weight += chunk.length;
-
     this._drain();
-    return this._weight > this._limit;;
+    return false;
 };
 
 BufferedFileStream.prototype.end = function() {
@@ -863,37 +862,44 @@ BufferedFileStream.prototype.destroySoon = function() {
     this.writeable = false;
     this.destroyed = true;
 
-    this._drain();
+    if (this._chunks.length > 0) {
+        this._drain();
+    }
     if (!this._draining) {
+        xxx("BFS: calling destroySoon() on underlying stream");
         this._underlying.destroySoon();
     }
 };
 
 BufferedFileStream.prototype._drain = function() {
     if (this._draining) {
+        xxx("BFS: already draining");
         return;
     }
-
+    xxx("BFS: scheduled draining");
     this._draining = true;
     process.nextTick(this._drainSoon.bind(this));
 };
 
 BufferedFileStream.prototype._drainSoon = function() {
     var i = 0, n = this._chunks.length;
-    if (n === 0) {
-        return;
+    if (n > 0) {
+        var blob = "";
+        for (; i < n; ++i) {
+            blob += this._chunks[i];
+        }
+        this._underlying.write(blob);
+        this._chunks = [];
+        this._weight = 0;
+        xxx("BFS: drained %d events", n);
+    } else {
+        this._draining = false;
+        xxx("BFS: done draining");
+        if (this.destroyed) {
+            xxx("BFS: calling destroySoon() on underlying stream");
+            this._underlying.destroySoon();
+        }
     }
-
-    var blob = "";
-    for (; i < n; ++i) {
-        blob += this._chunks[i];
-    }
-
-    this._underlying.write(blob);
-
-    this._draining = false;
-    this._chunks = [];
-    this._weight = 0;
 };
 
 //---- Exports

@@ -221,7 +221,7 @@ void TSchemalessWriterForSchemafulDsv::DoWrite(const std::vector<TUnversionedRow
             WriteValue(row[index]);
         }
         WriteRaw(Config_->RecordSeparator);
-        TryFlushBuffer();
+        TryFlushBuffer(false);
     }    
 }
 
@@ -255,7 +255,7 @@ TSchemafulWriterForSchemafulDsv::TSchemafulWriterForSchemafulDsv(
 
 TFuture<void> TSchemafulWriterForSchemafulDsv::Close()
 {
-    DoFlushBuffer(true);
+    DoFlushBuffer();
     return VoidFuture;
 }
 
@@ -272,25 +272,23 @@ bool TSchemafulWriterForSchemafulDsv::Write(const std::vector<TUnversionedRow>& 
             WriteValue(row[id]);
         }
         WriteRaw(Config_->RecordSeparator);
-        TryFlushBuffer();
+        TryFlushBuffer(false);
     }
     
     return true;
 }
 
 // TODO(max42): Eliminate copy-paste from schemaless_writer_adapter.cpp.
-void TSchemafulWriterForSchemafulDsv::TryFlushBuffer()
+void TSchemafulWriterForSchemafulDsv::TryFlushBuffer(bool force)
 {
-    DoFlushBuffer(false);
+    if (force || UnderlyingBlobOutput_.Size() >= UnderlyingBlobOutput_.Blob().Capacity() / 2) {
+        DoFlushBuffer();
+    }
 }
 
-void TSchemafulWriterForSchemafulDsv::DoFlushBuffer(bool force)
+void TSchemafulWriterForSchemafulDsv::DoFlushBuffer()
 {
     if (UnderlyingBlobOutput_.Size() == 0) {
-        return;
-    }
-
-    if (!force && UnderlyingBlobOutput_.Size() < UnderlyingBlobOutput_.Blob().Capacity() / 2) {
         return;
     }
 

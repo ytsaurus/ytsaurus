@@ -60,7 +60,7 @@ TFuture<void> TSchemalessFormatWriterBase::GetReadyEvent()
 TFuture<void> TSchemalessFormatWriterBase::Close()
 {
     try {
-        DoFlushBuffer(true);
+        DoFlushBuffer();
         Output_->Finish();
     } catch (const std::exception& ex) {
         Error_ = TError(ex);
@@ -92,18 +92,16 @@ TBlob TSchemalessFormatWriterBase::GetContext() const
     return result;
 }
 
-void TSchemalessFormatWriterBase::TryFlushBuffer()
+void TSchemalessFormatWriterBase::TryFlushBuffer(bool force)
 {
-    DoFlushBuffer(false);
+    if ((CurrentBuffer_.Size() > ContextBufferSize) || (!EnableContextSaving_ && force)) {
+        DoFlushBuffer();
+    }
 }
 
-void TSchemalessFormatWriterBase::DoFlushBuffer(bool force)
+void TSchemalessFormatWriterBase::DoFlushBuffer()
 {
     if (CurrentBuffer_.Size() == 0) {
-        return;
-    }
-
-    if (!force && CurrentBuffer_.Size() < ContextBufferSize && EnableContextSaving_) {
         return;
     }
 
@@ -184,10 +182,10 @@ void TSchemalessWriterAdapter::DoWrite(const std::vector<TUnversionedRow>& rows)
         }
 
         ConsumeRow(rows[index]);
-        TryFlushBuffer();
+        TryFlushBuffer(false);
     }
 
-    TryFlushBuffer();
+    TryFlushBuffer(true);
 }
 
 void TSchemalessWriterAdapter::WriteTableIndex(i32 tableIndex)

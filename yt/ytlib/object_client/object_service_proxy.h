@@ -118,7 +118,7 @@ public:
             NRpc::TClientContextPtr clientContext,
             const TKeyToIndexMultimap& keyToIndexes);
 
-        TFuture<TRspExecuteBatchPtr> GetAsyncResult();
+        TPromise<TRspExecuteBatchPtr> GetPromise();
 
         //! Returns the number of individual responses in the batch.
         int GetSize() const;
