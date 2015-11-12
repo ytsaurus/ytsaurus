@@ -102,7 +102,8 @@ function YtApplicationOperations(driver)
         }
 
         var runtime_data = driver.executeSimple(
-            "get", {
+            "get",
+            {
                 path: OPERATIONS_ORCHID_PATH
             });
 

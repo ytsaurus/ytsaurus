@@ -47,7 +47,7 @@ describe("YtApplicationVersions - discover versions", function() {
 
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
-                var vesion_data = result[name];
+                var version_data = result[name];
 
                 var request_mock = mock
                     .expects("executeSimple")
@@ -56,8 +56,8 @@ describe("YtApplicationVersions - discover versions", function() {
                         path: "//sys/" + entity + "/" + name + "/orchid/service"
                     }));
 
-                if (vesion_data != null) {
-                    request_mock.returns(Q.resolve(vesion_data));
+                if (!version_data.hasOwnProperty("error")) {
+                    request_mock.returns(Q.resolve(version_data));
                 } else {
                     request_mock.returns(Q.reject("Some error from orchid"));
                 }
@@ -73,12 +73,12 @@ describe("YtApplicationVersions - discover versions", function() {
 
             for (var i = 0, length = names.length; i < length; ++i) {
                 var name = names[i];
-                var vesion_data = result[name];
+                var version_data = result[name];
 
-                if (vesion_data != null) {
+                if (!version_data.hasOwnProperty("error")) {
                     nock("http://" + name)
                         .get("/version")
-                        .reply(200, vesion_data["version"]);
+                        .reply(200, version_data["version"]);
                 } else {
                     nock("http://" + name)
                         .get("/version")
@@ -89,12 +89,14 @@ describe("YtApplicationVersions - discover versions", function() {
             return result;
         }
 
+        var error_from_orchid = {"error":{"code":-2,"message":"Some error from orchid","attributes":{},"inner_errors":[]}};
+
         var versions = {
             "primary_masters": createMock("primary_masters", {
                 "master1": {
                     "version": "1"
                 },
-                "master2": null
+                "master2": error_from_orchid
             }),
             "secondary_masters": createMock("secondary_masters", {
                 "1002/master1": {
@@ -109,14 +111,14 @@ describe("YtApplicationVersions - discover versions", function() {
                 "node2": {
                     "version": "3"
                 },
-                "node3": null
+                "node3": error_from_orchid
             }),
             "schedulers": createMock("scheduler/instances", { }),
             "proxies": createMock2("proxies", {
                 "proxy1": {
                     "version": "1"
                 },
-                "proxy2": null
+                "proxy2": {"error":{"code":-2,"message":"Request to \'proxy2:80/version\' has responded with 503","attributes":{},"inner_errors":[]}}
             })
         };
 

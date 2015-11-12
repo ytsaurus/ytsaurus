@@ -31,8 +31,11 @@ TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
     auto clientContxt = CreateClientContext();
     auto batchRsp = New<TRspExecuteBatch>(clientContxt, KeyToIndexes);
-    auto promise = batchRsp->GetAsyncResult();
-    Send(batchRsp);
+    auto promise = batchRsp->GetPromise();
+    auto requestControl = Send(batchRsp);
+    promise.OnCanceled(BIND([=] () {
+        requestControl->Cancel();
+    }));
     return promise;
 }
 
@@ -112,8 +115,8 @@ TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     , Promise(NewPromise<TRspExecuteBatchPtr>())
 { }
 
-TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
-TObjectServiceProxy::TRspExecuteBatch::GetAsyncResult()
+TPromise<TObjectServiceProxy::TRspExecuteBatchPtr>
+TObjectServiceProxy::TRspExecuteBatch::GetPromise()
 {
     return Promise;
 }

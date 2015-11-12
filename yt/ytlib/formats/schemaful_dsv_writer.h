@@ -90,8 +90,8 @@ public:
 private:
     std::unique_ptr<TOutputStream> Output_;
 
-    void TryFlushBuffer();
-    void DoFlushBuffer(bool force);
+    void TryFlushBuffer(bool force);
+    void DoFlushBuffer();
 
     TFuture<void> Result_;
 

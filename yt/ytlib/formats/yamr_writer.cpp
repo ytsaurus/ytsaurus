@@ -117,10 +117,10 @@ void TSchemalessWriterForYamr::DoWrite(const std::vector<TUnversionedRow>& rows)
             WriteInLenvalMode(*value);
         }
 
-        TryFlushBuffer();
+        TryFlushBuffer(false);
     }
 
-    TryFlushBuffer();
+    TryFlushBuffer(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

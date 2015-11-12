@@ -14,6 +14,25 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRoamingRequestControlThunk
+    : public TClientRequestControlThunk
+{
+public:
+    TRoamingRequestControlThunk(TClosure onCancel)
+        : OnCancel_(onCancel)
+    { }
+
+    virtual void Cancel() override
+    {
+        OnCancel_.Run();
+        TClientRequestControlThunk::Cancel();
+    }
+
+private:
+    TClosure OnCancel_;
+
+};
+
 class TRoamingChannel
     : public IChannel
 {
@@ -59,7 +78,9 @@ public:
             }
         }
 
-        auto requestControlThunk = New<TClientRequestControlThunk>();
+        auto requestControlThunk = New<TRoamingRequestControlThunk>(BIND([=] () mutable {
+            asyncChannel.Cancel();
+        }));
 
         asyncChannel.Subscribe(
             BIND(
