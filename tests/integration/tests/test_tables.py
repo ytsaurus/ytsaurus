@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, linux_only, skip_if_multicell
+from yt_env_setup import YTEnvSetup, unix_only, skip_if_multicell
 from yt_commands import *
 
 from yt.yson import to_yson_type
@@ -655,7 +655,7 @@ class TestTables(YTEnvSetup):
         erasure_info = get("//tmp/t/@erasure_statistics")
         assert erasure_info["none"]["chunk_count"] == chunk_count
 
-    @linux_only
+    @unix_only
     def test_statistics2(self):
         tableA = "//tmp/a"
         create("table", tableA)

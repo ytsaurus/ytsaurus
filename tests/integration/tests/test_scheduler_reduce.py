@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, linux_only
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 from yt.yson import YsonEntity
 
@@ -12,7 +12,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    @linux_only
+    @unix_only
     def test_tricky_chunk_boundaries(self):
         create('table', '//tmp/in1')
         write_table(
@@ -51,7 +51,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @linux_only
+    @unix_only
     def test_cat(self):
         create('table', '//tmp/in1')
         write_table(
@@ -97,7 +97,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
         assert get('//tmp/out/@sorted')
 
-    @linux_only
+    @unix_only
     def test_control_attributes_yson(self):
         create('table', '//tmp/in1')
         write_table(
@@ -138,7 +138,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
             '<"row_index"=0;>#;\n' \
             '{"key"=4;"value"=3;};\n'
 
-    @linux_only
+    @unix_only
     def test_cat_teleport(self):
         create('table', '//tmp/in1')
         write_table(
@@ -201,7 +201,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get('//tmp/out1/@sorted')
         assert get('//tmp/out2/@sorted')
 
-    @linux_only
+    @unix_only
     def test_maniac_chunk(self):
         create('table', '//tmp/in1')
         write_table(
@@ -314,7 +314,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 {'key': "2", 'subkey' : YsonEntity()}
             ]
 
-    @linux_only
+    @unix_only
     def test_many_output_tables(self):
         output_tables = ['//tmp/t%d' % i for i in range(3)]
 

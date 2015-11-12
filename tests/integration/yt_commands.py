@@ -2,8 +2,6 @@ import yt.yson as yson
 from yt_driver_bindings import Driver, Request
 from yt.common import YtError, flatten, update
 
-import pytest
-
 import sys
 import time
 from datetime import datetime
