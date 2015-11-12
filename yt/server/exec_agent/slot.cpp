@@ -1,4 +1,3 @@
-#include <yt/core/misc/common.h>
 #include "slot.h"
 #include "private.h"
 #include "config.h"
@@ -7,11 +6,12 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/core/tools/tools.h>
+#include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/common.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/logging/log_manager.h>
+#include <yt/core/tools/tools.h>
 
 namespace NYT {
 namespace NExecAgent {

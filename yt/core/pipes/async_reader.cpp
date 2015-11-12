@@ -9,8 +9,9 @@
 #include <yt/core/misc/common.h>
 #include <yt/core/misc/proc.h>
 
-#include <errno.h>
 #include <yt/contrib/libev/ev++.h>
+
+#include <errno.h>
 
 namespace NYT {
 namespace NPipes {

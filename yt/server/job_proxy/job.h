@@ -4,14 +4,14 @@
 
 #include <yt/ytlib/api/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
-#include <yt/ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/ytlib/scheduler/job.pb.h>
 
 #include <yt/core/logging/log.h>
 

@@ -1,7 +1,4 @@
-#include <yt/core/misc/common.h>
-
 #include "sorted_merge_job.h"
-
 #include "config.h"
 #include "job_detail.h"
 
@@ -11,6 +8,8 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NJobProxy {

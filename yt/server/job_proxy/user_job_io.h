@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
-
 #include <yt/ytlib/scheduler/job.pb.h>
 #include <yt/ytlib/scheduler/public.h>
+
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 
 namespace NYT {
 namespace NJobProxy {

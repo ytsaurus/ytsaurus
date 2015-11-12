@@ -1,5 +1,6 @@
-#include <yt/core/misc/common.h>
 #include "chunk_meta_extensions.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NChunkClient {

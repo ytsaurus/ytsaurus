@@ -1,6 +1,7 @@
-#include <yt/core/misc/common.h>
 #include "id_generator.h"
 #include "serialize.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 
