@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "string.h"
 #include "error.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 

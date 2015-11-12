@@ -1,23 +1,23 @@
-#include "stdafx.h"
 #include "ypath_client.h"
-#include "ypath_proxy.h"
-#include "ypath_detail.h"
 #include "attribute_helpers.h"
 #include "exception_helpers.h"
+#include "ypath_detail.h"
+#include "ypath_proxy.h"
 
-#include <core/yson/format.h>
-#include <core/yson/tokenizer.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/serialize.h>
 
-#include <core/misc/serialize.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/server_detail.h>
 
-#include <core/rpc/rpc.pb.h>
-#include <core/rpc/message.h>
-#include <core/rpc/server_detail.h>
+#include <yt/core/ypath/token.h>
+#include <yt/core/ypath/tokenizer.h>
 
-#include <core/ypath/token.h>
-#include <core/ypath/tokenizer.h>
+#include <yt/core/yson/format.h>
+#include <yt/core/yson/tokenizer.h>
 
-#include <core/ytree/ypath.pb.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 #include <cmath>
 

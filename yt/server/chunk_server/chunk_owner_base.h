@@ -3,12 +3,12 @@
 #include "public.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/chunk_owner_ypath_proxy.h>
+#include <yt/server/cypress_server/node.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <server/cypress_server/public.h>
-#include <server/cypress_server/node.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
-#include <core/misc/property.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NChunkServer {

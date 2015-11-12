@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "symbols.h"
 
+#include <yt/core/misc/common.h>
+
 #ifdef YT_USE_SSE42
-    #include <core/misc/cpuid.h>
+    #include <yt/core/misc/cpuid.h>
 #endif
 
 namespace NYT {

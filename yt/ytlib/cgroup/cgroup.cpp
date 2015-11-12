@@ -1,16 +1,17 @@
-#include "stdafx.h"
-#include "private.h"
 #include "cgroup.h"
+#include "private.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/proc.h>
 
-#include <core/misc/fs.h>
-#include <core/misc/proc.h>
+#include <yt/core/tools/registry.h>
+#include <yt/core/tools/tools.h>
 
-#include <core/tools/tools.h>
-#include <core/tools/registry.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
+
 #include <util/system/yield.h>
 
 #ifdef _linux_

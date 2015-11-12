@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/ytree/ypath.pb.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 namespace NYT {
 namespace NYTree {

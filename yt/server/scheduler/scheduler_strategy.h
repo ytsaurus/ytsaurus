@@ -3,13 +3,13 @@
 #include "public.h"
 #include "event_log.h"
 
-#include <core/actions/signal.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
-#include <core/yson/public.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NScheduler {

@@ -1,50 +1,49 @@
-#include "stdafx.h"
 #include "data_node_service.h"
 #include "private.h"
-#include "config.h"
+#include "block_store.h"
 #include "chunk.h"
-#include "location.h"
-#include "chunk_store.h"
 #include "chunk_cache.h"
 #include "chunk_registry.h"
-#include "block_store.h"
-#include "peer_block_table.h"
-#include "session_manager.h"
-#include "session.h"
+#include "chunk_store.h"
+#include "config.h"
+#include "location.h"
 #include "master_connector.h"
+#include "peer_block_table.h"
+#include "session.h"
+#include "session_manager.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/string.h>
-#include <core/misc/random.h>
-#include <core/misc/nullable.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/bus/tcp_dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/data_node_service.pb.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/ytlib/misc/workload.h>
 
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/action_queue.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/misc/workload.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/private.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/private.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/bus/tcp_dispatcher.h>
 
-#include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/data_node_service.pb.h>
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk_slice.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/random.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/string.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
-
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/rpc/service_detail.h>
 
 #include <cmath>
 

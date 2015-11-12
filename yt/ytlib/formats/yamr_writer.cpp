@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "yamr_writer.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/format.h>
+#include <yt/core/yson/format.h>
 
 namespace NYT {
 namespace NFormats {

@@ -1,17 +1,16 @@
 #include "stracer.h"
 #include "private.h"
 
-#include <core/ytree/serialize.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/misc/proc.h>
+#include <yt/core/misc/subprocess.h>
 
-#include <core/misc/subprocess.h>
-#include <core/misc/proc.h>
+#include <yt/core/tools/registry.h>
+#include <yt/core/tools/tools.h>
 
-#include <core/tools/tools.h>
-#include <core/tools/registry.h>
-
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/serialize.h>
 
 namespace NYT {
 namespace NJobProxy {

@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "codec.h"
 #include "details.h"
+#include "lz.h"
 #include "snappy.h"
 #include "zlib.h"
-#include "lz.h"
 #include "zstd.h"
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/tracing/trace_context.h>
 
 namespace NYT {
 namespace NCompression {

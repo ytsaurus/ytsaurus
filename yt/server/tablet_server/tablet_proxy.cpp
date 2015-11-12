@@ -1,21 +1,22 @@
-#include "stdafx.h"
 #include "tablet_proxy.h"
+#include "private.h"
 #include "tablet.h"
 #include "tablet_cell.h"
 #include "tablet_manager.h"
-#include "private.h"
 
-#include <core/yson/consumer.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/chunk_server/chunk_list.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/table_server/table_node.h>
+#include <yt/server/table_server/table_node.h>
 
-#include <server/chunk_server/chunk_list.h>
+#include <yt/core/misc/common.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/yson/consumer.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletServer {

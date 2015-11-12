@@ -5,13 +5,13 @@
 #include "helpers.h"
 #include "schemaful_dsv_table.h"
 
-#include <core/misc/blob.h>
-#include <core/misc/nullable.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaful_writer.h>
+#include <yt/core/misc/blob.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NFormats {

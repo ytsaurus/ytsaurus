@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+﻿#include <yt/core/misc/common.h>
 
 #include "partition_sort_job.h"
 
@@ -6,9 +6,9 @@
 #include "config.h"
 #include "private.h"
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
-#include <ytlib/table_client/schemaless_partition_sort_reader.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/schemaless_partition_sort_reader.h>
 
 namespace NYT {
 namespace NJobProxy {

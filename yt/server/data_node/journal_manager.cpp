@@ -1,31 +1,31 @@
-#include "stdafx.h"
 #include "journal_manager.h"
-#include "journal_dispatcher.h"
 #include "private.h"
-#include "config.h"
-#include "location.h"
 #include "chunk_store.h"
+#include "config.h"
 #include "journal_chunk.h"
+#include "journal_dispatcher.h"
+#include "location.h"
 
-#include <core/misc/enum.h>
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/file_changelog_dispatcher.h>
+#include <yt/server/hydra/file_helpers.h>
+#include <yt/server/hydra/lazy_changelog.h>
+#include <yt/server/hydra/private.h>
 
-#include <core/profiling/timing.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/version.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
-#include <ytlib/hydra/version.h>
+#include <yt/core/concurrency/parallel_awaiter.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/file_changelog_dispatcher.h>
-#include <server/hydra/lazy_changelog.h>
-#include <server/hydra/file_helpers.h>
-#include <server/hydra/private.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/fs.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NDataNode {

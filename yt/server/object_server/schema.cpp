@@ -1,17 +1,17 @@
-#include "stdafx.h"
 #include "schema.h"
 #include "private.h"
 #include "type_handler.h"
 
-#include <core/misc/string.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
-#include <server/object_server/type_handler_detail.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NObjectServer {

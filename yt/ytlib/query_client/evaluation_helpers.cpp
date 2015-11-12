@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "evaluation_helpers.h"
-
 #include "private.h"
-#include "plan_helpers.h"
-#include "plan_fragment.h"
 #include "helpers.h"
+#include "plan_fragment.h"
+#include "plan_helpers.h"
 #include "query_statistics.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NQueryClient {

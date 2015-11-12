@@ -1,18 +1,16 @@
-#include "stdafx.h"
 #include "async_writer.h"
-
+#include "private.h"
 #include "io_dispatcher.h"
 #include "io_dispatcher_impl.h"
-#include "private.h"
 #include "pipe.h"
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/misc/proc.h>
-
-#include <contrib/libev/ev++.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/proc.h>
 
 #include <errno.h>
+#include <yt/contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NPipes {

@@ -1,11 +1,12 @@
-#include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <ytlib/tablet_client/wire_protocol.h>
-#include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/server/tablet_node/lookup.h>
+#include <yt/server/tablet_node/store_manager.h>
 
-#include <server/tablet_node/store_manager.h>
-#include <server/tablet_node/lookup.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {

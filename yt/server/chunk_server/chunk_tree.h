@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <server/object_server/staged_object.h>
+#include <yt/server/object_server/staged_object.h>
 
 
 namespace NYT {

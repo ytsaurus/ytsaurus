@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/nullable.h>
+#include <yt/ytlib/object_client/object_service.pb.h>
 
-#include <core/ytree/ypath_client.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/core/misc/nullable.h>
 
-#include <ytlib/object_client/object_service.pb.h>
+#include <yt/core/ytree/ypath_client.h>
 
 namespace NYT {
 namespace NObjectClient {

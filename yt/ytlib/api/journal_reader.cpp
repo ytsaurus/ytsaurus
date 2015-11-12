@@ -1,28 +1,29 @@
-#include "stdafx.h"
 #include "journal_reader.h"
+#include "private.h"
 #include "config.h"
 #include "connection.h"
-#include "private.h"
 
-#include <core/logging/log.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/journal_client/journal_ypath_proxy.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/journal_client/journal_ypath_proxy.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_listener.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NApi {

@@ -3,15 +3,15 @@
 #include "public.h"
 #include "job.h"
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/job_tracker_client/job.pb.h>
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaful_reader_adapter.h>
-#include <ytlib/table_client/schemaful_writer_adapter.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaful_reader_adapter.h>
+#include <yt/ytlib/table_client/schemaful_writer_adapter.h>
 
-#include <ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NJobProxy {

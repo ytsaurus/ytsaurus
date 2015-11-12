@@ -1,34 +1,34 @@
-#include "stdafx.h"
 #include "table_mount_cache.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <core/misc/string.h>
-#include <core/misc/expiring_cache.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <core/concurrency/rw_spinlock.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/ytlib/election/config.h>
 
-#include <core/ytree/ypath.pb.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <ytlib/election/config.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/expiring_cache.h>
+#include <yt/core/misc/string.h>
 
-#include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/ytree/ypath.pb.h>
 
 #ifdef YT_USE_LLVM
-#include <ytlib/query_client/folding_profiler.h>
-#include <ytlib/query_client/cg_types.h>
-#include <ytlib/query_client/cg_fragment_compiler.h>
-#include <ytlib/query_client/query_statistics.h>
+#include <yt/ytlib/query_client/folding_profiler.h>
+#include <yt/ytlib/query_client/cg_types.h>
+#include <yt/ytlib/query_client/cg_fragment_compiler.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 #endif
 
 namespace NYT {

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <core/misc/enum.h>
+#include <yt/ytlib/hive/public.h>
 
-#include <ytlib/hive/public.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT {
 namespace NHive {

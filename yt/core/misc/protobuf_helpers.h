@@ -1,18 +1,18 @@
 #pragma once
 
 #include "guid.h"
-#include "ref.h"
-#include "object_pool.h"
-#include "small_vector.h"
-#include "nullable.h"
 #include "mpl.h"
-#include "serialize.h"
+#include "nullable.h"
+#include "object_pool.h"
 #include "range.h"
+#include "ref.h"
+#include "serialize.h"
+#include "small_vector.h"
 
-#include <core/misc/protobuf_helpers.pb.h>
-#include <core/misc/guid.pb.h>
+#include <yt/core/compression/public.h>
 
-#include <core/compression/public.h>
+#include <yt/core/misc/guid.pb.h>
+#include <yt/core/misc/protobuf_helpers.pb.h>
 
 #include <contrib/libs/protobuf/message.h>
 #include <contrib/libs/protobuf/repeated_field.h>

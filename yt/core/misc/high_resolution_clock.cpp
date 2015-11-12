@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "high_resolution_clock.h"
+
+#include <yt/core/misc/common.h>
 
 #include <util/datetime/cputimer.h>
 

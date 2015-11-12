@@ -2,7 +2,7 @@
 
 #include "callback.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 

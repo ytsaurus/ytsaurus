@@ -1,34 +1,34 @@
-#include "stdafx.h"
 #include "dynamic_memory_store.h"
+#include "config.h"
 #include "tablet.h"
 #include "transaction.h"
-#include "config.h"
 
-#include <core/misc/small_vector.h>
-#include <core/misc/skip_list.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/memory_reader.h>
+#include <yt/ytlib/chunk_client/memory_writer.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/profiling/timing.h>
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/versioned_chunk_writer.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/versioned_writer.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/versioned_row.h>
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/versioned_writer.h>
-#include <ytlib/table_client/versioned_chunk_reader.h>
-#include <ytlib/table_client/versioned_chunk_writer.h>
-#include <ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/skip_list.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/memory_reader.h>
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/memory_writer.h>
+#include <yt/core/profiling/timing.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {

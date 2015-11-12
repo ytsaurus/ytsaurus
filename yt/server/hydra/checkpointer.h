@@ -2,16 +2,16 @@
 
 #include "private.h"
 
-#include <core/misc/checksum.h>
-#include <core/misc/error.h>
+#include <yt/ytlib/election/public.h>
 
-#include <core/actions/signal.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/election/public.h>
+#include <yt/core/misc/checksum.h>
+#include <yt/core/misc/error.h>
 
 #include <tuple>
 

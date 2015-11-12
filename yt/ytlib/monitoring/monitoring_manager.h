@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_producer.h>
+#include <yt/core/ytree/yson_producer.h>
 
 namespace NYT {
 namespace NMonitoring {

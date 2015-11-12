@@ -3,20 +3,20 @@
 #include "config.h"
 #include "io_helpers.h"
 
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/ypath_service.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/ytlib/driver/public.h>
 
-#include <ytlib/misc/tclap_helpers.h>
+#include <yt/ytlib/formats/format.h>
 
-#include <ytlib/scheduler/public.h>
+#include <yt/ytlib/misc/tclap_helpers.h>
 
-#include <ytlib/driver/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
-#include <ytlib/formats/format.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_service.h>
 
 namespace NYT {
 namespace NDriver {

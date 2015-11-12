@@ -1,11 +1,12 @@
-#include "stdafx.h"
+#include "json_writer.h"
 #include "config.h"
 #include "helpers.h"
-#include "json_writer.h"
 #include "utf8_decoder.h"
 
-#include <core/ytree/forwarding_yson_consumer.h>
-#include <core/ytree/null_yson_consumer.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/forwarding_yson_consumer.h>
+#include <yt/core/ytree/null_yson_consumer.h>
 
 #include <library/json/json_writer.h>
 

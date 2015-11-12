@@ -1,24 +1,25 @@
-#include "stdafx.h"
 #include "blob_chunk.h"
 #include "private.h"
-#include "location.h"
 #include "blob_reader_cache.h"
-#include "chunk_cache.h"
 #include "block_store.h"
+#include "chunk_cache.h"
+#include "location.h"
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <ytlib/chunk_client/file_reader.h>
-#include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/file_reader.h>
+#include <yt/ytlib/chunk_client/file_writer.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/profiling/scoped_timer.h>
 
 namespace NYT {
 namespace NDataNode {

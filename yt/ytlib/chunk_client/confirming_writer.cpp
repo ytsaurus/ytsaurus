@@ -1,34 +1,33 @@
-#include "stdafx.h"
-
 #include "confirming_writer.h"
-#include "config.h"
-#include "chunk_ypath_proxy.h"
-#include "chunk_replica.h"
 #include "private.h"
-#include "dispatcher.h"
-#include "replication_writer.h"
-#include "erasure_writer.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_replica.h"
+#include "chunk_ypath_proxy.h"
+#include "config.h"
+#include "dispatcher.h"
+#include "erasure_writer.h"
 #include "helpers.h"
+#include "replication_writer.h"
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <core/erasure/codec.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/finally.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/logging/log.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/finally.h>
 
-#include <core/logging/log.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NChunkClient {

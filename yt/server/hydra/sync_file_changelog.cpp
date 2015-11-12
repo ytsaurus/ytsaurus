@@ -1,18 +1,18 @@
-#include "stdafx.h"
 #include "sync_file_changelog.h"
 #include "config.h"
-#include "format.h"
 #include "file_helpers.h"
+#include "format.h"
 
-#include <core/misc/fs.h>
-#include <core/misc/string.h>
-#include <core/misc/serialize.h>
-#include <core/misc/blob_output.h>
-#include <core/misc/checksum.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/checksum.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/string.h>
 
 #include <mutex>
 

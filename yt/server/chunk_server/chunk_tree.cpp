@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "chunk_tree.h"
 #include "chunk.h"
 #include "chunk_list.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NChunkServer {

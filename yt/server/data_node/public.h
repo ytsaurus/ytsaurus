@@ -1,11 +1,11 @@
 #pragma once
 
-#include <core/misc/enum.h>
-#include <core/misc/public.h>
+#include <yt/server/chunk_server/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <server/chunk_server/public.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NDataNode {

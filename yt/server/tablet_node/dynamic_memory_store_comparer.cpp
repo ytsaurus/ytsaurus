@@ -1,7 +1,7 @@
-#include "dynamic_memory_store_bits.h"
 #include "dynamic_memory_store_comparer.h"
-#include "row_comparer_generator.h"
 #include "private.h"
+#include "dynamic_memory_store_bits.h"
+#include "row_comparer_generator.h"
 
 namespace NYT {
 namespace NTabletNode {

@@ -1,7 +1,8 @@
-#include "stdafx.h"
-#include "common.h"
 #include "new.h"
+#include "common.h"
 #include "ref_counted_tracker.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 

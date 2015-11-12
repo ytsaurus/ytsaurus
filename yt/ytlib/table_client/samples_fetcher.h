@@ -3,12 +3,12 @@
 #include "public.h"
 #include "unversioned_row.h"
 
-#include <core/logging/log.h>
+#include <yt/ytlib/chunk_client/fetcher_base.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
-#include <ytlib/chunk_client/fetcher_base.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NTableClient {

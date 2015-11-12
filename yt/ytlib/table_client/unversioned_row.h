@@ -5,17 +5,17 @@
 #include "schema.h"
 #include "unversioned_value.h"
 
-#include <core/misc/chunked_memory_pool.h>
-#include <core/misc/serialize.h>
-#include <core/misc/small_vector.h>
-#include <core/misc/varint.h>
-#include <core/misc/string.h>
+#include <yt/ytlib/chunk_client/schema.pb.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/string.h>
+#include <yt/core/misc/varint.h>
 
-#include <core/yson/public.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/chunk_client/schema.pb.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NTableClient {

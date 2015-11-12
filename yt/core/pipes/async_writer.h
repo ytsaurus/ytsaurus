@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/concurrency/async_stream.h>
+#include <yt/core/concurrency/async_stream.h>
 
 namespace NYT {
 namespace NPipes {

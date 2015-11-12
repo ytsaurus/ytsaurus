@@ -2,14 +2,15 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/schema.pb.h>
+#include <yt/ytlib/chunk_client/schema.pb.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/misc/phoenix.h>
+#include <yt/core/misc/phoenix.h>
 
-#include <core/ytree/public.h>
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
+
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NChunkClient {

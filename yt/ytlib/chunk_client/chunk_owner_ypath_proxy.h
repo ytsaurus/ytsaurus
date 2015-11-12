@@ -1,12 +1,12 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
 
-#include <ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/core/misc/public.h>
 
-#include <core/ytree/ypath_proxy.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NChunkClient {

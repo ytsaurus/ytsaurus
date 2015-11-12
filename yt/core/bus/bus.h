@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
-#include <core/misc/enum.h>
+#include <yt/core/actions/future.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/actions/signal.h>
-#include <core/actions/future.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/error.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NBus {

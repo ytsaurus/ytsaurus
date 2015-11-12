@@ -1,11 +1,11 @@
-#include "stdafx.h"
 #include "message.h"
 #include "private.h"
 #include "service.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {

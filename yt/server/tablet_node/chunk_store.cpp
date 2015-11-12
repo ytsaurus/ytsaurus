@@ -1,46 +1,46 @@
-#include "stdafx.h"
 #include "chunk_store.h"
-#include "tablet.h"
-#include "config.h"
 #include "automaton.h"
-#include "transaction.h"
+#include "config.h"
 #include "in_memory_manager.h"
+#include "tablet.h"
+#include "transaction.h"
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/data_node/block_store.h>
+#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/local_chunk_reader.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/server/query_agent/config.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/versioned_chunk_reader.h>
-#include <ytlib/table_client/cached_versioned_chunk_meta.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/versioned_chunk_reader.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
-#include <server/data_node/block_store.h>
-#include <server/data_node/chunk_registry.h>
-#include <server/data_node/chunk.h>
-#include <server/data_node/master_connector.h>
-#include <server/data_node/local_chunk_reader.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/query_agent/config.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {

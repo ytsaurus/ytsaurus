@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/ytlib/security_client/public.h>
 
-#include <core/ytree/permission.h>
+#include <yt/core/misc/public.h>
 
-#include <ytlib/security_client/public.h>
+#include <yt/core/ytree/permission.h>
 
 namespace NYT {
 namespace NSecurityServer {

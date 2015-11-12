@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/config.h>
+#include <yt/server/hydra/config.h>
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <server/hydra/config.h>
+#include <yt/core/misc/config.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NNodeJS {

@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/assert.h>
+#include <yt/core/misc/assert.h>
+#include <yt/core/misc/common.h>
 
 #include <util/generic/yexception.h>
 

@@ -1,8 +1,8 @@
-#include "stdafx.h"
 #include "versioned_row.h"
 #include "row_buffer.h"
 
-#include <core/misc/format.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/format.h>
 
 #include <numeric>
 

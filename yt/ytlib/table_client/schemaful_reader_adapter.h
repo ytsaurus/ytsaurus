@@ -1,10 +1,9 @@
 #pragma once
 
 #include "public.h"
-
 #include "unversioned_row.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 namespace NTableClient {

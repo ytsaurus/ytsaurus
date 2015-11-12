@@ -1,15 +1,15 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_detail.h"
-#include "block_store.h"
 #include "artifact.h"
+#include "block_store.h"
+#include "chunk_detail.h"
 
-#include <core/misc/async_cache.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/core/misc/async_cache.h>
 
 namespace NYT {
 namespace NDataNode {

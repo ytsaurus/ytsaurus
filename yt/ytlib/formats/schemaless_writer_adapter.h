@@ -4,14 +4,14 @@
 #include "format.h"
 #include "helpers.h"
 
-#include <ytlib/table_client/public.h>
-#include <ytlib/table_client/schemaless_writer.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
 
-#include <core/yson/public.h>
+#include <yt/core/concurrency/public.h>
 
-#include <core/concurrency/public.h>
+#include <yt/core/misc/blob_output.h>
 
-#include <core/misc/blob_output.h>
+#include <yt/core/yson/public.h>
 
 #include <memory>
 

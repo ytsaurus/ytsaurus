@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
+#include <yt/server/cell_node/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NTabletNode {

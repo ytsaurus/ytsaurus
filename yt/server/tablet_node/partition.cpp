@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "partition.h"
 #include "automaton.h"
 #include "store.h"
 #include "tablet.h"
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NTabletNode {

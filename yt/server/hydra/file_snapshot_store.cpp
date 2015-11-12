@@ -1,23 +1,23 @@
-#include "stdafx.h"
 #include "file_snapshot_store.h"
-#include "snapshot.h"
+#include "private.h"
 #include "config.h"
 #include "file_helpers.h"
 #include "format.h"
-#include "private.h"
+#include "snapshot.h"
 
-#include <core/misc/fs.h>
-#include <core/misc/serialize.h>
-#include <core/misc/checksum.h>
-#include <core/misc/checkpointable_stream.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/actions/signal.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
-
-#include <util/stream/file.h>
+#include <yt/core/misc/checkpointable_stream.h>
+#include <yt/core/misc/checksum.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/serialize.h>
 
 #include <library/streams/lz/lz.h>
+
+#include <util/stream/file.h>
 
 namespace NYT {
 namespace NHydra {

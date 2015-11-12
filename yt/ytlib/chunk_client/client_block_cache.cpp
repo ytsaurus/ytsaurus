@@ -1,18 +1,18 @@
-#include "stdafx.h"
-#include "private.h"
-#include "config.h"
-#include "block_cache.h"
 #include "client_block_cache.h"
+#include "private.h"
+#include "block_cache.h"
+#include "config.h"
 
-#include <core/misc/sync_cache.h>
-#include <core/misc/property.h>
-#include <core/misc/singleton.h>
+#include <yt/ytlib/chunk_client/block_id.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/block_id.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/singleton.h>
+#include <yt/core/misc/sync_cache.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/ytree/public.h>
+#include <yt/core/misc/function_traits.h>
 
-#include <core/misc/function_traits.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 

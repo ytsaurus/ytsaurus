@@ -1,20 +1,20 @@
 #pragma once
 
 #include "private.h"
-#include "invoker_queue.h"
 #include "event_count.h"
-#include "scheduler.h"
 #include "execution_context.h"
+#include "invoker_queue.h"
+#include "scheduler.h"
 #include "thread_affinity.h"
 
-#include <core/actions/callback.h>
-#include <core/actions/future.h>
-#include <core/actions/invoker.h>
-#include <core/actions/signal.h>
+#include <yt/core/actions/callback.h>
+#include <yt/core/actions/future.h>
+#include <yt/core/actions/invoker.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <util/system/thread.h>
 

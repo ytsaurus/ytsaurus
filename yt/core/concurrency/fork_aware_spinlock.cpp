@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "fork_aware_spinlock.h"
 #include "rw_spinlock.h"
+
+#include <yt/core/misc/common.h>
 
 #ifdef _unix_
     #include <pthread.h>

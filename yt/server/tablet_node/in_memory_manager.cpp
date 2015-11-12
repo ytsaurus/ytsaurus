@@ -1,31 +1,32 @@
-#include "stdafx.h"
 #include "in_memory_manager.h"
-#include "config.h"
+#include "private.h"
 #include "chunk_store.h"
-#include "tablet.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
+#include "config.h"
 #include "slot_manager.h"
 #include "store_manager.h"
-#include "private.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/async_semaphore.h>
-#include <core/concurrency/rw_spinlock.h>
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/compression/codec.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/core/compression/codec.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/concurrency/async_semaphore.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {

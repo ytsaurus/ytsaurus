@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/formats/schemaful_dsv_parser.h>
+#include <yt/ytlib/formats/schemaful_dsv_parser.h>
 
-#include <core/ytree/yson_consumer-mock.h>
-#include <core/ytree/null_yson_consumer.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/null_yson_consumer.h>
+#include <yt/core/ytree/yson_consumer-mock.h>
 
 namespace NYT {
 namespace NFormats {

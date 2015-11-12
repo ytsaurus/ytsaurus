@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "chunk_tree_statistics.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/serialize.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NChunkServer {

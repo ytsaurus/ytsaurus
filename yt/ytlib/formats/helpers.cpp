@@ -1,12 +1,12 @@
 #include "helpers.h"
-
 #include "format.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/format.h>
-#include <core/ytree/yson_string.h>
-#include <core/yson/token.h>
+#include <yt/core/yson/format.h>
+#include <yt/core/yson/token.h>
+
+#include <yt/core/ytree/yson_string.h>
 
 namespace NYT {
 

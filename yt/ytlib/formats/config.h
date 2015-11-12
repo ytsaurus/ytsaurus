@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NFormats {

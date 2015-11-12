@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "roaming_channel.h"
-#include "client.h"
 #include "channel_detail.h"
+#include "client.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NRpc {

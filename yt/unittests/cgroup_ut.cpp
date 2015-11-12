@@ -1,12 +1,11 @@
-#include "stdafx.h"
-
 #include "framework.h"
 
-#include <ytlib/cgroup/cgroup.h>
+#include <yt/ytlib/cgroup/cgroup.h>
 
-#include <core/misc/guid.h>
-#include <core/misc/proc.h>
-#include <core/misc/fs.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/guid.h>
+#include <yt/core/misc/proc.h>
 
 #include <util/string/vector.h>
 

@@ -1,23 +1,23 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/concurrency/action_queue.h>
+#include <yt/server/election/config.h>
+#include <yt/server/election/election_callbacks_mock.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/rpc/server.h>
-#include <core/rpc/local_server.h>
-#include <core/rpc/channel.h>
-#include <core/rpc/local_channel.h>
-#include <core/rpc/static_channel_factory.h>
+#include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
+#include <yt/ytlib/election/election_service_mock.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/election/cell_manager.h>
-#include <ytlib/election/config.h>
-#include <ytlib/election/election_service_mock.h>
+#include <yt/core/misc/common.h>
 
-#include <server/election/election_manager.h>
-#include <server/election/config.h>
-#include <server/election/election_callbacks_mock.h>
+#include <yt/core/rpc/channel.h>
+#include <yt/core/rpc/local_channel.h>
+#include <yt/core/rpc/local_server.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/static_channel_factory.h>
 
 namespace NYT {
 namespace NElection {

@@ -1,12 +1,13 @@
 #include "slot_manager.h"
+#include "private.h"
 #include "config.h"
 #include "slot.h"
-#include "private.h"
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
-#include <server/data_node/chunk_cache.h>
-#include <server/data_node/master_connector.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
+
+#include <yt/server/data_node/chunk_cache.h>
+#include <yt/server/data_node/master_connector.h>
 
 #ifdef _unix_
     #include <sys/stat.h>

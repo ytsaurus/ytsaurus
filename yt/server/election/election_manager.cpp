@@ -1,17 +1,18 @@
-#include "stdafx.h"
 #include "election_manager.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <core/concurrency/delayed_executor.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/election_service_proxy.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/misc/common.h>
 
-#include <ytlib/election/cell_manager.h>
-#include <ytlib/election/election_service_proxy.h>
+#include <yt/core/rpc/service_detail.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NElection {

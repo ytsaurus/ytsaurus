@@ -1,18 +1,19 @@
-#include "stdafx.h"
 #include "local_chunk_reader.h"
 #include "chunk_store.h"
 
-#include <ytlib/chunk_client/config.h>
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/block_cache.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/server/data_node/block_store.h>
+#include <yt/server/data_node/chunk.h>
 
-#include <server/data_node/chunk.h>
-#include <server/data_node/block_store.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDataNode {

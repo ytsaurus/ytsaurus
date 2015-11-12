@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NJobAgent {

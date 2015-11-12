@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/enum.h>
-#include <core/misc/ref.h>
-#include <core/misc/range.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/ref.h>
+#include <yt/core/misc/range.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
 namespace NYT {
 namespace NTabletClient {

@@ -1,7 +1,8 @@
-#include "stdafx.h"
-#include "private.h"
 #include "peer_block_table.h"
+#include "private.h"
 #include "config.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDataNode {

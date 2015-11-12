@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
-#include <core/misc/format.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/format.h>
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/tracing/trace_context.h>
 
 #include <util/system/thread.h>
 

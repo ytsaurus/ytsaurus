@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "tablet.h"
 #include "tablet_cell.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/table_server/table_node.h>
+#include <yt/server/table_server/table_node.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletServer {

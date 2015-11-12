@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "server_detail.h"
 #include "private.h"
-#include "message.h"
 #include "config.h"
+#include "message.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NRpc {

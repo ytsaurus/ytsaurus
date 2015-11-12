@@ -4,12 +4,12 @@
 #include "ephemeral_node_factory.h"
 #include "yson_producer.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/mpl.h>
-#include <core/misc/guid.h>
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/guid.h>
+#include <yt/core/misc/mpl.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <core/yson/writer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NYTree {

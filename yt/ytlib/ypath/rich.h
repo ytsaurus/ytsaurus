@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <core/ytree/attributes.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/chunk_client/read_limit.h>
+#include <yt/core/ytree/attributes.h>
 
 namespace NYT {
 namespace NYPath {

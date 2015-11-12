@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "backtrace.h"
+
+#include <yt/core/misc/common.h>
 
 #if defined(__GNUC__)
 #include <execinfo.h>

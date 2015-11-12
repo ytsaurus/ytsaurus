@@ -1,16 +1,16 @@
-#include "stdafx.h"
 #include "tcp_connection.h"
-#include "tcp_dispatcher_impl.h"
-#include "server.h"
 #include "config.h"
+#include "server.h"
+#include "tcp_dispatcher_impl.h"
 
-#include <core/misc/string.h>
-#include <core/misc/enum.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/string.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/ytree/convert.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <util/system/error.h>
 

@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <vector>
 #include <string>
+#include <vector>
 
 #ifdef YT_USE_SSE42
 #   include <nmmintrin.h>

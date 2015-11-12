@@ -2,11 +2,13 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/chunk_service_proxy.h>
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
-#include <core/logging/log.h>
-#include <core/rpc/public.h>
+#include <yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/core/logging/log.h>
+
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {

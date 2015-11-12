@@ -3,9 +3,9 @@
 #include "public.h"
 #include "udf_descriptor.h"
 
-#include <core/ypath/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/api/public.h>
+#include <yt/core/ypath/public.h>
 
 #include <unordered_map>
 

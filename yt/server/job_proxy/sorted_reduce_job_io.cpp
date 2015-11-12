@@ -1,12 +1,12 @@
-﻿#include "stdafx.h"
+﻿#include <yt/core/misc/common.h>
 #include "sorted_reduce_job_io.h"
 #include "config.h"
 #include "user_job_io_detail.h"
 #include "job.h"
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_sorted_merging_reader.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
 
 namespace NYT {
 namespace NJobProxy {

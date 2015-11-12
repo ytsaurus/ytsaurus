@@ -2,26 +2,26 @@
 
 #include "public.h"
 
-#include <core/actions/public.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/yson/public.h>
+#include <yt/server/hydra/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/public.h>
 
-#include <ytlib/hydra/public.h>
+#include <yt/ytlib/hydra/public.h>
 
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <server/hydra/public.h>
+#include <yt/core/actions/public.h>
 
-#include <ytlib/hive/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <server/cell_node/public.h>
-#include <ytlib/hive/cell_directory.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NTabletNode {

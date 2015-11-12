@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/yson_consumer-mock.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/yson_consumer-mock.h>
 
 namespace NYT {
 namespace NYTree {

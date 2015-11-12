@@ -11,18 +11,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/small_string.h>
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/small_string.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <util/generic/strbuf.h>
 #include <util/generic/stroka.h>
 
-#include <stdarg.h>
 #include <climits>
 #include <cstring>
+
+#include <stdarg.h>
 
 namespace NYT {
 namespace {

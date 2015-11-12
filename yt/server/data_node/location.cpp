@@ -1,28 +1,28 @@
-#include "stdafx.h"
 #include "location.h"
 #include "private.h"
 #include "blob_chunk.h"
-#include "journal_chunk.h"
 #include "blob_reader_cache.h"
 #include "config.h"
 #include "disk_health_checker.h"
-#include "master_connector.h"
+#include "journal_chunk.h"
 #include "journal_dispatcher.h"
 #include "journal_manager.h"
+#include "master_connector.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/private.h>
 
-#include <ytlib/chunk_client/format.h>
+#include <yt/ytlib/chunk_client/format.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/private.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/rpc/service_detail.h>
+#include <yt/server/cell_node/public.h>
 
-#include <server/exec_agent/supervisor_service.pb.h>
+#include <yt/server/exec_agent/supervisor_service.pb.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NExecAgent {

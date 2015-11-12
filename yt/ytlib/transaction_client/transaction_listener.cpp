@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "transaction_listener.h"
 #include "transaction_manager.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTransactionClient {

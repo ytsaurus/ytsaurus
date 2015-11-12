@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/preprocessor.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/preprocessor.h>
 
 namespace NYT {
 namespace {

@@ -1,11 +1,11 @@
 #pragma once
 
 #include "public.h"
-#include "property.h"
 #include "nullable.h"
+#include "property.h"
 
-#include <core/ytree/yson_string.h>
-#include <core/ytree/attributes.h>
+#include <yt/core/ytree/attributes.h>
+#include <yt/core/ytree/yson_string.h>
 
 #include <type_traits>
 

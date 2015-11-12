@@ -2,7 +2,9 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
+#include <yt/core/actions/public.h>
+
+#include <yt/core/yson/public.h>
 
 #include <vector>
 

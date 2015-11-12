@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "ref_counted_tracker.h"
 #include "demangle.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <util/system/tls.h>
 
@@ -215,7 +216,7 @@ void TRefCountedTracker::SortSnapshot(TNamedStatistics* snapshot, int sortByColu
             };
             break;
     }
-    std::sort(snapshot->begin(), snapshot->end(), predicate);
+    //std::sort(snapshot->begin(), snapshot->end(), predicate);
 }
 
 Stroka TRefCountedTracker::GetDebugInfo(int sortByColumn) const

@@ -1,15 +1,16 @@
-#include "stdafx.h"
 #include "peer_block_updater.h"
 #include "private.h"
 #include "block_store.h"
 #include "config.h"
 #include "master_connector.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDataNode {

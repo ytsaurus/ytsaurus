@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "file_commands.h"
 #include "config.h"
 #include "driver.h"
 
-#include <ytlib/api/file_reader.h>
-#include <ytlib/api/file_writer.h>
+#include <yt/ytlib/api/file_reader.h>
+#include <yt/ytlib/api/file_writer.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDriver {

@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/logging/public.h>
 
-#include <core/logging/public.h>
+#include <yt/core/misc/ref.h>
 
-#include <core/profiling/public.h>
+#include <yt/core/profiling/public.h>
 
 namespace NYT {
 namespace NRpc {

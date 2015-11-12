@@ -3,9 +3,9 @@
 #include "public.h"
 #include "attribute_set.h"
 
-#include <server/hydra/entity_map.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/server/hydra/entity_map.h>
 
 namespace NYT {
 namespace NObjectServer {

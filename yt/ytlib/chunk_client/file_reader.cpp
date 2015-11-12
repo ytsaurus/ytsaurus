@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "file_reader.h"
 #include "chunk_meta_extensions.h"
 #include "format.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NChunkClient {

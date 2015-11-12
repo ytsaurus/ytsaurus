@@ -1,14 +1,12 @@
-#include "stdafx.h"
-
 #include "column_evaluator.h"
-#include "config.h"
-
 #include "cg_fragment_compiler.h"
+#include "config.h"
+#include "folding_profiler.h"
 #include "query_preparer.h"
 #include "query_statistics.h"
-#include "folding_profiler.h"
 
-#include <core/misc/sync_cache.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/sync_cache.h>
 
 namespace NYT {
 namespace NQueryClient {

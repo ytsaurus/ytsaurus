@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "lease_manager.h"
 
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 

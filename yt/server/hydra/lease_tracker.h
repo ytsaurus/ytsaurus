@@ -2,17 +2,17 @@
 
 #include "private.h"
 
-#include <core/actions/signal.h>
-#include <core/actions/callback.h>
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/actions/callback.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/logging/log.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/profiling/timing.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/hydra/hydra_service_proxy.h>
+#include <yt/core/profiling/timing.h>
 
 #include <atomic>
 

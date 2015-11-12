@@ -1,44 +1,44 @@
-#include "stdafx.h"
 #include "chunk_replicator.h"
-#include "chunk_placement.h"
-#include "job.h"
+#include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
+#include "chunk_placement.h"
 #include "chunk_tree_traversing.h"
-#include "private.h"
+#include "job.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/string.h>
-#include <core/misc/small_vector.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <core/erasure/codec.h>
+#include <yt/server/chunk_server/chunk_manager.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/cypress_server/node.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/helpers.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
+#include <yt/server/node_tracker_server/rack.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/server/object_server/object.h>
 
-#include <core/profiling/profiler.h>
-#include <core/profiling/timing.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/config.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/node_tracker_server/node_tracker.h>
-#include <server/node_tracker_server/node.h>
-#include <server/node_tracker_server/rack.h>
-#include <server/node_tracker_server/node_directory_builder.h>
+#include <yt/core/erasure/codec.h>
 
-#include <server/object_server/object.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/string.h>
 
-#include <server/cypress_server/node.h>
+#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/timing.h>
 
 #include <array>
 

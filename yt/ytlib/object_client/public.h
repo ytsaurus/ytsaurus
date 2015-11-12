@@ -1,7 +1,7 @@
 #pragma once
 
-#include <core/misc/guid.h>
-#include <core/misc/string.h>
+#include <yt/core/misc/guid.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NObjectClient {

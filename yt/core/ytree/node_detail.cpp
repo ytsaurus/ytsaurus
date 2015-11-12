@@ -1,22 +1,19 @@
-#include "stdafx.h"
 #include "node_detail.h"
-
 #include "convert.h"
+#include "tree_builder.h"
+#include "tree_visitor.h"
+#include "ypath_client.h"
 #include "ypath_detail.h"
 #include "ypath_service.h"
-#include "tree_visitor.h"
-#include "tree_builder.h"
-#include "ypath_client.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/yson/writer.h>
-#include <core/yson/tokenizer.h>
+#include <yt/core/ypath/token.h>
+#include <yt/core/ypath/tokenizer.h>
 
-#include <core/ypath/token.h>
-#include <core/ypath/tokenizer.h>
-
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/yson/tokenizer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NYTree {

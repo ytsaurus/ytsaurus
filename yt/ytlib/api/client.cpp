@@ -1,82 +1,82 @@
-#include "stdafx.h"
 #include "client.h"
-#include "transaction.h"
+#include "private.h"
+#include "box.h"
+#include "config.h"
 #include "connection.h"
 #include "file_reader.h"
 #include "file_writer.h"
 #include "journal_reader.h"
 #include "journal_writer.h"
-#include "table_reader.h"
 #include "rowset.h"
-#include "config.h"
-#include "box.h"
-#include "private.h"
+#include "table_reader.h"
+#include "transaction.h"
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <core/ytree/attribute_helpers.h>
-#include <core/ytree/ypath_proxy.h>
+#include <yt/ytlib/driver/dispatcher.h>
 
-#include <core/rpc/helpers.h>
-#include <core/rpc/scoped_channel.h>
+#include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/config.h>
 
-#include <core/compression/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_client/public.h>
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/coordinator.h>
+#include <yt/ytlib/query_client/evaluator.h>
+#include <yt/ytlib/query_client/helpers.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/query_service_proxy.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/scheduler/job_prober_service_proxy.h>
+#include <yt/ytlib/scheduler/scheduler_service_proxy.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/security_client/group_ypath_proxy.h>
 
-#include <ytlib/tablet_client/wire_protocol.h>
-#include <ytlib/tablet_client/table_mount_cache.h>
-#include <ytlib/tablet_client/tablet_service_proxy.h>
-#include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
 
-#include <ytlib/security_client/group_ypath_proxy.h>
+#include <yt/ytlib/tablet_client/table_mount_cache.h>
+#include <yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <ytlib/driver/dispatcher.h>
+#include <yt/ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/hive/config.h>
-#include <ytlib/hive/cell_directory.h>
+#include <yt/core/compression/helpers.h>
 
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/name_table.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/plan_helpers.h>
-#include <ytlib/query_client/coordinator.h>
-#include <ytlib/query_client/helpers.h>
-#include <ytlib/query_client/query_statistics.h>
-#include <ytlib/query_client/query_service_proxy.h>
-#include <ytlib/query_client/query_statistics.h>
-#include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/column_evaluator.h>
-#include <ytlib/query_client/private.h> // XXX(sandello): refactor BuildLogger
+#include <yt/core/misc/common.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_replica.h>
-#include <ytlib/chunk_client/read_limit.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/core/profiling/scoped_timer.h>
 
-#include <ytlib/scheduler/scheduler_service_proxy.h>
-#include <ytlib/scheduler/job_prober_service_proxy.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/scoped_channel.h>
+
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 // TODO(babenko): refactor this
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/row_merger.h>
-#include <ytlib/table_client/row_base.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/row_base.h>
 
 #include <unordered_map>
 

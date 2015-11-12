@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "job_prober_service.h"
 #include "private.h"
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <server/job_agent/job_controller.h>
+#include <yt/server/job_agent/job_controller.h>
 
-#include <ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NExecAgent {

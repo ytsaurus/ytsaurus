@@ -1,10 +1,10 @@
 ﻿#pragma once
 
-#include <core/misc/public.h>
+#include <yt/core/misc/public.h>
 
-#include <ytlib/hydra/public.h>
+#include <yt/ytlib/hydra/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NTabletClient {

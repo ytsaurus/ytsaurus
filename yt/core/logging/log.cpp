@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "log.h"
 #include "log_manager.h"
 
-#include <core/misc/pattern_formatter.h>
-#include <core/ytree/node.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/pattern_formatter.h>
+
+#include <yt/core/ytree/node.h>
 
 #include <util/folder/dirut.h>
 

@@ -1,13 +1,13 @@
-#include "stdafx.h"
 #include "cached_versioned_chunk_meta.h"
 #include "schema.h"
 
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/bloom_filter.h>
+#include <yt/core/misc/bloom_filter.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

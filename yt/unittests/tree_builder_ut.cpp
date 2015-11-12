@@ -1,12 +1,14 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/tree_visitor.h>
-#include <core/yson/writer.h>
-#include <core/ytree/node.h>
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/yson_consumer-mock.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/yson/writer.h>
+
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/tree_visitor.h>
+#include <yt/core/ytree/yson_consumer-mock.h>
 
 namespace NYT {
 namespace NYTree {

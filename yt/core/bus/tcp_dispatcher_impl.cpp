@@ -1,11 +1,11 @@
-#include "stdafx.h"
 #include "tcp_dispatcher_impl.h"
 #include "config.h"
 #include "tcp_connection.h"
 
-#include <core/misc/address.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/common.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
 #ifdef _linux_
     #include <sys/socket.h>

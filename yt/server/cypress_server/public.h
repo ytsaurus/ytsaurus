@@ -1,11 +1,11 @@
 #pragma once
 
-#include <core/misc/public.h>
-#include <core/misc/small_vector.h>
+#include <yt/ytlib/cypress_client/public.h>
 
-#include <ytlib/cypress_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NCypressServer {

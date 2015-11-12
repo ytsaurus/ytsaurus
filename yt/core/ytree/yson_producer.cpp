@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "yson_producer.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NYTree {

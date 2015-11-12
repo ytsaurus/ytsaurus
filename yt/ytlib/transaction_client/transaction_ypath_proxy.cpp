@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "transaction_ypath_proxy.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTransactionClient {

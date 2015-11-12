@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "orchid_service.h"
-#include "orchid_service_proxy.h"
 #include "private.h"
+#include "orchid_service_proxy.h"
 
-#include <core/ytree/ypath_detail.h>
-#include <core/ytree/ypath_client.h>
+#include <yt/core/misc/common.h>
 
-#include <core/rpc/message.h>
+#include <yt/core/rpc/message.h>
+
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NOrchid {

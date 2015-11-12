@@ -1,50 +1,48 @@
-#include "stdafx.h"
 #include "chunk_cache.h"
 #include "private.h"
-#include "blob_reader_cache.h"
-#include "location.h"
+#include "artifact.h"
 #include "blob_chunk.h"
+#include "blob_reader_cache.h"
 #include "block_store.h"
 #include "config.h"
+#include "location.h"
 #include "master_connector.h"
-#include "artifact.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/async_stream.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/misc/serialize.h>
-#include <core/misc/string.h>
-#include <core/misc/fs.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/config.h>
 
-#include <core/logging/log.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/sequential_reader.h>
 
-#include <ytlib/hydra/peer_channel.h>
+#include <yt/ytlib/file_client/file_chunk_reader.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/file_writer.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/client_block_cache.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/formats/format.h>
 
-#include <ytlib/file_client/file_chunk_reader.h>
+#include <yt/ytlib/hydra/peer_channel.h>
 
-#include <ytlib/file_client/file_chunk_reader.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/table_client/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/helpers.h>
+#include <yt/core/concurrency/async_stream.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/formats/format.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/config.h>
-
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/serialize.h>
+#include <yt/core/misc/string.h>
 
 #include <util/random/random.h>
 

@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "plan_fragment_common.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NQueryClient {

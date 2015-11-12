@@ -2,13 +2,13 @@
 
 #include "public.h"
 #include "config.h"
-#include "helpers.h"
 #include "dsv_table.h"
+#include "helpers.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/misc/blob_output.h>
-#include <core/misc/small_set.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/small_set.h>
 
 namespace NYT {
 namespace NFormats {

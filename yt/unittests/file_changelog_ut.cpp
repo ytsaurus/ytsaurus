@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <server/hydra/config.h>
-#include <server/hydra/changelog.h>
-#include <server/hydra/local_changelog_store.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/config.h>
+#include <yt/server/hydra/local_changelog_store.h>
 
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <core/misc/fs.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
 #include <util/random/random.h>
 

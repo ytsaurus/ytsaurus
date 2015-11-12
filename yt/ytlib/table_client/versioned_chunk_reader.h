@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/range.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/chunk_client/read_limit.h>
+#include <yt/ytlib/chunk_client/read_limit.h>
 
-#include <ytlib/api/public.h>
+#include <yt/core/misc/range.h>
 
 namespace NYT {
 namespace NTableClient {

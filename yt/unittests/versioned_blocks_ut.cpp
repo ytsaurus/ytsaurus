@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
-
 #include "versioned_table_client_ut.h"
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/versioned_block_writer.h>
-#include <ytlib/table_client/versioned_block_reader.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/versioned_block_reader.h>
+#include <yt/ytlib/table_client/versioned_block_writer.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/compression/codec.h>
+#include <yt/core/compression/codec.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

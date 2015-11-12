@@ -3,11 +3,11 @@
 #include "public.h"
 #include "chunk_tree_statistics.h"
 
-#include <core/yson/public.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <server/cypress_server/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NChunkServer {

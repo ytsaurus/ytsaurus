@@ -1,25 +1,26 @@
 #include "executor.h"
 #include "preprocess.h"
 
-#include <core/build.h>
+#include <yt/server/job_proxy/config.h>
 
-#include <core/misc/fs.h>
-#include <core/misc/assert.h>
+#include <yt/ytlib/driver/command.h>
+#include <yt/ytlib/driver/dispatcher.h>
+#include <yt/ytlib/driver/driver.h>
 
-#include <core/yson/tokenizer.h>
-#include <core/yson/format.h>
-#include <core/ytree/fluent.h>
+#include <yt/core/build.h>
 
-#include <server/job_proxy/config.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <ytlib/driver/driver.h>
-#include <ytlib/driver/dispatcher.h>
-#include <ytlib/driver/command.h>
+#include <yt/core/misc/assert.h>
+#include <yt/core/misc/fs.h>
 
-#include <core/logging/log_manager.h>
+#include <yt/core/tracing/trace_context.h>
+#include <yt/core/tracing/trace_manager.h>
 
-#include <core/tracing/trace_manager.h>
-#include <core/tracing/trace_context.h>
+#include <yt/core/yson/format.h>
+#include <yt/core/yson/tokenizer.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

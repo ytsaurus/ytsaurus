@@ -1,18 +1,19 @@
-#include "stdafx.h"
 #include "master.h"
-#include "type_handler_detail.h"
 #include "private.h"
+#include "type_handler_detail.h"
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <ytlib/object_client/master_ypath.pb.h>
+#include <yt/server/security_server/security_manager.h>
 
-#include <server/security_server/security_manager.h>
+#include <yt/server/transaction_server/transaction.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
-#include <server/transaction_server/transaction.h>
-#include <server/transaction_server/transaction_manager.h>
+#include <yt/ytlib/object_client/master_ypath.pb.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NObjectServer {

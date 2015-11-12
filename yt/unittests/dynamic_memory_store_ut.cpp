@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "memory_store_ut.h"
 
-#include <core/misc/string.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/actions/invoker_util.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
 #include <tuple>
 

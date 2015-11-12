@@ -1,14 +1,13 @@
 #pragma once
 
 #include "public.h"
-
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 #include "versioned_row.h"
 
-#include <core/misc/ref.h>
-#include <core/misc/bitmap.h>
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/bitmap.h>
+#include <yt/core/misc/ref.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NTableClient {

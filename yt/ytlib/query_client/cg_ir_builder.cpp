@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "cg_ir_builder.h"
 
-#include <llvm/IR/Module.h>
+#include <yt/core/misc/common.h>
+
 #include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/Module.h>
 #include <llvm/IR/TypeBuilder.h>
 
 namespace NYT {

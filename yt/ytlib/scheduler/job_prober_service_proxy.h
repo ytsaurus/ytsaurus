@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/scheduler/job_prober_service.pb.h>
+#include <yt/ytlib/scheduler/job_prober_service.pb.h>
 
-#include <core/rpc/client.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NScheduler {

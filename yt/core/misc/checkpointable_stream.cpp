@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "checkpointable_stream.h"
 #include "serialize.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace {

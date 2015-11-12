@@ -1,37 +1,37 @@
-#include "stdafx.h"
 #include "distributed_hydra_manager.h"
-#include "hydra_manager.h"
 #include "private.h"
-#include "recovery.h"
-#include "decorated_automaton.h"
-#include "recovery.h"
-#include "changelog.h"
-#include "snapshot.h"
-#include "config.h"
 #include "automaton.h"
-#include "lease_tracker.h"
-#include "mutation_context.h"
-#include "mutation_committer.h"
+#include "changelog.h"
 #include "checkpointer.h"
-#include "snapshot_discovery.h"
+#include "config.h"
+#include "decorated_automaton.h"
+#include "hydra_manager.h"
 #include "hydra_service.h"
+#include "lease_tracker.h"
+#include "mutation_committer.h"
+#include "mutation_context.h"
+#include "recovery.h"
+#include "snapshot.h"
+#include "snapshot_discovery.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/scheduler.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/rpc/service_detail.h>
-#include <core/rpc/server.h>
-#include <core/rpc/response_keeper.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <core/logging/log.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/hydra/hydra_service_proxy.h>
+#include <yt/core/misc/common.h>
 
-#include <server/election/election_manager.h>
+#include <yt/core/rpc/response_keeper.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/service_detail.h>
+
+#include <yt/core/ytree/fluent.h>
 
 #include <atomic>
 

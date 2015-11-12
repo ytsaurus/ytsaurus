@@ -1,16 +1,16 @@
-#include "stdafx.h"
 #include "automaton.h"
-#include "tablet_slot.h"
-#include "serialize.h"
 #include "private.h"
+#include "serialize.h"
+#include "tablet_slot.h"
 
-#include <core/misc/chunked_memory_pool.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/server/hydra/hydra_manager.h>
 
-#include <server/hydra/hydra_manager.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {

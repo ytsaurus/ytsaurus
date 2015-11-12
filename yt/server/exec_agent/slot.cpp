@@ -1,17 +1,17 @@
-﻿#include "stdafx.h"
+﻿#include <yt/core/misc/common.h>
 #include "slot.h"
 #include "private.h"
 #include "config.h"
 
-#include <ytlib/cgroup/cgroup.h>
+#include <yt/ytlib/cgroup/cgroup.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <core/tools/tools.h>
+#include <yt/core/tools/tools.h>
 
-#include <core/misc/proc.h>
+#include <yt/core/misc/proc.h>
 
-#include <core/logging/log_manager.h>
+#include <yt/core/logging/log_manager.h>
 
 namespace NYT {
 namespace NExecAgent {

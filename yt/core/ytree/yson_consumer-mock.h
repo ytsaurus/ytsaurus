@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
 #include <contrib/testing/gmock.h>
 

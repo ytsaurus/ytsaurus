@@ -1,7 +1,7 @@
 #pragma once
 
-#include <core/misc/public.h>
-#include <core/misc/enum.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT {
 namespace NCellMaster {

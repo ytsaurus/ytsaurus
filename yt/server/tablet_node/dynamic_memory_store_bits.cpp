@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "dynamic_memory_store_bits.h"
 #include "automaton.h"
 #include "tablet.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {

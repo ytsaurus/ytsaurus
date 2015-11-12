@@ -1,25 +1,25 @@
-#include "stdafx.h"
 #include "transaction_manager.h"
-#include "transaction.h"
-#include "config.h"
-#include "automaton.h"
-#include "tablet_slot.h"
 #include "private.h"
+#include "automaton.h"
+#include "config.h"
+#include "tablet_slot.h"
+#include "transaction.h"
 
-#include <core/misc/lease_manager.h>
+#include <yt/server/hive/transaction_supervisor.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 
-#include <core/logging/log.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/core/logging/log.h>
 
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lease_manager.h>
 
-#include <server/hive/transaction_supervisor.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {

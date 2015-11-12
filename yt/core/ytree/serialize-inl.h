@@ -7,10 +7,10 @@
 #include "yson_string.h"
 #include "yson_serializable.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/string.h>
-#include <core/misc/error.h>
-#include <core/misc/collection_helpers.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/string.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/collection_helpers.h>
 
 #include <numeric>
 
