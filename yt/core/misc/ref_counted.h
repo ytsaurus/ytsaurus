@@ -35,6 +35,7 @@ class TRefCounter
 {
 public:
     explicit TRefCounter(TExtrinsicRefCounted* object)
+        : That_(object)
     { }
 
     //! This method is called when there are no strong references remaining
