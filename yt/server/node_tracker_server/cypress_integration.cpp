@@ -172,22 +172,15 @@ private:
         auto nodeTracker = Bootstrap_->GetNodeTracker();
         auto chunkManager = Bootstrap_->GetChunkManager();
 
-        if (key == "offline") {
-            BuildYsonFluently(consumer)
-                .DoListFor(GetKeys(), [=] (TFluentList fluent, Stroka address) {
-                    if (!nodeTracker->FindNodeByAddress(address)) {
-                        fluent.Item().Value(address);
-                    }
-                });
-            return true;
-        }
-
-        if (key == "registered" || key == "online") {
-            auto expectedState = key == "registered" ? ENodeState::Registered : ENodeState::Online;
+        if (key == "offline" || key == "registered" || key == "online") {
+            auto state =
+                   key == "offline"    ? ENodeState::Offline :
+                   key == "registered" ? ENodeState::Registered :
+                /* key == "online" */    ENodeState::Online;
             BuildYsonFluently(consumer)
                 .DoListFor(nodeTracker->Nodes(), [=] (TFluentList fluent, const std::pair<const TObjectId&, TNode*>& pair) {
                     auto* node = pair.second;
-                    if (node->GetLocalState() == expectedState) {
+                    if (node->GetAggregatedState() == state) {
                         fluent.Item().Value(node->GetDefaultAddress());
                     }
                 });
