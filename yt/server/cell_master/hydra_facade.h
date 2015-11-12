@@ -10,6 +10,8 @@
 
 #include <server/hydra/public.h>
 
+#include <server/election/public.h>
+
 namespace NYT {
 namespace NCellMaster {
 
@@ -33,6 +35,7 @@ public:
     void LoadSnapshot(NHydra::ISnapshotReaderPtr reader, bool dump);
 
     TMasterAutomatonPtr GetAutomaton() const;
+    NElection::IElectionManagerPtr GetElectionManager() const;
     NHydra::IHydraManagerPtr GetHydraManager() const;
     NRpc::TResponseKeeperPtr GetResponseKeeper() const;
 

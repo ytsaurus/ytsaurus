@@ -8,6 +8,8 @@
 #include "tablet_service.h"
 #include "private.h"
 
+#include <core/actions/cancelable_context.h>
+
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/action_queue.h>
@@ -33,6 +35,7 @@
 #include <ytlib/api/client.h>
 
 #include <server/election/election_manager.h>
+#include <server/election/election_manager_thunk.h>
 
 #include <server/hydra/changelog.h>
 #include <server/hydra/remote_changelog_store.h>
@@ -66,6 +69,69 @@ using namespace NTransactionClient;
 using namespace NQueryClient;
 
 using NHydra::EPeerState;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletSlot::TElectionManager
+    : public IElectionManager
+{
+public:
+    explicit TElectionManager(IElectionCallbacksPtr callbacks)
+        : Callbacks_(std::move(callbacks))
+    { }
+
+    virtual void Initialize() override
+    { }
+
+    virtual void Finalize() override
+    {
+        Abandon();
+    }
+
+    virtual void Participate() override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (Leading_)
+            return;
+
+        Leading_ = true;
+
+        EpochContext_ = New<TEpochContext>();
+        EpochContext_->LeaderId = 0;
+        EpochContext_->StartTime = TInstant::Now();
+
+        Callbacks_->OnStartLeading(EpochContext_);
+    }
+
+    virtual void Abandon() override
+    {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (!Leading_)
+            return;
+
+        Leading_ = false;
+
+        EpochContext_->CancelableContext->Cancel();
+        EpochContext_.Reset();
+
+        Callbacks_->OnStopLeading();
+    }
+
+    virtual TYsonProducer GetMonitoringProducer() override
+    {
+        YUNREACHABLE();
+    }
+
+private:
+    const IElectionCallbacksPtr Callbacks_;
+
+    TSpinLock SpinLock_;
+    bool Leading_ = false;
+    TEpochContextPtr EpochContext_;
+
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,6 +387,8 @@ public:
                 Logger,
                 TabletNodeProfiler);
 
+            auto electionManagerThunk = New<TElectionManagerThunk>();
+
             TDistributedHydraManagerOptions hydraManagerOptions;
             hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
             hydraManagerOptions.UseFork = false;
@@ -330,6 +398,7 @@ public:
                 GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
                 Automaton_,
                 rpcServer,
+                electionManagerThunk,
                 CellManager_,
                 changelogStoreFactory,
                 snapshotStore,
@@ -350,6 +419,11 @@ public:
                     GuardedAutomatonInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
                 }
             }
+
+            ElectionManager_ = New<TElectionManager>(HydraManager_->GetElectionCallbacks());
+            ElectionManager_->Initialize();
+
+            electionManagerThunk->SetUnderlying(ElectionManager_);
 
             auto masterConnection = Bootstrap_->GetMasterClient()->GetConnection();
             HiveManager_ = New<THiveManager>(
@@ -452,6 +526,8 @@ private:
 
     TCellManagerPtr CellManager_;
 
+    IElectionManagerPtr ElectionManager_;
+
     IHydraManagerPtr HydraManager_;
 
     TResponseKeeperPtr ResponseKeeper_;
@@ -533,6 +609,11 @@ private:
                 .ThrowOnError();
         }
         HydraManager_.Reset();
+
+        if (ElectionManager_) {
+            ElectionManager_->Finalize();
+        }
+        ElectionManager_.Reset();
 
         Automaton_.Reset();
 

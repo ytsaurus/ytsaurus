@@ -11,6 +11,8 @@
 #include <core/rpc/response_keeper.h>
 #include <core/rpc/message.h>
 
+#include <core/actions/cancelable_context.h>
+
 #include <core/concurrency/scheduler.h>
 #include <core/concurrency/periodic_executor.h>
 
@@ -18,7 +20,8 @@
 #include <ytlib/object_client/master_ypath_proxy.h>
 #include <ytlib/object_client/helpers.h>
 
-#include <server/election/election_manager.h>
+#include <server/election/distributed_election_manager.h>
+#include <server/election/election_manager_thunk.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/changelog.h>
@@ -70,6 +73,8 @@ public:
             NObjectServer::ObjectServerLogger,
             NObjectServer::ObjectServerProfiler);
 
+        auto electionManagerThunk = New<TElectionManagerThunk>();
+
         TDistributedHydraManagerOptions hydraManagerOptions;
         hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
         hydraManagerOptions.UseFork = true;
@@ -79,6 +84,7 @@ public:
             GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
             Automaton_,
             Bootstrap_->GetRpcServer(),
+            electionManagerThunk,
             Bootstrap_->GetCellManager(),
             Bootstrap_->GetChangelogStoreFactory(),
             Bootstrap_->GetSnapshotStore(),
@@ -94,6 +100,16 @@ public:
             auto unguardedInvoker = GetAutomatonInvoker(queue);
             GuardedInvokers_[queue] = HydraManager_->CreateGuardedAutomatonInvoker(unguardedInvoker);
         }
+
+        ElectionManager_ = CreateDistributedElectionManager(
+            Config_->ElectionManager,
+            Bootstrap_->GetCellManager(),
+            Bootstrap_->GetControlInvoker(),
+            HydraManager_->GetElectionCallbacks(),
+            Bootstrap_->GetRpcServer());
+        ElectionManager_->Initialize();
+
+        electionManagerThunk->SetUnderlying(ElectionManager_);
     }
 
     void Initialize()
@@ -127,6 +143,11 @@ public:
     {
         return Automaton_;
     }
+    
+    IElectionManagerPtr GetElectionManager() const
+    {
+        return ElectionManager_;
+    }
 
     IHydraManagerPtr GetHydraManager() const
     {
@@ -157,6 +178,8 @@ public:
 private:
     const TCellMasterConfigPtr Config_;
     TBootstrap* const Bootstrap_;
+
+    IElectionManagerPtr ElectionManager_;
 
     TFairShareActionQueuePtr AutomatonQueue_;
     TMasterAutomatonPtr Automaton_;
@@ -297,6 +320,11 @@ void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
 TMasterAutomatonPtr THydraFacade::GetAutomaton() const
 {
     return Impl_->GetAutomaton();
+}
+
+IElectionManagerPtr THydraFacade::GetElectionManager() const
+{
+    return Impl_->GetElectionManager();
 }
 
 IHydraManagerPtr THydraFacade::GetHydraManager() const

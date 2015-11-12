@@ -84,6 +84,8 @@ private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 
+    class TElectionManager;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSlot)

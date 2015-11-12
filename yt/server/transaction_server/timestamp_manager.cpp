@@ -5,6 +5,8 @@
 
 #include <core/misc/serialize.h>
 
+#include <core/actions/cancelable_context.h>
+
 #include <core/concurrency/action_queue.h>
 #include <core/concurrency/thread_affinity.h>
 #include <core/concurrency/periodic_executor.h>
@@ -14,8 +16,6 @@
 #include <core/rpc/server.h>
 
 #include <ytlib/transaction_client/timestamp_service_proxy.h>
-
-#include <server/election/election_manager.h>
 
 #include <server/hydra/composite_automaton.h>
 #include <server/hydra/hydra_manager.h>

@@ -40,6 +40,8 @@
 
 #include <ytlib/hive/cell_directory.h>
 
+#include <server/election/election_manager.h>
+
 #include <server/hydra/changelog.h>
 #include <server/hydra/local_changelog_store.h>
 #include <server/hydra/snapshot.h>
@@ -504,6 +506,9 @@ void TBootstrap::DoInitialize()
     MonitoringManager_->Register(
         "/hydra",
         HydraFacade_->GetHydraManager()->GetMonitoringProducer());
+    MonitoringManager_->Register(
+        "/election",
+        HydraFacade_->GetElectionManager()->GetMonitoringProducer());
 
     auto orchidFactory = GetEphemeralNodeFactory();
     auto orchidRoot = orchidFactory->CreateMap();

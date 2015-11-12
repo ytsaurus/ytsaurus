@@ -4,9 +4,9 @@
 
 #include <core/concurrency/scheduler.h>
 
-#include <ytlib/hydra/hydra_service.pb.h>
+#include <core/actions/cancelable_context.h>
 
-#include <server/election/election_manager.h>
+#include <ytlib/hydra/hydra_service.pb.h>
 
 namespace NYT {
 namespace NHydra {
