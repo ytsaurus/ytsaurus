@@ -112,8 +112,8 @@ DRIVER_CONFIG_PATCH = {
 }
 
 class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None,
-                           secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs,
+                           tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_17_3, self)\
             .get_master_configs(master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
@@ -154,8 +154,8 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         return configs
 
 class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None,
-                           secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs,
+                           tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_17_4, self)\
             .get_master_configs(master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
@@ -205,8 +205,8 @@ class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
         return configs
 
 class LocalModeConfigsProvider_18(ConfigsProvider_18):
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None,
-                           secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs,
+                           tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_18, self)\
             .get_master_configs(master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
