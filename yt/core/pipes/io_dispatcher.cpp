@@ -1,8 +1,8 @@
-#include "stdafx.h"
 #include "io_dispatcher.h"
 #include "io_dispatcher_impl.h"
 
-#include <core/misc/singleton.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/singleton.h>
 
 namespace NYT {
 namespace NPipes {

@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/property.h>
-#include <core/misc/error.h>
+#include <yt/core/actions/future.h>
 
-#include <core/actions/future.h>
+#include <yt/core/bus/client.h>
 
-#include <core/bus/client.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NRpc {

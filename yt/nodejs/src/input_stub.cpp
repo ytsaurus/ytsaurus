@@ -1,5 +1,4 @@
 #include "input_stub.h"
-
 #include "error.h"
 
 namespace NYT {

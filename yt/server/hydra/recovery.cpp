@@ -1,23 +1,22 @@
-#include "stdafx.h"
 #include "recovery.h"
+#include "changelog.h"
+#include "changelog_download.h"
 #include "config.h"
 #include "decorated_automaton.h"
-#include "changelog.h"
 #include "snapshot.h"
-#include "changelog_download.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/hydra_service_proxy.h>
 
-#include <core/rpc/response_keeper.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/profiling/scoped_timer.h>
+#include <yt/core/misc/common.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/core/profiling/scoped_timer.h>
 
-#include <ytlib/hydra/hydra_service_proxy.h>
-#include <ytlib/hydra/hydra_manager.pb.h>
+#include <yt/core/rpc/response_keeper.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include "operation_controller_detail.h"
 #include "private.h"
 #include "chunk_list_pool.h"
@@ -6,33 +5,34 @@
 #include "helpers.h"
 #include "master_connector.h"
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/data_statistics.h>
 
-#include <ytlib/node_tracker_client/node_directory_builder.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/chunk_client/chunk_list_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_scraper.h>
-#include <ytlib/chunk_client/chunk_slice.h>
-#include <ytlib/chunk_client/data_statistics.h>
+#include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/transaction_client/transaction_ypath_proxy.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/query_preparer.h>
+#include <yt/ytlib/query_client/udf_descriptor.h>
 
-#include <ytlib/scheduler/helpers.h>
+#include <yt/ytlib/scheduler/helpers.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/query_preparer.h>
-#include <ytlib/query_client/udf_descriptor.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_ypath_proxy.h>
 
-#include <core/erasure/codec.h>
+#include <yt/core/erasure/codec.h>
 
-#include <core/misc/fs.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
 #include <functional>
 

@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/server/cell_node/public.h>
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/rw_spinlock.h>
-#include <core/concurrency/action_queue.h>
+#include <yt/ytlib/chunk_client/file_reader.h>
 
-#include <core/actions/signal.h>
+#include <yt/core/actions/signal.h>
 
-#include <ytlib/chunk_client/file_reader.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NDataNode {

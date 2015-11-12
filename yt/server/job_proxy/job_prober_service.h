@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job_proxy.h"
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NJobProxy {

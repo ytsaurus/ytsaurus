@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "snapshot.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,20 +1,21 @@
-#include "stdafx.h"
 #include "tablet_tracker.h"
-#include "tablet_manager.h"
-#include "tablet_cell.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
+#include "tablet_cell.h"
+#include "tablet_manager.h"
 
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <server/node_tracker_server/node_tracker.h>
-#include <server/node_tracker_server/node.h>
-#include <server/node_tracker_server/config.h>
+#include <yt/server/node_tracker_server/config.h>
+#include <yt/server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node_tracker.h>
 
-#include <server/table_server/table_node.h>
+#include <yt/server/table_server/table_node.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletServer {

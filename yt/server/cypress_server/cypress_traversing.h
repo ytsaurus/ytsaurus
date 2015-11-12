@@ -2,8 +2,9 @@
 
 #include "public.h"
 
-#include <server/cell_master/public.h>
-#include <core/misc/error.h>
+#include <yt/server/cell_master/public.h>
+
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NCypressServer {

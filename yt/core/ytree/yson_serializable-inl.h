@@ -5,21 +5,21 @@
 #include "convert.h"
 #include "tree_visitor.h"
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/misc/guid.h>
-#include <core/misc/string.h>
-#include <core/misc/nullable.h>
-#include <core/misc/enum.h>
-#include <core/misc/demangle.h>
-#include <core/misc/serialize.h>
+#include <yt/core/misc/guid.h>
+#include <yt/core/misc/string.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/demangle.h>
+#include <yt/core/misc/serialize.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/ypath/token.h>
 
-#include <core/ytree/ypath_client.h>
-#include <core/ytree/convert.h>
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/convert.h>
 
-#include <core/actions/bind.h>
+#include <yt/core/actions/bind.h>
 
 #include <util/datetime/base.h>
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ytlib/chunk_client/chunk_list_ypath.pb.h>
+#include <yt/ytlib/chunk_client/chunk_list_ypath.pb.h>
 
-#include <ytlib/object_client/object_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -1,20 +1,19 @@
-#include "stdafx.h"
-
 #include "user_job_io_detail.h"
-
 #include "config.h"
 #include "job.h"
 
-#include <ytlib/chunk_client/schema.h>
-#include <ytlib/chunk_client/schema.pb.h>
+#include <yt/ytlib/chunk_client/schema.h>
+#include <yt/ytlib/chunk_client/schema.pb.h>
 
-#include <ytlib/table_client/chunk_meta_extensions.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
-#include <core/concurrency/scheduler.h>
-#include <core/misc/finally.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/finally.h>
 
 namespace NYT {
 namespace NJobProxy {

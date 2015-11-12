@@ -1,9 +1,9 @@
 ﻿#pragma once
 
 #include "public.h"
-#include <ytlib/chunk_client/schema.h>
+#include <yt/ytlib/chunk_client/schema.h>
 
-#include <core/misc/ref.h>
+#include <yt/core/misc/ref.h>
 #include <util/stream/mem.h>
 
 namespace NYT {

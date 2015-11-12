@@ -1,45 +1,46 @@
-#include "stdafx.h"
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/config.h>
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <server/cell_scheduler/config.h>
-#include <server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/config.h>
 
-#include <server/job_proxy/job_proxy.h>
-#include <server/job_proxy/stracer.h>
+#include <yt/server/job_proxy/job_proxy.h>
+#include <yt/server/job_proxy/stracer.h>
 
-#include <ytlib/scheduler/config.h>
+#include <yt/ytlib/cgroup/cgroup.h>
 
-#include <ytlib/shutdown.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <ytlib/misc/tclap_helpers.h>
+#include <yt/ytlib/misc/tclap_helpers.h>
 
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/monitoring/http_server.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
 
-#include <ytlib/monitoring/monitoring_manager.h>
-#include <ytlib/monitoring/http_server.h>
+#include <yt/ytlib/scheduler/config.h>
 
-#include <ytlib/cgroup/cgroup.h>
+#include <yt/ytlib/shutdown.h>
 
-#include <core/misc/crash_handler.h>
-#include <core/misc/proc.h>
+#include <yt/core/build.h>
 
-#include <core/tools/tools.h>
+#include <yt/core/logging/config.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <core/build.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/crash_handler.h>
+#include <yt/core/misc/proc.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <core/tracing/trace_manager.h>
+#include <yt/core/tools/tools.h>
 
-#include <core/logging/config.h>
-#include <core/logging/log_manager.h>
+#include <yt/core/tracing/trace_manager.h>
+
+#include <util/folder/dirut.h>
 
 #include <util/system/sigset.h>
-#include <util/folder/dirut.h>
 
 #include <contrib/tclap/tclap/CmdLine.h>
 

@@ -1,6 +1,7 @@
-#include "stdafx.h"
-#include "private.h"
 #include "routine_registry.h"
+#include "private.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NCodegen {

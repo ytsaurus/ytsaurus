@@ -1,12 +1,11 @@
-#include "stdafx.h"
-
 #include "schemaless_sorting_reader.h"
-
 #include "name_table.h"
 #include "schemaless_row_reorderer.h"
 
-#include "core/concurrency/scheduler.h"
-#include <core/misc/error.h>
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NTableClient {

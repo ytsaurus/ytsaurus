@@ -2,26 +2,26 @@
 
 #include "public.h"
 
-#include <ytlib/ypath/rich.h>
+#include <yt/server/security_server/acl.h>
 
-#include <ytlib/api/config.h>
+#include <yt/ytlib/api/config.h>
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/helpers.h>
+#include <yt/ytlib/formats/format.h>
 
-#include <ytlib/formats/format.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/node_tracker_client/public.h>
-#include <ytlib/node_tracker_client/helpers.h>
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/helpers.h>
 
-#include <server/security_server/acl.h>
+#include <yt/ytlib/ypath/rich.h>
 
-#include <core/rpc/config.h>
-#include <core/rpc/retrying_channel.h>
+#include <yt/core/rpc/config.h>
+#include <yt/core/rpc/retrying_channel.h>
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NScheduler {

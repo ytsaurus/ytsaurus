@@ -3,9 +3,9 @@
 #include "public.h"
 #include "automaton.h"
 
-#include <core/misc/property.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NTabletNode {

@@ -3,20 +3,20 @@
 #include "public.h"
 #include "cluster_resources.h"
 
-#include <server/hydra/mutation.h>
-#include <server/hydra/entity_map.h>
+#include <yt/server/cell_master/public.h>
 
-#include <core/rpc/service.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/server/hydra/entity_map.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <server/cypress_server/public.h>
+#include <yt/server/object_server/public.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/security_server/security_manager.pb.h>
 
-#include <server/object_server/public.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/security_server/security_manager.pb.h>
+#include <yt/core/rpc/service.h>
 
 namespace NYT {
 namespace NSecurityServer {

@@ -1,21 +1,21 @@
-#include "stdafx.h"
-#include "config.h"
 #include "trace_manager.h"
-#include "trace_service_proxy.h"
 #include "private.h"
+#include "config.h"
+#include "trace_service_proxy.h"
 
-#include <core/concurrency/scheduler_thread.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler_thread.h>
 
-#include <core/misc/address.h>
-#include <core/misc/lock_free.h>
-#include <core/misc/singleton.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lock_free.h>
+#include <yt/core/misc/singleton.h>
 
-#include <core/rpc/bus_channel.h>
-
-#include <util/system/byteorder.h>
+#include <yt/core/rpc/bus_channel.h>
 
 #include <util/network/init.h>
+
+#include <util/system/byteorder.h>
 
 namespace NYT {
 namespace NTracing {

@@ -1,17 +1,17 @@
-#include "stdafx.h"
 #include "unsafe_environment.h"
-#include "environment.h"
 #include "private.h"
+#include "environment.h"
 
-#include <server/exec_agent/slot.h>
+#include <yt/server/exec_agent/slot.h>
 
-#include <server/job_proxy/public.h>
+#include <yt/server/job_proxy/public.h>
 
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/misc/process.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/process.h>
 
-#include <core/tools/tools.h>
+#include <yt/core/tools/tools.h>
 
 #include <util/system/execpath.h>
 

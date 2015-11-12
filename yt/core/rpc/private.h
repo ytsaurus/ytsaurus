@@ -1,10 +1,10 @@
 #pragma once
 
-#include <core/misc/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/logging/log.h>
+#include <yt/core/misc/public.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NRpc {

@@ -2,14 +2,14 @@
 
 #include "public.h"
 
-#include <ytlib/object_client/master_ypath_proxy.h>
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <core/logging/log.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NScheduler {

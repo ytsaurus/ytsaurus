@@ -2,21 +2,21 @@
 
 #include "private.h"
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/server/job_proxy/config.h>
 
-#include <core/rpc/config.h>
+#include <yt/ytlib/api/config.h>
 
-#include <ytlib/table_client/config.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/ytlib/table_client/config.h>
 
-#include <ytlib/api/config.h>
+#include <yt/ytlib/ypath/public.h>
 
-#include <ytlib/ypath/public.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/rpc/config.h>
 
-#include <server/job_proxy/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NScheduler {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/rpc/config.h>
 
-#include <core/rpc/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NTransactionClient {

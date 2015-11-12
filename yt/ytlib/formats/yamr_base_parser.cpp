@@ -1,14 +1,14 @@
 #include "yamr_base_parser.h"
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <core/misc/error.h>
-#include <core/misc/string.h>
-#include <core/misc/format.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/format.h>
+#include <yt/core/misc/string.h>
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/attribute_helpers.h>
 
 #include <util/string/escape.h>
 

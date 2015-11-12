@@ -1,36 +1,36 @@
-#include "stdafx.h"
 #include "table_reader.h"
 #include "private.h"
 
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/multi_chunk_reader_base.h>
 
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <ytlib/transaction_client/helpers.h>
-#include <ytlib/transaction_client/transaction_listener.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <ytlib/table_client/schemaless_chunk_reader.h>
-#include <ytlib/table_client/table_ypath_proxy.h>
-#include <ytlib/table_client/name_table.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_listener.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/ypath/rich.h>
+#include <yt/ytlib/ypath/rich.h>
 
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
-#include <core/ytree/ypath_proxy.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT {
 namespace NApi {

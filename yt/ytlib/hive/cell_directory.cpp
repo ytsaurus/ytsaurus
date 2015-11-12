@@ -1,19 +1,18 @@
-#include "stdafx.h"
 #include "cell_directory.h"
 #include "config.h"
 
-#include <core/concurrency/rw_spinlock.h>
+#include <yt/ytlib/election/config.h>
 
-#include <ytlib/election/config.h>
+#include <yt/ytlib/hive/cell_directory.pb.h>
 
-#include <ytlib/hive/cell_directory.pb.h>
+#include <yt/ytlib/hydra/config.h>
+#include <yt/ytlib/hydra/peer_channel.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/hydra/peer_channel.h>
-#include <ytlib/hydra/config.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <ytlib/election/config.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHive {

@@ -1,17 +1,17 @@
 #pragma once
 
-#include <ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/chunk_client/data_statistics.pb.h>
 
-#include <ytlib/chunk_client/data_statistics.pb.h>
+#include <yt/ytlib/job_tracker_client/job.pb.h>
 
-#include <core/ytree/forwarding_yson_consumer.h>
-#include <core/ytree/tree_builder.h>
-#include <core/ytree/convert.h>
+#include <yt/core/actions/callback.h>
 
-#include <core/actions/callback.h>
+#include <yt/core/misc/phoenix.h>
+#include <yt/core/misc/property.h>
 
-#include <core/misc/property.h>
-#include <core/misc/phoenix.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/forwarding_yson_consumer.h>
+#include <yt/core/ytree/tree_builder.h>
 
 namespace NYT {
 namespace NJobTrackerClient {

@@ -1,24 +1,23 @@
-#include "stdafx.h"
 #include "lookup.h"
-#include "tablet.h"
-#include "store.h"
-#include "tablet_slot.h"
 #include "private.h"
+#include "store.h"
+#include "tablet.h"
+#include "tablet_slot.h"
 
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/small_vector.h>
-#include <core/misc/nullable.h>
+#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <core/logging/log.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/tablet_client/wire_protocol.h>
-#include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/core/logging/log.h>
 
-#include <ytlib/table_client/row_merger.h>
-
-#include <ytlib/table_client/versioned_reader.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/small_vector.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 

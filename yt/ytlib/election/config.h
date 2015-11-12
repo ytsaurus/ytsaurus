@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NElection {

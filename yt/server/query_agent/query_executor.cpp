@@ -1,64 +1,63 @@
-#include "stdafx.h"
 #include "query_executor.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 
-#include <core/misc/string.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/data_node/block_store.h>
+#include <yt/server/data_node/chunk.h>
+#include <yt/server/data_node/chunk_registry.h>
+#include <yt/server/data_node/local_chunk_reader.h>
+#include <yt/server/data_node/master_connector.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/replication_reader.h>
-#include <ytlib/chunk_client/chunk_spec.pb.h>
-#include <ytlib/chunk_client/chunk_reader.h>
+#include <yt/server/hydra/hydra_manager.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/server/tablet_node/config.h>
+#include <yt/server/tablet_node/security_manager.h>
+#include <yt/server/tablet_node/slot_manager.h>
+#include <yt/server/tablet_node/tablet.h>
+#include <yt/server/tablet_node/tablet_manager.h>
+#include <yt/server/tablet_node/tablet_reader.h>
+#include <yt/server/tablet_node/tablet_slot.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/table_client/config.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/schemaful_chunk_reader.h>
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/unordered_schemaful_reader.h>
-#include <ytlib/table_client/pipe.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
 
-#include <ytlib/query_client/callbacks.h>
-#include <ytlib/query_client/evaluator.h>
-#include <ytlib/query_client/plan_fragment.h>
-#include <ytlib/query_client/plan_helpers.h>
-#include <ytlib/query_client/coordinator.h>
-#include <ytlib/query_client/private.h>
-#include <ytlib/query_client/helpers.h>
-#include <ytlib/query_client/query_statistics.h>
-#include <ytlib/query_client/function_registry.h>
-#include <ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/query_client/callbacks.h>
+#include <yt/ytlib/query_client/column_evaluator.h>
+#include <yt/ytlib/query_client/coordinator.h>
+#include <yt/ytlib/query_client/evaluator.h>
+#include <yt/ytlib/query_client/function_registry.h>
+#include <yt/ytlib/query_client/helpers.h>
+#include <yt/ytlib/query_client/plan_fragment.h>
+#include <yt/ytlib/query_client/plan_helpers.h>
+#include <yt/ytlib/query_client/private.h>
+#include <yt/ytlib/query_client/query_statistics.h>
 
-#include <server/data_node/block_store.h>
-#include <server/data_node/chunk.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/pipe.h>
+#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
 
-#include <server/tablet_node/slot_manager.h>
-#include <server/tablet_node/tablet_manager.h>
-#include <server/tablet_node/tablet_slot.h>
-#include <server/tablet_node/tablet.h>
-#include <server/tablet_node/tablet_reader.h>
-#include <server/tablet_node/security_manager.h>
-#include <server/tablet_node/config.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <server/hydra/hydra_manager.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/data_node/local_chunk_reader.h>
-#include <server/data_node/chunk_registry.h>
-#include <server/data_node/master_connector.h>
-
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NQueryAgent {

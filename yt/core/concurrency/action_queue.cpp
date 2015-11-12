@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "action_queue.h"
+#include "private.h"
 #include "scheduler_thread.h"
 #include "single_queue_scheduler_thread.h"
-#include "private.h"
 
-#include <core/actions/invoker_detail.h>
+#include <yt/core/actions/invoker_detail.h>
 
-#include <core/ypath/token.h>
+#include <yt/core/misc/common.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
+
+#include <yt/core/ypath/token.h>
 
 namespace NYT {
 namespace NConcurrency {

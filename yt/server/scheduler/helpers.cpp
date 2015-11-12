@@ -1,12 +1,13 @@
-#include "stdafx.h"
 #include "helpers.h"
 #include "public.h"
-#include "operation.h"
-#include "job.h"
 #include "exec_node.h"
+#include "job.h"
+#include "operation.h"
 #include "operation_controller.h"
 
-#include <ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

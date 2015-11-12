@@ -4,20 +4,19 @@
 #include "callbacks.h"
 #include "function_context.h"
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/api/rowset.h>
 
-#include <ytlib/api/rowset.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/codegen/function.h>
+#include <yt/core/codegen/function.h>
 
-#include <core/misc/chunked_memory_pool.h>
-
-#include <unordered_set>
-#include <unordered_map>
-
-#include <sparsehash/dense_hash_set>
+#include <yt/core/misc/chunked_memory_pool.h>
 
 #include <deque>
+#include <unordered_map>
+#include <unordered_set>
+
+#include <sparsehash/dense_hash_set>
 
 namespace NYT {
 namespace NQueryClient {

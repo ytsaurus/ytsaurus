@@ -1,10 +1,11 @@
 #pragma once
 
+#include "ref_counted.h"
 #include "source_location.h"
 
-#include <typeinfo>
-
 #include <util/system/defaults.h>
+
+#include <typeinfo>
 
 namespace NYT {
 

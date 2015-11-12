@@ -1,9 +1,10 @@
-#include "stdafx.h"
 #include "chunk_list.h"
 #include "chunk_owner_base.h"
 #include "helpers.h"
 
-#include <server/cell_master/serialize.h>
+#include <yt/server/cell_master/serialize.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NChunkServer {

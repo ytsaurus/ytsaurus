@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/public.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
 namespace NYT {
 namespace NJournalClient {

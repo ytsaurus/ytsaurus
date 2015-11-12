@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "job_resources.h"
 #include "config.h"
 
-#include <ytlib/chunk_client/private.h>
+#include <yt/ytlib/chunk_client/private.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

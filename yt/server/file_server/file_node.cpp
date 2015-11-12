@@ -1,13 +1,14 @@
-#include "stdafx.h"
 #include "file_node.h"
-#include "file_node_proxy.h"
 #include "private.h"
+#include "file_node_proxy.h"
 
-#include <ytlib/file_client/file_ypath_proxy.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/chunk_server/chunk_owner_type_handler.h>
+#include <yt/server/chunk_server/chunk_owner_type_handler.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/ytlib/file_client/file_ypath_proxy.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NFileServer {

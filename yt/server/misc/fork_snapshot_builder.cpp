@@ -1,13 +1,13 @@
-#include "stdafx.h"
 #include "fork_snapshot_builder.h"
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
-#include <core/misc/lazy_ptr.h>
-#include <core/misc/proc.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lazy_ptr.h>
+#include <yt/core/misc/proc.h>
 
-#include <core/ytree/serialize.h>
+#include <yt/core/ytree/serialize.h>
 
 #ifdef _unix_
     // for wait*()

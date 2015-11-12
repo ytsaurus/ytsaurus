@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/rpc/public.h>
+#include <yt/server/hydra/mutation.h>
 
-#include <ytlib/election/public.h>
+#include <yt/ytlib/election/public.h>
 
-#include <server/hydra/mutation.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NCellMaster {

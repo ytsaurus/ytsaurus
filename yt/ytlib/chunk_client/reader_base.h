@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <core/misc/ref_counted.h>
+#include <yt/core/misc/ref_counted.h>
 
 namespace NYT {
 namespace NChunkClient {

@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "helpers.h"
 #include "private.h"
 
-#include <core/misc/string.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/private.h>
 
-#include <ytlib/misc/workload.h>
+#include <yt/ytlib/misc/workload.h>
 
-#include <ytlib/chunk_client/private.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NJournalClient {

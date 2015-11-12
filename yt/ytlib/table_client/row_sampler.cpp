@@ -1,6 +1,6 @@
-#include "stdafx.h"
-
 #include "row_sampler.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NNodeJS {

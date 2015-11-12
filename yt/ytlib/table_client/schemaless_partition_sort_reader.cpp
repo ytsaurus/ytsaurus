@@ -1,21 +1,19 @@
-#include "stdafx.h"
-
 #include "schemaless_partition_sort_reader.h"
-
+#include "private.h"
 #include "config.h"
 #include "partition_chunk_reader.h"
-#include "private.h"
 #include "schemaless_block_reader.h"
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/api/client.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/concurrency/action_queue.h>
-#include <core/concurrency/scheduler.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/heap.h>
+#include <yt/core/misc/varint.h>
 
-#include <core/misc/heap.h>
-#include <core/misc/varint.h>
+#include <yt/core/profiling/profiler.h>
 
 #include <util/system/yield.h>
 

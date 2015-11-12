@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "query_statistics.h"
 
-#include <ytlib/query_client/query_statistics.pb.h>
+#include <yt/ytlib/query_client/query_statistics.pb.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NQueryClient {

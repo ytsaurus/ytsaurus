@@ -2,7 +2,7 @@
 
 #include "workload.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 

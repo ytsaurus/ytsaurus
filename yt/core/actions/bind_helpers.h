@@ -15,7 +15,7 @@
 
 #include "callback.h"
 
-#include <core/misc/new.h>
+#include <yt/core/misc/new.h>
 
 namespace NYT {
 

@@ -2,9 +2,9 @@
 
 #include "command.h"
 
-#include <ytlib/scheduler/public.h>
+#include <yt/ytlib/job_tracker_client/public.h>
 
-#include <ytlib/job_tracker_client/public.h>
+#include <yt/ytlib/scheduler/public.h>
 
 namespace NYT {
 namespace NDriver {

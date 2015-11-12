@@ -1,8 +1,8 @@
 #pragma once
 
-#include <util/stream/str.h>
 #include <util/stream/input.h>
 #include <util/stream/output.h>
+#include <util/stream/str.h>
 
 #include <contrib/libs/pycxx/Objects.hxx>
 

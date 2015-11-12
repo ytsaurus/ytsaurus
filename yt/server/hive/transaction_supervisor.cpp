@@ -1,35 +1,36 @@
-#include "stdafx.h"
 #include "transaction_supervisor.h"
-#include "config.h"
-#include "transaction_manager.h"
-#include "hive_manager.h"
-#include "commit.h"
 #include "private.h"
+#include "commit.h"
+#include "config.h"
+#include "hive_manager.h"
+#include "transaction_manager.h"
 
-#include <core/rpc/service_detail.h>
-#include <core/rpc/server.h>
-#include <core/rpc/message.h>
-#include <core/rpc/response_keeper.h>
-#include <core/rpc/rpc.pb.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/ytree/attribute_helpers.h>
+#include <yt/server/hive/transaction_supervisor.pb.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/entity_map.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/hydra_service.h>
+#include <yt/server/hydra/mutation.h>
+#include <yt/server/hydra/rpc_helpers.h>
 
-#include <ytlib/hive/transaction_supervisor_service_proxy.h>
+#include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 
-#include <ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
-#include <server/hydra/composite_automaton.h>
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
-#include <server/hydra/entity_map.h>
-#include <server/hydra/hydra_service.h>
-#include <server/hydra/rpc_helpers.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/election/election_manager.h>
+#include <yt/core/misc/common.h>
 
-#include <server/hive/transaction_supervisor.pb.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/response_keeper.h>
+#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/service_detail.h>
+
+#include <yt/core/ytree/attribute_helpers.h>
 
 namespace NYT {
 namespace NHive {

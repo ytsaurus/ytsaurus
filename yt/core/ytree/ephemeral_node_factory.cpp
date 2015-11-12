@@ -1,12 +1,12 @@
-#include "stdafx.h"
 #include "ephemeral_node_factory.h"
-#include "node_detail.h"
-#include "ypath_detail.h"
 #include "ephemeral_attribute_owner.h"
+#include "node_detail.h"
 #include "ypath_client.h"
+#include "ypath_detail.h"
 
-#include <core/misc/hash.h>
-#include <core/misc/singleton.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/hash.h>
+#include <yt/core/misc/singleton.h>
 
 #include <algorithm>
 

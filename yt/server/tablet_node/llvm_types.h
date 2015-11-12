@@ -2,9 +2,9 @@
 
 #include "dynamic_memory_store_bits.h"
 
-#include <llvm/IR/TypeBuilder.h>
-
 #include <type_traits>
+
+#include <llvm/IR/TypeBuilder.h>
 
 namespace llvm {
 

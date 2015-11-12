@@ -1,8 +1,8 @@
-﻿#include "stdafx.h"
+﻿#include <yt/core/misc/common.h>
 #include "table_output.h"
 
-#include <ytlib/formats/parser.h>
-#include <core/yson/consumer.h>
+#include <yt/ytlib/formats/parser.h>
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NJobProxy {

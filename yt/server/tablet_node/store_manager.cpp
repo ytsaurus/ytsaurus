@@ -1,35 +1,35 @@
-#include "stdafx.h"
 #include "store_manager.h"
-#include "tablet.h"
-#include "dynamic_memory_store.h"
-#include "chunk_store.h"
-#include "transaction.h"
-#include "config.h"
-#include "tablet_slot.h"
-#include "transaction_manager.h"
-#include "in_memory_manager.h"
 #include "private.h"
+#include "chunk_store.h"
+#include "config.h"
+#include "dynamic_memory_store.h"
+#include "in_memory_manager.h"
+#include "tablet.h"
+#include "tablet_slot.h"
+#include "transaction.h"
+#include "transaction_manager.h"
 
-#include <core/misc/small_vector.h>
+#include <yt/server/hydra/hydra_manager.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/versioned_row.h>
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <ytlib/transaction_client/transaction_manager.h>
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <ytlib/chunk_client/block_cache.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/hydra/hydra_manager.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT {
 namespace NTabletNode {

@@ -1,8 +1,9 @@
-#include "stdafx.h"
 #include "row_merger.h"
 #include "config.h"
 
-#include <ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

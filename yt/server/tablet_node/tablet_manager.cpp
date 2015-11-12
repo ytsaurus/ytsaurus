@@ -1,62 +1,62 @@
-#include "stdafx.h"
 #include "tablet_manager.h"
-#include "tablet_slot.h"
+#include "private.h"
 #include "automaton.h"
-#include "tablet.h"
+#include "chunk_store.h"
+#include "config.h"
+#include "dynamic_memory_store.h"
+#include "in_memory_manager.h"
+#include "lookup.h"
 #include "partition.h"
+#include "security_manager.h"
+#include "slot_manager.h"
+#include "store_flusher.h"
+#include "store_manager.h"
+#include "tablet.h"
+#include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
-#include "config.h"
-#include "store_manager.h"
-#include "slot_manager.h"
-#include "dynamic_memory_store.h"
-#include "chunk_store.h"
-#include "store_flusher.h"
-#include "lookup.h"
-#include "private.h"
-#include "security_manager.h"
-#include "in_memory_manager.h"
 
-#include <core/misc/ring_queue.h>
-#include <core/misc/string.h>
-#include <core/misc/nullable.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/data_node/block_store.h>
 
-#include <core/compression/codec.h>
+#include <yt/server/hive/hive_manager.h>
+#include <yt/server/hive/transaction_supervisor.pb.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/mutation.h>
+#include <yt/server/hydra/mutation_context.h>
 
-#include <ytlib/tablet_client/config.h>
-#include <ytlib/tablet_client/wire_protocol.h>
-#include <ytlib/tablet_client/wire_protocol.pb.h>
+#include <yt/server/misc/memory_usage_tracker.h>
 
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/server/tablet_node/tablet_manager.pb.h>
+#include <yt/server/tablet_node/transaction_manager.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/tablet_server/tablet_manager.pb.h>
 
-#include <ytlib/transaction_client/helpers.h>
-#include <ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <server/misc/memory_usage_tracker.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/mutation.h>
-#include <server/hydra/mutation_context.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/name_table.h>
 
-#include <server/tablet_node/transaction_manager.h>
-#include <server/tablet_node/tablet_manager.pb.h>
+#include <yt/ytlib/tablet_client/config.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/tablet_client/wire_protocol.pb.h>
 
-#include <server/tablet_server/tablet_manager.pb.h>
+#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
 
-#include <server/hive/hive_manager.h>
-#include <server/hive/transaction_supervisor.pb.h>
+#include <yt/core/compression/codec.h>
 
-#include <server/data_node/block_store.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/ring_queue.h>
+#include <yt/core/misc/string.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {

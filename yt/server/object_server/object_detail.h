@@ -2,24 +2,24 @@
 
 #include "public.h"
 #include "object.h"
-#include "object_proxy.h"
 #include "object_manager.h"
+#include "object_proxy.h"
 
-#include <core/misc/property.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <core/ytree/ypath_detail.h>
-#include <core/ytree/system_attribute_provider.h>
+#include <yt/server/security_server/public.h>
 
-#include <ytlib/object_client/object_ypath.pb.h>
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/object_ypath.pb.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/core/misc/property.h>
 
-#include <server/security_server/public.h>
+#include <yt/core/ytree/system_attribute_provider.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NObjectServer {

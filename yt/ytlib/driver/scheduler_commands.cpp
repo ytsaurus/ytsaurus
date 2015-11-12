@@ -1,11 +1,12 @@
-#include "stdafx.h"
 #include "scheduler_commands.h"
 #include "config.h"
 #include "driver.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

@@ -3,10 +3,10 @@
 #include "public.h"
 #include "chunk_writer.h"
 
-#include <core/misc/checksum.h>
+#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/core/misc/checksum.h>
 
 #include <util/system/file.h>
 

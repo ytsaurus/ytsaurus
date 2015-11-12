@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
+#include <yt/ytlib/hive/cluster_directory.h>
+#include <yt/ytlib/hive/public.h>
 
-#include <core/ytree/public.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/object_client/public.h>
 
-#include <ytlib/object_client/public.h>
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/core/yson/public.h>
 
-#include <ytlib/hive/public.h>
-#include <ytlib/hive/cluster_directory.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NScheduler {

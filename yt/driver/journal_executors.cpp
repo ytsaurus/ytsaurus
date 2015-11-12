@@ -1,9 +1,9 @@
 #include "journal_executors.h"
 #include "preprocess.h"
 
-#include <ytlib/driver/driver.h>
+#include <yt/ytlib/driver/driver.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
 namespace NYT {
 namespace NDriver {

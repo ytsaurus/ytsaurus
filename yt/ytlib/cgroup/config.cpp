@@ -1,6 +1,7 @@
-#include "stdafx.h"
-#include "private.h"
 #include "config.h"
+#include "private.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NCGroup {

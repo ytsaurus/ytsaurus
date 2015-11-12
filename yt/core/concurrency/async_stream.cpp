@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "async_stream.h"
 #include "scheduler.h"
+
+#include <yt/core/misc/common.h>
 
 #include <queue>
 

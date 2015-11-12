@@ -1,15 +1,16 @@
-#include "stdafx.h"
 #include "virtual.h"
+#include "ephemeral_attribute_owner.h"
 #include "fluent.h"
 #include "node_detail.h"
-#include "ypath_detail.h"
 #include "ypath_client.h"
-#include "ephemeral_attribute_owner.h"
+#include "ypath_detail.h"
 
-#include <core/yson/tokenizer.h>
-#include <core/yson/writer.h>
+#include <yt/core/misc/common.h>
 
-#include <core/ypath/tokenizer.h>
+#include <yt/core/ypath/tokenizer.h>
+
+#include <yt/core/yson/tokenizer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NYTree {

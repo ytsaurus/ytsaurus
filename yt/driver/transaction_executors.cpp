@@ -1,6 +1,6 @@
 #include "transaction_executors.h"
 
-#include <core/ytree/fluent.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NDriver {

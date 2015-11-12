@@ -1,54 +1,54 @@
 #include "tablet_slot.h"
-#include "config.h"
-#include "slot_manager.h"
-#include "serialize.h"
-#include "automaton.h"
-#include "tablet_manager.h"
-#include "transaction_manager.h"
-#include "tablet_service.h"
 #include "private.h"
+#include "automaton.h"
+#include "config.h"
+#include "serialize.h"
+#include "slot_manager.h"
+#include "tablet_manager.h"
+#include "tablet_service.h"
+#include "transaction_manager.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/scheduler.h>
-#include <core/concurrency/action_queue.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/ytree/fluent.h>
+#include <yt/server/data_node/config.h>
 
-#include <core/rpc/server.h>
-#include <core/rpc/response_keeper.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/logging/log.h>
+#include <yt/server/hive/hive_manager.h>
+#include <yt/server/hive/mailbox.h>
+#include <yt/server/hive/transaction_supervisor.h>
 
-#include <ytlib/election/config.h>
-#include <ytlib/election/cell_manager.h>
+#include <yt/server/hydra/changelog.h>
+#include <yt/server/hydra/distributed_hydra_manager.h>
+#include <yt/server/hydra/hydra_manager.h>
+#include <yt/server/hydra/remote_changelog_store.h>
+#include <yt/server/hydra/remote_snapshot_store.h>
+#include <yt/server/hydra/snapshot.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/transaction_client/timestamp_provider.h>
-#include <ytlib/transaction_client/transaction_manager.h>
+#include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <ytlib/api/connection.h>
-#include <ytlib/api/client.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <server/election/election_manager.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/transaction_manager.h>
 
-#include <server/hydra/changelog.h>
-#include <server/hydra/remote_changelog_store.h>
-#include <server/hydra/snapshot.h>
-#include <server/hydra/remote_snapshot_store.h>
-#include <server/hydra/hydra_manager.h>
-#include <server/hydra/distributed_hydra_manager.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/hive/hive_manager.h>
-#include <server/hive/mailbox.h>
-#include <server/hive/transaction_supervisor.h>
+#include <yt/core/logging/log.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/rpc/response_keeper.h>
+#include <yt/core/rpc/server.h>
 
-#include <server/data_node/config.h>
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT {
 namespace NTabletNode {

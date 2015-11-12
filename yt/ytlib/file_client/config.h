@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/ytree/yson_serializable.h>
+#include <yt/ytlib/chunk_client/config.h>
 
-#include <ytlib/chunk_client/config.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NFileClient {

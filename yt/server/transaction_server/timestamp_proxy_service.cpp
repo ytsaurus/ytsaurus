@@ -1,13 +1,15 @@
-#include "stdafx.h"
-#include "timestamp_manager.h"
+#include "timestamp_proxy_service.h"
 #include "private.h"
+#include "timestamp_manager.h"
 
-#include <core/rpc/service_detail.h>
-#include <core/rpc/server.h>
-#include <core/rpc/dispatcher.h>
+#include <yt/ytlib/transaction_client/timestamp_provider.h>
+#include <yt/ytlib/transaction_client/timestamp_service_proxy.h>
 
-#include <ytlib/transaction_client/timestamp_service_proxy.h>
-#include <ytlib/transaction_client/timestamp_provider.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/dispatcher.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NTransactionServer {

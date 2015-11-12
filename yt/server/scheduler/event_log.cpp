@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "event_log.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NScheduler {

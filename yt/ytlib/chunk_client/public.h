@@ -1,11 +1,11 @@
 ﻿#pragma once
 
-#include <core/misc/public.h>
-#include <core/misc/small_vector.h>
+#include <yt/core/misc/public.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <ytlib/misc/public.h>
+#include <yt/ytlib/misc/public.h>
 
-#include <ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/public.h>
 
 namespace NYT {
 namespace NChunkClient {

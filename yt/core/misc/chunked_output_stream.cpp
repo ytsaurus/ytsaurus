@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "chunked_output_stream.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 

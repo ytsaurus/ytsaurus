@@ -3,13 +3,13 @@
 #include "public.h"
 #include "dynamic_memory_store_bits.h"
 
-#include <core/logging/log.h>
+#include <yt/server/cell_node/public.h>
 
-#include <ytlib/tablet_client/public.h>
+#include <yt/ytlib/table_client/public.h>
 
-#include <ytlib/table_client/public.h>
+#include <yt/ytlib/tablet_client/public.h>
 
-#include <server/cell_node/public.h>
+#include <yt/core/logging/log.h>
 
 namespace NYT {
 namespace NTabletNode {

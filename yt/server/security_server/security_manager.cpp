@@ -1,40 +1,39 @@
-#include "stdafx.h"
 #include "security_manager.h"
 #include "private.h"
 #include "account.h"
 #include "account_proxy.h"
-#include "user.h"
-#include "user_proxy.h"
+#include "acl.h"
+#include "config.h"
 #include "group.h"
 #include "group_proxy.h"
-#include "acl.h"
 #include "request_tracker.h"
-#include "config.h"
+#include "user.h"
+#include "user_proxy.h"
 
-#include <core/ypath/token.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/server/cypress_server/node.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/hydra/composite_automaton.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <server/hydra/entity_map.h>
-#include <server/hydra/composite_automaton.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <server/object_server/type_handler_detail.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/common.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <server/cypress_server/node.h>
+#include <yt/core/ypath/token.h>
 
 // COMPAT(babenko)
-#include <server/cypress_server/cypress_manager.h>
-#include <server/transaction_server/transaction_manager.h>
+#include <yt/server/cypress_server/cypress_manager.h>
+#include <yt/server/transaction_server/transaction_manager.h>
 
 namespace NYT {
 namespace NSecurityServer {

@@ -1,15 +1,15 @@
-#include "stdafx.h"
 #include "acl.h"
-#include "subject.h"
 #include "security_manager.h"
+#include "subject.h"
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/node.h>
-#include <core/ytree/yson_serializable.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/ytree/permission.h>
+#include <yt/core/misc/common.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/permission.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NSecurityServer {

@@ -1,36 +1,36 @@
 #pragma once
 
-#include "stdafx.h"
 #include "framework.h"
 #include "versioned_table_client_ut.h"
 
-#include <yt/core/misc/nullable.h>
-
-#include <yt/core/concurrency/scheduler.h>
-
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/name_table.h>
-#include <yt/ytlib/table_client/writer.h>
-#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/ytlib/table_client/schemaful_chunk_writer.h>
-#include <yt/ytlib/table_client/versioned_row.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/server/tablet_node/config.h>
+#include <yt/server/tablet_node/dynamic_memory_store.h>
+#include <yt/server/tablet_node/public.h>
+#include <yt/server/tablet_node/tablet.h>
+#include <yt/server/tablet_node/tablet_manager.h>
+#include <yt/server/tablet_node/transaction.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/memory_reader.h>
 #include <yt/ytlib/chunk_client/memory_writer.h>
 
-#include <yt/ytlib/tablet_client/public.h>
-#include <yt/ytlib/tablet_client/config.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/schema.h>
+#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaful_chunk_writer.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+#include <yt/ytlib/table_client/writer.h>
 
-#include <yt/server/tablet_node/public.h>
-#include <yt/server/tablet_node/config.h>
-#include <yt/server/tablet_node/tablet.h>
-#include <yt/server/tablet_node/tablet_manager.h>
-#include <yt/server/tablet_node/transaction.h>
-#include <yt/server/tablet_node/dynamic_memory_store.h>
+#include <yt/ytlib/tablet_client/config.h>
+#include <yt/ytlib/tablet_client/public.h>
+
+#include <yt/core/concurrency/scheduler.h>
+
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/nullable.h>
 
 namespace NYT {
 namespace NTabletNode {

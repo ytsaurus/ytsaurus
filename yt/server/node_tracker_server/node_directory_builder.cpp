@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "node_directory_builder.h"
 
-#include <server/node_tracker_server/node.h>
+#include <yt/server/node_tracker_server/node.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NNodeTrackerServer {

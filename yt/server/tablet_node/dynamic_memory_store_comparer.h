@@ -4,11 +4,11 @@
 #include "dynamic_memory_store_bits.h"
 #include "row_comparer_generator.h"
 
-#include <core/misc/enum.h>
-#include <core/misc/chunked_memory_pool.h>
-#include <core/misc/intrusive_ptr.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/intrusive_ptr.h>
 
 namespace NYT {
 namespace NTabletNode {

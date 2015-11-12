@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <ytlib/chunk_client/schema.pb.h>
+#include <yt/ytlib/chunk_client/schema.pb.h>
 
-#include <core/ytree/public.h>
-#include <core/yson/consumer.h>
+#include <yt/core/ytree/public.h>
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NChunkClient {

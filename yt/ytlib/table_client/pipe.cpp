@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "pipe.h"
+#include "row_buffer.h"
 #include "schemaful_reader.h"
 #include "schemaful_writer.h"
-#include "row_buffer.h"
 
-#include <core/misc/ring_queue.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/ring_queue.h>
 
 namespace NYT {
 namespace NTableClient {

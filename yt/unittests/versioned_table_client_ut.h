@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "framework.h"
+
+#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
+#include <yt/ytlib/table_client/versioned_row.h>
+
+#include <yt/core/misc/common.h>
 
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/node.h>
-
-#include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/unversioned_row.h>
-#include <yt/ytlib/table_client/versioned_row.h>
 
 namespace NYT {
 namespace NTableClient {

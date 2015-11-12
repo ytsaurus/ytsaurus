@@ -1,6 +1,6 @@
-#include "stdafx.h"
-
 #include "url.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 

@@ -1,28 +1,26 @@
 #include "shutdown.h"
 
-#include <core/concurrency/fiber.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/ytlib/driver/dispatcher.h>
 
-#include <core/misc/address.h>
+#include <yt/core/actions/invoker_util.h>
 
-#include <core/actions/invoker_util.h>
+#include <yt/core/bus/tcp_dispatcher.h>
 
-#include <core/bus/tcp_dispatcher.h>
+#include <yt/core/concurrency/fiber.h>
 
-#include <core/rpc/dispatcher.h>
+#include <yt/core/logging/log_manager.h>
 
-#include <core/logging/log_manager.h>
+#include <yt/core/misc/address.h>
 
-#include <core/tracing/trace_manager.h>
+#include <yt/core/pipes/io_dispatcher.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
-#include <core/pipes/io_dispatcher.h>
+#include <yt/core/rpc/dispatcher.h>
 
-#include <ytlib/driver/dispatcher.h>
-
-#include <ytlib/chunk_client/dispatcher.h>
+#include <yt/core/tracing/trace_manager.h>
 
 namespace NYT {
 

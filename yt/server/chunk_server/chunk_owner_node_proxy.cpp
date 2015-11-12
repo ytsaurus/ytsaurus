@@ -1,6 +1,5 @@
-#include "stdafx.h"
-#include "private.h"
 #include "chunk_owner_node_proxy.h"
+#include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
@@ -8,25 +7,27 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/cell_master/config.h>
 
-#include <core/ytree/node.h>
-#include <core/ytree/fluent.h>
-#include <core/ytree/system_attribute_provider.h>
-#include <core/ytree/attribute_helpers.h>
+#include <yt/server/node_tracker_server/node_directory_builder.h>
 
-#include <core/erasure/codec.h>
+#include <yt/server/object_server/object.h>
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/node_tracker_server/node_directory_builder.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/object_server/object.h>
+#include <yt/core/erasure/codec.h>
 
-#include <server/cell_master/config.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/system_attribute_provider.h>
 
 namespace NYT {
 namespace NChunkServer {

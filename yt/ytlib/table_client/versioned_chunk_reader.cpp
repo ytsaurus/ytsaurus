@@ -1,23 +1,24 @@
-#include "stdafx.h"
 #include "versioned_chunk_reader.h"
+#include "private.h"
 #include "cached_versioned_chunk_meta.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_base.h"
 #include "config.h"
 #include "schema.h"
+#include "unversioned_row.h"
 #include "versioned_block_reader.h"
 #include "versioned_reader.h"
-#include "unversioned_row.h"
-#include "private.h"
 
-#include <ytlib/chunk_client/block_id.h>
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_reader.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/sequential_reader.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/block_id.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/sequential_reader.h>
 
-#include <core/compression/codec.h>
+#include <yt/core/compression/codec.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/rpc/client.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/core/rpc/client.h>
 
 namespace NYT {
 namespace NNodeTrackerClient {

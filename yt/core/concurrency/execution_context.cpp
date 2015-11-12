@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "execution_context.h"
 #include "execution_stack.h"
+
+#include <yt/core/misc/common.h>
 
 #if defined(_win_)
 #   define WIN32_LEAN_AND_MEAN

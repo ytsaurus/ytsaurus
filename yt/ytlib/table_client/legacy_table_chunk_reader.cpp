@@ -1,19 +1,17 @@
-#include "stdafx.h"
-
 #include "legacy_table_chunk_reader.h"
-
+#include "private.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
+#include "helpers.h"
 #include "legacy_channel_reader.h"
 #include "name_table.h"
-#include "private.h"
-#include "helpers.h"
 
-#include <ytlib/chunk_client/sequential_reader.h>
-#include <ytlib/chunk_client/dispatcher.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/sequential_reader.h>
 
-#include <core/misc/finally.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/finally.h>
 
 namespace NYT {
 namespace NTableClient {

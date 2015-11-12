@@ -5,11 +5,11 @@
 #include "schema.h"
 #include "unversioned_row.h"
 
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <core/misc/property.h>
-#include <core/misc/error.h>
-#include <core/misc/public.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/public.h>
 
 #include <memory>
 

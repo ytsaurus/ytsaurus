@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <ytlib/object_client/object_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
 
-#include <ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/object_client/object_ypath_proxy.h>
 
 namespace NYT {
 namespace NCypressClient {

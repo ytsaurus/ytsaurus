@@ -1,10 +1,10 @@
-#include "stdafx.h"
-#include "codec.h"
 #include "helpers.h"
+#include "codec.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/compression/helpers.pb.h>
 
-#include <core/compression/helpers.pb.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NCompression {

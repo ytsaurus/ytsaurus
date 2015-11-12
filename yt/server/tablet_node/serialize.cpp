@@ -1,5 +1,7 @@
-#include "stdafx.h"
+#include "serialize.h"
 #include "private.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTabletNode {

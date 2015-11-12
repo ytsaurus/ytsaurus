@@ -1,10 +1,11 @@
-#include "stdafx.h"
-#include "config.h"
 #include "fair_share_strategy.h"
 #include "public.h"
-#include "scheduler_strategy.h"
-#include "master_connector.h"
+#include "config.h"
 #include "job_resources.h"
+#include "master_connector.h"
+#include "scheduler_strategy.h"
+
+#include <yt/core/misc/common.h>
 
 #include <iostream>
 

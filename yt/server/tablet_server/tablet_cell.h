@@ -3,25 +3,25 @@
 #include "public.h"
 #include "tablet.h"
 
-#include <core/misc/ref_tracked.h>
-#include <core/misc/property.h>
-#include <core/misc/small_vector.h>
-#include <core/misc/nullable.h>
+#include <yt/server/cell_master/public.h>
 
-#include <core/yson/public.h>
+#include <yt/server/node_tracker_server/public.h>
 
-#include <ytlib/hive/cell_directory.h>
+#include <yt/server/object_server/object.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
-#include <ytlib/node_tracker_client/node_tracker_service.pb.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/object_server/object.h>
+#include <yt/ytlib/hive/cell_directory.h>
 
-#include <server/node_tracker_server/public.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_tracker_service.pb.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
+#include <yt/core/misc/ref_tracked.h>
+#include <yt/core/misc/small_vector.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NTabletServer {

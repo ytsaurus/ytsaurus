@@ -1,12 +1,12 @@
-#include "stdafx.h"
 #include "mailbox.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/server/hydra/composite_automaton.h>
 
-#include <core/rpc/channel.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/serialize.h>
 
-#include <server/hydra/composite_automaton.h>
+#include <yt/core/rpc/channel.h>
 
 namespace NYT {
 namespace NHive {

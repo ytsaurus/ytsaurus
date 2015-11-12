@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "ev_scheduler_thread.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NConcurrency {

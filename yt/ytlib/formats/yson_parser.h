@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <core/yson/public.h>
+#include <yt/core/yson/public.h>
 
 namespace NYT {
 namespace NFormats {

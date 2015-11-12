@@ -1,8 +1,7 @@
-#include "stdafx.h"
-
 #include "partitioner.h"
 
-#include <core/misc/blob_output.h>
+#include <yt/core/misc/blob_output.h>
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableClient {

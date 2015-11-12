@@ -1,7 +1,7 @@
 #pragma once
 
-#include <util/generic/stroka.h>
 #include <util/generic/hash.h>
+#include <util/generic/stroka.h>
 
 #include <llvm/IR/TypeBuilder.h>
 

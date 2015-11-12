@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "rpc_helpers.h"
 
-#include <core/rpc/client.h>
-#include <core/rpc/service.h>
+#include <yt/ytlib/cypress_client/rpc.pb.h>
 
-#include <ytlib/cypress_client/rpc.pb.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/client.h>
+#include <yt/core/rpc/service.h>
 
 namespace NYT {
 namespace NCypressClient {

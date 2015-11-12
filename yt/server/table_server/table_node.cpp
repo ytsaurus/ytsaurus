@@ -1,19 +1,20 @@
-#include "stdafx.h"
 #include "table_node.h"
-#include "table_node_proxy.h"
 #include "private.h"
+#include "table_node_proxy.h"
 
-#include <ytlib/chunk_client/schema.h>
+#include <yt/server/cell_master/bootstrap.h>
 
-#include <server/chunk_server/chunk.h>
-#include <server/chunk_server/chunk_list.h>
-#include <server/chunk_server/chunk_owner_type_handler.h>
-#include <server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/chunk_list.h>
+#include <yt/server/chunk_server/chunk_manager.h>
+#include <yt/server/chunk_server/chunk_owner_type_handler.h>
 
-#include <server/tablet_server/tablet_manager.h>
-#include <server/tablet_server/tablet.h>
+#include <yt/server/tablet_server/tablet.h>
+#include <yt/server/tablet_server/tablet_manager.h>
 
-#include <server/cell_master/bootstrap.h>
+#include <yt/ytlib/chunk_client/schema.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NTableServer {

@@ -1,12 +1,12 @@
-#include "stdafx.h"
 #include "yson_string.h"
-#include "yson_stream.h"
 #include "null_yson_consumer.h"
+#include "yson_stream.h"
 
-#include <core/misc/serialize.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/serialize.h>
 
-#include <core/yson/parser.h>
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
+#include <yt/core/yson/parser.h>
 
 namespace NYT {
 namespace NYTree {

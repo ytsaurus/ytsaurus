@@ -1,9 +1,12 @@
 
-#include <ytlib/query_client/lexer.h>
+#include "lexer.h"
 
-#include <util/system/defaults.h>
+#include <yt/ytlib/query_client/lexer.h>
+
 #include <util/string/cast.h>
 #include <util/string/escape.h>
+
+#include <util/system/defaults.h>
 
 namespace NYT {
 namespace NQueryClient {

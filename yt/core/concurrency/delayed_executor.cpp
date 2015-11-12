@@ -1,14 +1,14 @@
-#include "stdafx.h"
 #include "delayed_executor.h"
 #include "ev_scheduler_thread.h"
 
-#include <core/misc/singleton.h>
-#include <core/misc/lock_free.h>
-#include <core/misc/nullable.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/lock_free.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/singleton.h>
 
 #include <util/datetime/base.h>
 
-#include <contrib/libev/ev++.h>
+#include <yt/contrib/libev/ev++.h>
 
 namespace NYT {
 namespace NConcurrency {

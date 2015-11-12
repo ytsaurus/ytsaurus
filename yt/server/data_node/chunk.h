@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/ref.h>
+#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
-#include <core/actions/future.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
-#include <ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/ref.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -1,6 +1,7 @@
-#include "stdafx.h"
 #include "transaction.h"
 #include "config.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NApi {

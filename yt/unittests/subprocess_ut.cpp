@@ -1,11 +1,11 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/subprocess.h>
+#include <yt/core/actions/future.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <core/actions/future.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/subprocess.h>
 
 namespace NYT {
 namespace {

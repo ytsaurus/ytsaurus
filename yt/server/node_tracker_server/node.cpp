@@ -1,21 +1,21 @@
-#include "stdafx.h"
 #include "node.h"
 #include "rack.h"
 
-#include <core/misc/collection_helpers.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/chunk_server/chunk.h>
+#include <yt/server/chunk_server/job.h>
 
-#include <server/chunk_server/job.h>
-#include <server/chunk_server/chunk.h>
+#include <yt/server/node_tracker_server/config.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/server/tablet_server/tablet_cell.h>
 
-#include <server/tablet_server/tablet_cell.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/node_tracker_server/config.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/common.h>
 
 #include <atomic>
 

@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "token.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT {
 namespace NYPath {

@@ -1,26 +1,25 @@
-#include "stdafx.h"
 #include "profile_manager.h"
 #include "resource_tracker.h"
 #include "timing.h"
 
-#include <core/concurrency/periodic_executor.h>
-#include <core/concurrency/fork_aware_spinlock.h>
+#include <yt/core/concurrency/fork_aware_spinlock.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler_thread.h>
 
-#include <core/misc/id_generator.h>
-#include <core/misc/hash.h>
-#include <core/misc/lock_free.h>
-#include <core/misc/singleton.h>
+#include <yt/core/logging/log.h>
 
-#include <core/concurrency/scheduler_thread.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/hash.h>
+#include <yt/core/misc/id_generator.h>
+#include <yt/core/misc/lock_free.h>
+#include <yt/core/misc/singleton.h>
 
-#include <core/ytree/node.h>
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/ypath_detail.h>
-#include <core/ytree/virtual.h>
-#include <core/ytree/ypath_client.h>
-#include <core/ytree/fluent.h>
-
-#include <core/logging/log.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/ypath_client.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 namespace NYT {
 namespace NProfiling  {

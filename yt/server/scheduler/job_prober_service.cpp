@@ -1,13 +1,14 @@
-#include "stdafx.h"
 #include "job_prober_service.h"
-#include "scheduler.h"
 #include "private.h"
+#include "scheduler.h"
 
-#include <server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
 
-#include <ytlib/scheduler/job_prober_service_proxy.h>
+#include <yt/ytlib/scheduler/job_prober_service_proxy.h>
 
-#include <core/rpc/service_detail.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/service_detail.h>
 
 namespace NYT {
 namespace NScheduler {

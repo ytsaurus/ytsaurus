@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/ref.h>
+#include <yt/core/actions/signal.h>
 
-#include <core/actions/signal.h>
+#include <yt/core/bus/public.h>
 
-#include <core/bus/public.h>
+#include <yt/core/logging/log.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/misc/ref.h>
 
-#include <core/logging/log.h>
+#include <yt/core/rpc/rpc.pb.h>
 
 namespace NYT {
 namespace NRpc {

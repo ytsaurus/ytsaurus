@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <yt/core/logging/log.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/misc/error.h>
 
-#include <core/logging/log.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 

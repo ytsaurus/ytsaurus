@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <ytlib/formats/yamr_writer.h>
+#include <yt/ytlib/formats/yamr_writer.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NFormats {

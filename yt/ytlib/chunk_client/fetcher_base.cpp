@@ -1,17 +1,18 @@
-#include "stdafx.h"
 #include "fetcher_base.h"
+#include "private.h"
 #include "chunk_replica.h"
 #include "chunk_spec.h"
 #include "config.h"
-#include "private.h"
 
-#include <ytlib/chunk_client/chunk_scraper.h>
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/chunk_client/chunk_scraper.h>
 
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/string.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/rpc/retrying_channel.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
+
+#include <yt/core/rpc/retrying_channel.h>
 
 namespace NYT {
 namespace NChunkClient {

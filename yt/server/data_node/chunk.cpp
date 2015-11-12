@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "chunk.h"
 #include "journal_chunk.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
 
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/object_client/helpers.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDataNode {

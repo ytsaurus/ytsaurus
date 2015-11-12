@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "cluster_resources.h"
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/yson_serializable.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <server/cell_master/serialize.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT {
 namespace NSecurityServer {

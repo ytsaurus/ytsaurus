@@ -2,7 +2,7 @@
 
 #include "error.h"
 
-#include <core/pipes/pipe.h>
+#include <yt/core/pipes/pipe.h>
 
 #include <vector>
 

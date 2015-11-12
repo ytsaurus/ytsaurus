@@ -1,23 +1,23 @@
-#include "stdafx.h"
 #include "service_detail.h"
 #include "private.h"
-#include "dispatcher.h"
-#include "server_detail.h"
-#include "message.h"
 #include "config.h"
+#include "dispatcher.h"
 #include "helpers.h"
+#include "message.h"
 #include "response_keeper.h"
+#include "server_detail.h"
 
-#include <core/misc/string.h>
-#include <core/misc/address.h>
+#include <yt/core/bus/bus.h>
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <core/bus/bus.h>
+#include <yt/core/misc/address.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
-#include <core/profiling/timing.h>
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/timing.h>
 
 namespace NYT {
 namespace NRpc {

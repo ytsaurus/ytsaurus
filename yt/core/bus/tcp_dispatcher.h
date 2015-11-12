@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/misc/shutdownable.h>
+#include <yt/core/misc/shutdownable.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT {
 namespace NBus {

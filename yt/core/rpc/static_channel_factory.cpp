@@ -1,5 +1,6 @@
-#include "stdafx.h"
 #include "static_channel_factory.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NRpc {

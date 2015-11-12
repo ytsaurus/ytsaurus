@@ -3,8 +3,8 @@
 #include "public.h"
 #include "chunk_pool.h"
 
-#include <ytlib/node_tracker_client/helpers.h>
-#include <ytlib/node_tracker_client/node.pb.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node.pb.h>
 
 namespace NYT {
 namespace NScheduler {

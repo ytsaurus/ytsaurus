@@ -1,27 +1,27 @@
-#include "stdafx.h"
-#include "private.h"
-#include "config.h"
-#include "location.h"
-#include "blob_chunk.h"
-#include "journal_chunk.h"
 #include "chunk_store.h"
-#include "master_connector.h"
-#include "session_manager.h"
-#include "session.h"
+#include "private.h"
+#include "blob_chunk.h"
+#include "config.h"
+#include "journal_chunk.h"
 #include "journal_manager.h"
+#include "location.h"
+#include "master_connector.h"
+#include "session.h"
+#include "session_manager.h"
 
-#include <core/misc/fs.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/fs.h>
 
 #include <util/random/random.h>
 
-#include <utility>
 #include <limits>
+#include <utility>
 
 namespace NYT {
 namespace NDataNode {

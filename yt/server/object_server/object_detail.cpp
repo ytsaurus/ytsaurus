@@ -1,50 +1,50 @@
-#include "stdafx.h"
 #include "object_detail.h"
+#include "private.h"
+#include "attribute_set.h"
 #include "object_manager.h"
 #include "object_service.h"
-#include "attribute_set.h"
-#include "private.h"
 
-#include <core/misc/string.h>
-#include <core/misc/enum.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/config.h>
+#include <yt/server/cell_master/hydra_facade.h>
+#include <yt/server/cell_master/serialize.h>
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/yson_string.h>
-#include <core/ytree/exception_helpers.h>
+#include <yt/server/cypress_server/virtual.h>
 
-#include <core/ypath/tokenizer.h>
+#include <yt/server/election/election_manager.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/helpers.h>
-#include <core/rpc/rpc.pb.h>
+#include <yt/server/hydra/mutation_context.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/object_server/object_manager.h>
+#include <yt/server/object_server/type_handler.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/rpc_helpers.h>
+#include <yt/server/security_server/account.h>
+#include <yt/server/security_server/acl.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <ytlib/election/cell_manager.h>
+#include <yt/server/transaction_server/transaction.h>
 
-#include <server/election/election_manager.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
-#include <server/cell_master/config.h>
-#include <server/cell_master/serialize.h>
+#include <yt/ytlib/election/cell_manager.h>
 
-#include <server/cypress_server/virtual.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <server/transaction_server/transaction.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/enum.h>
+#include <yt/core/misc/string.h>
 
-#include <server/security_server/account.h>
-#include <server/security_server/security_manager.h>
-#include <server/security_server/acl.h>
-#include <server/security_server/user.h>
+#include <yt/core/rpc/helpers.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/rpc.pb.h>
 
-#include <server/object_server/type_handler.h>
-#include <server/object_server/object_manager.h>
+#include <yt/core/ypath/tokenizer.h>
 
-#include <server/hydra/mutation_context.h>
+#include <yt/core/ytree/exception_helpers.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/yson_string.h>
 
 namespace NYT {
 namespace NObjectServer {

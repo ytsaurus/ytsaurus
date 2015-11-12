@@ -1,27 +1,27 @@
 #pragma once
 
 #include "public.h"
-#include "service.h"
-#include "server_detail.h"
-#include "dispatcher.h"
 #include "client.h"
+#include "dispatcher.h"
+#include "server_detail.h"
+#include "service.h"
 
-#include <core/misc/ref.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/object_pool.h>
+#include <yt/core/compression/codec.h>
 
-#include <core/concurrency/rw_spinlock.h>
-#include <core/concurrency/action_queue.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
-#include <core/compression/codec.h>
+#include <yt/core/logging/log.h>
 
-#include <core/rpc/rpc.pb.h>
+#include <yt/core/misc/object_pool.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/ref.h>
 
-#include <core/logging/log.h>
+#include <yt/core/profiling/profiler.h>
 
-#include <core/profiling/profiler.h>
+#include <yt/core/rpc/rpc.pb.h>
 
-#include <core/tracing/trace_context.h>
+#include <yt/core/tracing/trace_context.h>
 
 #include <atomic>
 

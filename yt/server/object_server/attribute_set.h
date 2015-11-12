@@ -2,12 +2,12 @@
 
 #include "public.h"
 
-#include <core/misc/nullable.h>
-#include <core/misc/property.h>
+#include <yt/server/cell_master/public.h>
 
-#include <core/ytree/yson_string.h>
+#include <yt/core/misc/nullable.h>
+#include <yt/core/misc/property.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/ytree/yson_string.h>
 
 namespace NYT {
 namespace NObjectServer {

@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <core/logging/log.h>
+#include <yt/core/logging/log.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {

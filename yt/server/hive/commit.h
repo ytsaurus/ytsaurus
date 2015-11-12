@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <core/actions/future.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/core/misc/property.h>
 
-#include <server/hydra/entity_map.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NHive {

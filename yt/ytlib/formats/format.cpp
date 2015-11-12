@@ -1,33 +1,25 @@
-#include "stdafx.h"
 #include "format.h"
-
-#include "json_parser.h"
-#include "json_writer.h"
-
 #include "dsv_parser.h"
 #include "dsv_writer.h"
-
-#include "yamr_parser.h"
-#include "yamr_writer.h"
-
-#include "yamred_dsv_parser.h"
-#include "yamred_dsv_writer.h"
-
+#include "json_parser.h"
+#include "json_writer.h"
 #include "schemaful_dsv_parser.h"
 #include "schemaful_dsv_writer.h"
-
-#include "schemaless_writer_adapter.h"
-
-#include "yson_parser.h"
-#include "json_writer.h"
 #include "schemaful_writer.h"
+#include "schemaless_writer_adapter.h"
+#include "yamr_parser.h"
+#include "yamr_writer.h"
+#include "yamred_dsv_parser.h"
+#include "yamred_dsv_writer.h"
+#include "yson_parser.h"
 
-#include <core/misc/error.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
 
-#include <core/yson/writer.h>
+#include <yt/core/yson/writer.h>
 
-#include <core/ytree/fluent.h>
-#include <core/ytree/forwarding_yson_consumer.h>
+#include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/forwarding_yson_consumer.h>
 
 namespace NYT {
 namespace NFormats {

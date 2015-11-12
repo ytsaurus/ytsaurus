@@ -1,19 +1,19 @@
-#include "stdafx.h"
 #include "wire_protocol.h"
 
-#include <core/actions/future.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/schemaful_writer.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <core/misc/error.h>
-#include <core/misc/chunked_memory_pool.h>
-#include <core/misc/chunked_output_stream.h>
-#include <core/misc/serialize.h>
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/actions/future.h>
 
-#include <ytlib/table_client/unversioned_row.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/schemaful_writer.h>
-#include <ytlib/table_client/row_buffer.h>
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/chunked_output_stream.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/serialize.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
 

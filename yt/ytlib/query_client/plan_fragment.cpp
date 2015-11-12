@@ -1,18 +1,18 @@
-#include "stdafx.h"
-
 #include "plan_fragment.h"
 
-#include <ytlib/tablet_client/wire_protocol.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/query_client/plan_fragment.pb.h>
 
-#include <ytlib/query_client/plan_fragment.pb.h>
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/tablet_client/wire_protocol.h>
 
-#include <limits>
+#include <yt/core/misc/common.h>
+
 #include <cmath>
+#include <limits>
 
 namespace NYT {
 namespace NQueryClient {

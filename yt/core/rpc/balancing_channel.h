@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/misc/error.h>
+#include <yt/core/actions/callback.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/misc/error.h>
 
-#include <core/actions/callback.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NRpc {

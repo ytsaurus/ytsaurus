@@ -1,7 +1,7 @@
 #pragma once
 
-#include <core/misc/guid.h>
-#include <core/misc/error.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/guid.h>
 
 namespace NYT {
 namespace NRpc {

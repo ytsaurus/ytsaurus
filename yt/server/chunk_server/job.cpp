@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "job.h"
 
-#include <core/misc/string.h>
+#include <yt/server/node_tracker_server/node.h>
 
-#include <server/node_tracker_server/node.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NChunkServer {

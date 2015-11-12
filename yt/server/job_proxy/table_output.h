@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <core/yson/public.h>
-#include <ytlib/formats/public.h>
+#include <yt/core/yson/public.h>
+#include <yt/ytlib/formats/public.h>
 #include <util/stream/output.h>
 
 namespace NYT {

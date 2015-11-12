@@ -1,17 +1,17 @@
-#include "stdafx.h"
 #include "sequential_reader.h"
-#include "config.h"
 #include "private.h"
-#include "dispatcher.h"
 #include "block_cache.h"
+#include "config.h"
+#include "dispatcher.h"
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <core/misc/string.h>
+#include <yt/core/compression/codec.h>
 
-#include <core/concurrency/action_queue.h>
+#include <yt/core/concurrency/action_queue.h>
 
-#include <core/compression/codec.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NChunkClient {

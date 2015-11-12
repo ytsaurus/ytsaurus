@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <core/misc/error.h>
-#include <core/actions/future.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/actions/future.h>
 
 namespace NYT {
 

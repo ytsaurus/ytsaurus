@@ -1,38 +1,38 @@
-#include "stdafx.h"
 #include "cypress_manager.h"
+#include "private.h"
+#include "access_tracker.h"
+#include "config.h"
+#include "lock_proxy.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
-#include "config.h"
-#include "access_tracker.h"
-#include "lock_proxy.h"
-#include "private.h"
 
-#include <core/misc/singleton.h>
+#include <yt/server/cell_master/bootstrap.h>
+#include <yt/server/cell_master/hydra_facade.h>
 
-#include <core/ytree/ephemeral_node_factory.h>
-#include <core/ytree/ypath_detail.h>
+#include <yt/server/object_server/object_detail.h>
+#include <yt/server/object_server/type_handler_detail.h>
 
-#include <ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/server/security_server/account.h>
+#include <yt/server/security_server/group.h>
+#include <yt/server/security_server/security_manager.h>
+#include <yt/server/security_server/user.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
-#include <ytlib/object_client/helpers.h>
+#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <server/cell_master/bootstrap.h>
-#include <server/cell_master/hydra_facade.h>
+#include <yt/ytlib/object_client/helpers.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <server/object_server/type_handler_detail.h>
-#include <server/object_server/object_detail.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/singleton.h>
 
-#include <server/security_server/account.h>
-#include <server/security_server/group.h>
-#include <server/security_server/user.h>
-#include <server/security_server/security_manager.h>
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/ypath_detail.h>
 
 // COMPAT(babenko): Reconstruct KeyColumns and Sorted flags for tables
-#include <server/table_server/table_node.h>
-#include <server/tablet_server/tablet.h>
-#include <server/chunk_server/chunk_list.h>
+#include <yt/server/table_server/table_node.h>
+#include <yt/server/tablet_server/tablet.h>
+#include <yt/server/chunk_server/chunk_list.h>
 
 namespace NYT {
 namespace NCypressServer {

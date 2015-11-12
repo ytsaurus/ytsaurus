@@ -1,6 +1,6 @@
 #include "unversioned_value.h"
 
-#include <core/misc/farm_hash.h>
+#include <yt/core/misc/farm_hash.h>
 
 namespace NYT {
 namespace NTableClient {

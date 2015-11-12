@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "legacy_channel_reader.h"
 
-#include <core/misc/varint.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/varint.h>
 
 namespace NYT {
 namespace NTableClient {

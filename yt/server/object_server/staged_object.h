@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <core/misc/property.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/transaction_server/public.h>
+#include <yt/server/object_server/object_detail.h>
 
-#include <server/security_server/public.h>
+#include <yt/server/security_server/public.h>
 
-#include <server/object_server/object_detail.h>
+#include <yt/server/transaction_server/public.h>
 
-#include <server/cell_master/public.h>
+#include <yt/core/misc/property.h>
 
 namespace NYT {
 namespace NObjectServer {

@@ -1,18 +1,19 @@
-#include "stdafx.h"
 #include "ypath_detail.h"
-#include "ypath_client.h"
 #include "node_detail.h"
+#include "ypath_client.h"
 
-#include <core/ytree/convert.h>
-#include <core/ytree/node.h>
-#include <core/ytree/attribute_helpers.h>
-#include <core/ytree/system_attribute_provider.h>
+#include <yt/core/misc/common.h>
 
-#include <core/ypath/tokenizer.h>
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/rpc.pb.h>
+#include <yt/core/rpc/server_detail.h>
 
-#include <core/rpc/rpc.pb.h>
-#include <core/rpc/server_detail.h>
-#include <core/rpc/message.h>
+#include <yt/core/ypath/tokenizer.h>
+
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/convert.h>
+#include <yt/core/ytree/node.h>
+#include <yt/core/ytree/system_attribute_provider.h>
 
 namespace NYT {
 namespace NYTree {

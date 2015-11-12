@@ -2,9 +2,9 @@
 
 #include "public.h"
 #include "callbacks.h"
+#include "function_registry.h"
 #include "plan_fragment.h"
 #include "query_statistics.h"
-#include "function_registry.h"
 
 namespace NYT {
 namespace NQueryClient {

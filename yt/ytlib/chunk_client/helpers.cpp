@@ -1,21 +1,21 @@
-#include "stdafx.h"
-
 #include "helpers.h"
-#include "config.h"
 #include "private.h"
+#include "config.h"
 #include "erasure_reader.h"
 #include "replication_reader.h"
 
-#include <ytlib/api/client.h>
+#include <yt/ytlib/api/client.h>
 
-#include <ytlib/object_client/object_service_proxy.h>
+#include <yt/ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/chunk_client/chunk_ypath_proxy.h>
 
-#include <ytlib/chunk_client/chunk_ypath_proxy.h>
-#include <ytlib/chunk_client/chunk_replica.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <core/erasure/codec.h>
+#include <yt/core/erasure/codec.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NChunkClient {

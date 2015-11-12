@@ -3,12 +3,12 @@
 #include "public.h"
 #include "permission.h"
 
-#include <core/yson/consumer.h>
+#include <yt/core/actions/future.h>
 
-#include <core/misc/error.h>
-#include <core/misc/nullable.h>
+#include <yt/core/misc/error.h>
+#include <yt/core/misc/nullable.h>
 
-#include <core/actions/future.h>
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NYTree {

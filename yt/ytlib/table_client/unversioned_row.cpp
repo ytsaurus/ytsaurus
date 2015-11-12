@@ -1,23 +1,23 @@
-#include "stdafx.h"
 #include "unversioned_row.h"
 
-#include <util/stream/str.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/row_buffer.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <core/misc/varint.h>
-#include <core/misc/string.h>
-#include <core/misc/hash.h>
-#include <core/misc/farm_hash.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/farm_hash.h>
+#include <yt/core/misc/hash.h>
+#include <yt/core/misc/string.h>
+#include <yt/core/misc/varint.h>
 
-#include <core/yson/consumer.h>
+#include <yt/core/yson/consumer.h>
 
-#include <core/ytree/node.h>
-#include <core/ytree/attribute_helpers.h>
-
-#include <ytlib/table_client/row_buffer.h>
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schema.h>
+#include <yt/core/ytree/attribute_helpers.h>
+#include <yt/core/ytree/node.h>
 
 #include <util/generic/ymath.h>
+
+#include <util/stream/str.h>
 
 #include <cmath>
 

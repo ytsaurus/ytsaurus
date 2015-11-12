@@ -1,9 +1,9 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/ytlib/table_client/unversioned_row.h>
 
-#include <ytlib/table_client/unversioned_row.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NTableClient {

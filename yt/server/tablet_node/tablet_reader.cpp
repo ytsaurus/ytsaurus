@@ -1,22 +1,22 @@
-#include "stdafx.h"
 #include "tablet_reader.h"
-#include "tablet.h"
-#include "tablet_slot.h"
+#include "private.h"
+#include "config.h"
 #include "partition.h"
 #include "store.h"
-#include "config.h"
-#include "private.h"
+#include "tablet.h"
+#include "tablet_slot.h"
 
-#include <core/misc/chunked_memory_pool.h>
-#include <core/misc/small_vector.h>
-#include <core/misc/heap.h>
+#include <yt/ytlib/table_client/row_merger.h>
+#include <yt/ytlib/table_client/schemaful_reader.h>
+#include <yt/ytlib/table_client/versioned_reader.h>
+#include <yt/ytlib/table_client/versioned_row.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <ytlib/table_client/versioned_row.h>
-#include <ytlib/table_client/schemaful_reader.h>
-#include <ytlib/table_client/versioned_reader.h>
-#include <ytlib/table_client/row_merger.h>
+#include <yt/core/misc/chunked_memory_pool.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/heap.h>
+#include <yt/core/misc/small_vector.h>
 
 #include <atomic>
 

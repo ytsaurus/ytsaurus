@@ -1,7 +1,7 @@
-#include "stdafx.h"
 #include "consumer.h"
-
 #include "parser.h"
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NYson {

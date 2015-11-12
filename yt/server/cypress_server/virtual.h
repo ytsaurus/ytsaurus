@@ -2,13 +2,13 @@
 
 #include "type_handler.h"
 
-#include <server/hydra/entity_map.h>
+#include <yt/server/cell_master/public.h>
 
-#include <server/object_server/public.h>
+#include <yt/server/cypress_server/public.h>
 
-#include <server/cypress_server/public.h>
+#include <yt/server/hydra/entity_map.h>
 
-#include <server/cell_master/public.h>
+#include <yt/server/object_server/public.h>
 
 namespace NYT {
 namespace NCypressServer {

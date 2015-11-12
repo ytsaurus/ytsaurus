@@ -1,10 +1,10 @@
-#include "stdafx.h"
 #include "tcp_dispatcher.h"
 #include "tcp_dispatcher_impl.h"
 
-#include <core/misc/singleton.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/singleton.h>
 
-#include <core/profiling/profile_manager.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT {
 namespace NBus {

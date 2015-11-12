@@ -1,40 +1,41 @@
-#include "stdafx.h"
 #include "scheduler.h"
-#include "scheduler_strategy.h"
-#include "fair_share_strategy.h"
-#include "operation_controller.h"
-#include "map_controller.h"
-#include "merge_controller.h"
-#include "remote_copy_controller.h"
-#include "sort_controller.h"
-#include "helpers.h"
-#include "master_connector.h"
-#include "job_resources.h"
 #include "private.h"
-#include "snapshot_downloader.h"
 #include "event_log.h"
+#include "fair_share_strategy.h"
+#include "helpers.h"
+#include "job_resources.h"
+#include "map_controller.h"
+#include "master_connector.h"
+#include "merge_controller.h"
+#include "operation_controller.h"
+#include "remote_copy_controller.h"
+#include "scheduler_strategy.h"
+#include "snapshot_downloader.h"
+#include "sort_controller.h"
 
-#include <core/concurrency/thread_affinity.h>
-#include <core/concurrency/periodic_executor.h>
+#include <yt/server/cell_scheduler/bootstrap.h>
+#include <yt/server/cell_scheduler/config.h>
 
-#include <core/rpc/message.h>
-#include <core/rpc/response_keeper.h>
+#include <yt/ytlib/chunk_client/private.h>
 
-#include <ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
-#include <ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/chunk_client/private.h>
+#include <yt/ytlib/scheduler/helpers.h>
 
-#include <ytlib/scheduler/helpers.h>
+#include <yt/ytlib/table_client/name_table.h>
+#include <yt/ytlib/table_client/schemaless_buffered_table_writer.h>
+#include <yt/ytlib/table_client/schemaless_writer.h>
+#include <yt/ytlib/table_client/table_consumer.h>
 
-#include <ytlib/table_client/name_table.h>
-#include <ytlib/table_client/schemaless_writer.h>
-#include <ytlib/table_client/schemaless_buffered_table_writer.h>
-#include <ytlib/table_client/table_consumer.h>
+#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
-#include <server/cell_scheduler/config.h>
-#include <server/cell_scheduler/bootstrap.h>
+#include <yt/core/misc/common.h>
+
+#include <yt/core/rpc/message.h>
+#include <yt/core/rpc/response_keeper.h>
 
 namespace NYT {
 namespace NScheduler {

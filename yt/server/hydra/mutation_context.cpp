@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "mutation_context.h"
 
-#include <core/concurrency/fls.h>
+#include <yt/core/concurrency/fls.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NHydra {

@@ -1,24 +1,23 @@
-#include "stdafx.h"
-
 #include "schemaless_chunk_reader.h"
+#include "private.h"
 #include "chunk_reader_base.h"
 #include "config.h"
 #include "legacy_table_chunk_reader.h"
 #include "name_table.h"
-#include "private.h"
 #include "row_sampler.h"
 #include "schema.h"
 #include "schemaless_block_reader.h"
 
-#include <ytlib/api/client.h>
-#include <ytlib/api/connection.h>
+#include <yt/ytlib/api/client.h>
+#include <yt/ytlib/api/connection.h>
 
-#include <ytlib/chunk_client/chunk_spec.h>
-#include <ytlib/chunk_client/multi_chunk_reader_base.h>
+#include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/multi_chunk_reader_base.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <core/misc/protobuf_helpers.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
 
 namespace NYT {
 namespace NTableClient {

@@ -3,9 +3,9 @@
 #include "public.h"
 #include "unversioned_row.h"
 
-#include <core/misc/blob_output.h>
+#include <yt/core/misc/blob_output.h>
 
-#include <core/yson/writer.h>
+#include <yt/core/yson/writer.h>
 
 namespace NYT {
 namespace NTableClient {

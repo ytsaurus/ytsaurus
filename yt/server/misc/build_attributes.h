@@ -1,6 +1,6 @@
 #pragma once
 
-#include <core/ytree/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 

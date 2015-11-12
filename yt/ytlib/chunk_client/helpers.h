@@ -1,20 +1,20 @@
 #include "public.h"
 
-#include <ytlib/chunk_client/chunk_spec.pb.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 
-#include <ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
-#include <ytlib/transaction_client/public.h>
+#include <yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <ytlib/node_tracker_client/public.h>
+#include <yt/ytlib/transaction_client/public.h>
 
-#include <core/actions/public.h>
+#include <yt/core/actions/public.h>
 
-#include <core/erasure/public.h>
+#include <yt/core/erasure/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NChunkClient {

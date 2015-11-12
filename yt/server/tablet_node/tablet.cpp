@@ -1,24 +1,24 @@
-#include "stdafx.h"
 #include "tablet.h"
-#include "partition.h"
 #include "automaton.h"
-#include "store_manager.h"
-#include "dynamic_memory_store.h"
 #include "chunk_store.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
 #include "config.h"
+#include "dynamic_memory_store.h"
+#include "partition.h"
+#include "store_manager.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
 
-#include <core/misc/serialize.h>
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/collection_helpers.h>
+#include <yt/ytlib/table_client/chunk_meta.pb.h>
+#include <yt/ytlib/table_client/schema.h>
 
-#include <core/concurrency/delayed_executor.h>
+#include <yt/ytlib/tablet_client/config.h>
 
-#include <ytlib/table_client/schema.h>
-#include <ytlib/table_client/chunk_meta.pb.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
-#include <ytlib/tablet_client/config.h>
+#include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/serialize.h>
 
 namespace NYT {
 namespace NTabletNode {

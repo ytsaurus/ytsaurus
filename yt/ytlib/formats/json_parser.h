@@ -3,8 +3,9 @@
 #include "public.h"
 #include "config.h"
 
-#include <ytlib/formats/parser.h>
-#include <core/yson/consumer.h>
+#include <yt/ytlib/formats/parser.h>
+
+#include <yt/core/yson/consumer.h>
 
 namespace NYT {
 namespace NFormats {

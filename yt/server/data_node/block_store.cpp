@@ -1,24 +1,25 @@
-#include "stdafx.h"
 #include "block_store.h"
 #include "private.h"
-#include "chunk.h"
-#include "config.h"
-#include "chunk_registry.h"
 #include "blob_reader_cache.h"
+#include "chunk.h"
+#include "chunk_registry.h"
+#include "config.h"
 #include "location.h"
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/server/cell_node/bootstrap.h>
 
-#include <ytlib/chunk_client/file_reader.h>
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/data_node_service_proxy.h>
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/ytlib/chunk_client/file_reader.h>
 
-#include <server/cell_node/bootstrap.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <core/concurrency/parallel_awaiter.h>
-#include <core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/parallel_awaiter.h>
+#include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/misc/common.h>
 
 namespace NYT {
 namespace NDataNode {

@@ -2,7 +2,7 @@
 
 #include "chunk_reader.h"
 
-#include <ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_meta.pb.h>
 
 #include <util/system/file.h>
 

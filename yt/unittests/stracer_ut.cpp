@@ -1,7 +1,8 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <server/job_proxy/stracer.h>
+#include <yt/server/job_proxy/stracer.h>
+
+#include <yt/core/misc/common.h>
 
 #include <util/system/thread.h>
 

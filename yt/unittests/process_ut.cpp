@@ -1,11 +1,11 @@
-#include "stdafx.h"
 #include "framework.h"
 
-#include <core/concurrency/delayed_executor.h>
+#include <yt/core/actions/bind.h>
 
-#include <core/actions/bind.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
-#include <core/misc/process.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/process.h>
 
 namespace NYT {
 namespace {

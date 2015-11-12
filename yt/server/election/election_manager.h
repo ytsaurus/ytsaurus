@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <core/actions/cancelable_context.h>
+#include <yt/core/actions/cancelable_context.h>
 
-#include <core/ytree/public.h>
+#include <yt/core/rpc/public.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/ytree/public.h>
 
 namespace NYT {
 namespace NElection {

@@ -1,14 +1,15 @@
-#include "stdafx.h"
 #include "retrying_channel.h"
-#include "channel_detail.h"
 #include "private.h"
+#include "channel_detail.h"
 #include "client.h"
 #include "config.h"
 
-#include <core/bus/client.h>
+#include <yt/core/bus/client.h>
 
-#include <util/system/spinlock.h>
+#include <yt/core/misc/common.h>
+
 #include <util/system/guard.h>
+#include <util/system/spinlock.h>
 
 namespace NYT {
 namespace NRpc {

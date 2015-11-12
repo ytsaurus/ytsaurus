@@ -3,9 +3,9 @@
 #include "public.h"
 #include "job.h"
 
-#include <server/job_agent/public.h>
+#include <yt/server/job_agent/public.h>
 
-#include <ytlib/scheduler/job.pb.h>
+#include <yt/ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NJobProxy {

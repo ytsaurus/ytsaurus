@@ -4,15 +4,15 @@
 #include "schema.h"
 #include "versioned_writer.h"
 
-#include <ytlib/api/public.h>
+#include <yt/ytlib/api/public.h>
 
-#include <ytlib/chunk_client/chunk_writer_base.h>
-#include <ytlib/chunk_client/multi_chunk_writer.h>
-#include <ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/multi_chunk_writer.h>
 
-#include <core/concurrency/throughput_throttler.h>
+#include <yt/core/concurrency/throughput_throttler.h>
 
-#include <core/rpc/public.h>
+#include <yt/core/rpc/public.h>
 
 namespace NYT {
 namespace NTableClient {

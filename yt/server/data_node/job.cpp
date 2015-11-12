@@ -1,51 +1,51 @@
-#include "stdafx.h"
 #include "job.h"
+#include "private.h"
+#include "block_store.h"
 #include "chunk.h"
 #include "chunk_store.h"
-#include "block_store.h"
-#include "location.h"
 #include "config.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
-#include "session_manager.h"
+#include "location.h"
 #include "master_connector.h"
 #include "session.h"
-#include "private.h"
+#include "session_manager.h"
 
-#include <core/misc/protobuf_helpers.h>
-#include <core/misc/string.h>
+#include <yt/server/cell_node/bootstrap.h>
+#include <yt/server/cell_node/config.h>
 
-#include <core/erasure/codec.h>
+#include <yt/server/hydra/changelog.h>
 
-#include <core/concurrency/scheduler.h>
+#include <yt/server/job_agent/job.h>
 
-#include <core/actions/cancelable_context.h>
+#include <yt/ytlib/api/client.h>
 
-#include <core/logging/log.h>
+#include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/job.pb.h>
+#include <yt/ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/chunk_client/replication_writer.h>
 
-#include <ytlib/node_tracker_client/helpers.h>
-#include <ytlib/node_tracker_client/node_directory.h>
+#include <yt/ytlib/job_tracker_client/job.pb.h>
 
-#include <ytlib/job_tracker_client/job.pb.h>
+#include <yt/ytlib/node_tracker_client/helpers.h>
+#include <yt/ytlib/node_tracker_client/node_directory.h>
 
-#include <ytlib/chunk_client/chunk_writer.h>
-#include <ytlib/chunk_client/block_cache.h>
-#include <ytlib/chunk_client/chunk_meta_extensions.h>
-#include <ytlib/chunk_client/erasure_reader.h>
-#include <ytlib/chunk_client/job.pb.h>
-#include <ytlib/chunk_client/replication_writer.h>
-#include <ytlib/chunk_client/replication_reader.h>
+#include <yt/ytlib/object_client/helpers.h>
 
-#include <ytlib/object_client/helpers.h>
+#include <yt/core/actions/cancelable_context.h>
 
-#include <ytlib/api/client.h>
+#include <yt/core/concurrency/scheduler.h>
 
-#include <server/hydra/changelog.h>
+#include <yt/core/erasure/codec.h>
 
-#include <server/job_agent/job.h>
+#include <yt/core/logging/log.h>
 
-#include <server/cell_node/bootstrap.h>
-#include <server/cell_node/config.h>
+#include <yt/core/misc/common.h>
+#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/misc/string.h>
 
 namespace NYT {
 namespace NDataNode {
