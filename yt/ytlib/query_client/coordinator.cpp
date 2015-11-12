@@ -287,7 +287,7 @@ TRowRanges GetRanges(const std::vector<TDataSources>& groupedSplits)
 }
 
 TQueryStatistics CoordinateAndExecute(
-    TPlanFragmentPtr fragment,
+    TConstQueryPtr query,
     ISchemafulWriterPtr writer,
     const std::vector<TRefiner>& refiners,
     bool isOrdered,
@@ -295,7 +295,6 @@ TQueryStatistics CoordinateAndExecute(
     std::function<TQueryStatistics(TConstQueryPtr, ISchemafulReaderPtr, ISchemafulWriterPtr)> evaluateTop,
     IFunctionRegistryPtr functionRegistry)
 {
-    auto query = fragment->Query;
     auto Logger = BuildLogger(query);
 
     LOG_DEBUG("Begin coordinating query");
