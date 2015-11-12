@@ -95,6 +95,8 @@ def create_modules_archive(tempfiles_manager, client):
                     logger.warning("Cannot find file of module %s", module.__file__)
                     continue
 
+                file = os.path.abspath(file)
+
                 if get_config(client)["pickling"]["force_using_py_instead_of_pyc"] and file.endswith(".pyc"):
                     file = file[:-1]
 
