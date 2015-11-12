@@ -72,8 +72,8 @@ protected:
     void DoRemove() const;
 
     void Traverse(
-        const TCallback<void(const TNonOwningCGroup&)> preorderAction,
-        const TCallback<void(const TNonOwningCGroup&)> postorderAction) const;
+        const TCallback<void(const TNonOwningCGroup&)>& preorderAction,
+        const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const;
 
     Stroka GetPath(const Stroka& filename) const;
 

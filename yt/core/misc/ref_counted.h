@@ -1,5 +1,6 @@
 #pragma once
 
+#include "port.h"
 #include "intrusive_ptr.h"
 #include "port.h"
 
@@ -34,13 +35,7 @@ static inline int AtomicallyIncrementIfNonZero(std::atomic<int>& atomicCounter);
 class TRefCounter
 {
 public:
-    TRefCounter(TExtrinsicRefCounted* object)
-        : StrongCount_(1)
-        , WeakCount_(1)
-        , That_(object)
-    { }
-
-    ~TRefCounter()
+    explicit TRefCounter(TExtrinsicRefCounted* object)
     { }
 
     //! This method is called when there are no strong references remaining
@@ -54,7 +49,7 @@ public:
     void Destroy();
 
     //! Adds a strong reference to the counter.
-    inline void Ref() // noexcept
+    inline void Ref() noexcept
     {
         auto oldStrongCount = StrongCount_++;
         YASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
@@ -79,14 +74,14 @@ public:
     }
 
     //! Tries to add a strong reference to the counter.
-    inline bool TryRef() // noexcept
+    inline bool TryRef() noexcept
     {
         YASSERT(WeakCount_.load() > 0);
         return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
     }
 
     //! Adds a weak reference to the counter.
-    inline void WeakRef() // noexcept
+    inline void WeakRef() noexcept
     {
         auto oldWeakCount = WeakCount_++;
         YASSERT(oldWeakCount > 0);
@@ -103,13 +98,13 @@ public:
     }
 
     //! Returns the current number of strong references.
-    int GetRefCount() const // noexcept
+    int GetRefCount() const noexcept
     {
         return StrongCount_.load();
     }
 
     //! Returns the current number of weak references.
-    int GetWeakRefCount() const // noexcept
+    int GetWeakRefCount() const noexcept
     {
         return WeakCount_.load();
     }
@@ -117,17 +112,17 @@ public:
 private:
     // Explicitly prohibit forbidden constructors and operators.
     TRefCounter();
-    TRefCounter(const TRefCounter&);
-    TRefCounter(const TRefCounter&&);
-    TRefCounter& operator=(const TRefCounter&);
-    TRefCounter& operator=(const TRefCounter&&);
+    TRefCounter(const TRefCounter&) = delete;
+    TRefCounter(const TRefCounter&&) = delete;
+    TRefCounter& operator=(const TRefCounter&) = delete;
+    TRefCounter& operator=(const TRefCounter&&) = delete;
 
     //! Number of strong references.
-    std::atomic<int> StrongCount_;
+    std::atomic<int> StrongCount_ = {1};
     //! Number of weak references plus one if there is at least one strong reference.
-    std::atomic<int> WeakCount_;
+    std::atomic<int> WeakCount_ = {1};
     //! The object.
-    TExtrinsicRefCounted* That_;
+    TExtrinsicRefCounted* That_ = nullptr;
 };
 
 } // namespace NDetail
@@ -143,9 +138,12 @@ void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCooki
 
 //! Base class for all reference-counted objects.
 class TRefCountedBase
-    : private TNonCopyable
 {
 protected:
+    TRefCountedBase() = default;
+    TRefCountedBase(const TRefCountedBase&) = delete;
+    TRefCountedBase(TRefCountedBase&&) = delete;
+
     virtual ~TRefCountedBase();
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -153,9 +151,9 @@ protected:
 #endif
 
 private:
+#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     friend void InitializeTracking(TRefCountedBase* object, TRefCountedTypeCookie typeCookie, size_t instanceSize);
 
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
     TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
     size_t InstanceSize_ = 0;
 
@@ -184,7 +182,7 @@ public:
     virtual ~TExtrinsicRefCounted();
 
     //! Increments the reference counter.
-    inline void Ref() const // noexcept
+    inline void Ref() const noexcept
     {
 #ifdef YT_ENABLE_REF_COUNTED_DEBUGGING
         auto refCount = RefCounter_->GetRefCount();
@@ -208,7 +206,7 @@ public:
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
-    inline int GetRefCount() const
+    inline int GetRefCount() const noexcept
     {
         return RefCounter_->GetRefCount();
     }
@@ -218,7 +216,7 @@ public:
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes and for TWeakPtr.
      */
-    inline NDetail::TRefCounter* GetRefCounter() const
+    inline NDetail::TRefCounter* GetRefCounter() const noexcept
     {
         return RefCounter_;
     }
@@ -246,7 +244,7 @@ public:
     virtual ~TIntrinsicRefCounted();
 
     //! Increments the reference counter.
-    inline void Ref() const // noexcept
+    inline void Ref() const noexcept
     {
         auto oldRefCount = RefCounter_++;
 
@@ -275,7 +273,7 @@ public:
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
-    inline int GetRefCount() const // noexcept
+    inline int GetRefCount() const noexcept
     {
         return RefCounter_.load();
     }
