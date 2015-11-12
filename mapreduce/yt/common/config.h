@@ -29,7 +29,8 @@ struct TConfig
     NJson::TJsonValue Spec;
 
     TDuration ConnectTimeout;
-    TDuration SendReceiveTimeout;
+    TDuration SocketTimeout;
+    TDuration TxTimeout;
     TDuration PingInterval;
     TDuration RetryInterval;
     TDuration RateLimitExceededRetryInterval;

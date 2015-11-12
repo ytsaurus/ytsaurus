@@ -118,7 +118,8 @@ void TConfig::LoadSpec()
 void TConfig::LoadTimings()
 {
     ConnectTimeout = GetDuration("YT_CONNECT_TIMEOUT", 10);
-    SendReceiveTimeout = GetDuration("YT_SEND_RECEIVE_TIMEOUT", 60);
+    SocketTimeout = GetDuration("YT_SOCKET_TIMEOUT", 60);
+    TxTimeout = GetDuration("YT_TX_TIMEOUT", 120);
     PingInterval = GetDuration("YT_PING_INTERVAL", 3);
     RetryInterval = GetDuration("YT_RETRY_INTERVAL", 3);
     RateLimitExceededRetryInterval = GetDuration("YT_RATE_LIMIT_EXCEEDED_RETRY_INTERVAL", 60);

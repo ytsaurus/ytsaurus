@@ -120,6 +120,11 @@ void THttpHeader::SetResponseCompression(const Stroka& compression)
     ResponseCompression = compression;
 }
 
+Stroka THttpHeader::GetCommand() const
+{
+    return Command;
+}
+
 Stroka THttpHeader::GetUrl() const
 {
     TStringStream url;
@@ -209,7 +214,7 @@ Stroka THttpRequest::GetRequestId() const
     return RequestId;
 }
 
-void THttpRequest::Connect()
+void THttpRequest::Connect(TDuration socketTimeout)
 {
     LOG_DEBUG("REQ %s - connect to %s", ~RequestId, ~HostName);
 
@@ -226,7 +231,12 @@ void THttpRequest::Connect()
 
     TSocketHolder socket(DoConnect());
     SetNonBlock(socket, false);
-    SetSocketTimeout(socket, TConfig::Get()->SendReceiveTimeout.Seconds());
+
+    if (socketTimeout == TDuration::Zero()) {
+        socketTimeout = TConfig::Get()->SocketTimeout;
+    }
+    SetSocketTimeout(socket, socketTimeout.Seconds());
+
     Socket.Reset(new TSocket(socket.Release()));
 
     LOG_DEBUG("REQ %s - connected", ~RequestId);
