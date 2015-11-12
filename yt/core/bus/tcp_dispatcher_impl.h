@@ -11,9 +11,9 @@
 
 #include <util/thread/lfqueue.h>
 
-#include <atomic>
-
 #include <yt/contrib/libev/ev++.h>
+
+#include <atomic>
 
 namespace NYT {
 namespace NBus {

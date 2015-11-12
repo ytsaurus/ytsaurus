@@ -123,7 +123,7 @@ class IncludeDirective(object):
             return 200
         if h.startswith("util/"):
             return 210
-        if h.startswith("contrib/"):
+        if h.startswith("contrib/") or h.startswith("yt/contrib/"):
             return 300
         if h in STL_HEADERS:
             return 1000

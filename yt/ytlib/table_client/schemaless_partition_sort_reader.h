@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-
 #include "schemaless_chunk_reader.h"
 
 #include <yt/ytlib/api/public.h>

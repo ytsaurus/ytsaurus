@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-
 #include "unversioned_row.h"
 
 #include <yt/core/misc/small_vector.h>

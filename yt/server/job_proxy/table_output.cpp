@@ -1,7 +1,9 @@
-#include <yt/core/misc/common.h>
 #include "table_output.h"
 
 #include <yt/ytlib/formats/parser.h>
+
+#include <yt/core/misc/common.h>
+
 #include <yt/core/yson/consumer.h>
 
 namespace NYT {

@@ -7,11 +7,11 @@
 
 #include <yt/ytlib/job_tracker_client/job.pb.h>
 
+#include <yt/ytlib/scheduler/job.pb.h>
+
 #include <yt/ytlib/table_client/public.h>
 #include <yt/ytlib/table_client/schemaful_reader_adapter.h>
 #include <yt/ytlib/table_client/schemaful_writer_adapter.h>
-
-#include <yt/ytlib/scheduler/job.pb.h>
 
 namespace NYT {
 namespace NJobProxy {

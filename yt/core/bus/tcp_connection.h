@@ -17,9 +17,9 @@
 
 #include <util/network/init.h>
 
-#include <atomic>
-
 #include <yt/contrib/libev/ev++.h>
+
+#include <atomic>
 
 #ifndef _win_
     #include <sys/uio.h>

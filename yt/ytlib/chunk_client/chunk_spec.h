@@ -2,17 +2,17 @@
 
 #include "public.h"
 
-#include <yt/core/ytree/attributes.h>
-
-#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta.pb.h>
+#include <yt/ytlib/chunk_client/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/schema.pb.h>
+
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/core/erasure/public.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
+#include <yt/core/ytree/attributes.h>
 
 namespace NYT {
 namespace NChunkClient {
