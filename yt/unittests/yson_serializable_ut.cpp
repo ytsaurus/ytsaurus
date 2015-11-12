@@ -398,7 +398,7 @@ TEST(TYsonSerializableTest, TestConfigUpdate)
 {
     auto config = New<TTestConfig>();
     {
-        auto newConfig = UpdateYsonSerializable(config, 0);
+        auto newConfig = UpdateYsonSerializable(config, nullptr);
         EXPECT_EQ(newConfig->Subconfig->MyInt, 200);
     }
 
