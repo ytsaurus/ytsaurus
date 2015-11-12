@@ -289,7 +289,7 @@ class YTEnv(object):
 
             def preexec():
                 os.setsid()
-                if sys.platform.startswith('linux'):
+                if self._kill_child_processes and sys.platform.startswith("linux"):
                     LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
             p = subprocess.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.path_to_run,
