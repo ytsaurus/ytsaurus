@@ -576,7 +576,6 @@ void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
 
     ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
 
-    proto->set_ordered(fragment->Ordered);
     proto->set_verbose_logging(fragment->VerboseLogging);
     proto->set_max_subqueries(fragment->MaxSubqueries);
     proto->set_enable_code_cache(fragment->EnableCodeCache);
@@ -590,7 +589,6 @@ TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
     auto result = New<TPlanFragment>(serialized.source());
 
     result->Query = FromProto(serialized.query());
-    result->Ordered = serialized.ordered();
     result->VerboseLogging = serialized.verbose_logging();
     result->MaxSubqueries = serialized.max_subqueries();
     result->EnableCodeCache = serialized.enable_code_cache();

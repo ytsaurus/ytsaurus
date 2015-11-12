@@ -118,7 +118,7 @@ public:
         auto securityManager = Bootstrap_->GetSecurityManager();
         auto maybeUser = securityManager->GetAuthenticatedUser();
 
-        auto execute = fragment->Ordered
+        auto execute = fragment->Query->IsOrdered()
             ? &TQueryExecutor::DoExecuteOrdered
             : &TQueryExecutor::DoExecute;
 

@@ -374,6 +374,17 @@ struct TQuery
 
     i64 Limit = std::numeric_limits<i64>::max();
 
+    bool IsOrdered() const
+    {
+        if (Limit < std::numeric_limits<i64>::max() ) {
+            return !OrderClause && !GroupClause;
+        } else {
+            YCHECK(!OrderClause);
+        }
+
+        return false;
+    }
+
     TTableSchema GetTableSchema() const
     {
         if (ProjectClause) {
@@ -421,7 +432,15 @@ struct TPlanFragment
     TDataSources DataSources;
 
     TConstQueryPtr Query;
-    bool Ordered = false;
+
+    bool VerboseLogging = false;
+    int MaxSubqueries = std::numeric_limits<int>::max();
+    ui64 RangeExpansionLimit = 0;
+    bool EnableCodeCache = true;
+};
+
+struct TPlanFragmentOptions
+{
     bool VerboseLogging = false;
     int MaxSubqueries = std::numeric_limits<int>::max();
     ui64 RangeExpansionLimit = 0;
