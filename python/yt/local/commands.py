@@ -170,7 +170,7 @@ def _safe_kill(pid):
 def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None,
           proxy_port=None, id=None, local_cypress_dir=None, use_proxy_from_yt_source=False,
-          enable_debug_logging=False, tmpfs_path=None, path=None):
+          enable_debug_logging=False, tmpfs_path=None, ports_range_start=None, path=None):
 
     require(masters_count >= 1, yt.YtError("Cannot start local YT instance without masters"))
 
@@ -213,7 +213,8 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
                       enable_debug_logging=enable_debug_logging,
                       preserve_working_dir=True,
                       tmpfs_path=sandbox_tmpfs_path,
-                      enable_ui=True)
+                      enable_ui=True,
+                      ports_range_start=ports_range_start)
 
     environment.id = sandbox_id
 

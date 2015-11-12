@@ -4,13 +4,13 @@ from yt.environment.helpers import versions_cmp
 
 class ConfigsProviderFactory(object):
     @staticmethod
-    def create_for_version(version, enable_debug_logging):
+    def create_for_version(version, ports, enable_debug_logging):
         if versions_cmp(version, "0.17.3") <= 0:
-            return LocalModeConfigsProvider_17_3(enable_debug_logging)
+            return LocalModeConfigsProvider_17_3(ports, enable_debug_logging)
         elif versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
-            return LocalModeConfigsProvider_17_4(enable_debug_logging)
+            return LocalModeConfigsProvider_17_4(ports, enable_debug_logging)
         elif versions_cmp(version, "0.18") >= 0:
-            return LocalModeConfigsProvider_18(enable_debug_logging)
+            return LocalModeConfigsProvider_18(ports, enable_debug_logging)
 
         raise YtError("Cannot create configs provider for version: {0}".format(version))
 
@@ -154,7 +154,7 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         return configs
 
 class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs,
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None,
                            secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_17_4, self)\
@@ -205,7 +205,7 @@ class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
         return configs
 
 class LocalModeConfigsProvider_18(ConfigsProvider_18):
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs,
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None,
                            secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_18, self)\
@@ -228,7 +228,7 @@ class LocalModeConfigsProvider_18(ConfigsProvider_18):
         return configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        configs= super(LocalModeConfigsProvider_18, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
+        configs = super(LocalModeConfigsProvider_18, self).get_scheduler_configs(scheduler_count, scheduler_dirs)
 
         for config in configs:
             update(config, SCHEDULER_CONFIG_PATCH)

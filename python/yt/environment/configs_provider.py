@@ -30,30 +30,31 @@ def init_logging(node, path, name, enable_debug_logging):
 
 class ConfigsProviderFactory(object):
     @staticmethod
-    def create_for_version(version, enable_debug_logging):
+    def create_for_version(version, ports, enable_debug_logging):
         if versions_cmp(version, "0.17.3") <= 0:
-            return ConfigsProvider_17_3(enable_debug_logging)
+            return ConfigsProvider_17_3(ports, enable_debug_logging)
         elif versions_cmp(version, "0.17.4") >= 0 and versions_cmp(version, "0.18") < 0:
-            return ConfigsProvider_17_4(enable_debug_logging)
+            return ConfigsProvider_17_4(ports, enable_debug_logging)
         elif versions_cmp(version, "0.18") >= 0:
-            return ConfigsProvider_18(enable_debug_logging)
+            return ConfigsProvider_18(ports, enable_debug_logging)
 
         raise YtError("Cannot create configs provider for version: {0}".format(version))
 
 class ConfigsProvider(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, enable_debug_logging=True):
+    def __init__(self, ports, enable_debug_logging=True):
         self.fqdn = socket.getfqdn()
         self.enable_debug_logging = enable_debug_logging
-        get_open_port.busy_ports = set()
+        self.ports = ports
         # Generated addresses
         # _master_addresses["secondary"] is list of size secondary_master_cell_count
         self._master_addresses = {"primary": [], "secondary": []}
         self._node_addresses = []
 
     @abc.abstractmethod
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0,
+                           cell_tag=0):
         pass
 
     @abc.abstractmethod
@@ -65,7 +66,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def get_proxy_config(self, proxy_dir, proxy_port=None):
+    def get_proxy_config(self, proxy_dir):
         pass
 
     @abc.abstractmethod
@@ -83,34 +84,30 @@ class ConfigsProvider(object):
                             "'{0}'".format(address) for address in self._master_addresses["primary"]
                         ])))
 
-def _generate_common_proxy_config(proxy_dir, proxy_port, enable_debug_logging):
-    if proxy_port is not None and isinstance(proxy_port, int):
-        ports = [proxy_port, get_open_port()]
-    else:
-        ports = [get_open_port(), get_open_port()]
-
+def _generate_common_proxy_config(proxy_dir, ports, enable_debug_logging):
     proxy_config = default_configs.get_proxy_config()
     proxy_config["proxy"]["logging"] = init_logging(proxy_config["proxy"]["logging"], proxy_dir, "http_proxy",
                                                     enable_debug_logging)
-    proxy_config["port"] = ports[0]
-    proxy_config["log_port"] = ports[1]
+    proxy_config["port"] = ports["proxy"]
     proxy_config["fqdn"] = "localhost:{0}".format(ports[0])
     proxy_config["static"].append(["/ui", os.path.join(proxy_dir, "ui")])
 
     return proxy_config
 
 class ConfigsProvider_17(ConfigsProvider):
-    def __init__(self, enable_debug_logging=True):
-        super(ConfigsProvider_17, self).__init__(enable_debug_logging)
+    def __init__(self, ports, enable_debug_logging=True):
+        super(ConfigsProvider_17, self).__init__(ports, enable_debug_logging)
         self._master_cell_tag = 0
 
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0,
+                           cell_tag=0):
         if secondary_master_cell_count > 0:
             raise YtError("Secondary master cells are not supported in YT version <= 0.18")
+
         master_dirs = unlist(master_dirs)
         tmpfs_master_dirs = unlist(tmpfs_master_dirs)
 
-        ports = [get_open_port() for _ in xrange(master_count * 2)]
+        ports = unlist(self.ports["master"])
         addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(master_count)]
 
         configs = []
@@ -153,8 +150,6 @@ class ConfigsProvider_17(ConfigsProvider):
             return self._master_addresses["primary"]
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        ports = [get_open_port() for _ in xrange(scheduler_count * 2)]
-
         configs = []
 
         for i in xrange(scheduler_count):
@@ -169,8 +164,8 @@ class ConfigsProvider_17(ConfigsProvider):
             config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
             config["cluster_connection"]["transaction_manager"]["ping_period"] = 500
 
-            config["rpc_port"] = ports[2 * i]
-            config["monitoring_port"] = ports[2 * i + 1]
+            config["rpc_port"] = self.ports["scheduler"][2 * i]
+            config["monitoring_port"] = self.ports["scheduler"][2 * i + 1]
             config["scheduler"]["snapshot_temp_path"] = os.path.join(scheduler_dirs[i], "snapshots")
 
             config["transaction_manager"]["ping_period"] = 500
@@ -183,8 +178,7 @@ class ConfigsProvider_17(ConfigsProvider):
         return configs
 
     def get_node_configs(self, node_count, node_dirs):
-        ports = [get_open_port() for _ in xrange(node_count * 2)]
-        addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(node_count)]
+        addresses = ["{0}:{1}".format(self.fqdn, self.ports["node"][2 * i]) for i in xrange(node_count)]
 
         current_user = 10000
 
@@ -198,8 +192,8 @@ class ConfigsProvider_17(ConfigsProvider):
                 "interconnect": self.fqdn
             }
 
-            config["rpc_port"] = ports[2 * i]
-            config["monitoring_port"] = ports[2 * i + 1]
+            config["rpc_port"] = self.ports["node"][2 * i]
+            config["monitoring_port"] = self.ports["node"][2 * i + 1]
 
             config["cluster_connection"]["master"] = {
                 "addresses": self._master_addresses["primary"],
@@ -240,7 +234,7 @@ class ConfigsProvider_17(ConfigsProvider):
 
         return configs
 
-    def get_proxy_config(self, proxy_dir, proxy_port=None):
+    def get_proxy_config(self, proxy_dir):
         driver_config = default_configs.get_driver_config()
         driver_config["master"] = {
             "addresses": self._master_addresses["primary"],
@@ -249,7 +243,7 @@ class ConfigsProvider_17(ConfigsProvider):
         }
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = _generate_common_proxy_config(proxy_dir, proxy_port, self.enable_debug_logging)
+        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports, self.enable_debug_logging)
         proxy_config["proxy"]["driver"] = driver_config
 
         return proxy_config
@@ -311,13 +305,13 @@ class ConfigsProvider_17_4(ConfigsProvider_17):
         return configs
 
 class ConfigsProvider_18(ConfigsProvider):
-    def __init__(self, enable_debug_logging=True):
-        super(ConfigsProvider_18, self).__init__(enable_debug_logging)
+    def __init__(self, ports, enable_debug_logging=True):
+        super(ConfigsProvider_18, self).__init__(ports, enable_debug_logging)
         self._primary_master_cell_id = 0
         self._secondary_masters_cell_ids = []
 
-    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
-        ports = []
+    def get_master_configs(self, master_count, master_dirs, tmpfs_master_dirs=None, secondary_master_cell_count=0,
+                           cell_tag=0):
         addresses = []
 
         self._secondary_master_cells_count = secondary_master_cell_count
@@ -327,8 +321,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
         # Primary masters cell index is 0
         for cell_index in xrange(secondary_master_cell_count + 1):
-            ports.append([get_open_port() for _ in xrange(master_count * 2)])
-            addresses.append(["{0}:{1}".format(self.fqdn, ports[cell_index][2 * i])
+            addresses.append(["{0}:{1}".format(self.fqdn, self.ports["master"][cell_index][2 * i])
                               for i in xrange(master_count)])
 
         cell_configs = []
@@ -354,8 +347,8 @@ class ConfigsProvider_18(ConfigsProvider):
 
                 config["node_tracker"]["node_states_gossip_period"] = 80
 
-                config["rpc_port"] = ports[cell_index][2 * master_index]
-                config["monitoring_port"] = ports[cell_index][2 * master_index + 1]
+                config["rpc_port"] = self.ports["master"][cell_index][2 * master_index]
+                config["monitoring_port"] = self.ports["master"][cell_index][2 * master_index + 1]
 
                 config["primary_master"] = {
                     "cell_id": self._primary_master_cell_id,
@@ -399,8 +392,6 @@ class ConfigsProvider_18(ConfigsProvider):
         return cell_configs
 
     def get_scheduler_configs(self, scheduler_count, scheduler_dirs):
-        ports = [get_open_port() for _ in xrange(scheduler_count * 2)]
-
         configs = []
 
         for i in xrange(scheduler_count):
@@ -418,8 +409,8 @@ class ConfigsProvider_18(ConfigsProvider):
             config["cluster_connection"]["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
             config["cluster_connection"]["transaction_manager"]["default_ping_period"] = 500
 
-            config["rpc_port"] = ports[2 * i]
-            config["monitoring_port"] = ports[2 * i + 1]
+            config["rpc_port"] = self.ports["scheduler"][2 * i]
+            config["monitoring_port"] = self.ports["scheduler"][2 * i + 1]
             config["scheduler"]["snapshot_temp_path"] = os.path.join(scheduler_dirs[i], "snapshots")
 
             config["transaction_manager"]["default_ping_period"] = 500
@@ -431,7 +422,7 @@ class ConfigsProvider_18(ConfigsProvider):
 
         return configs
 
-    def get_proxy_config(self, proxy_dir, proxy_port=None):
+    def get_proxy_config(self, proxy_dir):
         driver_config = default_configs.get_driver_config()
         driver_config["primary_master"] = {}
         driver_config["primary_master"]["addresses"] = self._master_addresses["primary"]
@@ -441,15 +432,14 @@ class ConfigsProvider_18(ConfigsProvider):
                 for addresses, cell_id in secondary_masters_info]
         driver_config["timestamp_provider"]["addresses"] = self._master_addresses["primary"]
 
-        proxy_config = _generate_common_proxy_config(proxy_dir, proxy_port, self.enable_debug_logging)
+        proxy_config = _generate_common_proxy_config(proxy_dir, self.ports, self.enable_debug_logging)
         proxy_config["proxy"]["fqdn"] = "localhost"
         proxy_config["proxy"]["driver"] = driver_config
 
         return proxy_config
 
     def get_node_configs(self, node_count, node_dirs):
-        ports = [get_open_port() for _ in xrange(node_count * 2)]
-        addresses = ["{0}:{1}".format(self.fqdn, ports[2 * i]) for i in xrange(node_count)]
+        addresses = ["{0}:{1}".format(self.fqdn, self.ports["node"][2 * i]) for i in xrange(node_count)]
 
         current_user = 10000
 
@@ -463,8 +453,8 @@ class ConfigsProvider_18(ConfigsProvider):
                 "interconnect": self.fqdn
             }
 
-            config["rpc_port"] = ports[2 * i]
-            config["monitoring_port"] = ports[2 * i + 1]
+            config["rpc_port"] = self.ports["node"][2 * i]
+            config["monitoring_port"] = self.ports["node"][2 * i + 1]
 
             config["cell_directory_synchronizer"] = {
                 "sync_period": 1000
