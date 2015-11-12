@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, linux_only
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -369,7 +369,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), self.v1[:1] + self.v2[1:2])
         assert get("//tmp/t_out/@chunk_count") == 2
 
-    @linux_only
+    @unix_only
     def test_query_filtering(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -385,7 +385,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": 1}]
 
-    @linux_only
+    @unix_only
     def test_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False})
         write_table("//tmp/t1", [{"a": 1}])
@@ -408,7 +408,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-    @linux_only
+    @unix_only
     def test_multicell_merge_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -445,7 +445,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         get("#" + chunk_id1 + "/@exports") == {}
         get("#" + chunk_id2 + "/@exports") == {}
         
-    @linux_only
+    @unix_only
     def test_multicell_merge_multi_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -500,7 +500,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         multicell_sleep()
         assert not exists("#" + chunk_id)
 
-    @linux_only
+    @unix_only
     def test_multicell_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False, "external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
