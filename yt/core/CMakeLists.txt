@@ -23,12 +23,6 @@ foreach( _d_ ${DIRS} )
   source_group( ${_d_} REGULAR_EXPRESSION "${_d_}/.*\\.((cpp)|(h)|(proto))")
 endforeach()
 
-add_msvc_precompiled_header(
-  stdafx.h
-  stdafx.cpp
-  YT_SOURCE_FILES
-)
-
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/build.cpp.in
   ${CMAKE_CURRENT_BINARY_DIR}/build.cpp

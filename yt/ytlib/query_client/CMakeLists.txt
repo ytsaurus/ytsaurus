@@ -79,10 +79,6 @@ list( APPEND YT_SOURCE_FILES
   ${HDRS}
 )
 
-include_directories(
-  ${CMAKE_SOURCE_DIR}/contrib/libs/re2
-)
-
 bison( ${BASE}/parser.yy YT_SOURCE_FILES )
 ragel( ${BASE}/lexer.rl YT_SOURCE_FILES )
 

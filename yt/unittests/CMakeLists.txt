@@ -133,12 +133,6 @@ udf_o(
     max_udaf_finalize
 )
 
-add_msvc_precompiled_header(
-  "stdafx.h"
-  "stdafx.cpp"
-  SRCS
-)
-
 if (MSVC)
   add_definitions( -D_VARIADIC_MAX=10 )
   add_definitions( -DGTEST_HAS_SEH=0 )
