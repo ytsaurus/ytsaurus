@@ -13,15 +13,15 @@ namespace NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Contains chunk data (e.g. blocks) intercepted during write-out.
-struct TInterceptedChunkData
+//! Contains all relevant data (e.g. blocks) for in-memory chunks.
+struct TInMemoryChunkData
     : public TIntrinsicRefCounted
 {
     std::vector<TSharedRef> Blocks;
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInterceptedChunkData)
+DEFINE_REFCOUNTED_TYPE(TInMemoryChunkData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +42,7 @@ public:
     ~TInMemoryManager();
 
     NChunkClient::IBlockCachePtr CreateInterceptingBlockCache(EInMemoryMode mode);
-    TInterceptedChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
+    TInMemoryChunkDataPtr EvictInterceptedChunkData(const NChunkClient::TChunkId& chunkId);
 
 private:
     class TImpl;

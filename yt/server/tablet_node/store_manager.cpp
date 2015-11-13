@@ -554,7 +554,7 @@ void TStoreManager::ScheduleStorePreload(TChunkStorePtr store)
 
 bool TStoreManager::TryPreloadStoreFromInterceptedData(
     TChunkStorePtr store,
-    TInterceptedChunkDataPtr chunkData)
+    TInMemoryChunkDataPtr chunkData)
 {
     auto state = store->GetPreloadState();
     YCHECK(state == EStorePreloadState::None);
@@ -576,7 +576,7 @@ bool TStoreManager::TryPreloadStoreFromInterceptedData(
         return false;
     }
 
-    store->PreloadFromInterceptedData(chunkData);
+    store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);
 
     LOG_INFO("In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",

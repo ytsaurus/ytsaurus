@@ -76,14 +76,12 @@ public:
     TPreloadedBlockCache(
         TChunkStorePtr owner,
         const TChunkId& chunkId,
-        int blockCount,
         EBlockType type,
         IBlockCachePtr underlyingCache)
         : Owner_(owner)
         , ChunkId_(chunkId)
         , Type_(type)
         , UnderlyingCache_(std::move(underlyingCache))
-        , Blocks_(blockCount)
     { }
 
     ~TPreloadedBlockCache()
@@ -101,31 +99,7 @@ public:
         const TSharedRef& data,
         const TNullable<NNodeTrackerClient::TNodeDescriptor>& source) override
     {
-        YASSERT(id.ChunkId == ChunkId_);
-        YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
-
-        if (type != Type_) {
-            UnderlyingCache_->Put(id, type, data, source);
-            return;
-        }
-
-        auto owner = Owner_.Lock();
-        if (!owner)
-            return;
-
-        {
-            TWriterGuard guard(SpinLock_);
-
-            auto& existingBlock = Blocks_[id.BlockIndex];
-            if (existingBlock) {
-                YASSERT(TRef::AreBitwiseEqual(existingBlock, data));
-            } else {
-                existingBlock = data;
-                DataSize_ += data.Size();
-                ++PreloadedBlockCount_;
-                owner->SetMemoryUsage(DataSize_);
-            }
-        }
+        UnderlyingCache_->Put(id, type, data, source);
     }
 
     virtual TSharedRef Find(
@@ -133,21 +107,13 @@ public:
         EBlockType type) override
     {
         YASSERT(id.ChunkId == ChunkId_);
-        YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
 
-        if (type != Type_) {
+        if (type == Type_ && IsPreloaded()) {
+            YASSERT(id.BlockIndex >= 0 && id.BlockIndex < Blocks_.size());
+            return Blocks_[id.BlockIndex];
+        } else {
             return UnderlyingCache_->Find(id, type);
         }
-
-        {
-            TReaderGuard guard(SpinLock_);
-            const auto& block = Blocks_[id.BlockIndex];
-            if (block) {
-                return block;
-            }
-        }
-
-        return UnderlyingCache_->Find(id, type);
     }
 
     virtual EBlockType GetSupportedBlockTypes() const override
@@ -155,27 +121,23 @@ public:
         return Type_;
     }
 
-    void PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData)
+    void Preload(TInMemoryChunkDataPtr chunkData)
     {
         auto owner = Owner_.Lock();
         if (!owner)
             return;
 
-        {
-            TWriterGuard guard(SpinLock_);
-
-            YCHECK(Blocks_.size() == chunkData->Blocks.size());
-            Blocks_ = std::move(chunkData->Blocks);
-            DataSize_ = GetByteSize(Blocks_);
-            PreloadedBlockCount_ = Blocks_.size();
-        }
+        Blocks_ = std::move(chunkData->Blocks);
+        DataSize_ = GetByteSize(Blocks_);
 
         owner->SetMemoryUsage(DataSize_);
+
+        Preloaded_ = true;
     }
 
-    bool IsPreloadComplete() const
+    bool IsPreloaded() const
     {
-        return PreloadedBlockCount_.load() == Blocks_.size();
+        return Preloaded_.load();
     }
 
 private:
@@ -184,10 +146,10 @@ private:
     const EBlockType Type_;
     const IBlockCachePtr UnderlyingCache_;
 
-    TReaderWriterSpinLock SpinLock_;
     std::vector<TSharedRef> Blocks_;
     i64 DataSize_ = 0;
-    std::atomic<int> PreloadedBlockCount_ = {0};
+
+    std::atomic<bool> Preloaded_ = {false};
 
 };
 
@@ -285,13 +247,9 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
                mode == EInMemoryMode::Compressed      ? EBlockType::CompressedData :
             /* mode == EInMemoryMode::Uncompressed */   EBlockType::UncompressedData;
 
-        auto blocksExt = GetProtoExtension<TBlocksExt>(ChunkMeta_.extensions());
-        int blockCount = static_cast<int>(blocksExt.blocks_size());
-
         PreloadedBlockCache_ = New<TPreloadedBlockCache>(
             this,
             StoreId_,
-            blockCount,
             blockType,
             Bootstrap_->GetBlockCache());
 
@@ -315,21 +273,19 @@ void TChunkStore::SetInMemoryMode(EInMemoryMode mode)
     InMemoryMode_ = mode;
 }
 
-IBlockCachePtr TChunkStore::GetPreloadedBlockCache()
+void TChunkStore::Preload(TInMemoryChunkDataPtr chunkData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(SpinLock_);
-    return PreloadedBlockCache_;
+    TWriterGuard guard(SpinLock_);
+
+    if (chunkData->InMemoryMode != InMemoryMode_)
+        return;
+
+    PreloadedBlockCache_->Preload(chunkData);
 }
 
-void TChunkStore::PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData)
-{
-    YCHECK(chunkData->InMemoryMode == InMemoryMode_);
-    PreloadedBlockCache_->PreloadFromInterceptedData(chunkData);
-}
-
-NChunkClient::IChunkReaderPtr TChunkStore::GetChunkReader()
+IChunkReaderPtr TChunkStore::GetChunkReader()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -436,7 +392,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloadComplete()) {
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
         return nullptr;
     }
 
@@ -503,7 +459,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
 
     TReaderGuard guard(SpinLock_);
 
-    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloadComplete()) {
+    if (!PreloadedBlockCache_ || !PreloadedBlockCache_->IsPreloaded()) {
         return nullptr;
     }
 
