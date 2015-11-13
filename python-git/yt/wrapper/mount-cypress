@@ -102,6 +102,11 @@ class CachedYtClient(yt.wrapper.client.Yt):
             max_age_seconds=max_age_seconds
         )
 
+        self._non_existing_nodes_cache = expiringdict.ExpiringDict(
+            max_len=max_len,
+            max_age_seconds=max_age_seconds
+        )
+
     def _cache_node_attributes(self, path, attributes):
         for attribute, value in attributes.iteritems():
             cache_key = (path, attribute)
@@ -118,6 +123,8 @@ class CachedYtClient(yt.wrapper.client.Yt):
           A dictionary; the only understood key is "force_request";
           by setting it to True one can disable cache lookup.
         """
+        if path in self._non_existing_nodes_cache:
+            raise yt.wrapper.YtError()
 
         cache_keys = [(path, attribute) for attribute in attributes]
         node_attributes = {}
@@ -139,7 +146,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             try:
                 real_node_attributes = super(CachedYtClient, self).get(path + "/@", spec=spec)
             except yt.wrapper.YtError:
-
+                self._non_existing_nodes_cache[path] = True
                 raise
 
             self._cache_node_attributes(path, real_node_attributes)
