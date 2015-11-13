@@ -1,7 +1,10 @@
 from itertools import chain
 from collections import Mapping
-import types
 import os
+import sys
+import ctypes
+import types
+import signal
 
 class YtError(Exception):
     """Base of all YT errors"""
@@ -156,3 +159,10 @@ def get_value(value, default):
 
 def filter_dict(predicate, dictionary):
     return dict([(k, v) for (k, v) in dictionary.iteritems() if predicate(k, v)])
+
+def set_pdeathsig():
+    if sys.platform.startswith("linux"):
+        ctypes.cdll.LoadLibrary("libc.so.6")
+        libc = ctypes.CDLL("libc.so.6")
+        PR_SET_PDEATHSIG = 1
+        libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
