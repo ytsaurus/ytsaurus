@@ -42,6 +42,11 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     Key_ = TKey(reinterpret_cast<TUnversionedRowHeader*>(KeyBuffer_.data()));
     Key_.SetCount(KeyColumnCount_);
 
+    for (int index = 0; index < KeyColumnCount_; ++index) {
+        auto& value = Key_[index];
+        value.Id = index;
+    }
+
     for (int index = ChunkKeyColumnCount_; index < KeyColumnCount_; ++index) {
         auto& value = Key_[index];
         value.Id = index;
@@ -282,8 +287,6 @@ TVersionedRow TSimpleVersionedBlockReader::ReadValuesByTimestamp(TChunkedMemoryP
 
 void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
 {
-    value->Id = id;
-
     const char* ptr = KeyDataPtr_;
     KeyDataPtr_ += 8;
 
