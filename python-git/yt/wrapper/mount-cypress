@@ -107,6 +107,11 @@ class CachedYtClient(yt.wrapper.client.Yt):
             max_age_seconds=max_age_seconds
         )
 
+        self._type_cache = expiringdict.ExpiringDict(
+            max_len=max_len,
+            max_age_seconds=24 * 60 * 60,
+        )
+
     def _cache_node_attributes(self, path, attributes):
         for attribute, value in attributes.iteritems():
             cache_key = (path, attribute)
@@ -162,7 +167,13 @@ class CachedYtClient(yt.wrapper.client.Yt):
         return node_attributes
 
     def get_attribute(self, path, attribute, spec={}):
-        return self.get_attributes(path, [attribute], spec)[attribute]
+        if attribute == "type":
+            if path in self._type_cache:
+                return self._type_cache[path]
+        value = self.get_attributes(path, [attribute], spec)[attribute]
+        if attribute == "type":
+            self._type_cache[path] = value
+        return value
 
     def list(self, path, attributes=[], spec={}):
         """Get children of a node specified by a ypath.
@@ -206,6 +217,11 @@ class CachedYtClient(yt.wrapper.client.Yt):
         self._logger.debug("list(%r)\t%s", path, message)
         return children
 
+class TableSlice:
+    def __init__(self):
+        self.lower_offset = self.upper_offset = 0
+        self.lower_row = self.upper_row = 0
+        self.slices = []
 
 class Cypress(fuse.Operations):
     """An implementation of FUSE operations on a Cypress tree."""
@@ -222,11 +238,12 @@ class Cypress(fuse.Operations):
         "uncompressed_data_size"
     ]
 
-    _preview_line_count = 100
+    _slice_row_count = 10000
 
     def __init__(self, client):
         super(fuse.Operations, self).__init__()
         self._client = client
+        self._slice_cache = {}
 
     @staticmethod
     def _to_ypath(path):
@@ -315,9 +332,30 @@ class Cypress(fuse.Operations):
         return "".join(lines)
 
     def _read_table(self, ypath, length, offset, fh):
-        ypath += "[:#{}]".format(self._preview_line_count)
-        lines = list(self._client.read_table(ypath, format=yt.wrapper.JsonFormat()))
-        return "".join(lines)[offset:offset + length]
+        if ypath not in self._slice_cache:
+            self._slice_cache[ypath] = TableSlice()
+        file_slice = self._slice_cache[ypath]
+
+        while file_slice.upper_offset < offset + length:
+            next_upper_row = file_slice.upper_row + self._slice_row_count
+            slice_ypath = ypath + "[#{}:#{}]".format(file_slice.upper_row, next_upper_row)
+            slice_content = "".join(list(self._client.read_table(slice_ypath, format=yt.wrapper.JsonFormat())))
+            if len(slice_content) == 0:
+                break
+            file_slice.upper_offset += len(slice_content)
+            file_slice.upper_row += self._slice_row_count
+            file_slice.slices += [slice_content]
+
+        while file_slice.lower_offset > offset:
+            next_lower_row = file_slice.lower_row - self._slice_row_count
+            slice_ypath = ypath + "[#{}:#{}]".format(next_lower_row, file_slice.lower_row)
+            slice_content = "".join(list(self._client.read_table(slice_ypath, format=yt.wrapper.JsonFormat())))
+            file_slice.lower_offset -= len(slice_content)
+            file_slice.lower_row -= self._slice_row_count
+            file_slice.slices = [slice_content] + file_slice.slices
+
+        offset -= file_slice.lower_offset
+        return "".join(file_slice.slices)[offset:offset + length]
 
     @handle_yt_errors
     @log_calls(
