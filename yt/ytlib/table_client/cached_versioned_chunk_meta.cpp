@@ -56,8 +56,8 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::DoLoad(
         ValidateSchema(readerSchema);
 
         auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_.extensions());
-        MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
-        MaxKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
+        MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), GetKeyColumnCount());
+        MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), GetKeyColumnCount());
 
         Misc_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
         BlockMeta_ = GetProtoExtension<TBlockMetaExt>(ChunkMeta_.extensions());
