@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <ytlib/ypath/rich.h>
+
 #include <core/rpc/public.h>
 
 #include <core/actions/future.h>
@@ -38,7 +40,7 @@ struct IPrepareCallbacks
 
     //! Returns an initial split for a given path.
     virtual TFuture<TDataSplit> GetInitialSplit(
-        const NYPath::TYPath& path,
+        const NYPath::TRichYPath& path,
         TTimestamp timestamp) = 0;
 };
 

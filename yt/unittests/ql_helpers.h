@@ -46,6 +46,7 @@ using ::testing::AllOf;
 
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +85,7 @@ class TPrepareCallbacksMock
 {
 public:
     MOCK_METHOD2(GetInitialSplit, TFuture<TDataSplit>(
-        const TYPath&,
+        const TRichYPath&,
         TTimestamp));
 };
 
@@ -192,12 +193,12 @@ TFuture<T> WrapInFuture(const T& value)
 
 TFuture<void> WrapVoidInFuture();
 
-TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0);
+TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter = 0);
 
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, TKeyColumns keyColumns = TKeyColumns());
 
 TFuture<TDataSplit> RaiseTableNotFound(
-    const TYPath& path,
+    const TRichYPath& path,
     TTimestamp);
 
 template <class TFunctor, class TMatcher>
