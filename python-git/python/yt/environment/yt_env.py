@@ -47,6 +47,7 @@ def _config_safe_get(config, config_path, key):
 
 class YTEnv(object):
     NUM_MASTERS = 3
+    NUM_NONVOTING_MASTERS = 0
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
     NUM_NODES = 5
@@ -116,6 +117,7 @@ class YTEnv(object):
         self._ytserver_version = ytserver_version_long.split("-", 1)[0].strip()
 
         self._run_all(self.NUM_MASTERS,
+                      self.NUM_NONVOTING_MASTERS,
                       self.NUM_SECONDARY_MASTER_CELLS,
                       self.NUM_NODES,
                       self.NUM_SCHEDULERS,
@@ -161,7 +163,7 @@ class YTEnv(object):
                     callback_func(self, args)
                     break
 
-    def _run_all(self, master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy, enable_ui=False,
+    def _run_all(self, master_count, nonvoting_master_count, secondary_master_cell_count, node_count, scheduler_count, has_proxy, enable_ui=False,
                  use_proxy_from_package=False, start_secondary_master_cells=True, instance_id="", cell_tag=0,
                  proxy_port=None, enable_debug_logging=True, load_existing_environment=False, ports_range_start=None):
 
@@ -200,7 +202,7 @@ class YTEnv(object):
             return
 
         try:
-            self._prepare_masters(master_count, master_name, secondary_master_cell_count, cell_tag)
+            self._prepare_masters(master_count, master_name, nonvoting_master_count, secondary_master_cell_count, cell_tag)
             self._prepare_schedulers(scheduler_count, scheduler_name)
             self._prepare_nodes(node_count, node_name)
             self._prepare_proxy(has_proxy, proxy_name, enable_ui=enable_ui)
@@ -345,7 +347,7 @@ class YTEnv(object):
         else:
             return master_name + "_secondary_" + str(cell_index - 1)
 
-    def _get_master_configs(self, master_count, master_name, secondary_master_cell_count, cell_tag,
+    def _get_master_configs(self, master_count, nonvoting_master_count, master_name, secondary_master_cell_count, cell_tag,
                             master_dirs, tmpfs_master_dirs):
         if self._load_existing_environment:
             master_configs = []
@@ -366,10 +368,10 @@ class YTEnv(object):
 
             return master_configs
         else:
-            return self._configs_provider.get_master_configs(master_count, master_dirs, tmpfs_master_dirs,
+            return self._configs_provider.get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs,
                                                              secondary_master_cell_count, cell_tag)
 
-    def _prepare_masters(self, master_count, master_name, secondary_master_cell_count, cell_tag):
+    def _prepare_masters(self, master_count, master_name, nonvoting_master_count, secondary_master_cell_count, cell_tag):
         if master_count == 0:
             return
 
@@ -386,7 +388,7 @@ class YTEnv(object):
                 tmpfs_dirs.append([os.path.join(self.tmpfs_path, name, str(i)) for i in xrange(master_count)])
                 map(makedirp, tmpfs_dirs[cell_index])
 
-        configs = self._get_master_configs(master_count, master_name, secondary_master_cell_count, cell_tag,
+        configs = self._get_master_configs(master_count, nonvoting_master_count, master_name, secondary_master_cell_count, cell_tag,
                                            dirs, tmpfs_dirs)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
