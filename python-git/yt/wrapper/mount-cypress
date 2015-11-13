@@ -247,12 +247,11 @@ class Cypress(fuse.Operations):
             mask = stat.S_IFBLK
         return mask | stat.S_IRUSR
 
-    @staticmethod
-    def _extract_attribute(attributes, name, default_value):
-        value = attributes.get(name, default_value)
-        if value == None:
-            value = default_value
-        return value
+    def _get_st_size(self, attributes):
+        node_type = attributes["type"]
+        if node_type == "file":
+            return attributes["uncompressed_data_size"]
+        return 0
 
     def _get_stat(self, attributes):
         """Get stat sturcture for a node based on its attributes."""
@@ -266,7 +265,7 @@ class Cypress(fuse.Operations):
             "st_atime": Cypress._to_timestamp(attributes["access_time"]),
             "st_mtime": Cypress._to_timestamp(attributes["modification_time"]),
             "st_ctime": Cypress._to_timestamp(attributes["creation_time"]),
-            "st_size": self._extract_attribute(attributes, "uncompressed_data_size", 0L)
+            "st_size": self._get_st_size(attributes)
         }
 
     def _get_xattr(self, attribute):
@@ -296,11 +295,12 @@ class Cypress(fuse.Operations):
 
     @handle_yt_errors
     @log_calls(_logger, "%(__name__)s(%(path)r, flags=%(flags)r)")
-    def open(self, path, flags):
+    def open(self, path, fi):
         ypath = self._to_ypath(path)
         type_ = self._client.get_attribute(ypath, "type")
         if type_ not in ["file", "table"]:
             raise fuse.FuseOSError(errno.EINVAL)
+        fi.direct_io = True
         return 0
 
     def _read_file(self, ypath, length, offset, fh):
@@ -346,7 +346,7 @@ class Cypress(fuse.Operations):
 def mount_cypress(proxy, mountpoint):
     """Mount a Cypress."""
     cypress = Cypress(CachedYtClient(proxy=proxy))
-    fuse.FUSE(cypress, mountpoint, foreground=False, debug=True)
+    fuse.FUSE(cypress, mountpoint, foreground=False, debug=True, raw_fi=True)
     return 0
 
 
