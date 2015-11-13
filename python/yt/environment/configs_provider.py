@@ -53,7 +53,7 @@ class ConfigsProvider(object):
         self._node_addresses = []
 
     @abc.abstractmethod
-    def get_master_configs(self, master_count, master_dirs,
+    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
         pass
 
@@ -99,7 +99,7 @@ class ConfigsProvider_17(ConfigsProvider):
         super(ConfigsProvider_17, self).__init__(ports, enable_debug_logging)
         self._master_cell_tag = 0
 
-    def get_master_configs(self, master_count, master_dirs,
+    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
         if secondary_master_cell_count > 0:
             raise YtError("Secondary master cells are not supported in YT version <= 0.18")
@@ -271,10 +271,10 @@ class ConfigsProvider_17_3(ConfigsProvider_17):
         return configs
 
 class ConfigsProvider_17_4(ConfigsProvider_17):
-    def get_master_configs(self, master_count, master_dirs,
+    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
-        configs = super(ConfigsProvider_17_4, self).get_master_configs(master_count, master_dirs, tmpfs_master_dirs,
+        configs = super(ConfigsProvider_17_4, self).get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs,
                                                                        secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -310,7 +310,7 @@ class ConfigsProvider_18(ConfigsProvider):
         self._primary_master_cell_id = 0
         self._secondary_masters_cell_ids = []
 
-    def get_master_configs(self, master_count, master_dirs,
+    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
         addresses = []
 
@@ -321,8 +321,13 @@ class ConfigsProvider_18(ConfigsProvider):
 
         # Primary masters cell index is 0
         for cell_index in xrange(secondary_master_cell_count + 1):
-            addresses.append(["{0}:{1}".format(self.fqdn, self.ports["master"][cell_index][2 * i])
-                              for i in xrange(master_count)])
+            cell_addresses = []
+            for i in xrange(master_count):
+                voting = (i < master_count - nonvoting_master_count)
+                cell_addresses.append("{0}{1}:{2}".format("" if voting else "<voting=false>",
+                                                          self.fqdn,
+                                                          self.ports["master"][cell_index][2 * i]))
+            addresses.append(cell_addresses)
 
         cell_configs = []
 
