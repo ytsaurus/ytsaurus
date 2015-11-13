@@ -87,6 +87,8 @@ def _pack_string(name, script, output_dir):
 
 
 def _split_rows(row_count, split_size, total_size):
+    if row_count == 0:
+        return []
     split_row_count = max(1, (row_count * split_size) / total_size)
     return [(i * split_row_count, min((i + 1) * split_row_count, row_count)) for i in xrange(1 + ((row_count - 1) / split_row_count))]
 
@@ -286,6 +288,8 @@ def copy_yamr_to_yt_pull(yamr_client, yt_client, src, dst, fastbone, copy_spec_t
         yamr_client.copy(src, temp_yamr_table)
         src = temp_yamr_table
 
+    # NB: Yamr does not support -list under transaction.
+    # It means that record count may be inconsistent with locked version of table.
     record_count = yamr_client.records_count(src, allow_cache=True)
     sorted = yamr_client.is_sorted(src, allow_cache=True)
 
