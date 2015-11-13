@@ -294,7 +294,7 @@ class Cypress(fuse.Operations):
         return (child.decode("utf-8") for child in children)
 
     @handle_yt_errors
-    @log_calls(_logger, "%(__name__)s(%(path)r, flags=%(flags)r)")
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
     def open(self, path, fi):
         ypath = self._to_ypath(path)
         type_ = self._client.get_attribute(ypath, "type")
