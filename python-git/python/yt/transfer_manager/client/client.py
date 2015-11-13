@@ -43,7 +43,7 @@ class TransferManager(object):
         self._backend_config = self.get_backend_config()
 
     def add_task(self, source_cluster, source_table, destination_cluster, destination_table=None, params=None,
-                 sync=False, poll_period=None):
+                 sync=False, poll_period=None, attached=False):
         params = get_value(params, {})
         poll_period = get_value(poll_period, 5)
 
@@ -54,6 +54,9 @@ class TransferManager(object):
         }
         if destination_table is not None:
             data["destination_table"] = destination_table
+        if attached:
+            params["lease_timeout"] = max(120, 2 * poll_period)
+  
         update(data, params)
 
         task_id = self._make_post_request(self.backend_url + "/tasks/", data=json.dumps(data)).content

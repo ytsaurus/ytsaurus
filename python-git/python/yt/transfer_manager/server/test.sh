@@ -37,6 +37,13 @@ get_task() {
     request "GET" "tasks/$id/"
 }
 
+get_task_state() {
+    local id="$1"
+    description=$(get_task $id)
+    state=$(echo "$description" | jq '.state')
+    echo "$state"
+}
+
 run_task() {
     local body="$1"
     log "Running task $body"
@@ -59,8 +66,7 @@ wait_task() {
     local id="$1"
     log "Waiting task $id"
     while true; do
-        description=$(get_task $id)
-        state=$(echo "$description" | jq '.state')
+        state=$(get_task_state $id)
         echo "STATE: $state"
         if [ "$state" = '"failed"' ] || [ "$state" = '"aborted"' ]; then
             die "Task $id $state"
@@ -160,6 +166,15 @@ test_abort_restart_task() {
         "$(yt2 read //tmp/test_table_from_plato --proxy smith.yt.yandex.net --format yamr)"
 }
 
+test_lease() {
+    echo "Importing from Plato to Smith"
+    echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy plato
+    id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "plato", "destination_table": "//tmp/test_table_from_plato", "destination_cluster": "smith", "pool": "ignat", "lease_timeout": 2}')
+    sleep 10.0
+
+    check '"aborted"' "$(get_task_state $id)"
+}
+
 test_copy_table_attributes() {
     echo "Importing from Smith to Plato (attributes copying test)"
 
@@ -243,6 +258,7 @@ test_copy_from_redwood_to_plato
 test_copy_from_plato_to_smith
 test_copy_from_plato_to_quine
 test_copy_from_sakura_to_plato
+test_lease
 test_abort_restart_task
 test_copy_table_attributes
 test_copy_to_yamr_table_with_spaces_in_name
