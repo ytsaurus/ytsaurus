@@ -614,7 +614,7 @@ public:
 
         if (member->GetType() == EObjectType::Group) {
             auto* memberGroup = member->AsGroup();
-            if (group->RecursiveMemberOf().find(memberGroup) != group->RecursiveMemberOf().end()) {
+            if (group == memberGroup || group->RecursiveMemberOf().find(memberGroup) != group->RecursiveMemberOf().end()) {
                 THROW_ERROR_EXCEPTION("Adding group %Qv to group %Qv would produce a cycle",
                     memberGroup->GetName(),
                     group->GetName());
