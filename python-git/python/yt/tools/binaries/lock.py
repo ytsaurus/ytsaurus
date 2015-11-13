@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
+from yt.common import set_pdeathsig
 import yt.logger as logger
 import yt.wrapper as yt
 
 import os
 import sys
 import time
-import ctypes
 import signal
 import argparse
 import subprocess
@@ -33,15 +33,6 @@ def main():
             sys.exit(1)
 
         signal.signal(signal.SIGTERM, lambda signum, frame: handler())
-
-        if sys.platform.startswith('linux'):
-            ctypes.cdll.LoadLibrary("libc.so.6")
-            LIBC = ctypes.CDLL('libc.so.6')
-            PR_SET_PDEATHSIG = 1
-
-        def set_pdeathsig():
-            if sys.platform.startswith('linux'):
-                LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
         logger.info("Running command %s", args.command)
         proc = subprocess.Popen(args.command, stdout=sys.stdout, stderr=sys.stderr, shell=True, env=os.environ.copy(),
