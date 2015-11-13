@@ -20,11 +20,10 @@ class TestQuery(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    yson_schema_attribute = "<schema=[{name=a; type=int64}; {name=b; type=int64}]>"
+
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
-        create("table", path,
-            attributes = {
-                "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]
-            })
+        create("table", path)
 
         for i in xrange(chunks):
             data = [
@@ -48,41 +47,38 @@ class TestQuery(YTEnvSetup):
             path = "//tmp/t{0}".format(i)
 
             self._sample_data(path=path, chunks=i, stripe=10)
-            result = select_rows("a, b from [{0}]".format(path), verbose=False)
+            result = select_rows("a, b from [{0}{1}]".format(TestQuery.yson_schema_attribute, path), verbose=False)
 
             assert len(result) == 10 * i
 
     def test_invalid_data(self):
         path = "//tmp/t"
-        create("table", path,
-            attributes = {
-                "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]
-            })
+        create("table", path)
         data = [{"a" : 1, "b" : 2},
                 {"a" : 1, "b" : 2.2},
                 {"a" : 1, "b" : "smth"}]
 
         write_table("<sorted_by=[a; b]>" + path, data)
         with pytest.raises(YtError):
-            result = select_rows("a, b from [{0}] where b=b".format(path), verbose=False)
+            result = select_rows("a, b from [{0}{1}] where b=b".format(TestQuery.yson_schema_attribute, path), verbose=False)
             print >>sys.stderr, result
 
     def test_project1(self):
         self._sample_data(path="//tmp/t")
         expected = [{"s": 2 * i + 10 * i - 1} for i in xrange(1, 10)]
-        actual = select_rows("2 * a + b - 1 as s from [//tmp/t]")
+        actual = select_rows("2 * a + b - 1 as s from [{0}//tmp/t]".format(TestQuery.yson_schema_attribute))
         assert expected == actual
 
     def test_group_by1(self):
         self._sample_data(path="//tmp/t")
         expected = [{"s": 450}]
-        actual = select_rows("sum(b) as s from [//tmp/t] group by 1 as k")
+        actual = select_rows("sum(b) as s from [{0}//tmp/t] group by 1 as k".format(TestQuery.yson_schema_attribute))
         assert actual == expected
 
     def test_group_by2(self):
         self._sample_data(path="//tmp/t")
         expected = [{"k": 0, "s": 200}, {"k": 1, "s": 250}]
-        actual = select_rows("k, sum(b) as s from [//tmp/t] group by a % 2 as k")
+        actual = select_rows("k, sum(b) as s from [{0}//tmp/t] group by a % 2 as k".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
     def test_merging_group_by(self):
@@ -144,7 +140,7 @@ class TestQuery(YTEnvSetup):
     def test_limit(self):
         self._sample_data(path="//tmp/t")
         expected = [{"a": 1, "b": 10}]
-        actual = select_rows("* from [//tmp/t] limit 1")
+        actual = select_rows("* from [{0}//tmp/t] limit 1".format(TestQuery.yson_schema_attribute))
         assert expected == actual
 
     def test_order_by(self):
@@ -314,14 +310,9 @@ class TestQuery(YTEnvSetup):
             is_raw=True)
 
         sort(in_="//tmp/t", out="//tmp/t", sort_by=["a", "b", "c", "d"])
-        set("//tmp/t/@schema", [
-            {"name": "a", "type": "int64"},
-            {"name": "b", "type": "boolean"},
-            {"name": "c", "type": "string"},
-            {"name": "d", "type": "uint64"},
-        ])
-
-        assert select_rows('a, b, c, d from [//tmp/t] where c="hello"', output_format=format) == \
+        schema = "<schema=[{name=a; type=int64}; {name=b; type=boolean}; {name=c; type=string}; {name=d; type=uint64}]>"
+        
+        assert select_rows('a, b, c, d from [{0}//tmp/t] where c="hello"'.format(schema), output_format=format) == \
                 '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
 
     def test_tablets(self):
@@ -481,7 +472,7 @@ class TestQuery(YTEnvSetup):
 
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u] where sum_udf2(b, 1, 2) = sum_udf2(3, b)")
+        actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/u] where sum_udf2(b, 1, 2) = sum_udf2(3, b)".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
     def test_udaf(self):
@@ -508,14 +499,11 @@ class TestQuery(YTEnvSetup):
 
         self._sample_data(path="//tmp/ua")
         expected = [{"x": 5.0}]
-        actual = select_rows("avg_udaf(a) as x from [//tmp/ua] group by 1")
+        actual = select_rows("avg_udaf(a) as x from [{0}//tmp/ua] group by 1".format(TestQuery.yson_schema_attribute))
         assert actual == expected
 
     def test_aggregate_string_capture(self):
-        create("table", "//tmp/t",
-            attributes = {
-                "schema": [{"name": "a", "type": "string"}]
-            })
+        create("table", "//tmp/t")
 
         # Need at least 1024 items to ensure a second batch in the scan operator
         data = [
@@ -525,7 +513,7 @@ class TestQuery(YTEnvSetup):
         sort(in_="//tmp/t", out="//tmp/t", sort_by=["a"])
 
         expected = [{"m": "a1000bcd"}]
-        actual = select_rows("min(lower(a)) as m from [//tmp/t] group by 1")
+        actual = select_rows("min(lower(a)) as m from [<schema=[{name=a;type=string}]>//tmp/t] group by 1")
         assert actual == expected
 
     def test_cardinality(self):
@@ -578,7 +566,7 @@ class TestQuery(YTEnvSetup):
 
         self._sample_data(path="//tmp/sou")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/sou]")
+        actual = select_rows("abs_udf(-2 * a) as s from [{0}//tmp/sou]".format(TestQuery.yson_schema_attribute))
         assert_items_equal(actual, expected)
 
     def test_YT_2375(self):
@@ -598,19 +586,18 @@ class TestQuery(YTEnvSetup):
 
     def test_static_split(self):
         path = "//tmp/t"
-        create("table", path,
-            attributes = {
-                "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}]
-            })
+        create("table", path)
+
+        schema = "<schema = [{name=a; type=int64}; {name=b; type=int64};]>"
 
         write_table("<sorted_by=[a]>" + path, [{"a": i, "b": i} for i in xrange(2)])
         write_table("<sorted_by=[a];append=true>" + path, [{"a": i, "b": i} for i in xrange(2,4)])
         write_table("<sorted_by=[a];append=true>" + path, [{"a": 4, "b": i} for i in xrange(4,6)])
         assert get("//tmp/t/@sorted")
 
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a = 0"), [{"a": 0, "b": 0}])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a in (0, 1)"), [{"a": i, "b": i} for i in (0,1)])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a in (1, 3)"), [{"a": i, "b": i} for i in (1,3)])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a in (4)"), [{"a": 4, "b": i} for i in (4,5)])
-        assert_items_equal(select_rows("a, b from [//tmp/t] where a > 0 and a < 3"), [{"a": i, "b": i} for i in (1,2)])
+        assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a = 0".format(schema)), [{"a": 0, "b": 0}])
+        assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (0, 1)".format(schema)), [{"a": i, "b": i} for i in (0,1)])
+        assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (1, 3)".format(schema)), [{"a": i, "b": i} for i in (1,3)])
+        assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a in (4)".format(schema)), [{"a": 4, "b": i} for i in (4,5)])
+        assert_items_equal(select_rows("a, b from [{0}//tmp/t] where a > 0 and a < 3".format(schema)), [{"a": i, "b": i} for i in (1,2)])
 
