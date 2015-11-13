@@ -46,6 +46,7 @@ from collections import defaultdict
 from subprocess32 import TimeoutExpired
 from threading import RLock, Thread, current_thread
 from multiprocessing import Process
+from itertools import chain
 import Queue
 
 yt.config["read_retries"]["enable"] = True
@@ -148,7 +149,7 @@ def truncate_stderrs_attributes(error, limit):
         for inner_error in error.inner_errors:
             truncate_stderrs_attributes(inner_error, limit)
 
-def now():
+def now_str():
     return str(datetime.utcnow().isoformat() + "Z")
 
 class Task(object):
@@ -157,7 +158,7 @@ class Task(object):
                  destination_table=None, source_cluster_token=None, token=None, destination_cluster_token=None, mr_user=None, error=None,
                  start_time=None, finish_time=None, copy_method=None, progress=None, backend_tag=None, kiwi_user=None, kwworm_options=None, pool=None, meta=None,
                  destination_compression_codec=None, destination_erasure_codec=None, destination_force_sort=None, copy_spec=None, postprocess_spec=None,
-                 job_timeout=None):
+                 job_timeout=None, lease_timeout=None):
         self.source_cluster = source_cluster
         self.source_table = source_table
         self.source_cluster_token = get_value(source_cluster_token, token)
@@ -189,6 +190,9 @@ class Task(object):
         self.destination_compression_codec = destination_compression_codec
         self.destination_erasure_codec = destination_erasure_codec
         self.destination_force_sort = destination_force_sort
+
+        self.lease_timeout = lease_timeout
+        self._last_ping_time = None
 
         # Special field to store meta-information for web-interface
         self.meta = meta
@@ -289,6 +293,7 @@ class Application(object):
         self._add_rule("/tasks/<id>/", 'delete_task', methods=["DELETE"])
         self._add_rule("/tasks/<id>/abort/", 'abort', methods=["POST"])
         self._add_rule("/tasks/<id>/restart/", 'restart', methods=["POST"])
+        self._add_rule("/tasks/<id>/ping/", 'ping_task', methods=["POST"])
         self._add_rule("/config/", 'config', methods=["GET"])
         self._add_rule("/ping/", 'ping', methods=["GET"])
         self._add_rule("/match/", 'match', methods=["POST"])
@@ -486,6 +491,7 @@ class Application(object):
         for id, options in self._yt.get(tasks_path).iteritems():
             try:
                 task = Task(**options)
+                task._last_ping_time = time.time()
             except Exception as err:
                 logger.warning("Failed to load task %s: %s", id, str(err))
                 continue
@@ -757,6 +763,65 @@ class Application(object):
 
         return True
 
+    def _renew_lease(self, task_id):
+        with self._mutex:
+            # NB: Fields of Task must be serializable.
+            self._tasks[task_id]._last_ping_time = time.time()
+
+    def _force_abort(self, process):
+        process.aborted = True
+        if process.poll() is None:
+            try:
+                os.kill(process.pid, signal.SIGTERM)
+            except OSError:
+                pass
+
+    # NB: return generator for waiting actual task abort.
+    def _abort_task(self, id):
+        process = None
+        with self._mutex:
+            if self._tasks[id].state in ["aborting", "aborted", "completed", "failed"]:
+                return
+
+            logger.info("Aborting task %s", id)
+
+            task_was_executed = id in self._task_processes
+            task_is_aborted = False
+
+            if task_was_executed:
+                process, _ = self._task_processes[id]
+                process.aborting = True
+                process.aborting_start_time = datetime.now()
+                logger.info("Killing process with pid %d", process.pid)
+                try:
+                    os.kill(process.pid, signal.SIGINT)
+                except OSError:
+                    pass
+                if process.poll() is not None:
+                    process.aborted = True
+                    task_is_aborted = True
+
+            if id in self._pending_tasks:
+                self._pending_tasks_per_user[self._tasks[id].user] -= 1
+                self._pending_tasks.remove(id)
+
+            if self._tasks[id].state not in ["aborted", "completed", "failed"]:
+                new_state = "aborted"
+                if task_was_executed and not task_is_aborted:
+                    new_state = "aborting"
+                self._change_task_state(id, new_state)
+
+        if not task_was_executed:
+            return
+
+        def wait():
+            while True:
+                with self._mutex:
+                    if not process.aborted:
+                        yield
+
+        return wait
+
     def _execute_tasks(self):
         while True:
             if self._terminating:
@@ -771,8 +836,14 @@ class Application(object):
             with self._mutex:
                 logger.info("Progress: %d running, %d pending tasks found", len(self._task_processes), len(self._pending_tasks))
 
+                now = time.time()
+                for id in chain(self._pending_tasks, self._task_processes):
+                    task = self._tasks[id]
+                    if task.lease_timeout is not None and (now - task._last_ping_time > task.lease_timeout):
+                        self._abort_task(id)
+
                 for id, (process, message_queue) in self._task_processes.items():
-                    logger.info("Task %s running", id)
+                    logger.info("Task %s %s", id, self._tasks[id].state)
                     error = None
                     completed = False
 
@@ -795,14 +866,20 @@ class Application(object):
                         else:
                             assert False, "Incorrect message type: " + message["type"]
 
+                    if process.aborting and not process.aborted:
+                        if (datetime.now() - process.aborting_start_time).total_seconds() > self._sleep_step:
+                            self._force_abort(process)
+                            self._change_task_state(id, "aborted")
+                        else:
+                            continue
 
-                    if not process_is_alive and not (process.aborted or error is not None or completed):
+                    if not process_is_alive and not (process.aborting or process.aborted or error is not None or completed):
                         message = "Process died silently"
                         logger.warning(message)
                         error = {"message": message, "code": 1}
 
                     if process.aborted or error is not None or completed:
-                        self._tasks[id].finish_time = now()
+                        self._tasks[id].finish_time = now_str()
                         if process.aborted:
                             pass
                         elif error is not None:
@@ -833,7 +910,7 @@ class Application(object):
                     self._runned_during_heartbeat.add(queue_id)
                     self._pending_tasks_per_user[self._tasks[id].user] -= 1
 
-                    self._tasks[id].start_time = now()
+                    self._tasks[id].start_time = now_str()
                     self._tasks[id].progress = {"operations": []}
                     self._change_task_state(id, "running")
 
@@ -842,6 +919,7 @@ class Application(object):
                                                     preexec_fn=prctl.set_pdeathsig(signal.SIGINT))
                     task_process.stdin.write(json.dumps(self._tasks[id].dict()))
                     task_process.stdin.close()
+                    task_process.aborting = False
                     task_process.aborted = False
                     queue = MessageReader(task_process.stdout)
                     self._task_processes[id] = (task_process, queue)
@@ -1057,7 +1135,7 @@ class Application(object):
             params["backend_tag"] = self._config.get("backend_tag")
 
         try:
-            task = Task(id=id, creation_time=now(), user=user, token=token, state="pending", **params)
+            task = Task(id=id, creation_time=now_str(), user=user, token=token, state="pending", **params)
         except TypeError as error:
             raise RequestFailed("Cannot create task", inner_errors=[yt.YtError(error.message)])
 
@@ -1077,6 +1155,8 @@ class Application(object):
         if not dry_run:
             self._initialize_pool(task)
             self._yt.set(os.path.join(self._tasks_path, task.id), task.dict())
+            if task.lease_timeout is not None:
+                task._last_ping_time = time.time()
             with self._mutex:
                 self._tasks[task.id] = task
                 self._append_pending_task(task)
@@ -1105,33 +1185,10 @@ class Application(object):
         if id not in self._tasks:
             raise RequestFailed("Unknown task " + id)
 
-        logger.info("Aboring task %s", id)
-
-        with self._mutex:
-            self._check_permission(id, request.headers, "Aborting")
-
-            if id in self._task_processes:
-                process, _ = self._task_processes[id]
-                process.aborted = True
-
-                logger.info("Killing process with pid", process.pid)
-                try:
-                    os.kill(process.pid, signal.SIGINT)
-                except OSError:
-                    pass
-                time.sleep(0.5)
-                if process.poll() is None:
-                    try:
-                        os.kill(process.pid, signal.SIGTERM)
-                    except OSError:
-                        pass
-
-            if id in self._pending_tasks:
-                self._pending_tasks_per_user[self._tasks[id].user] -= 1
-                self._pending_tasks.remove(id)
-
-            if self._tasks[id].state not in ["aborted", "completed", "failed"]:
-                self._change_task_state(id, "aborted")
+        waiting_abort = self._abort_task(id)
+        if waiting_abort is not None:
+            for _ in waiting_abort:
+                time.sleep(self._sleep_step)
 
         return ""
 
@@ -1147,7 +1204,8 @@ class Application(object):
                 raise RequestFailed("Cannot restart task in state " + self._tasks[id].state)
 
             self._tasks[id].state = "pending"
-            self._tasks[id].creation_time = now()
+            self._tasks[id].creation_time = now_str()
+            self._tasks[id]._last_ping_time = time.time()
             self._tasks[id].finish_time = None
             self._tasks[id].progress = None
             self._tasks[id].error = None
@@ -1178,7 +1236,17 @@ class Application(object):
             if tasks[task_id].get_queue_id() == task.get_queue_id():
                 queue_index += 1
 
+        self._renew_lease(id)
+
         return jsonify(**task_description)
+
+    def ping_task(self, id):
+        if id not in self._tasks:
+            raise RequestFailed("Unknown task " + id)
+
+        self._renew_lease(id)
+
+        return ""
 
     def delete_task(self, id):
         if id not in self._tasks:
