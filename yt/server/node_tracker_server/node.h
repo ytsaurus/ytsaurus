@@ -121,8 +121,11 @@ public:
     explicit TNode(const NObjectServer::TObjectId& objectId);
 
     TNodeId GetId() const;
+
     TNodeDescriptor GetDescriptor() const;
+
     const TAddressMap& GetAddresses() const;
+    void SetAddresses(const TAddressMap& addresses);
     const Stroka& GetDefaultAddress() const;
 
     //! Gets the local state by dereferencing local state pointer.

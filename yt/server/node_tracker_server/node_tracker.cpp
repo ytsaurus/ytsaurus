@@ -657,6 +657,8 @@ private:
                     DisposeNode(node);
                 }
             }
+
+            UpdateNode(node, addresses);
         } else {
             auto nodeId = request.has_node_id() ? request.node_id() : GenerateNodeId();
             node = CreateNode(nodeId, addresses);
@@ -1029,56 +1031,74 @@ private:
 
     TNode* CreateNode(TNodeId nodeId, const TAddressMap& addresses)
     {
-        PROFILE_TIMING ("/node_register_time") {
-            auto objectId = ObjectIdFromNodeId(nodeId);
+        auto objectId = ObjectIdFromNodeId(nodeId);
 
-            const auto* mutationContext = GetCurrentMutationContext();
-            auto registerTime = mutationContext->GetTimestamp();
+        const auto* mutationContext = GetCurrentMutationContext();
+        auto registerTime = mutationContext->GetTimestamp();
 
-            auto nodeHolder = std::make_unique<TNode>(
-                objectId,
-                addresses,
-                registerTime);
+        auto nodeHolder = std::make_unique<TNode>(
+            objectId,
+            addresses,
+            registerTime);
 
-            auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
+        auto* node = NodeMap_.Insert(objectId, std::move(nodeHolder));
 
-            // Make the fake reference.
-            YCHECK(node->RefObject() == 1);
+        // Make the fake reference.
+        YCHECK(node->RefObject() == 1);
 
-            InitializeNodeStates(node);
-            InsertToAddressMaps(node);
+        InitializeNodeStates(node);
+        InsertToAddressMaps(node);
 
-            auto objectManager = Bootstrap_->GetObjectManager();
-            auto rootService = objectManager->GetRootService();
-            auto nodePath = GetNodePath(node);
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto rootService = objectManager->GetRootService();
+        auto nodePath = GetNodePath(node);
 
-            try {
-                // Create Cypress node.
-                {
-                    auto req = TCypressYPathProxy::Create(nodePath);
-                    req->set_type(static_cast<int>(EObjectType::ClusterNodeNode));
-                    req->set_ignore_existing(true);
+        try {
+            // Create Cypress node.
+            {
+                auto req = TCypressYPathProxy::Create(nodePath);
+                req->set_type(static_cast<int>(EObjectType::ClusterNodeNode));
+                req->set_ignore_existing(true);
 
-                    SyncExecuteVerb(rootService, req);
-                }
-
-                // Create "orchid" child.
-                {
-                    auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
-                    req->set_type(static_cast<int>(EObjectType::Orchid));
-                    req->set_ignore_existing(true);
-
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("remote_address", GetInterconnectAddress(addresses));
-                    ToProto(req->mutable_node_attributes(), *attributes);
-
-                    SyncExecuteVerb(rootService, req);
-                }
-            } catch (const std::exception& ex) {
-                LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
+                SyncExecuteVerb(rootService, req);
             }
 
-            return node;
+            // Create "orchid" child.
+            {
+                auto req = TCypressYPathProxy::Create(nodePath + "/orchid");
+                req->set_type(static_cast<int>(EObjectType::Orchid));
+                req->set_ignore_existing(true);
+
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("remote_address", GetInterconnectAddress(addresses));
+                ToProto(req->mutable_node_attributes(), *attributes);
+
+                SyncExecuteVerb(rootService, req);
+            }
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
+        }
+
+        return node;
+    }
+
+    void UpdateNode(TNode* node, const TAddressMap& addresses)
+    {
+        // NB: The default address must remain same, however others may change.
+        node->SetAddresses(addresses);
+
+        auto objectManager = Bootstrap_->GetObjectManager();
+        auto rootService = objectManager->GetRootService();
+        auto nodePath = GetNodePath(node);
+
+        try {
+            // Update "orchid" child.
+            auto req = TYPathProxy::Set(nodePath + "/orchid/@remote_address");
+            req->set_value(ConvertToYsonString(GetInterconnectAddress(addresses)).Data());
+
+            SyncExecuteVerb(rootService, req);
+        } catch (const std::exception& ex) {
+            LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
         }
     }
 
