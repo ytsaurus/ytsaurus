@@ -72,6 +72,20 @@ wait_task() {
     done
 }
 
+test_copy_empty_table() {
+    echo "Importing empty table from Plato to Smith"
+    yt2 create table //tmp/empty_table --proxy plato --ignore-existing
+    yt2 set "//tmp/empty_table/@test_attr" 10 --proxy plato
+    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "plato", "destination_table": "//tmp/empty_table", "destination_cluster": "smith", "pool": "ignat"}')
+    wait_task $id
+
+    check "true" "$(yt2 exists //tmp/empty_table --proxy smith)"
+    check "10" "$(yt2 get //tmp/empty_table/@test_attr --proxy smith)"
+    
+    id=$(run_task '{"source_table": "//tmp/empty_table", "source_cluster": "plato", "destination_table": "tmp/empty_table", "destination_cluster": "sakura"}')
+    wait_task $id
+}
+
 test_copy_from_smith_to_sakura() {
     echo "Importing from Smith to Sakura"
     id=$(run_task '{"source_table": "//tmp/test_table", "source_cluster": "smith", "destination_table": "tmp/yt/test_table", "destination_cluster": "sakura"}')
@@ -222,6 +236,7 @@ test_passing_custom_spec() {
 echo -e "a\tb\nc\td\ne\tf" | yt2 write //tmp/test_table --format yamr --proxy smith.yt.yandex.net
 yt2 sort --src //tmp/test_table --dst //tmp/test_table --sort-by key --sort-by subkey --proxy smith.yt.yandex.net
 
+test_copy_empty_table
 test_copy_from_smith_to_sakura
 test_copy_from_sakura_to_redwood
 test_copy_from_redwood_to_plato
