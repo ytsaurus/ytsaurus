@@ -103,16 +103,11 @@ class CachedYtClient(yt.wrapper.client.Yt):
         )
 
     def _cache_node_attributes(self, path, attributes):
-        self._attribute_cache[(path, "@")] = True
         for attribute, value in attributes.iteritems():
             cache_key = (path, attribute)
             self._attribute_cache[cache_key] = value
 
-    def get_all_attributes(self, path, spec={}):
-        real_node_attributes = super(CachedYtClient, self).get(path + "/@", spec=spec)
-        self._cache_node_attributes(path, real_node_attributes)
-        return real_node_attributes
-
+    @log_calls(_logger, "%(__name__)s(%(path)r, %(attributes)r)")
     def get_attributes(self, path, attributes=[], spec={}):
         """Get a node specified by a ypath.
 
@@ -129,10 +124,10 @@ class CachedYtClient(yt.wrapper.client.Yt):
 
         need_request = spec.pop("force_request", False)
         if not need_request:
+            message = "hit"
             for attribute, cache_key in zip(attributes, cache_keys):
                 try:
                     node_attributes[attribute] = self._attribute_cache[cache_key]
-                    message = "hit"
                 except KeyError:
                     need_request = True
                     message = "miss"
@@ -141,7 +136,12 @@ class CachedYtClient(yt.wrapper.client.Yt):
             message = "force"
 
         if need_request:
-            real_node_attributes = super(CachedYtClient, self).get(path + "/@", spec=spec)
+            try:
+                real_node_attributes = super(CachedYtClient, self).get(path + "/@", spec=spec)
+            except yt.wrapper.YtError:
+
+                raise
+
             self._cache_node_attributes(path, real_node_attributes)
             for attribute in attributes:
                 if attribute in real_node_attributes:
@@ -151,7 +151,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
                     cache_key = (path, attribute)
                     self._attribute_cache[cache_key] = node_attributes[attribute] = None
 
-        self._logger.debug("get(%r)\t%s", path, message)
+        self._logger.debug("get_attributes\t%s", message)
         return node_attributes
 
     def get_attribute(self, path, attribute, spec={}):
@@ -332,7 +332,7 @@ class Cypress(fuse.Operations):
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def listxattr(self, path):
         ypath = self._to_ypath(path)
-        attributes = self._client.get_all_attributes(ypath)
+        attributes = self._client.get(ypath + "/@")
         return (self._get_xattr(attribute) for attribute in attributes)
 
     @handle_yt_errors
@@ -340,7 +340,10 @@ class Cypress(fuse.Operations):
     def getxattr(self, path, name, position=0):
         ypath = self._to_ypath(path)
         attribute = self._get_attribute(name)
-        return repr(self._client.get_attribute(ypath, attribute))
+        attr = self._client.get_attribute(ypath, attribute)
+        if attr is None:
+            raise fuse.FuseOSError(errno.ENODATA)
+        return repr(attr)
 
 
 def mount_cypress(proxy, mountpoint):
