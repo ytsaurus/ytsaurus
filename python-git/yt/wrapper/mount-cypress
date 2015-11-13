@@ -215,6 +215,8 @@ class Cypress(fuse.Operations):
         "uncompressed_data_size"
     ]
 
+    _preview_line_count = 100
+
     def __init__(self, client):
         super(fuse.Operations, self).__init__()
         self._client = client
@@ -306,7 +308,7 @@ class Cypress(fuse.Operations):
         return "".join(lines)
 
     def _read_table(self, ypath, length, offset, fh):
-        ypath += "[:#100]"
+        ypath += "[:#{}]".format(self._preview_line_count)
         lines = list(self._client.read_table(ypath, format=yt.wrapper.JsonFormat()))
         return "".join(lines)[offset:offset + length]
 
