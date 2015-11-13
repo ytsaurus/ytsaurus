@@ -292,6 +292,54 @@ done
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
 
 
+    def test_abandon_job(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        for i in xrange(5):
+            write_table("<append=true>//tmp/t1", {"key": str(i), "value": "foo"})
+
+        tmpdir = tempfile.mkdtemp(prefix="abandon_job")
+
+        command = 'cat; if [ "$YT_JOB_INDEX" = 3 ]; then echo -n "$YT_JOB_ID" >{0}/started || exit 1; sleep 300; fi'.format(tmpdir)
+
+        op_id = map(
+            dont_track=True,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={
+                "mapper": {
+                    "format": "dsv"
+                },
+                "data_size_per_job": 1
+            })
+
+        try:
+            pin_filename = os.path.join(tmpdir, "started")
+            while not os.access(pin_filename, os.F_OK):
+                time.sleep(0.2)
+
+            jobs_path = "//sys/scheduler/orchid/scheduler/operations/{0}/running_jobs".format(op_id)
+            jobs = ls(jobs_path)
+            assert jobs
+
+            job_id = open(pin_filename).read()
+            assert job_id
+
+            result = abandon_job(job_id)
+        finally:
+            try:
+                os.unlink(pin_filename)
+            except OSError:
+                pass
+            try:
+                os.unlink(tmpdir)
+            except OSError:
+                pass
+
+        track_op(op_id)
+        assert(2, len(read_table("//tmp/t2")))
+
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5

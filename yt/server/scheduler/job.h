@@ -103,8 +103,15 @@ struct TJobSummary
     const Stroka StatisticsSuffix;
 };
 
-using TCompletedJobSummary = TJobSummary;
 using TFailedJobSummary = TJobSummary;
+
+struct TCompletedJobSummary
+    : public TJobSummary
+{
+    explicit TCompletedJobSummary(TJobPtr job, bool abandoned = false);
+
+    const bool Abandoned = false;
+};
 
 struct TAbortedJobSummary
     : public TJobSummary

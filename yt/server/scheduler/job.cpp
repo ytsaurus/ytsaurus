@@ -89,6 +89,13 @@ TJobSummary::TJobSummary(const TJobId& id)
 
 ////////////////////////////////////////////////////////////////////
 
+TCompletedJobSummary::TCompletedJobSummary(TJobPtr job, bool abandoned)
+    : TJobSummary(job)
+    , Abandoned(abandoned)
+{ }
+
+////////////////////////////////////////////////////////////////////
+
 TAbortedJobSummary::TAbortedJobSummary(const TJobId& id, EAbortReason abortReason)
     : TJobSummary(id)
     , AbortReason(abortReason)

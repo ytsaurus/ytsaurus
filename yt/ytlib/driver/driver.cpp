@@ -147,6 +147,8 @@ public:
         REGISTER(TDumpJobContextCommand,       "dump_job_context",        Null,       Null,       true,  false);
         REGISTER(TStraceJobCommand,            "strace_job",              Null,       Structured, false, false);
         REGISTER(TSignalJobCommand,            "signal_job",              Null,       Null,       false, false);
+        REGISTER(TAbandonJobCommand,           "abandon_job",             Null,       Null,       false, false);
+
         REGISTER(TGetVersionCommand,           "get_version",             Null,       Structured, false, false);
 
 #undef REGISTER

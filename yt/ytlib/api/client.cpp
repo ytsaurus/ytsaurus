@@ -984,6 +984,10 @@ public:
         const Stroka& signalName,
         const TSignalJobOptions& options),
         (jobId, signalName, options))
+    IMPLEMENT_METHOD(void, AbandonJob, (
+        const TJobId& jobId,
+        const TAbandonJobOptions& options),
+        (jobId, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -2048,6 +2052,17 @@ private:
         auto req = JobProberProxy_->SignalJob();
         ToProto(req->mutable_job_id(), jobId);
         ToProto(req->mutable_signal_name(), signalName);
+
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+    }
+
+    void DoAbandonJob(
+        const TJobId& jobId,
+        const TAbandonJobOptions& /*options*/)
+    {
+        auto req = JobProberProxy_->AbandonJob();
+        ToProto(req->mutable_job_id(), jobId);
 
         WaitFor(req->Invoke())
             .ThrowOnError();

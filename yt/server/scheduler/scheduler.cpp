@@ -462,6 +462,13 @@ public:
             .Run();
     }
 
+    TFuture<void> AbandonJob(const TJobId& jobId)
+    {
+        return BIND(&TImpl::DoAbandonJob, MakeStrong(this), jobId)
+            .AsyncVia(MasterConnector_->GetCancelableControlInvoker())
+            .Run();
+    }
+
     void DoSignalJob(const TJobId& jobId, const Stroka& signalName)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -474,6 +481,36 @@ public:
 
         WaitFor(req->Invoke())
             .ThrowOnError();
+    }
+
+    void DoAbandonJob(const TJobId& jobId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto job = FindJob(jobId);
+        if (!job) {
+            THROW_ERROR_EXCEPTION("No such job %v", jobId);
+        }
+        switch (job->GetType()) {
+            case EJobType::Map:
+            case EJobType::OrderedMap:
+            case EJobType::SortedReduce:
+            case EJobType::PartitionMap:
+            case EJobType::ReduceCombiner:
+            case EJobType::PartitionReduce:
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Can't abondon job %v of %v type", jobId, job->GetType());
+        }
+        if (job->GetState() != EJobState::Running &&
+            job->GetState() != EJobState::Waiting)
+        {
+            THROW_ERROR_EXCEPTION("Abandoned job %v is not running", jobId);
+        }
+
+        TJobResult result;
+        job->SetState(EJobState::Abandoning);
+        OnJobCompleted(job, &result);
     }
 
     TJobProberServiceProxy CreateJobProberProxy(const TJobId& jobId)
@@ -1651,8 +1688,10 @@ private:
 
     void OnJobCompleted(TJobPtr job, TJobResult* result)
     {
+        bool abandoned = (job->GetState() == EJobState::Abandoning);
         if (job->GetState() == EJobState::Running ||
-            job->GetState() == EJobState::Waiting)
+            job->GetState() == EJobState::Waiting ||
+            job->GetState() == EJobState::Abandoning)
         {
             job->SetState(EJobState::Completed);
             job->SetResult(std::move(*result));
@@ -1664,7 +1703,7 @@ private:
 
             if (operation->GetState() == EOperationState::Running) {
                 LogFinishedJobFluently(ELogEventType::JobCompleted, job);
-                operation->GetController()->OnJobCompleted(TCompletedJobSummary(job));
+                operation->GetController()->OnJobCompleted(TCompletedJobSummary(job, abandoned));
             }
 
             ProcessFinishedJobResult(job);
@@ -2365,6 +2404,11 @@ TFuture<TYsonString> TScheduler::Strace(const TJobId& jobId)
 TFuture<void> TScheduler::SignalJob(const TJobId& jobId, const Stroka& signalName)
 {
     return Impl_->SignalJob(jobId, signalName);
+}
+
+TFuture<void> TScheduler::AbandonJob(const TJobId& jobId)
+{
+    return Impl_->AbandonJob(jobId);
 }
 
 void TScheduler::ProcessHeartbeat(TExecNodePtr node, TCtxHeartbeatPtr context)

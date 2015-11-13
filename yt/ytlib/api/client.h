@@ -390,6 +390,10 @@ struct TSignalJobOptions
     : public TTimeoutOptions
 { };
 
+struct TAbandonJobOptions
+    : public TTimeoutOptions
+{ };
+
 typedef std::pair<IRowsetPtr, NQueryClient::TQueryStatistics> TSelectRowsResult;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -616,6 +620,10 @@ struct IClient
         const NJobTrackerClient::TJobId& jobId,
         const Stroka& signalName,
         const TSignalJobOptions& options = TSignalJobOptions()) = 0;
+
+    virtual TFuture<void> AbandonJob(
+        const NJobTrackerClient::TJobId& jobId,
+        const TAbandonJobOptions& options = TAbandonJobOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)
