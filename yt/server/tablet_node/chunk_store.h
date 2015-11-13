@@ -54,8 +54,7 @@ public:
 
     EInMemoryMode GetInMemoryMode() const;
     void SetInMemoryMode(EInMemoryMode mode);
-    NChunkClient::IBlockCachePtr GetPreloadedBlockCache();
-    void PreloadFromInterceptedData(TInterceptedChunkDataPtr chunkData);
+    void Preload(TInMemoryChunkDataPtr chunkData);
 
     NChunkClient::IChunkReaderPtr GetChunkReader();
 

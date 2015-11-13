@@ -68,7 +68,7 @@ public:
         return New<TInterceptingBlockCache>(this, mode);
     }
 
-    TInterceptedChunkDataPtr EvictInterceptedChunkData(const TChunkId& chunkId)
+    TInMemoryChunkDataPtr EvictInterceptedChunkData(const TChunkId& chunkId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -98,7 +98,7 @@ private:
     TAsyncSemaphore PreloadSemaphore_;
 
     TReaderWriterSpinLock InterceptedDataSpinLock_;
-    yhash_map<TChunkId, TInterceptedChunkDataPtr> ChunkIdToData_;
+    yhash_map<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
 
     void ScanSlot(TTabletSlotPtr slot)
@@ -202,10 +202,6 @@ private:
 
         auto reader = store->GetChunkReader();
 
-        auto blockCache = store->GetPreloadedBlockCache();
-        if (!blockCache)
-            return;
-
         LOG_INFO("Store preload started");
 
         std::vector<int> extensionTags = {
@@ -221,6 +217,9 @@ private:
 
         auto codecId = NCompression::ECodec(miscExt.compression_codec());
         auto* codec = NCompression::GetCodec(codecId);
+
+        auto chunkData = New<TInMemoryChunkData>();
+        chunkData->InMemoryMode = mode;
 
         int startBlockIndex = 0;
         int totalBlockCount = blocksExt.blocks_size();
@@ -265,13 +264,12 @@ private:
                     YUNREACHABLE();
             }
 
-            for (int index = 0; index < readBlockCount; ++index) {
-                auto blockId = TBlockId(reader->GetChunkId(), startBlockIndex + index);
-                blockCache->Put(blockId, blockType, cachedBlocks[index], Null);
-            }
+            chunkData->Blocks.insert(chunkData->Blocks.end(), cachedBlocks.begin(), cachedBlocks.end());
 
             startBlockIndex += readBlockCount;
         }
+
+        store->Preload(chunkData);
 
         LOG_INFO("Store preload completed");
     }
@@ -313,7 +311,7 @@ private:
             TGuard<TSpinLock> guard(SpinLock_);
 
             auto it = ChunkIds_.find(id.ChunkId);
-            TInterceptedChunkDataPtr data;
+            TInMemoryChunkDataPtr data;
             if (it == ChunkIds_.end()) {
                 data = Owner_->CreateChunkData(id.ChunkId, Mode_);
                 YCHECK(ChunkIds_.insert(id.ChunkId).second);
@@ -367,7 +365,7 @@ private:
 
     };
 
-    TInterceptedChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr GetChunkData(const TChunkId& chunkId, EInMemoryMode mode)
     {
         TReaderGuard guard(InterceptedDataSpinLock_);
         auto it = ChunkIdToData_.find(chunkId);
@@ -377,21 +375,21 @@ private:
         return data;
     }
 
-    TInterceptedChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode)
+    TInMemoryChunkDataPtr CreateChunkData(const TChunkId& chunkId, EInMemoryMode mode)
     {
         TWriterGuard guard(InterceptedDataSpinLock_);
 
-        auto data = New<TInterceptedChunkData>();
-        data->InMemoryMode = mode;
+        auto chunkData = New<TInMemoryChunkData>();
+        chunkData->InMemoryMode = mode;
 
         // Replace the old data, if any, by a new one.
-        ChunkIdToData_[chunkId] = data;
+        ChunkIdToData_[chunkId] = chunkData;
 
         LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
             chunkId,
             mode);
 
-        return data;
+        return chunkData;
     }
 
     bool IsMemoryLimitExceeded() const
@@ -418,7 +416,7 @@ IBlockCachePtr TInMemoryManager::CreateInterceptingBlockCache(EInMemoryMode mode
     return Impl_->CreateInterceptingBlockCache(mode);
 }
 
-TInterceptedChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId& chunkId)
+TInMemoryChunkDataPtr TInMemoryManager::EvictInterceptedChunkData(const TChunkId& chunkId)
 {
     return Impl_->EvictInterceptedChunkData(chunkId);
 }

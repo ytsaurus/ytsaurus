@@ -98,7 +98,7 @@ public:
     void BackoffStoreCompaction(TChunkStorePtr store);
 
     void ScheduleStorePreload(TChunkStorePtr store);
-    bool TryPreloadStoreFromInterceptedData(TChunkStorePtr store, TInterceptedChunkDataPtr chunkData);
+    bool TryPreloadStoreFromInterceptedData(TChunkStorePtr store, TInMemoryChunkDataPtr chunkData);
     TChunkStorePtr PeekStoreForPreload();
     void BeginStorePreload(TChunkStorePtr store, TFuture<void> future);
     void EndStorePreload(TChunkStorePtr store);
