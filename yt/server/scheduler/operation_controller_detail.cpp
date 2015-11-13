@@ -521,26 +521,33 @@ void TOperationControllerBase::TTask::OnJobStarted(TJobletPtr /* joblet */)
 
 void TOperationControllerBase::TTask::OnJobCompleted(TJobletPtr joblet, const TCompletedJobSummary& jobSummary)
 {
-    const auto& statistics = jobSummary.Statistics;
-    auto outputStatisticsMap = GetOutputDataStatistics(statistics);
-    for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
-        YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
-        auto outputStatistics = outputStatisticsMap[index];
-        if (outputStatistics.chunk_count() == 0) {
+    if (!jobSummary.Abandoned) {
+        const auto& statistics = jobSummary.Statistics;
+        auto outputStatisticsMap = GetOutputDataStatistics(statistics);
+        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
+            YCHECK(outputStatisticsMap.find(index) != outputStatisticsMap.end());
+            auto outputStatistics = outputStatisticsMap[index];
+            if (outputStatistics.chunk_count() == 0) {
+                Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
+                joblet->ChunkListIds[index] = NullChunkListId;
+            }
+        }
+
+        auto inputStatistics = GetTotalInputDataStatistics(statistics);
+        auto outputStatistics = GetTotalOutputDataStatistics(statistics);
+        if (Controller->IsRowCountPreserved()) {
+            if (inputStatistics.row_count() != outputStatistics.row_count()) {
+                Controller->OnOperationFailed(TError(
+                    "Input/output row count mismatch in completed job: %v != %v",
+                    inputStatistics.row_count(),
+                    outputStatistics.row_count())
+                    << TErrorAttribute("task", GetId()));
+            }
+        }
+    } else {
+        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
             Controller->ChunkListPool->Reinstall(joblet->ChunkListIds[index]);
             joblet->ChunkListIds[index] = NullChunkListId;
-        }
-    }
-
-    auto inputStatistics = GetTotalInputDataStatistics(statistics);
-    auto outputStatistics = GetTotalOutputDataStatistics(statistics);
-    if (Controller->IsRowCountPreserved()) {
-        if (inputStatistics.row_count() != outputStatistics.row_count()) {
-            Controller->OnOperationFailed(TError(
-                "Input/output row count mismatch in completed job: %v != %v",
-                inputStatistics.row_count(),
-                outputStatistics.row_count())
-                << TErrorAttribute("task", GetId()));
         }
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie);

@@ -48,6 +48,14 @@ void TSignalJobCommand::Execute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAbandonJobCommand::Execute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->AbandonJob(JobId))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TStartOperationCommandBase::Execute(ICommandContextPtr context)
 {
     auto asyncOperationId = context->GetClient()->StartOperation(

@@ -37,6 +37,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
     }
 
 private:
@@ -82,6 +83,17 @@ private:
             signalName);
 
         WaitFor(Bootstrap_->GetScheduler()->SignalJob(jobId, signalName))
+            .ThrowOnError();
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, AbandonJob)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        context->SetRequestInfo("JobId: %v", jobId);
+
+        WaitFor(Bootstrap_->GetScheduler()->AbandonJob(jobId))
             .ThrowOnError();
 
         context->Reply();

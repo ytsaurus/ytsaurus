@@ -52,12 +52,13 @@ DEFINE_ENUM(EJobType,
 );
 
 DEFINE_ENUM(EJobState,
-    ((Waiting)  (0))
-    ((Running)  (1))
-    ((Aborting) (2))
-    ((Completed)(3))
-    ((Failed)   (4))
-    ((Aborted)  (5))
+    ((Waiting)    (0))
+    ((Running)    (1))
+    ((Aborting)   (2))
+    ((Completed)  (3))
+    ((Failed)     (4))
+    ((Aborted)    (5))
+    ((Abandoning) (6))
 );
 
 DEFINE_ENUM(EJobPhase,

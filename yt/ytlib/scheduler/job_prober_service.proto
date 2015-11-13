@@ -32,4 +32,12 @@ message TReqSignalJob
 message TRspSignalJob
 { }
 
+message TReqAbandonJob
+{
+    required NYT.NProto.TGuid job_id = 1;
+}
+
+message TRspAbandonJob
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////

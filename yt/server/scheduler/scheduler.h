@@ -69,6 +69,7 @@ public:
     TFuture<void> DumpInputContext(const TJobId& jobId, const NYPath::TYPath& path);
     TFuture<NYTree::TYsonString> Strace(const TJobId& jobId);
     TFuture<void> SignalJob(const TJobId& jobId, const Stroka& signalName);
+    TFuture<void> AbandonJob(const TJobId& jobId);
 
     typedef
         NRpc::TTypedServiceContext<
