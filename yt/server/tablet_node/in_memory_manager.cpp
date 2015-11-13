@@ -188,18 +188,6 @@ private:
         if (mode == EInMemoryMode::None)
             return;
 
-        EBlockType blockType;
-        switch (mode) {
-            case EInMemoryMode::Compressed:
-                blockType = EBlockType::CompressedData;
-                break;
-            case EInMemoryMode::Uncompressed:
-                blockType = EBlockType::UncompressedData;
-                break;
-            default:
-                YUNREACHABLE();
-        }
-
         auto reader = store->GetChunkReader();
 
         LOG_INFO("Store preload started");
