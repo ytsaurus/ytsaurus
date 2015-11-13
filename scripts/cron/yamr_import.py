@@ -178,7 +178,7 @@ def create_task_runner(destination_cluster_name, tm_url="transfer-manager.yt.yan
                           http_port="13013",
                           timeout=180.0
                      ) for name in yamr_cluster_names]
-    return TaskRunner(yamr_clusters, destination_cluster_name, tm_url=tm_url, copy_pool="redwood_restricted")
+    return TaskRunner(yamr_clusters, destination_cluster_name, tm_url=tm_url, copy_pool="yamr_copy", postprocess_pool="yamr_postprocess")
 
 def get_dash_date_table(table):
     date = table[-8:]
