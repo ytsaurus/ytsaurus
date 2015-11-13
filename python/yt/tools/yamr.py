@@ -1,24 +1,13 @@
 import yt.logger as logger
-from yt.common import YtError
+from yt.common import YtError, set_pdeathsig
 from yt.wrapper.common import generate_uuid
 import yt.json as json
 
 import os
 import sh
-import ctypes
-import signal
 import subprocess32 as subprocess
 from datetime import datetime, timedelta
 from urllib import quote_plus
-
-if sys.platform.startswith('linux'):
-    ctypes.cdll.LoadLibrary("libc.so.6")
-    LIBC = ctypes.CDLL('libc.so.6')
-    PR_SET_PDEATHSIG = 1
-
-def set_pdeathsig():
-    if sys.platform.startswith('linux'):
-        LIBC.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
 
 class YamrError(YtError):
     pass
