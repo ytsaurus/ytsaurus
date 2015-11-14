@@ -39,7 +39,8 @@ protected:
         auto rowBuffer = New<TRowBuffer>();
         auto prunedSplits = GetPrunedRanges(
             planFragment->Query,
-            planFragment->DataSources,
+            planFragment->TableId,
+            planFragment->Ranges,
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
@@ -55,9 +56,9 @@ protected:
 
         const auto& query = planFragment->Query;
 
-        TDataSources foreignSplits{{query->JoinClauses[0]->ForeignDataId, {
+        TRowRanges foreignSplits{{
                 planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())}
+                planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
             }};
 
         auto rowBuffer = New<TRowBuffer>();
@@ -67,6 +68,7 @@ protected:
             TableSchemaToKeyColumns(
                 query->JoinClauses[0]->RenamedTableSchema,
                 query->JoinClauses[0]->ForeignKeyColumnsCount),
+            query->JoinClauses[0]->ForeignDataId,
             foreignSplits,
             rowBuffer,
             ColumnEvaluatorCache_,
@@ -122,14 +124,12 @@ private:
         return WrapInFuture(dataSplit);
     }
 
-    std::vector<TKeyRange> GetRangesFromSources(const TGroupedRanges& groupedRanges)
+    std::vector<TKeyRange> GetRangesFromSources(const TRowRanges& rowRanges)
     {
         std::vector<TKeyRange> ranges;
 
-        for (const auto& group : groupedRanges) {
-            for (const auto& range : group) {
-                ranges.push_back(TKeyRange(TOwningKey(range.first), TOwningKey(range.second)));
-            }
+        for (const auto& range : rowRanges) {
+            ranges.push_back(TKeyRange(TOwningKey(range.first), TOwningKey(range.second)));
         }
 
         std::sort(ranges.begin(), ranges.end());

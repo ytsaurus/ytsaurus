@@ -7,7 +7,7 @@ import "yt/ytlib/query_client/plan_fragment.proto";
 
 message TReqExecute
 {
-    required TPlanFragment plan_fragment = 1;
+    required TPlanSubFragment plan_fragment = 1;
     optional int32 response_codec = 2;
 }
 

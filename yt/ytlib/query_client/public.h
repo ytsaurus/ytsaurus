@@ -55,6 +55,9 @@ typedef TIntrusivePtr<const TQuery> TConstQueryPtr;
 DECLARE_REFCOUNTED_STRUCT(TPlanFragment);
 typedef TIntrusivePtr<const TPlanFragment> TConstPlanFragmentPtr;
 
+DECLARE_REFCOUNTED_STRUCT(TPlanSubFragment);
+typedef TIntrusivePtr<const TPlanSubFragment> TConstPlanSubFragmentPtr;
+
 struct IPrepareCallbacks;
 
 struct TQueryStatistics;
@@ -66,6 +69,8 @@ DECLARE_REFCOUNTED_STRUCT(IAggregateFunctionDescriptor)
 DECLARE_REFCOUNTED_STRUCT(ICallingConvention)
 
 DECLARE_REFCOUNTED_STRUCT(IExecutor)
+
+DECLARE_REFCOUNTED_STRUCT(ISubExecutor)
 
 DECLARE_REFCOUNTED_CLASS(TEvaluator)
 

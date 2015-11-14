@@ -562,7 +562,7 @@ TQueryPtr FromProto(const NProto::TQuery& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
+void ToProto(NProto::TPlanSubFragment* proto, TConstPlanSubFragmentPtr fragment)
 {
     ToProto(proto->mutable_query(), fragment->Query);
 
@@ -576,22 +576,22 @@ void ToProto(NProto::TPlanFragment* proto, TConstPlanFragmentPtr fragment)
 
     ToProto(proto->mutable_data_bounds(), ToString(MergeRefs(writer.Flush())));
 
-    proto->set_verbose_logging(fragment->VerboseLogging);
-    proto->set_max_subqueries(fragment->MaxSubqueries);
-    proto->set_enable_code_cache(fragment->EnableCodeCache);
-    
+    proto->set_verbose_logging(fragment->Options.VerboseLogging);
+    proto->set_max_subqueries(fragment->Options.MaxSubqueries);
+    proto->set_enable_code_cache(fragment->Options.EnableCodeCache);
+
     proto->set_source(fragment->Source);
     proto->set_timestamp(fragment->Timestamp);
 }
 
-TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized)
+TPlanSubFragmentPtr FromProto(const NProto::TPlanSubFragment& serialized)
 {
-    auto result = New<TPlanFragment>(serialized.source());
+    auto result = New<TPlanSubFragment>(serialized.source());
 
     result->Query = FromProto(serialized.query());
-    result->VerboseLogging = serialized.verbose_logging();
-    result->MaxSubqueries = serialized.max_subqueries();
-    result->EnableCodeCache = serialized.enable_code_cache();
+    result->Options.VerboseLogging = serialized.verbose_logging();
+    result->Options.MaxSubqueries = serialized.max_subqueries();
+    result->Options.EnableCodeCache = serialized.enable_code_cache();
     result->Timestamp = serialized.timestamp();
 
     NTabletClient::TWireProtocolReader reader(TSharedRef::FromString(serialized.data_bounds()));

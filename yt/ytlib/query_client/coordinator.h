@@ -9,6 +9,8 @@
 namespace NYT {
 namespace NQueryClient {
 
+extern const NLogging::TLogger QueryClientLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::function<TConstExpressionPtr(
@@ -16,22 +18,23 @@ typedef std::function<TConstExpressionPtr(
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns)> TRefiner;
 
-typedef std::vector<std::vector<TRowRange>> TGroupedRanges;
-
-TGroupedRanges GetPrunedRanges(
+TRowRanges GetPrunedRanges(
     TConstExpressionPtr predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
-    const TDataSources& sources,
+    NObjectClient::TObjectId tableId,
+    TRowRanges ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
     ui64 rangeExpansionLimit,
-    bool verboseLogging);
+    bool verboseLogging,
+    const NLogging::TLogger& Logger = QueryClientLogger);
 
-TGroupedRanges GetPrunedRanges(
+TRowRanges GetPrunedRanges(
     TConstQueryPtr query,
-    const TDataSources& sources,
+    NObjectClient::TObjectId tableId,
+    TRowRanges ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
