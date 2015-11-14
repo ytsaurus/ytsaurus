@@ -80,13 +80,12 @@ class CachedYtClient(yt.wrapper.client.Yt):
     def __init__(self, *args, **kwargs):
         """Initialize the client.
 
-          max_len:
-            Maximum number of cached nodes; the default is 16384.
-          max_age_seconds:
+        max_len:
+          Maximum number of cached nodes; the default is 16384.
+        max_age_seconds:
             After this period the node is removed from cache;
             the default value is 2 seconds.
-
-          The rest of the arguments are passed to the parent constructor.
+        The rest of the arguments are passed to the parent constructor.
         """
         max_len = kwargs.pop("max_len", 16384)
         max_age_seconds = kwargs.pop("max_age_seconds", 2)
@@ -96,132 +95,112 @@ class CachedYtClient(yt.wrapper.client.Yt):
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
-
         self._children_cache = expiringdict.ExpiringDict(
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
-
         self._non_existing_nodes_cache = expiringdict.ExpiringDict(
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
-
         self._type_cache = expiringdict.ExpiringDict(
             max_len=max_len,
             max_age_seconds=24 * 60 * 60,
         )
 
-    def _cache_node_attributes(self, path, attributes):
-        for attribute, value in attributes.iteritems():
-            cache_key = (path, attribute)
-            self._attribute_cache[cache_key] = value
-
-    @log_calls(_logger, "%(__name__)s(%(path)r, %(attributes)r)")
-    def get_attributes(self, path, attributes=[], spec={}):
-        """Get a node specified by a ypath.
-
-        attributes:
-          Warning! The argument changed semantically!
-          If it is not empty, the returned node *might* be a YsonEntity!
-        spec:
-          A dictionary; the only understood key is "force_request";
-          by setting it to True one can disable cache lookup.
-        """
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def get_attributes(self, path, attributes=[]):
+        """Get a subset of node's attributes."""
         if path in self._non_existing_nodes_cache:
-            raise yt.wrapper.YtError()
+            raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
 
-        cache_keys = [(path, attribute) for attribute in attributes]
         node_attributes = {}
-
-        need_request = spec.pop("force_request", False)
-        if not need_request:
-            message = "hit"
-            for attribute, cache_key in zip(attributes, cache_keys):
-                try:
-                    node_attributes[attribute] = self._attribute_cache[cache_key]
-                except KeyError:
-                    need_request = True
-                    message = "miss"
-                    break
-        else:
-            message = "force"
-
-        if need_request:
+        for attribute in attributes:
+            cache_key = (path, attribute)
             try:
-                real_node_attributes = super(CachedYtClient, self).get(path + "/@", spec=spec)
-            except yt.wrapper.YtError:
-                self._non_existing_nodes_cache[path] = True
-                raise
+                node_attributes[attribute] = self._attribute_cache[cache_key]
+            except KeyError:
+                break
+        else:
+            self._logger.debug("hit")
+            return node_attributes
+        self._logger.debug("miss")
 
-            self._cache_node_attributes(path, real_node_attributes)
-            for attribute in attributes:
-                if attribute in real_node_attributes:
-                    node_attributes[attribute] = real_node_attributes[attribute]
-                else:
-                    # Attribute is missing, put dummy entry to speedup subsequent requests.
-                    cache_key = (path, attribute)
-                    self._attribute_cache[cache_key] = node_attributes[attribute] = None
+        try:
+            real_node_attributes = super(CachedYtClient, self).get(path + "/@")
+        except yt.wrapper.YtError:
+            self._non_existing_nodes_cache[path] = True
+            raise
 
-        self._logger.debug("get_attributes\t%s", message)
+        self._attribute_cache.update(
+            ((path, attribute), value)
+            for attribute, value in real_node_attributes.iteritems()
+        )
+        for attribute in attributes:
+            if attribute in real_node_attributes:
+                node_attributes[attribute] = real_node_attributes[attribute]
+            else:
+                # Temporary hack: cache missing attribute's value as None.
+                cache_key = (path, attribute)
+                self._attribute_cache[cache_key] = None
+
         return node_attributes
 
-    def get_attribute(self, path, attribute, spec={}):
+    @log_calls(_logger, "%(__name__)s(%(path)r, %(attribute)r)")
+    def get_attribute(self, path, attribute):
+        """Get a node's attribute."""
+        # Temporary hack: security.selinux.* map to empty attribute.
+        if not attribute:
+            raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
+
         if attribute == "type":
-            if path in self._type_cache:
+            try:
                 return self._type_cache[path]
-        value = self.get_attributes(path, [attribute], spec)[attribute]
+            except KeyError:
+                pass
+
+        attributes = self.get_attributes(path, [attribute])
+        try:
+            value = attributes[attribute]
+        except KeyError:
+            raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
+
         if attribute == "type":
             self._type_cache[path] = value
+
         return value
 
-    def list(self, path, attributes=[], spec={}):
-        """Get children of a node specified by a ypath.
-
-        attributes:
-          Warning! The argument changed semantically!
-          If it is not empty, the returned node *might* be a YsonEntity!
-        spec:
-          A dictionary; the only understood key is "force_request";
-          by setting it to True one can disable cache lookup.
-        """
-        cache_key = path
-
-        need_request = spec.pop("force_request", False)
-        if not need_request:
-            try:
-                children = self._children_cache[cache_key]
-                message = "hit"
-            except KeyError:
-                need_request = True
-                message = "miss"
+    @log_calls(_logger, "%(__name__)s(%(path)r)")
+    def list(self, path, attributes=[]):
+        """Get children of a node specified by a ypath."""
+        try:
+            children = self._children_cache[path]
+        except KeyError:
+            pass
         else:
-            message = "force"
+            return children
 
-        if need_request:
-            children_nodes = super(CachedYtClient, self).list(
-                path, attributes=attributes
-            )
+        children = super(CachedYtClient, self).list(
+            path, attributes=attributes
+        )
+        self._children_cache[path] = children
 
-            if attributes:
-                children = self._children_cache[cache_key] = [item for item in children_nodes]
-                for child_node in children_nodes:
-                    child_path = path + "/" + child_node
-                    for attribute in attributes:
-                        child_key = (child_path, attribute)
-                        value = child_node.attributes.get(attribute, None)
-                        self._attribute_cache[child_key] = value
-            else:
-                children = self._children_cache[cache_key] = children_nodes
+        for attribute in attributes:
+            for child_node in children:
+                child_path = path + "/" + child_node
+                # Temporary hack: missing attribute's value is cached as None.
+                value = child_node.attributes.get(attribute)
+                self._attribute_cache[(child_path, attribute)] = value
 
-        self._logger.debug("list(%r)\t%s", path, message)
         return children
+
 
 class TableSlice:
     def __init__(self):
         self.lower_offset = self.upper_offset = 0
         self.lower_row = self.upper_row = 0
         self.slices = []
+
 
 class Cypress(fuse.Operations):
     """An implementation of FUSE operations on a Cypress tree."""
@@ -272,6 +251,7 @@ class Cypress(fuse.Operations):
         return mask | stat.S_IRUSR
 
     def _get_st_size(self, attributes):
+        """Get st_size for a node based on its attributes."""
         node_type = attributes["type"]
         if node_type == "file":
             return attributes["uncompressed_data_size"]
@@ -302,18 +282,20 @@ class Cypress(fuse.Operations):
 
     @handle_yt_errors
     @log_calls(_logger, "%(__name__)s(%(path)r)")
-    def getattr(self, path, fh):
+    def getattr(self, path, fi):
         ypath = self._to_ypath(path)
-        attributes = self._client.get_attributes(ypath, self._system_attributes)
+        attributes = self._client.get_attributes(
+            ypath,
+            self._system_attributes
+        )
         return self._get_stat(attributes)
 
     @handle_yt_errors
     @log_calls(_logger, "%(__name__)s(%(path)r)")
-    def readdir(self, path, fh):
+    def readdir(self, path, fi):
         ypath = self._to_ypath(path)
-
-        # "attributes" are used to speed up subsequent "getattr" queries
-        # about the node's children in case of "ls" command.
+        # Attributes are queried to speed up subsequent "getattr" queries
+        # about the node's children (for example, in case of "ls" command).
         children = self._client.list(ypath, attributes=self._system_attributes)
         return (child.decode("utf-8") for child in children)
 
@@ -321,17 +303,21 @@ class Cypress(fuse.Operations):
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def open(self, path, fi):
         ypath = self._to_ypath(path)
+
         type_ = self._client.get_attribute(ypath, "type")
-        if type_ not in ["file", "table"]:
+        if type_ == "table":
+            # Without this flag FUSE treats the file with st_size=0 as empty.
+            fi.direct_io = True
+        elif type_ != "file":
             raise fuse.FuseOSError(errno.EINVAL)
-        fi.direct_io = True
+
         return 0
 
-    def _read_file(self, ypath, length, offset, fh):
-        lines = self._client.download_file(ypath, length=length, offset=offset)
-        return "".join(lines)
+    def _read_file(self, ypath, length, offset, fi):
+        stream = self._client.read_file(ypath, length=length, offset=offset)
+        return stream.read()
 
-    def _read_table(self, ypath, length, offset, fh):
+    def _read_table(self, ypath, length, offset, fi):
         if ypath not in self._slice_cache:
             self._slice_cache[ypath] = TableSlice()
         file_slice = self._slice_cache[ypath]
@@ -359,16 +345,18 @@ class Cypress(fuse.Operations):
 
     @handle_yt_errors
     @log_calls(
-        _logger, "%(__name__)s(%(path)r, offset=%(offset)r, length=%(length)r)"
+        _logger,
+        "%(__name__)s(%(path)r, offset=%(offset)r, length=%(length)r)"
     )
-    def read(self, path, length, offset, fh):
+    def read(self, path, length, offset, fi):
         ypath = self._to_ypath(path)
-        type_ = self._client.get_attribute(ypath, "type")
 
+        type_ = self._client.get_attribute(ypath, "type")
         if type_ == "file":
-            return self._read_file(ypath, length, offset, fh)
+            return self._read_file(ypath, length, offset, fi)
         if type_ == "table":
-            return self._read_table(ypath, length, offset, fh)
+            return self._read_table(ypath, length, offset, fi)
+
         if type_ == "map_node":
             raise fuse.FuseOSError(errno.EISDIR)
         raise fuse.FuseOSError(errno.EINVAL)
@@ -385,8 +373,9 @@ class Cypress(fuse.Operations):
     def getxattr(self, path, name, position=0):
         ypath = self._to_ypath(path)
         attribute = self._get_attribute(name)
-        attr = self._client.get_attribute(ypath, attribute)
-        if attr is None:
+        try:
+            attr = self._client.get_attribute(ypath, attribute)
+        except yt.wrapper.YtError:
             raise fuse.FuseOSError(errno.ENODATA)
         return repr(attr)
 
@@ -394,7 +383,7 @@ class Cypress(fuse.Operations):
 def mount_cypress(proxy, mountpoint):
     """Mount a Cypress."""
     cypress = Cypress(CachedYtClient(proxy=proxy))
-    fuse.FUSE(cypress, mountpoint, foreground=False, debug=True, raw_fi=True)
+    fuse.FUSE(cypress, mountpoint, foreground=True, debug=False, raw_fi=True)
     return 0
 
 
