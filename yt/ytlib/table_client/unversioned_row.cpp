@@ -1220,8 +1220,7 @@ void TUnversionedOwningRow::Load(TStreamLoadContext& context)
 TUnversionedRowBuilder::TUnversionedRowBuilder(int initialValueCapacity /*= 16*/)
 {
     ValueCapacity_ = initialValueCapacity;
-    // NB: reserve, not resize to avoid initializing the area.
-    RowData_.reserve(GetUnversionedRowDataSize(ValueCapacity_));
+    RowData_.resize(GetUnversionedRowDataSize(ValueCapacity_));
     Reset();
 }
 
@@ -1229,8 +1228,7 @@ int TUnversionedRowBuilder::AddValue(const TUnversionedValue& value)
 {
     if (GetHeader()->Count == ValueCapacity_) {
         ValueCapacity_ = 2 * std::max(1, ValueCapacity_);
-        // NB: reserve, not resize to avoid initializing the area.
-        RowData_.reserve(GetUnversionedRowDataSize(ValueCapacity_));
+        RowData_.resize(GetUnversionedRowDataSize(ValueCapacity_));
     }
 
     auto* header = GetHeader();
