@@ -284,8 +284,6 @@ public:
             .Run(path, timestamp);
     }
 
-    // IExecutor implementation.
-
     virtual TFuture<TQueryStatistics> Execute(
         TPlanFragmentPtr fragment,
         ISchemafulWriterPtr writer) override
@@ -327,7 +325,7 @@ private:
 
     std::vector<std::pair<TDataSource, Stroka>> Split(
         TGuid objectId,
-        const std::vector<TRowRange>& ranges,
+        const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger,
         bool verboseLogging)
@@ -561,12 +559,10 @@ private:
             refiners,
             isOrdered,
             [&] (TConstQueryPtr subquery, int index) {
-                auto subfragment = New<TPlanFragment>(fragment->Source);
+                auto subfragment = New<TPlanSubFragment>(fragment->Source);
                 subfragment->Timestamp = fragment->Timestamp;
                 subfragment->Query = subquery;
-                subfragment->RangeExpansionLimit = fragment->RangeExpansionLimit,
-                subfragment->VerboseLogging = fragment->VerboseLogging;
-                subfragment->EnableCodeCache = fragment->EnableCodeCache;
+                subfragment->Options = fragment->Options;
 
                 Stroka address;
                 std::tie(subfragment->DataSources, address) = getSubsources(index);
@@ -580,7 +576,12 @@ private:
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto evaluator = Connection_->GetQueryEvaluator();
-                return evaluator->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_, fragment->EnableCodeCache);
+                return evaluator->Run(
+                    topQuery,
+                    std::move(reader),
+                    std::move(writer),
+                    FunctionRegistry_,
+                    fragment->Options.EnableCodeCache);
             },
             FunctionRegistry_);
     }
@@ -590,28 +591,22 @@ private:
         TRowBufferPtr rowBuffer,
         const NLogging::TLogger& Logger)
     {
-        const auto& dataSources = fragment->DataSources;
+        const auto& tableId = fragment->TableId;
+        const auto& ranges = fragment->Ranges;
 
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
-            dataSources,
+            tableId,
+            ranges,
             rowBuffer,
             Connection_->GetColumnEvaluatorCache(),
             FunctionRegistry_,
-            fragment->RangeExpansionLimit,
-            fragment->VerboseLogging);
+            fragment->Options.RangeExpansionLimit,
+            fragment->Options.VerboseLogging);
 
         LOG_DEBUG("Splitting %v pruned splits", prunedRanges.size());
 
-        std::vector<std::pair<TDataSource, Stroka>> allSplits;
-        for (int index = 0; index < dataSources.size(); ++index) {
-            const auto& id = dataSources[index].Id;
-            const auto& ranges = prunedRanges[index];
-            auto splits = Split(id, ranges, rowBuffer, Logger, fragment->VerboseLogging);
-            std::move(splits.begin(), splits.end(), std::back_inserter(allSplits));
-        }
-
-        return allSplits;
+        return Split(tableId, prunedRanges, rowBuffer, Logger, fragment->Options.VerboseLogging);
     }
 
     TQueryStatistics DoExecute(
@@ -675,7 +670,7 @@ private:
     }
 
    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
-        TPlanFragmentPtr fragment,
+        TPlanSubFragmentPtr fragment,
         const Stroka& address)
     {
         auto Logger = BuildLogger(fragment->Query);
@@ -693,6 +688,7 @@ private:
             {
                 NProfiling::TAggregatingTimingGuard timingGuard(&serializationTime);
                 ToProto(req->mutable_plan_fragment(), fragment);
+
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
             }
 
@@ -1475,10 +1471,10 @@ private:
             inputRowLimit,
             outputRowLimit,
             options.Timestamp);
-        fragment->RangeExpansionLimit = options.RangeExpansionLimit;
-        fragment->VerboseLogging = options.VerboseLogging;
-        fragment->EnableCodeCache = options.EnableCodeCache;
-        fragment->MaxSubqueries = options.MaxSubqueries;
+        fragment->Options.RangeExpansionLimit = options.RangeExpansionLimit;
+        fragment->Options.VerboseLogging = options.VerboseLogging;
+        fragment->Options.EnableCodeCache = options.EnableCodeCache;
+        fragment->Options.MaxSubqueries = options.MaxSubqueries;
 
         ISchemafulWriterPtr writer;
         TFuture<IRowsetPtr> asyncRowset;

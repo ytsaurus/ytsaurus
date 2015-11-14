@@ -27,10 +27,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueryClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTableSchema GetIntermediateSchema(
     TConstGroupClausePtr groupClause,
     IFunctionRegistryPtr functionRegistry)
@@ -172,11 +168,12 @@ std::pair<TConstQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     return std::make_pair(topQuery, subqueries);
 }
 
-TGroupedRanges GetPrunedRanges(
+TRowRanges GetPrunedRanges(
     TConstExpressionPtr predicate,
     const TTableSchema& tableSchema,
     const TKeyColumns& keyColumns,
-    const TDataSources& sources,
+    NObjectClient::TObjectId tableId,
+    TRowRanges ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
@@ -201,54 +198,28 @@ TGroupedRanges GetPrunedRanges(
             range.second);
     };
 
-    LOG_DEBUG("Splitting %v sources according to ranges", sources.size());
+    LOG_DEBUG("Splitting %v sources according to ranges", ranges.size());
 
-    TGroupedRanges prunedSources;
-    for (const auto& source : sources) {
-        prunedSources.emplace_back();
-        const auto& originalRange = source.Range;
-        auto ranges = rangeInferrer(originalRange, rowBuffer);
-        auto& group = prunedSources.back();
-        group.insert(group.end(), ranges.begin(), ranges.end());
+    TRowRanges result;
+    for (const auto& originalRange : ranges) {
+        auto inferred = rangeInferrer(originalRange, rowBuffer);
+        result.insert(result.end(), inferred.begin(), inferred.end());
 
-        for (const auto& range : ranges) {
+        for (const auto& range : inferred) {
             LOG_DEBUG_IF(verboseLogging, "Narrowing source %v key range from %v to %v",
-                source.Id,
+                tableId,
                 keyRangeFormatter(originalRange),
                 keyRangeFormatter(range));
         }
     }
 
-    return prunedSources;
+    return result;
 }
 
-TGroupedRanges GetPrunedRanges(
-    TConstExpressionPtr predicate,
-    const TTableSchema& tableSchema,
-    const TKeyColumns& keyColumns,
-    const TDataSources& sources,
-    const TRowBufferPtr& rowBuffer,
-    const TColumnEvaluatorCachePtr& evaluatorCache,
-    const IFunctionRegistryPtr functionRegistry,
-    ui64 rangeExpansionLimit,
-    bool verboseLogging)
-{
-    return GetPrunedRanges(
-        predicate,
-        tableSchema,
-        keyColumns,
-        sources,
-        rowBuffer,
-        evaluatorCache,
-        functionRegistry,
-        rangeExpansionLimit,
-        verboseLogging,
-        Logger);
-}
-
-TGroupedRanges GetPrunedRanges(
+TRowRanges GetPrunedRanges(
     TConstQueryPtr query,
-    const TDataSources& sources,
+    NObjectClient::TObjectId tableId,
+    TRowRanges ranges,
     const TRowBufferPtr& rowBuffer,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const IFunctionRegistryPtr functionRegistry,
@@ -260,7 +231,8 @@ TGroupedRanges GetPrunedRanges(
         query->WhereClause,
         query->TableSchema,
         TableSchemaToKeyColumns(query->RenamedTableSchema, query->KeyColumnsCount),
-        sources,
+        tableId,
+        ranges,
         rowBuffer,
         evaluatorCache,
         functionRegistry,

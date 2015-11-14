@@ -1525,13 +1525,10 @@ TPlanFragmentPtr PreparePlanFragment(
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
-    TRowRange rowRange(
+    planFragment->TableId = GetObjectIdFromDataSplit(selfDataSplit);
+    planFragment->Ranges.push_back({
         planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
-        planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
-
-    planFragment->DataSources.push_back({
-        GetObjectIdFromDataSplit(selfDataSplit),
-        rowRange});
+        planFragment->KeyRangesRowBuffer->Capture(range.second.Get())});
 
     return planFragment;
 }

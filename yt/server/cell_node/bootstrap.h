@@ -72,7 +72,7 @@ public:
     NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
     NDataNode::TJournalDispatcherPtr GetJournalDispatcher() const;
     NDataNode::TMasterConnectorPtr GetMasterConnector() const;
-    NQueryClient::IExecutorPtr GetQueryExecutor() const;
+    NQueryClient::ISubExecutorPtr GetQueryExecutor() const;
 
     NConcurrency::IThroughputThrottlerPtr GetReplicationInThrottler() const;
     NConcurrency::IThroughputThrottlerPtr GetReplicationOutThrottler() const;
@@ -131,7 +131,7 @@ private:
     NTabletNode::TSecurityManagerPtr SecurityManager;
     NTabletNode::TInMemoryManagerPtr InMemoryManager;
 
-    NQueryClient::IExecutorPtr QueryExecutor;
+    NQueryClient::ISubExecutorPtr QueryExecutor;
 
 
     void DoRun();

@@ -232,34 +232,27 @@ protected:
     {
         auto planFragment = PreparePlanFragment(&PrepareMock_, source, CreateBuiltinFunctionRegistry());
 
-        TDataSources sources;
+        TRowRanges sources;
         for (const auto& split : dataSplits) {
             auto range = GetBothBoundsFromDataSplit(split);
     
-            TRowRange rowRange(
+            sources.emplace_back(
                 planFragment->KeyRangesRowBuffer->Capture(range.first.Get()),
                 planFragment->KeyRangesRowBuffer->Capture(range.second.Get()));
-
-            sources.push_back(TDataSource{
-                GetObjectIdFromDataSplit(split),
-                rowRange});
         }
 
         auto rowBuffer = New<TRowBuffer>();
-        auto groupedRanges = GetPrunedRanges(
+        auto prunedRanges = GetPrunedRanges(
             planFragment->Query,
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe),
             sources,
             rowBuffer,
             ColumnEvaluatorCache_,
             CreateBuiltinFunctionRegistry(),
             1000,
             true);
-        int count = 0;
-        for (const auto& group : groupedRanges) {
-            count += group.size();
-        }
 
-        EXPECT_EQ(count, subqueriesCount);
+        EXPECT_EQ(prunedRanges.size(), subqueriesCount);
     }
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -632,12 +625,11 @@ protected:
                 auto planFragment = New<TPlanFragment>();
 
                 planFragment->Timestamp = primaryFragment->Timestamp;
-                planFragment->DataSources.push_back({
-                    foreignDataId,
-                    {
+                planFragment->TableId = foreignDataId;
+                planFragment->Ranges.push_back({
                         planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
                         planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
-                    }});
+                    });
                 planFragment->Query = subquery;
 
                 auto subqueryResult = DoExecuteQuery(

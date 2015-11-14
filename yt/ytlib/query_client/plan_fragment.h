@@ -408,49 +408,72 @@ DEFINE_REFCOUNTED_TYPE(TQuery)
 void ToProto(NProto::TQuery* proto, TConstQueryPtr original);
 TQueryPtr FromProto(const NProto::TQuery& serialized);
 
+struct TQueryOptions
+{
+    bool VerboseLogging = false;
+    int MaxSubqueries = std::numeric_limits<int>::max();
+    ui64 RangeExpansionLimit = 0;
+    bool EnableCodeCache = true;
+};
+
 struct TDataSource
 {
-    //! Either a chunk id, a table id or a tablet id.
+    //! Either a chunk id or tablet id.
     NObjectClient::TObjectId Id;
     TRowRange Range;
 };
 
 typedef std::vector<TDataSource> TDataSources;
 
-struct TPlanFragment
+struct TPlanFragmentBase
     : public TIntrinsicRefCounted
 {
-    explicit TPlanFragment(const Stroka& source = Stroka())
+    explicit TPlanFragmentBase(const Stroka& source = Stroka())
         : Source(source)
     { }
 
     Stroka Source;
 
     TTimestamp Timestamp;
-
     const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
-    TDataSources DataSources;
+
+    NObjectClient::TObjectId TableId;
+    TRowRanges Ranges;
 
     TConstQueryPtr Query;
-
-    bool VerboseLogging = false;
-    int MaxSubqueries = std::numeric_limits<int>::max();
-    ui64 RangeExpansionLimit = 0;
-    bool EnableCodeCache = true;
+    TQueryOptions Options;
 };
 
-struct TPlanFragmentOptions
+
+struct TPlanFragment
+    : public TPlanFragmentBase
 {
-    bool VerboseLogging = false;
-    int MaxSubqueries = std::numeric_limits<int>::max();
-    ui64 RangeExpansionLimit = 0;
-    bool EnableCodeCache = true;
+    explicit TPlanFragment(const Stroka& source = Stroka())
+        : TPlanFragmentBase(source)
+    { }
+
+    NObjectClient::TObjectId TableId;
+    TRowRanges Ranges;
+
 };
+
+struct TPlanSubFragment
+    : public TPlanFragmentBase
+{
+    explicit TPlanSubFragment(const Stroka& source = Stroka())
+        : TPlanFragmentBase(source)
+    { }
+
+    TDataSources DataSources;
+
+};
+
 
 DEFINE_REFCOUNTED_TYPE(TPlanFragment)
+DEFINE_REFCOUNTED_TYPE(TPlanSubFragment)
 
-void ToProto(NProto::TPlanFragment* serialized, TConstPlanFragmentPtr fragment);
-TPlanFragmentPtr FromProto(const NProto::TPlanFragment& serialized);
+void ToProto(NProto::TPlanSubFragment* serialized, TConstPlanSubFragmentPtr fragment);
+TPlanSubFragmentPtr FromProto(const NProto::TPlanSubFragment& serialized);
 
 Stroka InferName(TConstExpressionPtr expr, bool omitValues = false);
 Stroka InferName(TConstQueryPtr query, bool omitValues = false);

@@ -97,7 +97,7 @@ Stroka DataSourceFormatter(const NQueryClient::TDataSource& source)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryExecutor
-    : public IExecutor
+    : public ISubExecutor
 {
 public:
     explicit TQueryExecutor(
@@ -112,7 +112,7 @@ public:
 
     // IExecutor implementation.
     virtual TFuture<TQueryStatistics> Execute(
-        TPlanFragmentPtr fragment,
+        TPlanSubFragmentPtr fragment,
         ISchemafulWriterPtr writer) override
     {
         auto securityManager = Bootstrap_->GetSecurityManager();
@@ -137,7 +137,7 @@ private:
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
     TQueryStatistics DoCoordinateAndExecute(
-        TPlanFragmentPtr fragment,
+        TPlanSubFragmentPtr fragment,
         ISchemafulWriterPtr writer,
         bool isOrdered,
         const std::vector<TRefiner>& refiners,
@@ -177,15 +177,14 @@ private:
 
                     auto planFragment = New<TPlanFragment>();
                     planFragment->Timestamp = fragment->Timestamp;
-                    planFragment->DataSources.push_back({
-                        dataId,
-                        {
+                    planFragment->TableId = dataId;
+                    planFragment->Ranges.push_back({
                             planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
                             planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
-                        }});
+                        });
 
                     planFragment->Query = subquery;
-                    planFragment->VerboseLogging = fragment->VerboseLogging;
+                    planFragment->Options.VerboseLogging = fragment->Options.VerboseLogging;
 
                     auto subqueryResult = remoteExecutor->Execute(planFragment, writer);
 
@@ -201,7 +200,7 @@ private:
                         pipe->GetWriter(),
                         foreignExecuteCallback,
                         FunctionRegistry_,
-                        fragment->EnableCodeCache);
+                        fragment->Options.EnableCodeCache);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
                     if (!result.IsOK()) {
@@ -214,7 +213,8 @@ private:
             },
             [&] (TConstQueryPtr topQuery, ISchemafulReaderPtr reader, ISchemafulWriterPtr writer) {
                 LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
-                auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_, fragment->EnableCodeCache);
+                auto result = Evaluator_->Run(topQuery, std::move(reader), std::move(writer), FunctionRegistry_,
+                                              fragment->Options.EnableCodeCache);
                 LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             },
@@ -222,7 +222,7 @@ private:
     }
 
     TQueryStatistics DoExecute(
-        TPlanFragmentPtr fragment,
+        TPlanSubFragmentPtr fragment,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
@@ -257,14 +257,14 @@ private:
         LOG_DEBUG("Splitting %v sources", rangeSources.size());
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(rangeSources, rowBuffer, true, Logger, fragment->VerboseLogging);
+        auto splits = Split(rangeSources, rowBuffer, true, Logger, fragment->Options.VerboseLogging);
         int splitCount = splits.size();
         int splitOffset = 0;
         std::vector<TDataSources> groupedSplits;
 
         LOG_DEBUG("Grouping %v splits", splitCount);
 
-        auto maxSubqueries = std::min(fragment->MaxSubqueries, Config_->MaxSubqueries);
+        auto maxSubqueries = std::min(fragment->Options.MaxSubqueries, Config_->MaxSubqueries);
 
         for (int queryIndex = 1; queryIndex <= maxSubqueries; ++queryIndex) {
             int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
@@ -278,7 +278,7 @@ private:
 
         auto ranges = GetRanges(groupedSplits);
 
-        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
+        LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Got ranges for groups %v",
             JoinToString(ranges, RowRangeFormatter));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
@@ -293,7 +293,7 @@ private:
                 return RefinePredicate(GetRange(groupedSplit), expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                LOG_DEBUG_IF(fragment->VerboseLogging, "Creating reader for ranges %v",
+                LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Creating reader for ranges %v",
                     JoinToString(groupedSplit, DataSourceFormatter));
 
                 auto bottomSplitReaderGenerator = [
@@ -327,7 +327,7 @@ private:
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
                 auto groupedKeys = GroupKeysByPartition(keySource.first, keySource.second);
                 for (const auto& keys : groupedKeys) {
-                    LOG_DEBUG_IF(fragment->VerboseLogging, "Creating lookup reader for keys %v",
+                    LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Creating lookup reader for keys %v",
                         JoinToString(keys));
                     bottomSplitReaders.push_back(GetReader(
                         fragment->Query->TableSchema,
@@ -370,7 +370,7 @@ private:
     }
 
     TQueryStatistics DoExecuteOrdered(
-        TPlanFragmentPtr fragment,
+        TPlanSubFragmentPtr fragment,
         ISchemafulWriterPtr writer,
         const TNullable<Stroka>& maybeUser)
     {
@@ -382,7 +382,7 @@ private:
         auto Logger = BuildLogger(fragment->Query);
 
         auto rowBuffer = New<TRowBuffer>();
-        auto splits = Split(fragment->DataSources, rowBuffer, true, Logger, fragment->VerboseLogging);
+        auto splits = Split(fragment->DataSources, rowBuffer, true, Logger, fragment->Options.VerboseLogging);
 
         LOG_DEBUG("Sorting %v splits", splits.size());
 
@@ -390,7 +390,7 @@ private:
             return lhs.Range.first < rhs.Range.first;
         });
 
-        LOG_DEBUG_IF(fragment->VerboseLogging, "Got ranges for groups %v",
+        LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Got ranges for groups %v",
             JoinToString(splits, DataSourceFormatter));
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
@@ -889,7 +889,7 @@ private:
 
 };
 
-IExecutorPtr CreateQueryExecutor(
+ISubExecutorPtr CreateQueryExecutor(
     TQueryAgentConfigPtr config,
     TBootstrap* bootstrap)
 {

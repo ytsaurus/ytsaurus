@@ -29,6 +29,17 @@ struct IExecutor
 
 DEFINE_REFCOUNTED_TYPE(IExecutor)
 
+struct ISubExecutor
+    : public virtual TRefCounted
+{
+    virtual TFuture<TQueryStatistics> Execute(
+        TPlanSubFragmentPtr fragment,
+        ISchemafulWriterPtr writer) = 0;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(ISubExecutor)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IPrepareCallbacks
