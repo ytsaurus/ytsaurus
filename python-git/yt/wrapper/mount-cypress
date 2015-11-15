@@ -95,11 +95,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
-        self._children_cache = expiringdict.ExpiringDict(
-            max_len=max_len,
-            max_age_seconds=max_age_seconds
-        )
-        self._non_existing_nodes_cache = expiringdict.ExpiringDict(
+        self._node_cache = expiringdict.ExpiringDict(
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
@@ -111,45 +107,54 @@ class CachedYtClient(yt.wrapper.client.Yt):
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def get_attributes(self, path, attributes=[]):
         """Get a subset of node's attributes."""
-        if path in self._non_existing_nodes_cache:
-            raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
+        try:
+            flag, value = self._node_cache[path]
+        except KeyError:
+            pass
+        else:
+            if not flag:
+                self._logger.debug("\thit, not exists")
+                raise value
 
         node_attributes = {}
         for attribute in attributes:
-            cache_key = (path, attribute)
             try:
-                node_attributes[attribute] = self._attribute_cache[cache_key]
+                flag, value = self._attribute_cache[(path, attribute)]
             except KeyError:
                 break
+            if flag:
+                node_attributes[attribute] = value
         else:
-            self._logger.debug("hit")
+            self._logger.debug("\thit, exists")
             return node_attributes
-        self._logger.debug("miss")
 
         try:
             real_node_attributes = super(CachedYtClient, self).get(path + "/@")
-        except yt.wrapper.YtError:
-            self._non_existing_nodes_cache[path] = True
+        except yt.wrapper.YtError as error:
+            self._node_cache[path] = (False, error)
+            self._logger.debug("\tmiss, not exists")
             raise
+        self._logger.debug("\tmiss, exists")
 
         self._attribute_cache.update(
-            ((path, attribute), value)
+            ((path, attribute), (True, value))
             for attribute, value in real_node_attributes.iteritems()
         )
         for attribute in attributes:
             if attribute in real_node_attributes:
                 node_attributes[attribute] = real_node_attributes[attribute]
             else:
-                # Temporary hack: cache missing attribute's value as None.
-                cache_key = (path, attribute)
-                self._attribute_cache[cache_key] = None
+                self._attribute_cache[(path, attribute)] = (
+                    False,
+                    yt.wrapper.YtError("No such attribute: " + attribute)
+                )
 
         return node_attributes
 
     @log_calls(_logger, "%(__name__)s(%(path)r, %(attribute)r)")
     def get_attribute(self, path, attribute):
         """Get a node's attribute."""
-        # Temporary hack: security.selinux.* map to empty attribute.
+        # Temporary hack: security.selinux maps to empty attribute.
         if not attribute:
             raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
 
@@ -174,23 +179,27 @@ class CachedYtClient(yt.wrapper.client.Yt):
     def list(self, path, attributes=[]):
         """Get children of a node specified by a ypath."""
         try:
-            children = self._children_cache[path]
+            flag, value = self._node_cache[path]
         except KeyError:
             pass
         else:
-            return children
+            if flag:
+                return value
+            raise value
 
         children = super(CachedYtClient, self).list(
             path, attributes=attributes
         )
-        self._children_cache[path] = children
+        self._node_cache[path] = (True, children)
 
         for attribute in attributes:
             for child_node in children:
                 child_path = path + "/" + child_node
-                # Temporary hack: missing attribute's value is cached as None.
-                value = child_node.attributes.get(attribute)
-                self._attribute_cache[(child_path, attribute)] = value
+                try:
+                    cache_value = (True, child_node.attributes[attribute])
+                except KeyError:
+                    cache_value = (False, None)
+                self._attribute_cache[(child_path, attribute)] = cache_value
 
         return children
 
