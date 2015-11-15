@@ -181,6 +181,7 @@ def start(masters_count=1, nodes_count=3, schedulers_count=1, start_proxy=True,
     environment = YTEnvironment(master_config, scheduler_config, node_config, proxy_config)
 
     environment.NUM_MASTERS = masters_count
+    environment.NUM_NONVOTING_MASTERS = 0
     environment.NUM_NODES = nodes_count
     environment.NUM_SCHEDULERS = schedulers_count
     environment.START_PROXY = start_proxy
