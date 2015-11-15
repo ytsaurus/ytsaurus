@@ -99,10 +99,6 @@ class CachedYtClient(yt.wrapper.client.Yt):
             max_len=max_len,
             max_age_seconds=max_age_seconds
         )
-        self._type_cache = expiringdict.ExpiringDict(
-            max_len=max_len,
-            max_age_seconds=24 * 60 * 60,
-        )
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def get_attributes(self, path, attributes=[]):
@@ -154,22 +150,11 @@ class CachedYtClient(yt.wrapper.client.Yt):
     @log_calls(_logger, "%(__name__)s(%(path)r, %(attribute)r)")
     def get_attribute(self, path, attribute):
         """Get a node's attribute."""
-        if attribute == "type":
-            try:
-                return self._type_cache[path]
-            except KeyError:
-                pass
-
         attributes = self.get_attributes(path, [attribute])
         try:
-            value = attributes[attribute]
+            return attributes[attribute]
         except KeyError:
             raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
-
-        if attribute == "type":
-            self._type_cache[path] = value
-
-        return value
 
     @log_calls(_logger, "%(__name__)s(%(path)r)")
     def list(self, path, attributes=[]):
@@ -226,7 +211,12 @@ class Cypress(fuse.Operations):
 
     def __init__(self, client):
         super(fuse.Operations, self).__init__()
+
         self._client = client
+
+        self._next_fh = 0
+        self._file_table = {}
+
         self._slice_cache = {}
 
     @staticmethod
@@ -252,6 +242,7 @@ class Cypress(fuse.Operations):
         elif node_type == "table":
             mask =  stat.S_IFREG
         else:
+            # Support links maybe?
             mask = stat.S_IFBLK
         return mask | stat.S_IRUSR
 
@@ -304,6 +295,8 @@ class Cypress(fuse.Operations):
         # Attributes are queried to speed up subsequent "getattr" queries
         # about the node's children (for example, in case of "ls" command).
         children = self._client.list(ypath, attributes=self._system_attributes)
+        # Still having encoding problems,
+        # try listing //statbox/home/zahaaar at Plato.
         return (child.decode("utf-8") for child in children)
 
     @handle_yt_errors
@@ -318,6 +311,17 @@ class Cypress(fuse.Operations):
         elif type_ != "file":
             raise fuse.FuseOSError(errno.EINVAL)
 
+        # Non-atomic :(
+        fi.fh = self._next_fh
+        self._next_fh += 1
+
+        self._file_table[fi.fh] = {"ypath": ypath, "type": type_}
+
+        return 0
+
+    @log_calls(_logger, "%(__name__)s()")
+    def release(self, _, fi):
+        del self._file_table[fi.fh]
         return 0
 
     def _read_file(self, ypath, length, offset, fi):
@@ -353,20 +357,17 @@ class Cypress(fuse.Operations):
     @handle_yt_errors
     @log_calls(
         _logger,
-        "%(__name__)s(%(path)r, offset=%(offset)r, length=%(length)r)"
+        "%(__name__)s(offset=%(offset)r, length=%(length)r)"
     )
-    def read(self, path, length, offset, fi):
-        ypath = self._to_ypath(path)
+    def read(self, _, length, offset, fi):
+        _file_table_entry = self._file_table[fi.fh]
+        ypath = _file_table_entry["ypath"]
+        type_ = _file_table_entry["type"]
 
-        type_ = self._client.get_attribute(ypath, "type")
         if type_ == "file":
             return self._read_file(ypath, length, offset, fi)
         if type_ == "table":
             return self._read_table(ypath, length, offset, fi)
-
-        if type_ == "map_node":
-            raise fuse.FuseOSError(errno.EISDIR)
-        raise fuse.FuseOSError(errno.EINVAL)
 
     @handle_yt_errors
     @log_calls(_logger, "%(__name__)s(%(path)r)")
