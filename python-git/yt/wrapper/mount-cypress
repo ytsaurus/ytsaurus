@@ -154,10 +154,6 @@ class CachedYtClient(yt.wrapper.client.Yt):
     @log_calls(_logger, "%(__name__)s(%(path)r, %(attribute)r)")
     def get_attribute(self, path, attribute):
         """Get a node's attribute."""
-        # Temporary hack: security.selinux maps to empty attribute.
-        if not attribute:
-            raise yt.wrapper.YtError("Node {} doesn't exist".format(path))
-
         if attribute == "type":
             try:
                 return self._type_cache[path]
@@ -283,11 +279,13 @@ class Cypress(fuse.Operations):
 
     def _get_xattr(self, attribute):
         """Convert Cypress attribute name to Linux attribute name."""
-        return "user.cypress." + attribute
+        return "user." + attribute
 
     def _get_attribute(self, xattr):
         """Convert Linux attribute name to Cypress attribute name."""
-        return ".".join(xattr.split(".")[2:])
+        if not xattr.startswith("user."):
+            raise fuse.FuseOSError(errno.ENODATA)
+        return ".".join(xattr.split(".")[1:])
 
     @handle_yt_errors
     @log_calls(_logger, "%(__name__)s(%(path)r)")
