@@ -326,7 +326,7 @@ class ConfigsProvider_18(ConfigsProvider):
             for i in xrange(master_count):
                 voting = (i < master_count - nonvoting_master_count)
                 address = YsonString("{0}:{1}".format(self.fqdn, self.ports["master"][cell_index][2 * i]))
-                if voting:
+                if not voting:
                     address.attributes["voting"] = False
                 cell_addresses.append(address)
             addresses.append(cell_addresses)
