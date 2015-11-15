@@ -1,7 +1,8 @@
 import default_configs
-from helpers import get_open_port, versions_cmp
+from helpers import versions_cmp
 
 from yt.common import YtError, unlist
+from yt.yson import YsonString
 
 import os
 import abc
@@ -324,9 +325,10 @@ class ConfigsProvider_18(ConfigsProvider):
             cell_addresses = []
             for i in xrange(master_count):
                 voting = (i < master_count - nonvoting_master_count)
-                cell_addresses.append("{0}{1}:{2}".format("" if voting else "<voting=false>",
-                                                          self.fqdn,
-                                                          self.ports["master"][cell_index][2 * i]))
+                address = YsonString("{0}:{1}".format(self.fqdn, self.ports["master"][cell_index][2 * i]))
+                if voting:
+                    address.attributes["voting"] = False
+                cell_addresses.append(address)
             addresses.append(cell_addresses)
 
         cell_configs = []

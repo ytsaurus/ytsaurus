@@ -24,6 +24,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         super(TestSchedulerRemoteCopyCommands, cls).setup_class()
         # Change cell tag of remote cluster
         cls.Env._run_all(master_count=1,
+                         nonvoting_master_count=0,
                          node_count=9,
                          secondary_master_cell_count=secondary_master_cell_count,
                          scheduler_count=0,
