@@ -61,6 +61,7 @@ public:
         ISchemafulWriterPtr writer,
         const TExecuteQuery& executeCallback,
         const IFunctionRegistryPtr functionRegistry,
+        const TColumnEvaluatorCachePtr evaluatorCache,
         bool enableCodeCache)
     {
         TRACE_CHILD("QueryClient", "Evaluate") {
@@ -84,7 +85,14 @@ public:
 
                 TCGVariables fragmentParams;
                 std::vector<std::vector<bool>> allLiteralArgs;
-                auto cgQuery = Codegen(query, fragmentParams, functionRegistry, allLiteralArgs, statistics, enableCodeCache);
+                auto cgQuery = Codegen(
+                    query,
+                    fragmentParams,
+                    functionRegistry,
+                    evaluatorCache,
+                    allLiteralArgs,
+                    statistics,
+                    enableCodeCache);
 
                 LOG_DEBUG("Evaluating plan fragment");
 
@@ -191,13 +199,14 @@ private:
         TConstQueryPtr query,
         TCGVariables& variables,
         const IFunctionRegistryPtr functionRegistry,
+        const TColumnEvaluatorCachePtr evaluatorCache,
         std::vector<std::vector<bool>>& literalArgs,
         TQueryStatistics& statistics,
         bool enableCodeCache)
     {
         llvm::FoldingSetNodeID id;
 
-        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, &literalArgs, functionRegistry);
+        auto makeCodegenQuery = Profile(query, &id, &variables, nullptr, &literalArgs, functionRegistry, evaluatorCache);
 
         auto Logger = BuildLogger(query);
 
@@ -263,9 +272,17 @@ TQueryStatistics TEvaluator::RunWithExecutor(
     ISchemafulWriterPtr writer,
     TExecuteQuery executeCallback,
     const IFunctionRegistryPtr functionRegistry,
+    const TColumnEvaluatorCachePtr evaluatorCache,
     bool enableCodeCache)
 {
-    return Impl_->Run(query, std::move(reader), std::move(writer), executeCallback, functionRegistry, enableCodeCache);
+    return Impl_->Run(
+        query,
+        std::move(reader),
+        std::move(writer),
+        executeCallback,
+        functionRegistry,
+        evaluatorCache,
+        enableCodeCache);
 }
 
 TQueryStatistics TEvaluator::Run(
@@ -275,7 +292,14 @@ TQueryStatistics TEvaluator::Run(
     const IFunctionRegistryPtr functionRegistry,
     bool enableCodeCache)
 {
-    return RunWithExecutor(query, std::move(reader), std::move(writer), nullptr, functionRegistry, enableCodeCache);
+    return RunWithExecutor(
+        query,
+        std::move(reader),
+        std::move(writer),
+        nullptr,
+        functionRegistry,
+        nullptr,
+        enableCodeCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -67,7 +67,11 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
+        LOG_DEBUG("Subfragemnt deserialization started");
+
         auto planFragment = FromProto(request->plan_fragment());
+
+        LOG_DEBUG("Subfragemnt deserialization finished");
 
         context->SetRequestInfo("FragmentId: %v", planFragment->Query->Id);
 

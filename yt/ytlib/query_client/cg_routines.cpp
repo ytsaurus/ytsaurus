@@ -211,6 +211,9 @@ void JoinOpHelper(
     // Collect join ids.
     collectRows(collectRowsClosure, &keys, &keysLookup, &allRows);
 
+    LOG_DEBUG("Sorting %v join keys",
+        keys.size());
+
     std::sort(keys.begin(), keys.end());
 
     LOG_DEBUG("Collected %v join keys from %v rows",

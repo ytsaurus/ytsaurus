@@ -221,7 +221,8 @@ bool UpdateAndCheckRowLimit(i64* limit, char* flag);
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
-    const TTableSchema& selfTableSchema);
+    const TTableSchema& selfTableSchema,
+    const TColumnEvaluatorCachePtr evaluatorCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -377,6 +377,7 @@ TOwningRow BuildRow(
 TFuture<TQueryStatistics> DoExecuteQuery(
     const std::vector<Stroka>& source,
     IFunctionRegistryPtr functionRegistry,
+    TColumnEvaluatorCachePtr columnEvaluatorCache,
     EFailureLocation failureLocation,
     TPlanFragmentPtr fragment,
     ISchemafulWriterPtr writer,
@@ -416,6 +417,7 @@ TFuture<TQueryStatistics> DoExecuteQuery(
         writer,
         executeCallback,
         functionRegistry,
+        columnEvaluatorCache,
         true));
 }
 
@@ -575,6 +577,10 @@ protected:
         EFailureLocation failureLocation,
         IFunctionRegistryPtr functionRegistry)
     {
+        auto columnEvaluatorCache = New<TColumnEvaluatorCache>(
+            New<TColumnEvaluatorCacheConfig>(),
+            CreateBuiltinFunctionRegistry());
+
         std::vector<std::vector<TRow>> results;
         typedef const TRow(TOwningRow::*TGetFunction)() const;
 
@@ -620,21 +626,22 @@ protected:
             auto executeCallback = [&] (
                 const TQueryPtr& subquery,
                 TGuid foreignDataId,
+                TRowBufferPtr buffer,
+                TRowRanges ranges,
                 ISchemafulWriterPtr writer) mutable -> TQueryStatistics
             {
                 auto planFragment = New<TPlanFragment>();
 
                 planFragment->Timestamp = primaryFragment->Timestamp;
                 planFragment->TableId = foreignDataId;
-                planFragment->Ranges.push_back({
-                        planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                        planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
-                    });
+                planFragment->KeyRangesRowBuffer = buffer;
+                planFragment->Ranges = ranges;
                 planFragment->Query = subquery;
 
                 auto subqueryResult = DoExecuteQuery(
                     owningSources[foreignSplitIndex++],
                     functionRegistry,
+                    columnEvaluatorCache,
                     failureLocation,
                     planFragment,
                     writer);
@@ -646,6 +653,7 @@ protected:
             return DoExecuteQuery(
                 owningSources.front(),
                 functionRegistry,
+                columnEvaluatorCache,
                 failureLocation,
                 primaryFragment,
                 WriterMock_,

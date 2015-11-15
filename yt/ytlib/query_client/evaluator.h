@@ -22,6 +22,7 @@ public:
         ISchemafulWriterPtr writer,
         TExecuteQuery executeCallback,
         const IFunctionRegistryPtr functionRegistry,
+        const TColumnEvaluatorCachePtr evaluatorCache,
         bool enableCodeCache);
 
     TQueryStatistics Run(

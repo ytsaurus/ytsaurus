@@ -14,6 +14,8 @@ namespace NQueryClient {
 typedef std::function<TQueryStatistics(
     const TQueryPtr& query,
     TGuid dataId,
+    TRowBufferPtr buffer,
+    TRowRanges ranges,
     ISchemafulWriterPtr writer)> TExecuteQuery;
 
 ////////////////////////////////////////////////////////////////////////////////

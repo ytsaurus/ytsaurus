@@ -171,6 +171,8 @@ private:
                 auto foreignExecuteCallback = [fragment, remoteExecutor, Logger] (
                     const TQueryPtr& subquery,
                     TGuid dataId,
+                    TRowBufferPtr buffer,
+                    TRowRanges ranges,
                     ISchemafulWriterPtr writer) -> TQueryStatistics
                 {
                     LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
@@ -178,11 +180,8 @@ private:
                     auto planFragment = New<TPlanFragment>();
                     planFragment->Timestamp = fragment->Timestamp;
                     planFragment->TableId = dataId;
-                    planFragment->Ranges.push_back({
-                            planFragment->KeyRangesRowBuffer->Capture(MinKey().Get()),
-                            planFragment->KeyRangesRowBuffer->Capture(MaxKey().Get())
-                        });
-
+                    planFragment->KeyRangesRowBuffer = buffer;
+                    planFragment->Ranges = ranges;
                     planFragment->Query = subquery;
                     planFragment->Options.VerboseLogging = fragment->Options.VerboseLogging;
 
@@ -200,6 +199,7 @@ private:
                         pipe->GetWriter(),
                         foreignExecuteCallback,
                         FunctionRegistry_,
+                        ColumnEvaluatorCache_,
                         fragment->Options.EnableCodeCache);
 
                 asyncStatistics.Subscribe(BIND([=] (const TErrorOr<TQueryStatistics>& result) {
@@ -236,6 +236,8 @@ private:
         TDataSources rangeSources;
 
         std::map<NObjectClient::TObjectId, std::vector<TRow>> keySources;
+
+        LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
         for (const auto& source : fragment->DataSources) {
             auto lowerBound = source.Range.first;
@@ -278,8 +280,12 @@ private:
 
         auto ranges = GetRanges(groupedSplits);
 
-        LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Got ranges for groups %v",
-            JoinToString(ranges, RowRangeFormatter));
+        if (fragment->Options.VerboseLogging) {
+            LOG_DEBUG("Got ranges for groups %v",
+                JoinToString(ranges, RowRangeFormatter));
+        } else {
+            LOG_DEBUG("Got ranges for %v groups", ranges.size());
+        }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,
@@ -293,8 +299,12 @@ private:
                 return RefinePredicate(GetRange(groupedSplit), expr, schema, keyColumns, columnEvaluator);
             });
             subreaderCreators.push_back([&] () {
-                LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Creating reader for ranges %v",
-                    JoinToString(groupedSplit, DataSourceFormatter));
+                if (fragment->Options.VerboseLogging) {
+                    LOG_DEBUG("Creating reader for ranges %v",
+                        JoinToString(groupedSplit, DataSourceFormatter));
+                } else {
+                    LOG_DEBUG("Creating reader for %v ranges", groupedSplit.size());
+                }
 
                 auto bottomSplitReaderGenerator = [
                     fragment,
@@ -325,10 +335,20 @@ private:
             });
             subreaderCreators.push_back([&] () {
                 std::vector<ISchemafulReaderPtr> bottomSplitReaders;
+
+                LOG_DEBUG("Grouping %v lookup keys by parition", keySource.second.size());
                 auto groupedKeys = GroupKeysByPartition(keySource.first, keySource.second);
+                LOG_DEBUG("Grouped lookup keys into %v paritions", groupedKeys.size());
+
                 for (const auto& keys : groupedKeys) {
-                    LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Creating lookup reader for keys %v",
-                        JoinToString(keys));
+                    if (fragment->Options.VerboseLogging) {
+                        LOG_DEBUG("Creating lookup reader for keys %v",
+                            JoinToString(keys));
+                    } else {
+                        LOG_DEBUG("Creating lookup reader for %v keys",
+                            keys.Size());
+                    }
+
                     bottomSplitReaders.push_back(GetReader(
                         fragment->Query->TableSchema,
                         keySource.first,
@@ -390,8 +410,12 @@ private:
             return lhs.Range.first < rhs.Range.first;
         });
 
-        LOG_DEBUG_IF(fragment->Options.VerboseLogging, "Got ranges for groups %v",
-            JoinToString(splits, DataSourceFormatter));
+        if (fragment->Options.VerboseLogging) {
+            LOG_DEBUG("Got ranges for groups %v",
+                JoinToString(splits, DataSourceFormatter));
+        } else {
+            LOG_DEBUG("Got ranges for %v groups", splits.size());
+        }
 
         auto columnEvaluator = ColumnEvaluatorCache_->Find(
             fragment->Query->TableSchema,

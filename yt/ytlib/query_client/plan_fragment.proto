@@ -158,13 +158,6 @@ message TQuery
     optional TProjectClause project_clause = 10;
 }
 
-message TQueryOptions
-{
-    optional bool verbose_logging = 7 [default = false];
-    optional int64 max_subqueries = 9 [default = 16];
-    optional bool enable_code_cache = 10 [default = true];
-}
-
 message TPlanSubFragment
 {
     required string source = 1;
