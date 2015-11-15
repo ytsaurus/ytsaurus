@@ -1,4 +1,5 @@
 #include "evaluation_helpers.h"
+#include "column_evaluator.h"
 #include "private.h"
 #include "helpers.h"
 #include "plan_fragment.h"
@@ -135,7 +136,8 @@ bool UpdateAndCheckRowLimit(i64* limit, char* flag)
 TJoinEvaluator GetJoinEvaluator(
     const TJoinClause& joinClause,
     TConstExpressionPtr predicate,
-    const TTableSchema& selfTableSchema)
+    const TTableSchema& selfTableSchema,
+    const TColumnEvaluatorCachePtr evaluatorCache)
 {
     const auto& equations = joinClause.Equations;
     auto isLeft = joinClause.IsLeft;
@@ -152,6 +154,7 @@ TJoinEvaluator GetJoinEvaluator(
     subquery->TableSchema = foreignTableSchema;
     subquery->KeyColumnsCount = foreignKeyColumnsCount;
     subquery->RenamedTableSchema = renamedTableSchema;
+    subquery->WhereClause = foreignPredicate;
 
     // (join key... , other columns...)
     auto projectClause = New<TProjectClause>();
@@ -159,6 +162,56 @@ TJoinEvaluator GetJoinEvaluator(
     for (const auto& column : equations) {
         projectClause->AddProjection(column.second, InferName(column.second));
         joinKeyExprs.push_back(column.second);
+    }
+
+    // Check if equations form primary key, make foreign subquery without IN clause
+    //
+
+    bool canUseSourceRanges = true;
+    std::vector<int> equationByIndex(foreignKeyColumnsCount, -1);
+    for (size_t equationIndex = 0; equationIndex < equations.size(); ++equationIndex) {
+        const auto& column = equations[equationIndex];
+        const auto& expr = column.second;
+
+        if (const auto* refExpr = expr->As<TReferenceExpression>()) {
+            auto index = renamedTableSchema.GetColumnIndexOrThrow(refExpr->ColumnName);
+            if (index < foreignKeyColumnsCount) {
+                equationByIndex[index] = equationIndex;
+                continue;
+            }
+        }
+        break;
+    }
+
+    std::vector<bool> usedJoinKeyEquations(equations.size(), false);
+
+    auto evaluator = evaluatorCache->Find(foreignTableSchema, foreignKeyColumnsCount);
+    size_t keyPrefix = 0;
+    for (; keyPrefix < foreignKeyColumnsCount; ++keyPrefix) {
+        if (equationByIndex[keyPrefix] >= 0) {
+            usedJoinKeyEquations[equationByIndex[keyPrefix]] = true;
+            continue;
+        }
+
+        if (foreignTableSchema.Columns()[keyPrefix].Expression) {
+            const auto& references = evaluator->GetReferenceIds(keyPrefix);
+            auto isEvaluatable = true;
+            for (int referenceIndex : references) {
+                if (equationByIndex[referenceIndex] < 0) {
+                    isEvaluatable = false;
+                }
+            }
+            if (isEvaluatable) {
+                continue;
+            }
+        }
+        break;
+    }
+
+    for (auto flag : usedJoinKeyEquations) {
+        if (!flag) {
+            canUseSourceRanges = false;
+        }
     }
 
     for (const auto& column : renamedTableSchema.Columns()) {
@@ -195,14 +248,44 @@ TJoinEvaluator GetJoinEvaluator(
     {
         // TODO: keys should be joined with allRows: [(key, sourceRow)]
 
-        subquery->WhereClause = New<TInOpExpression>(
-            joinKeyExprs,
-            keys);
+        auto rowBuffer = New<TRowBuffer>();
+        TRowRanges ranges;
 
-        if (foreignPredicate) {
-            subquery->WhereClause = MakeAndExpression(
-                subquery->WhereClause,
-                foreignPredicate);
+        if (canUseSourceRanges) {
+            LOG_DEBUG("Using join via source ranges");
+            for (auto key : keys) {
+                TRow lowerBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix);
+                for (int column = 0; column < keyPrefix; ++column) {
+                    if (equationByIndex[column] >= 0) {
+                        lowerBound[column] = key[equationByIndex[column]];
+                    }
+                }
+
+                for (int column = 0; column < keyPrefix; ++column) {
+                    if (foreignTableSchema.Columns()[column].Expression) {
+                        evaluator->EvaluateKey(lowerBound, rowBuffer, column);
+                    }
+                }
+
+                TRow upperBound = TRow::Allocate(rowBuffer->GetPool(), keyPrefix + 1);
+                for (int column = 0; column < keyPrefix; ++column) {
+                    upperBound[column] = lowerBound[column];
+                }
+
+                upperBound[keyPrefix] = MakeUnversionedSentinelValue(EValueType::Max);
+                ranges.emplace_back(lowerBound, upperBound);
+            }
+        } else {
+            LOG_DEBUG("Using join via IN clause");
+            ranges.emplace_back(
+                rowBuffer->Capture(NTableClient::MinKey().Get()),
+                rowBuffer->Capture(NTableClient::MaxKey().Get()));
+
+            auto inClause = New<TInOpExpression>(joinKeyExprs, keys);
+
+            subquery->WhereClause = subquery->WhereClause
+                ? MakeAndExpression(inClause, subquery->WhereClause)
+                : inClause;
         }
 
         // Execute subquery.
@@ -214,7 +297,13 @@ TJoinEvaluator GetJoinEvaluator(
             std::tie(writer, rowsetFuture) = NApi::CreateSchemafulRowsetWriter(subquery->GetTableSchema());
             NProfiling::TAggregatingTimingGuard timingGuard(&context->Statistics->AsyncTime);
 
-            auto statistics = context->ExecuteCallback(subquery, foreignDataId,  writer);
+            auto statistics = context->ExecuteCallback(
+                subquery,
+                foreignDataId,
+                std::move(rowBuffer),
+                std::move(ranges),
+                writer);
+
             LOG_DEBUG("Remote subquery statistics %v", statistics);
             *context->Statistics += statistics;
 
@@ -248,6 +337,8 @@ TJoinEvaluator GetJoinEvaluator(
             return false;
         };
 
+        LOG_DEBUG("Joining started");
+
         for (auto row : allRows.ToVector()) {
             auto equalRange = foreignLookup.equal_range(row);
             for (auto it = equalRange.first; it != equalRange.second; ++it) {
@@ -275,6 +366,8 @@ TJoinEvaluator GetJoinEvaluator(
                 }
             }
         }
+
+        LOG_DEBUG("Joining finished");
     };
 }
 

@@ -209,8 +209,10 @@ class TQueryResponseReader
 public:
     TQueryResponseReader(
         TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
-        const TTableSchema& schema)
+        const TTableSchema& schema,
+        const NLogging::TLogger& logger)
         : Schema_(schema)
+        , Logger(logger)
     {
         QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
@@ -237,14 +239,27 @@ public:
     }
 
 private:
+
     TTableSchema Schema_;
     ISchemafulReaderPtr RowsetReader_;
 
     TFuture<TQueryStatistics> QueryResult_;
 
+    NLogging::TLogger Logger;
+
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
-        auto data  = NCompression::DecompressWithEnvelope(response->Attachments());
+        TSharedRef data;
+
+        TDuration deserializationTime;
+        {
+            NProfiling::TAggregatingTimingGuard timingGuard(&deserializationTime);
+            data = NCompression::DecompressWithEnvelope(response->Attachments());
+        }
+
+        LOG_DEBUG("Received subquery result (deserialization_time: %v, data_size: %v)",
+            deserializationTime,
+            data.Size());
 
         YCHECK(!RowsetReader_);
         RowsetReader_ = TWireProtocolReader(data).CreateSchemafulRowsetReader(Schema_);
@@ -344,7 +359,7 @@ private:
 
     std::vector<std::pair<TDataSource, Stroka>> SplitTableFurther(
         TGuid tableId,
-        const std::vector<TRowRange>& ranges,
+        const TRowRanges& ranges,
         TRowBufferPtr rowBuffer)
     {
         auto tableMountCache = Connection_->GetTableMountCache();
@@ -362,7 +377,7 @@ private:
 
     std::vector<std::pair<TDataSource, Stroka>> SplitStaticTableFurther(
         TGuid tableId,
-        const std::vector<TRowRange>& ranges,
+        const TRowRanges& ranges,
         TRowBufferPtr rowBuffer)
     {
         std::vector<TReadRange> readRanges;
@@ -470,7 +485,7 @@ private:
 
     std::vector<std::pair<TDataSource, Stroka>> SplitDynamicTableFurther(
         TGuid tableId,
-        const std::vector<TRowRange>& ranges,
+        const TRowRanges& ranges,
         TRowBufferPtr rowBuffer,
         TTableMountInfoPtr tableInfo)
     {
@@ -567,9 +582,10 @@ private:
                 Stroka address;
                 std::tie(subfragment->DataSources, address) = getSubsources(index);
 
-                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v)",
+                LOG_DEBUG("Delegating subquery (SubqueryId: %v, Address: %v, Max subqueries %v)",
                     subquery->Id,
-                    address);
+                    address,
+                    subfragment->Options.MaxSubqueries);
 
                 return Delegate(subfragment, address);
             },
@@ -692,10 +708,17 @@ private:
                 req->set_response_codec(static_cast<int>(config->QueryResponseCodec));
             }
 
+            LOG_DEBUG("Sending subquery (serialization_time: %v, request_size: %v)",
+                serializationTime,
+                req->ByteSize());
+
             TRACE_ANNOTATION("serialization_time", serializationTime);
             TRACE_ANNOTATION("request_size", req->ByteSize());
 
-            auto resultReader = New<TQueryResponseReader>(req->Invoke(), fragment->Query->GetTableSchema());
+            auto resultReader = New<TQueryResponseReader>(
+                req->Invoke(),
+                fragment->Query->GetTableSchema(),
+                Logger);
             return std::make_pair(resultReader, resultReader->GetQueryResult());
         }
     }

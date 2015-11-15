@@ -37,7 +37,9 @@ class TFoldingProfiler
     : private TNonCopyable
 {
 public:
-    TFoldingProfiler(const IFunctionRegistryPtr functionRegistry);
+    TFoldingProfiler(
+        const IFunctionRegistryPtr functionRegistry,
+        const TColumnEvaluatorCachePtr evaluatorCache = nullptr);
 
     TCodegenSource Profile(TConstQueryPtr query);
     TCodegenExpression Profile(TConstExpressionPtr expr, const TTableSchema& tableSchema);
@@ -65,13 +67,16 @@ private:
     std::vector<std::vector<bool>>* LiteralArgs_ = nullptr;
 
     const IFunctionRegistryPtr FunctionRegistry_;
+    const TColumnEvaluatorCachePtr EvaluatorCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFoldingProfiler::TFoldingProfiler(
-    const IFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry,
+    const TColumnEvaluatorCachePtr evaluatorCache)
     : FunctionRegistry_(functionRegistry)
+    , EvaluatorCache_(evaluatorCache)
 { }
 
 void TFoldingProfiler::Set(llvm::FoldingSetNodeID* id)
@@ -128,7 +133,8 @@ TCodegenSource TFoldingProfiler::Profile(TConstQueryPtr query)
         Variables_->JoinEvaluators.push_back(GetJoinEvaluator(
             *joinClause,
             query->WhereClause,
-            schema));
+            schema,
+            EvaluatorCache_));
 
         schema = joinClause->JoinedTableSchema;
     }
@@ -385,9 +391,10 @@ TCGQueryCallbackGenerator Profile(
     TCGVariables* variables,
     yhash_set<Stroka>* references,
     std::vector<std::vector<bool>>* literalArgs,
-    const IFunctionRegistryPtr functionRegistry)
+    const IFunctionRegistryPtr functionRegistry,
+    const TColumnEvaluatorCachePtr evaluatorCache)
 {
-    TFoldingProfiler profiler(functionRegistry);
+    TFoldingProfiler profiler(functionRegistry, evaluatorCache);
     profiler.Set(id);
     profiler.Set(variables);
     profiler.Set(references);

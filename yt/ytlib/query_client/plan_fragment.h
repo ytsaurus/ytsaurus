@@ -435,10 +435,7 @@ struct TPlanFragmentBase
     Stroka Source;
 
     TTimestamp Timestamp;
-    const TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
-
-    NObjectClient::TObjectId TableId;
-    TRowRanges Ranges;
+    TRowBufferPtr KeyRangesRowBuffer = New<TRowBuffer>();
 
     TConstQueryPtr Query;
     TQueryOptions Options;
