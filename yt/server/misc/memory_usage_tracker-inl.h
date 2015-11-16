@@ -251,6 +251,12 @@ TMemoryUsageTrackerGuard<ECategory>::operator bool() const
     return Tracker_ != nullptr;
 }
 
+template <class ECategory>
+i64 TMemoryUsageTrackerGuard<ECategory>::GetSize() const
+{
+    return Size_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
