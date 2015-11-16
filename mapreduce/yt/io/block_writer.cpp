@@ -87,7 +87,8 @@ void TBlockWriter::Send(const TBuffer& buffer)
     header.SetChunkedEncoding();
     header.SetDataStreamFormat(Format_);
 
-    RetryHeavyWriteRequest(Auth_, WriteTransaction_.GetId(), header, buffer);
+    TBufferInput data(buffer);
+    RetryHeavyWriteRequest(Auth_, WriteTransaction_.GetId(), header, data);
 
     Path_.Append_ = true; // all blocks except the first one are appended
 }

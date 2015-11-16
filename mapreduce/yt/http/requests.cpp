@@ -219,7 +219,7 @@ void RetryHeavyWriteRequest(
     const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
-    const TBuffer& buffer)
+    TInputStream& data)
 {
     int retryCount = TConfig::Get()->RetryCount;
     header.SetToken(auth.Token);
@@ -238,7 +238,7 @@ void RetryHeavyWriteRequest(
             request.Connect();
             try {
                 TOutputStream* output = request.StartRequest(header);
-                output->Write(buffer.Data(), buffer.Size());
+                TransferData(&data, output);
                 request.FinishRequest();
             } catch (yexception&) {
                 // try to read error in response
