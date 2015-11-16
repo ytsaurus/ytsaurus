@@ -36,6 +36,19 @@ def _get_ytserver_version():
     output = subprocess.check_output(["ytserver", "--version"])
     return output.split(":", 1)[1].strip()
 
+def _get_proxy_version(proxy_binary_path):
+    # Output example: "*** YT HTTP Proxy ***\nVersion 0.17.3\nDepends..."
+    process = subprocess.Popen(["node", proxy_binary_path, "-v"], stderr=subprocess.PIPE)
+    _, err = process.communicate()
+    version_str = err.split("\n")[1].split()[1]
+
+    try:
+        version = map(int, version_str.split("."))
+    except ValueError:
+        return None
+
+    return version
+
 def _config_safe_get(config, config_path, key):
     d = config
     parts = key.split("/")
@@ -790,6 +803,11 @@ class YTEnv(object):
 
         if not version.startswith("v0.8"):
             raise YtError("Failed to find appropriate nodejs version (should start with 0.8)")
+
+        proxy_version = _get_proxy_version(proxy_binary_path)[:2]  # major, minor
+        ytserver_version = map(int, self._ytserver_version.split("."))[:2]
+        if proxy_version and proxy_version != ytserver_version:
+            raise YtError("Proxy version does not match ytserver version")
 
         self._run(["node",
                    proxy_binary_path,
