@@ -4,6 +4,8 @@
 
 #include "plan_fragment_common.h"
 
+#include <ytlib/ypath/rich.h>
+
 #include <core/misc/variant.h>
 
 namespace NYT {
@@ -172,11 +174,11 @@ struct TTableDescriptor
     TTableDescriptor(
         const Stroka& path,
         const Stroka& alias)
-        : Path(path)
+        : Path(NYPath::TRichYPath::Parse(path))
         , Alias(alias)
     { }
 
-    Stroka Path;
+    NYPath::TRichYPath Path;
     Stroka Alias;
 };
 

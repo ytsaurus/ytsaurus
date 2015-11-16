@@ -104,7 +104,7 @@ private:
         SetSchema(tableSchema, keyColumns);
     }
 
-    TFuture<TDataSplit> MakeSimpleSplit(const TYPath& path, ui64 counter = 0)
+    TFuture<TDataSplit> MakeSimpleSplit(const NYPath::TRichYPath& path, ui64 counter = 0)
     {
         TDataSplit dataSplit;
 
@@ -112,7 +112,7 @@ private:
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-        if (path == "//t") {
+        if (path.GetPath() == "//t") {
             SetKeyColumns(&dataSplit, KeyColumns_);
             SetTableSchema(&dataSplit, Schema_);
         } else {

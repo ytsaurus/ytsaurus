@@ -254,7 +254,7 @@ public:
     // IPrepareCallbacks implementation.
 
     virtual TFuture<TDataSplit> GetInitialSplit(
-        const TYPath& path,
+        const TRichYPath& path,
         TTimestamp timestamp) override
     {
         return BIND(&TQueryHelper::DoGetInitialSplit, MakeStrong(this))
@@ -288,21 +288,23 @@ private:
 
 
     TDataSplit DoGetInitialSplit(
-        const TYPath& path,
+        const TRichYPath& path,
         TTimestamp timestamp)
     {
         auto tableMountCache = Connection_->GetTableMountCache();
-        auto info = WaitFor(tableMountCache->GetTableInfo(path))
+        auto info = WaitFor(tableMountCache->GetTableInfo(path.GetPath()))
             .ValueOrThrow();
+
+        auto tableSchema = path.FindTableSchema();
 
         TDataSplit result;
         SetObjectId(&result, info->TableId);
-        SetTableSchema(&result, info->Schema);
+        SetTableSchema(&result, tableSchema.Get(info->Schema));
         SetKeyColumns(&result, info->KeyColumns);
         SetTimestamp(&result, timestamp);
+
         return result;
     }
-
 
     std::vector<std::pair<TDataSource, Stroka>> Split(
         TGuid objectId,
