@@ -112,11 +112,11 @@ DRIVER_CONFIG_PATCH = {
 }
 
 class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
-    def get_master_configs(self, master_count, master_dirs,
+    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_17_3, self)\
-            .get_master_configs(master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
+            .get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
 
         # In patches None values mean config subtree deletion (see _remove_none_fields function)
         for cell_index in xrange(secondary_master_cell_count + 1):
@@ -154,11 +154,11 @@ class LocalModeConfigsProvider_17_3(ConfigsProvider_17_3):
         return configs
 
 class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
-    def get_master_configs(self, master_count, master_dirs,
+    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_17_4, self)\
-            .get_master_configs(master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
+            .get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
 
         for cell_index in xrange(secondary_master_cell_count + 1):
             for config in configs[cell_index]:
@@ -205,11 +205,11 @@ class LocalModeConfigsProvider_17_4(ConfigsProvider_17_4):
         return configs
 
 class LocalModeConfigsProvider_18(ConfigsProvider_18):
-    def get_master_configs(self, master_count, master_dirs,
+    def get_master_configs(self, master_count, nonvoting_master_count, master_dirs,
                            tmpfs_master_dirs=None, secondary_master_cell_count=0, cell_tag=0):
 
         configs = super(LocalModeConfigsProvider_18, self)\
-            .get_master_configs(master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
+            .get_master_configs(master_count, nonvoting_master_count, master_dirs, tmpfs_master_dirs, secondary_master_cell_count, cell_tag)
 
         local_patch = {
             "node_tracker": {
