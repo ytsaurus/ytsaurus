@@ -309,6 +309,11 @@ public:
             nodeMapProxy->RemoveChild(nodeNodeProxy);
         }
 
+        // NB: This is typically redundant since it's not possible to remove a node unless
+        // it is offline. Secondary masters, however, may receive a removal request from primaries
+        // and must obey it regardless of the node's state.
+        EnsureNodeDisposed(node);
+
         RemoveFromAddressMaps(node);
     }
 
@@ -644,18 +649,12 @@ private:
                 THROW_ERROR_EXCEPTION("Node %v is banned", address);
             }
 
-            auto existingState = node->GetLocalState();
-            if (existingState != ENodeState::Offline) {
+            if (node->GetLocalState() != ENodeState::Offline) {
                 LOG_INFO_UNLESS(IsRecovery(), "Node kicked out due to address conflict (NodeId: %v, Address: %v, ExistingState: %v)",
                     node->GetId(),
                     address,
-                    existingState);
-                if (existingState == ENodeState::Registered || existingState == ENodeState::Online) {
-                    UnregisterNode(node, false);
-                }
-                if (node->GetLocalState() == ENodeState::Unregistered) {
-                    DisposeNode(node);
-                }
+                    node->GetLocalState());
+                EnsureNodeDisposed(node);
             }
 
             UpdateNode(node, addresses);
@@ -1141,6 +1140,19 @@ private:
             if (IsLeader()) {
                 MaybePostDisposeNodeMutations();
             }
+        }
+    }
+
+    void EnsureNodeDisposed(TNode* node)
+    {
+        if (node->GetLocalState() == ENodeState::Registered ||
+            node->GetLocalState() == ENodeState::Online)
+        {
+            UnregisterNode(node, false);
+        }
+        
+        if (node->GetLocalState() == ENodeState::Unregistered) {
+            DisposeNode(node);
         }
     }
 
