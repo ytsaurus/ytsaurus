@@ -128,8 +128,8 @@ void TJsonConsumerImpl::EnterNode()
             JsonWriter->Write("$attributes");
             JsonWriter->OpenMap();
             JsonWriter->CloseMap();
+            HasAttributes = true;
         }
-        HasAttributes = true;
     }
     HasUnfoldedStructureStack.push_back(HasAttributes);
 
@@ -175,7 +175,6 @@ void TJsonConsumerImpl::OnStringScalar(const TStringBuf& value)
             if (CheckLimit && Config->StringLengthLimit && value.Size() > *Config->StringLengthLimit ) {
                 if (!HasAttributes) {
                     JsonWriter->OpenMap();
-                    InAttributesBalance += 1;
                     HasAttributes = true;
                 }
 
@@ -187,7 +186,6 @@ void TJsonConsumerImpl::OnStringScalar(const TStringBuf& value)
             if (Config->AnnotateWithTypes) {
                 if (!HasAttributes) {
                     JsonWriter->OpenMap();
-                    InAttributesBalance += 1;
                     HasAttributes = true;
                 }
 
@@ -208,7 +206,6 @@ void TJsonConsumerImpl::OnInt64Scalar(i64 value)
         if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
             if (!HasAttributes) {
                 JsonWriter->OpenMap();
-                InAttributesBalance += 1;
                 HasAttributes = true;
             }
             JsonWriter->Write("$type");
@@ -230,7 +227,6 @@ void TJsonConsumerImpl::OnUint64Scalar(ui64 value)
         if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
             if (!HasAttributes) {
                 JsonWriter->OpenMap();
-                InAttributesBalance += 1;
                 HasAttributes = true;
             }
             JsonWriter->Write("$type");
@@ -253,7 +249,6 @@ void TJsonConsumerImpl::OnDoubleScalar(double value)
         if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
             if (!HasAttributes) {
                 JsonWriter->OpenMap();
-                InAttributesBalance += 1;
                 HasAttributes = true;
             }
             JsonWriter->Write("$type");
@@ -275,7 +270,6 @@ void TJsonConsumerImpl::OnBooleanScalar(bool value)
         if (Config->AnnotateWithTypes && Config->AttributesMode != EJsonAttributesMode::Never) {
             if (!HasAttributes) {
                 JsonWriter->OpenMap();
-                InAttributesBalance += 1;
                 HasAttributes = true;
             }
             JsonWriter->Write("$type");
