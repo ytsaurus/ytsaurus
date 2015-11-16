@@ -190,6 +190,7 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
         KeyStream_.GetSize() +
         ValueStream_.GetSize() +
         TimestampStream_.GetSize() +
+        StringDataStream_.GetSize() +
         KeyNullFlags_.Size() +
         ValueNullFlags_.Size();
 }
