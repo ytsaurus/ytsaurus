@@ -196,8 +196,13 @@ void DumpOperationStderrs(
         auto jobPath = jobsPath + "/" + job.AsString();
         auto& attributes = job.Attributes();
         output << Endl;
-        output << "Host: " << attributes["address"].AsString() << Endl;
-        output << "Error: " << NodeToYsonString(attributes["error"]) << Endl;
+
+        if (attributes.HasKey("address")) {
+            output << "Host: " << attributes["address"].AsString() << Endl;
+        }
+        if (attributes.HasKey("error")) {
+            output << "Error: " << NodeToYsonString(attributes["error"]) << Endl;
+        }
 
         auto stderrPath = jobPath + "/stderr";
         if (!Exists(auth, transactionId, stderrPath)) {
