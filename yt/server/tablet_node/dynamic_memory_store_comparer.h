@@ -50,6 +50,7 @@ public:
     int operator()(TDynamicRow lhs, TDynamicRow rhs) const;
     int operator()(TDynamicRow lhs, TRowWrapper rhs) const;
     int operator()(TDynamicRow lhs, TKeyWrapper rhs) const;
+    int operator()(TUnversionedRow lhs, TUnversionedRow rhs) const;
     int operator()(
         const TUnversionedValue* lhsBegin,
         const TUnversionedValue* lhsEnd,

@@ -520,11 +520,13 @@ class TestTablets(YTEnvSetup):
             assert get("//tmp/t/@tablets/0/statistics/preload_failed_store_count") == 0
 
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
+        keys = [{"key" : row["key"]} for row in rows]
         insert_rows("//tmp/t", rows)
 
         sleep(3.0)
 
         _check_preload_state("complete")
+        assert lookup_rows("//tmp/t", keys) == rows
 
         set("//tmp/t/@in_memory_mode", "none")
         remount_table("//tmp/t")
@@ -532,6 +534,7 @@ class TestTablets(YTEnvSetup):
         sleep(3.0)
 
         _check_preload_state("disabled")
+        assert lookup_rows("//tmp/t", keys) == rows
 
         set("//tmp/t/@in_memory_mode", mode)
         remount_table("//tmp/t")
@@ -539,6 +542,7 @@ class TestTablets(YTEnvSetup):
         sleep(3.0)
 
         _check_preload_state("complete")
+        assert lookup_rows("//tmp/t", keys) == rows
 
     def test_in_memory_compressed(self):
         self._test_in_memory("compressed")

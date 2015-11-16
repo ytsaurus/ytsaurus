@@ -22,6 +22,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     int chunkKeyColumnCount,
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
+    const TKeyComparer& keyComparer,
     TTimestamp timestamp)
     : Block_(block)
     , Timestamp_(timestamp)
@@ -31,6 +32,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     , ChunkSchema_(chunkSchema)
     , Meta_(meta)
     , VersionedMeta_(Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext))
+    , KeyComparer_(keyComparer)
 {
     YCHECK(Meta_.row_count() > 0);
     YCHECK(KeyColumnCount_ >= ChunkKeyColumnCount_);
@@ -86,7 +88,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
 {
     YCHECK(!Closed_);
 
-    if (GetKey() >= key) {
+    if (KeyComparer_(GetKey(), key) >= 0) {
         // We are already further than pivot key.
         return true;
     }
@@ -96,7 +98,7 @@ bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
         Meta_.row_count(),
         [&] (int index) -> bool {
             YCHECK(JumpToRowIndex(index));
-            return GetKey() < key;
+            return KeyComparer_(GetKey(), key) < 0;
         });
 
     return JumpToRowIndex(index);

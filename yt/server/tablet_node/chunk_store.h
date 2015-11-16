@@ -125,6 +125,8 @@ private:
 
     EInMemoryMode InMemoryMode_ = EInMemoryMode::None;
 
+    const NTableClient::TKeyComparer KeyComparer_;
+
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const TSharedRange<TKey>& keys,
         TTimestamp timestamp,

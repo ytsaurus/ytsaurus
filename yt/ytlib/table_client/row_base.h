@@ -138,42 +138,5 @@ TValue MakeAnyValue(const TStringBuf& value, int id = 0)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-int GetKeyComparerValueCount(const T&, int prefixLength)
-{
-    return prefixLength;
-}
-
-//! Provides a comparer functor for row-like entities
-//! trimmed to a given length.
-class TKeyComparer
-{
-public:
-    explicit TKeyComparer(int prefixLength)
-        : PrefixLength_(prefixLength)
-    { }
-
-    template <class TLhs, class TRhs>
-    int operator () (const TLhs& lhs, const TRhs& rhs) const
-    {
-        int lhsLength = GetKeyComparerValueCount(lhs, PrefixLength_);
-        int rhsLength = GetKeyComparerValueCount(rhs, PrefixLength_);
-        int minLength = std::min(lhsLength, rhsLength);
-        for (int index = 0; index < minLength; ++index) {
-            int result = CompareRowValues(lhs[index], rhs[index]);
-            if (result != 0) {
-                return result;
-            }
-        }
-        return lhsLength - rhsLength;
-    }
-
-private:
-    int PrefixLength_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NTableClient
 } // namespace NYT
