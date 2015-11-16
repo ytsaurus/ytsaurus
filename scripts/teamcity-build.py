@@ -41,7 +41,7 @@ def yt_register_cleanup_step(func):
 
 def rmtree_onerror(fn, path, excinfo):
     teamcity_message(
-        "Error occured while executing {0} on '{1}': {2}".format(fn, path, excinfo),
+        "Error occured while executing {} on '{}': {}".format(fn, path, excinfo),
         status="WARNING")
 
 
