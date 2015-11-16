@@ -84,6 +84,8 @@ public:
 
     explicit operator bool() const;
 
+    i64 GetSize() const;
+
 private:
     TMemoryUsageTracker<ECategory>* Tracker_;
     ECategory Category_;
