@@ -1,4 +1,4 @@
-#include <ytlib/query_client/lexer.h>
+#include <yt/ytlib/query_client/lexer.h>
 
 #include <util/system/defaults.h>
 #include <util/string/cast.h>
