@@ -93,16 +93,14 @@ private:
         MD5::Data(reinterpret_cast<const unsigned char*>(buffer.Data()), buffer.Size(), buf);
     }
 
-    static void Transfer(const Stroka& localPath, TOutputStream* output)
+    static THolder<TInputStream> CreateStream(const Stroka& localPath)
     {
-        TMappedFileInput fileInput(localPath);
-        TransferData(&fileInput, output);
+        return new TMappedFileInput(localPath);
     }
 
-    static void Transfer(const TBuffer& buffer, TOutputStream* output)
+    static THolder<TInputStream> CreateStream(const TBuffer& buffer)
     {
-        TBufferInput bufferInput(buffer);
-        TransferData(&bufferInput, output);
+        return new TBufferInput(buffer);
     }
 
     template <class TSource>
@@ -129,21 +127,13 @@ private:
             RetryRequest(Auth_, header);
         }
 
-        Stroka proxyName = GetProxyForHeavyRequest(Auth_);
-
         THttpHeader header("PUT", GetWriteFileCommand());
         header.SetToken(Auth_.Token);
         header.AddPath(cypressPath);
         header.SetChunkedEncoding();
 
-        THttpRequest request(proxyName);
-        request.Connect();
-        TOutputStream* output = request.StartRequest(header);
-
-        Transfer(source, output);
-
-        request.FinishRequest();
-        request.GetResponse();
+        auto stream = CreateStream(source);
+        RetryHeavyWriteRequest(Auth_, TTransactionId(), header, *stream);
 
         return cypressPath;
     }
