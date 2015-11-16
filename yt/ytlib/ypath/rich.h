@@ -8,6 +8,8 @@
 
 #include <ytlib/chunk_client/read_limit.h>
 
+#include <ytlib/table_client/schema.h>
+
 namespace NYT {
 namespace NYPath {
 
@@ -41,13 +43,15 @@ public:
     bool GetAppend() const;
     NChunkClient::TChannel GetChannel() const;
     std::vector<NChunkClient::TReadRange> GetRanges() const;
-    TNullable<Stroka> GetFileName() const;
+    TNullable<Stroka> FindFileName() const;
+    TNullable<NTableClient::TTableSchema> FindTableSchema() const;
 
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
-
 };
+
+bool operator== (const TRichYPath& lhs, const TRichYPath& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

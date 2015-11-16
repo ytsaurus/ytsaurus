@@ -102,6 +102,13 @@ TRichYPath& TRichYPath::operator = (const TRichYPath& other)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator== (const TRichYPath& lhs, const TRichYPath& rhs)
+{
+    return lhs.GetPath() == rhs.GetPath() && lhs.Attributes() == rhs.Attributes();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 void ThrowUnexpectedToken(const TToken& token)
@@ -430,9 +437,14 @@ std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
     }
 }
 
-TNullable<Stroka> TRichYPath::GetFileName() const
+TNullable<Stroka> TRichYPath::FindFileName() const
 {
     return Attributes().Find<Stroka>("file_name");
+}
+
+TNullable<TTableSchema> TRichYPath::FindTableSchema() const
+{
+    return Attributes().Find<TTableSchema>("schema");   
 }
 
 ////////////////////////////////////////////////////////////////////////////////

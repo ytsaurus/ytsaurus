@@ -3109,7 +3109,7 @@ void TOperationControllerBase::LockUserFiles(
 
                 file.FileName = attributes.Get<Stroka>("key");
                 file.FileName = attributes.Get<Stroka>("file_name", file.FileName);
-                file.FileName = file.Path.GetFileName().Get(file.FileName);
+                file.FileName = file.Path.FindFileName().Get(file.FileName);
 
                 switch (file.Type) {
                     case EObjectType::File:

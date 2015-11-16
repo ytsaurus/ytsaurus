@@ -68,7 +68,7 @@ TFuture<void> WrapVoidInFuture()
     return MakeFuture(TErrorOr<void>());
 }
 
-TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter)
+TDataSplit MakeSimpleSplit(const TRichYPath& path, ui64 counter)
 {
     TDataSplit dataSplit;
 
@@ -100,12 +100,12 @@ TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, TKeyColumns keyC
 }
 
 TFuture<TDataSplit> RaiseTableNotFound(
-    const TYPath& path,
+    const TRichYPath& path,
     TTimestamp)
 {
     return MakeFuture(TErrorOr<TDataSplit>(TError(Format(
         "Could not find table %v",
-        path))));
+        path.GetPath()))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
