@@ -65,6 +65,11 @@ int TDynamicRowKeyComparer::operator()(TDynamicRow lhs, TKeyWrapper rhs) const
         rhs.Row.GetCount());
 }
 
+int TDynamicRowKeyComparer::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
+{
+    return operator()(lhs.Begin(), lhs.End(), rhs.Begin(), rhs.End());
+}
+
 int TDynamicRowKeyComparer::operator()(
     const TUnversionedValue* lhsBegin,
     const TUnversionedValue* lhsEnd,

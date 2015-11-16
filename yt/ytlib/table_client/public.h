@@ -132,7 +132,7 @@ typedef TUnversionedOwningRow TOwningKey;
 class TUnversionedRowBuilder;
 class TUnversionedOwningRowBuilder;
 
-class TKeyComparer;
+using TKeyComparer = std::function<int(TKey, TKey)>;
 
 struct TColumnSchema;
 class TTableSchema;

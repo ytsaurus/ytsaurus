@@ -224,6 +224,9 @@ protected:
         GetRowAndResetWriter();
     }
 
+    TKeyComparer KeyComparer_ = [] (TKey lhs, TKey rhs) {
+        return CompareRows(lhs, rhs);
+    };
 };
 
 TEST_F(TVersionedChunksTest, ReadEmptyWiderSchema)
@@ -616,6 +619,7 @@ TEST_F(TVersionedChunksTest, ReadManyRows)
             sharedKeys,
             TColumnFilter(),
             New<TChunkReaderPerformanceCounters>(),
+            KeyComparer_,
             AllCommittedTimestamp);
 
         EXPECT_TRUE(chunkReader->Open().Get().IsOK());

@@ -4,6 +4,7 @@
 #include "chunk_meta_extensions.h"
 #include "schema.h"
 #include "versioned_row.h"
+#include "unversioned_row.h"
 
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/ref.h>
@@ -24,6 +25,7 @@ public:
         int chunkKeyColumnCount,
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
+        const TKeyComparer& keyComparer,
         TTimestamp timestamp);
 
     bool NextRow();
@@ -75,6 +77,9 @@ private:
     i64 ValueOffset_;
     ui16 WriteTimestampCount_;
     ui16 DeleteTimestampCount_;
+
+    // NB: chunk reader holds the comparer.
+    const TKeyComparer& KeyComparer_;
 
     bool JumpToRowIndex(i64 index);
     TVersionedRow ReadAllValues(TChunkedMemoryPool* memoryPool);

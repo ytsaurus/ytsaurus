@@ -166,6 +166,7 @@ TChunkStore::TChunkStore(
     , PreloadState_(EStorePreloadState::Disabled)
     , CompactionState_(EStoreCompactionState::None)
     , Bootstrap_(boostrap)
+    , KeyComparer_(tablet->GetRowKeyComparer())
 {
     YCHECK(
         TypeFromId(StoreId_) == EObjectType::Chunk ||
@@ -447,6 +448,7 @@ IVersionedReaderPtr TChunkStore::CreateReader(
         keys,
         columnFilter,
         PerformanceCounters_,
+        KeyComparer_,
         timestamp);
 }
 
@@ -473,6 +475,7 @@ IVersionedReaderPtr TChunkStore::CreateCacheBasedReader(
         keys,
         columnFilter,
         PerformanceCounters_,
+        KeyComparer_,
         timestamp);
 }
 

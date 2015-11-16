@@ -51,6 +51,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
+    TKeyComparer keyComparer,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 //! Same as CreateVersionedChunkReader but only suitable for in-memory tables
@@ -67,6 +68,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TChunkReaderPerformanceCountersPtr performanceCounters,
+    TKeyComparer keyComparer,
     TTimestamp timestamp = SyncLastCommittedTimestamp);
 
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
