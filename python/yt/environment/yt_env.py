@@ -807,7 +807,8 @@ class YTEnv(object):
         proxy_version = _get_proxy_version(proxy_binary_path)[:2]  # major, minor
         ytserver_version = map(int, self._ytserver_version.split("."))[:2]
         if proxy_version and proxy_version != ytserver_version:
-            raise YtError("Proxy version does not match ytserver version")
+            raise YtError("Proxy version does not match ytserver version. "
+                          "Expected: {0}.{1}, actual: {2}.{3}".format(*(ytserver_version + proxy_version)))
 
         self._run(["node",
                    proxy_binary_path,
