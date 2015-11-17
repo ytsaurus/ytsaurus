@@ -4,6 +4,7 @@
 
 #include <core/ytree/serialize.h>
 #include <core/ytree/convert.h>
+#include <core/ytree/fluent.h>
 
 #include <core/misc/protobuf_helpers.h>
 
@@ -35,12 +36,14 @@ TColumnSchema::TColumnSchema(
     EValueType type,
     const TNullable<Stroka>& lock,
     const TNullable<Stroka>& expression,
-    const TNullable<Stroka>& aggregate)
+    const TNullable<Stroka>& aggregate,
+    const TNullable<ESortOrder>& sortOrder)
     : Name(name)
     , Type(type)
     , Lock(lock)
     , Expression(expression)
     , Aggregate(aggregate)
+    , SortOrder(sortOrder)
 { }
 
 struct TSerializableColumnSchema
@@ -57,6 +60,8 @@ struct TSerializableColumnSchema
         RegisterParameter("expression", Expression)
             .Default();
         RegisterParameter("aggregate", Aggregate)
+            .Default();
+        RegisterParameter("sort_order", SortOrder)
             .Default();
 
         RegisterValidator([&] () {
@@ -111,6 +116,9 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     if (schema.Aggregate) {
         protoSchema->set_aggregate(*schema.Aggregate);
     }
+    if (schema.SortOrder) {
+        protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder));
+    }
 }
 
 void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
@@ -120,6 +128,7 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
     schema->Lock = protoSchema.has_lock() ? MakeNullable(protoSchema.lock()) : Null;
     schema->Expression = protoSchema.has_expression() ? MakeNullable(protoSchema.expression()) : Null;
     schema->Aggregate = protoSchema.has_aggregate() ? MakeNullable(protoSchema.aggregate()) : Null;
+    schema->SortOrder = protoSchema.has_sort_order() ? MakeNullable(ESortOrder(protoSchema.sort_order())) : Null;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,6 +215,28 @@ bool TTableSchema::HasComputedColumns() const
     return false;
 }
 
+TKeyColumns TTableSchema::GetKeyColumns() const
+{
+    TKeyColumns keyColumns;
+    for (const auto& column : Columns()) {
+        if (column.SortOrder) {
+            keyColumns.push_back(column.Name);
+        }
+    }
+    return keyColumns;
+}
+    
+TTableSchema TTableSchema::FromKeyColumns(const TKeyColumns& keyColumns)
+{
+    TTableSchema tableSchema;
+    tableSchema.Columns().clear();
+    tableSchema.SetStrict(false);
+    for (const auto& columnName : keyColumns) {
+        tableSchema.Columns().push_back(TColumnSchema(columnName, EValueType::Any, Null, Null, Null, ESortOrder::Ascending)); 
+    }
+    return tableSchema;
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     NYT::Save(context, NYT::ToProto<NTableClient::NProto::TTableSchemaExt>(*this));
@@ -222,23 +253,30 @@ void TTableSchema::Load(TStreamLoadContext& context)
 
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 {
-    NYTree::Serialize(schema.Columns(), consumer);
+    BuildYsonFluently(consumer)
+        .BeginAttributes()
+            .Item("strict").Value(schema.GetStrict())
+        .EndAttributes()
+        .Value(schema.Columns());
 }
 
 void Deserialize(TTableSchema& schema, INodePtr node)
 {
     NYTree::Deserialize(schema.Columns(), node);
+    schema.SetStrict(node->Attributes().Get<bool>("strict", true));
     ValidateTableSchema(schema);
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
 {
     NYT::ToProto(protoSchema->mutable_columns(), schema.Columns());
+    protoSchema->set_strict(schema.GetStrict());
 }
 
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema)
 {
     schema->Columns() = NYT::FromProto<TColumnSchema>(protoSchema.columns());
+    schema->SetStrict(protoSchema.has_strict() ? protoSchema.strict() : true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -430,11 +468,14 @@ void ValidateTableSchemaUpdate(const TTableSchema& oldSchema, const TTableSchema
 #endif
     }
 
-    for (const auto& newColumn : newSchema.Columns()) {
-        if (!oldSchema.FindColumn(newColumn.Name)) {
-            if (newColumn.Expression) {
-                THROW_ERROR_EXCEPTION("New computed column %Qv",
-                    newColumn.Name);
+    // We allow adding computed columns only on creation of the table.
+    if (!oldSchema.Columns().empty()) {
+        for (const auto& newColumn : newSchema.Columns()) {
+            if (!oldSchema.FindColumn(newColumn.Name)) {
+                if (newColumn.Expression) {
+                    THROW_ERROR_EXCEPTION("New computed column %Qv",
+                        newColumn.Name);
+                }
             }
         }
     }

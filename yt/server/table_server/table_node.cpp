@@ -52,7 +52,6 @@ TTableNode* TTableNode::GetTrunkNode() const
 void TTableNode::BeginUpload(EUpdateMode mode)
 {
     TChunkOwnerBase::BeginUpload(mode);
-    KeyColumns_.clear();
     Sorted_ = false;
 }
 
@@ -63,7 +62,7 @@ void TTableNode::EndUpload(
 {
     TChunkOwnerBase::EndUpload(statistics, deriveStatistics, keyColumns);
     if (!keyColumns.empty()) {
-        KeyColumns_ = keyColumns;
+        TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         Sorted_ = true;
     }
 }
@@ -79,7 +78,7 @@ void TTableNode::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Sorted_);
-    Save(context, KeyColumns_);
+    Save(context, TableSchema_);
     Save(context, Tablets_);
     Save(context, Atomicity_);
 }
@@ -90,8 +89,34 @@ void TTableNode::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, Sorted_);
-    Load(context, KeyColumns_);
+    
+    // COMPAT(max42)
+    TKeyColumns keyColumns;
+    if (context.GetVersion() >= 205) {
+        Load(context, TableSchema_);
+    } else {
+        Load(context, keyColumns);
+    }
+    
     Load(context, Tablets_);
+
+    // COMPAT(max42)
+    if (context.GetVersion() < 205) {
+        if (IsDynamic()) {
+            auto& attributesMap = GetMutableAttributes()->Attributes();
+            auto tableSchemaAttribute = attributesMap["schema"];
+            attributesMap.erase("schema");
+            TableSchema_ = ConvertTo<TTableSchema>(tableSchemaAttribute);
+            for (auto columnName : keyColumns) {
+                auto columnSchema = TableSchema_.FindColumn(columnName);
+                YCHECK(columnSchema);
+                columnSchema->SortOrder = ESortOrder::Ascending;
+            }
+        } else {
+            TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
+        }
+    }
+
     Load(context, Atomicity_);
 }
 
@@ -217,7 +242,7 @@ protected:
         TTableNode* branchedNode,
         ELockMode mode) override
     {
-        branchedNode->KeyColumns() = originatingNode->KeyColumns();
+        branchedNode->TableSchema() = originatingNode->TableSchema();
         branchedNode->SetSorted(originatingNode->GetSorted());
 
         TBase::DoBranch(originatingNode, branchedNode, mode);
@@ -227,7 +252,7 @@ protected:
         TTableNode* originatingNode,
         TTableNode* branchedNode) override
     {
-        originatingNode->KeyColumns() = branchedNode->KeyColumns();
+        originatingNode->TableSchema() = branchedNode->TableSchema();
         originatingNode->SetSorted(branchedNode->GetSorted());
 
         TBase::DoMerge(originatingNode, branchedNode);
@@ -259,7 +284,7 @@ protected:
         TBase::DoClone(sourceNode, clonedNode, factory, mode);
 
         clonedNode->SetSorted(sourceNode->GetSorted());
-        clonedNode->KeyColumns() = sourceNode->KeyColumns();
+        clonedNode->TableSchema() = sourceNode->TableSchema();
 
         if (sourceNode->IsDynamic()) {
             auto objectManager = Bootstrap_->GetObjectManager();

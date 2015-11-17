@@ -1,11 +1,18 @@
 #include "stdafx.h"
 #include "framework.h"
 
+#include <core/ytree/convert.h>
+
+#include <ytlib/table_client/schema.h>
 #include <ytlib/chunk_client/schema.h>
 
 namespace NYT {
 namespace NChunkClient {
 namespace {
+
+using namespace NTableClient;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -200,6 +207,27 @@ TEST_F(TSchemaTest, ChannelSubtract)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TableSchemaSerialization, Simple)
+{
+    TTableSchema tableSchema;
+    tableSchema.SetStrict(true); 
+    tableSchema.Columns().emplace_back(
+        "key",
+        EValueType::Any,
+        Null,
+        MakeNullable<Stroka>("other * 10"),
+        MakeNullable<Stroka>("sum"),
+        ESortOrder::Ascending);
+    auto ysonString = ConvertToYsonString(tableSchema, EYsonFormat::Text);
+    auto expectedYsonString = Stroka(
+        "<\"strict\"=\%true;>[{\"aggregate\"=\"sum\";\"name\"=\"key\";\""
+        "sort_order\"=\"ascending\";\"type\"=\"any\";\"expression\"=\"other * 10\";};]");
+    EXPECT_EQ(expectedYsonString, ysonString.Data());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace
 } // namespace NChunkClient

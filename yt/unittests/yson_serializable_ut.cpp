@@ -57,6 +57,7 @@ public:
     TTestSubconfigPtr Subconfig;
     std::vector<TTestSubconfigPtr> SubconfigList;
     yhash_map<Stroka, TTestSubconfigPtr> SubconfigMap;
+    TNullable<i64> NullableInt;
 
     TTestConfig()
     {
@@ -64,6 +65,7 @@ public:
         RegisterParameter("sub", Subconfig).DefaultNew();
         RegisterParameter("sub_list", SubconfigList).Default();
         RegisterParameter("sub_map", SubconfigMap).Default();
+        RegisterParameter("nullable_int", NullableInt).Default(Null);
 
         RegisterInitializer([&] () {
             MyString = "x";
@@ -367,6 +369,7 @@ TEST(TYsonSerializableTest, Save)
     config->MyString = "hello!";
     config->SubconfigList.push_back(New<TTestSubconfig>());
     config->SubconfigMap["item"] = New<TTestSubconfig>();
+    config->NullableInt = 42;
 
     auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
 
@@ -388,7 +391,8 @@ TEST(TYsonSerializableTest, Save)
     expectedYson += "{\"my_string\"=\"hello!\";";
     expectedYson += "\"sub\"=" + subconfigYson + ";";
     expectedYson += "\"sub_list\"=[" + subconfigYsonOrigin + "];";
-    expectedYson += "\"sub_map\"={\"item\"=" + subconfigYsonOrigin + "}}";
+    expectedYson += "\"sub_map\"={\"item\"=" + subconfigYsonOrigin + "};";
+    expectedYson += "\"nullable_int\"=42}";
 
     EXPECT_TRUE(AreNodesEqual(
         ConvertToNode(TYsonString(expectedYson)),
@@ -451,6 +455,40 @@ TEST(TYsonSerializableTest, Reconfigure)
     EXPECT_EQ("z", config->MyString);
     EXPECT_EQ(subconfig, config->Subconfig);
     EXPECT_EQ(95, subconfig->MyInt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestConfigLite
+    : public TYsonSerializableLite
+{
+public:
+    Stroka MyString;
+    TNullable<i64> NullableInt;
+
+    TTestConfigLite()
+    {
+        RegisterParameter("my_string", MyString).NonEmpty();
+        RegisterParameter("nullable_int", NullableInt).Default(Null);
+    }
+};
+
+TEST(TYsonSerializableTest, SaveLite)
+{
+    auto config = TTestConfigLite();
+
+    config.MyString = "hello!";
+    config.NullableInt = 42;
+
+    auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
+
+    Stroka expectedYson;
+    expectedYson += "{\"my_string\"=\"hello!\";";
+    expectedYson += "\"nullable_int\"=42}";
+
+    EXPECT_TRUE(AreNodesEqual(
+        ConvertToNode(TYsonString(expectedYson)),
+        ConvertToNode(TYsonString(output.Data()))));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

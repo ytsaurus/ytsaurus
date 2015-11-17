@@ -33,11 +33,10 @@ class TestQuery(YTEnvSetup):
 
         sort(in_=path, out=path, sort_by=["a", "b"])
 
-    def _create_table(self, path, schema, key_columns, data):
+    def _create_table(self, path, schema, data):
         create("table", path,
             attributes = {
                 "schema": schema,
-                "key_columns": key_columns
             })
         self.sync_mount_table(path)
         insert_rows(path, data)
@@ -87,9 +86,8 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "a", "type": "int64"},
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
                     {"name": "b", "type": "int64"}],
-                "key_columns": ["a"]
             })
 
         pivots = [[i*5] for i in xrange(0,20)]
@@ -117,9 +115,8 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "a", "type": "int64"},
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
                     {"name": "b", "type": "string"}],
-                "key_columns": ["a"]
             })
 
         pivots = [[i*5] for i in xrange(0,20)]
@@ -149,10 +146,9 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "k", "type": "int64"},
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
                     {"name": "u", "type": "int64"},
                     {"name": "v", "type": "int64"}],
-                "key_columns": ["k"]
             })
 
         self.sync_mount_table("//tmp/t")
@@ -180,10 +176,9 @@ class TestQuery(YTEnvSetup):
         self._create_table(
             "//tmp/jl",
             [
-                {"name": "a", "type": "int64"},
-                {"name": "b", "type": "int64"},
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
                 {"name": "c", "type": "int64"}],
-            ["a", "b"],
             [
                 {"a": 1, "b": 2, "c": 80 },
                 {"a": 1, "b": 3, "c": 71 },
@@ -198,10 +193,9 @@ class TestQuery(YTEnvSetup):
         self._create_table(
             "//tmp/jr",
             [
-                {"name": "c", "type": "int64"},
+                {"name": "c", "type": "int64", "sort_order": "ascending"},
                 {"name": "d", "type": "int64"},
                 {"name": "e", "type": "int64"}],
-            ["c"],
             [
                 {"d": 1, "e": 2, "c": 80 },
                 {"d": 1, "e": 3, "c": 71 },
@@ -247,9 +241,8 @@ class TestQuery(YTEnvSetup):
         self._create_table(
             "//tmp/a",
             [
-                {"name": "a", "type": "int64"},
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "c", "type": "string"}],
-            ["a"],
             [
                 {"a": 1, "c": "a"},
                 {"a": 2, "c": "b"},
@@ -262,10 +255,9 @@ class TestQuery(YTEnvSetup):
         self._create_table(
             "//tmp/b",
             [
-                {"name": "b", "type": "int64"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
                 {"name": "c", "type": "string"},
                 {"name": "d", "type": "string"}],
-            ["b"],
             [
                 {"b": 100, "c": "a", "d": "X"},
                 {"b": 200, "c": "b", "d": "Y"},
@@ -278,9 +270,8 @@ class TestQuery(YTEnvSetup):
         self._create_table(
             "//tmp/c",
             [
-                {"name": "d", "type": "string"},
+                {"name": "d", "type": "string", "sort_order": "ascending"},
                 {"name": "e", "type": "int64"}],
-            ["d"],
             [
                 {"d": "X", "e": 1234},
                 {"d": "Y", "e": 5678}
@@ -299,6 +290,7 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("* from [//tmp/a] join [//tmp/b] using c join [//tmp/c] using d where a in (2,3,4)")
         assert sorted(expected) == sorted(actual)
 
+    @pytest.mark.xfail(run = False, reason = "In progress")
     def test_types(self):
         create("table", "//tmp/t")
 
@@ -320,8 +312,7 @@ class TestQuery(YTEnvSetup):
 
         create("table", "//tmp/t",
             attributes = {
-                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "int64"}],
-                "key_columns": ["key"]
+                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "int64"}],
             })
 
         self.sync_mount_table("//tmp/t")
@@ -348,10 +339,9 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "hash", "type": "int64", "expression": "key * 33"},
-                    {"name": "key", "type": "int64"},
+                    {"name": "hash", "type": "int64", "expression": "key * 33", "sort_order": "ascending"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
                     {"name": "value", "type": "int64"}],
-                "key_columns": ["hash", "key"]
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 100 * 33, 1000)])
         self.sync_mount_table("//tmp/t")
@@ -376,11 +366,10 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "hash", "type": "int64", "expression": "key2 / 2"},
-                    {"name": "key1", "type": "int64"},
-                    {"name": "key2", "type": "int64"},
+                    {"name": "hash", "type": "int64", "expression": "key2 / 2", "sort_order": "ascending"},
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
                     {"name": "value", "type": "int64"}],
-                "key_columns": ["hash", "key1", "key2"]
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
         self.sync_mount_table("//tmp/t")
@@ -408,11 +397,10 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/t",
             attributes = {
                 "schema": [
-                    {"name": "hash", "type": "int64", "expression": "key2 % 2"},
-                    {"name": "key1", "type": "int64"},
-                    {"name": "key2", "type": "int64"},
+                    {"name": "hash", "type": "int64", "expression": "key2 % 2", "sort_order": "ascending"},
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
                     {"name": "value", "type": "int64"}],
-                "key_columns": ["hash", "key1", "key2"]
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 500, 10)])
         self.sync_mount_table("//tmp/t")
@@ -522,9 +510,8 @@ class TestQuery(YTEnvSetup):
         create("table", "//tmp/card",
             attributes = {
                 "schema": [
-                    {"name": "a", "type": "int64"},
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
                     {"name": "b", "type": "int64"}],
-                "key_columns": ["a"]
             })
 
         pivots = [[i*1000] for i in xrange(0,20)]
@@ -574,8 +561,7 @@ class TestQuery(YTEnvSetup):
         create(
             "table", "//tmp/t",
             attributes={
-                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "int64"}],
-                "key_columns": ["key"],
+                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "int64"}],
             })
         reshard_table("//tmp/t", [[]] + [[i] for i in xrange(1, 1000, 10)])
         self.sync_mount_table("//tmp/t")
