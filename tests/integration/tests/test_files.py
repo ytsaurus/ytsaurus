@@ -61,6 +61,15 @@ class TestFiles(YTEnvSetup):
         remove("//tmp/file")
         assert get_chunks() == []
 
+    def test_read_all_intervals(self):
+        content = "".join(chr(c) for c in range(ord("a"), ord("a") + 8))
+        create("file", "//tmp/file")
+        upload("//tmp/file", content, file_writer={"block_size": 3})
+
+        for offset in range(len(content)):
+            for length in range(1, len(content) - offset):
+                assert download("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
+
     def test_copy(self):
         content = "some_data"
         create("file", "//tmp/f")
