@@ -1448,6 +1448,10 @@ private:
             combinedError = resultsOrError;
         }
 
+        if (combinedError.IsOK()) {
+            LOG_DEBUG("Upstream synchronization complete");
+        }
+
         epochContext->ActiveUpstreamSyncPromise.Set(combinedError);
         epochContext->ActiveUpstreamSyncPromise.Reset();
 
