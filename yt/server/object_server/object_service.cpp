@@ -112,9 +112,9 @@ public:
         auto hydraManager = Owner->Bootstrap_->GetHydraFacade()->GetHydraManager();
         auto sync = hydraManager->SyncWithLeader();
         if (sync.IsSet()) {
-            OnSync(sync.Get());
+            CheckAndContinue(sync.Get());
         } else {
-            sync.Subscribe(BIND(&TExecuteSession::OnSync, MakeStrong(this))
+            sync.Subscribe(BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
                 .Via(GetCurrentInvoker()));
         }
     }
@@ -137,16 +137,12 @@ private:
     const NLogging::TLogger& Logger = ObjectServerLogger;
 
 
-    void OnSync(const TError& error)
+    void CheckAndContinue(const TError& error)
     {
         if (!error.IsOK()) {
             Reply(error);
             return;
         }
-
-        auto* user = GetAuthenticatedUser();
-        auto securityManager = Owner->Bootstrap_->GetSecurityManager();
-        securityManager->ValidateUserAccess(user, RequestCount);
 
         Continue();
     }
@@ -167,6 +163,11 @@ private:
 
             auto securityManager = Owner->Bootstrap_->GetSecurityManager();
             auto* user = GetAuthenticatedUser();
+
+            if (CurrentRequestIndex == 0) {
+                securityManager->ValidateUserAccess(user, RequestCount);
+            }
+
             TAuthenticatedUserGuard userGuard(securityManager, user);
 
             while (CurrentRequestIndex < request.part_counts_size()) {
@@ -214,7 +215,7 @@ private:
 
                 if (IsBarrierNeeded(mutating) && !LastMutationCommitted.IsSet()) {
                     LastMutationCommitted.Subscribe(
-                        BIND(&TExecuteSession::OnLastMutationCommitted, MakeStrong(this))
+                        BIND(&TExecuteSession::CheckAndContinue, MakeStrong(this))
                             .Via(hydraFacade->GetEpochAutomatonInvoker()));
                     return;
                 }
@@ -285,16 +286,6 @@ private:
             // Forbid to reorder read requests before write ones.
             return true;
         }
-    }
-
-    void OnLastMutationCommitted(const TError& error)
-    {
-        if (!error.IsOK()) {
-            Reply(error);
-            return;
-        }
-
-        Continue();
     }
 
     void OnResponse(
