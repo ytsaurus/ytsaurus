@@ -62,29 +62,7 @@ void TTableNode::EndUpload(
 {
     TChunkOwnerBase::EndUpload(statistics, deriveStatistics, keyColumns);
     if (!keyColumns.empty()) {
-        // We first reset existing key columns, then set SortOrder for all provided columns,
-        // adding them in appropriate place in case they are missing.
-        auto& columns = TableSchema_.Columns();
-        for (auto& column : columns) {
-            column.SortOrder = Null;
-        }
-        for (int keyColumnIndex = 0; keyColumnIndex < static_cast<int>(keyColumns.size()); ++keyColumnIndex) {
-            const auto& columnName = keyColumns[keyColumnIndex];
-            auto* columnSchema = TableSchema_.FindColumn(columnName);
-            if (columnSchema == nullptr) {
-                columns.insert(columns.begin() + keyColumnIndex, TColumnSchema(
-                    columnName,
-                    EValueType::Any,
-                    Null /* lock */,
-                    Null /* expression */,
-                    Null /* aggregate */,
-                    ESortOrder::Ascending));
-            } else {
-                columnSchema->SortOrder = ESortOrder::Ascending;
-                int existingColumnSchemaIndex = TableSchema_.GetColumnIndex(*columnSchema);
-                std::swap(columns[keyColumnIndex], columns[existingColumnSchemaIndex]);
-            }
-        }
+        TableSchema_ = TTableSchema::FromKeyColumns(keyColumns);
         Sorted_ = true;
     }
 }
