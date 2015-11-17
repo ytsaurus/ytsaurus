@@ -876,9 +876,6 @@ private:
 
     void HandleAcknowledgedMessages(TMailbox* mailbox, int lastAcknowledgedMessageId)
     {
-        if (lastAcknowledgedMessageId < mailbox->GetFirstOutcomingMessageId())
-            return;
-
         TReqAcknowledgeMessages req;
         ToProto(req.mutable_cell_id(), mailbox->GetCellId());
         req.set_last_acknowledged_message_id(lastAcknowledgedMessageId);
