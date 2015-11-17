@@ -1462,7 +1462,7 @@ private:
 
     TFuture<void> DoSyncWithLeader(TEpochContextPtr epochContext)
     {
-        LOG_DEBUG("Synchornizing with leader");
+        LOG_DEBUG("Synchronizing with leader");
 
         YCHECK(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
