@@ -26,7 +26,7 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logg
             LOG_INFO("Mutation commit succeeded (MutationType: %v)", type);
             return result.Value();
         } else {
-            LOG_ERROR("Mutation commit failed (MutationType: %v)", type);
+            LOG_ERROR(result, "Mutation commit failed (MutationType: %v)", type);
             THROW_ERROR result;
         }
     }));
