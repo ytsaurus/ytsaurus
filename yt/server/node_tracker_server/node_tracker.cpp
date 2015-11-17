@@ -1020,9 +1020,10 @@ private:
             return;
 
         auto* node = it->second;
-        LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v)",
+        LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
             node->GetId(),
-            node->GetDefaultAddress());
+            node->GetDefaultAddress(),
+            transaction->GetId());
 
         UnregisterNode(node, true);
     }
