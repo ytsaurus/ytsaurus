@@ -1,4 +1,4 @@
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "private.h"
 #include "blob_reader_cache.h"
 #include "chunk.h"
@@ -49,7 +49,7 @@ TCachedBlock::TCachedBlock(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockStore::TImpl
+class TChunkBlockManager::TImpl
     : public TAsyncSlruCacheBase<TBlockId, TCachedBlock>
 {
 public:
@@ -126,7 +126,7 @@ public:
             auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
 
             // Hold the read guard.
-            auto readGuard = AcquireReadGuard(chunk);
+            auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
             auto asyncBlocks = chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
@@ -168,7 +168,7 @@ public:
                 return MakeFuture(blocks);
             }
 
-            auto readGuard = AcquireReadGuard(chunk);
+            auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
             auto asyncBlocks = chunk->ReadBlockSet(
                 blockIndexes,
                 workloadDescriptor,
@@ -216,21 +216,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockStore::TBlockStore(
+TChunkBlockManager::TChunkBlockManager(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
-TBlockStore::~TBlockStore()
+TChunkBlockManager::~TChunkBlockManager()
 { }
 
-TCachedBlockPtr TBlockStore::FindCachedBlock(const TBlockId& blockId)
+TCachedBlockPtr TChunkBlockManager::FindCachedBlock(const TBlockId& blockId)
 {
     return Impl_->FindCachedBlock(blockId);
 }
 
-void TBlockStore::PutCachedBlock(
+void TChunkBlockManager::PutCachedBlock(
     const TBlockId& blockId,
     const TSharedRef& data,
     const TNullable<TNodeDescriptor>& source)
@@ -238,12 +238,12 @@ void TBlockStore::PutCachedBlock(
     Impl_->PutCachedBlock(blockId, data, source);
 }
 
-TCachedBlockCookie TBlockStore::BeginInsertCachedBlock(const TBlockId& blockId)
+TCachedBlockCookie TChunkBlockManager::BeginInsertCachedBlock(const TBlockId& blockId)
 {
     return Impl_->BeginInsertCachedBlock(blockId);
 }
 
-TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
+TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockRange(
     const TChunkId& chunkId,
     int firstBlockIndex,
     int blockCount,
@@ -260,7 +260,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockRange(
         populateCache);
 }
 
-TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
+TFuture<std::vector<TSharedRef>> TChunkBlockManager::ReadBlockSet(
     const TChunkId& chunkId,
     const std::vector<int>& blockIndexes,
     const TWorkloadDescriptor& workloadDescriptor,
@@ -275,7 +275,7 @@ TFuture<std::vector<TSharedRef>> TBlockStore::ReadBlockSet(
         populateCache);
 }
 
-std::vector<TCachedBlockPtr> TBlockStore::GetAllBlocks() const
+std::vector<TCachedBlockPtr> TChunkBlockManager::GetAllBlocks() const
 {
     return Impl_->GetAll();
 }

@@ -1,6 +1,6 @@
 #include "data_node_service.h"
 #include "private.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_cache.h"
 #include "chunk_registry.h"
@@ -317,7 +317,7 @@ private:
 
         ValidateConnected();
 
-        auto blockStore = Bootstrap_->GetBlockStore();
+        auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
         auto peerBlockTable = Bootstrap_->GetPeerBlockTable();
 
         bool hasCompleteChunk = HasCompleteChunk(chunkId);
@@ -347,7 +347,7 @@ private:
             }
         } else {
             auto blockCache = Bootstrap_->GetBlockCache();
-            auto asyncBlocks = blockStore->ReadBlockSet(
+            auto asyncBlocks = chunkBlockManager->ReadBlockSet(
                 chunkId,
                 blockIndexes,
                 workloadDescriptor,
@@ -418,9 +418,9 @@ private:
         response->set_throttling(netOutThrottling);
 
         if (!throttling) {
-            auto blockStore = Bootstrap_->GetBlockStore();
+            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
             auto blockCache = Bootstrap_->GetBlockCache();
-            auto asyncBlocks = blockStore->ReadBlockRange(
+            auto asyncBlocks = chunkBlockManager->ReadBlockRange(
                 chunkId,
                 firstBlockIndex,
                 blockCount,

@@ -38,8 +38,8 @@ public:
     //! Returns the full chunk size.
     i64 GetFullSize() const;
 
-    //! Synchronously returns the requested meta.
-    NProto::TChunkMeta GetMeta(const TNullable<std::vector<int>>& extensionTags = Null);
+    //! Synchronously returns the chunk's meta.
+    const NProto::TChunkMeta& GetMeta();
 
     // IReader implementation.
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(const std::vector<int>& blockIndexes) override;

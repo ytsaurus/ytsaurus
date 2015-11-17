@@ -3,7 +3,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/data_node/block_store.h>
+#include "chunk_block_manager.h"
 #include <yt/server/data_node/chunk.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
@@ -54,8 +54,8 @@ public:
 
     virtual TFuture<std::vector<TSharedRef>> ReadBlocks(int firstBlockIndex, int blockCount) override
     {
-        auto blockStore = Bootstrap_->GetBlockStore();
-        auto asyncResult = blockStore->ReadBlockRange(
+        auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+        auto asyncResult = chunkBlockManager->ReadBlockRange(
             Chunk_->GetId(),
             firstBlockIndex,
             blockCount,
@@ -130,8 +130,8 @@ private:
                 return;
             }
 
-            auto blockStore = Bootstrap_->GetBlockStore();
-            auto asyncResult = blockStore->ReadBlockSet(
+            auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+            auto asyncResult = chunkBlockManager->ReadBlockSet(
                 Chunk_->GetId(),
                 blockIndexes,
                 Config_->WorkloadDescriptor,

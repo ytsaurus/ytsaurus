@@ -1,6 +1,6 @@
 #include "job.h"
 #include "private.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "chunk.h"
 #include "chunk_store.h"
 #include "config.h"
@@ -404,11 +404,11 @@ private:
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(*meta);
 
-        auto blockStore = Bootstrap_->GetBlockStore();
+        auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
         auto blockCache = Bootstrap_->GetBlockCache();
 
         while (currentBlockIndex < blockCount) {
-            auto asyncReadBlocks = blockStore->ReadBlockRange(
+            auto asyncReadBlocks = chunkBlockManager->ReadBlockRange(
                 ChunkId_,
                 currentBlockIndex,
                 blockCount - currentBlockIndex,

@@ -65,7 +65,8 @@ public:
     NDataNode::TChunkCachePtr GetChunkCache() const;
     NDataNode::TChunkRegistryPtr GetChunkRegistry() const;
     NDataNode::TSessionManagerPtr GetSessionManager() const;
-    NDataNode::TBlockStorePtr GetBlockStore() const;
+    NDataNode::TChunkMetaManagerPtr GetChunkMetaManager() const;
+    NDataNode::TChunkBlockManagerPtr GetChunkBlockManager() const;
     NChunkClient::IBlockCachePtr GetBlockCache() const;
     NDataNode::TPeerBlockTablePtr GetPeerBlockTable() const;
     NDataNode::TBlobReaderCachePtr GetBlobReaderCache() const;
@@ -112,7 +113,8 @@ private:
     NDataNode::TChunkCachePtr ChunkCache;
     NDataNode::TChunkRegistryPtr ChunkRegistry;
     NDataNode::TSessionManagerPtr SessionManager;
-    NDataNode::TBlockStorePtr BlockStore;
+    NDataNode::TChunkMetaManagerPtr ChunkMetaManager;
+    NDataNode::TChunkBlockManagerPtr ChunkBlockManager;
     NChunkClient::IBlockCachePtr BlockCache;
     NDataNode::TPeerBlockTablePtr PeerBlockTable;
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater;

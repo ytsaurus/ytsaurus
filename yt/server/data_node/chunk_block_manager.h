@@ -44,17 +44,17 @@ using TCachedBlockCookie = TAsyncSlruCacheBase<TBlockId, TCachedBlock>::TInsertC
  *  \note
  *  Thread affinity: any
  */
-class TBlockStore
+class TChunkBlockManager
     : public TRefCounted
 {
 public:
-    TBlockStore(
+    TChunkBlockManager(
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
-    ~TBlockStore();
+    ~TChunkBlockManager();
 
-    //! Synchronously looks up a compressed block in the store's cache.
+    //! Synchronously looks up a compressed block in the block cache.
     TCachedBlockPtr FindCachedBlock(const TBlockId& blockId);
 
     //! Puts a compressed block into the store's cache.
@@ -115,7 +115,7 @@ private:
 
 };
 
-DEFINE_REFCOUNTED_TYPE(TBlockStore)
+DEFINE_REFCOUNTED_TYPE(TChunkBlockManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

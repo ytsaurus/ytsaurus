@@ -1,7 +1,7 @@
 #include "blob_session.h"
 #include "private.h"
 #include "blob_chunk.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "chunk_store.h"
 #include "config.h"
 #include "location.h"
@@ -114,7 +114,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         return VoidFuture;
     }
 
-    auto blockStore = Bootstrap_->GetBlockStore();
+    auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
     int blockIndex = startBlockIndex;
     i64 requestSize = 0;
@@ -160,7 +160,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         slot.MemoryTrackerGuard = std::move(guardOrError.Value());
 
         if (enableCaching) {
-            blockStore->PutCachedBlock(blockId, block, Null);
+            chunkBlockManager->PutCachedBlock(blockId, block, Null);
         }
 
         Location_->UpdateUsedSpace(block.Size());

@@ -18,7 +18,7 @@
 
 #include <yt/server/cell_node/bootstrap.h>
 
-#include <yt/server/data_node/block_store.h>
+#include <yt/server/data_node/chunk_block_manager.h>
 
 #include <yt/server/hive/hive_manager.h>
 #include <yt/server/hive/transaction_supervisor.pb.h>

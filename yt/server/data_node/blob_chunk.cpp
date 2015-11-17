@@ -1,9 +1,10 @@
 #include "blob_chunk.h"
 #include "private.h"
 #include "blob_reader_cache.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "chunk_cache.h"
 #include "location.h"
+#include "chunk_meta_manager.h"
 
 #include <yt/server/cell_node/bootstrap.h>
 #include <yt/server/cell_node/config.h>
@@ -49,8 +50,12 @@ TBlobChunkBase::TBlobChunkBase(
         descriptor.Id)
 {
     Info_.set_disk_space(descriptor.DiskSpace);
+
     if (meta) {
-        SetMetaLoadSuccess(*meta);
+        InitBlocksExt(*meta);
+
+        auto chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+        chunkMetaManager->PutCachedMeta(Id_, New<TRefCountedChunkMeta>(*meta));
     }
 }
 
@@ -70,91 +75,66 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return GetMeta(workloadDescriptor).Apply(BIND([=] () {
-        return FilterMeta(CachedMeta_, extensionTags);
+    auto chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+    auto cookie = chunkMetaManager->BeginInsertCachedMeta(Id_);
+    auto result = cookie.GetValue();
+
+    try {
+        if (cookie.IsActive()) {
+            auto readGuard = TChunkReadGuard::AcquireOrThrow(this);
+
+            auto callback = BIND(
+                &TBlobChunkBase::DoReadMeta,
+                MakeStrong(this),
+                Passed(std::move(readGuard)),
+                Passed(std::move(cookie)));
+
+            auto priority = workloadDescriptor.GetPriority();
+            Location_
+                ->GetMetaReadInvoker()
+                ->Invoke(callback, priority);
+        }
+    } catch (const std::exception& ex) {
+        cookie.Cancel(ex);
+    }
+
+    return result.Apply(BIND([=] (TCachedChunkMetaPtr cachedMeta) {
+        return FilterMeta(cachedMeta->GetMeta(), extensionTags);
     }));
 }
 
-TFuture<void> TBlobChunkBase::GetMeta(const TWorkloadDescriptor& workloadDescriptor)
+TFuture<void> TBlobChunkBase::LoadBlocksExt(const TWorkloadDescriptor& workloadDescriptor)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     {
-        TReaderGuard guard(CachedMetaLock_);
-        if (CachedMetaPromise_) {
-            return CachedMetaPromise_.ToFuture();
+        // Shortcut.
+        TReaderGuard guard(CachedBlocksExtLock_);
+        if (HasCachedBlocksExt_) {
+            return VoidFuture;
         }
     }
 
-    auto readGuard = TChunkReadGuard::TryAcquire(this);
-    if (!readGuard) {
-        return MakeFuture(
-            TError("Cannot read meta of chunk %v: chunk is scheduled for removal",
-                Id_));
-    }
-
-    {
-        TWriterGuard guard(CachedMetaLock_);
-        if (CachedMetaPromise_) {
-            return CachedMetaPromise_.ToFuture();
-        }
-        CachedMetaPromise_ = NewPromise<void>();
-    }
-
-    auto callback = BIND(
-        &TBlobChunkBase::DoReadMeta,
-        MakeStrong(this),
-        Passed(std::move(readGuard)));
-
-    auto priority = workloadDescriptor.GetPriority();
-    Location_
-        ->GetMetaReadInvoker()
-        ->Invoke(callback, priority);
-
-    return CachedMetaPromise_.ToFuture();
+    return ReadMeta(workloadDescriptor).As<void>();
 }
 
-void TBlobChunkBase::SetMetaLoadSuccess(const NChunkClient::NProto::TChunkMeta& meta)
+const TBlocksExt& TBlobChunkBase::GetBlocksExt()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TWriterGuard guard(CachedMetaLock_);
-
-    CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
-    CachedMeta_ = New<TRefCountedChunkMeta>(meta);
-
-    auto* tracker = Bootstrap_->GetMemoryUsageTracker();
-    MemoryTrackerGuard_ = TNodeMemoryTrackerGuard::Acquire(
-        tracker,
-        EMemoryCategory::ChunkMeta,
-        CachedMeta_->SpaceUsed());
-
-    if (!CachedMetaPromise_) {
-        CachedMetaPromise_ = NewPromise<void>();
-    }
-
-    auto promise = CachedMetaPromise_;
-
-    guard.Release();
-
-    promise.Set();
+    YCHECK(HasCachedBlocksExt_);
+    return CachedBlocksExt_;
 }
 
-void TBlobChunkBase::SetMetaLoadError(const TError& error)
+void TBlobChunkBase::InitBlocksExt(const TChunkMeta& meta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-    YCHECK(!error.IsOK());
-
-    TWriterGuard guard(CachedMetaLock_);
-
-    auto promise = CachedMetaPromise_;
-
-    guard.Release();
-
-    promise.Set(error);
+    TWriterGuard guard(CachedBlocksExtLock_);
+    // NB: Avoid redundant updates since the readers use no locking.
+    if (!HasCachedBlocksExt_) {
+        CachedBlocksExt_ = GetProtoExtension<TBlocksExt>(meta.extensions());
+        HasCachedBlocksExt_ = true;
+    }
 }
 
-void TBlobChunkBase::DoReadMeta(TChunkReadGuard /*readGuard*/)
+void TBlobChunkBase::DoReadMeta(
+    TChunkReadGuard /*readGuard*/,
+    TCachedChunkMetaCookie cookie)
 {
     const auto& Profiler = Location_->GetProfiler();
     LOG_DEBUG("Started reading chunk meta (LocationId: %v, ChunkId: %v)",
@@ -167,7 +147,7 @@ void TBlobChunkBase::DoReadMeta(TChunkReadGuard /*readGuard*/)
         try {
             reader = readerCache->GetReader(this);
         } catch (const std::exception& ex) {
-            SetMetaLoadError(TError(ex));
+            cookie.Cancel(ex);
             return;
         }
     }
@@ -176,7 +156,15 @@ void TBlobChunkBase::DoReadMeta(TChunkReadGuard /*readGuard*/)
         Location_->GetId(),
         Id_);
 
-    SetMetaLoadSuccess(reader->GetMeta());
+    const auto& meta = reader->GetMeta();
+
+    InitBlocksExt(meta);
+
+    auto cachedMeta = New<TCachedChunkMeta>(
+        Id_,
+        New<TRefCountedChunkMeta>(meta),
+        Bootstrap_->GetMemoryUsageTracker());
+    cookie.EndInsert(cachedMeta);
 }
 
 void TBlobChunkBase::DoReadBlockSet(
@@ -192,9 +180,11 @@ void TBlobChunkBase::DoReadBlockSet(
     int cachedBlockCount = 0;
     int pendingBlockCount = 0;
 
+    const auto& blocksExt = GetBlocksExt();
+
     for (int index = 0; index < session->Entries.size(); ++index) {
         const auto& entry = session->Entries[index];
-        auto blockDataSize = CachedBlocksExt_.blocks(entry.BlockIndex).size();
+        auto blockDataSize = blocksExt.blocks(entry.BlockIndex).size();
 
         if (entry.Cached) {
             cachedDataSize += blockDataSize;
@@ -260,7 +250,8 @@ void TBlobChunkBase::DoReadBlockSet(
             auto error = TError(
                 NChunkClient::EErrorCode::IOError,
                 "Error reading blob chunk %v",
-                Id_) << TError(blocksOrError);
+                Id_)
+                << TError(blocksOrError);
             Location_->Disable(error);
             THROW_ERROR error;
         }
@@ -285,8 +276,8 @@ void TBlobChunkBase::DoReadBlockSet(
                     data = TSharedRef::MakeCopy<TCachedBlobChunkBlockTag>(data);
                 }
 
-                auto cachedBlockId = TBlockId(Id_, entry.BlockIndex);
-                auto cachedBlock = New<TCachedBlock>(cachedBlockId, std::move(data), Null);
+                auto blockId = TBlockId(Id_, entry.BlockIndex);
+                auto cachedBlock = New<TCachedBlock>(blockId, std::move(data), Null);
                 entry.Cookie.EndInsert(cachedBlock);
             }
         }
@@ -316,7 +307,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto blockStore = Bootstrap_->GetBlockStore();
+    auto chunkBlockManager = Bootstrap_->GetChunkBlockManager();
 
     bool canServeFromCache = true;
 
@@ -337,7 +328,7 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
             session->Blocks[entry.LocalIndex] = std::move(block);
             entry.Cached = true;
         } else if (populateCache) {
-            entry.Cookie = blockStore->BeginInsertCachedBlock(blockId);
+            entry.Cookie = chunkBlockManager->BeginInsertCachedBlock(blockId);
             if (!entry.Cookie.IsActive()) {
                 entry.Cached = true;
                 auto asyncCachedBlock = entry.Cookie.GetValue().Apply(
@@ -368,14 +359,14 @@ TFuture<std::vector<TSharedRef>> TBlobChunkBase::ReadBlockSet(
                 return lhs.BlockIndex < rhs.BlockIndex;
             });
 
-        auto asyncMeta = GetMeta(workloadDescriptor);
+        auto asyncBlocksExtResult = LoadBlocksExt(workloadDescriptor);
 
         auto priority = workloadDescriptor.GetPriority();
         auto invoker = CreateFixedPriorityInvoker(Location_->GetDataReadInvoker(), priority);
-        auto asyncRead = BIND(&TBlobChunkBase::DoReadBlockSet, MakeStrong(this), session, workloadDescriptor)
+        auto asyncReadResult = BIND(&TBlobChunkBase::DoReadBlockSet, MakeStrong(this), session, workloadDescriptor)
              .AsyncVia(std::move(invoker));
 
-        asyncResults.emplace_back(asyncMeta.Apply(std::move(asyncRead)));
+        asyncResults.emplace_back(asyncBlocksExtResult.Apply(std::move(asyncReadResult)));
     }
 
     auto asyncResult = Combine(asyncResults);

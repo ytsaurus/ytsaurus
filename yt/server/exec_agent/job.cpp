@@ -10,7 +10,7 @@
 #include <yt/server/cell_node/config.h>
 
 #include <yt/server/data_node/artifact.h>
-#include <yt/server/data_node/block_store.h>
+#include <yt/server/data_node/chunk_block_manager.h>
 #include <yt/server/data_node/chunk.h>
 #include <yt/server/data_node/chunk_cache.h>
 #include <yt/server/data_node/master_connector.h>

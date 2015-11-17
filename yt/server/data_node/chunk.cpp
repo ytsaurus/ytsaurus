@@ -64,6 +64,18 @@ TChunkReadGuard TChunkReadGuard::TryAcquire(IChunkPtr chunk)
         : TChunkReadGuard();
 }
 
+TChunkReadGuard TChunkReadGuard::AcquireOrThrow(IChunkPtr chunk)
+{
+    auto guard = TryAcquire(chunk);
+    if (!guard) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::NoSuchChunk,
+            "Cannot read chunk %v since it is scheduled for removal",
+            chunk->GetId());
+    }
+    return guard;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDataNode

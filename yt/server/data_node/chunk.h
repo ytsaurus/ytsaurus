@@ -158,6 +158,7 @@ public:
     friend void swap(TChunkReadGuard& lhs, TChunkReadGuard& rhs);
 
     static TChunkReadGuard TryAcquire(IChunkPtr chunk);
+    static TChunkReadGuard AcquireOrThrow(IChunkPtr chunk);
 
 private:
     explicit TChunkReadGuard(IChunkPtr chunk);

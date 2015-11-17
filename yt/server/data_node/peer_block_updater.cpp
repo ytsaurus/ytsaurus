@@ -1,6 +1,6 @@
 #include "peer_block_updater.h"
 #include "private.h"
-#include "block_store.h"
+#include "chunk_block_manager.h"
 #include "config.h"
 #include "master_connector.h"
 
@@ -58,7 +58,7 @@ void TPeerBlockUpdater::Update()
 
     yhash_map<Stroka, TProxy::TReqUpdatePeerPtr> requests;
 
-    auto blocks = Bootstrap->GetBlockStore()->GetAllBlocks();
+    auto blocks = Bootstrap->GetChunkBlockManager()->GetAllBlocks();
     for (auto block : blocks) {
         if (block->Source()) {
             const auto& sourceAddress = block->Source()->GetInterconnectAddress();
