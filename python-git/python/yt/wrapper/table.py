@@ -135,6 +135,7 @@ class TablePath(object):
         return self.name
 
     def to_yson_string(self):
+        """Return yson path with attributes as string"""
         # NB: in text format \n can appear only as separator.
         return "<{0}>{1}".format(yson.dumps(self.name.attributes, yson_type="map_fragment", yson_format="text").replace("\n", ""), str(self.name))
 
